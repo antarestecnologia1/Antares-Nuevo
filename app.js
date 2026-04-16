@@ -155,6 +155,145 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   );
 }
 
+function validateColombianDocument(docType, rawValue) {
+  const type = String(docType || "").toUpperCase();
+  const base = String(rawValue || "").trim();
+  const compact = base.replace(/[.\s]/g, "");
+  if (!compact) return { ok: false, message: "El documento es obligatorio.", normalized: "" };
+  if (type === "CC") {
+    const ok = /^\d{6,10}$/.test(compact);
+    return { ok, message: ok ? "" : "La cedula CC debe tener entre 6 y 10 digitos.", normalized: compact };
+  }
+  if (type === "CE") {
+    const ok = /^\d{6,12}$/.test(compact);
+    return { ok, message: ok ? "" : "La cedula CE debe tener entre 6 y 12 digitos.", normalized: compact };
+  }
+  if (type === "NIT") {
+    const ok = /^\d{8,10}(-\d)?$/.test(compact);
+    return { ok, message: ok ? "" : "El NIT debe tener formato 900123456 o 900123456-7.", normalized: compact };
+  }
+  if (type === "PAS") {
+    const ok = /^[A-Za-z0-9]{5,20}$/.test(compact);
+    return { ok, message: ok ? "" : "El pasaporte debe ser alfanumerico (5-20 caracteres).", normalized: compact.toUpperCase() };
+  }
+  return { ok: compact.length >= 5, message: "Tipo de documento no valido.", normalized: compact };
+}
+
+function chunkBySizes(items, sizes = []) {
+  const result = [];
+  let cursor = 0;
+  sizes.forEach((size) => {
+    if (size > 0 && cursor < items.length) {
+      result.push(items.slice(cursor, cursor + size));
+      cursor += size;
+    }
+  });
+  if (cursor < items.length) result.push(items.slice(cursor));
+  return result.filter((group) => group.length);
+}
+
+function enhanceFormAsWizard(form, config = {}) {
+  if (!form || form.dataset.wizardReady === "true") return;
+  const children = [...form.children];
+  const submitButtons = children.filter((node) => node.matches?.("button[type='submit']"));
+  const baseFields = children.filter((node) => !submitButtons.includes(node));
+  if (baseFields.length < 6) return;
+
+  const groups = chunkBySizes(baseFields, config.sizes || []);
+  if (!groups.length) return;
+  form.innerHTML = "";
+  form.classList.add("form-wizard");
+  const titles = config.titles || [];
+
+  groups.forEach((group, idx) => {
+    const step = document.createElement("section");
+    step.className = `wizard-step ${idx === 0 ? "active" : ""}`;
+    step.dataset.step = String(idx);
+    if (titles[idx]) {
+      const head = document.createElement("div");
+      head.className = "wizard-step-head";
+      head.innerHTML = `<h4>${titles[idx]}</h4><span>Paso ${idx + 1} de ${groups.length}</span>`;
+      step.appendChild(head);
+    }
+    group.forEach((node) => step.appendChild(node));
+    if (idx === groups.length - 1) submitButtons.forEach((btn) => step.appendChild(btn));
+    form.appendChild(step);
+  });
+
+  const nav = document.createElement("div");
+  nav.className = "wizard-nav";
+  nav.innerHTML = `<button type="button" class="btn btn-outline" data-wizard-prev>Anterior</button><button type="button" class="btn btn-primary" data-wizard-next>Siguiente</button>`;
+  form.appendChild(nav);
+
+  let current = 0;
+  const steps = [...form.querySelectorAll(".wizard-step")];
+  const prevBtn = nav.querySelector("[data-wizard-prev]");
+  const nextBtn = nav.querySelector("[data-wizard-next]");
+
+  const update = () => {
+    steps.forEach((step, idx) => step.classList.toggle("active", idx === current));
+    prevBtn.disabled = current === 0;
+    nextBtn.classList.toggle("hidden", current === steps.length - 1);
+    nextBtn.textContent = "Siguiente";
+  };
+  update();
+
+  nextBtn.addEventListener("click", () => {
+    const currentStep = steps[current];
+    const requiredInputs = [...currentStep.querySelectorAll("input, select, textarea")].filter((el) => el.required);
+    const invalid = requiredInputs.find((el) => !el.value);
+    if (invalid) {
+      notify("Completa los campos obligatorios del paso actual.", "error");
+      invalid.focus();
+      return;
+    }
+    if (current < steps.length - 1) current += 1;
+    update();
+  });
+  prevBtn.addEventListener("click", () => {
+    if (current > 0) current -= 1;
+    update();
+  });
+
+  form.dataset.wizardReady = "true";
+}
+
+function applyFormWizards() {
+  enhanceFormAsWizard(document.getElementById("form-request"), {
+    sizes: [7, 6, 6],
+    titles: ["Ruta y empresa", "Programacion del servicio", "Carga y contacto operativo"]
+  });
+  enhanceFormAsWizard(document.getElementById("form-vehicle"), {
+    sizes: [4, 4],
+    titles: ["Ficha tecnica", "Operacion y documentos"]
+  });
+  enhanceFormAsWizard(document.getElementById("form-driver"), {
+    sizes: [5, 5],
+    titles: ["Identificacion", "Habilitacion y contacto"]
+  });
+  enhanceFormAsWizard(document.getElementById("form-employee"), {
+    sizes: [5, 5],
+    titles: ["Datos personales", "Datos laborales"]
+  });
+  enhanceFormAsWizard(document.getElementById("form-admin-user-create"), {
+    sizes: [5, 5, 2],
+    titles: ["Identidad", "Cuenta y ubicacion", "Seguridad y permisos"]
+  });
+  enhanceFormAsWizard(document.getElementById("form-register"), {
+    sizes: [5, 5],
+    titles: ["Identificacion del solicitante", "Contacto y acceso"]
+  });
+}
+
+function applyModuleMicroAnimations() {
+  const targets = [...nodes.viewRoot.querySelectorAll(".p-card, .table-wrap, .user-card, .users-hero-item")];
+  targets.forEach((node, idx) => {
+    node.classList.remove("module-appear");
+    node.style.animationDelay = `${Math.min(idx * 45, 380)}ms`;
+    requestAnimationFrame(() => node.classList.add("module-appear"));
+  });
+}
+
 const KEYS = {
   users: "antares_users_v2",
   companies: "antares_companies_v2",
@@ -962,14 +1101,12 @@ function bindAuthForms() {
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
-      const docType = String(data.documentType || "CC");
-      const docValue = String(data.taxId || "").trim();
-      const isPassportValid = docType === "PAS" && /^[A-Za-z0-9]{5,20}$/.test(docValue);
-      const isLocalDocValid = docType !== "PAS" && (/^\d/.test(docValue) || docValue.includes("-"));
-      if (!isPassportValid && !isLocalDocValid) {
-        alert("Documento invalido. Verifica el numero registrado.");
+      const docValidation = validateColombianDocument(data.documentType, data.taxId);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
         return;
       }
+      data.taxId = docValidation.normalized;
       if (String(data.password || "").length < 8) {
         alert("La contrasena debe tener minimo 8 caracteres.");
         return;
@@ -1035,6 +1172,7 @@ function bindAuthForms() {
       alert("Solicitud enviada. Un administrador debe ayudarte a restablecer el acceso.");
     });
   }
+  applyFormWizards();
 }
 
 function parseNum(v) {
@@ -1456,9 +1594,41 @@ function viewDashboard() {
     .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label">${prettyStatus(k)}</div><div class="dash-stat-value">${v}</div></div>`)
     .join("");
 
+  const users = read(KEYS.users, []);
+  const drivers = read(KEYS.drivers, []);
+  const vehicles = read(KEYS.vehicles, []);
+  const avg = (rows) => (rows.length ? Math.round(rows.reduce((acc, val) => acc + val, 0) / rows.length) : 0);
+  const userQuality = avg(
+    users.map((u) => {
+      const required = ["name", "email", "documentType", "taxId", "phone", "city", "address", "companyId"];
+      const done = required.filter((field) => String(u[field] ?? "").trim() !== "").length;
+      return Math.round((done / required.length) * 100);
+    })
+  );
+  const driverQuality = avg(
+    drivers.map((d) => {
+      const required = ["name", "documentType", "idDoc", "phone", "license", "licenseExpiry", "licenseCategory", "city", "companyId"];
+      const done = required.filter((field) => String(d[field] ?? "").trim() !== "").length;
+      return Math.round((done / required.length) * 100);
+    })
+  );
+  const vehicleQuality = avg(
+    vehicles.map((v) => {
+      const required = ["plate", "brand", "model", "year", "type", "capacityKg", "mileageKm", "soatExpeditionDate", "techInspectionExpeditionDate"];
+      const done = required.filter((field) => String(v[field] ?? "").trim() !== "").length;
+      return Math.round((done / required.length) * 100);
+    })
+  );
+  const qualityBody = `
+    <div class="quality-row"><span>Usuarios</span><div class="quality-bar"><i style="width:${userQuality}%"></i></div><b>${userQuality}%</b></div>
+    <div class="quality-row"><span>Conductores</span><div class="quality-bar"><i style="width:${driverQuality}%"></i></div><b>${driverQuality}%</b></div>
+    <div class="quality-row"><span>Vehiculos</span><div class="quality-bar"><i style="width:${vehicleQuality}%"></i></div><b>${vehicleQuality}%</b></div>
+  `;
+
   return `<div class="dash-grid">
     ${pcardWrap("truck", "Por tipo de vehiculo", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos de vehiculos aun"))}
     ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
+    ${pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody)}
   </div>`;
 }
 
@@ -2219,6 +2389,8 @@ function renderPortalView() {
   }
 
   bindDynamicEvents();
+  applyFormWizards();
+  applyModuleMicroAnimations();
 }
 
 function bindDynamicEvents() {
@@ -2264,6 +2436,12 @@ function bindDynamicEvents() {
         alert("Ya existe un usuario con ese correo.");
         return;
       }
+      const docValidation = validateColombianDocument(data.documentType, data.taxId);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
+        return;
+      }
+      data.taxId = docValidation.normalized;
       const company = getCompanyById(data.companyId);
       if (!company) {
         alert("Debes seleccionar una empresa válida.");
@@ -2401,6 +2579,12 @@ function bindDynamicEvents() {
         alert("Ya existe otro usuario con ese correo.");
         return;
       }
+      const docValidation = validateColombianDocument(data.documentType, data.taxId);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
+        return;
+      }
+      data.taxId = docValidation.normalized;
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
         alert("Debes seleccionar una empresa valida.");
@@ -2861,6 +3045,16 @@ function bindDynamicEvents() {
       event.preventDefault();
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
+      const docValidation = validateColombianDocument(data.documentType, data.idDoc);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
+        return;
+      }
+      data.idDoc = docValidation.normalized;
+      if (new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
+        notify("La licencia debe tener vigencia futura para registrar conductor.", "error");
+        return;
+      }
       if (actor?.role !== ROLES.ADMIN) {
         queueApproval({
           type: "create_driver",
@@ -3007,6 +3201,12 @@ function bindDynamicEvents() {
       event.preventDefault();
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(employeeForm).entries());
+      const docValidation = validateColombianDocument(data.documentType, data.idDoc);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
+        return;
+      }
+      data.idDoc = docValidation.normalized;
       if (actor?.role !== ROLES.ADMIN) {
         queueApproval({
           type: "create_employee",
