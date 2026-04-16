@@ -1229,6 +1229,58 @@ function resetWorkforceDataForValidation() {
   localStorage.setItem(markerKey, nowIso());
 }
 
+function purgeDemoData() {
+  const markerKey = "antares_purge_demo_v1";
+  if (localStorage.getItem(markerKey)) return;
+
+  const currentSession = read(KEYS.session, null);
+  const keepUserId = String(currentSession?.userId || "");
+  const users = read(KEYS.users, []);
+  const demoNameRegex = /^(Cliente Operativo|Cliente Demo|RRHH Antares|Coordinacion Administrativa|Lider Administrativo|Auxiliar Administrativo|Empleado Escala)/i;
+  const filteredUsers = users.filter((user) => {
+    const email = String(user.email || "").toLowerCase().trim();
+    const name = String(user.name || "").trim();
+    if (String(user.id || "") === keepUserId) return true;
+    if (email.endsWith("@antares-demo.com")) return false;
+    if (["cliente@antares.com", "rrhh@antares.com"].includes(email)) return false;
+    if (demoNameRegex.test(name)) return false;
+    return true;
+  });
+  write(KEYS.users, filteredUsers);
+
+  const usedCompanyIds = new Set(filteredUsers.map((u) => String(u.companyId || "")).filter(Boolean));
+  const companies = read(KEYS.companies, []);
+  const filteredCompanies = companies.filter((company) => {
+    const name = String(company.name || "").trim();
+    const isDemoCompany = /^Cliente Corporativo \d+/i.test(name) || name === "Flora Export SAS";
+    if (!isDemoCompany) return true;
+    return usedCompanyIds.has(String(company.id || ""));
+  });
+  write(KEYS.companies, filteredCompanies);
+
+  [
+    KEYS.requests,
+    KEYS.vehicles,
+    KEYS.drivers,
+    KEYS.contacts,
+    KEYS.notifications,
+    KEYS.emails,
+    KEYS.payrollEmployees,
+    KEYS.payrollRuns,
+    KEYS.fuelLogs,
+    KEYS.vehicleTechnicalLogs,
+    KEYS.vacancies,
+    KEYS.candidates,
+    KEYS.interviews,
+    KEYS.contracts,
+    KEYS.hrAbsences,
+    KEYS.approvals
+  ].forEach((key) => write(key, []));
+  write(KEYS.counters, {});
+
+  localStorage.setItem(markerKey, nowIso());
+}
+
 function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
@@ -1401,6 +1453,7 @@ function seed() {
   ensureEnterpriseScaleData();
   cleanupSeededScaleEmployees();
   resetWorkforceDataForValidation();
+  purgeDemoData();
 }
 
 function getSession() {
@@ -2546,6 +2599,7 @@ function requestListClientHtml(user) {
           <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
           ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
           ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
+          ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
         </div></td>
       </tr>`;
     })
@@ -2596,6 +2650,7 @@ function vehiclesHtml() {
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
+        <button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}">${IC.trash} Eliminar</button>
       </div></td>
     </tr>`;
     })
@@ -2632,6 +2687,7 @@ function driversHtml() {
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
+        <button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}">${IC.trash} Eliminar</button>
       </div></td>
     </tr>`)
     .join("");
@@ -2662,7 +2718,7 @@ function transportTripsHtml() {
       <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
       <td><div class="toolbar"><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
         ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
-      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button>${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}</div></td>
+      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button><button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}">${IC.trash} Eliminar viaje</button>${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}</div></td>
     </tr>`;
     })
     .join("");
@@ -2718,8 +2774,7 @@ function adminUsersHtml(current) {
     .join("");
 
   const userOptions = users
-    .filter((u) => u.id !== current.id)
-    .map((u) => `<option value="${u.id}">${u.name} (${u.role})</option>`)
+    .map((u) => `<option value="${u.id}">${u.name} (${u.role})${u.id === current.id ? " · tu perfil" : ""}</option>`)
     .join("");
 
   const permissionChecks = (selected = []) => ALL_PERMISSIONS.map((permission) => {
@@ -2777,10 +2832,10 @@ function adminUsersHtml(current) {
         ${u.city ? `<span>${IC.mapPin} ${u.city}${u.department ? `, ${u.department}` : ""}</span>` : ""}
       </div>
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
-      ${!isMe ? `<div class="user-card-actions">
+      <div class="user-card-actions">
         <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${u.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>
-      </div>` : ""}
+        ${!isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>` : ""}
+      </div>
     </div>`;
   }).join("");
 
@@ -4145,10 +4200,13 @@ function bindDynamicEvents() {
     "edit-admin",
     "delete-admin",
     "trip-status",
+    "delete-trip",
     "edit-vehicle",
     "toggle-vehicle",
+    "delete-vehicle",
     "edit-driver",
     "toggle-driver",
+    "delete-driver",
     "edit-employee",
     "delete-employee",
     "close-vacancy",
@@ -5042,7 +5100,110 @@ function bindDynamicEvents() {
             KEYS.requests,
             read(KEYS.requests, []).filter((r) => r.id !== btn.dataset.id)
           );
+          recalculateResourceAvailability();
           notify("Solicitud eliminada.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-trip']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const requestId = String(btn.dataset.id || "");
+      if (!requestId) return;
+      openConfirmModal({
+        title: "Eliminar viaje",
+        message: "La solicitud quedara aprobada pendiente de asignacion manual.",
+        confirmText: "Eliminar viaje",
+        onConfirm: () => {
+          write(
+            KEYS.requests,
+            read(KEYS.requests, []).map((request) =>
+              request.id === requestId
+                ? {
+                  ...request,
+                  status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
+                  trip: null,
+                  deliveredAt: null,
+                  closedAt: null
+                }
+                : request
+            )
+          );
+          recalculateResourceAvailability();
+          notify("Viaje eliminado y solicitud devuelta a pendiente de asignacion.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-vehicle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const vehicleId = String(btn.dataset.id || "");
+      if (!vehicleId) return;
+      openConfirmModal({
+        title: "Eliminar camion",
+        message: "Se eliminara del catalogo y se limpiara su referencia en viajes historicos.",
+        confirmText: "Eliminar camion",
+        onConfirm: () => {
+          write(
+            KEYS.vehicles,
+            read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId)
+          );
+          write(
+            KEYS.requests,
+            read(KEYS.requests, []).map((request) => {
+              if (!request.trip || String(request.trip.vehicleId || "") !== vehicleId) return request;
+              return {
+                ...request,
+                trip: {
+                  ...request.trip,
+                  vehicleId: null,
+                  vehiclePlate: "CAMION ELIMINADO"
+                }
+              };
+            })
+          );
+          recalculateResourceAvailability();
+          notify("Camion eliminado correctamente.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-driver']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const driverId = String(btn.dataset.id || "");
+      if (!driverId) return;
+      openConfirmModal({
+        title: "Eliminar conductor",
+        message: "Se eliminara del catalogo y se limpiara su referencia en viajes historicos.",
+        confirmText: "Eliminar conductor",
+        onConfirm: () => {
+          write(
+            KEYS.drivers,
+            read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId)
+          );
+          write(
+            KEYS.requests,
+            read(KEYS.requests, []).map((request) => {
+              if (!request.trip || String(request.trip.driverId || "") !== driverId) return request;
+              return {
+                ...request,
+                trip: {
+                  ...request.trip,
+                  driverId: null,
+                  driverName: "CONDUCTOR ELIMINADO",
+                  driverPhone: "-"
+                }
+              };
+            })
+          );
+          recalculateResourceAvailability();
+          notify("Conductor eliminado correctamente.", "success");
           renderPortalView();
         }
       });
