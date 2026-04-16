@@ -1208,6 +1208,17 @@ function cleanupSeededScaleEmployees() {
   localStorage.setItem(markerKey, nowIso());
 }
 
+function resetWorkforceDataForValidation() {
+  const markerKey = "antares_reset_workforce_v1";
+  if (localStorage.getItem(markerKey)) return;
+  write(KEYS.payrollEmployees, []);
+  write(KEYS.drivers, []);
+  write(KEYS.payrollRuns, []);
+  write(KEYS.hrAbsences, []);
+  write(KEYS.fuelLogs, []);
+  localStorage.setItem(markerKey, nowIso());
+}
+
 function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
@@ -1379,6 +1390,7 @@ function seed() {
   ensureVehicleDocs();
   ensureEnterpriseScaleData();
   cleanupSeededScaleEmployees();
+  resetWorkforceDataForValidation();
 }
 
 function getSession() {
@@ -2271,6 +2283,9 @@ function requiresAdminHrApproval(role) {
 
 function isViewAllowedForUser(user, view) {
   if (!user || !canAccessView(user, view)) return false;
+  if (user.role === ROLES.CLIENT) {
+    return ["dashboard", "requests", "profile", "notifications"].includes(view);
+  }
   if (view === "requests") return user.role === ROLES.CLIENT || user.role === ROLES.ADMIN;
   if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users", "authorizations"].includes(view)) {
     return user.role === ROLES.ADMIN;
@@ -2403,9 +2418,18 @@ function viewDashboard() {
     .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label">${prettyStatus(k)}</div><div class="dash-stat-value">${v}</div></div>`)
     .join("");
 
-  const users = read(KEYS.users, []);
-  const drivers = read(KEYS.drivers, []);
-  const vehicles = read(KEYS.vehicles, []);
+  const users = user?.role === ROLES.CLIENT
+    ? read(KEYS.users, []).filter((u) => u.companyId === user.companyId)
+    : read(KEYS.users, []);
+  const drivers = user?.role === ROLES.CLIENT
+    ? read(KEYS.drivers, []).filter((d) => d.companyId === user.companyId)
+    : read(KEYS.drivers, []);
+  const vehicles = user?.role === ROLES.CLIENT
+    ? read(KEYS.vehicles, []).filter((vehicle) => {
+      const companyTrips = list.filter((request) => request.trip?.vehicleId === vehicle.id);
+      return companyTrips.length > 0;
+    })
+    : read(KEYS.vehicles, []);
   const avg = (rows) => (rows.length ? Math.round(rows.reduce((acc, val) => acc + val, 0) / rows.length) : 0);
   const userQuality = avg(
     users.map((u) => {
@@ -2434,10 +2458,14 @@ function viewDashboard() {
     <div class="quality-row"><span>Vehiculos</span><div class="quality-bar"><i style="width:${vehicleQuality}%"></i></div><b>${vehicleQuality}%</b></div>
   `;
 
+  const qualityCard = user?.role === ROLES.CLIENT
+    ? ""
+    : pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody);
+
   return `<div class="dash-grid">
     ${pcardWrap("truck", "Por tipo de vehiculo", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos de vehiculos aun"))}
     ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
-    ${pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody)}
+    ${qualityCard}
   </div>`;
 }
 
@@ -3055,6 +3083,28 @@ function toCsv(rows = [], columns = []) {
   return `${header}\n${body}`;
 }
 
+const REPORT_RULES = {
+  fleet_summary: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
+  hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
+  users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },
+  authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE, adminOnly: true }
+};
+
+function canAccessReport(user, reportId) {
+  if (!user) return false;
+  if (user.role === ROLES.CLIENT) return false;
+  const rule = REPORT_RULES[reportId];
+  if (!rule) return false;
+  if (!hasPermission(user, rule.permission)) return false;
+  if (rule.adminOnly) return user.role === ROLES.ADMIN;
+  if (rule.rrhhAllowed) return canAccessRRHH(user.role) || user.role === ROLES.ADMIN;
+  return true;
+}
+
 function downloadCsv(filename, rows = [], columns = []) {
   const csv = toCsv(rows, columns);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -3097,7 +3147,15 @@ function openReportPdf(title, columns = [], rows = []) {
   pop.document.close();
 }
 
-function buildReportDataset(reportId) {
+function buildReportDataset(reportId, actor = currentUser()) {
+  if (!canAccessReport(actor, reportId)) {
+    return {
+      title: "Reporte restringido",
+      columns: [{ key: "message", label: "Detalle" }],
+      rows: [{ message: "No tienes permisos para generar este reporte." }],
+      fileName: "reporte_restringido.csv"
+    };
+  }
   const requests = read(KEYS.requests, []);
   if (reportId === "fleet_summary") {
     const rows = read(KEYS.vehicles, []).map((vehicle) => {
@@ -3321,6 +3379,7 @@ function buildReportDataset(reportId) {
 }
 
 function reportsHtml() {
+  const user = currentUser();
   const cards = [
     { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", desc: "Estado de flota, viajes por vehículo y cumplimiento documental." },
     { id: "trips_operations", icon: "compass", title: "Viajes operativos", desc: "Trazabilidad end-to-end de viajes, tiempos y estados." },
@@ -3331,8 +3390,10 @@ function reportsHtml() {
     { id: "users_access", icon: "shield", title: "Usuarios y accesos", desc: "Roles, permisos, empresas y estado de cuentas." },
     { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", desc: "Trazabilidad completa de aprobaciones y decisiones." }
   ];
-  const body = `<div class="dash-grid">
-    ${cards
+  const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
+  const body = visibleCards.length
+    ? `<div class="dash-grid">
+    ${visibleCards
       .map((card) => `
       <article class="p-card">
         <div class="p-card-header">
@@ -3346,7 +3407,8 @@ function reportsHtml() {
         </div>
       </article>`)
       .join("")}
-  </div>`;
+  </div>`
+    : `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
   return pcardWrap("activity", "Centro de reporteria", "Exporta reportes profesionales por modulo en PDF o Excel", body);
 }
 
@@ -3450,32 +3512,53 @@ function mountUniversalModuleFilters() {
   const tables = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
   const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card, .p-card")];
   if (!tables.length && !cards.length) return;
+  const table = nodes.viewRoot.querySelector(".table-wrap table");
+  const headers = table ? [...table.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
   const host = document.createElement("div");
   host.className = "toolbar";
   host.style.marginBottom = "0.8rem";
   host.innerHTML = `
     <input id="module-filter-text" type="search" placeholder="Filtrar modulo..." style="min-width:240px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)" />
+    <select id="module-filter-column" style="min-width:190px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)">
+      <option value="">Filtro por campo</option>
+      ${headers.map((header, idx) => `<option value="${idx}">${header}</option>`).join("")}
+    </select>
+    <input id="module-filter-value" type="search" placeholder="Valor del campo..." style="min-width:220px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)" />
     <button id="module-filter-clear" type="button" class="btn btn-sm btn-action">${IC.x} Limpiar</button>
   `;
   nodes.viewRoot.prepend(host);
   const input = host.querySelector("#module-filter-text");
+  const colSelect = host.querySelector("#module-filter-column");
+  const valueInput = host.querySelector("#module-filter-value");
   const clearBtn = host.querySelector("#module-filter-clear");
   const apply = () => {
     const needle = String(input?.value || "").toLowerCase().trim();
+    const colIndex = Number(colSelect?.value || NaN);
+    const colNeedle = String(valueInput?.value || "").toLowerCase().trim();
     tables.forEach((tbody) => {
       [...tbody.querySelectorAll("tr")].forEach((row) => {
         const text = String(row.textContent || "").toLowerCase();
-        row.style.display = !needle || text.includes(needle) ? "" : "none";
+        const cells = [...row.querySelectorAll("td")];
+        const colText = Number.isFinite(colIndex) && cells[colIndex] ? String(cells[colIndex].textContent || "").toLowerCase() : "";
+        const passGlobal = !needle || text.includes(needle);
+        const passColumn = !colNeedle || (Number.isFinite(colIndex) ? colText.includes(colNeedle) : text.includes(colNeedle));
+        row.style.display = passGlobal && passColumn ? "" : "none";
       });
     });
     cards.forEach((card) => {
       const text = String(card.textContent || "").toLowerCase();
-      card.style.display = !needle || text.includes(needle) ? "" : "none";
+      const passGlobal = !needle || text.includes(needle);
+      const passColumn = !colNeedle || text.includes(colNeedle);
+      card.style.display = passGlobal && passColumn ? "" : "none";
     });
   };
   input?.addEventListener("input", apply);
+  colSelect?.addEventListener("change", apply);
+  valueInput?.addEventListener("input", apply);
   clearBtn?.addEventListener("click", () => {
     if (input) input.value = "";
+    if (valueInput) valueInput.value = "";
+    if (colSelect) colSelect.value = "";
     apply();
   });
 }
@@ -4718,7 +4801,12 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const reportId = String(btn.dataset.report || "");
       const format = String(btn.dataset.format || "pdf");
-      const report = buildReportDataset(reportId);
+      const actor = currentUser();
+      if (!canAccessReport(actor, reportId)) {
+        notify("No tienes permisos para generar este reporte.", "error");
+        return;
+      }
+      const report = buildReportDataset(reportId, actor);
       if (format === "excel") {
         downloadCsv(report.fileName || "reporte.csv", report.rows || [], report.columns || []);
         notify("Reporte exportado en formato Excel (CSV).", "success");
