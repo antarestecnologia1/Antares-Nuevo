@@ -38,20 +38,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div class="nav-controls">
-          <label class="nav-control" for="theme-toggle-public">
-            Tema
-            <select id="theme-toggle-public">
-              <option value="light">Claro</option>
-              <option value="dark">Oscuro</option>
-            </select>
-          </label>
-          <label class="nav-control" for="lang-toggle-public">
-            Idioma
-            <select id="lang-toggle-public">
-              <option value="es">ES</option>
-              <option value="en">EN</option>
-            </select>
-          </label>
+          <div class="theme-toggle" id="theme-toggle-public" role="group" aria-label="Tema">
+            <button type="button" class="theme-option" data-theme-option="light" aria-label="Modo claro">☀️</button>
+            <button type="button" class="theme-option" data-theme-option="dark" aria-label="Modo oscuro">🌙</button>
+          </div>
+          <div class="lang-toggle" id="lang-toggle-public" role="group" aria-label="Idioma">
+            <button type="button" class="lang-option" data-lang-option="es" aria-label="Español">🇨🇴</button>
+            <button type="button" class="lang-option" data-lang-option="en" aria-label="English">🇺🇸</button>
+          </div>
         </div>
         <button id="open-auth" class="btn btn-primary">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -841,11 +835,10 @@
           <header class="portal-header">
             <h1 id="view-title">Dashboard</h1>
             <div class="portal-controls">
-              <label for="theme-toggle-portal">Tema</label>
-              <select id="theme-toggle-portal">
-                <option value="light">Claro</option>
-                <option value="dark">Oscuro</option>
-              </select>
+              <div class="theme-toggle" id="theme-toggle-portal" role="group" aria-label="Tema portal">
+                <button type="button" class="theme-option" data-theme-option="light" aria-label="Modo claro">☀️</button>
+                <button type="button" class="theme-option" data-theme-option="dark" aria-label="Modo oscuro">🌙</button>
+              </div>
             </div>
             <div id="kpi-cards" class="kpi-grid"></div>
           </header>

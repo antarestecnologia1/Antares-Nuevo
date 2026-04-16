@@ -542,7 +542,10 @@ const nodes = {
   authTabs: [...document.querySelectorAll(".tab")],
   themeTogglePublic: document.getElementById("theme-toggle-public"),
   themeTogglePortal: document.getElementById("theme-toggle-portal"),
-  langTogglePublic: document.getElementById("lang-toggle-public")
+  langTogglePublic: document.getElementById("lang-toggle-public"),
+  themeButtonsPublic: [...document.querySelectorAll("#theme-toggle-public [data-theme-option]")],
+  themeButtonsPortal: [...document.querySelectorAll("#theme-toggle-portal [data-theme-option]")],
+  langButtonsPublic: [...document.querySelectorAll("#lang-toggle-public [data-lang-option]")]
 };
 
 const UI_PREFS = {
@@ -640,15 +643,32 @@ function translatePublicText(text, lang) {
     "Cierre": "Closing",
     "Sin fecha limite": "No deadline",
     "No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.": "There are no published openings at the moment. Check back soon or contact us.",
-    "Mi perfil": "My profile",
+    "Lo que dicen nuestros clientes": "What our clients say",
+    "Soluciones logisticas integrales para el sector floricultor y de exportacion.": "End-to-end logistics solutions for the floriculture and export sector.",
+    "Vehiculos especializados con control de temperatura para cada necesidad logistica.": "Specialized vehicles with temperature control for every logistics need.",
+    "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for the floriculture and export sector.",
+    "Vacantes publicadas desde nuestro portal de RRHH. Postulate de forma segura; tu hoja de vida llega al modulo de": "Open positions published from our HR portal. Apply safely; your resume is sent directly to the",
+    "Contratacion": "Recruitment",
+    "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).": "Vacancies are synchronized with the same team that manages candidates in the portal (same local browser database).",
+    "Contacto": "Contact",
+    "Legal": "Legal",
+    "Politica de privacidad": "Privacy policy",
+    "Terminos y condiciones": "Terms and conditions",
+    "Redes sociales": "Social media",
+    "Transporte especializado de flores para empresas en toda Colombia.": "Specialized flower transportation for companies across Colombia.",
+    "Rutas principales": "Main routes",
+    "Corredores frecuentes": "Frequent corridors",
+    "Camiones y utilización": "Trucks and utilization",
+    "Nomina": "Payroll"
+    ,"Mi perfil": "My profile",
     "Notificaciones": "Notifications",
     "Cerrar sesion": "Sign out",
     "Todos los derechos reservados.": "All rights reserved."
   };
-  const key = String(text || "").trim();
+  const key = String(text || "").replace(/\s+/g, " ").trim();
   if (!key) return text;
   if (!dict[key]) return text;
-  return text.replace(key, dict[key]);
+  return String(text || "").replace(key, dict[key]);
 }
 
 function tPublic(textEs) {
@@ -661,6 +681,26 @@ function applyPublicLanguage(lang = "es") {
   publicTextStore.forEach(({ node, original }) => {
     node.nodeValue = lang === "en" ? translatePublicText(original, "en") : original;
   });
+  nodes.langButtonsPublic.forEach((btn) => {
+    btn.classList.toggle("active", String(btn.dataset.langOption || "") === lang);
+  });
+  const attrMap = {
+    es: {
+      "#open-auth": "Portal",
+      "#open-auth-hero": "Ingresar al portal",
+      "#logout": "Cerrar sesion"
+    },
+    en: {
+      "#open-auth": "Portal",
+      "#open-auth-hero": "Enter portal",
+      "#logout": "Sign out"
+    }
+  };
+  const attrs = attrMap[lang] || attrMap.es;
+  Object.entries(attrs).forEach(([selector, value]) => {
+    const el = document.querySelector(selector);
+    if (el) el.textContent = value;
+  });
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
 }
@@ -670,8 +710,9 @@ function applyTheme(theme = "light") {
   document.body.setAttribute("data-theme", mode);
   state.theme = mode;
   localStorage.setItem(UI_PREFS.theme, mode);
-  if (nodes.themeTogglePublic) nodes.themeTogglePublic.value = mode;
-  if (nodes.themeTogglePortal) nodes.themeTogglePortal.value = mode;
+  [...nodes.themeButtonsPublic, ...nodes.themeButtonsPortal].forEach((btn) => {
+    btn.classList.toggle("active", String(btn.dataset.themeOption || "") === mode);
+  });
 }
 
 function uid() {
@@ -6176,7 +6217,6 @@ function bindDynamicEvents() {
 function initGlobalEvents() {
   const savedTheme = String(localStorage.getItem(UI_PREFS.theme) || "light");
   const savedLang = String(localStorage.getItem(UI_PREFS.publicLang) || "es");
-  if (nodes.langTogglePublic) nodes.langTogglePublic.value = savedLang === "en" ? "en" : "es";
   applyTheme(savedTheme);
   state.publicLang = savedLang === "en" ? "en" : "es";
   applyPublicLanguage(state.publicLang);
@@ -6198,18 +6238,24 @@ function initGlobalEvents() {
     });
   }
 
-  if (nodes.themeTogglePublic) {
-    nodes.themeTogglePublic.addEventListener("change", () => {
-      applyTheme(String(nodes.themeTogglePublic.value || "light"));
+  if (nodes.themeButtonsPublic.length || nodes.themeButtonsPortal.length) {
+    [...nodes.themeButtonsPublic, ...nodes.themeButtonsPortal].forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyTheme(String(btn.dataset.themeOption || "light"));
+      });
     });
   }
 
-  if (nodes.themeTogglePortal) {
-    nodes.themeTogglePortal.addEventListener("change", () => {
-      applyTheme(String(nodes.themeTogglePortal.value || "light"));
+  if (nodes.langButtonsPublic.length) {
+    nodes.langButtonsPublic.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.publicLang = String(btn.dataset.langOption || "es") === "en" ? "en" : "es";
+        localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
+        applyPublicLanguage(state.publicLang);
+        initPublicCareers();
+      });
     });
   }
-
   if (nodes.langTogglePublic) {
     nodes.langTogglePublic.addEventListener("change", () => {
       state.publicLang = String(nodes.langTogglePublic.value || "es") === "en" ? "en" : "es";

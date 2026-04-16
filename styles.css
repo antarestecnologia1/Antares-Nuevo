@@ -150,22 +150,36 @@ nav a:hover::after { width: 60%; }
   margin-left: auto;
 }
 
-.nav-control {
+.theme-toggle,
+.lang-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.72rem;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.nav-control select,
-.portal-controls select {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 0.2rem 0.45rem;
-  background: rgba(255, 255, 255, 0.9);
-  color: #0b1d33;
-  font-size: 0.75rem;
+.theme-option,
+.lang-option {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-option.active,
+.lang-option.active {
+  background: rgba(255, 255, 255, 0.24);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
 }
 
 .hamburger svg { width: 26px; height: 26px; }
@@ -1163,13 +1177,8 @@ body.portal-mode .whatsapp-fab {
 .portal-controls {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   margin: 0.2rem 0 0.2rem;
-}
-
-.portal-controls label {
-  font-size: 0.76rem;
-  color: var(--text-soft);
 }
 
 .portal-header h1 {
@@ -2248,7 +2257,7 @@ tbody tr:last-child td { border-bottom: none; }
 
   .hamburger { display: flex; }
   .nav-controls { order: 4; width: 100%; justify-content: flex-end; margin-top: 0.3rem; }
-  .nav-control { font-size: 0.68rem; }
+  .theme-option, .lang-option { width: 30px; height: 30px; font-size: 0.9rem; }
 
   .portal-layout { grid-template-columns: 1fr; }
 
@@ -2388,7 +2397,10 @@ body[data-theme="dark"] .dash-stat-value {
 body[data-theme="dark"] .muted,
 body[data-theme="dark"] .p-card-header p,
 body[data-theme="dark"] .kpi-data span,
-body[data-theme="dark"] .portal-controls label {
+body[data-theme="dark"] .p-form label,
+body[data-theme="dark"] .card p,
+body[data-theme="dark"] .card li,
+body[data-theme="dark"] .table-wrap tbody td {
   color: #a8beda;
 }
 
@@ -2396,11 +2408,37 @@ body[data-theme="dark"] .top-nav {
   background: rgba(7, 16, 30, 0.95);
 }
 
-body[data-theme="dark"] .nav-control select,
-body[data-theme="dark"] .portal-controls select {
-  background: #12263f;
-  color: #e6f0ff;
-  border-color: #29486a;
+body[data-theme="dark"] .theme-toggle,
+body[data-theme="dark"] .lang-toggle {
+  background: rgba(9, 21, 37, 0.75);
+  border-color: #2d4d70;
+}
+
+body[data-theme="dark"] .theme-option.active,
+body[data-theme="dark"] .lang-option.active {
+  background: rgba(59, 130, 246, 0.35);
+}
+
+body[data-theme="dark"] .section,
+body[data-theme="dark"] .section-light,
+body[data-theme="dark"] .section-trusted,
+body[data-theme="dark"] .section-gallery,
+body[data-theme="dark"] #about,
+body[data-theme="dark"] #fleet,
+body[data-theme="dark"] #careers,
+body[data-theme="dark"] #contact {
+  background: #0a1728 !important;
+}
+
+body[data-theme="dark"] .section h2,
+body[data-theme="dark"] .section h3,
+body[data-theme="dark"] .section strong,
+body[data-theme="dark"] .section-head p {
+  color: #eaf2ff;
+}
+
+body[data-theme="dark"] .wave-divider path {
+  fill: #0a1728 !important;
 }
 
 .p-card,
