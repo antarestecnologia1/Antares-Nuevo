@@ -8,7 +8,7 @@
   --accent: #2196F3;
   --white: #ffffff;
   --text: #0B1D33;
-  --text-soft: #4A6580;
+  --text-soft: #344F69;
   --line: #C5D8EC;
   --success: #1B8E5F;
   --warning: #F59F00;
@@ -23,6 +23,16 @@
   --radius-sm: 10px;
 }
 
+body[data-theme="dark"] {
+  --text: #E6F0FF;
+  --text-soft: #A8BEDA;
+  --line: #2B3E58;
+  --white: #0F1C2E;
+  --primary-light: #14263C;
+  --shadow-card: 0 8px 30px rgba(2, 7, 16, 0.45);
+  --shadow-card-hover: 0 16px 40px rgba(2, 7, 16, 0.58);
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -33,6 +43,11 @@ html, body {
   background: #F5F9FF;
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
+}
+
+body[data-theme="dark"] {
+  background: #08111f;
+  color: var(--text);
 }
 
 a, button { transition: all 0.25s cubic-bezier(.4,0,.2,1); }
@@ -127,6 +142,31 @@ nav a:hover::after { width: 60%; }
 }
 
 .hamburger:hover { background: rgba(255,255,255,0.1); }
+
+.nav-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.nav-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.72rem;
+}
+
+.nav-control select,
+.portal-controls select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.2rem 0.45rem;
+  background: rgba(255, 255, 255, 0.9);
+  color: #0b1d33;
+  font-size: 0.75rem;
+}
 
 .hamburger svg { width: 26px; height: 26px; }
 
@@ -1120,6 +1160,18 @@ body.portal-mode .whatsapp-fab {
   margin-bottom: 1.4rem;
 }
 
+.portal-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.2rem 0 0.2rem;
+}
+
+.portal-controls label {
+  font-size: 0.76rem;
+  color: var(--text-soft);
+}
+
 .portal-header h1 {
   margin: 0;
   font-size: 1.6rem;
@@ -1169,7 +1221,7 @@ body.portal-mode .whatsapp-fab {
 
 .kpi-data span {
   font-size: 0.78rem;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text) 70%, #ffffff 30%);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -1485,6 +1537,7 @@ tbody tr:last-child td { border-bottom: none; }
   gap: 0.5rem;
   font-size: 0.9rem;
   font-weight: 500;
+  color: var(--text);
 }
 
 .dash-stat-dot {
@@ -1496,7 +1549,7 @@ tbody tr:last-child td { border-bottom: none; }
 .dash-stat-value {
   font-size: 1.1rem;
   font-weight: 800;
-  color: var(--primary-dark);
+  color: var(--text);
 }
 
 /* Perm badge */
@@ -2194,6 +2247,8 @@ tbody tr:last-child td { border-bottom: none; }
   }
 
   .hamburger { display: flex; }
+  .nav-controls { order: 4; width: 100%; justify-content: flex-end; margin-top: 0.3rem; }
+  .nav-control { font-size: 0.68rem; }
 
   .portal-layout { grid-template-columns: 1fr; }
 
@@ -2291,6 +2346,61 @@ body {
     linear-gradient(90deg, rgba(21, 101, 192, 0.03) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 90%);
+}
+
+body[data-theme="dark"] .portal-layout {
+  background: linear-gradient(180deg, #050c18 0%, #0b1729 100%);
+}
+
+body[data-theme="dark"] .portal-main {
+  background: #0c1a2b;
+}
+
+body[data-theme="dark"] .p-card,
+body[data-theme="dark"] .kpi,
+body[data-theme="dark"] .table-wrap,
+body[data-theme="dark"] .card {
+  background: #122238;
+  border-color: #27415f;
+  color: var(--text);
+}
+
+body[data-theme="dark"] .p-card-header {
+  background: linear-gradient(135deg, #11243b, #172f4a);
+}
+
+body[data-theme="dark"] .portal-header h1 {
+  color: #dcecff;
+}
+
+body[data-theme="dark"] tbody tr:hover {
+  background: #162b45;
+}
+
+body[data-theme="dark"] table th,
+body[data-theme="dark"] table td,
+body[data-theme="dark"] .p-card-header h2,
+body[data-theme="dark"] .kpi-data b,
+body[data-theme="dark"] .dash-stat-value {
+  color: #e6f0ff;
+}
+
+body[data-theme="dark"] .muted,
+body[data-theme="dark"] .p-card-header p,
+body[data-theme="dark"] .kpi-data span,
+body[data-theme="dark"] .portal-controls label {
+  color: #a8beda;
+}
+
+body[data-theme="dark"] .top-nav {
+  background: rgba(7, 16, 30, 0.95);
+}
+
+body[data-theme="dark"] .nav-control select,
+body[data-theme="dark"] .portal-controls select {
+  background: #12263f;
+  color: #e6f0ff;
+  border-color: #29486a;
 }
 
 .p-card,

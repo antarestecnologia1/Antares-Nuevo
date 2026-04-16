@@ -509,6 +509,8 @@ const CO_HR_RULES = {
 let state = {
   session: null,
   currentView: "dashboard",
+  theme: "light",
+  publicLang: "es",
   authTab: "login",
   authSecurity: {
     failedAttempts: 0,
@@ -536,7 +538,15 @@ const nodes = {
   viewRoot: document.getElementById("view-root"),
   kpiCards: document.getElementById("kpi-cards"),
   sessionMeta: document.getElementById("session-meta"),
-  authTabs: [...document.querySelectorAll(".tab")]
+  authTabs: [...document.querySelectorAll(".tab")],
+  themeTogglePublic: document.getElementById("theme-toggle-public"),
+  themeTogglePortal: document.getElementById("theme-toggle-portal"),
+  langTogglePublic: document.getElementById("lang-toggle-public")
+};
+
+const UI_PREFS = {
+  theme: "antares_theme_v1",
+  publicLang: "antares_public_lang_v1"
 };
 
 function read(key, fallback = []) {
@@ -549,6 +559,118 @@ function read(key, fallback = []) {
 
 function write(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+const publicTextStore = [];
+let publicTextCaptured = false;
+
+function capturePublicTextNodes() {
+  if (publicTextCaptured) return;
+  const scopes = [document.querySelector(".top-nav"), document.getElementById("public-app"), document.querySelector(".site-footer")].filter(Boolean);
+  scopes.forEach((scope) => {
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current) {
+      const original = current.nodeValue;
+      if (String(original || "").trim()) {
+        publicTextStore.push({ node: current, original });
+      }
+      current = walker.nextNode();
+    }
+  });
+  publicTextCaptured = true;
+}
+
+function translatePublicText(text, lang) {
+  if (lang !== "en") return text;
+  const dict = {
+    "Inicio": "Home",
+    "Nosotros": "About",
+    "Equipo": "Team",
+    "Empresas": "Companies",
+    "Testimonios": "Testimonials",
+    "Flota": "Fleet",
+    "Servicios": "Services",
+    "Galeria": "Gallery",
+    "Videos": "Videos",
+    "Cobertura": "Coverage",
+    "Trabaja con nosotros": "Careers",
+    "Contacto": "Contact",
+    "Portal": "Portal",
+    "Tema": "Theme",
+    "Idioma": "Language",
+    "Claro": "Light",
+    "Oscuro": "Dark",
+    "Logistica premium para floricultura y exportacion": "Premium logistics for floriculture and exports",
+    "Transporte especializado de flores con": "Specialized flower transportation with",
+    "trazabilidad total": "full traceability",
+    "Operamos con turbos, camiones y tractocamiones para llevar tu carga\n            con control de temperatura, seguridad y cumplimiento en toda Colombia.": "We operate turbo trucks, medium trucks, and tractor-trailers to move your cargo with temperature control, security, and on-time compliance across Colombia.",
+    "Contactenos": "Contact us",
+    "Ingresar al portal": "Enter portal",
+    "Entregas mensuales": "Monthly deliveries",
+    "Nivel de cumplimiento": "Service compliance",
+    "Tiempo de respuesta": "Response time",
+    "Quienes somos": "Who we are",
+    "Valores": "Values",
+    "Equipo directivo": "Leadership team",
+    "Empresas que confian en nosotros": "Companies that trust us",
+    "Lo que dicen nuestros clientes": "What our clients say",
+    "Nuestra flota": "Our fleet",
+    "Nuestros servicios": "Our services",
+    "Galeria operativa": "Operations gallery",
+    "Videos relacionados": "Related videos",
+    "Cobertura nacional": "Nationwide coverage",
+    "Rutas principales": "Main routes",
+    "Corredores frecuentes": "Frequent corridors",
+    "Formulario de contacto B2B": "B2B contact form",
+    "Nombre": "Name",
+    "Empresa": "Company",
+    "Cargo": "Role",
+    "Telefono": "Phone",
+    "Correo": "Email",
+    "Tipo de servicio": "Service type",
+    "Seleccione...": "Select...",
+    "Transporte refrigerado": "Refrigerated transport",
+    "Transporte dedicado": "Dedicated transport",
+    "Servicio eventual": "Occasional service",
+    "Mensaje": "Message",
+    "Enviar solicitud": "Send request",
+    "Aplicar": "Apply",
+    "Cierre": "Closing",
+    "Sin fecha limite": "No deadline",
+    "No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.": "There are no published openings at the moment. Check back soon or contact us.",
+    "Mi perfil": "My profile",
+    "Notificaciones": "Notifications",
+    "Cerrar sesion": "Sign out",
+    "Todos los derechos reservados.": "All rights reserved."
+  };
+  const key = String(text || "").trim();
+  if (!key) return text;
+  if (!dict[key]) return text;
+  return text.replace(key, dict[key]);
+}
+
+function tPublic(textEs) {
+  if (state.publicLang !== "en") return textEs;
+  return translatePublicText(textEs, "en");
+}
+
+function applyPublicLanguage(lang = "es") {
+  capturePublicTextNodes();
+  publicTextStore.forEach(({ node, original }) => {
+    node.nodeValue = lang === "en" ? translatePublicText(original, "en") : original;
+  });
+  const docLang = lang === "en" ? "en-US" : "es";
+  document.documentElement.setAttribute("lang", docLang);
+}
+
+function applyTheme(theme = "light") {
+  const mode = theme === "dark" ? "dark" : "light";
+  document.body.setAttribute("data-theme", mode);
+  state.theme = mode;
+  localStorage.setItem(UI_PREFS.theme, mode);
+  if (nodes.themeTogglePublic) nodes.themeTogglePublic.value = mode;
+  if (nodes.themeTogglePortal) nodes.themeTogglePortal.value = mode;
 }
 
 function uid() {
@@ -5624,6 +5746,13 @@ function bindDynamicEvents() {
 }
 
 function initGlobalEvents() {
+  const savedTheme = String(localStorage.getItem(UI_PREFS.theme) || "light");
+  const savedLang = String(localStorage.getItem(UI_PREFS.publicLang) || "es");
+  if (nodes.langTogglePublic) nodes.langTogglePublic.value = savedLang === "en" ? "en" : "es";
+  applyTheme(savedTheme);
+  state.publicLang = savedLang === "en" ? "en" : "es";
+  applyPublicLanguage(state.publicLang);
+
   nodes.openAuth.addEventListener("click", showAuth);
   if (nodes.openAuthHero) {
     nodes.openAuthHero.addEventListener("click", showAuth);
@@ -5638,6 +5767,27 @@ function initGlobalEvents() {
     });
     mainNav.querySelectorAll("a").forEach((link) => {
       link.addEventListener("click", () => mainNav.classList.remove("nav-open"));
+    });
+  }
+
+  if (nodes.themeTogglePublic) {
+    nodes.themeTogglePublic.addEventListener("change", () => {
+      applyTheme(String(nodes.themeTogglePublic.value || "light"));
+    });
+  }
+
+  if (nodes.themeTogglePortal) {
+    nodes.themeTogglePortal.addEventListener("change", () => {
+      applyTheme(String(nodes.themeTogglePortal.value || "light"));
+    });
+  }
+
+  if (nodes.langTogglePublic) {
+    nodes.langTogglePublic.addEventListener("change", () => {
+      state.publicLang = String(nodes.langTogglePublic.value || "es") === "en" ? "en" : "es";
+      localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
+      applyPublicLanguage(state.publicLang);
+      initPublicCareers();
     });
   }
   nodes.authTabs.forEach((tabBtn) =>
@@ -5791,21 +5941,21 @@ function initPublicCareers() {
     const list = getPublicPublishedVacancies();
     if (!list.length) {
       grid.innerHTML =
-        '<div class="careers-card"><p class="muted" style="margin:0">No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.</p></div>';
+        `<div class="careers-card"><p class="muted" style="margin:0">${tPublic("No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.")}</p></div>`;
       return;
     }
     grid.innerHTML = list
       .map((v) => {
         const salary = parseNum(v.salaryOffer);
         const salaryStr = `$${salary.toLocaleString("es-CO")}`;
-        const deadline = v.deadline ? `Cierre: ${v.deadline}` : "Sin fecha limite";
+        const deadline = v.deadline ? `${tPublic("Cierre")}: ${v.deadline}` : tPublic("Sin fecha limite");
         const req = String(v.requirements || "").slice(0, 180);
         const more = String(v.requirements || "").length > 180 ? "…" : "";
         return `<article class="careers-card lift-card">
           <h3>${v.title}</h3>
-          <div class="careers-meta">${v.positionName || "Cargo"} · ${salaryStr} · ${deadline}</div>
+          <div class="careers-meta">${v.positionName || tPublic("Cargo")} · ${salaryStr} · ${deadline}</div>
           <p class="careers-req muted">${req}${more}</p>
-          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${v.id}">Aplicar</button>
+          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${v.id}">${tPublic("Aplicar")}</button>
         </article>`;
       })
       .join("");
