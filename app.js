@@ -1,3 +1,40 @@
+const IC = {
+  eye: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  edit: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  trash: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  check: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  x: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  plus: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  download: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  filter: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
+  send: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  truck: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+  user: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  clock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  shield: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  file: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  inbox: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
+  calendar: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+  dollar: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  briefcase: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>',
+  bell: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  compass: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+  toggle: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="7" ry="7"/><circle cx="16" cy="12" r="3"/></svg>',
+  grid: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  activity: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  save: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+  userPlus: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
+  printer: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+};
+
+function pcardWrap(iconKey, title, subtitle, bodyHtml, extraClass = "") {
+  return `<div class="p-card ${extraClass}"><div class="p-card-header"><div class="p-card-header-left"><svg class="p-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[iconKey]?.replace(/<svg[^>]*>|<\/svg>/g, "") || ""}</svg><div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ""}</div></div></div><div class="p-card-body">${bodyHtml}</div></div>`;
+}
+
+function emptyState(text) {
+  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${text}</p></div>`;
+}
+
 const KEYS = {
   users: "antares_users_v2",
   companies: "antares_companies_v2",
@@ -934,12 +971,17 @@ function renderKpis() {
   const user = currentUser();
   const visible = getVisibleRequestsForUser(user);
   const cards = [
-    { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE).length },
-    { label: "Viaje asignado", value: visible.filter((r) => r.status === STATUS.VIAJE_ASIGNADO).length },
-    { label: "En transito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length },
-    { label: "Completadas", value: visible.filter((r) => r.status === STATUS.COMPLETADA).length }
+    { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE).length, icon: IC.clock, color: "kpi-icon-warning" },
+    { label: "Viaje asignado", value: visible.filter((r) => r.status === STATUS.VIAJE_ASIGNADO).length, icon: IC.check, color: "kpi-icon-success" },
+    { label: "En transito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length, icon: IC.truck, color: "kpi-icon-primary" },
+    { label: "Completadas", value: visible.filter((r) => r.status === STATUS.COMPLETADA).length, icon: IC.shield, color: "kpi-icon-teal" }
   ];
-  nodes.kpiCards.innerHTML = cards.map((c) => `<article class="kpi"><span>${c.label}</span><b>${c.value}</b></article>`).join("");
+  nodes.kpiCards.innerHTML = cards.map((c) => `
+    <article class="kpi">
+      <div class="kpi-icon ${c.color}">${c.icon}</div>
+      <div class="kpi-data"><span>${c.label}</span><b>${c.value}</b></div>
+    </article>
+  `).join("");
 }
 
 function viewDashboard() {
@@ -950,52 +992,42 @@ function viewDashboard() {
     const key = r.vehicleType || "Sin tipo";
     byVehicle[key] = (byVehicle[key] || 0) + 1;
   });
-  const vehicleRows = Object.entries(byVehicle)
-    .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`)
+  const colors = { Turbo: "#F59F00", Camion: "#1565C0", Tractocamion: "#1B8E5F", "Sin tipo": "#94A3B8" };
+  const vehicleStats = Object.entries(byVehicle)
+    .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="dash-stat-dot" style="background:${colors[k] || '#94A3B8'}"></span>${k}</div><div class="dash-stat-value">${v}</div></div>`)
     .join("");
-  return `
-    <article class="card">
-      <h2>Resumen operativo</h2>
-      <p class="muted">Solicitudes registradas: ${list.length}</p>
-      <table>
-        <thead><tr><th>Tipo de vehiculo</th><th>Cantidad de viajes</th></tr></thead>
-        <tbody>${vehicleRows || "<tr><td colspan='2'>Sin datos</td></tr>"}</tbody>
-      </table>
-    </article>
-  `;
+
+  const byStatus = {};
+  list.forEach((r) => { byStatus[r.status] = (byStatus[r.status] || 0) + 1; });
+  const statusStats = Object.entries(byStatus)
+    .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="status status-${slugStatus(k)}">${k}</span></div><div class="dash-stat-value">${v}</div></div>`)
+    .join("");
+
+  return `<div class="dash-grid">
+    ${pcardWrap("truck", "Por tipo de vehiculo", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos de vehiculos aun"))}
+    ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
+  </div>`;
 }
 
 function requestFormHtml() {
-  return `
-    <article class="card">
-      <h2>Nueva solicitud de viaje</h2>
-      <form id="form-request" class="form-grid">
-        <label>Origen ciudad <input name="originCity" required /></label>
-        <label>Origen direccion <input name="originAddress" required /></label>
-        <label>Punto cargue <input name="originPoint" required /></label>
-        <label>Destino ciudad <input name="destinationCity" required /></label>
-        <label>Destino direccion <input name="destinationAddress" required /></label>
-        <label>Punto descargue <input name="destinationPoint" required /></label>
-        <label>Recogida estimada <input type="datetime-local" name="pickupAt" required /></label>
-        <label>
-          Tipo vehiculo
-          <select name="vehicleType" required>
-            <option value="">Seleccione...</option>
-            <option>Turbo</option>
-            <option>Camion</option>
-            <option>Tractocamion</option>
-          </select>
-        </label>
-        <label>Descripcion carga <input name="cargoDescription" required /></label>
-        <label>Volumen cajas <input type="number" min="0" name="boxes" required /></label>
-        <label>Peso kg <input type="number" min="0" name="weightKg" required /></label>
-        <label>Temperatura requerida <input name="temperature" placeholder="Ej: 4C" /></label>
-        <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
-        <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
-        <button class="btn btn-primary full" type="submit">Crear solicitud</button>
-      </form>
-    </article>
-  `;
+  const body = `<form id="form-request" class="p-form">
+    <label>Origen ciudad <input name="originCity" required /></label>
+    <label>Origen direccion <input name="originAddress" required /></label>
+    <label>Punto cargue <input name="originPoint" required /></label>
+    <label>Destino ciudad <input name="destinationCity" required /></label>
+    <label>Destino direccion <input name="destinationAddress" required /></label>
+    <label>Punto descargue <input name="destinationPoint" required /></label>
+    <label>Recogida estimada <input type="datetime-local" name="pickupAt" required /></label>
+    <label>Tipo vehiculo <select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+    <label>Descripcion carga <input name="cargoDescription" required /></label>
+    <label>Volumen cajas <input type="number" min="0" name="boxes" required /></label>
+    <label>Peso kg <input type="number" min="0" name="weightKg" required /></label>
+    <label>Temperatura requerida <input name="temperature" placeholder="Ej: 4C" /></label>
+    <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
+    <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
+    <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
+  </form>`;
+  return pcardWrap("plus", "Nueva solicitud de viaje", "Completa los datos para solicitar transporte", body);
 }
 
 function requestListClientHtml(user) {
@@ -1004,200 +1036,145 @@ function requestListClientHtml(user) {
     .map((r) => {
       const allowEdit = r.status === STATUS.PENDIENTE;
       const trip = r.trip
-        ? `Viaje ${r.trip.tripNumber} - ${r.trip.vehiclePlate} - ${r.trip.driverName} (${r.trip.driverPhone})`
-        : "-";
-      return `
-        <tr>
-          <td>${r.requestNumber || r.id}</td>
-          <td>${r.originCity} -> ${r.destinationCity}<br><span class="muted">Solicita: ${r.requestedByName || r.clientName}</span></td>
-          <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
-          <td>${trip}</td>
-          <td>
-            <div class="toolbar">
-              <button class="btn btn-outline" data-action="detail" data-id="${r.id}">Detalle</button>
-              ${allowEdit ? `<button class="btn btn-outline" data-action="edit" data-id="${r.id}">Editar</button>` : ""}
-              ${allowEdit ? `<button class="btn btn-outline" data-action="cancel" data-id="${r.id}">Cancelar</button>` : ""}
-            </div>
-          </td>
-        </tr>
-      `;
+        ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
+        : '<span class="muted">-</span>';
+      return `<tr>
+        <td><strong>${r.requestNumber || r.id}</strong></td>
+        <td>${r.originCity} → ${r.destinationCity}<br><span class="muted">${r.requestedByName || r.clientName}</span></td>
+        <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
+        <td>${trip}</td>
+        <td><div class="toolbar">
+          <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
+          ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
+          ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
+        </div></td>
+      </tr>`;
     })
     .join("");
-  return `
-    <article class="card">
-      <h2>Mis solicitudes</h2>
-      <table>
-        <thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead>
-        <tbody>${rows || "<tr><td colspan='5'>Aun no hay solicitudes.</td></tr>"}</tbody>
-      </table>
-    </article>
-  `;
+  const body = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("Aun no hay solicitudes creadas.");
+  return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
 }
 
 function adminQueueHtml() {
   const requests = read(KEYS.requests, []).filter((r) => r.status === STATUS.PENDIENTE);
   const rows = requests
-    .map(
-      (r) => `
-        <tr>
-          <td>${r.requestNumber || r.id}</td>
-          <td>${r.clientName}</td>
-          <td>${r.originCity} -> ${r.destinationCity}</td>
-          <td>${r.vehicleType}</td>
-          <td>${minutesRemaining(r.createdAt)} min</td>
-          <td>
-            <div class="toolbar">
-              <button class="btn btn-primary" data-action="approve" data-id="${r.id}">Aprobar</button>
-              <button class="btn btn-outline" data-action="reject" data-id="${r.id}">Rechazar</button>
-              <button class="btn btn-outline" data-action="edit-admin" data-id="${r.id}">Editar</button>
-              <button class="btn btn-outline" data-action="delete-admin" data-id="${r.id}">Eliminar</button>
-            </div>
-          </td>
-        </tr>
-      `
-    )
+    .map((r) => `<tr>
+      <td><strong>${r.requestNumber || r.id}</strong></td>
+      <td>${r.clientName}</td>
+      <td>${r.originCity} → ${r.destinationCity}</td>
+      <td>${r.vehicleType}</td>
+      <td><span class="timer-badge">${IC.clock} ${minutesRemaining(r.createdAt)} min</span></td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-approve" data-action="approve" data-id="${r.id}">${IC.check} Aprobar</button>
+        <button class="btn btn-sm btn-reject" data-action="reject" data-id="${r.id}">${IC.x} Rechazar</button>
+        <button class="btn btn-sm btn-action" data-action="edit-admin" data-id="${r.id}">${IC.edit} Editar</button>
+        <button class="btn btn-sm btn-action" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>
+      </div></td>
+    </tr>`)
     .join("");
-  return `
-    <article class="card">
-      <h2>Bandeja de pendientes</h2>
-      <table>
-        <thead><tr><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Vehiculo</th><th>Timer</th><th>Acciones</th></tr></thead>
-        <tbody>${rows || "<tr><td colspan='6'>No hay pendientes.</td></tr>"}</tbody>
-      </table>
-    </article>
-  `;
+  const body = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Vehiculo</th><th>Timer</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay solicitudes pendientes.");
+  return pcardWrap("inbox", "Bandeja de pendientes", requests.length + " solicitudes por revisar", body, requests.length > 0 ? "p-card-alert" : "");
 }
 
 function vehiclesHtml() {
-  const rows = read(KEYS.vehicles, [])
-    .map(
-      (v) => `
-      <tr>
-        <td>${v.plate}</td><td>${v.type}</td><td>${v.capacityKg}</td><td>${v.refrigerated ? "Si" : "No"}</td><td>${v.available ? "Disponible" : "Ocupado"}</td>
-        <td>
-          <div class="toolbar">
-            <button class="btn btn-outline" data-action="edit-vehicle" data-id="${v.id}">Modificar</button>
-            <button class="btn btn-outline" data-action="toggle-vehicle" data-id="${v.id}">Disponibilidad</button>
-          </div>
-        </td>
-      </tr>`
-    )
+  const vehicles = read(KEYS.vehicles, []);
+  const rows = vehicles
+    .map((v) => `<tr>
+      <td><strong>${v.plate}</strong></td>
+      <td>${v.type}</td>
+      <td>${v.capacityKg.toLocaleString("es-CO")} kg</td>
+      <td>${v.refrigerated ? '<span class="status status-viaje_asignado">Si</span>' : '<span class="status status-espera_standby">No</span>'}</td>
+      <td>${v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
+        <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
+      </div></td>
+    </tr>`)
     .join("");
-  return `
-    <article class="card">
-      <h2>Transporte · Gestión de camiones</h2>
-      <form id="form-vehicle" class="form-grid">
-        <label>Placa <input name="plate" required /></label>
-        <label>Tipo <select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-        <label>Capacidad kg <input type="number" min="1" name="capacityKg" required /></label>
-        <label>Refrigerado <select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
-        <button class="btn btn-primary full" type="submit">Agregar vehiculo</button>
-      </form>
-      <table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Refrigerado</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-    </article>
-  `;
+  const formBody = `<form id="form-vehicle" class="p-form">
+    <label>Placa <input name="plate" required /></label>
+    <label>Tipo <select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+    <label>Capacidad kg <input type="number" min="1" name="capacityKg" required /></label>
+    <label>Refrigerado <select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehiculo</button>
+  </form>`;
+  const tableBody = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Refrigerado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay vehiculos registrados.");
+  return pcardWrap("plus", "Registrar vehiculo", null, formBody) + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehiculos", tableBody);
 }
 
 function driversHtml() {
-  const rows = read(KEYS.drivers, [])
-    .map(
-      (d) => `
-      <tr>
-        <td>${d.name}</td><td>${d.phone}</td><td>${d.license}</td><td>${d.available ? "Disponible" : "Ocupado"}</td>
-        <td>
-          <div class="toolbar">
-            <button class="btn btn-outline" data-action="edit-driver" data-id="${d.id}">Modificar</button>
-            <button class="btn btn-outline" data-action="toggle-driver" data-id="${d.id}">Disponibilidad</button>
-          </div>
-        </td>
-      </tr>`
-    )
+  const drivers = read(KEYS.drivers, []);
+  const rows = drivers
+    .map((d) => `<tr>
+      <td><strong>${d.name}</strong></td>
+      <td>${d.phone}</td>
+      <td>${d.license}</td>
+      <td>${d.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
+        <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
+      </div></td>
+    </tr>`)
     .join("");
-  return `
-    <article class="card">
-      <h2>Transporte · Gestión de conductores</h2>
-      <form id="form-driver" class="form-grid">
-        <label>Nombre <input name="name" required /></label>
-        <label>Telefono <input name="phone" required /></label>
-        <label>Licencia <input name="license" required /></label>
-        <button class="btn btn-primary full" type="submit">Agregar conductor</button>
-      </form>
-      <table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-    </article>
-  `;
+  const formBody = `<form id="form-driver" class="p-form">
+    <label>Nombre <input name="name" required /></label>
+    <label>Telefono <input name="phone" required /></label>
+    <label>Licencia <input name="license" required /></label>
+    <button class="btn btn-primary full" type="submit">${IC.userPlus} Agregar conductor</button>
+  </form>`;
+  const tableBody = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay conductores registrados.");
+  return pcardWrap("userPlus", "Registrar conductor", null, formBody) + pcardWrap("user", "Conductores", drivers.length + " registrados", tableBody);
 }
 
 function transportTripsHtml() {
-  const rows = read(KEYS.requests, [])
-    .filter((r) => r.trip)
-    .map(
-      (r) => `
-      <tr>
-        <td>${r.trip.tripNumber}</td>
-        <td>${r.requestNumber || r.id}</td>
-        <td>${r.clientName}</td>
-        <td>${r.originCity} -> ${r.destinationCity}</td>
-        <td>${r.trip.vehiclePlate}</td>
-        <td>${r.trip.driverName}</td>
-        <td>${fmtDate(r.trip.etaPickup)}</td>
-        <td>${r.status}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
-        <td>
-          <select data-action="trip-status" data-id="${r.id}">
-            ${[
-              STATUS.VIAJE_ASIGNADO,
-              STATUS.EN_TRANSITO,
-              STATUS.ESPERA_STANDBY,
-              STATUS.COMPLETADA,
-              STATUS.CANCELADA
-            ]
-              .map((status) => `<option ${r.status === status ? "selected" : ""}>${status}</option>`)
-              .join("")}
-          </select>
-        </td>
-      </tr>`
-    )
+  const trips = read(KEYS.requests, []).filter((r) => r.trip);
+  const rows = trips
+    .map((r) => `<tr>
+      <td><strong>${r.trip.tripNumber}</strong></td>
+      <td>${r.requestNumber || r.id}</td>
+      <td>${r.clientName}</td>
+      <td>${r.originCity} → ${r.destinationCity}</td>
+      <td>${r.trip.vehiclePlate}</td>
+      <td>${r.trip.driverName}</td>
+      <td>${fmtDate(r.trip.etaPickup)}</td>
+      <td><span class="status status-${slugStatus(r.status)}">${r.status}</span>${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
+      <td><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
+        ${[STATUS.VIAJE_ASIGNADO,STATUS.EN_TRANSITO,STATUS.ESPERA_STANDBY,STATUS.COMPLETADA,STATUS.CANCELADA].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
+      </select></td>
+    </tr>`)
     .join("");
-
-  return `
-    <article class="card">
-      <h2>Transporte · Viajes</h2>
-      <table>
-        <thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Camión</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Actualizar estado</th></tr></thead>
-        <tbody>${rows || "<tr><td colspan='9'>No hay viajes asignados.</td></tr>"}</tbody>
-      </table>
-    </article>
-  `;
+  const body = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Actualizar</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay viajes asignados.");
+  return pcardWrap("compass", "Viajes activos", trips.length + " viajes", body);
 }
 
 function transportCalendarHtml() {
   const requests = read(KEYS.requests, [])
     .filter((r) => r.trip)
     .sort((a, b) => new Date(a.trip.etaPickup).getTime() - new Date(b.trip.etaPickup).getTime());
-
   const rows = requests
-    .map(
-      (r) => `
-      <tr>
-        <td>${new Date(r.trip.etaPickup).toLocaleDateString("es-CO")}</td>
-        <td>${new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</td>
-        <td>${r.trip.driverName}</td>
-        <td>${r.trip.vehiclePlate}</td>
-        <td>${r.trip.route}</td>
-        <td>${r.status}</td>
-      </tr>`
-    )
+    .map((r) => `<tr>
+      <td><strong>${new Date(r.trip.etaPickup).toLocaleDateString("es-CO")}</strong></td>
+      <td>${new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</td>
+      <td>${r.trip.driverName}</td>
+      <td>${r.trip.vehiclePlate}</td>
+      <td>${r.trip.route}</td>
+      <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
+    </tr>`)
     .join("");
-
-  return `
-    <article class="card">
-      <h2>Transporte · Calendario de programación</h2>
-      <p class="muted">Un conductor y un camión no se pueden asignar a dos viajes en la misma hora.</p>
-      <table>
-        <thead><tr><th>Fecha</th><th>Hora</th><th>Conductor</th><th>Camión</th><th>Ruta</th><th>Estado</th></tr></thead>
-        <tbody>${rows || "<tr><td colspan='6'>No hay programación registrada.</td></tr>"}</tbody>
-      </table>
-    </article>
-  `;
+  const body = rows
+    ? `<p class="muted" style="margin:0 0 0.8rem">Un conductor y un camion no se pueden asignar a dos viajes en la misma hora.</p><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Conductor</th><th>Camion</th><th>Ruta</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay programacion registrada.");
+  return pcardWrap("calendar", "Calendario de programacion", requests.length + " viajes programados", body);
 }
 
 function adminUsersHtml(current) {
@@ -1227,118 +1204,71 @@ function adminUsersHtml(current) {
   const rows = users
     .map((user) => {
       const badges = (user.permissions || [])
-        .map((permission) => `<span class="status status-en_transito" style="margin:2px">${permission}</span>`)
+        .map((permission) => `<span class="perm-badge">${permission}</span>`)
         .join("");
-      return `
-        <tr>
-          <td>${user.name}</td>
-          <td>${user.email}</td>
-          <td>${user.role}</td>
-          <td>${getCompanyById(user.companyId)?.name || user.company || "-"}</td>
-          <td>${accountStatusLabel(user.accountStatus)}</td>
-          <td>${badges || "-"}</td>
-          <td>
-            ${
-              user.id === current.id
-                ? "<span class='muted'>Usuario actual</span>"
-                : `<button class="btn btn-outline" data-action="delete-user" data-id="${user.id}">Eliminar</button>`
-            }
-          </td>
-        </tr>
-      `;
+      return `<tr>
+        <td><strong>${user.name}</strong></td>
+        <td>${user.email}</td>
+        <td><span class="perm-badge">${user.role}</span></td>
+        <td>${getCompanyById(user.companyId)?.name || user.company || "-"}</td>
+        <td>${accountStatusLabel(user.accountStatus)}</td>
+        <td>${badges || '<span class="muted">-</span>'}</td>
+        <td>${user.id === current.id ? '<span class="muted">Tu</span>' : `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${user.id}">${IC.trash} Eliminar</button>`}</td>
+      </tr>`;
     })
     .join("");
 
   const pendingUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
   const pendingRows = pendingUsers
-    .map((user) => `
-      <tr>
-        <td>${user.name}</td>
-        <td>${user.email}</td>
-        <td>${getCompanyById(user.companyId)?.name || user.company || "-"}</td>
-        <td>${user.taxId || "-"}</td>
-        <td>${user.phone || "-"}</td>
-        <td>${user.registeredAt ? fmtDate(user.registeredAt) : "-"}</td>
-        <td>
-          <div class="toolbar">
-            <button class="btn btn-primary" data-action="approve-registration" data-id="${user.id}">Aprobar</button>
-            <button class="btn btn-outline" data-action="reject-registration" data-id="${user.id}">Rechazar</button>
-          </div>
-        </td>
-      </tr>
-    `)
+    .map((user) => `<tr>
+      <td><strong>${user.name}</strong></td>
+      <td>${user.email}</td>
+      <td>${getCompanyById(user.companyId)?.name || user.company || "-"}</td>
+      <td>${user.taxId || "-"}</td>
+      <td>${user.phone || "-"}</td>
+      <td>${user.registeredAt ? fmtDate(user.registeredAt) : "-"}</td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-approve" data-action="approve-registration" data-id="${user.id}">${IC.check} Aprobar</button>
+        <button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${user.id}">${IC.x} Rechazar</button>
+      </div></td>
+    </tr>`)
     .join("");
 
-  return `
-    ${pendingUsers.length > 0 ? `
-    <article class="card" style="border-left:4px solid var(--warning);margin-bottom:1rem">
-      <h2>Registros pendientes de aprobacion (${pendingUsers.length})</h2>
-      <p class="muted">Estos clientes han solicitado acceso al portal y requieren tu aprobacion para ingresar.</p>
-      <table>
-        <thead><tr><th>Nombre</th><th>Correo</th><th>Empresa</th><th>NIT/RUT</th><th>Telefono</th><th>Fecha registro</th><th>Acciones</th></tr></thead>
-        <tbody>${pendingRows}</tbody>
-      </table>
-    </article>
-    ` : ""}
-    <article class="card">
-      <h2>Administración · Usuarios y permisos</h2>
-      <div class="grid-2">
-        <form id="form-admin-user-create" class="form-grid card">
-          <h3>Crear usuario</h3>
-          <label>Nombre <input name="name" required /></label>
-          <label>Correo <input type="email" name="email" required /></label>
-          <label>Contraseña <input type="password" name="password" minlength="6" required /></label>
-          <label>Rol
-            <select name="role" required>
-              <option value="${ROLES.ADMIN}">admin</option>
-              <option value="${ROLES.RRHH}">rrhh</option>
-              <option value="${ROLES.CLIENT}">client</option>
-            </select>
-          </label>
-          <label class="full">Empresa
-            <select name="companyId" required>
-              <option value="">Seleccione empresa...</option>
-              ${companyOptions}
-            </select>
-          </label>
-          <label class="full">Nombre comercial (opcional) <input name="company" value="Antares Cargo" /></label>
-          <label class="full">NIT/RUT <input name="taxId" value="900000001-0" required /></label>
-          <label class="full">Teléfono <input name="phone" required /></label>
-          <fieldset class="full">
-            <legend>Permisos granulares</legend>
-            <div class="form-grid">${permissionOptions}</div>
-          </fieldset>
-          <button class="btn btn-primary full" type="submit">Crear usuario</button>
-        </form>
-        <form id="form-admin-company-create" class="form-grid card">
-          <h3>Crear empresa</h3>
-          <label>Nombre empresa <input name="name" required /></label>
-          <label>NIT/RUT <input name="taxId" required /></label>
-          <label>Teléfono <input name="phone" required /></label>
-          <button class="btn btn-primary full" type="submit">Crear empresa</button>
-        </form>
-        <form id="form-admin-user-permissions" class="form-grid card">
-          <h3>Asignar permisos granulares</h3>
-          <label>Usuario
-            <select name="userId" required>
-              <option value="">Seleccione...</option>
-              ${userOptions}
-            </select>
-          </label>
-          <fieldset class="full">
-            <legend>Permisos a asignar</legend>
-            <div class="form-grid">${permissionOptions.replaceAll("checked", "")}</div>
-          </fieldset>
-          <button class="btn btn-primary full" type="submit">Guardar permisos</button>
-        </form>
-      </div>
-      <h3>Usuarios existentes</h3>
-      <table>
-        <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Empresa</th><th>Estado cuenta</th><th>Permisos</th><th>Acciones</th></tr></thead>
-        <tbody>${rows || "<tr><td colspan='7'>Sin usuarios</td></tr>"}</tbody>
-      </table>
-    </article>
-  `;
+  const pendingBody = pendingRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Empresa</th><th>NIT/RUT</th><th>Telefono</th><th>Registro</th><th>Acciones</th></tr></thead><tbody>${pendingRows}</tbody></table></div>`
+    : "";
+
+  const fUser = `<form id="form-admin-user-create" class="p-form">
+    <label>Nombre <input name="name" required /></label>
+    <label>Correo <input type="email" name="email" required /></label>
+    <label>Contraseña <input type="password" name="password" minlength="6" required /></label>
+    <label>Rol <select name="role" required><option value="${ROLES.ADMIN}">admin</option><option value="${ROLES.RRHH}">rrhh</option><option value="${ROLES.CLIENT}">client</option></select></label>
+    <label class="full">Empresa <select name="companyId" required><option value="">Seleccione empresa...</option>${companyOptions}</select></label>
+    <label>Nombre comercial <input name="company" value="Antares Cargo" /></label>
+    <label>NIT/RUT <input name="taxId" value="900000001-0" required /></label>
+    <label>Telefono <input name="phone" required /></label>
+    <fieldset class="full"><legend>Permisos</legend><div class="p-form">${permissionOptions}</div></fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
+  </form>`;
+  const fComp = `<form id="form-admin-company-create" class="p-form">
+    <label>Nombre empresa <input name="name" required /></label>
+    <label>NIT/RUT <input name="taxId" required /></label>
+    <label>Telefono <input name="phone" required /></label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Crear empresa</button>
+  </form>`;
+  const fPerm = `<form id="form-admin-user-permissions" class="p-form">
+    <label>Usuario <select name="userId" required><option value="">Seleccione...</option>${userOptions}</select></label>
+    <fieldset class="full"><legend>Permisos a asignar</legend><div class="p-form">${permissionOptions.replaceAll("checked", "")}</div></fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.save} Guardar permisos</button>
+  </form>`;
+  const usersTable = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Empresa</th><th>Estado</th><th>Permisos</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("Sin usuarios registrados.");
+
+  return (pendingUsers.length > 0 ? pcardWrap("bell", "Registros pendientes (" + pendingUsers.length + ")", "Requieren aprobacion para acceder al portal", pendingBody, "p-card-alert") : "")
+    + `<div class="dash-grid">${pcardWrap("userPlus", "Crear usuario", null, fUser)}${pcardWrap("plus", "Crear empresa", null, fComp)}</div>`
+    + pcardWrap("save", "Permisos granulares", null, fPerm)
+    + pcardWrap("shield", "Usuarios del sistema", users.length + " usuarios", usersTable);
 }
 
 function historyHtml() {
@@ -1349,37 +1279,31 @@ function historyHtml() {
     .map((u) => `<option value="${u.id}">${u.company}</option>`)
     .join("");
   const rows = requests
-    .map(
-      (r) => `
-      <tr>
-        <td>${fmtDate(r.createdAt)}</td><td>${r.requestNumber || r.id}</td><td>${r.clientName}</td><td>${r.vehicleType}</td><td>${r.status}</td><td>${r.trip?.tripNumber || "-"}</td>
-      </tr>`
-    )
+    .map((r) => `<tr>
+      <td>${fmtDate(r.createdAt)}</td>
+      <td><strong>${r.requestNumber || r.id}</strong></td>
+      <td>${r.clientName}</td>
+      <td>${r.vehicleType}</td>
+      <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
+      <td>${r.trip?.tripNumber || '<span class="muted">-</span>'}</td>
+    </tr>`)
     .join("");
 
-  return `
-    <article class="card">
-      <h2>Historial y reportes</h2>
-      <form id="history-filter" class="form-grid">
-        <label>Desde <input type="date" name="from" /></label>
-        <label>Hasta <input type="date" name="to" /></label>
-        <label>Cliente <select name="client"><option value="">Todos</option>${options}</select></label>
-        <label>Estado <select name="status"><option value="">Todos</option>${Object.values(STATUS)
-          .map((s) => `<option>${s}</option>`)
-          .join("")}</select></label>
-        <button class="btn btn-outline full" type="submit">Aplicar filtro</button>
-      </form>
-      <table>
-        <thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Vehiculo</th><th>Estado</th><th>Viaje</th></tr></thead>
-        <tbody id="history-body">${rows || "<tr><td colspan='6'>Sin registros</td></tr>"}</tbody>
-      </table>
-      <div class="card" style="margin-top:.8rem">
-        <h3>Reporte rapido</h3>
-        <p>Clientes mas activos: ${topClients(requests).join(", ") || "Sin datos"}</p>
-        <p>Vehiculos mas usados: ${topVehicles(requests).join(", ") || "Sin datos"}</p>
-      </div>
-    </article>
-  `;
+  const filterBody = `<form id="history-filter" class="p-form">
+    <label>Desde <input type="date" name="from" /></label>
+    <label>Hasta <input type="date" name="to" /></label>
+    <label>Cliente <select name="client"><option value="">Todos</option>${options}</select></label>
+    <label>Estado <select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
+    <button class="btn btn-primary full" type="submit">${IC.filter} Aplicar filtro</button>
+  </form>`;
+  const tableBody = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Vehiculo</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
+    : emptyState("Sin registros.");
+  const reportBody = `<div class="dash-grid" style="margin-top:1rem">
+    ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
+    ${pcardWrap("truck", "Vehiculos mas usados", null, `<p>${topVehicles(requests).join(", ") || "Sin datos"}</p>`)}
+  </div>`;
+  return pcardWrap("filter", "Filtros", null, filterBody) + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody) + reportBody;
 }
 
 function topClients(requests) {
@@ -1409,68 +1333,51 @@ function payrollHtml() {
   const runs = read(KEYS.payrollRuns, []);
   const pending = runs.filter((r) => !r.paid).length;
   const employeeRows = employees
-    .map(
-      (e) => `<tr>
-        <td>${e.name}</td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${e.baseSalary}</td><td>${fmtDate(e.startDate)}</td>
-        <td>
-          <div class="toolbar">
-            <button class="btn btn-outline" data-action="edit-employee" data-id="${e.id}">Modificar</button>
-            <button class="btn btn-outline" data-action="delete-employee" data-id="${e.id}">Eliminar</button>
-          </div>
-        </td>
-      </tr>`
-    )
+    .map((e) => `<tr>
+      <td><strong>${e.name}</strong></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-action" data-action="edit-employee" data-id="${e.id}">${IC.edit} Editar</button>
+        <button class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${e.id}">${IC.trash} Eliminar</button>
+      </div></td>
+    </tr>`)
     .join("");
   const runRows = runs
-    .map(
-      (r) => `
-      <tr>
-        <td>${r.month}</td><td>${r.employeeName}</td><td>${r.net}</td><td>${r.paid ? "Pagado" : "Pendiente"}</td>
-        <td><button class="btn btn-outline" data-action="payslip" data-id="${r.id}">Desprendible</button></td>
-      </tr>`
-    )
+    .map((r) => `<tr>
+      <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
+      <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
+      <td><button class="btn btn-sm btn-action" data-action="payslip" data-id="${r.id}">${IC.printer} Desprendible</button></td>
+    </tr>`)
     .join("");
 
-  return `
-    <article class="card">
-      <h2>Nomina</h2>
-      <p class="muted">Alertas: pagos pendientes ${pending}</p>
-      <div class="grid-2">
-        <form id="form-employee" class="form-grid card">
-          <h3>Registro empleado</h3>
-          <label>Nombre <input name="name" required /></label>
-          <label>Cedula <input name="idDoc" required /></label>
-          <label>Cargo <input name="position" required /></label>
-          <label>Tipo contrato <input name="contractType" required /></label>
-          <label>Salario base <input type="number" name="baseSalary" required /></label>
-          <label>Fecha ingreso <input type="date" name="startDate" required /></label>
-          <button class="btn btn-primary full" type="submit">Guardar empleado</button>
-        </form>
-        <form id="form-payroll" class="form-grid card">
-          <h3>Liquidacion mensual</h3>
-          <label>Empleado
-            <select name="employeeId" required>
-              <option value="">Seleccione</option>
-              ${employees.map((e) => `<option value="${e.id}">${e.name}</option>`).join("")}
-            </select>
-          </label>
-          <label>Mes <input type="month" name="month" required /></label>
-          <label>Horas extras <input type="number" name="extras" value="0" /></label>
-          <label>Aux transporte <input type="number" name="aux" value="0" /></label>
-          <label>Deduccion salud <input type="number" name="health" value="0" /></label>
-          <label>Deduccion pension <input type="number" name="pension" value="0" /></label>
-          <label>Deduccion ARL <input type="number" name="arl" value="0" /></label>
-          <label>Bonificaciones <input type="number" name="bonus" value="0" /></label>
-          <button class="btn btn-primary full" type="submit">Generar liquidacion</button>
-        </form>
-      </div>
-      <h3>Empleados</h3>
-      <table><thead><tr><th>Nombre</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows || "<tr><td colspan='7'>Sin empleados</td></tr>"}</tbody></table>
-      <h3>Historial de pagos</h3>
-      <div class="toolbar"><button id="export-payroll" class="btn btn-outline">Exportar resumen CSV</button></div>
-      <table><thead><tr><th>Mes</th><th>Empleado</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows || "<tr><td colspan='5'>Sin liquidaciones</td></tr>"}</tbody></table>
-    </article>
-  `;
+  const formEmp = `<form id="form-employee" class="p-form">
+    <label>Nombre <input name="name" required /></label>
+    <label>Cedula <input name="idDoc" required /></label>
+    <label>Cargo <input name="position" required /></label>
+    <label>Tipo contrato <input name="contractType" required /></label>
+    <label>Salario base <input type="number" name="baseSalary" required /></label>
+    <label>Fecha ingreso <input type="date" name="startDate" required /></label>
+    <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
+  </form>`;
+  const formPay = `<form id="form-payroll" class="p-form">
+    <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name}</option>`).join("")}</select></label>
+    <label>Mes <input type="month" name="month" required /></label>
+    <label>Horas extras <input type="number" name="extras" value="0" /></label>
+    <label>Aux transporte <input type="number" name="aux" value="0" /></label>
+    <label>Deduccion salud <input type="number" name="health" value="0" /></label>
+    <label>Deduccion pension <input type="number" name="pension" value="0" /></label>
+    <label>Deduccion ARL <input type="number" name="arl" value="0" /></label>
+    <label>Bonificaciones <input type="number" name="bonus" value="0" /></label>
+    <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidacion</button>
+  </form>`;
+  const empTable = employeeRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+    : emptyState("No hay empleados registrados.");
+  const runTable = runRows
+    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
+    : emptyState("Sin liquidaciones registradas.");
+  return `<div class="dash-grid">${pcardWrap("userPlus", "Registro empleado", null, formEmp)}${pcardWrap("dollar", "Liquidacion mensual", null, formPay)}</div>`
+    + pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)
+    + pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable);
 }
 
 function hiringHtml() {
@@ -1480,134 +1387,46 @@ function hiringHtml() {
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
 
-  const vacRows = vacancies
-    .map(
-      (v) => `
-      <tr><td>${v.title}</td><td>${v.salaryOffer}</td><td>${v.deadline}</td><td>${v.status}</td><td><button class="btn btn-outline" data-action="close-vacancy" data-id="${v.id}">Cerrar</button></td></tr>`
-    )
-    .join("");
+  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
+  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}</td><td>${c.vacancyTitle}</td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
+  const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
+  const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
-  const candRows = candidates
-    .map(
-      (c) => `
-      <tr>
-        <td>${c.name}</td><td>${c.email}</td><td>${c.vacancyTitle}</td><td>${c.status}</td>
-        <td>
-          <select data-action="candidate-status" data-id="${c.id}">
-            ${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}
-          </select>
-        </td>
-      </tr>`
-    )
-    .join("");
+  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo <input name="title" required /></label><label>Requisitos <input name="requirements" required /></label><label>Salario ofrecido <input type="number" name="salaryOffer" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
+  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
+  const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
+  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Cargo <input name="position" required /></label><label>Salario <input type="number" name="salary" required /></label><label>Inicio <input type="date" name="startDate" required /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
-  const interviewRows = interviews
-    .map((i) => `<tr><td>${i.candidateName}</td><td>${i.when}</td><td>${i.interviewer}</td></tr>`)
-    .join("");
+  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
+  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Correo</th><th>Vacante</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
+  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
 
-  const contractRows = contracts
-    .map(
-      (c) =>
-        `<tr><td>${c.candidateName || c.employeeName || "-"}</td><td>${c.position}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(
-          c.createdAt
-        )}</td><td><button class="btn btn-outline" data-action="view-contract" data-id="${c.id}">Ver</button></td></tr>`
-    )
-    .join("");
-
-  return `
-    <article class="card">
-      <h2>Contratacion</h2>
-      <div class="grid-2">
-        <form id="form-vacancy" class="form-grid card">
-          <h3>Vacantes</h3>
-          <label>Cargo <input name="title" required /></label>
-          <label>Requisitos <input name="requirements" required /></label>
-          <label>Salario ofrecido <input type="number" name="salaryOffer" required /></label>
-          <label>Fecha limite <input type="date" name="deadline" required /></label>
-          <button class="btn btn-primary full" type="submit">Publicar vacante</button>
-        </form>
-        <form id="form-candidate" class="form-grid card">
-          <h3>Candidatos</h3>
-          <label>Nombre <input name="name" required /></label>
-          <label>Correo <input type="email" name="email" required /></label>
-          <label>Vacante
-            <select name="vacancyId" required>
-              <option value="">Seleccione</option>
-              ${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}
-            </select>
-          </label>
-          <label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label>
-          <button class="btn btn-primary full" type="submit">Registrar candidato</button>
-        </form>
-      </div>
-
-      <h3>Vacantes activas</h3>
-      <table><thead><tr><th>Cargo</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows || "<tr><td colspan='5'>Sin vacantes</td></tr>"}</tbody></table>
-      <h3>Pipeline</h3>
-      <table><thead><tr><th>Candidato</th><th>Correo</th><th>Vacante</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows || "<tr><td colspan='5'>Sin candidatos</td></tr>"}</tbody></table>
-
-      <div class="grid-2">
-        <form id="form-interview" class="form-grid card">
-          <h3>Programar entrevista</h3>
-          <label>Candidato
-            <select name="candidateId" required>
-              <option value="">Seleccione</option>
-              ${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}
-            </select>
-          </label>
-          <label>Fecha y hora <input type="datetime-local" name="when" required /></label>
-          <label>Entrevistador <input name="interviewer" required /></label>
-          <button class="btn btn-primary full" type="submit">Guardar entrevista</button>
-        </form>
-        <form id="form-contract" class="form-grid card">
-          <h3>Generar contrato</h3>
-          <label>Candidato contratado
-            <select name="candidateId" required>
-              <option value="">Seleccione</option>
-              ${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}
-            </select>
-          </label>
-          <label>Cargo <input name="position" required /></label>
-          <label>Salario <input type="number" name="salary" required /></label>
-          <label>Inicio <input type="date" name="startDate" required /></label>
-          <button class="btn btn-primary full" type="submit">Generar contrato</button>
-        </form>
-      </div>
-      <div class="grid-2" style="margin-top:.8rem">
-        <form id="form-employee-contract" class="form-grid card">
-          <h3>Contrato desde empleado de nómina</h3>
-          <label>Empleado
-            <select name="employeeId" required>
-              <option value="">Seleccione</option>
-              ${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}
-            </select>
-          </label>
-          <label>Salario acordado <input type="number" name="salary" required /></label>
-          <label>Fecha de inicio <input type="date" name="startDate" required /></label>
-          <label>Tipo de contrato <input name="contractType" required /></label>
-          <button class="btn btn-primary full" type="submit">Crear contrato PDF</button>
-        </form>
-      </div>
-      <h3>Entrevistas</h3>
-      <table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows || "<tr><td colspan='3'>Sin entrevistas</td></tr>"}</tbody></table>
-      <h3>Contratos generados</h3>
-      <table><thead><tr><th>Persona</th><th>Cargo</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows || "<tr><td colspan='5'>Sin contratos</td></tr>"}</tbody></table>
-    </article>
-  `;
+  return `<div class="dash-grid">${pcardWrap("plus", "Nueva vacante", null, fVac)}${pcardWrap("userPlus", "Registrar candidato", null, fCand)}</div>`
+    + pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)
+    + pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)
+    + `<div class="dash-grid">${pcardWrap("calendar", "Programar entrevista", null, fInt)}${pcardWrap("file", "Generar contrato", null, fCon)}</div>`
+    + pcardWrap("printer", "Contrato desde nomina", null, fEmpCon)
+    + pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)
+    + pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon);
 }
 
 function notificationsHtml() {
   const user = currentUser();
   const list = read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
   const rows = list
-    .map((n) => `<tr><td>${fmtDate(n.createdAt)}</td><td>${n.title}</td><td>${n.body}</td><td>${n.readAt ? "Leida" : "Nueva"}</td></tr>`)
+    .map((n) => `<tr>
+      <td>${fmtDate(n.createdAt)}</td>
+      <td><strong>${n.title}</strong></td>
+      <td>${n.body}</td>
+      <td>${n.readAt ? '<span class="status status-completada">Leida</span>' : '<span class="status status-pendiente">Nueva</span>'}</td>
+    </tr>`)
     .join("");
-  return `
-    <article class="card">
-      <h2>Notificaciones</h2>
-      <table><thead><tr><th>Fecha</th><th>Titulo</th><th>Mensaje</th><th>Estado</th></tr></thead><tbody>${rows || "<tr><td colspan='4'>Sin notificaciones</td></tr>"}</tbody></table>
-    </article>
-  `;
+  const body = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Titulo</th><th>Mensaje</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No tienes notificaciones.");
+  return pcardWrap("bell", "Notificaciones", list.length + " notificaciones", body);
 }
 
 function renderPortalView() {
@@ -1633,7 +1452,7 @@ function renderPortalView() {
   nodes.viewTitle.textContent = titles[view] || "Dashboard";
 
   if (!canAccessView(user, view)) {
-    nodes.viewRoot.innerHTML = `<article class="card"><p>No autorizado para este módulo.</p></article>`;
+    nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
   } else if (view === "dashboard") {
     nodes.viewRoot.innerHTML = viewDashboard();
   } else if (view === "requests" && user.role === ROLES.CLIENT) {
@@ -1659,7 +1478,7 @@ function renderPortalView() {
   } else if (view === "notifications") {
     nodes.viewRoot.innerHTML = notificationsHtml();
   } else {
-    nodes.viewRoot.innerHTML = `<article class="card"><p>No autorizado para esta vista.</p></article>`;
+    nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
   }
 
   bindDynamicEvents();
