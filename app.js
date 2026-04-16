@@ -37,6 +37,124 @@ function emptyState(text) {
   return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${text}</p></div>`;
 }
 
+function notify(message, type = "info") {
+  let box = document.getElementById("toast-container");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "toast-container";
+    box.className = "toast-container";
+    document.body.appendChild(box);
+  }
+  const item = document.createElement("div");
+  item.className = `toast toast-${type}`;
+  item.textContent = message;
+  box.appendChild(item);
+  requestAnimationFrame(() => item.classList.add("show"));
+  setTimeout(() => {
+    item.classList.remove("show");
+    setTimeout(() => item.remove(), 240);
+  }, 3200);
+}
+
+function openEditModal({ title, subtitle = "", fields = [], submitText = "Guardar", onSubmit }) {
+  let modal = document.getElementById("crud-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "crud-modal";
+    modal.className = "modal hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
+    document.body.appendChild(modal);
+  }
+  const content = modal.querySelector("#crud-modal-content");
+  const fieldsHtml = fields
+    .map((f) => {
+      if (f.type === "select") {
+        const options = (f.options || [])
+          .map((opt) => `<option value="${opt.value}" ${String(opt.value) === String(f.value ?? "") ? "selected" : ""}>${opt.label}</option>`)
+          .join("");
+        return `<label><span>${f.label}</span><select name="${f.name}" ${f.required ? "required" : ""}>${options}</select></label>`;
+      }
+      return `<label><span>${f.label}</span><input type="${f.type || "text"}" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" ${f.required ? "required" : ""} /></label>`;
+    })
+    .join("");
+
+  content.innerHTML = `
+    <div class="modal-head">
+      <h2>${title}</h2>
+      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
+    </div>
+    ${subtitle ? `<p class="muted">${subtitle}</p>` : ""}
+    <form id="crud-form" class="p-form modal-edit-form">
+      ${fieldsHtml}
+      <div class="modal-edit-actions">
+        <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${IC.save} ${submitText}</button>
+      </div>
+    </form>
+  `;
+
+  const close = () => modal.classList.add("hidden");
+  modal.classList.remove("hidden");
+  content.querySelector("#crud-close").addEventListener("click", close);
+  content.querySelector("#crud-cancel").addEventListener("click", close);
+  modal.addEventListener(
+    "click",
+    (event) => {
+      if (event.target === modal) close();
+    },
+    { once: true }
+  );
+  content.querySelector("#crud-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+    const result = onSubmit?.(payload);
+    if (result === false) return;
+    close();
+  });
+}
+
+function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm }) {
+  let modal = document.getElementById("crud-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "crud-modal";
+    modal.className = "modal hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
+    document.body.appendChild(modal);
+  }
+  const content = modal.querySelector("#crud-modal-content");
+  content.innerHTML = `
+    <div class="modal-head">
+      <h2>${title}</h2>
+      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
+    </div>
+    <p>${message}</p>
+    <div class="modal-edit-actions" style="margin-top:1rem;">
+      <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
+      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${confirmText}</button>
+    </div>
+  `;
+  const close = () => modal.classList.add("hidden");
+  modal.classList.remove("hidden");
+  content.querySelector("#crud-close").addEventListener("click", close);
+  content.querySelector("#crud-cancel").addEventListener("click", close);
+  content.querySelector("#crud-confirm").addEventListener("click", () => {
+    onConfirm?.();
+    close();
+  });
+  modal.addEventListener(
+    "click",
+    (event) => {
+      if (event.target === modal) close();
+    },
+    { once: true }
+  );
+}
+
 const KEYS = {
   users: "antares_users_v2",
   companies: "antares_companies_v2",
@@ -287,6 +405,27 @@ function fmtDate(value) {
   return new Date(value).toLocaleString("es-CO");
 }
 
+function addYears(dateValue, years) {
+  const d = new Date(dateValue);
+  d.setFullYear(d.getFullYear() + years);
+  return d;
+}
+
+function daysUntil(dateValue) {
+  const target = new Date(dateValue).setHours(0, 0, 0, 0);
+  const now = new Date().setHours(0, 0, 0, 0);
+  return Math.floor((target - now) / 86400000);
+}
+
+function docExpiryStatus(expeditionDate) {
+  if (!expeditionDate) return { label: "Sin fecha", cls: "status-rechazada", days: -9999, expiresAt: null };
+  const expiresAt = addYears(expeditionDate, 1);
+  const days = daysUntil(expiresAt);
+  if (days < 0) return { label: `Vencido hace ${Math.abs(days)} dias`, cls: "status-rechazada", days, expiresAt };
+  if (days <= 30) return { label: `Por vencer (${days} dias)`, cls: "status-pendiente", days, expiresAt };
+  return { label: `Vigente (${days} dias)`, cls: "status-viaje_asignado", days, expiresAt };
+}
+
 function formatRoute(request) {
   const origin = `${request.originDepartment ? `${request.originDepartment}, ` : ""}${request.originCity || "-"}`;
   const destination = `${request.destinationDepartment ? `${request.destinationDepartment}, ` : ""}${request.destinationCity || "-"}`;
@@ -517,6 +656,22 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
   });
 }
 
+function ensureVehicleDocs() {
+  const vehicles = read(KEYS.vehicles, []);
+  let changed = false;
+  const nowDate = new Date().toISOString().slice(0, 10);
+  const updated = vehicles.map((v) => {
+    if (v.soatExpeditionDate && v.techInspectionExpeditionDate) return v;
+    changed = true;
+    return {
+      ...v,
+      soatExpeditionDate: v.soatExpeditionDate || nowDate,
+      techInspectionExpeditionDate: v.techInspectionExpeditionDate || nowDate
+    };
+  });
+  if (changed) write(KEYS.vehicles, updated);
+}
+
 function seed() {
   if (!localStorage.getItem(KEYS.companies)) {
     write(KEYS.companies, [
@@ -624,6 +779,7 @@ function seed() {
   ensureRequestAndTripIdentifiers();
   ensureUsersPermissions();
   ensureUsersAccountStatus();
+  ensureVehicleDocs();
 }
 
 function getSession() {
@@ -662,7 +818,6 @@ async function ensureUsersPasswordHashing() {
 
 function authView() {
   const tab = state.authTab;
-  const companyOptions = companySelectOptions();
   if (tab === "login") {
     return `
       <form id="form-login" class="form-grid auth-form">
@@ -683,15 +838,18 @@ function authView() {
     return `
       <form id="form-register" class="form-grid auth-form">
         <label>Nombre <input name="name" required /></label>
-        <label>Empresa
-          <select name="companyId" required>
-            <option value="">Seleccione...</option>
-            ${companyOptions}
+        <label>Tipo documento
+          <select name="documentType" required>
+            <option value="CC">Cedula de ciudadania</option>
+            <option value="CE">Cedula de extranjeria</option>
+            <option value="NIT">NIT</option>
+            <option value="PAS">Pasaporte</option>
           </select>
         </label>
-        <label>NIT/RUT <input name="taxId" required /></label>
+        <label>Numero documento/NIT <input name="taxId" required /></label>
         <label>Cargo <input name="position" required /></label>
         <label>Telefono <input name="phone" required /></label>
+        <label>Ciudad <input name="city" required placeholder="Ej: Medellin" /></label>
         <label>Correo <input type="email" name="email" autocomplete="username" required /></label>
         <label class="full">Contrasena
           <div class="password-field">
@@ -796,8 +954,12 @@ function bindAuthForms() {
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
-      if (!/^\d/.test(String(data.taxId)) && !String(data.taxId).includes("-")) {
-        alert("NIT/RUT invalido.");
+      const docType = String(data.documentType || "CC");
+      const docValue = String(data.taxId || "").trim();
+      const isPassportValid = docType === "PAS" && /^[A-Za-z0-9]{5,20}$/.test(docValue);
+      const isLocalDocValid = docType !== "PAS" && (/^\d/.test(docValue) || docValue.includes("-"));
+      if (!isPassportValid && !isLocalDocValid) {
+        alert("Documento invalido. Verifica el numero registrado.");
         return;
       }
       if (String(data.password || "").length < 8) {
@@ -809,11 +971,6 @@ function bindAuthForms() {
         alert("El correo ya existe.");
         return;
       }
-      const company = getCompanyById(String(data.companyId || ""));
-      if (!company) {
-        alert("Debes seleccionar una empresa valida.");
-        return;
-      }
       const newUser = {
         id: uid(),
         ...data,
@@ -821,8 +978,8 @@ function bindAuthForms() {
         password: await hashPassword(data.password),
         role: ROLES.CLIENT,
         accountStatus: ACCOUNT_STATUS.PENDIENTE,
-        companyId: company.id,
-        company: company.name,
+        companyId: null,
+        company: "",
         permissions: defaultPermissionsForRole(ROLES.CLIENT),
         registeredAt: nowIso()
       };
@@ -838,12 +995,12 @@ function bindAuthForms() {
         saveNotification({
           userId: admin.id,
           title: "Nuevo registro de cliente pendiente",
-          body: `${data.name} de ${company.name} solicita acceso al portal.`
+          body: `${data.name} solicita acceso al portal. Falta asociar empresa en aprobacion.`
         });
         sendEmail({
           to: admin.email,
           subject: "Nuevo registro de cliente pendiente de aprobacion",
-          body: `Cliente: ${data.name} | Empresa: ${company.name} | Correo: ${data.email}`
+          body: `Cliente: ${data.name} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
         });
       });
       alert("Registro enviado. Tu cuenta sera revisada por un administrador antes de poder acceder. Te notificaremos por correo.");
@@ -1217,11 +1374,13 @@ function setView(view) {
 function renderPortal() {
   const session = getSession();
   if (!session) {
+    document.body.classList.remove("portal-mode");
     nodes.publicApp.classList.remove("hidden");
     nodes.portalApp.classList.add("hidden");
     return;
   }
   state.session = session;
+  document.body.classList.add("portal-mode");
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
   const user = currentUser();
@@ -1309,11 +1468,9 @@ function requestFormHtml() {
     <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
     <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
     <label>${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
-    <label>${fieldLabel(IC.inbox, "Punto cargue")}<input name="originPoint" required /></label>
     <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
     <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
     <label>${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
-    <label>${fieldLabel(IC.inbox, "Punto descargue")}<input name="destinationPoint" required /></label>
     <div class="full datetime-group">
       <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
       <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
@@ -1385,27 +1542,35 @@ function adminQueueHtml() {
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const rows = vehicles
-    .map((v) => `<tr>
+    .map((v) => {
+      const soat = docExpiryStatus(v.soatExpeditionDate);
+      const tecno = docExpiryStatus(v.techInspectionExpeditionDate);
+      return `<tr>
       <td><strong>${v.plate}</strong></td>
       <td>${v.type}</td>
       <td>${v.capacityKg.toLocaleString("es-CO")} kg</td>
       <td>${v.refrigerated ? '<span class="status status-viaje_asignado">Si</span>' : '<span class="status status-espera_standby">No</span>'}</td>
+      <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
+      <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
       <td>${v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
       </div></td>
-    </tr>`)
+    </tr>`;
+    })
     .join("");
   const formBody = `<form id="form-vehicle" class="p-form">
     <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
     <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
     <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
     <label>${fieldLabel(IC.activity, "Refrigerado")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
+    <label>${fieldLabel(IC.calendar, "Expedicion SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
+    <label>${fieldLabel(IC.calendar, "Expedicion tecnomecanica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
     <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehiculo</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Refrigerado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Refrigerado</th><th>SOAT</th><th>Tecnomecanica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay vehiculos registrados.");
   return pcardWrap("plus", "Registrar vehiculo", null, formBody) + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehiculos", tableBody);
 }
@@ -1428,8 +1593,17 @@ function driversHtml() {
     .join("");
   const formBody = `<form id="form-driver" class="p-form">
     <label>${fieldLabel(IC.user, "Nombre")}<input name="name" required /></label>
+    <label>${fieldLabel(IC.file, "Tipo documento")}
+      <select name="documentType" required>
+        <option value="CC">Cedula de ciudadania</option>
+        <option value="CE">Cedula de extranjeria</option>
+        <option value="PAS">Pasaporte</option>
+      </select>
+    </label>
+    <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
     <label>${fieldLabel(IC.file, "Licencia")}<input name="license" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Ciudad residencia")}<input name="city" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione...</option>${companyOptions}</select></label>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Agregar conductor</button>
   </form>`;
@@ -1579,7 +1753,7 @@ function adminUsersHtml(current) {
     </div>
     <div class="user-card-meta">
       <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "-"}</span>
-      <span>${IC.file} ${u.taxId || "-"}</span>
+      <span>${IC.file} ${(u.documentType || "Doc") + " " + (u.taxId || "-")}</span>
       ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
       ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
     </div>
@@ -1594,6 +1768,15 @@ function adminUsersHtml(current) {
     <label>Nombre <input name="name" required placeholder="Nombre completo" /></label>
     <label>Correo <input type="email" name="email" required placeholder="correo@empresa.com" /></label>
     <label>Contraseña <input type="password" name="password" minlength="6" required placeholder="Min. 6 caracteres" /></label>
+    <label>Tipo documento
+      <select name="documentType" required>
+        <option value="CC">Cedula de ciudadania</option>
+        <option value="CE">Cedula de extranjeria</option>
+        <option value="NIT">NIT</option>
+        <option value="PAS">Pasaporte</option>
+      </select>
+    </label>
+    <label>Documento/NIT <input name="taxId" value="900000001-0" required /></label>
     <label>Rol
       <select name="role" required>
         <option value="${ROLES.ADMIN}">Administrador</option>
@@ -1608,8 +1791,8 @@ function adminUsersHtml(current) {
       </select>
     </label>
     <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
+    <label>Ciudad <input name="city" required placeholder="Ciudad principal" /></label>
     <label>Nombre comercial <input name="company" value="Antares" /></label>
-    <label>NIT/RUT <input name="taxId" value="900000001-0" required /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos del usuario</legend>
       <div class="perm-grid">${permissionChecks([...ALL_PERMISSIONS])}</div>
@@ -1643,6 +1826,14 @@ function adminUsersHtml(current) {
     <label>Nombre <input name="name" value="${editingUser.name || ""}" required /></label>
     <label>Correo <input type="email" name="email" value="${editingUser.email || ""}" required /></label>
     <label>Contraseña <input type="password" name="password" placeholder="Dejar vacio para conservar" /></label>
+    <label>Tipo documento
+      <select name="documentType" required>
+        <option value="CC" ${editingUser.documentType === "CC" ? "selected" : ""}>Cedula de ciudadania</option>
+        <option value="CE" ${editingUser.documentType === "CE" ? "selected" : ""}>Cedula de extranjeria</option>
+        <option value="NIT" ${editingUser.documentType === "NIT" ? "selected" : ""}>NIT</option>
+        <option value="PAS" ${editingUser.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
+      </select>
+    </label>
     <label>Rol
       <select name="role" required>
         <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
@@ -1655,6 +1846,7 @@ function adminUsersHtml(current) {
       <input type="hidden" name="companyId" value="${editingUser.companyId || ""}" />
     </label>
     <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
+    <label>Ciudad <input name="city" value="${editingUser.city || ""}" /></label>
     <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
     <label>NIT/RUT <input name="taxId" value="${editingUser.taxId || ""}" /></label>
     <fieldset class="full perm-fieldset">
@@ -1675,16 +1867,38 @@ function adminUsersHtml(current) {
 
   // --- Render ---
   let html = "";
+  const adminCount = users.filter((u) => u.role === ROLES.ADMIN).length;
+  const rrhhCount = users.filter((u) => u.role === ROLES.RRHH).length;
+  const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
+  const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
+
+  html += `<div class="users-hero">
+    <div class="users-hero-item">
+      <span>Total usuarios</span><strong>${users.length}</strong>
+    </div>
+    <div class="users-hero-item">
+      <span>Admins</span><strong>${adminCount}</strong>
+    </div>
+    <div class="users-hero-item">
+      <span>RRHH</span><strong>${rrhhCount}</strong>
+    </div>
+    <div class="users-hero-item">
+      <span>Clientes</span><strong>${clientCount}</strong>
+    </div>
+    <div class="users-hero-item">
+      <span>Aprobados</span><strong>${approvedCount}</strong>
+    </div>
+  </div>`;
 
   if (pendingUsers.length > 0) {
-    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobacion para acceder", `<div class="user-grid">${pendingCards}</div>`, "p-card-alert");
+    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobacion para acceder", `<div class="user-grid user-grid-pending">${pendingCards}</div>`, "p-card-alert");
   }
 
-  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid">${userCards}</div>` : emptyState("Sin usuarios registrados."));
-  html += `<div class="toolbar" style="margin-bottom:0.8rem">
-    <button class="btn btn-action" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
-    <button class="btn btn-action" data-action="toggle-admin-panel" data-panel="create-company">${IC.plus} Nueva empresa</button>
-    <button class="btn btn-action" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.save} Asignar permisos</button>
+  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
+  html += `<div class="toolbar users-actions">
+    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
+    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="create-company">${IC.plus} Nueva empresa</button>
+    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.save} Asignar permisos</button>
   </div>`;
 
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
@@ -1781,9 +1995,17 @@ function payrollHtml() {
 
   const formEmp = `<form id="form-employee" class="p-form">
     <label>${fieldLabel(IC.user, "Nombre")}<input name="name" required /></label>
-    <label>${fieldLabel(IC.file, "Cedula")}<input name="idDoc" required /></label>
+    <label>${fieldLabel(IC.file, "Tipo documento")}
+      <select name="documentType" required>
+        <option value="CC">Cedula de ciudadania</option>
+        <option value="CE">Cedula de extranjeria</option>
+        <option value="PAS">Pasaporte</option>
+      </select>
+    </label>
+    <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
     <label>${fieldLabel(IC.briefcase, "Cargo")}<input name="position" required /></label>
     <label>${fieldLabel(IC.activity, "Tipo contrato")}<input name="contractType" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Ciudad")}<input name="city" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
     <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" name="baseSalary" required /></label>
     <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
@@ -2036,11 +2258,13 @@ function bindDynamicEvents() {
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
         role: data.role,
+        documentType: data.documentType,
         accountStatus: ACCOUNT_STATUS.APROBADO,
         company: data.company || company.name,
         companyId: company.id,
         taxId: data.taxId,
         phone: data.phone,
+        city: data.city,
         permissions:
           data.role === ROLES.ADMIN
             ? [...ALL_PERMISSIONS]
@@ -2163,10 +2387,12 @@ function bindDynamicEvents() {
                 email: normalizeEmail(data.email),
                 password: nextPassword,
                 role: String(data.role || u.role),
+                documentType: String(data.documentType || u.documentType || "CC"),
                 companyId: company.id,
                 company: String(data.company || company.name).trim(),
                 taxId: String(data.taxId || "").trim(),
                 phone: String(data.phone || "").trim(),
+                city: String(data.city || "").trim(),
                 permissions:
                   String(data.role || u.role) === ROLES.ADMIN
                     ? [...ALL_PERMISSIONS]
@@ -2190,22 +2416,59 @@ function bindDynamicEvents() {
       const users = read(KEYS.users, []);
       const target = users.find((u) => u.id === userId);
       if (!target) return;
-      write(
-        KEYS.users,
-        users.map((u) => u.id === userId ? { ...u, accountStatus: ACCOUNT_STATUS.APROBADO } : u)
-      );
-      saveNotification({
-        userId: target.id,
-        title: "Cuenta aprobada",
-        body: "Tu cuenta ha sido aprobada. Ya puedes iniciar sesion en el portal."
+      const companies = read(KEYS.companies, []);
+      if (!companies.length) {
+        notify("No hay empresas registradas para asociar al usuario.", "error");
+        return;
+      }
+      openEditModal({
+        title: "Aprobar usuario y asociar empresa",
+        subtitle: `${target.name} · ${target.email}`,
+        submitText: "Aprobar cuenta",
+        fields: [
+          {
+            name: "companyId",
+            label: "Empresa a asociar",
+            type: "select",
+            required: true,
+            value: target.companyId || "",
+            options: companies.map((c) => ({ value: c.id, label: `${c.name} (${c.taxId || "Sin NIT"})` }))
+          }
+        ],
+        onSubmit: (form) => {
+          const selected = getCompanyById(String(form.companyId || ""));
+          if (!selected) {
+            notify("Debes seleccionar una empresa valida.", "error");
+            return false;
+          }
+          write(
+            KEYS.users,
+            users.map((u) =>
+              u.id === userId
+                ? {
+                    ...u,
+                    accountStatus: ACCOUNT_STATUS.APROBADO,
+                    companyId: selected.id,
+                    company: selected.name
+                  }
+                : u
+            )
+          );
+          saveNotification({
+            userId: target.id,
+            title: "Cuenta aprobada",
+            body: `Tu cuenta ha sido aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion.`
+          });
+          sendEmail({
+            to: target.email,
+            subject: "Cuenta aprobada - Antares Portal",
+            body: `Hola ${target.name}, tu cuenta fue aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion en el portal.`
+          });
+          notify(`Cuenta de ${target.name} aprobada exitosamente.`, "success");
+          renderPortalView();
+          return true;
+        }
       });
-      sendEmail({
-        to: target.email,
-        subject: "Cuenta aprobada - Antares Portal",
-        body: `Hola ${target.name}, tu cuenta ha sido aprobada. Ya puedes iniciar sesion en el portal con tu correo y contrasena.`
-      });
-      alert(`Cuenta de ${target.name} aprobada exitosamente.`);
-      renderPortalView();
     });
   });
 
@@ -2242,16 +2505,22 @@ function bindDynamicEvents() {
       const userId = btn.dataset.id;
       if (!userId) return;
       if (state.session?.userId === userId) {
-        alert("No puedes eliminar tu propio usuario.");
+        notify("No puedes eliminar tu propio usuario.", "error");
         return;
       }
-      if (!confirm("¿Eliminar usuario?")) return;
-      write(
-        KEYS.users,
-        read(KEYS.users, []).filter((user) => user.id !== userId)
-      );
-      alert("Usuario eliminado.");
-      renderPortalView();
+      openConfirmModal({
+        title: "Eliminar usuario",
+        message: "Esta accion eliminara el usuario de forma permanente.",
+        confirmText: "Eliminar",
+        onConfirm: () => {
+          write(
+            KEYS.users,
+            read(KEYS.users, []).filter((user) => user.id !== userId)
+          );
+          notify("Usuario eliminado.", "success");
+          renderPortalView();
+        }
+      });
     });
   });
 
@@ -2474,30 +2743,52 @@ function bindDynamicEvents() {
       const requests = read(KEYS.requests, []);
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req) return;
-      const newPickup = prompt("Nueva fecha de recogida (YYYY-MM-DDTHH:mm)", toInputDate(req.pickupAt));
-      if (!newPickup) return;
-      const newDelivery = prompt("Nueva fecha de entrega (YYYY-MM-DDTHH:mm)", toInputDate(req.etaDelivery || req.pickupAt));
-      if (!newDelivery) return;
-      if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
-        alert("La entrega debe ser posterior a la recogida.");
-        return;
-      }
-      write(
-        KEYS.requests,
-        requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r))
-      );
-      renderPortalView();
+      const [pickupDate, pickupTime] = String(toInputDate(req.pickupAt) || "").split("T");
+      const [deliveryDate, deliveryTime] = String(toInputDate(req.etaDelivery || req.pickupAt) || "").split("T");
+      openEditModal({
+        title: "Editar solicitud",
+        subtitle: req.requestNumber || req.id,
+        submitText: "Actualizar solicitud",
+        fields: [
+          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDate, required: true },
+          { name: "pickupTime", label: "Hora de recogida", type: "time", value: pickupTime, required: true },
+          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDate, required: true },
+          { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTime, required: true }
+        ],
+        onSubmit: (form) => {
+          const newPickup = `${form.pickupDate}T${form.pickupTime}`;
+          const newDelivery = `${form.deliveryDate}T${form.deliveryTime}`;
+          if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
+            notify("La entrega debe ser posterior a la recogida.", "error");
+            return false;
+          }
+          write(
+            KEYS.requests,
+            requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r))
+          );
+          notify("Solicitud actualizada correctamente.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (!confirm("Eliminar solicitud?")) return;
-      write(
-        KEYS.requests,
-        read(KEYS.requests, []).filter((r) => r.id !== btn.dataset.id)
-      );
-      renderPortalView();
+      openConfirmModal({
+        title: "Eliminar solicitud",
+        message: "Se eliminara la solicitud seleccionada.",
+        confirmText: "Eliminar",
+        onConfirm: () => {
+          write(
+            KEYS.requests,
+            read(KEYS.requests, []).filter((r) => r.id !== btn.dataset.id)
+          );
+          notify("Solicitud eliminada.", "success");
+          renderPortalView();
+        }
+      });
     });
   });
 
@@ -2513,9 +2804,12 @@ function bindDynamicEvents() {
         type: data.type,
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
+        soatExpeditionDate: data.soatExpeditionDate,
+        techInspectionExpeditionDate: data.techInspectionExpeditionDate,
         available: true
       });
       write(KEYS.vehicles, list);
+      notify("Camion registrado correctamente.", "success");
       renderPortalView();
     });
   }
@@ -2534,13 +2828,14 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        alert("Solicitud de conductor enviada para aprobacion.");
+        notify("Solicitud de conductor enviada para aprobacion.", "info");
         renderPortalView();
         return;
       }
       const list = read(KEYS.drivers, []);
       list.push({ id: uid(), ...data, available: true });
       write(KEYS.drivers, list);
+      notify("Conductor creado correctamente.", "success");
       renderPortalView();
     });
   }
@@ -2560,19 +2855,42 @@ function bindDynamicEvents() {
       const all = read(KEYS.vehicles, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
-      const newPlate = prompt("Placa", target.plate);
-      if (!newPlate) return;
-      const newCapacity = prompt("Capacidad kg", String(target.capacityKg));
-      if (!newCapacity) return;
-      write(
-        KEYS.vehicles,
-        all.map((v) =>
-          v.id === target.id
-            ? { ...v, plate: newPlate.toUpperCase(), capacityKg: parseNum(newCapacity) }
-            : v
-        )
-      );
-      renderPortalView();
+      openEditModal({
+        title: "Editar camion",
+        subtitle: target.plate,
+        submitText: "Guardar cambios",
+        fields: [
+          { name: "plate", label: "Placa", value: target.plate, required: true },
+          { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
+          { name: "soatExpeditionDate", label: "Expedicion SOAT", type: "date", value: target.soatExpeditionDate, required: true },
+          {
+            name: "techInspectionExpeditionDate",
+            label: "Expedicion tecnomecanica",
+            type: "date",
+            value: target.techInspectionExpeditionDate,
+            required: true
+          }
+        ],
+        onSubmit: (form) => {
+          write(
+            KEYS.vehicles,
+            all.map((v) =>
+              v.id === target.id
+                ? {
+                    ...v,
+                    plate: String(form.plate || "").toUpperCase(),
+                    capacityKg: parseNum(form.capacityKg),
+                    soatExpeditionDate: form.soatExpeditionDate,
+                    techInspectionExpeditionDate: form.techInspectionExpeditionDate
+                  }
+                : v
+            )
+          );
+          notify("Camion actualizado correctamente.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
@@ -2591,15 +2909,26 @@ function bindDynamicEvents() {
       const all = read(KEYS.drivers, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
-      const newName = prompt("Nombre", target.name);
-      if (!newName) return;
-      const newPhone = prompt("Teléfono", target.phone);
-      if (!newPhone) return;
-      write(
-        KEYS.drivers,
-        all.map((d) => (d.id === target.id ? { ...d, name: newName, phone: newPhone } : d))
-      );
-      renderPortalView();
+      openEditModal({
+        title: "Editar conductor",
+        subtitle: target.name,
+        submitText: "Actualizar conductor",
+        fields: [
+          { name: "name", label: "Nombre completo", value: target.name, required: true },
+          { name: "phone", label: "Telefono", value: target.phone, required: true }
+        ],
+        onSubmit: (form) => {
+          write(
+            KEYS.drivers,
+            all.map((d) =>
+              d.id === target.id ? { ...d, name: String(form.name || "").trim(), phone: String(form.phone || "").trim() } : d
+            )
+          );
+          notify("Conductor actualizado correctamente.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
@@ -2637,13 +2966,14 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        alert("Solicitud de empleado enviada a autorizaciones.");
+        notify("Solicitud de empleado enviada a autorizaciones.", "info");
         renderPortalView();
         return;
       }
       const all = read(KEYS.payrollEmployees, []);
       all.push({ id: uid(), ...data });
       write(KEYS.payrollEmployees, all);
+      notify("Empleado creado correctamente.", "success");
       renderPortalView();
     });
   }
@@ -2653,28 +2983,46 @@ function bindDynamicEvents() {
       const all = read(KEYS.payrollEmployees, []);
       const target = all.find((e) => e.id === btn.dataset.id);
       if (!target) return;
-      const newPosition = prompt("Cargo", target.position);
-      if (!newPosition) return;
-      const newSalary = prompt("Salario base", String(target.baseSalary));
-      if (!newSalary) return;
-      write(
-        KEYS.payrollEmployees,
-        all.map((e) =>
-          e.id === target.id ? { ...e, position: newPosition, baseSalary: parseNum(newSalary) } : e
-        )
-      );
-      renderPortalView();
+      openEditModal({
+        title: "Editar empleado",
+        subtitle: target.name,
+        submitText: "Actualizar empleado",
+        fields: [
+          { name: "position", label: "Cargo", value: target.position, required: true },
+          { name: "baseSalary", label: "Salario base", type: "number", value: target.baseSalary, required: true }
+        ],
+        onSubmit: (form) => {
+          write(
+            KEYS.payrollEmployees,
+            all.map((e) =>
+              e.id === target.id
+                ? { ...e, position: String(form.position || "").trim(), baseSalary: parseNum(form.baseSalary) }
+                : e
+            )
+          );
+          notify("Empleado actualizado correctamente.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-employee']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (!confirm("¿Eliminar empleado de nómina?")) return;
-      write(
-        KEYS.payrollEmployees,
-        read(KEYS.payrollEmployees, []).filter((e) => e.id !== btn.dataset.id)
-      );
-      renderPortalView();
+      openConfirmModal({
+        title: "Eliminar empleado",
+        message: "El empleado sera removido de nomina.",
+        confirmText: "Eliminar",
+        onConfirm: () => {
+          write(
+            KEYS.payrollEmployees,
+            read(KEYS.payrollEmployees, []).filter((e) => e.id !== btn.dataset.id)
+          );
+          notify("Empleado eliminado.", "success");
+          renderPortalView();
+        }
+      });
     });
   });
 
@@ -2968,11 +3316,13 @@ function bindDynamicEvents() {
             email: normalizeEmail(approval.payload.email),
             password: await hashPassword(approval.payload.password || "Cambio123!"),
             role: approval.payload.role,
+            documentType: approval.payload.documentType || "CC",
             accountStatus: ACCOUNT_STATUS.APROBADO,
             company: approval.payload.companyName || getCompanyById(approval.payload.companyId)?.name || "",
             companyId: approval.payload.companyId,
             taxId: approval.payload.taxId,
             phone: approval.payload.phone,
+            city: approval.payload.city || "",
             permissions:
               approval.payload.role === ROLES.ADMIN
                 ? [...ALL_PERMISSIONS]
@@ -3165,5 +3515,8 @@ renderPortal();
 setInterval(() => {
   if (!state.session) return;
   updateAutoApprove();
-  renderPortalView();
+  const typingRequestForm = state.currentView === "requests" && !!document.getElementById("form-request");
+  if (!typingRequestForm) {
+    renderPortalView();
+  }
 }, 30000);
