@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Antares Cargo - Transporte Especializado de Flores</title>
+    <meta name="description" content="Plataforma de transporte de carga refrigerada especializada en flores. Turbos, camiones y tractocamiones con trazabilidad total." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- ─── NAVIGATION ─── -->
+    <header class="top-nav">
+      <div class="container nav-wrap">
+        <a href="#" class="brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+          </svg>
+          Antares Cargo
+        </a>
+        <nav id="main-nav" aria-label="Principal">
+          <a href="#hero">Inicio</a>
+          <a href="#about">Nosotros</a>
+          <a href="#hierarchy">Equipo</a>
+          <a href="#trusted">Empresas</a>
+          <a href="#testimonials">Testimonios</a>
+          <a href="#fleet">Flota</a>
+          <a href="#services">Servicios</a>
+          <a href="#gallery">Galeria</a>
+          <a href="#media">Videos</a>
+          <a href="#coverage">Cobertura</a>
+          <a href="#contact">Contacto</a>
+        </nav>
+        <button class="hamburger" id="hamburger-btn" aria-label="Menu de navegacion">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <button id="open-auth" class="btn btn-primary">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          Portal
+        </button>
+      </div>
+    </header>
+
+    <!-- ─── PUBLIC SITE ─── -->
+    <main id="public-app">
+
+      <!-- HERO -->
+      <section id="hero" class="hero">
+        <div class="hero-bg-image"></div>
+        <div class="overlay"></div>
+        <div class="hero-grid-pattern" aria-hidden="true"></div>
+        <div class="hero-aurora hero-aurora-left" aria-hidden="true"></div>
+        <div class="hero-aurora hero-aurora-right" aria-hidden="true"></div>
+
+        <!-- Floating truck silhouettes -->
+        <svg class="hero-floating hero-floating-1" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M1 3h15v13H1z M16 8h4l3 4v5h-7V8z"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+        <svg class="hero-floating hero-floating-2" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <svg class="hero-floating hero-floating-3" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>
+
+        <!-- Animated driving truck -->
+        <svg class="hero-truck-anim" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+
+        <div class="container hero-content">
+          <p class="hero-kicker" data-reveal>
+            <svg class="hero-kicker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            Logistica premium para floricultura y exportacion
+          </p>
+          <h1>Transporte especializado de flores con <span class="hero-h1-accent">trazabilidad total</span></h1>
+          <p>
+            Operamos con turbos, camiones y tractocamiones para llevar tu carga
+            con control de temperatura, seguridad y cumplimiento en toda Colombia.
+          </p>
+          <div class="hero-actions">
+            <a href="#contact" class="btn btn-primary">
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Contactenos
+            </a>
+            <button id="open-auth-hero" class="btn btn-ghost-light">
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Ingresar al portal
+            </button>
+          </div>
+          <div class="hero-stats" data-reveal>
+            <article class="hero-stat glass-card">
+              <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              <div class="hero-stat-text">
+                <span>Entregas mensuales</span>
+                <b>1.850+</b>
+              </div>
+            </article>
+            <article class="hero-stat glass-card">
+              <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              <div class="hero-stat-text">
+                <span>Nivel de cumplimiento</span>
+                <b>98.7%</b>
+              </div>
+            </article>
+            <article class="hero-stat glass-card">
+              <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <div class="hero-stat-text">
+                <span>Tiempo de respuesta</span>
+                <b>&lt; 12 min</b>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: hero -> about -->
+      <svg class="wave-divider" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#F5F9FF" d="M0,48 C360,80 720,16 1080,48 C1260,64 1380,56 1440,48 L1440,80 L0,80 Z"/>
+      </svg>
+
+      <!-- ABOUT -->
+      <section id="about" class="section" style="background:#F5F9FF">
+        <div class="container grid-2">
+          <article class="card lift-card" data-reveal>
+            <svg class="card-icon-top" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <h2>Quienes somos</h2>
+            <p>
+              Somos una compania con enfoque B2B especializada en logistica de
+              flor. Integramos tecnologia, experiencia operativa y servicio al
+              cliente para garantizar entregas puntuales y seguras.
+            </p>
+          </article>
+          <article class="card lift-card" data-reveal>
+            <svg class="card-icon-top" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+            <h2>Valores</h2>
+            <ul style="padding-left:1.2rem;line-height:1.8">
+              <li>Compromiso con tiempos de entrega.</li>
+              <li>Calidad operativa y trazabilidad.</li>
+              <li>Atencion humana y cercana.</li>
+              <li>Mejora continua con datos.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- HIERARCHY -->
+      <section id="hierarchy" class="section hierarchy-section">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <h2>Equipo directivo</h2>
+            </div>
+            <p>
+              Liderazgo estrategico y operativo para asegurar excelencia en cada
+              viaje y en toda la cadena de servicio.
+            </p>
+          </div>
+          <div class="grid-4 hierarchy-grid">
+            <article class="card hierarchy-card lift-card" data-reveal data-tilt>
+              <figure class="avatar-oval">
+                <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=700&auto=format&fit=crop" alt="Foto de prueba CEO" loading="lazy" />
+              </figure>
+              <small class="photo-note">Foto de prueba (reemplazable)</small>
+              <span class="role-badge">Direccion general</span>
+              <h3>CEO</h3>
+              <p>Vision estrategica, alianzas y crecimiento sostenible.</p>
+            </article>
+            <article class="card hierarchy-card lift-card" data-reveal data-tilt>
+              <figure class="avatar-oval">
+                <img src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=700&auto=format&fit=crop" alt="Foto de prueba COO" loading="lazy" />
+              </figure>
+              <small class="photo-note">Foto de prueba (reemplazable)</small>
+              <span class="role-badge">Operacion</span>
+              <h3>COO</h3>
+              <p>Ejecucion logistica, eficiencia de flota y cumplimiento.</p>
+            </article>
+            <article class="card hierarchy-card lift-card" data-reveal data-tilt>
+              <figure class="avatar-oval">
+                <img src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=700&auto=format&fit=crop" alt="Foto de prueba auxiliar administrativa" loading="lazy" />
+              </figure>
+              <small class="photo-note">Foto de prueba (reemplazable)</small>
+              <span class="role-badge">Administracion</span>
+              <h3>Auxiliar administrativa</h3>
+              <p>Soporte documental, atencion y gestion interna diaria.</p>
+            </article>
+            <article class="card hierarchy-card lift-card" data-reveal data-tilt>
+              <figure class="avatar-oval">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=700&auto=format&fit=crop" alt="Foto de prueba lider administrativo" loading="lazy" />
+              </figure>
+              <small class="photo-note">Foto de prueba (reemplazable)</small>
+              <span class="role-badge">Gestion administrativa</span>
+              <h3>Lider administrativo</h3>
+              <p>Control de procesos, coordinacion y mejora continua.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRUSTED COMPANIES -->
+      <section id="trusted" class="section section-trusted">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 9 7 12 7s5-3 7.5-3a2.5 2.5 0 0 1 0 5H18"/><path d="M18 15h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M6 15H4.5a2.5 2.5 0 0 1 0-5H6"/><line x1="6" y1="9" x2="6" y2="15"/><line x1="18" y1="9" x2="18" y2="15"/><path d="M6 15a6 6 0 0 0 12 0"/>
+              </svg>
+              <h2>Empresas que confian en nosotros</h2>
+            </div>
+            <p>
+              Aliados del sector floricultor, comercializador y exportador que
+              priorizan puntualidad y conservacion de cadena de frio.
+            </p>
+          </div>
+          <div class="logo-marquee" aria-label="Empresas aliadas">
+            <div class="logo-track">
+              <span class="logo-pill">FloraExport SAS</span>
+              <span class="logo-pill">Andes Bloom Group</span>
+              <span class="logo-pill">Verde Alto Trading</span>
+              <span class="logo-pill">Rosas del Norte</span>
+              <span class="logo-pill">BioFlora Logistics</span>
+              <span class="logo-pill">Cali Fresh Flowers</span>
+              <span class="logo-pill">FloraExport SAS</span>
+              <span class="logo-pill">Andes Bloom Group</span>
+              <span class="logo-pill">Verde Alto Trading</span>
+              <span class="logo-pill">Rosas del Norte</span>
+              <span class="logo-pill">BioFlora Logistics</span>
+              <span class="logo-pill">Cali Fresh Flowers</span>
+            </div>
+          </div>
+          <div class="grid-3 trusted-grid">
+            <article class="card mini-metric lift-card" data-reveal>
+              <svg class="mini-metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <h3>+120</h3>
+              <p>Empresas atendidas en el ultimo ano.</p>
+            </article>
+            <article class="card mini-metric lift-card" data-reveal>
+              <svg class="mini-metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <h3>97%</h3>
+              <p>Clientes recurrentes por nivel de servicio.</p>
+            </article>
+            <article class="card mini-metric lift-card" data-reveal>
+              <svg class="mini-metric-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <h3>24/7</h3>
+              <p>Monitoreo de operacion y trazabilidad.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: trusted -> testimonials -->
+      <svg class="wave-divider" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#F0F6FD" d="M0,32 C480,80 960,0 1440,48 L1440,80 L0,80 Z"/>
+      </svg>
+
+      <!-- TESTIMONIALS -->
+      <section id="testimonials" class="section light">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <h2>Lo que dicen nuestros clientes</h2>
+            </div>
+            <p>
+              Experiencias reales de empresas que gestionan volumen, calidad y
+              tiempos exigentes.
+            </p>
+          </div>
+          <div class="grid-3">
+            <article class="card testimonial-card lift-card" data-reveal>
+              <div class="testimonial-stars">
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <p class="quote">
+                "Redujimos reprocesos logisticos en un 32% desde que operamos
+                con Antares. Son rapidos, claros y muy confiables."
+              </p>
+              <div class="testimonial-meta">
+                <div class="testimonial-avatar">LC</div>
+                <div class="testimonial-meta-text">
+                  <strong>Laura Castaneda</strong>
+                  <span>Directora de Operaciones &middot; FloraExport SAS</span>
+                </div>
+              </div>
+            </article>
+            <article class="card testimonial-card lift-card" data-reveal>
+              <div class="testimonial-stars">
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <p class="quote">
+                "La trazabilidad por estado de viaje nos dio control real del
+                proceso. Excelente coordinacion y cumplimiento."
+              </p>
+              <div class="testimonial-meta">
+                <div class="testimonial-avatar">MH</div>
+                <div class="testimonial-meta-text">
+                  <strong>Mauricio Herrera</strong>
+                  <span>Gerente Logistico &middot; Andes Bloom Group</span>
+                </div>
+              </div>
+            </article>
+            <article class="card testimonial-card lift-card" data-reveal>
+              <div class="testimonial-stars">
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                <svg class="testimonial-star" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <p class="quote">
+                "El manejo de cadena de frio y puntualidad en entregas criticas
+                ha sido sobresaliente. Equipo altamente profesional."
+              </p>
+              <div class="testimonial-meta">
+                <div class="testimonial-avatar">PR</div>
+                <div class="testimonial-meta-text">
+                  <strong>Paola Ruiz</strong>
+                  <span>Coordinadora Comercial &middot; Rosas del Norte</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: testimonials -> fleet -->
+      <svg class="wave-divider wave-divider-flip" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#E3EEFA" d="M0,48 C360,0 720,80 1080,32 C1260,16 1380,24 1440,32 L1440,80 L0,80 Z"/>
+      </svg>
+
+      <!-- FLEET -->
+      <section id="fleet" class="section" style="background:#E3EEFA">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              <h2>Nuestra flota</h2>
+            </div>
+            <p>Vehiculos especializados con control de temperatura para cada necesidad logistica.</p>
+          </div>
+          <div class="grid-3">
+            <article class="card fleet-card lift-card" data-reveal>
+              <svg class="fleet-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="6" width="13" height="10" rx="1"/><path d="M15 10h3l3 3v3h-6v-6z"/><circle cx="7" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>
+              </svg>
+              <h3>Turbo</h3>
+              <div class="fleet-specs">
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  Capacidad: 3.500 kg
+                </div>
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>
+                  Cajas: hasta 180
+                </div>
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6m0 0l3-3m-3 3L9 5"/><path d="M5 12H2m3 0l-3-3m3 3l-3 3"/><path d="M22 12h-3m3 0l-3-3m3 3l-3 3"/><path d="M12 22v-6m0 0l3 3m-3-3l-3 3"/></svg>
+                  Ideal para rutas urbanas y regionales
+                </div>
+              </div>
+            </article>
+            <article class="card fleet-card lift-card" data-reveal>
+              <svg class="fleet-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              <h3>Camion</h3>
+              <div class="fleet-specs">
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  Capacidad: 8.000 kg
+                </div>
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>
+                  Cajas: hasta 450
+                </div>
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                  Balance entre volumen y eficiencia
+                </div>
+              </div>
+            </article>
+            <article class="card fleet-card lift-card" data-reveal>
+              <svg class="fleet-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><line x1="8" y1="3" x2="8" y2="16"/>
+              </svg>
+              <h3>Tractocamion</h3>
+              <div class="fleet-specs">
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  Capacidad: 30.000 kg
+                </div>
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>
+                  Cajas: hasta 1.200
+                </div>
+                <div class="fleet-spec">
+                  <svg class="fleet-spec-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  Alto volumen y larga distancia
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: fleet -> services -->
+      <svg class="wave-divider" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#0B1D33" d="M0,48 C240,0 480,80 720,48 C960,16 1200,64 1440,32 L1440,80 L0,80 Z"/>
+      </svg>
+
+      <!-- SERVICES -->
+      <section id="services" class="section section-dark">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+              </svg>
+              <h2>Nuestros servicios</h2>
+            </div>
+            <p>Soluciones logisticas integrales para el sector floricultor y de exportacion.</p>
+          </div>
+          <div class="grid-3">
+            <article class="card service-card lift-card" data-reveal>
+              <svg class="card-icon-top" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2v6m0 0l3-3m-3 3L9 5"/><path d="M5 12H2m3 0l-3-3m3 3l-3 3"/><path d="M22 12h-3m3 0l-3-3m3 3l-3 3"/><path d="M12 22v-6m0 0l3 3m-3-3l-3 3"/>
+              </svg>
+              <h3>Refrigerado y especializado</h3>
+              <p>Control de temperatura con monitoreo constante para conservar la frescura y calidad de la flor desde el origen hasta el destino.</p>
+            </article>
+            <article class="card service-card lift-card" data-reveal>
+              <svg class="card-icon-top" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+              <h3>Monitoreo operativo</h3>
+              <p>Seguimiento en tiempo real por estado de viaje, notificaciones automaticas y visibilidad completa del proceso logistico.</p>
+            </article>
+            <article class="card service-card lift-card" data-reveal>
+              <svg class="card-icon-top" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/>
+              </svg>
+              <h3>Atencion B2B</h3>
+              <p>Modelo de servicio dedicado para exportadores y comercializadores con acuerdos de servicio personalizados.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: services -> gallery -->
+      <svg class="wave-divider wave-divider-flip" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#0B1D33" d="M0,32 C360,80 720,0 1080,48 C1260,64 1380,56 1440,48 L1440,0 L0,0 Z"/>
+      </svg>
+
+      <!-- GALLERY -->
+      <section id="gallery" class="section section-gallery" style="background:#F0F6FD">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <h2>Galeria operativa</h2>
+            </div>
+            <p>
+              Escenarios visuales relacionados con operacion logistica, carretera,
+              centros de distribucion y transporte de carga.
+            </p>
+          </div>
+          <div class="grid-3">
+            <article class="card media-card lift-card" data-reveal>
+              <img
+                src="https://images.unsplash.com/photo-1553413077-190dd305871c?q=80&w=1200&auto=format&fit=crop"
+                alt="Camiones de carga en centro logistico"
+                loading="lazy"
+              />
+              <div class="media-copy">
+                <h3>Centro logistico</h3>
+                <p>Coordinacion de rutas, cargue y trazabilidad en tiempo real.</p>
+              </div>
+            </article>
+            <article class="card media-card lift-card" data-reveal>
+              <img
+                src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?q=80&w=1200&auto=format&fit=crop"
+                alt="Tractocamion en carretera"
+                loading="lazy"
+              />
+              <div class="media-copy">
+                <h3>Operacion en carretera</h3>
+                <p>Cobertura nacional con foco en seguridad y puntualidad.</p>
+              </div>
+            </article>
+            <article class="card media-card lift-card" data-reveal>
+              <img
+                src="https://images.unsplash.com/photo-1464219789935-c2d9d9aba644?q=80&w=1200&auto=format&fit=crop"
+                alt="Carga de flores para transporte especializado"
+                loading="lazy"
+              />
+              <div class="media-copy">
+                <h3>Carga especializada</h3>
+                <p>Conservacion de flor con control de temperatura.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- MEDIA / VIDEOS -->
+      <section id="media" class="section section-media">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              <h2>Videos relacionados</h2>
+            </div>
+            <p>
+              Contenido visual de referencia sobre logistica de transporte y
+              operacion de carga.
+            </p>
+          </div>
+          <div class="grid-2">
+            <article class="card video-card lift-card" data-reveal>
+              <div class="video-frame">
+                <iframe
+                  src="https://www.youtube.com/embed/7PKM8E5_X8M"
+                  title="Video de transporte de carga y logistica"
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen
+                ></iframe>
+              </div>
+              <p class="muted">Operacion logistica y flujo de transporte moderno.</p>
+            </article>
+            <article class="card video-card lift-card" data-reveal>
+              <div class="video-frame">
+                <iframe
+                  src="https://www.youtube.com/embed/6R3ouGNcACQ"
+                  title="Video de cadena de suministro en transporte"
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen
+                ></iframe>
+              </div>
+              <p class="muted">Cadena de suministro, distribucion y optimizacion de rutas.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: media -> coverage -->
+      <svg class="wave-divider" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#E3EEFA" d="M0,56 C360,16 720,80 1080,40 C1260,20 1380,36 1440,32 L1440,80 L0,80 Z"/>
+      </svg>
+
+      <!-- COVERAGE -->
+      <section id="coverage" class="section light">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <h2>Cobertura nacional</h2>
+            </div>
+            <p>Rutas principales y corredores frecuentes para el sector floricultor y exportador.</p>
+          </div>
+          <div class="grid-2" data-reveal>
+            <article class="card lift-card" style="padding:1.8rem">
+              <h3 style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
+                <svg style="width:22px;height:22px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Rutas principales
+              </h3>
+              <div class="coverage-grid">
+                <div class="coverage-item"><span class="coverage-dot"></span>Bogota D.C.</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Medellin</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Rionegro</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Cali</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Pereira</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Armenia</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Bucaramanga</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Cartagena</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Barranquilla</div>
+              </div>
+            </article>
+            <article class="card lift-card" style="padding:1.8rem">
+              <h3 style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
+                <svg style="width:22px;height:22px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Corredores frecuentes
+              </h3>
+              <div class="coverage-grid">
+                <div class="coverage-item"><span class="coverage-dot"></span>Sabana de Bogota</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Antioquia floricultora</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Puertos de exportacion</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Eje cafetero</div>
+                <div class="coverage-item"><span class="coverage-dot"></span>Costa atlantica</div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVE: coverage -> contact -->
+      <svg class="wave-divider" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+        <path fill="#F5F9FF" d="M0,32 C480,80 960,0 1440,48 L1440,80 L0,80 Z"/>
+      </svg>
+
+      <!-- CONTACT -->
+      <section id="contact" class="section" style="background:#F5F9FF">
+        <div class="container grid-2">
+          <article class="card lift-card" data-reveal>
+            <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem">
+              <svg class="card-icon-top" style="margin-bottom:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <h2 style="margin:0">Formulario de contacto B2B</h2>
+            </div>
+            <form id="b2b-form" class="form-grid">
+              <label>Nombre <input name="name" required /></label>
+              <label>Empresa <input name="company" required /></label>
+              <label>NIT/RUT <input name="taxId" required /></label>
+              <label>Cargo <input name="position" required /></label>
+              <label>Telefono <input name="phone" required /></label>
+              <label>Correo <input name="email" type="email" required /></label>
+              <label>
+                Tipo de servicio
+                <select name="serviceType" required>
+                  <option value="">Seleccione...</option>
+                  <option>Transporte refrigerado</option>
+                  <option>Transporte dedicado</option>
+                  <option>Servicio eventual</option>
+                </select>
+              </label>
+              <label class="full">
+                Mensaje
+                <textarea name="message" rows="4" required></textarea>
+              </label>
+              <button class="btn btn-primary full" type="submit">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                Enviar solicitud
+              </button>
+            </form>
+          </article>
+          <article class="card lift-card" data-reveal>
+            <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1.2rem">
+              <svg class="card-icon-top" style="margin-bottom:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <h2 style="margin:0">Contacto</h2>
+            </div>
+            <div class="contact-info-item">
+              <svg class="contact-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              <p><strong>Telefono</strong>+57 300 000 0000</p>
+            </div>
+            <div class="contact-info-item">
+              <svg class="contact-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <p><strong>Direccion</strong>Zona Industrial, Bogota D.C.</p>
+            </div>
+            <div class="contact-info-item">
+              <svg class="contact-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <p><strong>Correo</strong>comercial@antarescargo.com</p>
+            </div>
+            <p class="muted" style="margin-top:1.2rem;font-size:0.85rem">
+              Las solicitudes se guardan en base de datos local del navegador y
+              generan una notificacion simulada de email.
+            </p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <!-- ─── PORTAL APP ─── -->
+    <section id="portal-app" class="hidden">
+      <div class="portal-layout">
+        <aside class="sidebar">
+          <h2>Antares Portal</h2>
+          <p id="session-meta" class="muted"></p>
+          <button data-view="dashboard" class="side-link active">Dashboard</button>
+          <button data-view="requests" class="side-link client-only">Solicitudes (cliente)</button>
+          <button data-view="transport-requests" class="side-link admin-only">Transporte · Solicitudes</button>
+          <button data-view="transport-trips" class="side-link admin-only">Transporte · Viajes</button>
+          <button data-view="transport-vehicles" class="side-link admin-only">Transporte · Camiones</button>
+          <button data-view="transport-drivers" class="side-link admin-only">Transporte · Conductores</button>
+          <button data-view="transport-calendar" class="side-link admin-only">Transporte · Calendario</button>
+          <button data-view="history" class="side-link admin-only">Transporte · Historial</button>
+          <button data-view="payroll" class="side-link rrhh-only">Nomina</button>
+          <button data-view="hiring" class="side-link rrhh-only">Contratacion</button>
+          <button data-view="admin-users" class="side-link admin-only">Administracion · Usuarios</button>
+          <button data-view="notifications" class="side-link">Notificaciones</button>
+          <button id="logout" class="btn btn-outline" style="color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.15)">Cerrar sesion</button>
+        </aside>
+        <main class="portal-main">
+          <header class="portal-header">
+            <h1 id="view-title">Dashboard</h1>
+            <div id="kpi-cards" class="kpi-grid"></div>
+          </header>
+          <section id="view-root"></section>
+        </main>
+      </div>
+    </section>
+
+    <!-- ─── AUTH MODAL ─── -->
+    <div id="auth-modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 style="display:flex;align-items:center;gap:0.5rem">
+            <svg style="width:24px;height:24px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Portal de clientes
+          </h2>
+          <button id="close-auth" class="btn btn-text" aria-label="Cerrar">
+            <svg style="width:20px;height:20px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="tabs">
+          <button data-tab="login" class="tab active">Login</button>
+          <button data-tab="register" class="tab">Registro</button>
+          <button data-tab="recover" class="tab">Recuperar</button>
+        </div>
+        <div id="auth-content"></div>
+      </div>
+    </div>
+
+    <!-- ─── FOOTER ─── -->
+    <footer class="site-footer">
+      <svg class="footer-bg-truck" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M1 3h15v13H1z"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+      </svg>
+      <div class="container footer-grid">
+        <div>
+          <div class="footer-brand">
+            <svg class="footer-brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+            <h3>Antares Cargo</h3>
+          </div>
+          <p>Transporte especializado de flores para empresas en toda Colombia.</p>
+        </div>
+        <div>
+          <h4>Legal</h4>
+          <p>Politica de privacidad</p>
+          <p>Terminos y condiciones</p>
+        </div>
+        <div>
+          <h4>Redes sociales</h4>
+          <div class="footer-social">
+            <a href="#" aria-label="LinkedIn">
+              <svg class="footer-social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+            </a>
+            <a href="#" aria-label="Instagram">
+              <svg class="footer-social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </a>
+            <a href="#" aria-label="Facebook">
+              <svg class="footer-social-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        &copy; 2026 Antares Cargo. Todos los derechos reservados.
+      </div>
+    </footer>
+
+    <!-- ─── WHATSAPP FAB ─── -->
+    <a
+      class="whatsapp-fab"
+      href="https://wa.me/573000000000?text=Hola%20Antares%2C%20quiero%20informacion%20de%20sus%20servicios%20de%20transporte."
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Contactar por WhatsApp"
+      title="Contactar por WhatsApp"
+    >
+      <svg class="whatsapp-fab-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+      <span aria-hidden="true">WhatsApp</span>
+    </a>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,137 @@
+Eres un equipo de desarrollo fullstack experto en diseño UI/UX y arquitectura de software. Necesito que diseñes y desarrolles una plataforma web completa para una empresa de transporte de carga especializada en flores. La identidad visual de la empresa usa azul claro (#42A5F5, #1976D2) y blanco como colores principales. El diseño debe ser moderno, limpio, profesional, responsive y accesible (WCAG 2.1 AA).
+
+---
+
+## 1. Sitio web público
+
+Diseña un sitio web orientado a empresas que quieran contratar los servicios de transporte.
+
+### Secciones requeridas:
+- **Hero:** Titular impactante, imagen de fondo de alta calidad (floristería/carretera), CTA "Contáctenos".
+- **Quiénes somos:** Historia y valores de la empresa.
+- **Flota:** Presentación visual de los tipos de vehículo: turbos, camiones y tractocamiones. Incluir ficha técnica básica de cada uno.
+- **Servicios:** Énfasis en transporte refrigerado/especializado de flores. Incluir ventajas competitivas.
+- **Cobertura:** Mapa o listado de rutas/zonas atendidas.
+- **Formulario de contacto B2B:** Campos: nombre, empresa, NIT/RUT, cargo, teléfono, correo, tipo de servicio requerido, mensaje. Envío por email y registro en base de datos.
+- **Footer:** Redes sociales, teléfono, dirección, links legales.
+
+---
+
+## 2. Portal de clientes (requiere login)
+
+### Autenticación:
+- Login con correo y contraseña.
+- Registro de nuevos clientes (con validación de datos de empresa).
+- Recuperación de contraseña por email.
+- Sesiones con JWT o equivalente.
+
+### Módulo de solicitudes de viaje:
+El cliente accede a un dashboard donde puede:
+
+**Crear una solicitud** con los siguientes campos:
+- Origen (ciudad, dirección, punto de cargue)
+- Destino (ciudad, dirección, punto de descargue)
+- Fecha y hora estimada de recogida
+- Tipo de vehículo requerido (turbo / camión / tractocamión)
+- Descripción y volumen de la carga (kg, cajas)
+- Temperatura requerida (si aplica)
+- Observaciones adicionales
+- Archivos adjuntos opcionales (fotos, documentos)
+
+**Ver sus solicitudes** con estados: Pendiente, Aprobada, En tránsito, Completada, Cancelada.
+
+**Editar o cancelar una solicitud** únicamente si aún está en estado Pendiente y no ha sido aprobada.
+
+### Flujo de aprobación:
+1. Cliente crea la solicitud → estado: Pendiente.
+2. El sistema notifica al administrador (notificación en app + email).
+3. El administrador tiene 10 minutos para aprobar y asignar la solicitud.
+4. Si transcurren 10 minutos sin acción del admin, el sistema auto-aprueba la solicitud y asigna el vehículo disponible más adecuado automáticamente.
+5. Al aprobarse (manual o automáticamente), el cliente recibe notificación con los detalles del viaje asignado.
+
+### Detalle del viaje asignado (visible para el cliente):
+- Número de viaje
+- Vehículo asignado (placa, tipo)
+- Conductor asignado (nombre, teléfono de contacto)
+- Ruta confirmada
+- Fecha y hora estimada de recogida y entrega
+- Estado en tiempo real
+
+---
+
+## 3. Panel de administrador
+
+El administrador tiene acceso completo a:
+
+- **Bandeja de solicitudes pendientes** con temporizador visible de los 10 minutos restantes.
+- **Aprobar solicitud:** Asignar vehículo disponible y conductor. Completar información del viaje.
+- **Rechazar solicitud:** Con campo de motivo (visible para el cliente).
+- **Editar cualquier solicitud** en cualquier estado.
+- **Eliminar solicitudes** (con confirmación).
+- **Gestión de vehículos:** Registrar, editar y marcar disponibilidad de turbos, camiones y tractocamiones.
+- **Gestión de conductores:** Datos básicos, licencia, disponibilidad.
+- **Historial de viajes** con filtros por fecha, cliente, vehículo, estado.
+- **Reportes básicos:** Viajes por período, clientes más activos, vehículos más usados.
+
+---
+
+## 4. Sistema de nómina (módulo interno)
+
+Acceso exclusivo para roles de RRHH y administrador.
+
+### Funcionalidades:
+- Registro de empleados: nombre, cédula, cargo, tipo de contrato, salario base, fecha de ingreso.
+- Liquidación mensual de nómina: salario base, horas extras, auxilio de transporte, deducciones (salud, pensión, ARL), bonificaciones.
+- Generación de desprendibles de pago en PDF por empleado.
+- Historial de pagos por empleado.
+- Resumen consolidado mensual exportable a Excel.
+- Alertas de pagos próximos o pendientes.
+
+---
+
+## 5. Sistema de contratación (módulo interno)
+
+Acceso exclusivo para RRHH y administrador.
+
+### Funcionalidades:
+- **Vacantes:** Crear, publicar y cerrar ofertas de empleo (cargo, requisitos, salario ofrecido, fecha límite).
+- **Candidatos:** Registro de hojas de vida con documentos adjuntos.
+- **Pipeline de selección:** Estados por candidato: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contratado / Descartado.
+- **Programación de entrevistas** con fecha, hora y entrevistador asignado.
+- **Generación de contrato** a partir de plantilla cuando el candidato es contratado.
+- **Notificaciones automáticas** al candidato en cada cambio de estado.
+
+---
+
+## Requisitos técnicos y de diseño
+
+### UI/UX:
+- Paleta: azul claro (#42A5F5 primary, #1976D2 dark, #E3F2FD light) + blanco (#FFFFFF) + grises neutros.
+- Tipografía: Inter o Nunito (legible, moderna).
+- Componentes: diseño en base a un sistema de diseño consistente (Material Design 3 o similar).
+- Animaciones suaves y transiciones funcionales, sin ser distractoras.
+- Dashboard con métricas visuales (cards, gráficas simples).
+- Totalmente responsive: mobile-first.
+- Accesibilidad WCAG 2.1 AA.
+
+### Stack sugerido (puedes proponer alternativas modernas equivalentes):
+- Frontend: Next.js 14+ con TypeScript y TailwindCSS.
+- Backend: Node.js con NestJS o Express, o Python con FastAPI.
+- Base de datos: PostgreSQL con Prisma ORM.
+- Autenticación: JWT + Refresh tokens / NextAuth.
+- Jobs/Timers: Bull + Redis para la auto-aprobación a los 10 minutos.
+- Almacenamiento de archivos: AWS S3 o Supabase Storage.
+- Email: Resend o Nodemailer.
+- Reportes/PDF: React-PDF o Puppeteer.
+- Deploy: Vercel (frontend) + Railway/Render (backend) o contenedores Docker.
+
+### Seguridad:
+- Roles y permisos definidos por middleware (RBAC).
+- Validación de inputs en frontend y backend.
+- HTTPS obligatorio.
+- Rate limiting en endpoints críticos.
+- Logs de auditoría para acciones de administrador.
+
+---
+
+Entrega un plan de desarrollo por fases, arquitectura sugerida, y el diseño visual (wireframes o componentes) antes de escribir código. Prioriza calidad sobre velocidad.
