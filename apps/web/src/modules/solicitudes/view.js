@@ -44,7 +44,7 @@
     const requests = getVisibleRequestsForUser(user);
     const rows = requests
       .map((r) => {
-        const allowEdit = r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION;
+        const allowEdit = canClientManageRequest(r);
         const trip = r.trip
           ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
           : '<span class="muted">-</span>';

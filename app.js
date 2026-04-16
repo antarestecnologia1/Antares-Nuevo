@@ -1285,6 +1285,11 @@ function canTransitionStatus(currentStatus, nextStatus) {
   return allowed.includes(nextStatus);
 }
 
+function canClientManageRequest(request) {
+  if (!request) return false;
+  return request.status === STATUS.PENDIENTE;
+}
+
 function applyStandbyCharge(request, actorName) {
   const hoursRaw = prompt("Horas en standby:", "1");
   if (!hoursRaw) return null;
@@ -1314,7 +1319,7 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
   if (!target) return false;
 
   if (!canTransitionStatus(target.status, nextStatus)) {
-    alert(`Transición no permitida: ${target.status} -> ${nextStatus}`);
+    notify(`Transicion no permitida: ${target.status} -> ${nextStatus}`, "error");
     return false;
   }
 
@@ -1818,7 +1823,7 @@ function requestListClientHtml(user) {
   const requests = getVisibleRequestsForUser(user);
   const rows = requests
     .map((r) => {
-      const allowEdit = r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION;
+      const allowEdit = canClientManageRequest(r);
       const trip = r.trip
         ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
         : '<span class="muted">-</span>';
@@ -1956,7 +1961,10 @@ function transportTripsHtml() {
   );
   const trips = read(KEYS.requests, []).filter((r) => r.trip);
   const rows = trips
-    .map((r) => `<tr>
+    .map((r) => {
+      const currentStatus = r.status;
+      const transitions = [currentStatus, ...(STATUS_TRANSITIONS[currentStatus] || [])];
+      return `<tr>
       <td><strong>${r.trip.tripNumber}</strong></td>
       <td>${r.requestNumber || r.id}</td>
       <td>${r.clientName}</td>
@@ -1966,9 +1974,10 @@ function transportTripsHtml() {
       <td>${fmtDate(r.trip.etaPickup)}</td>
       <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
       <td><div class="toolbar"><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
-        ${[STATUS.VIAJE_ASIGNADO,STATUS.EN_TRANSITO,STATUS.ESPERA_STANDBY,STATUS.COMPLETADA,STATUS.CANCELADA].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
+        ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
       </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button></div></td>
-    </tr>`)
+    </tr>`;
+    })
     .join("");
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -2854,27 +2863,36 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const userId = btn.dataset.id;
       if (!userId) return;
-      const reason = prompt("Motivo del rechazo:");
-      if (!reason) return;
-      const users = read(KEYS.users, []);
-      const target = users.find((u) => u.id === userId);
-      if (!target) return;
-      write(
-        KEYS.users,
-        users.map((u) => u.id === userId ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason } : u)
-      );
-      saveNotification({
-        userId: target.id,
-        title: "Registro rechazado",
-        body: `Tu solicitud de registro fue rechazada. Motivo: ${reason}`
+      openEditModal({
+        title: "Rechazar registro",
+        subtitle: "Ingresa motivo de rechazo",
+        submitText: "Rechazar",
+        fields: [{ name: "reason", label: "Motivo", value: "", required: true }],
+        onSubmit: (form) => {
+          const reason = String(form.reason || "").trim();
+          if (!reason) return false;
+          const users = read(KEYS.users, []);
+          const target = users.find((u) => u.id === userId);
+          if (!target) return false;
+          write(
+            KEYS.users,
+            users.map((u) => u.id === userId ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason } : u)
+          );
+          saveNotification({
+            userId: target.id,
+            title: "Registro rechazado",
+            body: `Tu solicitud de registro fue rechazada. Motivo: ${reason}`
+          });
+          sendEmail({
+            to: target.email,
+            subject: "Registro rechazado - Antares Portal",
+            body: `Hola ${target.name}, tu solicitud de registro fue rechazada. Motivo: ${reason}. Contacta a soporte para mas informacion.`
+          });
+          notify(`Registro de ${target.name} rechazado.`, "success");
+          renderPortalView();
+          return true;
+        }
       });
-      sendEmail({
-        to: target.email,
-        subject: "Registro rechazado - Antares Portal",
-        body: `Hola ${target.name}, tu solicitud de registro fue rechazada. Motivo: ${reason}. Contacta a soporte para mas informacion.`
-      });
-      alert(`Registro de ${target.name} rechazado.`);
-      renderPortalView();
     });
   });
 
@@ -3249,10 +3267,20 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='reject']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const reason = prompt("Motivo de rechazo");
-      if (!reason) return;
-      rejectRequest(btn.dataset.id, reason, currentUser().name);
-      renderPortalView();
+      openEditModal({
+        title: "Rechazar solicitud",
+        subtitle: "Indica motivo para trazabilidad",
+        submitText: "Rechazar solicitud",
+        fields: [{ name: "reason", label: "Motivo", value: "", required: true }],
+        onSubmit: (form) => {
+          const reason = String(form.reason || "").trim();
+          if (!reason) return false;
+          rejectRequest(btn.dataset.id, reason, currentUser().name);
+          notify("Solicitud rechazada.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
@@ -4029,7 +4057,11 @@ function bindDynamicEvents() {
           write(KEYS.payrollEmployees, employees);
         }
       } else if (approval.type === "approve_trip_request") {
-        approveRequest(String(approval.payload.requestId || ""), actor.name, false);
+        const ok = approveRequest(String(approval.payload.requestId || ""), actor.name, false);
+        if (!ok) {
+          notify("No fue posible aprobar el viaje: faltan recursos compatibles.", "error");
+          return;
+        }
       }
 
       write(
@@ -4038,7 +4070,7 @@ function bindDynamicEvents() {
           a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
         )
       );
-      alert("Autorizacion aprobada.");
+      notify("Autorizacion aprobada.", "success");
       renderPortalView();
     });
   });
@@ -4046,20 +4078,29 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='approval-reject']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
-      const reason = prompt("Motivo del rechazo:");
-      if (!reason) return;
-      const actor = currentUser();
-      const approvals = read(KEYS.approvals, []);
-      write(
-        KEYS.approvals,
-        approvals.map((a) =>
-          a.id === id
-            ? { ...a, status: "rechazado", reviewedAt: nowIso(), reviewedBy: actor?.name || "Admin", rejectionReason: reason }
-            : a
-        )
-      );
-      alert("Autorizacion rechazada.");
-      renderPortalView();
+      openEditModal({
+        title: "Rechazar autorizacion",
+        subtitle: "Motivo obligatorio",
+        submitText: "Rechazar",
+        fields: [{ name: "reason", label: "Motivo", value: "", required: true }],
+        onSubmit: (form) => {
+          const reason = String(form.reason || "").trim();
+          if (!reason) return false;
+          const actor = currentUser();
+          const approvals = read(KEYS.approvals, []);
+          write(
+            KEYS.approvals,
+            approvals.map((a) =>
+              a.id === id
+                ? { ...a, status: "rechazado", reviewedAt: nowIso(), reviewedBy: actor?.name || "Admin", rejectionReason: reason }
+                : a
+            )
+          );
+          notify("Autorizacion rechazada.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
