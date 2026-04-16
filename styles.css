@@ -1299,6 +1299,41 @@ tbody tr:last-child td { border-bottom: none; }
 .status-completada { background: linear-gradient(135deg, #0e7490, #0c5f74); }
 .status-cancelada, .status-rechazada { background: linear-gradient(135deg, #D62828, #B02020); }
 
+.status-pretty {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.status-pretty .btn-icon {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+}
+
+.status-road::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,0.85) 0 7px, transparent 7px 12px);
+  animation: roadMove 1.8s linear infinite;
+}
+
+@keyframes roadMove {
+  from { background-position-x: 0; }
+  to { background-position-x: 24px; }
+}
+
 /* Portal buttons */
 .toolbar {
   display: flex;
@@ -1358,6 +1393,18 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.86rem;
   font-weight: 600;
   color: var(--text);
+}
+
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.field-label .btn-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--primary);
 }
 
 .p-form input, .p-form select, .p-form textarea {
@@ -1700,6 +1747,28 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.78rem;
 }
 
+.datetime-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  background: #F8FAFC;
+}
+
+.trip-preview {
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  background: #F8FAFC;
+}
+
+.trip-preview p {
+  margin: 0.2rem 0;
+  font-size: 0.86rem;
+}
+
 /* ─── MODAL ─── */
 .modal {
   position: fixed;
@@ -1993,6 +2062,7 @@ tbody tr:last-child td { border-bottom: none; }
   .portal-main { padding: 1rem; }
   .portal-header h1 { font-size: 1.3rem; }
   .dash-grid { grid-template-columns: 1fr; }
+  .datetime-group { grid-template-columns: 1fr; }
 
   .hero { min-height: 85vh; }
 

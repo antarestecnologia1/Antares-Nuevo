@@ -10,6 +10,7 @@ const IC = {
   send: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
   truck: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
   user: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  phone: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.86 19.86 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.89.33 1.76.62 2.6a2 2 0 0 1-.45 2.11L8 9.91a16 16 0 0 0 6 6l1.48-1.28a2 2 0 0 1 2.11-.45c.84.29 1.71.5 2.6.62A2 2 0 0 1 22 16.92z"/></svg>',
   clock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   shield: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
   file: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
@@ -19,6 +20,7 @@ const IC = {
   briefcase: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>',
   bell: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
   compass: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+  mapPin: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
   toggle: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="5" width="22" height="14" rx="7" ry="7"/><circle cx="16" cy="12" r="3"/></svg>',
   grid: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
   activity: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
@@ -51,6 +53,7 @@ const KEYS = {
   candidates: "antares_candidates_v2",
   interviews: "antares_interviews_v2",
   contracts: "antares_contracts_v2",
+  approvals: "antares_approvals_v2",
   session: "antares_session_v2"
 };
 
@@ -72,10 +75,35 @@ const PERMISSIONS = {
   PAYROLL_MANAGE: "payroll_manage",
   HIRING_MANAGE: "hiring_manage",
   USERS_MANAGE: "users_manage",
+  AUTHORIZATIONS_MANAGE: "authorizations_manage",
+  PROFILE_VIEW: "profile_view",
   NOTIFICATIONS_VIEW: "notifications_view"
 };
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+const COLOMBIA_LOCATIONS = {
+  Antioquia: ["Medellin", "Bello", "Itagui", "Envigado", "Rionegro"],
+  Atlantico: ["Barranquilla", "Soledad", "Malambo", "Puerto Colombia"],
+  Bogota: ["Bogota D.C."],
+  Bolivar: ["Cartagena", "Turbaco", "Magangue"],
+  Boyaca: ["Tunja", "Duitama", "Sogamoso"],
+  Caldas: ["Manizales", "Villamaria", "Chinchina"],
+  Cauca: ["Popayan", "Santander de Quilichao"],
+  Cesar: ["Valledupar", "Aguachica"],
+  Cordoba: ["Monteria", "Cereté", "Lorica"],
+  Cundinamarca: ["Soacha", "Chia", "Zipaquira", "Facatativa", "Girardot"],
+  Huila: ["Neiva", "Pitalito"],
+  Magdalena: ["Santa Marta", "Cienaga"],
+  Meta: ["Villavicencio", "Acacias"],
+  Narino: ["Pasto", "Ipiales", "Tumaco"],
+  NorteDeSantander: ["Cucuta", "Ocana", "Villa del Rosario"],
+  Quindio: ["Armenia", "Calarca"],
+  Risaralda: ["Pereira", "Dosquebradas", "Santa Rosa de Cabal"],
+  Santander: ["Bucaramanga", "Floridablanca", "Giron", "Barrancabermeja"],
+  Sucre: ["Sincelejo", "Corozal"],
+  Tolima: ["Ibague", "Espinal"],
+  ValleDelCauca: ["Cali", "Palmira", "Buenaventura", "Tulua", "Yumbo"]
+};
 const PERMISSION_META = {
   [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
   [PERMISSIONS.CLIENT_REQUESTS]: { title: "Solicitudes de cliente", desc: "Crear y consultar solicitudes propias." },
@@ -88,6 +116,8 @@ const PERMISSION_META = {
   [PERMISSIONS.PAYROLL_MANAGE]: { title: "Nomina", desc: "Gestionar empleados y liquidaciones." },
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
+  [PERMISSIONS.AUTHORIZATIONS_MANAGE]: { title: "Autorizaciones", desc: "Aprobar solicitudes de operaciones y personal." },
+  [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
   [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." }
 };
 
@@ -103,6 +133,8 @@ const VIEW_PERMISSIONS = {
   payroll: PERMISSIONS.PAYROLL_MANAGE,
   hiring: PERMISSIONS.HIRING_MANAGE,
   "admin-users": PERMISSIONS.USERS_MANAGE,
+  authorizations: PERMISSIONS.AUTHORIZATIONS_MANAGE,
+  profile: PERMISSIONS.PROFILE_VIEW,
   notifications: PERMISSIONS.NOTIFICATIONS_VIEW
 };
 
@@ -243,6 +275,12 @@ function fmtDate(value) {
   return new Date(value).toLocaleString("es-CO");
 }
 
+function formatRoute(request) {
+  const origin = `${request.originDepartment ? `${request.originDepartment}, ` : ""}${request.originCity || "-"}`;
+  const destination = `${request.destinationDepartment ? `${request.destinationDepartment}, ` : ""}${request.destinationCity || "-"}`;
+  return `${origin} → ${destination}`;
+}
+
 function toInputDate(isoDate) {
   if (!isoDate) return "";
   const d = new Date(isoDate);
@@ -252,6 +290,26 @@ function toInputDate(isoDate) {
 
 function slugStatus(value) {
   return value.toLowerCase().replaceAll(" ", "_");
+}
+
+function prettyStatus(status, scope = "general") {
+  const key = slugStatus(status);
+  const iconMap = {
+    pendiente: IC.clock,
+    viaje_asignado: scope === "request" ? IC.truck : IC.check,
+    en_transito: IC.truck,
+    espera_standby: IC.clock,
+    completada: IC.check,
+    cancelada: IC.x,
+    rechazada: IC.x
+  };
+  const icon = iconMap[key] || IC.activity;
+  const road = scope === "request" && (key === "viaje_asignado" || key === "en_transito");
+  return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${status}</span></span>`;
+}
+
+function fieldLabel(icon, text) {
+  return `<span class="field-label">${icon}<span>${text}</span></span>`;
 }
 
 function saveNotification({ userId, title, body }) {
@@ -288,6 +346,12 @@ function findOrCreateCompanyIdByName(name) {
 
 function getCompanyById(companyId) {
   return read(KEYS.companies, []).find((item) => item.id === companyId) || null;
+}
+
+function companySelectOptions(selectedId = "") {
+  return read(KEYS.companies, [])
+    .map((company) => `<option value="${company.id}" ${company.id === selectedId ? "selected" : ""}>${company.name}</option>`)
+    .join("");
 }
 
 function ensureCompaniesAndUserMapping() {
@@ -379,12 +443,14 @@ function defaultPermissionsForRole(role) {
       PERMISSIONS.DASHBOARD_VIEW,
       PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.HIRING_MANAGE,
+      PERMISSIONS.PROFILE_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW
     ];
   }
   return [
     PERMISSIONS.DASHBOARD_VIEW,
     PERMISSIONS.CLIENT_REQUESTS,
+    PERMISSIONS.PROFILE_VIEW,
     PERMISSIONS.NOTIFICATIONS_VIEW
   ];
 }
@@ -411,6 +477,32 @@ function ensureUsersAccountStatus() {
     return { ...user, accountStatus: ACCOUNT_STATUS.APROBADO };
   });
   if (changed) write(KEYS.users, updated);
+}
+
+function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
+  const approvals = read(KEYS.approvals, []);
+  approvals.unshift({
+    id: uid(),
+    type,
+    title,
+    payload,
+    status: "pendiente",
+    requestedByUserId,
+    requestedByName,
+    requestedAt: nowIso(),
+    reviewedAt: null,
+    reviewedBy: null,
+    rejectionReason: ""
+  });
+  write(KEYS.approvals, approvals);
+  const admins = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
+  admins.forEach((admin) => {
+    saveNotification({
+      userId: admin.id,
+      title: "Nueva autorizacion pendiente",
+      body: `${title} solicitada por ${requestedByName}.`
+    });
+  });
 }
 
 function seed() {
@@ -510,6 +602,7 @@ function seed() {
     KEYS.candidates,
     KEYS.interviews,
     KEYS.contracts
+    ,KEYS.approvals
   ].forEach((key) => {
     if (!localStorage.getItem(key)) write(key, []);
   });
@@ -557,6 +650,7 @@ async function ensureUsersPasswordHashing() {
 
 function authView() {
   const tab = state.authTab;
+  const companyOptions = companySelectOptions();
   if (tab === "login") {
     return `
       <form id="form-login" class="form-grid auth-form">
@@ -577,7 +671,12 @@ function authView() {
     return `
       <form id="form-register" class="form-grid auth-form">
         <label>Nombre <input name="name" required /></label>
-        <label>Empresa <input name="company" required /></label>
+        <label>Empresa
+          <select name="companyId" required>
+            <option value="">Seleccione...</option>
+            ${companyOptions}
+          </select>
+        </label>
         <label>NIT/RUT <input name="taxId" required /></label>
         <label>Cargo <input name="position" required /></label>
         <label>Telefono <input name="phone" required /></label>
@@ -698,7 +797,11 @@ function bindAuthForms() {
         alert("El correo ya existe.");
         return;
       }
-      const companyId = findOrCreateCompanyIdByName(data.company);
+      const company = getCompanyById(String(data.companyId || ""));
+      if (!company) {
+        alert("Debes seleccionar una empresa valida.");
+        return;
+      }
       const newUser = {
         id: uid(),
         ...data,
@@ -706,7 +809,8 @@ function bindAuthForms() {
         password: await hashPassword(data.password),
         role: ROLES.CLIENT,
         accountStatus: ACCOUNT_STATUS.PENDIENTE,
-        companyId,
+        companyId: company.id,
+        company: company.name,
         permissions: defaultPermissionsForRole(ROLES.CLIENT),
         registeredAt: nowIso()
       };
@@ -722,12 +826,12 @@ function bindAuthForms() {
         saveNotification({
           userId: admin.id,
           title: "Nuevo registro de cliente pendiente",
-          body: `${data.name} de ${data.company} solicita acceso al portal.`
+          body: `${data.name} de ${company.name} solicita acceso al portal.`
         });
         sendEmail({
           to: admin.email,
           subject: "Nuevo registro de cliente pendiente de aprobacion",
-          body: `Cliente: ${data.name} | Empresa: ${data.company} | Correo: ${data.email}`
+          body: `Cliente: ${data.name} | Empresa: ${company.name} | Correo: ${data.email}`
         });
       });
       alert("Registro enviado. Tu cuenta sera revisada por un administrador antes de poder acceder. Te notificaremos por correo.");
@@ -765,15 +869,13 @@ function diffMinutes(fromIso) {
   return (Date.now() - new Date(fromIso).getTime()) / 60000;
 }
 
-function isSameHourSlot(a, b) {
-  const first = new Date(a);
-  const second = new Date(b);
-  return (
-    first.getFullYear() === second.getFullYear() &&
-    first.getMonth() === second.getMonth() &&
-    first.getDate() === second.getDate() &&
-    first.getHours() === second.getHours()
-  );
+function intervalsOverlap(startA, endA, startB, endB) {
+  const aStart = new Date(startA).getTime();
+  const aEnd = new Date(endA).getTime();
+  const bStart = new Date(startB).getTime();
+  const bEnd = new Date(endB).getTime();
+  if (![aStart, aEnd, bStart, bEnd].every(Number.isFinite)) return false;
+  return aStart < bEnd && bStart < aEnd;
 }
 
 function activeTripStatuses() {
@@ -851,48 +953,52 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
   return true;
 }
 
-function isVehicleBusyAtHour(vehicle, pickupAt, currentRequestId = null) {
+function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentRequestId = null) {
   return getActiveTrips().some((request) => {
     if (currentRequestId && request.id === currentRequestId) return false;
-    const sameHour = isSameHourSlot(request.trip.etaPickup, pickupAt);
-    if (!sameHour) return false;
+    const tripStart = request.trip?.etaPickup;
+    const tripEnd = request.trip?.etaDelivery || tripStart;
+    const conflict = intervalsOverlap(tripStart, tripEnd, pickupAt, etaDelivery);
+    if (!conflict) return false;
     return request.trip.vehicleId
       ? request.trip.vehicleId === vehicle.id
       : request.trip.vehiclePlate === vehicle.plate;
   });
 }
 
-function isDriverBusyAtHour(driver, pickupAt, currentRequestId = null) {
+function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = null) {
   return getActiveTrips().some((request) => {
     if (currentRequestId && request.id === currentRequestId) return false;
-    const sameHour = isSameHourSlot(request.trip.etaPickup, pickupAt);
-    if (!sameHour) return false;
+    const tripStart = request.trip?.etaPickup;
+    const tripEnd = request.trip?.etaDelivery || tripStart;
+    const conflict = intervalsOverlap(tripStart, tripEnd, pickupAt, etaDelivery);
+    if (!conflict) return false;
     return request.trip.driverId
       ? request.trip.driverId === driver.id
       : request.trip.driverName === driver.name;
   });
 }
 
-function selectBestVehicle(requiredType, weight, pickupAt, currentRequestId = null) {
+function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentRequestId = null) {
   const vehicles = read(KEYS.vehicles, []);
   const filtered = vehicles.filter(
     (v) =>
       v.available &&
       (!requiredType || v.type === requiredType) &&
-      !isVehicleBusyAtHour(v, pickupAt, currentRequestId)
+      !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
   );
   const pick =
     filtered.find((v) => v.capacityKg >= weight) ||
     filtered[0] ||
-    vehicles.find((v) => v.available && !isVehicleBusyAtHour(v, pickupAt, currentRequestId)) ||
+    vehicles.find((v) => v.available && !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)) ||
     null;
   return pick || null;
 }
 
-function selectDriver(pickupAt, currentRequestId = null) {
+function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   const drivers = read(KEYS.drivers, []);
   return (
-    drivers.find((d) => d.available && !isDriverBusyAtHour(d, pickupAt, currentRequestId)) ||
+    drivers.find((d) => d.available && !isDriverBusyAtHour(d, pickupAt, etaDelivery, currentRequestId)) ||
     null
   );
 }
@@ -923,12 +1029,13 @@ function approveRequest(requestId, actorName = "Sistema", auto = false) {
     current.vehicleType,
     parseNum(current.weightKg),
     current.pickupAt,
+    current.etaDelivery || current.pickupAt,
     requestId
   );
-  const driver = selectDriver(current.pickupAt, requestId);
+  const driver = selectDriver(current.pickupAt, current.etaDelivery || current.pickupAt, requestId);
 
   if (!vehicle || !driver) {
-    alert("No hay conductor o camión disponible para esa misma hora.");
+    alert("No hay conductor o camion disponible en la franja horaria seleccionada.");
     return;
   }
 
@@ -941,7 +1048,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false) {
     driverId: driver.id,
     driverName: driver ? driver.name : "Por definir",
     driverPhone: driver ? driver.phone : "-",
-    route: `${current.originCity} -> ${current.destinationCity}`,
+    route: formatRoute(current),
     etaPickup: current.pickupAt,
     etaDelivery: current.etaDelivery || current.pickupAt,
     realtimeStatus: STATUS.VIAJE_ASIGNADO
@@ -1042,7 +1149,7 @@ function canAccessRRHH(role) {
 function isViewAllowedForUser(user, view) {
   if (!user || !canAccessView(user, view)) return false;
   if (view === "requests") return user.role === ROLES.CLIENT || user.role === ROLES.ADMIN;
-  if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users"].includes(view)) {
+  if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users", "authorizations"].includes(view)) {
     return user.role === ROLES.ADMIN;
   }
   if (["payroll", "hiring"].includes(view)) return canAccessRRHH(user.role);
@@ -1167,7 +1274,7 @@ function viewDashboard() {
   const byStatus = {};
   list.forEach((r) => { byStatus[r.status] = (byStatus[r.status] || 0) + 1; });
   const statusStats = Object.entries(byStatus)
-    .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="status status-${slugStatus(k)}">${k}</span></div><div class="dash-stat-value">${v}</div></div>`)
+    .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label">${prettyStatus(k)}</div><div class="dash-stat-value">${v}</div></div>`)
     .join("");
 
   return `<div class="dash-grid">
@@ -1177,24 +1284,34 @@ function viewDashboard() {
 }
 
 function requestFormHtml() {
+  const departments = Object.keys(COLOMBIA_LOCATIONS)
+    .map((dept) => `<option value="${dept}">${dept}</option>`)
+    .join("");
   const body = `<form id="form-request" class="p-form">
-    <label>Origen ciudad <input name="originCity" required /></label>
-    <label>Origen direccion <input name="originAddress" required /></label>
-    <label>Punto cargue <input name="originPoint" required /></label>
-    <label>Destino ciudad <input name="destinationCity" required /></label>
-    <label>Destino direccion <input name="destinationAddress" required /></label>
-    <label>Punto descargue <input name="destinationPoint" required /></label>
-    <label>Recogida estimada <input type="datetime-local" name="pickupAt" required /></label>
-    <label>Tipo vehiculo <select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>Descripcion carga <input name="cargoDescription" required /></label>
-    <label>Volumen cajas <input type="number" min="0" name="boxes" required /></label>
-    <label>Peso kg <input type="number" min="0" name="weightKg" required /></label>
-    <label>Temperatura requerida <input name="temperature" placeholder="Ej: 4C" /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
+    <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
+    <label>${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
+    <label>${fieldLabel(IC.inbox, "Punto cargue")}<input name="originPoint" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
+    <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
+    <label>${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
+    <label>${fieldLabel(IC.inbox, "Punto descargue")}<input name="destinationPoint" required /></label>
+    <div class="full datetime-group">
+      <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
+      <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
+      <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
+      <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
+    </div>
+    <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+    <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
+    <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
+    <label>${fieldLabel(IC.dollar, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+    <label>${fieldLabel(IC.activity, "Temperatura requerida")}<input name="temperature" placeholder="Ej: 4C" /></label>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-  return pcardWrap("plus", "Nueva solicitud de viaje", "Completa los datos para solicitar transporte", body);
+  return pcardWrap("plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body);
 }
 
 function requestListClientHtml(user) {
@@ -1207,8 +1324,8 @@ function requestListClientHtml(user) {
         : '<span class="muted">-</span>';
       return `<tr>
         <td><strong>${r.requestNumber || r.id}</strong></td>
-        <td>${r.originCity} → ${r.destinationCity}<br><span class="muted">${r.requestedByName || r.clientName}</span></td>
-        <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
+        <td>${formatRoute(r)}<br><span class="muted">Creada por: ${r.requestedByName || r.clientName}</span></td>
+        <td>${prettyStatus(r.status, "request")}</td>
         <td>${trip}</td>
         <td><div class="toolbar">
           <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
@@ -1230,7 +1347,7 @@ function adminQueueHtml() {
     .map((r) => `<tr>
       <td><strong>${r.requestNumber || r.id}</strong></td>
       <td>${r.clientName}</td>
-      <td>${r.originCity} → ${r.destinationCity}</td>
+      <td>${formatRoute(r)}</td>
       <td>${r.vehicleType}</td>
       <td><span class="timer-badge">${IC.clock} ${minutesRemaining(r.createdAt)} min</span></td>
       <td><div class="toolbar">
@@ -1263,10 +1380,10 @@ function vehiclesHtml() {
     </tr>`)
     .join("");
   const formBody = `<form id="form-vehicle" class="p-form">
-    <label>Placa <input name="plate" required /></label>
-    <label>Tipo <select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>Capacidad kg <input type="number" min="1" name="capacityKg" required /></label>
-    <label>Refrigerado <select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
+    <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
+    <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+    <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
+    <label>${fieldLabel(IC.activity, "Refrigerado")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
     <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehiculo</button>
   </form>`;
   const tableBody = rows
@@ -1277,11 +1394,13 @@ function vehiclesHtml() {
 
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
+  const companyOptions = companySelectOptions();
   const rows = drivers
     .map((d) => `<tr>
       <td><strong>${d.name}</strong></td>
       <td>${d.phone}</td>
       <td>${d.license}</td>
+      <td>${getCompanyById(d.companyId)?.name || "-"}</td>
       <td>${d.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
@@ -1290,13 +1409,14 @@ function driversHtml() {
     </tr>`)
     .join("");
   const formBody = `<form id="form-driver" class="p-form">
-    <label>Nombre <input name="name" required /></label>
-    <label>Telefono <input name="phone" required /></label>
-    <label>Licencia <input name="license" required /></label>
+    <label>${fieldLabel(IC.user, "Nombre")}<input name="name" required /></label>
+    <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
+    <label>${fieldLabel(IC.file, "Licencia")}<input name="license" required /></label>
+    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione...</option>${companyOptions}</select></label>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Agregar conductor</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Empresa</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay conductores registrados.");
   return pcardWrap("userPlus", "Registrar conductor", null, formBody) + pcardWrap("user", "Conductores", drivers.length + " registrados", tableBody);
 }
@@ -1309,11 +1429,11 @@ function transportTripsHtml() {
       <td><strong>${r.trip.tripNumber}</strong></td>
       <td>${r.requestNumber || r.id}</td>
       <td>${r.clientName}</td>
-      <td>${r.originCity} → ${r.destinationCity}</td>
+      <td>${formatRoute(r)}</td>
       <td>${r.trip.vehiclePlate}</td>
       <td>${r.trip.driverName}</td>
       <td>${fmtDate(r.trip.etaPickup)}</td>
-      <td><span class="status status-${slugStatus(r.status)}">${r.status}</span>${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
+      <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
       <td><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
         ${[STATUS.VIAJE_ASIGNADO,STATUS.EN_TRANSITO,STATUS.ESPERA_STANDBY,STATUS.COMPLETADA,STATUS.CANCELADA].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
       </select></td>
@@ -1326,9 +1446,14 @@ function transportTripsHtml() {
     <label class="full">Solicitud pendiente
       <select name="requestId" required>
         <option value="">Seleccione...</option>
-        ${pendingForTrip.map((r) => `<option value="${r.id}">${r.requestNumber || r.id} · ${r.clientName} · ${r.originCity} → ${r.destinationCity}</option>`).join("")}
+        ${pendingForTrip.map((r) => `<option value="${r.id}" data-createdby="${r.requestedByName || "-"}" data-route="${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}" data-company="${r.clientName || "-"}">${r.requestNumber || r.id} · ${r.clientName} · ${r.originCity} → ${r.destinationCity}</option>`).join("")}
       </select>
     </label>
+    <div id="trip-request-preview" class="trip-preview full">
+      <p><strong>Solicitante:</strong> <span data-preview="createdBy">-</span></p>
+      <p><strong>Cliente:</strong> <span data-preview="company">-</span></p>
+      <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
+    </div>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
   </form>`;
   return (pendingForTrip.length ? pcardWrap("plus", "Crear viaje", "Asigna automaticamente camion y conductor disponibles", createTripForm) : "")
@@ -1346,7 +1471,7 @@ function transportCalendarHtml() {
       <td>${r.trip.driverName}</td>
       <td>${r.trip.vehiclePlate}</td>
       <td>${r.trip.route}</td>
-      <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
+      <td>${prettyStatus(r.status, "trip")}</td>
     </tr>`)
     .join("");
   const body = rows
@@ -1571,7 +1696,7 @@ function historyHtml() {
       <td><strong>${r.requestNumber || r.id}</strong></td>
       <td>${r.clientName}</td>
       <td>${r.vehicleType}</td>
-      <td><span class="status status-${slugStatus(r.status)}">${r.status}</span></td>
+      <td>${prettyStatus(r.status)}</td>
       <td>${r.trip?.tripNumber || '<span class="muted">-</span>'}</td>
     </tr>`)
     .join("");
@@ -1617,11 +1742,13 @@ function topVehicles(requests) {
 
 function payrollHtml() {
   const employees = read(KEYS.payrollEmployees, []);
+  const companies = read(KEYS.companies, []);
+  const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
   const runs = read(KEYS.payrollRuns, []);
   const pending = runs.filter((r) => !r.paid).length;
   const employeeRows = employees
     .map((e) => `<tr>
-      <td><strong>${e.name}</strong></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
+      <td><strong>${e.name}</strong></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-employee" data-id="${e.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${e.id}">${IC.trash} Eliminar</button>
@@ -1637,12 +1764,13 @@ function payrollHtml() {
     .join("");
 
   const formEmp = `<form id="form-employee" class="p-form">
-    <label>Nombre <input name="name" required /></label>
-    <label>Cedula <input name="idDoc" required /></label>
-    <label>Cargo <input name="position" required /></label>
-    <label>Tipo contrato <input name="contractType" required /></label>
-    <label>Salario base <input type="number" name="baseSalary" required /></label>
-    <label>Fecha ingreso <input type="date" name="startDate" required /></label>
+    <label>${fieldLabel(IC.user, "Nombre")}<input name="name" required /></label>
+    <label>${fieldLabel(IC.file, "Cedula")}<input name="idDoc" required /></label>
+    <label>${fieldLabel(IC.briefcase, "Cargo")}<input name="position" required /></label>
+    <label>${fieldLabel(IC.activity, "Tipo contrato")}<input name="contractType" required /></label>
+    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
+    <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" name="baseSalary" required /></label>
+    <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
   const formPay = `<form id="form-payroll" class="p-form">
@@ -1657,7 +1785,7 @@ function payrollHtml() {
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidacion</button>
   </form>`;
   const empTable = employeeRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
@@ -1716,6 +1844,56 @@ function notificationsHtml() {
   return pcardWrap("bell", "Notificaciones", list.length + " notificaciones", body);
 }
 
+function profileHtml(user) {
+  const body = `<form id="form-profile" class="p-form">
+    <label>Nombre <input name="name" value="${user.name || ""}" required /></label>
+    <label>Correo <input type="email" value="${user.email || ""}" disabled /></label>
+    <label>Telefono <input name="phone" value="${user.phone || ""}" /></label>
+    <label>Empresa
+      <select name="companyId" required>
+        <option value="">Seleccione...</option>
+        ${companySelectOptions(user.companyId)}
+      </select>
+    </label>
+    <label>NIT/RUT <input name="taxId" value="${user.taxId || ""}" /></label>
+    <label class="full">Foto (URL)
+      <input name="avatarUrl" placeholder="https://..." value="${user.avatarUrl || ""}" />
+    </label>
+    <label class="full">Subir foto
+      <input type="file" name="avatarFile" accept="image/*" />
+    </label>
+    <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
+  </form>`;
+  const preview = `<div class="user-card" style="max-width:280px">
+      <div class="user-card-top">
+        <div class="user-avatar" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');background-size:cover;background-position:center;color:transparent;` : ""}">
+          ${user.avatarUrl ? "." : (user.name || "U").charAt(0).toUpperCase()}
+        </div>
+        <div class="user-card-info"><h4>${user.name}</h4><p>${user.role}</p></div>
+      </div>
+    </div>`;
+  return `<div class="dash-grid">${pcardWrap("user", "Mi perfil", "Actualiza tu informacion personal", body)}${pcardWrap("eye", "Vista previa", null, preview)}</div>`;
+}
+
+function authorizationsHtml() {
+  const approvals = read(KEYS.approvals, []);
+  const pending = approvals.filter((a) => a.status === "pendiente");
+  const rows = pending.map((a) => `<tr>
+    <td><strong>${a.title}</strong></td>
+    <td>${a.type}</td>
+    <td>${a.requestedByName}</td>
+    <td>${fmtDate(a.requestedAt)}</td>
+    <td><div class="toolbar">
+      <button class="btn btn-sm btn-approve" data-action="approval-approve" data-id="${a.id}">${IC.check} Aprobar</button>
+      <button class="btn btn-sm btn-reject" data-action="approval-reject" data-id="${a.id}">${IC.x} Rechazar</button>
+    </div></td>
+  </tr>`).join("");
+  const body = rows
+    ? `<div class="table-wrap"><table><thead><tr><th>Titulo</th><th>Tipo</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay autorizaciones pendientes.");
+  return pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
+}
+
 function renderPortalView() {
   updateAutoApprove();
   renderKpis();
@@ -1734,6 +1912,8 @@ function renderPortalView() {
     payroll: "Nomina",
     hiring: "Contratacion",
     "admin-users": "Administración · Usuarios y permisos",
+    authorizations: "Autorizaciones",
+    profile: "Mi perfil",
     notifications: "Notificaciones"
   };
   nodes.viewTitle.textContent = titles[view] || "Dashboard";
@@ -1762,6 +1942,10 @@ function renderPortalView() {
     nodes.viewRoot.innerHTML = hiringHtml();
   } else if (view === "admin-users" && user.role === ROLES.ADMIN) {
     nodes.viewRoot.innerHTML = adminUsersHtml(user);
+  } else if (view === "authorizations" && user.role === ROLES.ADMIN) {
+    nodes.viewRoot.innerHTML = authorizationsHtml();
+  } else if (view === "profile") {
+    nodes.viewRoot.innerHTML = profileHtml(user);
   } else if (view === "notifications") {
     nodes.viewRoot.innerHTML = notificationsHtml();
   } else {
@@ -1804,6 +1988,7 @@ function bindDynamicEvents() {
   if (adminUserCreate) {
     adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const actor = currentUser();
       const data = Object.fromEntries(new FormData(adminUserCreate).entries());
       const permissions = [...adminUserCreate.querySelectorAll("input[name='permissions']:checked")].map(
         (input) => input.value
@@ -1816,6 +2001,18 @@ function bindDynamicEvents() {
       const company = getCompanyById(data.companyId);
       if (!company) {
         alert("Debes seleccionar una empresa válida.");
+        return;
+      }
+      if (actor?.role !== ROLES.ADMIN) {
+        queueApproval({
+          type: "create_user",
+          title: `Creacion de usuario ${data.name}`,
+          payload: { ...data, companyName: company.name, permissions },
+          requestedByUserId: actor?.id || "",
+          requestedByName: actor?.name || "Usuario"
+        });
+        alert("Solicitud enviada a autorizaciones para aprobacion del administrador.");
+        renderPortalView();
         return;
       }
       users.push({
@@ -2045,10 +2242,61 @@ function bindDynamicEvents() {
 
   const requestForm = document.getElementById("form-request");
   if (requestForm) {
+    const originDepartment = requestForm.querySelector("#origin-department");
+    const originCity = requestForm.querySelector("#origin-city");
+    const destinationDepartment = requestForm.querySelector("#destination-department");
+    const destinationCity = requestForm.querySelector("#destination-city");
+    const pickupDate = requestForm.querySelector("#pickup-date");
+    const pickupTime = requestForm.querySelector("#pickup-time");
+    const deliveryDate = requestForm.querySelector("#delivery-date");
+    const deliveryTime = requestForm.querySelector("#delivery-time");
+
+    const fillCityOptions = (departmentSelect, citySelect) => {
+      const department = String(departmentSelect?.value || "");
+      const cities = COLOMBIA_LOCATIONS[department] || [];
+      citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
+        .map((c) => `<option value="${c}">${c}</option>`)
+        .join("")}`;
+    };
+
+    if (originDepartment && originCity) {
+      originDepartment.addEventListener("change", () => fillCityOptions(originDepartment, originCity));
+    }
+    if (destinationDepartment && destinationCity) {
+      destinationDepartment.addEventListener("change", () => fillCityOptions(destinationDepartment, destinationCity));
+    }
+    if (pickupDate) {
+      const now = new Date();
+      const today = now.toISOString().split("T")[0];
+      pickupDate.min = today;
+      if (deliveryDate) deliveryDate.min = today;
+    }
+
     requestForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const user = currentUser();
       const data = Object.fromEntries(new FormData(requestForm).entries());
+      const pickupDateValue = String(data.pickupDate || "");
+      const pickupTimeValue = String(data.pickupTime || "");
+      const deliveryDateValue = String(data.deliveryDate || "");
+      const deliveryTimeValue = String(data.deliveryTime || "");
+      if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
+        alert("Debes seleccionar fecha y hora de recogida y entrega.");
+        return;
+      }
+      const pickupAt = `${pickupDateValue}T${pickupTimeValue}`;
+      const etaDelivery = `${deliveryDateValue}T${deliveryTimeValue}`;
+      const pickupDateTime = new Date(pickupAt);
+      const deliveryDateTime = new Date(etaDelivery);
+      if (pickupDateTime.getTime() < Date.now()) {
+        alert("No puedes crear solicitudes para fechas u horas anteriores.");
+        return;
+      }
+      if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
+        alert("La entrega estimada debe ser posterior a la recogida.");
+        return;
+      }
+      const { pickupDate, pickupTime, deliveryDate, deliveryTime, ...payload } = data;
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
       const all = read(KEYS.requests, []);
@@ -2059,7 +2307,9 @@ function bindDynamicEvents() {
         clientName: user.company,
         clientCompanyId: user.companyId,
         requestedByName: user.name,
-        ...data,
+        ...payload,
+        pickupAt,
+        etaDelivery,
         attachments,
         status: STATUS.PENDIENTE,
         createdAt: nowIso(),
@@ -2096,7 +2346,7 @@ function bindDynamicEvents() {
       const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
       if (!req) return;
       const msg =
-        `Solicitud: ${req.requestNumber || req.id}\nRuta: ${req.originCity} -> ${req.destinationCity}\nEstado: ${req.status}\n` +
+        `Solicitud: ${req.requestNumber || req.id}\nRuta: ${formatRoute(req)}\nCreada por: ${req.requestedByName || "-"}\nEstado: ${req.status}\n` +
         `Carga: ${req.cargoDescription} / ${req.weightKg}kg / ${req.boxes} cajas\n` +
         `Temperatura: ${req.temperature || "N/A"}\nAdjuntos: ${(req.attachments || []).join(", ") || "Ninguno"}\n` +
         `${req.trip ? `Viaje ${req.trip.tripNumber}, Vehiculo ${req.trip.vehiclePlate}, Conductor ${req.trip.driverName}` : ""}\n` +
@@ -2140,12 +2390,45 @@ function bindDynamicEvents() {
 
   const createTripForm = document.getElementById("form-create-trip");
   if (createTripForm) {
+    const select = createTripForm.querySelector("select[name='requestId']");
+    const preview = createTripForm.querySelector("#trip-request-preview");
+    const setPreview = () => {
+      const option = select?.selectedOptions?.[0];
+      if (!option || !preview) return;
+      const createdBy = option.getAttribute("data-createdby") || "-";
+      const company = option.getAttribute("data-company") || "-";
+      const route = option.getAttribute("data-route") || "-";
+      const createdByNode = preview.querySelector("[data-preview='createdBy']");
+      const companyNode = preview.querySelector("[data-preview='company']");
+      const routeNode = preview.querySelector("[data-preview='route']");
+      if (createdByNode) createdByNode.textContent = createdBy;
+      if (companyNode) companyNode.textContent = company;
+      if (routeNode) routeNode.textContent = route;
+    };
+    if (select) {
+      select.addEventListener("change", setPreview);
+      setPreview();
+    }
+
     createTripForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      const actor = currentUser();
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
       if (!requestId) {
         alert("Selecciona una solicitud pendiente.");
+        return;
+      }
+      if (actor?.role !== ROLES.ADMIN) {
+        queueApproval({
+          type: "approve_trip_request",
+          title: `Aprobacion de viaje para solicitud ${requestId}`,
+          payload: { requestId },
+          requestedByUserId: actor?.id || "",
+          requestedByName: actor?.name || "Usuario"
+        });
+        alert("Solicitud de aprobacion de viaje enviada al administrador.");
+        renderPortalView();
         return;
       }
       approveRequest(requestId, currentUser()?.name || "Administrador", false);
@@ -2178,9 +2461,15 @@ function bindDynamicEvents() {
       if (!req) return;
       const newPickup = prompt("Nueva fecha de recogida (YYYY-MM-DDTHH:mm)", toInputDate(req.pickupAt));
       if (!newPickup) return;
+      const newDelivery = prompt("Nueva fecha de entrega (YYYY-MM-DDTHH:mm)", toInputDate(req.etaDelivery || req.pickupAt));
+      if (!newDelivery) return;
+      if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
+        alert("La entrega debe ser posterior a la recogida.");
+        return;
+      }
       write(
         KEYS.requests,
-        requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup } : r))
+        requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r))
       );
       renderPortalView();
     });
@@ -2220,7 +2509,20 @@ function bindDynamicEvents() {
   if (driverForm) {
     driverForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
+      if (actor?.role !== ROLES.ADMIN) {
+        queueApproval({
+          type: "create_driver",
+          title: `Creacion de conductor ${data.name}`,
+          payload: data,
+          requestedByUserId: actor?.id || "",
+          requestedByName: actor?.name || "Usuario"
+        });
+        alert("Solicitud de conductor enviada para aprobacion.");
+        renderPortalView();
+        return;
+      }
       const list = read(KEYS.drivers, []);
       list.push({ id: uid(), ...data, available: true });
       write(KEYS.drivers, list);
@@ -2310,7 +2612,20 @@ function bindDynamicEvents() {
   if (employeeForm) {
     employeeForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      const actor = currentUser();
       const data = Object.fromEntries(new FormData(employeeForm).entries());
+      if (actor?.role !== ROLES.ADMIN) {
+        queueApproval({
+          type: "create_employee",
+          title: `Creacion de empleado ${data.name}`,
+          payload: data,
+          requestedByUserId: actor?.id || "",
+          requestedByName: actor?.name || "Usuario"
+        });
+        alert("Solicitud de empleado enviada a autorizaciones.");
+        renderPortalView();
+        return;
+      }
       const all = read(KEYS.payrollEmployees, []);
       all.push({ id: uid(), ...data });
       write(KEYS.payrollEmployees, all);
@@ -2579,6 +2894,119 @@ function bindDynamicEvents() {
       renderPortalView();
     });
   }
+
+  const profileForm = document.getElementById("form-profile");
+  if (profileForm) {
+    profileForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const actor = currentUser();
+      if (!actor) return;
+      const data = Object.fromEntries(new FormData(profileForm).entries());
+      const fileInput = profileForm.querySelector("input[name='avatarFile']");
+      const file = fileInput?.files?.[0];
+      const applyProfile = (avatarUrlValue = String(data.avatarUrl || "")) => {
+        const users = read(KEYS.users, []);
+        const company = getCompanyById(String(data.companyId || ""));
+        write(
+          KEYS.users,
+          users.map((u) =>
+            u.id === actor.id
+              ? {
+                  ...u,
+                  name: String(data.name || u.name).trim(),
+                  phone: String(data.phone || "").trim(),
+                  taxId: String(data.taxId || "").trim(),
+                  companyId: company?.id || u.companyId,
+                  company: company?.name || u.company,
+                  avatarUrl: avatarUrlValue || u.avatarUrl || ""
+                }
+              : u
+          )
+        );
+        alert("Perfil actualizado.");
+        renderPortal();
+      };
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = () => applyProfile(String(reader.result || ""));
+        reader.readAsDataURL(file);
+      } else {
+        applyProfile(String(data.avatarUrl || ""));
+      }
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='approval-approve']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = String(btn.dataset.id || "");
+      const approvals = read(KEYS.approvals, []);
+      const approval = approvals.find((a) => a.id === id && a.status === "pendiente");
+      const actor = currentUser();
+      if (!approval || !actor || actor.role !== ROLES.ADMIN) return;
+
+      if (approval.type === "create_user") {
+        const users = read(KEYS.users, []);
+        if (!users.some((u) => normalizeEmail(u.email) === normalizeEmail(approval.payload.email))) {
+          users.push({
+            id: uid(),
+            name: approval.payload.name,
+            email: normalizeEmail(approval.payload.email),
+            password: await hashPassword(approval.payload.password || "Cambio123!"),
+            role: approval.payload.role,
+            accountStatus: ACCOUNT_STATUS.APROBADO,
+            company: approval.payload.companyName || getCompanyById(approval.payload.companyId)?.name || "",
+            companyId: approval.payload.companyId,
+            taxId: approval.payload.taxId,
+            phone: approval.payload.phone,
+            permissions:
+              approval.payload.role === ROLES.ADMIN
+                ? [...ALL_PERMISSIONS]
+                : (approval.payload.permissions || defaultPermissionsForRole(approval.payload.role))
+          });
+          write(KEYS.users, users);
+        }
+      } else if (approval.type === "create_employee") {
+        const employees = read(KEYS.payrollEmployees, []);
+        employees.push({ id: uid(), ...approval.payload });
+        write(KEYS.payrollEmployees, employees);
+      } else if (approval.type === "create_driver") {
+        const drivers = read(KEYS.drivers, []);
+        drivers.push({ id: uid(), ...approval.payload, available: true });
+        write(KEYS.drivers, drivers);
+      } else if (approval.type === "approve_trip_request") {
+        approveRequest(String(approval.payload.requestId || ""), actor.name, false);
+      }
+
+      write(
+        KEYS.approvals,
+        approvals.map((a) =>
+          a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
+        )
+      );
+      alert("Autorizacion aprobada.");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='approval-reject']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      const reason = prompt("Motivo del rechazo:");
+      if (!reason) return;
+      const actor = currentUser();
+      const approvals = read(KEYS.approvals, []);
+      write(
+        KEYS.approvals,
+        approvals.map((a) =>
+          a.id === id
+            ? { ...a, status: "rechazado", reviewedAt: nowIso(), reviewedBy: actor?.name || "Admin", rejectionReason: reason }
+            : a
+        )
+      );
+      alert("Autorizacion rechazada.");
+      renderPortalView();
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='view-contract']").forEach((btn) => {
     btn.addEventListener("click", () => {
