@@ -82,27 +82,39 @@ const PERMISSIONS = {
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 const COLOMBIA_LOCATIONS = {
-  Antioquia: ["Medellin", "Bello", "Itagui", "Envigado", "Rionegro"],
-  Atlantico: ["Barranquilla", "Soledad", "Malambo", "Puerto Colombia"],
+  Amazonas: ["Leticia", "Puerto Narino"],
+  Antioquia: ["Medellin", "Bello", "Itagui", "Envigado", "Rionegro", "Apartado", "Turbo", "Caucasia", "La Ceja", "Sabaneta", "Copacabana", "Girardota", "Marinilla", "Yarumal", "Santa Fe de Antioquia"],
+  Arauca: ["Arauca", "Arauquita", "Saravena", "Tame", "Fortul"],
+  Atlantico: ["Barranquilla", "Soledad", "Malambo", "Puerto Colombia", "Galapa", "Sabanagrande", "Santo Tomas", "Baranoa"],
   Bogota: ["Bogota D.C."],
-  Bolivar: ["Cartagena", "Turbaco", "Magangue"],
-  Boyaca: ["Tunja", "Duitama", "Sogamoso"],
-  Caldas: ["Manizales", "Villamaria", "Chinchina"],
-  Cauca: ["Popayan", "Santander de Quilichao"],
-  Cesar: ["Valledupar", "Aguachica"],
-  Cordoba: ["Monteria", "Cereté", "Lorica"],
-  Cundinamarca: ["Soacha", "Chia", "Zipaquira", "Facatativa", "Girardot"],
-  Huila: ["Neiva", "Pitalito"],
-  Magdalena: ["Santa Marta", "Cienaga"],
-  Meta: ["Villavicencio", "Acacias"],
-  Narino: ["Pasto", "Ipiales", "Tumaco"],
-  NorteDeSantander: ["Cucuta", "Ocana", "Villa del Rosario"],
-  Quindio: ["Armenia", "Calarca"],
-  Risaralda: ["Pereira", "Dosquebradas", "Santa Rosa de Cabal"],
-  Santander: ["Bucaramanga", "Floridablanca", "Giron", "Barrancabermeja"],
-  Sucre: ["Sincelejo", "Corozal"],
-  Tolima: ["Ibague", "Espinal"],
-  ValleDelCauca: ["Cali", "Palmira", "Buenaventura", "Tulua", "Yumbo"]
+  Bolivar: ["Cartagena", "Turbaco", "Magangue", "Arjona", "El Carmen de Bolivar", "Mompox", "San Juan Nepomuceno", "Turbana"],
+  Boyaca: ["Tunja", "Duitama", "Sogamoso", "Chiquinquira", "Paipa", "Puerto Boyaca", "Samaca", "Villa de Leyva"],
+  Caldas: ["Manizales", "Villamaria", "Chinchina", "La Dorada", "Riosucio", "Anserma", "Supia"],
+  Caqueta: ["Florencia", "San Vicente del Caguan", "El Doncello", "Puerto Rico", "Belen de los Andaquies"],
+  Casanare: ["Yopal", "Aguazul", "Villanueva", "Monterrey", "Tauramena", "Paz de Ariporo"],
+  Cauca: ["Popayan", "Santander de Quilichao", "Puerto Tejada", "Patia", "Piendamo", "Corinto", "Guapi"],
+  Cesar: ["Valledupar", "Aguachica", "Bosconia", "Codazzi", "La Jagua de Ibirico", "Curumani"],
+  Choco: ["Quibdo", "Istmina", "Condoto", "Tado", "Bahia Solano"],
+  Cordoba: ["Monteria", "Cerete", "Lorica", "Sahagun", "Planeta Rica", "Montelibano", "Tierralta", "Cienaga de Oro"],
+  Cundinamarca: ["Soacha", "Chia", "Zipaquira", "Facatativa", "Girardot", "Mosquera", "Funza", "Madrid", "Fusagasuga", "Cajica", "La Calera", "Sopo", "Tabio", "Tocancipa", "Gachancipa"],
+  Guainia: ["Inirida", "Barranco Minas", "Cacahual"],
+  Guaviare: ["San Jose del Guaviare", "Calamar", "El Retorno", "Miraflores"],
+  Huila: ["Neiva", "Pitalito", "Garzon", "La Plata", "Campoalegre", "Palermo"],
+  LaGuajira: ["Riohacha", "Maicao", "Uribia", "Manaure", "Fonseca", "San Juan del Cesar", "Villanueva"],
+  Magdalena: ["Santa Marta", "Cienaga", "Fundacion", "Aracataca", "El Banco", "Plato", "Pivijay"],
+  Meta: ["Villavicencio", "Acacias", "Granada", "Puerto Lopez", "Puerto Gaitan", "Cumaral", "Restrepo"],
+  Narino: ["Pasto", "Ipiales", "Tumaco", "Tuquerres", "Sandoná", "La Union", "Samaniego"],
+  NorteDeSantander: ["Cucuta", "Ocana", "Villa del Rosario", "Los Patios", "Tibú", "Pamplona", "Chinacota"],
+  Putumayo: ["Mocoa", "Puerto Asis", "Orito", "Villagarzon", "Sibundoy", "Valle del Guamuez"],
+  Quindio: ["Armenia", "Calarca", "La Tebaida", "Montenegro", "Quimbaya", "Circasia"],
+  Risaralda: ["Pereira", "Dosquebradas", "Santa Rosa de Cabal", "La Virginia", "Marsella", "Belen de Umbria"],
+  SanAndresYProvidencia: ["San Andres", "Providencia"],
+  Santander: ["Bucaramanga", "Floridablanca", "Giron", "Barrancabermeja", "Piedecuesta", "San Gil", "Socorro", "Malaga", "Cimitarra", "Puerto Wilches"],
+  Sucre: ["Sincelejo", "Corozal", "Sampues", "San Marcos", "Toluviejo", "Coveñas", "Tolu"],
+  Tolima: ["Ibague", "Espinal", "Melgar", "Honda", "Lerida", "Chaparral", "Libano", "Mariquita"],
+  ValleDelCauca: ["Cali", "Palmira", "Buenaventura", "Tulua", "Yumbo", "Buga", "Cartago", "Jamundi", "Candelaria", "Florida", "Pradera", "Zarzal", "Roldanillo"],
+  Vaupes: ["Mitu", "Caruru", "Taraira"],
+  Vichada: ["Puerto Carreno", "La Primavera", "Santa Rosalia", "Cumaribo"]
 };
 const PERMISSION_META = {
   [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
@@ -1284,10 +1296,16 @@ function viewDashboard() {
 }
 
 function requestFormHtml() {
+  const user = currentUser();
+  const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
   const departments = Object.keys(COLOMBIA_LOCATIONS)
     .map((dept) => `<option value="${dept}">${dept}</option>`)
     .join("");
   const body = `<form id="form-request" class="p-form">
+    <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
+      <input value="${companyName}" disabled />
+      <input type="hidden" name="companyId" value="${user?.companyId || ""}" />
+    </label>
     <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
     <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
     <label>${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
@@ -1633,10 +1651,8 @@ function adminUsersHtml(current) {
       </select>
     </label>
     <label>Empresa
-      <select name="companyId" required>
-        <option value="">Seleccione...</option>
-        ${companies.map((c) => `<option value="${c.id}" ${c.id === editingUser.companyId ? "selected" : ""}>${c.name}</option>`).join("")}
-      </select>
+      <input value="${getCompanyById(editingUser.companyId)?.name || editingUser.company || "-"}" disabled />
+      <input type="hidden" name="companyId" value="${editingUser.companyId || ""}" />
     </label>
     <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
     <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
@@ -1845,15 +1861,14 @@ function notificationsHtml() {
 }
 
 function profileHtml(user) {
+  const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
   const body = `<form id="form-profile" class="p-form">
     <label>Nombre <input name="name" value="${user.name || ""}" required /></label>
     <label>Correo <input type="email" value="${user.email || ""}" disabled /></label>
     <label>Telefono <input name="phone" value="${user.phone || ""}" /></label>
     <label>Empresa
-      <select name="companyId" required>
-        <option value="">Seleccione...</option>
-        ${companySelectOptions(user.companyId)}
-      </select>
+      <input value="${companyName}" disabled />
+      <input type="hidden" name="companyId" value="${user.companyId || ""}" />
     </label>
     <label>NIT/RUT <input name="taxId" value="${user.taxId || ""}" /></label>
     <label class="full">Foto (URL)
