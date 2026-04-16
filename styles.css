@@ -2415,3 +2415,13 @@ body {
   border-radius: inherit;
   background: linear-gradient(90deg, #1d4ed8, #22c55e);
 }
+
+.modal-info-body {
+  display: grid;
+  gap: 0.55rem;
+  color: var(--text);
+}
+
+.modal-info-body strong {
+  color: #0d3f78;
+}

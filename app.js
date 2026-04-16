@@ -155,6 +155,42 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   );
 }
 
+function openInfoModal({ title, subtitle = "", bodyHtml = "" }) {
+  let modal = document.getElementById("crud-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "crud-modal";
+    modal.className = "modal hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
+    document.body.appendChild(modal);
+  }
+  const content = modal.querySelector("#crud-modal-content");
+  content.innerHTML = `
+    <div class="modal-head">
+      <h2>${title}</h2>
+      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
+    </div>
+    ${subtitle ? `<p class="muted">${subtitle}</p>` : ""}
+    <div class="modal-info-body">${bodyHtml}</div>
+    <div class="modal-edit-actions" style="margin-top:1rem;">
+      <button type="button" id="crud-ok" class="btn btn-primary">Cerrar</button>
+    </div>
+  `;
+  const close = () => modal.classList.add("hidden");
+  modal.classList.remove("hidden");
+  content.querySelector("#crud-close").addEventListener("click", close);
+  content.querySelector("#crud-ok").addEventListener("click", close);
+  modal.addEventListener(
+    "click",
+    (event) => {
+      if (event.target === modal) close();
+    },
+    { once: true }
+  );
+}
+
 function validateColombianDocument(docType, rawValue) {
   const type = String(docType || "").toUpperCase();
   const base = String(rawValue || "").trim();
@@ -259,30 +295,7 @@ function enhanceFormAsWizard(form, config = {}) {
 }
 
 function applyFormWizards() {
-  enhanceFormAsWizard(document.getElementById("form-request"), {
-    sizes: [7, 6, 6],
-    titles: ["Ruta y empresa", "Programacion del servicio", "Carga y contacto operativo"]
-  });
-  enhanceFormAsWizard(document.getElementById("form-vehicle"), {
-    sizes: [4, 4],
-    titles: ["Ficha tecnica", "Operacion y documentos"]
-  });
-  enhanceFormAsWizard(document.getElementById("form-driver"), {
-    sizes: [5, 5],
-    titles: ["Identificacion", "Habilitacion y contacto"]
-  });
-  enhanceFormAsWizard(document.getElementById("form-employee"), {
-    sizes: [5, 5],
-    titles: ["Datos personales", "Datos laborales"]
-  });
-  enhanceFormAsWizard(document.getElementById("form-admin-user-create"), {
-    sizes: [5, 5, 2],
-    titles: ["Identidad", "Cuenta y ubicacion", "Seguridad y permisos"]
-  });
-  enhanceFormAsWizard(document.getElementById("form-register"), {
-    sizes: [5, 5],
-    titles: ["Identificacion del solicitante", "Contacto y acceso"]
-  });
+  return;
 }
 
 function applyModuleMicroAnimations() {
@@ -409,6 +422,7 @@ const VIEW_PERMISSIONS = {
 
 const STATUS = {
   PENDIENTE: "Pendiente",
+  APROBADA_PENDIENTE_ASIGNACION: "Aprobada pendiente asignacion",
   VIAJE_ASIGNADO: "Viaje asignado",
   EN_TRANSITO: "En transito",
   ESPERA_STANDBY: "Espera standby",
@@ -418,7 +432,8 @@ const STATUS = {
 };
 
 const STATUS_TRANSITIONS = {
-  [STATUS.PENDIENTE]: [STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA, STATUS.RECHAZADA],
+  [STATUS.PENDIENTE]: [STATUS.APROBADA_PENDIENTE_ASIGNACION, STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA, STATUS.RECHAZADA],
+  [STATUS.APROBADA_PENDIENTE_ASIGNACION]: [STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA],
   [STATUS.VIAJE_ASIGNADO]: [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.CANCELADA],
   [STATUS.EN_TRANSITO]: [STATUS.ESPERA_STANDBY, STATUS.COMPLETADA, STATUS.CANCELADA],
   [STATUS.ESPERA_STANDBY]: [STATUS.EN_TRANSITO, STATUS.COMPLETADA, STATUS.CANCELADA],
@@ -435,6 +450,13 @@ const ACCOUNT_STATUS = {
 
 const PIPELINE = ["Recibido", "Preseleccionado", "Entrevistado", "Oferta enviada", "Contratado", "Descartado"];
 const AUTO_APPROVE_MINUTES = 10;
+const CO_PAYROLL = {
+  healthEmployeeRate: 0.04,
+  pensionEmployeeRate: 0.04,
+  solidarityRate: 0.01,
+  solidarityThresholdSmmlv: 4,
+  smmlv: 1750905
+};
 
 let state = {
   session: null,
@@ -586,6 +608,7 @@ function prettyStatus(status, scope = "general") {
   const key = slugStatus(status);
   const iconMap = {
     pendiente: IC.clock,
+    aprobada_pendiente_asignacion: IC.inbox,
     viaje_asignado: scope === "request" ? IC.truck : IC.check,
     en_transito: IC.truck,
     espera_standby: IC.clock,
@@ -976,7 +999,10 @@ function authView() {
   if (tab === "register") {
     return `
       <form id="form-register" class="form-grid auth-form">
-        <label>Nombre <input name="name" required /></label>
+        <label>Primer nombre <input name="firstName" required /></label>
+        <label>Segundo nombre <input name="middleName" /></label>
+        <label>Primer apellido <input name="lastName" required /></label>
+        <label>Segundo apellido <input name="secondLastName" /></label>
         <label>Tipo de persona
           <select name="personType" required>
             <option value="Natural">Natural</option>
@@ -993,9 +1019,21 @@ function authView() {
         </label>
         <label>Numero documento/NIT <input name="taxId" required /></label>
         <label>Expedicion documento <input type="date" name="documentIssuedAt" required /></label>
+        <label>Fecha de nacimiento <input type="date" name="birthDate" required /></label>
+        <label>Genero
+          <select name="gender" required>
+            <option value="">Seleccione...</option>
+            <option>Femenino</option>
+            <option>Masculino</option>
+            <option>No binario</option>
+            <option>Prefiero no decirlo</option>
+          </select>
+        </label>
         <label>Cargo <input name="position" required /></label>
+        <label>Area <input name="workArea" required placeholder="Ej: Operaciones" /></label>
         <label>Telefono <input name="phone" required /></label>
         <label>Ciudad <input name="city" required placeholder="Ej: Medellin" /></label>
+        <label>Departamento <input name="department" required placeholder="Ej: Antioquia" /></label>
         <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
         <label>Correo <input type="email" name="email" autocomplete="username" required /></label>
         <label class="full">Contrasena
@@ -1005,6 +1043,8 @@ function authView() {
           </div>
           <small id="password-strength" class="muted">Seguridad: Baja</small>
         </label>
+        <label class="full">Confirmar contrasena <input type="password" minlength="8" name="passwordConfirm" autocomplete="new-password" required /></label>
+        <label class="full"><input type="checkbox" name="acceptTerms" required /> Acepto terminos, politica de privacidad y tratamiento de datos (Habeas Data).</label>
         <button class="btn btn-primary full" type="submit">Crear cuenta cliente</button>
       </form>
     `;
@@ -1101,14 +1141,40 @@ function bindAuthForms() {
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
+      const fullName = [data.firstName, data.middleName, data.lastName, data.secondLastName]
+        .map((chunk) => String(chunk || "").trim())
+        .filter(Boolean)
+        .join(" ");
+      if (!fullName) {
+        notify("Debes ingresar nombres y apellidos validos.", "error");
+        return;
+      }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
         return;
       }
       data.taxId = docValidation.normalized;
+      if (String(data.password || "") !== String(data.passwordConfirm || "")) {
+        notify("La confirmacion de contrasena no coincide.", "error");
+        return;
+      }
       if (String(data.password || "").length < 8) {
         alert("La contrasena debe tener minimo 8 caracteres.");
+        return;
+      }
+      if (!data.acceptTerms) {
+        notify("Debes aceptar terminos y tratamiento de datos para continuar.", "error");
+        return;
+      }
+      const birthDateValue = new Date(String(data.birthDate || ""));
+      if (!Number.isFinite(birthDateValue.getTime())) {
+        notify("La fecha de nacimiento no es valida.", "error");
+        return;
+      }
+      const ageYears = Math.floor((Date.now() - birthDateValue.getTime()) / 31557600000);
+      if (ageYears < 18) {
+        notify("El usuario debe ser mayor de edad para registrarse.", "error");
         return;
       }
       const users = read(KEYS.users, []);
@@ -1116,9 +1182,15 @@ function bindAuthForms() {
         alert("El correo ya existe.");
         return;
       }
+      if (users.some((u) => String(u.documentType || "") === String(data.documentType || "") && String(u.taxId || "") === String(data.taxId || ""))) {
+        notify("Ya existe un usuario registrado con este documento.", "error");
+        return;
+      }
+      const { passwordConfirm, acceptTerms, ...profileData } = data;
       const newUser = {
         id: uid(),
-        ...data,
+        ...profileData,
+        name: fullName,
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
         role: ROLES.CLIENT,
@@ -1126,6 +1198,11 @@ function bindAuthForms() {
         companyId: null,
         company: "",
         permissions: defaultPermissionsForRole(ROLES.CLIENT),
+        profileQualityChecklist: {
+          idVerified: true,
+          acceptedTermsAt: nowIso(),
+          requiredFieldsCompleted: true
+        },
         registeredAt: nowIso()
       };
       users.push(newUser);
@@ -1318,6 +1395,29 @@ function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   );
 }
 
+function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
+  const requiresRefrigeration = String(request?.serviceType || "").toLowerCase().includes("refrigerada");
+  return read(KEYS.vehicles, []).filter((vehicle) => {
+    if (!vehicle.available) return false;
+    if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
+    if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
+    if (requiresRefrigeration && !vehicle.refrigerated) return false;
+    if (docExpiryStatus(vehicle.soatExpeditionDate).days < 0) return false;
+    if (docExpiryStatus(vehicle.techInspectionExpeditionDate).days < 0) return false;
+    if (isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId)) return false;
+    return true;
+  });
+}
+
+function getCompatibleDriversForRequest(request, currentRequestId = null) {
+  return read(KEYS.drivers, []).filter(
+    (driver) =>
+      driver.available &&
+      daysUntil(driver.licenseExpiry) >= 0 &&
+      !isDriverBusyAtHour(driver, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId)
+  );
+}
+
 function makeTripNumber() {
   const value = String(nextCounter("trip")).padStart(6, "0");
   return `VIA-${value}`;
@@ -1335,23 +1435,58 @@ function setDriverAvailability(driverId, available) {
   write(KEYS.drivers, next);
 }
 
-function approveRequest(requestId, actorName = "Sistema", auto = false) {
+function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "") {
   const requests = read(KEYS.requests, []);
   const current = requests.find((r) => r.id === requestId);
-  if (!current || current.status !== STATUS.PENDIENTE) return;
+  const canAssignTrip = current && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(current.status);
+  if (!current || !canAssignTrip) return false;
 
-  const vehicle = selectBestVehicle(
-    current.vehicleType,
-    parseNum(current.weightKg),
-    current.pickupAt,
-    current.etaDelivery || current.pickupAt,
-    requestId
-  );
-  const driver = selectDriver(current.pickupAt, current.etaDelivery || current.pickupAt, requestId);
+  if (auto) {
+    write(
+      KEYS.requests,
+      requests.map((r) =>
+        r.id === requestId
+          ? {
+              ...r,
+              status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
+              approvedAt: nowIso(),
+              approvedBy: actorName,
+              autoApproved: true,
+              rejectionReason: ""
+            }
+          : r
+      )
+    );
+    const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
+    if (targetUser) {
+      saveNotification({
+        userId: targetUser.id,
+        title: "Solicitud autoaprobada",
+        body: `Tu solicitud ${current.requestNumber || current.id} fue autoaprobada y quedo pendiente de asignacion de viaje.`
+      });
+    }
+    return true;
+  }
+
+  const compatibleVehicles = getCompatibleVehiclesForRequest(current, requestId);
+  const compatibleDrivers = getCompatibleDriversForRequest(current, requestId);
+
+  const vehicle = selectedVehicleId
+    ? compatibleVehicles.find((item) => item.id === selectedVehicleId) || null
+    : selectBestVehicle(
+      current.vehicleType,
+      parseNum(current.weightKg),
+      current.pickupAt,
+      current.etaDelivery || current.pickupAt,
+      requestId
+    );
+  const driver = selectedDriverId
+    ? compatibleDrivers.find((item) => item.id === selectedDriverId) || null
+    : selectDriver(current.pickupAt, current.etaDelivery || current.pickupAt, requestId);
 
   if (!vehicle || !driver) {
-    alert("No hay conductor o camion disponible en la franja horaria seleccionada.");
-    return;
+    notify("No hay conductor o camion compatible/disponible para esta solicitud.", "error");
+    return false;
   }
 
   const trip = {
@@ -1366,6 +1501,8 @@ function approveRequest(requestId, actorName = "Sistema", auto = false) {
     route: formatRoute(current),
     etaPickup: current.pickupAt,
     etaDelivery: current.etaDelivery || current.pickupAt,
+    assignedBy: actorName,
+    assignedAt: nowIso(),
     realtimeStatus: STATUS.VIAJE_ASIGNADO
   };
 
@@ -1398,6 +1535,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false) {
       body: `Viaje ${trip.tripNumber} - Vehiculo ${trip.vehiclePlate} - Conductor ${trip.driverName}`
     });
   }
+  return true;
 }
 
 function rejectRequest(requestId, reason, actorName) {
@@ -1562,7 +1700,7 @@ function renderKpis() {
   const user = currentUser();
   const visible = getVisibleRequestsForUser(user);
   const cards = [
-    { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE).length, icon: IC.clock, color: "kpi-icon-warning" },
+    { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length, icon: IC.clock, color: "kpi-icon-warning" },
     { label: "Viaje asignado", value: visible.filter((r) => r.status === STATUS.VIAJE_ASIGNADO).length, icon: IC.check, color: "kpi-icon-success" },
     { label: "En transito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length, icon: IC.truck, color: "kpi-icon-primary" },
     { label: "Completadas", value: visible.filter((r) => r.status === STATUS.COMPLETADA).length, icon: IC.shield, color: "kpi-icon-teal" }
@@ -1660,8 +1798,7 @@ function requestFormHtml() {
     <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
     <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
     <label>${fieldLabel(IC.dollar, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
-    <label>${fieldLabel(IC.dollar, "Valor asegurado (COP)")}<input type="number" min="0" name="insuredValue" required /></label>
-    <label>${fieldLabel(IC.activity, "Temperatura requerida")}<input name="temperature" placeholder="Ej: 4C" /></label>
+    <label>${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" min="0" name="tripValue" required /></label>
     <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
@@ -1675,7 +1812,7 @@ function requestListClientHtml(user) {
   const requests = getVisibleRequestsForUser(user);
   const rows = requests
     .map((r) => {
-      const allowEdit = r.status === STATUS.PENDIENTE;
+      const allowEdit = r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION;
       const trip = r.trip
         ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
         : '<span class="muted">-</span>';
@@ -1792,9 +1929,13 @@ function driversHtml() {
     <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" required /></label>
     <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory" required><option>C1</option><option>C2</option><option>C3</option></select></label>
     <label>${fieldLabel(IC.mapPin, "Ciudad residencia")}<input name="city" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Direccion residencia")}<input name="address" required /></label>
     <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione...</option>${companyOptions}</select></label>
+    <label>${fieldLabel(IC.activity, "Tipo contrato")}<input name="contractType" required placeholder="Indefinido/Fijo" /></label>
+    <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" min="0" name="baseSalary" required /></label>
+    <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Agregar conductor</button>
   </form>`;
   const tableBody = rows
@@ -1804,25 +1945,27 @@ function driversHtml() {
 }
 
 function transportTripsHtml() {
-  const pendingForTrip = read(KEYS.requests, []).filter((r) => r.status === STATUS.PENDIENTE && !r.trip);
+  const pendingForTrip = read(KEYS.requests, []).filter(
+    (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
+  );
   const trips = read(KEYS.requests, []).filter((r) => r.trip);
   const rows = trips
     .map((r) => `<tr>
       <td><strong>${r.trip.tripNumber}</strong></td>
       <td>${r.requestNumber || r.id}</td>
       <td>${r.clientName}</td>
-      <td>${formatRoute(r)}</td>
+      <td>${formatRoute(r)}<br><span class="muted">${r.cargoDescription || "-"} · $${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}</span></td>
       <td>${r.trip.vehiclePlate}</td>
-      <td>${r.trip.driverName}</td>
+      <td>${r.trip.driverName}<br><span class="muted">Asignado por: ${r.trip.assignedBy || r.approvedBy || "-"}</span></td>
       <td>${fmtDate(r.trip.etaPickup)}</td>
       <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
-      <td><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
+      <td><div class="toolbar"><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
         ${[STATUS.VIAJE_ASIGNADO,STATUS.EN_TRANSITO,STATUS.ESPERA_STANDBY,STATUS.COMPLETADA,STATUS.CANCELADA].map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
-      </select></td>
+      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button></div></td>
     </tr>`)
     .join("");
   const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Actualizar</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
   const createTripForm = `<form id="form-create-trip" class="p-form">
     <label class="full">Solicitud pendiente
@@ -1838,7 +1981,7 @@ function transportTripsHtml() {
     </div>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
   </form>`;
-  return (pendingForTrip.length ? pcardWrap("plus", "Crear viaje", "Asigna automaticamente camion y conductor disponibles", createTripForm) : "")
+  return (pendingForTrip.length ? pcardWrap("plus", "Crear viaje", "Selecciona manualmente camion y conductor segun la carga", createTripForm) : "")
     + pcardWrap("compass", "Viajes activos", trips.length + " viajes", body);
 }
 
@@ -2173,7 +2316,7 @@ function payrollHtml() {
   const pending = runs.filter((r) => !r.paid).length;
   const employeeRows = employees
     .map((e) => `<tr>
-      <td><strong>${e.name}</strong></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
+      <td><strong>${e.name}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-employee" data-id="${e.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${e.id}">${IC.trash} Eliminar</button>
@@ -2182,7 +2325,7 @@ function payrollHtml() {
     .join("");
   const runRows = runs
     .map((r) => `<tr>
-      <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
+      <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
       <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
       <td><button class="btn btn-sm btn-action" data-action="payslip" data-id="${r.id}">${IC.printer} Desprendible</button></td>
     </tr>`)
@@ -2211,21 +2354,19 @@ function payrollHtml() {
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
   const formPay = `<form id="form-payroll" class="p-form">
-    <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name}</option>`).join("")}</select></label>
+    <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
     <label>Mes <input type="month" name="month" required /></label>
     <label>Horas extras <input type="number" name="extras" value="0" /></label>
     <label>Aux transporte <input type="number" name="aux" value="0" /></label>
-    <label>Deduccion salud <input type="number" name="health" value="0" /></label>
-    <label>Deduccion pension <input type="number" name="pension" value="0" /></label>
-    <label>Deduccion ARL <input type="number" name="arl" value="0" /></label>
     <label>Bonificaciones <input type="number" name="bonus" value="0" /></label>
+    <p class="muted full">Deducciones automaticas Colombia: Salud 4%, Pension 4% y Fondo de Solidaridad 1% para IBC superior a 4 SMMLV.</p>
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidacion</button>
   </form>`;
   const empTable = employeeRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
-    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
+    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
   return `<div class="dash-grid">${pcardWrap("userPlus", "Registro empleado", null, formEmp)}${pcardWrap("dollar", "Liquidacion mensual", null, formPay)}</div>`
     + pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)
@@ -2238,6 +2379,8 @@ function hiringHtml() {
   const interviews = read(KEYS.interviews, []);
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
+  const companies = read(KEYS.companies, []);
+  const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
 
   const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
   const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}</td><td>${c.vacancyTitle}</td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
@@ -2245,9 +2388,9 @@ function hiringHtml() {
   const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
   const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo <input name="title" required /></label><label>Requisitos <input name="requirements" required /></label><label>Salario ofrecido <input type="number" name="salaryOffer" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
-  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
+  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Ciudad <input name="city" required /></label><label>Direccion <input name="address" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
   const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
-  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Cargo <input name="position" required /></label><label>Salario <input type="number" name="salary" required /></label><label>Inicio <input type="date" name="startDate" required /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Rol contratado <select name="workerRole" required><option value="empleado">Empleado</option><option value="conductor">Conductor</option></select></label><label>Cargo <input name="position" required /></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario <input type="number" name="salary" required /></label><label>Tipo contrato <input name="contractType" required placeholder="Termino indefinido/fijo/obra" /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
   const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
   const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
@@ -2786,7 +2929,7 @@ function bindDynamicEvents() {
       const deliveryDateValue = String(data.deliveryDate || "");
       const deliveryTimeValue = String(data.deliveryTime || "");
       if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
-        alert("Debes seleccionar fecha y hora de recogida y entrega.");
+        notify("Debes seleccionar fecha y hora de recogida y entrega.", "error");
         return;
       }
       const pickupAt = `${pickupDateValue}T${pickupTimeValue}`;
@@ -2794,11 +2937,11 @@ function bindDynamicEvents() {
       const pickupDateTime = new Date(pickupAt);
       const deliveryDateTime = new Date(etaDelivery);
       if (pickupDateTime.getTime() < Date.now()) {
-        alert("No puedes crear solicitudes para fechas u horas anteriores.");
+        notify("No puedes crear solicitudes para fechas u horas anteriores.", "error");
         return;
       }
       if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
-        alert("La entrega estimada debe ser posterior a la recogida.");
+        notify("La entrega estimada debe ser posterior a la recogida.", "error");
         return;
       }
       const { pickupDate, pickupTime, deliveryDate, deliveryTime, ...payload } = data;
@@ -2841,7 +2984,7 @@ function bindDynamicEvents() {
         });
       });
 
-      alert("Solicitud creada.");
+      notify("Solicitud creada correctamente.", "success");
       renderPortalView();
     });
   }
@@ -2850,14 +2993,35 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
       if (!req) return;
-      const msg =
-        `Solicitud: ${req.requestNumber || req.id}\nRuta: ${formatRoute(req)}\nCreada por: ${req.requestedByName || "-"}\nEstado: ${req.status}\n` +
-        `Carga: ${req.cargoDescription} / ${req.weightKg}kg / ${req.boxes} cajas\n` +
-        `Temperatura: ${req.temperature || "N/A"}\nAdjuntos: ${(req.attachments || []).join(", ") || "Ninguno"}\n` +
-        `${req.trip ? `Viaje ${req.trip.tripNumber}, Vehiculo ${req.trip.vehiclePlate}, Conductor ${req.trip.driverName}` : ""}\n` +
-        `${parseNum(req.standbyChargeTotal) > 0 ? `Sobrecargo standby: $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}\n` : ""}` +
-        `${req.rejectionReason ? `Motivo rechazo: ${req.rejectionReason}` : ""}`;
-      alert(msg);
+      const tripDetail = req.trip
+        ? `<div class="dash-grid" style="margin-top:0.6rem">
+            <div><strong>Viaje:</strong> ${req.trip.tripNumber}</div>
+            <div><strong>Camion:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
+            <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+            <div><strong>Asignado por:</strong> ${req.trip.assignedBy || req.approvedBy || "-"}</div>
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+          </div>`
+        : `<p class="muted">Aun no tiene viaje asignado.</p>`;
+      openInfoModal({
+        title: `Solicitud ${req.requestNumber || req.id}`,
+        subtitle: `${prettyStatus(req.status, "request")}`,
+        bodyHtml: `
+          <div class="dash-grid">
+            <div><strong>Ruta:</strong> ${formatRoute(req)}</div>
+            <div><strong>Creada por:</strong> ${req.requestedByName || "-"}</div>
+            <div><strong>Carga:</strong> ${req.cargoDescription}</div>
+            <div><strong>Peso/Volumen:</strong> ${parseNum(req.weightKg).toLocaleString("es-CO")} kg · ${parseNum(req.boxes).toLocaleString("es-CO")} cajas</div>
+            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</div>
+            <div><strong>Adjuntos:</strong> ${(req.attachments || []).join(", ") || "Ninguno"}</div>
+            ${parseNum(req.standbyChargeTotal) > 0 ? `<div><strong>Standby:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</div>` : ""}
+            ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo:</strong> ${req.rejectionReason}</div>` : ""}
+          </div>
+          <hr style="border:0;border-top:1px solid var(--line);margin:0.8rem 0;" />
+          <h3 style="margin:0 0 0.4rem;">Detalle del viaje</h3>
+          ${tripDetail}
+        `
+      });
     });
   });
 
@@ -2866,11 +3030,19 @@ function bindDynamicEvents() {
       const requests = read(KEYS.requests, []);
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req || req.status !== STATUS.PENDIENTE) return;
-      const newNotes = prompt("Observaciones", req.notes || "");
-      if (newNotes === null) return;
-      const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: newNotes } : r));
-      write(KEYS.requests, updated);
-      renderPortalView();
+      openEditModal({
+        title: "Editar observaciones de solicitud",
+        subtitle: req.requestNumber || req.id,
+        submitText: "Guardar observaciones",
+        fields: [{ name: "notes", label: "Observaciones", value: req.notes || "", required: false }],
+        onSubmit: (form) => {
+          const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
+          write(KEYS.requests, updated);
+          notify("Observaciones actualizadas.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
@@ -2888,8 +3060,49 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='approve']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const actor = currentUser();
-      approveRequest(btn.dataset.id, actor.name, false);
-      renderPortalView();
+      const requestId = String(btn.dataset.id || "");
+      const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+      if (!request) return;
+      const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
+      const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+      if (!compatibleVehicles.length || !compatibleDrivers.length) {
+        notify("No hay combinacion disponible de camion/conductor para esta solicitud.", "error");
+        return;
+      }
+      openEditModal({
+        title: "Asignacion manual de viaje",
+        subtitle: `${request.requestNumber || request.id} · ${request.vehicleType} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
+        submitText: "Aprobar y crear viaje",
+        fields: [
+          {
+            name: "vehicleId",
+            label: "Selecciona camion compatible",
+            type: "select",
+            required: true,
+            options: compatibleVehicles.map((vehicle) => ({
+              value: vehicle.id,
+              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
+            }))
+          },
+          {
+            name: "driverId",
+            label: "Selecciona conductor disponible",
+            type: "select",
+            required: true,
+            options: compatibleDrivers.map((driver) => ({
+              value: driver.id,
+              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}`
+            }))
+          }
+        ],
+        onSubmit: (form) => {
+          const ok = approveRequest(requestId, actor?.name || "Administrador", false, String(form.vehicleId || ""), String(form.driverId || ""));
+          if (!ok) return false;
+          notify("Solicitud aprobada y viaje asignado correctamente.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
     });
   });
 
@@ -2921,7 +3134,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
       if (!requestId) {
-        alert("Selecciona una solicitud pendiente.");
+        notify("Selecciona una solicitud pendiente.", "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -2932,15 +3145,85 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        alert("Solicitud de aprobacion de viaje enviada al administrador.");
+        notify("Solicitud de aprobacion de viaje enviada al administrador.", "info");
         renderPortalView();
         return;
       }
-      approveRequest(requestId, currentUser()?.name || "Administrador", false);
-      alert("Viaje creado y solicitud aprobada.");
-      renderPortalView();
+      const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+      if (!request) {
+        notify("Solicitud no encontrada.", "error");
+        return;
+      }
+      const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
+      const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+      if (!compatibleVehicles.length || !compatibleDrivers.length) {
+        notify("No hay camion/conductor compatible disponible para esta solicitud.", "error");
+        return;
+      }
+      openEditModal({
+        title: "Asignar viaje",
+        subtitle: `${request.requestNumber || request.id} · ${request.vehicleType}`,
+        submitText: "Crear viaje",
+        fields: [
+          {
+            name: "vehicleId",
+            label: "Camion",
+            type: "select",
+            required: true,
+            options: compatibleVehicles.map((vehicle) => ({
+              value: vehicle.id,
+              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
+            }))
+          },
+          {
+            name: "driverId",
+            label: "Conductor",
+            type: "select",
+            required: true,
+            options: compatibleDrivers.map((driver) => ({
+              value: driver.id,
+              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
+            }))
+          }
+        ],
+        onSubmit: (form) => {
+          const ok = approveRequest(requestId, currentUser()?.name || "Administrador", false, String(form.vehicleId || ""), String(form.driverId || ""));
+          if (!ok) return false;
+          notify("Viaje creado y asignado correctamente.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+      return;
     });
   }
+
+  nodes.viewRoot.querySelectorAll("[data-action='trip-detail']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
+      if (!req || !req.trip) return;
+      openInfoModal({
+        title: `Viaje ${req.trip.tripNumber}`,
+        subtitle: prettyStatus(req.status, "trip"),
+        bodyHtml: `
+          <div class="dash-grid">
+            <div><strong>Solicitud:</strong> ${req.requestNumber || req.id}</div>
+            <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
+            <div><strong>Ruta:</strong> ${formatRoute(req)}</div>
+            <div><strong>Carga:</strong> ${req.cargoDescription || "-"} · ${parseNum(req.weightKg).toLocaleString("es-CO")} kg</div>
+            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || 0).toLocaleString("es-CO")}</div>
+            <div><strong>Camion:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
+            <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+            <div><strong>Asignado por:</strong> ${req.trip.assignedBy || req.approvedBy || "-"}</div>
+            <div><strong>Fecha asignacion:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+          </div>
+          ${parseNum(req.standbyChargeTotal) > 0 ? `<p><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
+        `
+      });
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='trip-status']").forEach((select) => {
     select.addEventListener("change", () => {
@@ -3068,8 +3351,30 @@ function bindDynamicEvents() {
         return;
       }
       const list = read(KEYS.drivers, []);
-      list.push({ id: uid(), ...data, available: true });
+      list.push({ id: uid(), ...data, available: true, hiredAt: nowIso() });
       write(KEYS.drivers, list);
+      const employees = read(KEYS.payrollEmployees, []);
+      const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(data.idDoc || ""));
+      if (!existsEmployee) {
+        employees.push({
+          id: uid(),
+          name: data.name,
+          idDoc: data.idDoc,
+          documentType: data.documentType,
+          position: "Conductor",
+          contractType: data.contractType || "Indefinido",
+          workerRole: "conductor",
+          city: data.city || "",
+          address: data.address || "",
+          phone: data.phone || "",
+          emergencyContact: data.emergencyContact || "",
+          emergencyPhone: data.emergencyPhone || "",
+          companyId: data.companyId || "",
+          baseSalary: parseNum(data.baseSalary),
+          startDate: data.startDate || nowIso().slice(0, 10)
+        });
+        write(KEYS.payrollEmployees, employees);
+      }
       notify("Conductor creado correctamente.", "success");
       renderPortalView();
     });
@@ -3220,7 +3525,7 @@ function bindDynamicEvents() {
         return;
       }
       const all = read(KEYS.payrollEmployees, []);
-      all.push({ id: uid(), ...data });
+      all.push({ id: uid(), workerRole: "empleado", ...data });
       write(KEYS.payrollEmployees, all);
       notify("Empleado creado correctamente.", "success");
       renderPortalView();
@@ -3282,8 +3587,16 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(payrollForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) return;
-      const gross = parseNum(employee.baseSalary) + parseNum(data.extras) + parseNum(data.aux) + parseNum(data.bonus);
-      const deductions = parseNum(data.health) + parseNum(data.pension) + parseNum(data.arl);
+      const baseSalary = parseNum(employee.baseSalary);
+      const extras = parseNum(data.extras);
+      const aux = parseNum(data.aux);
+      const bonus = parseNum(data.bonus);
+      const gross = baseSalary + extras + aux + bonus;
+      const ibc = baseSalary + extras + bonus;
+      const health = ibc * CO_PAYROLL.healthEmployeeRate;
+      const pension = ibc * CO_PAYROLL.pensionEmployeeRate;
+      const solidarity = ibc > CO_PAYROLL.smmlv * CO_PAYROLL.solidarityThresholdSmmlv ? ibc * CO_PAYROLL.solidarityRate : 0;
+      const deductions = health + pension + solidarity;
       const net = gross - deductions;
       const run = {
         id: uid(),
@@ -3291,6 +3604,10 @@ function bindDynamicEvents() {
         employeeName: employee.name,
         month: data.month,
         gross,
+        ibc,
+        health,
+        pension,
+        solidarity,
         deductions,
         net,
         paid: false,
@@ -3314,9 +3631,13 @@ function bindDynamicEvents() {
           <h1>Desprendible de pago</h1>
           <p>Empleado: ${run.employeeName}</p>
           <p>Periodo: ${run.month}</p>
-          <p>Devengado: ${run.gross}</p>
-          <p>Deducciones: ${run.deductions}</p>
-          <p>Neto: ${run.net}</p>
+          <p>Devengado: $${parseNum(run.gross).toLocaleString("es-CO")}</p>
+          <p>IBC: $${parseNum(run.ibc).toLocaleString("es-CO")}</p>
+          <p>Salud empleado (4%): $${parseNum(run.health).toLocaleString("es-CO")}</p>
+          <p>Pension empleado (4%): $${parseNum(run.pension).toLocaleString("es-CO")}</p>
+          <p>Fondo solidaridad: $${parseNum(run.solidarity).toLocaleString("es-CO")}</p>
+          <p>Total deducciones: $${parseNum(run.deductions).toLocaleString("es-CO")}</p>
+          <p>Neto: $${parseNum(run.net).toLocaleString("es-CO")}</p>
           <p>Generado: ${fmtDate(run.createdAt)}</p>
         </body></html>
       `);
@@ -3334,8 +3655,8 @@ function bindDynamicEvents() {
   if (exportPayroll) {
     exportPayroll.addEventListener("click", () => {
       const rows = read(KEYS.payrollRuns, []);
-      const csv = ["Mes,Empleado,Devengado,Deducciones,Neto,Estado"]
-        .concat(rows.map((r) => `${r.month},${r.employeeName},${r.gross},${r.deductions},${r.net},${r.paid ? "Pagado" : "Pendiente"}`))
+      const csv = ["Mes,Empleado,Devengado,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"]
+        .concat(rows.map((r) => `${r.month},${r.employeeName},${r.gross},${r.ibc || 0},${r.health || 0},${r.pension || 0},${r.solidarity || 0},${r.deductions},${r.net},${r.paid ? "Pagado" : "Pendiente"}`))
         .join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
@@ -3375,6 +3696,12 @@ function bindDynamicEvents() {
     candidateForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(candidateForm).entries());
+      const docValidation = validateColombianDocument(data.documentType, data.idDoc);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
+        return;
+      }
+      data.idDoc = docValidation.normalized;
       const vac = read(KEYS.vacancies, []).find((v) => v.id === data.vacancyId);
       if (!vac) return;
       const files = [...candidateForm.querySelector("input[name='attachments']").files].map((f) => f.name);
@@ -3383,6 +3710,11 @@ function bindDynamicEvents() {
         id: uid(),
         name: data.name,
         email: data.email,
+        phone: data.phone,
+        documentType: data.documentType,
+        idDoc: data.idDoc,
+        city: data.city,
+        address: data.address,
         vacancyId: vac.id,
         vacancyTitle: vac.title,
         status: PIPELINE[0],
@@ -3440,19 +3772,84 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
-      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${data.position}\nSalario: ${data.salary}\nFecha inicio: ${data.startDate}\nEmpresa: Antares`;
+      const company = getCompanyById(String(data.companyId || ""));
+      if (!company) {
+        notify("Selecciona una empresa valida para el contrato.", "error");
+        return;
+      }
+      const workerRole = String(data.workerRole || "empleado");
+      if (workerRole === "conductor" && (!data.license || !data.licenseExpiry)) {
+        notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
+        return;
+      }
+      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${data.position}\nSalario: ${data.salary}\nFecha inicio: ${data.startDate}\nEmpresa: ${company.name}`;
       const all = read(KEYS.contracts, []);
       all.unshift({
         id: uid(),
         candidateId: candidate.id,
         candidateName: candidate.name,
+        workerRole,
         position: data.position,
         salary: data.salary,
         startDate: data.startDate,
+        companyId: company.id,
+        companyName: company.name,
+        contractType: data.contractType,
         content: text,
         createdAt: nowIso()
       });
+      write(KEYS.contracts, all);
+
+      const employeeDocValidation = validateColombianDocument("CC", candidate.idDoc || candidate.docId || candidate.document || "");
+      const employees = read(KEYS.payrollEmployees, []);
+      const existingEmployee = employees.find((e) => String(e.email || "").toLowerCase() === String(candidate.email || "").toLowerCase());
+      if (!existingEmployee) {
+        employees.push({
+          id: uid(),
+          name: candidate.name,
+          idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (candidate.idDoc || candidate.document || uid()),
+          documentType: candidate.documentType || "CC",
+          position: data.position,
+          contractType: data.contractType,
+          workerRole,
+          city: candidate.city || "",
+          address: candidate.address || "",
+          phone: candidate.phone || "",
+          emergencyContact: candidate.emergencyContact || "",
+          emergencyPhone: candidate.emergencyPhone || "",
+          companyId: company.id,
+          baseSalary: parseNum(data.salary),
+          startDate: data.startDate
+        });
+        write(KEYS.payrollEmployees, employees);
+      }
+
+      if (workerRole === "conductor") {
+        const drivers = read(KEYS.drivers, []);
+        const existsDriver = drivers.some((d) => String(d.idDoc || "") === String(employeeDocValidation.normalized || ""));
+        if (!existsDriver) {
+          drivers.push({
+            id: uid(),
+            name: candidate.name,
+            documentType: candidate.documentType || "CC",
+            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (candidate.idDoc || uid()),
+            phone: candidate.phone || "",
+            license: data.license,
+            licenseCategory: data.licenseCategory || data.license || "C2",
+            licenseExpiry: data.licenseExpiry,
+            city: candidate.city || "",
+            emergencyContact: candidate.emergencyContact || "",
+            emergencyPhone: candidate.emergencyPhone || "",
+            companyId: company.id,
+            available: true,
+            hiredAt: nowIso()
+          });
+          write(KEYS.drivers, drivers);
+        }
+      }
+
       sendEmail({ to: candidate.email, subject: "Oferta/Contrato generado", body: text });
+      notify(`Contrato generado y vinculación registrada como ${workerRole}.`, "success");
       renderPortalView();
     });
   }
@@ -3585,12 +3982,34 @@ function bindDynamicEvents() {
         }
       } else if (approval.type === "create_employee") {
         const employees = read(KEYS.payrollEmployees, []);
-        employees.push({ id: uid(), ...approval.payload });
+        employees.push({ id: uid(), workerRole: "empleado", ...approval.payload });
         write(KEYS.payrollEmployees, employees);
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
-        drivers.push({ id: uid(), ...approval.payload, available: true });
+        drivers.push({ id: uid(), ...approval.payload, available: true, hiredAt: nowIso() });
         write(KEYS.drivers, drivers);
+        const employees = read(KEYS.payrollEmployees, []);
+        const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(approval.payload.idDoc || ""));
+        if (!existsEmployee) {
+          employees.push({
+            id: uid(),
+            name: approval.payload.name,
+            idDoc: approval.payload.idDoc,
+            documentType: approval.payload.documentType || "CC",
+            position: "Conductor",
+            contractType: approval.payload.contractType || "Indefinido",
+            workerRole: "conductor",
+            city: approval.payload.city || "",
+            address: approval.payload.address || "",
+            phone: approval.payload.phone || "",
+            emergencyContact: approval.payload.emergencyContact || "",
+            emergencyPhone: approval.payload.emergencyPhone || "",
+            companyId: approval.payload.companyId || "",
+            baseSalary: parseNum(approval.payload.baseSalary),
+            startDate: approval.payload.startDate || nowIso().slice(0, 10)
+          });
+          write(KEYS.payrollEmployees, employees);
+        }
       } else if (approval.type === "approve_trip_request") {
         approveRequest(String(approval.payload.requestId || ""), actor.name, false);
       }
