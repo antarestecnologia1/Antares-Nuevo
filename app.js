@@ -1098,7 +1098,7 @@ function bindAuthForms() {
       event.preventDefault();
       if (Date.now() < state.authSecurity.lockUntil) {
         const secs = Math.ceil((state.authSecurity.lockUntil - Date.now()) / 1000);
-        alert(`Demasiados intentos. Intenta nuevamente en ${secs} segundos.`);
+        notify(`Demasiados intentos. Intenta nuevamente en ${secs} segundos.`, "error");
         return;
       }
       const data = Object.fromEntries(new FormData(login).entries());
@@ -1111,17 +1111,17 @@ function bindAuthForms() {
           state.authSecurity.lockUntil = Date.now() + 60_000;
           state.authSecurity.failedAttempts = 0;
         }
-        alert("Credenciales invalidas.");
+        notify("Credenciales invalidas.", "error");
         return;
       }
       state.authSecurity.failedAttempts = 0;
       state.authSecurity.lockUntil = 0;
       if (user.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
-        alert("Tu cuenta aun esta pendiente de aprobacion por un administrador. Te notificaremos por correo cuando sea aprobada.");
+        notify("Tu cuenta aun esta pendiente de aprobacion por un administrador.", "info");
         return;
       }
       if (user.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
-        alert("Tu solicitud de registro fue rechazada. Contacta a soporte para mas informacion.");
+        notify("Tu solicitud de registro fue rechazada. Contacta a soporte.", "error");
         return;
       }
       setSession({ userId: user.id, role: user.role, token: buildToken(user) });
@@ -1160,7 +1160,7 @@ function bindAuthForms() {
         return;
       }
       if (String(data.password || "").length < 8) {
-        alert("La contrasena debe tener minimo 8 caracteres.");
+        notify("La contrasena debe tener minimo 8 caracteres.", "error");
         return;
       }
       if (!data.acceptTerms) {
@@ -1179,7 +1179,7 @@ function bindAuthForms() {
       }
       const users = read(KEYS.users, []);
       if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(data.email))) {
-        alert("El correo ya existe.");
+        notify("El correo ya existe.", "error");
         return;
       }
       if (users.some((u) => String(u.documentType || "") === String(data.documentType || "") && String(u.taxId || "") === String(data.taxId || ""))) {
@@ -1225,7 +1225,7 @@ function bindAuthForms() {
           body: `Cliente: ${data.name} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
         });
       });
-      alert("Registro enviado. Tu cuenta sera revisada por un administrador antes de poder acceder. Te notificaremos por correo.");
+      notify("Registro enviado. Tu cuenta sera revisada por un administrador.", "success");
       state.authTab = "login";
       renderAuthTab();
     });
@@ -1238,7 +1238,7 @@ function bindAuthForms() {
       const users = read(KEYS.users, []);
       const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
       if (!user) {
-        alert("No existe usuario con ese correo.");
+        notify("No existe usuario con ese correo.", "error");
         return;
       }
       sendEmail({
@@ -1246,7 +1246,7 @@ function bindAuthForms() {
         subject: "Recuperacion de contrasena",
         body: `Hola ${user.name}, se solicito recuperacion de acceso. Por seguridad, solicita a un administrador restablecer tu contrasena.`
       });
-      alert("Solicitud enviada. Un administrador debe ayudarte a restablecer el acceso.");
+      notify("Solicitud enviada. Un administrador debe ayudarte a restablecer el acceso.", "info");
     });
   }
   applyFormWizards();
@@ -1771,6 +1771,9 @@ function viewDashboard() {
 }
 
 function requestFormHtml() {
+  if (window.AppModules?.solicitudes?.requestFormHtml) {
+    return window.AppModules.solicitudes.requestFormHtml();
+  }
   const user = currentUser();
   const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
   const departments = Object.keys(COLOMBIA_LOCATIONS)
@@ -1809,6 +1812,9 @@ function requestFormHtml() {
 }
 
 function requestListClientHtml(user) {
+  if (window.AppModules?.solicitudes?.requestListClientHtml) {
+    return window.AppModules.solicitudes.requestListClientHtml(user);
+  }
   const requests = getVisibleRequestsForUser(user);
   const rows = requests
     .map((r) => {
@@ -2473,6 +2479,14 @@ function authorizationsHtml() {
   return pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
 }
 
+function renderFromModule(moduleName, exportName, ...args) {
+  const moduleFn = window.AppModules?.[moduleName]?.[exportName];
+  if (typeof moduleFn === "function") return moduleFn(...args);
+  const legacyFn = window.AppLegacyViews?.[exportName];
+  if (typeof legacyFn === "function") return legacyFn(...args);
+  return "";
+}
+
 function renderPortalView() {
   updateAutoApprove();
   renderKpis();
@@ -2500,33 +2514,33 @@ function renderPortalView() {
   if (!isViewAllowedForUser(user, view)) {
     nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
   } else if (view === "dashboard") {
-    nodes.viewRoot.innerHTML = viewDashboard();
+    nodes.viewRoot.innerHTML = renderFromModule("dashboard", "viewDashboard");
   } else if (view === "requests" && (user.role === ROLES.CLIENT || user.role === ROLES.ADMIN)) {
-    nodes.viewRoot.innerHTML = `${requestFormHtml()}${requestListClientHtml(user)}`;
+    nodes.viewRoot.innerHTML = `${renderFromModule("solicitudes", "requestFormHtml")}${renderFromModule("solicitudes", "requestListClientHtml", user)}`;
   } else if (view === "transport-requests" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = adminQueueHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "adminQueueHtml");
   } else if (view === "transport-trips" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = transportTripsHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "transportTripsHtml");
   } else if (view === "transport-vehicles" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = vehiclesHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "vehiclesHtml");
   } else if (view === "transport-drivers" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = driversHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "driversHtml");
   } else if (view === "transport-calendar" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = transportCalendarHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "transportCalendarHtml");
   } else if (view === "history" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = historyHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "historyHtml");
   } else if (view === "payroll" && canAccessRRHH(user.role)) {
-    nodes.viewRoot.innerHTML = payrollHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("rrhh", "payrollHtml");
   } else if (view === "hiring" && canAccessRRHH(user.role)) {
-    nodes.viewRoot.innerHTML = hiringHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("rrhh", "hiringHtml");
   } else if (view === "admin-users" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = adminUsersHtml(user);
+    nodes.viewRoot.innerHTML = renderFromModule("usuarios", "adminUsersHtml", user);
   } else if (view === "authorizations" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = authorizationsHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("autorizaciones", "authorizationsHtml");
   } else if (view === "profile") {
-    nodes.viewRoot.innerHTML = profileHtml(user);
+    nodes.viewRoot.innerHTML = renderFromModule("perfil", "profileHtml", user);
   } else if (view === "notifications") {
-    nodes.viewRoot.innerHTML = notificationsHtml();
+    nodes.viewRoot.innerHTML = renderFromModule("notificaciones", "notificationsHtml");
   } else {
     nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
   }
@@ -2576,7 +2590,7 @@ function bindDynamicEvents() {
       );
       const users = read(KEYS.users, []);
       if (users.some((item) => normalizeEmail(item.email) === normalizeEmail(data.email))) {
-        alert("Ya existe un usuario con ese correo.");
+        notify("Ya existe un usuario con ese correo.", "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -2587,7 +2601,7 @@ function bindDynamicEvents() {
       data.taxId = docValidation.normalized;
       const company = getCompanyById(data.companyId);
       if (!company) {
-        alert("Debes seleccionar una empresa válida.");
+        notify("Debes seleccionar una empresa valida.", "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -2598,7 +2612,7 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        alert("Solicitud enviada a autorizaciones para aprobacion del administrador.");
+        notify("Solicitud enviada a autorizaciones para aprobacion del administrador.", "info");
         renderPortalView();
         return;
       }
@@ -2627,7 +2641,7 @@ function bindDynamicEvents() {
               : defaultPermissionsForRole(data.role)
       });
       write(KEYS.users, users);
-      alert("Usuario creado correctamente.");
+      notify("Usuario creado correctamente.", "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -2644,7 +2658,7 @@ function bindDynamicEvents() {
           (company) => company.name.toLowerCase() === String(data.name).toLowerCase()
         )
       ) {
-        alert("La empresa ya existe.");
+        notify("La empresa ya existe.", "error");
         return;
       }
       companies.push({
@@ -2655,7 +2669,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
-      alert("Empresa creada correctamente.");
+      notify("Empresa creada correctamente.", "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -2668,7 +2682,7 @@ function bindDynamicEvents() {
       const form = new FormData(adminUserPermissions);
       const userId = String(form.get("userId") || "");
       if (!userId) {
-        alert("Selecciona un usuario.");
+        notify("Selecciona un usuario.", "error");
         return;
       }
       const permissions = [...adminUserPermissions.querySelectorAll("input[name='permissions']:checked")].map(
@@ -2692,13 +2706,13 @@ function bindDynamicEvents() {
       if (state.session?.userId === userId) {
         const refreshed = read(KEYS.users, []).find((item) => item.id === userId);
         if (refreshed && !hasPermission(refreshed, PERMISSIONS.USERS_MANAGE)) {
-          alert("Tus permisos cambiaron. Se cerrará la sesión por seguridad.");
+          notify("Tus permisos cambiaron. Se cerrara la sesion por seguridad.", "error");
           clearSession();
           renderPortal();
           return;
         }
       }
-      alert("Permisos actualizados.");
+      notify("Permisos actualizados.", "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -2714,12 +2728,12 @@ function bindDynamicEvents() {
       const users = read(KEYS.users, []);
       const existing = users.find((u) => u.id === userId);
       if (!existing) {
-        alert("Usuario no encontrado.");
+        notify("Usuario no encontrado.", "error");
         return;
       }
       const duplicated = users.some((u) => u.id !== userId && normalizeEmail(u.email) === normalizeEmail(data.email));
       if (duplicated) {
-        alert("Ya existe otro usuario con ese correo.");
+        notify("Ya existe otro usuario con ese correo.", "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -2730,7 +2744,7 @@ function bindDynamicEvents() {
       data.taxId = docValidation.normalized;
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
-        alert("Debes seleccionar una empresa valida.");
+        notify("Debes seleccionar una empresa valida.", "error");
         return;
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
@@ -2767,7 +2781,7 @@ function bindDynamicEvents() {
             : u
         )
       );
-      alert("Usuario actualizado correctamente.");
+      notify("Usuario actualizado correctamente.", "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -3782,6 +3796,10 @@ function bindDynamicEvents() {
         notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
         return;
       }
+      if (workerRole === "conductor" && new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
+        notify("No se puede contratar conductor con licencia vencida.", "error");
+        return;
+      }
       const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${data.position}\nSalario: ${data.salary}\nFecha inicio: ${data.startDate}\nEmpresa: ${company.name}`;
       const all = read(KEYS.contracts, []);
       all.unshift({
@@ -4178,6 +4196,24 @@ function initPublicEffects() {
     });
   });
 }
+
+window.AppLegacyViews = {
+  viewDashboard,
+  requestFormHtml,
+  requestListClientHtml,
+  adminQueueHtml,
+  transportTripsHtml,
+  vehiclesHtml,
+  driversHtml,
+  transportCalendarHtml,
+  historyHtml,
+  payrollHtml,
+  hiringHtml,
+  adminUsersHtml,
+  authorizationsHtml,
+  profileHtml,
+  notificationsHtml
+};
 
 seed();
 ensureUsersPasswordHashing();
