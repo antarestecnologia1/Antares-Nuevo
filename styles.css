@@ -1592,6 +1592,12 @@ tbody tr:last-child td { border-bottom: none; }
   border: 1px solid #E0E7FF;
 }
 
+.perm-tag-more {
+  background: #F1F5F9;
+  color: #334155;
+  border-color: #E2E8F0;
+}
+
 .user-card-actions {
   display: flex;
   gap: 0.4rem;

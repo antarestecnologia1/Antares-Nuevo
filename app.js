@@ -1041,7 +1041,7 @@ function canAccessRRHH(role) {
 
 function isViewAllowedForUser(user, view) {
   if (!user || !canAccessView(user, view)) return false;
-  if (view === "requests") return user.role === ROLES.CLIENT;
+  if (view === "requests") return user.role === ROLES.CLIENT || user.role === ROLES.ADMIN;
   if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users"].includes(view)) {
     return user.role === ROLES.ADMIN;
   }
@@ -1302,6 +1302,7 @@ function driversHtml() {
 }
 
 function transportTripsHtml() {
+  const pendingForTrip = read(KEYS.requests, []).filter((r) => r.status === STATUS.PENDIENTE && !r.trip);
   const trips = read(KEYS.requests, []).filter((r) => r.trip);
   const rows = trips
     .map((r) => `<tr>
@@ -1321,7 +1322,17 @@ function transportTripsHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Actualizar</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
-  return pcardWrap("compass", "Viajes activos", trips.length + " viajes", body);
+  const createTripForm = `<form id="form-create-trip" class="p-form">
+    <label class="full">Solicitud pendiente
+      <select name="requestId" required>
+        <option value="">Seleccione...</option>
+        ${pendingForTrip.map((r) => `<option value="${r.id}">${r.requestNumber || r.id} · ${r.clientName} · ${r.originCity} → ${r.destinationCity}</option>`).join("")}
+      </select>
+    </label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
+  </form>`;
+  return (pendingForTrip.length ? pcardWrap("plus", "Crear viaje", "Asigna automaticamente camion y conductor disponibles", createTripForm) : "")
+    + pcardWrap("compass", "Viajes activos", trips.length + " viajes", body);
 }
 
 function transportCalendarHtml() {
@@ -1381,9 +1392,13 @@ function adminUsersHtml(current) {
 
   // --- Usuarios ---
   const userCards = users.map((u) => {
-    const permList = (u.permissions || [])
-      .map((p) => `<span class="perm-tag">${PERMISSION_META[p]?.title || p}</span>`)
-      .join("");
+    const namedPerms = (u.permissions || []).map((p) => PERMISSION_META[p]?.title || p);
+    const visiblePerms = namedPerms.slice(0, 3);
+    const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
+    const permList = [
+      ...visiblePerms.map((label) => `<span class="perm-tag">${label}</span>`),
+      hiddenCount > 0 ? `<span class="perm-tag perm-tag-more">+${hiddenCount} mas</span>` : ""
+    ].join("");
     const isMe = u.id === current.id;
     return `<div class="user-card">
       <div class="user-card-top">
@@ -1727,7 +1742,7 @@ function renderPortalView() {
     nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
   } else if (view === "dashboard") {
     nodes.viewRoot.innerHTML = viewDashboard();
-  } else if (view === "requests" && user.role === ROLES.CLIENT) {
+  } else if (view === "requests" && (user.role === ROLES.CLIENT || user.role === ROLES.ADMIN)) {
     nodes.viewRoot.innerHTML = `${requestFormHtml()}${requestListClientHtml(user)}`;
   } else if (view === "transport-requests" && user.role === ROLES.ADMIN) {
     nodes.viewRoot.innerHTML = adminQueueHtml();
@@ -2122,6 +2137,22 @@ function bindDynamicEvents() {
       renderPortalView();
     });
   });
+
+  const createTripForm = document.getElementById("form-create-trip");
+  if (createTripForm) {
+    createTripForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(createTripForm).entries());
+      const requestId = String(data.requestId || "");
+      if (!requestId) {
+        alert("Selecciona una solicitud pendiente.");
+        return;
+      }
+      approveRequest(requestId, currentUser()?.name || "Administrador", false);
+      alert("Viaje creado y solicitud aprobada.");
+      renderPortalView();
+    });
+  }
 
   nodes.viewRoot.querySelectorAll("[data-action='trip-status']").forEach((select) => {
     select.addEventListener("change", () => {
