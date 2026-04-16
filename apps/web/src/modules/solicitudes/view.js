@@ -29,7 +29,7 @@
       <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
       <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
       <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
-      <label>${fieldLabel(IC.dollar, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+      <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
       <label>${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" min="0" name="tripValue" required /></label>
       <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
       <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>

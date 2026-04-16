@@ -17,6 +17,7 @@ const IC = {
   inbox: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
   calendar: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
   dollar: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  scale: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v15"/><path d="M5 7h14"/><path d="M4 7l-3 6h6l-3-6z"/><path d="M20 7l-3 6h6l-3-6z"/><path d="M9 22h6"/></svg>',
   briefcase: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg>',
   bell: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
   compass: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
@@ -351,6 +352,9 @@ const KEYS = {
   emails: "antares_emails_v2",
   payrollEmployees: "antares_payroll_employees_v2",
   payrollRuns: "antares_payroll_runs_v2",
+  fuelLogs: "antares_fuel_logs_v2",
+  vehicleTechnicalLogs: "antares_vehicle_technical_logs_v2",
+  travelAllowanceRules: "antares_travel_allowance_rules_v2",
   vacancies: "antares_vacancies_v2",
   candidates: "antares_candidates_v2",
   positions: "antares_positions_v2",
@@ -464,6 +468,7 @@ const STATUS = {
   EN_TRANSITO: "En transito",
   ESPERA_STANDBY: "Espera standby",
   COMPLETADA: "Completada",
+  CERRADA: "Cerrada",
   CANCELADA: "Cancelada",
   RECHAZADA: "Rechazada"
 };
@@ -474,7 +479,8 @@ const STATUS_TRANSITIONS = {
   [STATUS.VIAJE_ASIGNADO]: [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.CANCELADA],
   [STATUS.EN_TRANSITO]: [STATUS.ESPERA_STANDBY, STATUS.COMPLETADA, STATUS.CANCELADA],
   [STATUS.ESPERA_STANDBY]: [STATUS.EN_TRANSITO, STATUS.COMPLETADA, STATUS.CANCELADA],
-  [STATUS.COMPLETADA]: [],
+  [STATUS.COMPLETADA]: [STATUS.CERRADA],
+  [STATUS.CERRADA]: [],
   [STATUS.CANCELADA]: [],
   [STATUS.RECHAZADA]: []
 };
@@ -665,6 +671,7 @@ function prettyStatus(status, scope = "general") {
     en_transito: IC.truck,
     espera_standby: IC.clock,
     completada: IC.check,
+    cerrada: IC.briefcase,
     cancelada: IC.x,
     rechazada: IC.x
   };
@@ -675,6 +682,47 @@ function prettyStatus(status, scope = "general") {
 
 function fieldLabel(icon, text) {
   return `<span class="field-label">${icon}<span>${text}</span></span>`;
+}
+
+function departmentOptions(selected = "") {
+  return Object.keys(COLOMBIA_LOCATIONS)
+    .map((dept) => `<option value="${dept}" ${dept === selected ? "selected" : ""}>${dept}</option>`)
+    .join("");
+}
+
+function cityOptionsFromDepartment(department = "", selectedCity = "") {
+  const cities = COLOMBIA_LOCATIONS[String(department || "")] || [];
+  return cities
+    .map((city) => `<option value="${city}" ${city === selectedCity ? "selected" : ""}>${city}</option>`)
+    .join("");
+}
+
+function attachDepartmentCitySelects(form, {
+  departmentSelector = "select[name='department']",
+  citySelector = "select[name='city']",
+  initialDepartment = "",
+  initialCity = ""
+} = {}) {
+  if (!form) return;
+  const deptSelect = form.querySelector(departmentSelector);
+  const citySelect = form.querySelector(citySelector);
+  if (!deptSelect || !citySelect) return;
+
+  const fill = (dept, preferredCity = "") => {
+    const cities = COLOMBIA_LOCATIONS[String(dept || "")] || [];
+    citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
+      .map((c) => `<option value="${c}" ${c === preferredCity ? "selected" : ""}>${c}</option>`)
+      .join("")}`;
+  };
+
+  const startDept = String(deptSelect.value || initialDepartment || "");
+  if (startDept) {
+    deptSelect.value = startDept;
+    fill(startDept, String(citySelect.value || initialCity || ""));
+  } else {
+    citySelect.innerHTML = `<option value="">Seleccione un departamento...</option>`;
+  }
+  deptSelect.addEventListener("change", () => fill(deptSelect.value, ""));
 }
 
 function saveNotification({ userId, title, body }) {
@@ -1220,18 +1268,30 @@ async function ensureUsersPasswordHashing() {
 
 function authView() {
   const tab = state.authTab;
+  const deptOptions = departmentOptions();
   if (tab === "login") {
     return `
-      <form id="form-login" class="form-grid auth-form">
-        <label class="full">Correo corporativo <input type="email" name="email" autocomplete="username" required /></label>
-        <label class="full">Contrasena
-          <div class="password-field">
-            <input type="password" name="password" autocomplete="current-password" required />
-            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">Mostrar</button>
-          </div>
-        </label>
-        <button class="btn btn-primary full" type="submit">Ingresar de forma segura</button>
-      </form>
+      <div class="auth-login-shell">
+        <form id="form-login" class="form-grid auth-form">
+          <label class="full">Correo corporativo <input type="email" name="email" autocomplete="username" required /></label>
+          <label class="full">Contrasena
+            <div class="password-field">
+              <input type="password" name="password" autocomplete="current-password" required />
+              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">Mostrar</button>
+            </div>
+          </label>
+          <button class="btn btn-primary full" type="submit">Ingresar de forma segura</button>
+        </form>
+        <div class="auth-login-side">
+          <h3>Acceso seguro Antares</h3>
+          <p class="muted">Gestiona solicitudes, viajes y talento humano en un solo portal operativo.</p>
+          <ul class="auth-bullets">
+            <li>Control por roles y permisos granulares</li>
+            <li>Trazabilidad de aprobaciones y auditoria</li>
+            <li>Operacion alineada a flujos empresariales</li>
+          </ul>
+        </div>
+      </div>
       <p class="muted auth-help">Usa tu correo y contrasena. Evita ingresar desde equipos compartidos.</p>
     `;
   }
@@ -1272,8 +1332,17 @@ function authView() {
         <label>Cargo <input name="position" required /></label>
         <label>Area <input name="workArea" required placeholder="Ej: Operaciones" /></label>
         <label>Telefono <input name="phone" required /></label>
-        <label>Ciudad <input name="city" required placeholder="Ej: Medellin" /></label>
-        <label>Departamento <input name="department" required placeholder="Ej: Antioquia" /></label>
+        <label>Departamento
+          <select name="department" id="register-department" required>
+            <option value="">Seleccione...</option>
+            ${deptOptions}
+          </select>
+        </label>
+        <label>Ciudad
+          <select name="city" id="register-city" required>
+            <option value="">Seleccione un departamento...</option>
+          </select>
+        </label>
         <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
         <label>Correo <input type="email" name="email" autocomplete="username" required /></label>
         <label class="full">Contrasena
@@ -1371,6 +1440,10 @@ function bindAuthForms() {
   }
 
   if (register) {
+    attachDepartmentCitySelects(register, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']"
+    });
     const regPass = register.querySelector("input[name='password']");
     const strength = register.querySelector("#password-strength");
     if (regPass && strength) {
@@ -1519,6 +1592,168 @@ function getActiveTrips() {
   return requests.filter((r) => r.trip && activeTripStatuses().includes(r.status));
 }
 
+function recalculateResourceAvailability() {
+  const activeTrips = getActiveTrips();
+  const busyVehicleIds = new Set(activeTrips.map((r) => r.trip?.vehicleId).filter(Boolean));
+  const busyDriverIds = new Set(activeTrips.map((r) => r.trip?.driverId).filter(Boolean));
+
+  const vehicles = read(KEYS.vehicles, []);
+  const drivers = read(KEYS.drivers, []);
+
+  write(
+    KEYS.vehicles,
+    vehicles.map((vehicle) => {
+      if (busyVehicleIds.has(vehicle.id)) return { ...vehicle, available: false, autoBusy: true };
+      if (vehicle.autoBusy) return { ...vehicle, available: true, autoBusy: false };
+      return vehicle;
+    })
+  );
+  write(
+    KEYS.drivers,
+    drivers.map((driver) => {
+      if (busyDriverIds.has(driver.id)) return { ...driver, available: false, autoBusy: true };
+      if (driver.autoBusy) return { ...driver, available: true, autoBusy: false };
+      return driver;
+    })
+  );
+}
+
+function buildTripInvoice(request) {
+  if (!request?.trip) return null;
+  if (request.trip.invoice) return request.trip.invoice;
+  const base = parseNum(request.tripValue || request.insuredValue || 0);
+  const standby = parseNum(request.standbyChargeTotal || 0);
+  const subtotal = base + standby;
+  const ivaRate = 0.19;
+  const iva = Math.round(subtotal * ivaRate);
+  const total = subtotal + iva;
+  return {
+    number: `FAC-${String(nextCounter("invoice")).padStart(6, "0")}`,
+    generatedAt: nowLocalIso(),
+    currency: "COP",
+    baseValue: base,
+    standbyValue: standby,
+    subtotal,
+    ivaRate,
+    ivaValue: iva,
+    total,
+    issuer: "Antares Tecnologia SAS"
+  };
+}
+
+function closeCompletedTripsAndGenerateInvoices() {
+  const requests = read(KEYS.requests, []);
+  let changed = false;
+  const oneHourMs = 60 * 60 * 1000;
+  const now = Date.now();
+  const next = requests.map((request) => {
+    if (!request?.trip || request.status !== STATUS.COMPLETADA || !request.deliveredAt) return request;
+    const deliveredTs = new Date(request.deliveredAt).getTime();
+    if (!Number.isFinite(deliveredTs) || now - deliveredTs < oneHourMs) return request;
+    changed = true;
+    return {
+      ...request,
+      status: STATUS.CERRADA,
+      closedAt: nowLocalIso(),
+      trip: {
+        ...request.trip,
+        realtimeStatus: STATUS.CERRADA,
+        invoice: buildTripInvoice(request)
+      }
+    };
+  });
+  if (changed) {
+    write(KEYS.requests, next);
+    recalculateResourceAvailability();
+  }
+}
+
+function openTripInvoicePdf(requestId) {
+  const request = read(KEYS.requests, []).find((r) => r.id === requestId);
+  if (!request?.trip) {
+    notify("No hay viaje disponible para facturar.", "error");
+    return;
+  }
+  const invoice = request.trip.invoice || buildTripInvoice(request);
+  const requests = read(KEYS.requests, []);
+  write(
+    KEYS.requests,
+    requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r))
+  );
+
+  const html = `<!doctype html>
+  <html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Factura ${invoice.number}</title>
+    <style>
+      body{font-family:Arial,sans-serif;color:#0f172a;margin:0;padding:24px;background:#f8fafc}
+      .sheet{max-width:900px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px}
+      .head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}
+      h1{font-size:24px;margin:0;color:#0b3f8a}
+      .muted{color:#64748b;font-size:12px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+      .box{border:1px solid #e2e8f0;border-radius:10px;padding:12px}
+      table{width:100%;border-collapse:collapse;margin-top:10px}
+      th,td{padding:10px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:13px}
+      th{background:#eff6ff;color:#1e3a8a}
+      .totals{margin-top:16px;max-width:320px;margin-left:auto}
+      .totals div{display:flex;justify-content:space-between;padding:6px 0}
+      .grand{font-size:18px;font-weight:700;color:#0b3f8a;border-top:1px solid #cbd5e1;margin-top:6px;padding-top:10px}
+      @media print{body{background:#fff;padding:0}.sheet{border:none;border-radius:0;max-width:none;padding:0}}
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <div class="head">
+        <div>
+          <h1>Factura de viaje ${invoice.number}</h1>
+          <div class="muted">Generada: ${fmtDate(invoice.generatedAt)}</div>
+        </div>
+        <div>
+          <strong>${invoice.issuer}</strong><br />
+          <span class="muted">NIT 900.000.000-0</span>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="box">
+          <strong>Cliente</strong><br />
+          ${request.clientName || "-"}<br />
+          <span class="muted">Solicitud: ${request.requestNumber || request.id}</span>
+        </div>
+        <div class="box">
+          <strong>Viaje</strong><br />
+          ${request.trip.tripNumber || "-"}<br />
+          <span class="muted">${request.trip.vehiclePlate || "-"} · ${request.trip.driverName || "-"}</span>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Concepto</th><th>Detalle</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Servicio de transporte</td><td>${formatRoute(request)}</td><td>$${invoice.baseValue.toLocaleString("es-CO")}</td></tr>
+          <tr><td>Standby</td><td>Cargos por espera</td><td>$${invoice.standbyValue.toLocaleString("es-CO")}</td></tr>
+        </tbody>
+      </table>
+      <div class="totals">
+        <div><span>Subtotal</span><strong>$${invoice.subtotal.toLocaleString("es-CO")}</strong></div>
+        <div><span>IVA (${Math.round(invoice.ivaRate * 100)}%)</span><strong>$${invoice.ivaValue.toLocaleString("es-CO")}</strong></div>
+        <div class="grand"><span>Total</span><span>$${invoice.total.toLocaleString("es-CO")}</span></div>
+      </div>
+      <p class="muted" style="margin-top:18px">Documento generado automaticamente por Antares. Esta factura refleja el cierre operacional del viaje.</p>
+    </div>
+    <script>window.print()</script>
+  </body>
+  </html>`;
+  const win = window.open("", "_blank");
+  if (!win) {
+    notify("No se pudo abrir la ventana de factura. Revisa el bloqueador de popups.", "error");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
 function canTransitionStatus(currentStatus, nextStatus) {
   if (currentStatus === nextStatus) return true;
   const allowed = STATUS_TRANSITIONS[currentStatus] || [];
@@ -1531,6 +1766,8 @@ function canClientManageRequest(request) {
 }
 
 function hasUnsavedPortalFormData() {
+  const modal = document.getElementById("crud-modal");
+  if (modal && !modal.classList.contains("hidden")) return true;
   if (!nodes.viewRoot) return false;
   const forms = [...nodes.viewRoot.querySelectorAll("form")];
   if (!forms.length) return false;
@@ -1598,16 +1835,19 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
           status: nextStatus,
           ...extra,
           deliveredAt: nextStatus === STATUS.COMPLETADA ? nowIso() : request.deliveredAt,
+          closedAt: nextStatus === STATUS.CERRADA ? nowLocalIso() : request.closedAt,
           trip: request.trip
             ? {
                 ...request.trip,
-                realtimeStatus: nextStatus
+                realtimeStatus: nextStatus,
+                invoice: nextStatus === STATUS.CERRADA ? request.trip.invoice || buildTripInvoice(request) : request.trip.invoice
               }
             : request.trip
         }
       : request
   );
   write(KEYS.requests, updated);
+  recalculateResourceAvailability();
   return true;
 }
 
@@ -2081,7 +2321,7 @@ function requestFormHtml() {
     <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
     <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
     <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
-    <label>${fieldLabel(IC.dollar, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+    <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
     <label>${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" min="0" name="tripValue" required /></label>
     <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
@@ -2216,7 +2456,12 @@ function driversHtml() {
     <label>${fieldLabel(IC.file, "Licencia")}<input name="license" required /></label>
     <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" required /></label>
     <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory" required><option>C1</option><option>C2</option><option>C3</option></select></label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad residencia")}<input name="city" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento residencia")}
+      <select name="department" id="driver-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
+    </label>
+    <label>${fieldLabel(IC.mapPin, "Ciudad residencia")}
+      <select name="city" id="driver-city" required><option value="">Seleccione un departamento...</option></select>
+    </label>
     <label>${fieldLabel(IC.mapPin, "Direccion residencia")}<input name="address" required /></label>
     <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
@@ -2253,7 +2498,7 @@ function transportTripsHtml() {
       <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
       <td><div class="toolbar"><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
         ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
-      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button></div></td>
+      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button>${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}</div></td>
     </tr>`;
     })
     .join("");
@@ -2275,7 +2520,7 @@ function transportTripsHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
   </form>`;
   return (pendingForTrip.length ? createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona manualmente camion y conductor segun la carga", createTripForm, "Crear viaje") : "")
-    + pcardWrap("compass", "Viajes activos", trips.length + " viajes", body);
+    + pcardWrap("compass", "Viajes operativos", trips.length + " viajes", body);
 }
 
 function transportCalendarHtml() {
@@ -2428,8 +2673,12 @@ function adminUsersHtml(current) {
       </select>
     </label>
     <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
-    <label>Ciudad <input name="city" required placeholder="Ciudad principal" /></label>
-    <label>Departamento <input name="department" required placeholder="Ej: Antioquia" /></label>
+    <label>Departamento
+      <select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
+    </label>
+    <label>Ciudad
+      <select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select>
+    </label>
     <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
     <label>Nombre comercial <input name="company" value="Antares" /></label>
     <fieldset class="full perm-fieldset">
@@ -2488,8 +2737,12 @@ function adminUsersHtml(current) {
       <input type="hidden" name="companyId" value="${editingUser.companyId || ""}" />
     </label>
     <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
-    <label>Ciudad <input name="city" value="${editingUser.city || ""}" /></label>
-    <label>Departamento <input name="department" value="${editingUser.department || ""}" /></label>
+    <label>Departamento
+      <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
+    </label>
+    <label>Ciudad
+      <select name="city" id="admin-edit-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingUser.department || "", editingUser.city || "")}</select>
+    </label>
     <label>Direccion <input name="address" value="${editingUser.address || ""}" /></label>
     <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
     <label>NIT/RUT <input name="taxId" value="${editingUser.taxId || ""}" /></label>
@@ -2629,6 +2882,14 @@ function payrollHtml() {
   const runs = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
   const pending = runs.filter((r) => !r.paid).length;
+  const totalPayrollMonth = runs
+    .filter((r) => {
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      return String(r.month || "") === ym;
+    })
+    .reduce((acc, run) => acc + parseNum(run.net), 0);
+  const pendingAbsenceApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const employeeRows = employees
     .map((e) => {
       const av = String(e.avatarUrl || "");
@@ -2674,7 +2935,12 @@ function payrollHtml() {
         <option value="Obra o labor">Obra o labor</option>
       </select>
     </label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad")}<input name="city" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento")}
+      <select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
+    </label>
+    <label>${fieldLabel(IC.mapPin, "Ciudad")}
+      <select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select>
+    </label>
     <label>${fieldLabel(IC.mapPin, "Direccion")}<input name="address" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
     <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
@@ -2735,7 +3001,13 @@ function payrollHtml() {
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
-  return `<div class="dash-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", null, formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>`
+  return `<div class="dash-grid payroll-kpi-grid">
+      <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
+      <div class="payroll-kpi-card"><span>Liquidaciones pendientes</span><strong>${pending}</strong></div>
+      <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
+      <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
+    </div>`
+    + `<div class="dash-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", null, formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>`
     + pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)
     + pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)
     + pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable);
@@ -2752,6 +3024,23 @@ function hiringHtml() {
   const companies = read(KEYS.companies, []);
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
   const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
+  const today = new Date();
+  const openVacancies = vacancies.filter((v) => v.status === "Publicada");
+  const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
+  const contractsThisMonth = contracts.filter((c) => {
+    const d = new Date(c.createdAt || "");
+    return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+  });
+  const soonClosingVacancies = openVacancies.filter((v) => {
+    if (!v.deadline) return false;
+    const days = Math.ceil((new Date(`${v.deadline}T12:00:00`).getTime() - today.getTime()) / 86400000);
+    return days >= 0 && days <= 7;
+  });
+  const contractsEndingSoon = contracts.filter((c) => {
+    if (!c.endDate) return false;
+    const days = Math.ceil((new Date(`${c.endDate}T12:00:00`).getTime() - today.getTime()) / 86400000);
+    return days >= 0 && days <= 30;
+  });
 
   const positionRows = positions
     .map((p) => `<tr>
@@ -2765,10 +3054,10 @@ function hiringHtml() {
     </tr>`)
     .join("");
 
-  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
-  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}</td><td>${c.vacancyTitle || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
+  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>${v.city || "-"} · ${v.modality || "-"}</td><td>${v.openings || 1}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
+  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
   const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
-  const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
+  const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.contractType || "-"}${c.endDate ? `<br><span class="muted">Fin: ${c.endDate}</span>` : ""}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
   const fPosition = `<form id="form-position" class="p-form">
     <label>Nombre del cargo <input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
@@ -2790,19 +3079,33 @@ function hiringHtml() {
     <p class="muted full">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} horas/semana.</p>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
   </form>`;
-  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo publicado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Titulo visible vacante <input name="title" required /></label><label>Requisitos <input name="requirements" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
-  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Ciudad <input name="city" required /></label><label>Direccion <input name="address" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
+  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo publicado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Titulo visible vacante <input name="title" required /></label><label>Departamento vacante <select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad de la vacante <select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label><label>Modalidad <select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Hibrido</option><option value="Remoto">Remoto</option></select></label><label>Jornada <select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label><label>Cupos <input type="number" min="1" name="openings" value="1" required /></label><label>Requisitos <input name="requirements" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
+  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Departamento residencia <select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad <select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label><label>Direccion <input name="address" required /></label><label>Anos experiencia <input type="number" min="0" name="experienceYears" value="0" required /></label><label>Aspiracion salarial (COP) <input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required /></label><label>Disponibilidad ingreso <input type="date" name="availabilityDate" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
   const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
-  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <input name="eps" required placeholder="Nueva EPS / Sura / Sanitas..." /></label><label>Fondo pension <input name="pensionFund" required placeholder="Porvenir / Colfondos..." /></label><label>ARL <input name="arl" required placeholder="Sura / Positiva / Colmena..." /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
   const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
-  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
-  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Correo</th><th>Vacante</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
+  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
-  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
+  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
+  const alertsBody = `
+    <div class="hr-alert-list">
+      <div class="hr-alert-item"><strong>Vacantes por cerrar (<= 7 dias):</strong> ${soonClosingVacancies.length || 0}</div>
+      <div class="hr-alert-item"><strong>Contratos por vencer (<= 30 dias):</strong> ${contractsEndingSoon.length || 0}</div>
+      <div class="hr-alert-item"><strong>Candidatos activos en pipeline:</strong> ${activeCandidates.length || 0}</div>
+      <div class="hr-alert-item"><strong>Contratos generados este mes:</strong> ${contractsThisMonth.length || 0}</div>
+    </div>`;
 
-  return `<div class="dash-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", null, fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", null, fCand, "Registrar candidato")}</div>`
+  return `<div class="dash-grid hr-kpi-grid">
+      <div class="hr-kpi-card"><span>Vacantes abiertas</span><strong>${openVacancies.length}</strong></div>
+      <div class="hr-kpi-card"><span>Candidatos activos</span><strong>${activeCandidates.length}</strong></div>
+      <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
+      <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
+    </div>`
+    + `<div class="dash-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", null, fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", null, fCand, "Registrar candidato")}</div>`
+    + pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)
     + pcardWrap("briefcase", "Catalogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)
     + pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)
     + pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)
@@ -2888,6 +3191,8 @@ function renderFromModule(moduleName, exportName, ...args) {
 
 function renderPortalView() {
   updateAutoApprove();
+  closeCompletedTripsAndGenerateInvoices();
+  recalculateResourceAvailability();
   renderKpis();
 
   const user = currentUser();
@@ -3056,6 +3361,10 @@ function bindDynamicEvents() {
 
   const adminUserCreate = document.getElementById("form-admin-user-create");
   if (adminUserCreate) {
+    attachDepartmentCitySelects(adminUserCreate, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']"
+    });
     adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -3195,6 +3504,12 @@ function bindDynamicEvents() {
 
   const adminUserEdit = document.getElementById("form-admin-user-edit");
   if (adminUserEdit) {
+    attachDepartmentCitySelects(adminUserEdit, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']",
+      initialDepartment: String(adminUserEdit.querySelector("select[name='department']")?.value || ""),
+      initialCity: String(adminUserEdit.querySelector("select[name='city']")?.value || "")
+    });
     adminUserEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminUserEdit).entries());
@@ -3536,6 +3851,7 @@ function bindDynamicEvents() {
         onSubmit: (form) => {
           const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
           write(KEYS.requests, updated);
+  recalculateResourceAvailability();
           notify("Observaciones actualizadas.", "success");
           renderPortalView();
           return true;
@@ -3607,9 +3923,10 @@ function bindDynamicEvents() {
           }
         ],
         onSubmit: (form) => {
-          const mode = String(form.mode || "pending");
+          const selectedMode = String(form.mode || "pending");
           const vehicleId = String(form.vehicleId || "").trim();
           const driverId = String(form.driverId || "").trim();
+          const mode = vehicleId && driverId ? "assign_now" : selectedMode;
           if (mode === "assign_now" && (!vehicleId || !driverId)) {
             notify("Para asignar ahora debes seleccionar camion y conductor.", "error");
             return false;
@@ -3730,10 +4047,18 @@ function bindDynamicEvents() {
             <div><strong>Fecha asignacion:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
             <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
             <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
+            ${req.trip.invoice ? `<div><strong>Factura:</strong> ${req.trip.invoice.number} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}</div>` : ""}
           </div>
           ${parseNum(req.standbyChargeTotal) > 0 ? `<p><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
         `
       });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='trip-invoice']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openTripInvoicePdf(String(btn.dataset.id || ""));
     });
   });
 
@@ -3846,6 +4171,10 @@ function bindDynamicEvents() {
 
   const driverForm = document.getElementById("form-driver");
   if (driverForm) {
+    attachDepartmentCitySelects(driverForm, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']"
+    });
     driverForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -4024,6 +4353,10 @@ function bindDynamicEvents() {
 
   const employeeForm = document.getElementById("form-employee");
   if (employeeForm) {
+    attachDepartmentCitySelects(employeeForm, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']"
+    });
     const empPosSelect = employeeForm.querySelector("#emp-position-select");
     const empSalary = employeeForm.querySelector("#emp-base-salary");
     const empContract = employeeForm.querySelector("#emp-contract-type");
@@ -4071,6 +4404,7 @@ function bindDynamicEvents() {
           workerRole: position.workerRole || "empleado",
           contractType: raw.contractType || position.contractTypeDefault || "Termino indefinido",
           city: String(raw.city || "").trim(),
+          department: String(raw.department || "").trim(),
           address: String(raw.address || "").trim(),
           phone: String(raw.phone || "").trim(),
           emergencyContact: String(raw.emergencyContact || "").trim(),
@@ -4376,6 +4710,10 @@ function bindDynamicEvents() {
 
   const vacancyForm = document.getElementById("form-vacancy");
   if (vacancyForm) {
+    attachDepartmentCitySelects(vacancyForm, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']"
+    });
     const positionSelect = vacancyForm.querySelector("select[name='positionId']");
     const titleInput = vacancyForm.querySelector("input[name='title']");
     if (positionSelect && titleInput) {
@@ -4400,6 +4738,7 @@ function bindDynamicEvents() {
       all.unshift({
         id: uid(),
         ...data,
+        openings: Math.max(1, parseNum(data.openings || 1)),
         salaryOffer: parseNum(position.baseSalary),
         positionName: position.name,
         workerRole: position.workerRole || "empleado",
@@ -4463,6 +4802,10 @@ function bindDynamicEvents() {
 
   const candidateForm = document.getElementById("form-candidate");
   if (candidateForm) {
+    attachDepartmentCitySelects(candidateForm, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']"
+    });
     candidateForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(candidateForm).entries());
@@ -4475,6 +4818,11 @@ function bindDynamicEvents() {
       const vac = read(KEYS.vacancies, []).find((v) => v.id === data.vacancyId);
       if (!vac) return;
       const files = [...candidateForm.querySelector("input[name='attachments']").files].map((f) => f.name);
+      const expectedSalary = parseNum(data.expectedSalary);
+      if (expectedSalary < CO_HR_RULES.minMonthlySalary) {
+        notify(`La aspiracion salarial no puede ser menor al minimo de referencia (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        return;
+      }
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: uid(),
@@ -4483,8 +4831,12 @@ function bindDynamicEvents() {
         phone: data.phone,
         documentType: data.documentType,
         idDoc: data.idDoc,
+        department: data.department || "",
         city: data.city,
         address: data.address,
+        experienceYears: Math.max(0, parseNum(data.experienceYears || 0)),
+        expectedSalary,
+        availabilityDate: data.availabilityDate || "",
         vacancyId: vac.id,
         vacancyTitle: vac.title,
         status: PIPELINE[0],
@@ -4568,6 +4920,21 @@ function bindDynamicEvents() {
         return;
       }
       const workerRole = String(position.workerRole || "empleado");
+      const contractType = String(data.contractType || position.contractTypeDefault || "Termino indefinido");
+      const probationMonths = Math.min(2, Math.max(0, parseNum(data.probationMonths || 0)));
+      const endDate = String(data.endDate || "").trim();
+      if (contractType === "Termino fijo" && !endDate) {
+        notify("Para contrato a termino fijo debes indicar fecha de finalizacion.", "error");
+        return;
+      }
+      if (endDate && new Date(`${endDate}T12:00:00`).getTime() <= new Date(`${data.startDate}T12:00:00`).getTime()) {
+        notify("La fecha final del contrato debe ser posterior al inicio.", "error");
+        return;
+      }
+      if (!String(data.eps || "").trim() || !String(data.pensionFund || "").trim() || !String(data.arl || "").trim()) {
+        notify("Debes registrar EPS, fondo de pension y ARL para cerrar contrato.", "error");
+        return;
+      }
       if (workerRole === "conductor" && (!data.license || !data.licenseExpiry)) {
         notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
         return;
@@ -4581,7 +4948,7 @@ function bindDynamicEvents() {
         notify(`El salario pactado no puede ser inferior al minimo legal vigente (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
         return;
       }
-      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nEmpresa: ${company.name}`;
+      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
       const all = read(KEYS.contracts, []);
       all.unshift({
         id: uid(),
@@ -4594,7 +4961,13 @@ function bindDynamicEvents() {
         startDate: data.startDate,
         companyId: company.id,
         companyName: company.name,
-        contractType: data.contractType || position.contractTypeDefault || "Termino indefinido",
+        contractType,
+        probationMonths,
+        endDate,
+        workSchedule: String(data.workSchedule || "Diurna"),
+        eps: String(data.eps || "").trim(),
+        pensionFund: String(data.pensionFund || "").trim(),
+        arl: String(data.arl || "").trim(),
         content: text,
         createdAt: nowIso()
       });
@@ -4611,7 +4984,13 @@ function bindDynamicEvents() {
           documentType: candidate.documentType || "CC",
           position: position.name,
           positionId: position.id,
-          contractType: data.contractType || position.contractTypeDefault || "Termino indefinido",
+          contractType,
+          probationMonths,
+          endDate,
+          workSchedule: String(data.workSchedule || "Diurna"),
+          eps: String(data.eps || "").trim(),
+          pensionFund: String(data.pensionFund || "").trim(),
+          arl: String(data.arl || "").trim(),
           workerRole,
           city: candidate.city || "",
           address: candidate.address || "",
