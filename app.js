@@ -2659,7 +2659,7 @@ function vehiclesHtml() {
     <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
     <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required /></label>
     <label>${fieldLabel(IC.grid, "Linea/Modelo")}<input name="model" required /></label>
-    <label>${fieldLabel(IC.calendar, "Ano modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
+    <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
     <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
     <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
     <label>${fieldLabel(IC.activity, "Refrigerado")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
@@ -5321,7 +5321,7 @@ function bindDynamicEvents() {
           { name: "plate", label: "Placa", value: target.plate, required: true },
           { name: "brand", label: "Marca", value: target.brand || "", required: true },
           { name: "model", label: "Linea/Modelo", value: target.model || "", required: true },
-          { name: "year", label: "Ano modelo", type: "number", value: target.year || "", required: true },
+          { name: "year", label: "Año modelo", type: "number", value: target.year || "", required: true },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
           { name: "mileageKm", label: "Kilometraje", type: "number", value: target.mileageKm || 0, required: true },
           { name: "soatExpeditionDate", label: "Expedicion SOAT", type: "date", value: target.soatExpeditionDate, required: true },
