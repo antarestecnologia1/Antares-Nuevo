@@ -243,7 +243,7 @@ function ensureCompaniesAndUserMapping() {
     nextCompanies = [
       {
         id: uid(),
-        name: "Antares Cargo",
+        name: "Antares",
         taxId: "900000001-0",
         phone: "3001111111",
         createdAt: nowIso()
@@ -362,7 +362,7 @@ function seed() {
     write(KEYS.companies, [
       {
         id: uid(),
-        name: "Antares Cargo",
+        name: "Antares",
         taxId: "900000001-0",
         phone: "3001111111",
         createdAt: nowIso()
@@ -378,7 +378,7 @@ function seed() {
   }
 
   const seededCompanies = read(KEYS.companies, []);
-  const antaresCompany = seededCompanies.find((c) => c.name === "Antares Cargo");
+  const antaresCompany = seededCompanies.find((c) => c.name === "Antares");
   const floraCompany = seededCompanies.find((c) => c.name === "Flora Export SAS");
 
   if (!localStorage.getItem(KEYS.users)) {
@@ -391,7 +391,7 @@ function seed() {
         role: ROLES.ADMIN,
         accountStatus: ACCOUNT_STATUS.APROBADO,
         permissions: defaultPermissionsForRole(ROLES.ADMIN),
-        company: "Antares Cargo",
+        company: "Antares",
         companyId: antaresCompany?.id || null,
         taxId: "900000001-0",
         phone: "3001111111"
@@ -404,7 +404,7 @@ function seed() {
         role: ROLES.RRHH,
         accountStatus: ACCOUNT_STATUS.APROBADO,
         permissions: defaultPermissionsForRole(ROLES.RRHH),
-        company: "Antares Cargo",
+        company: "Antares",
         companyId: antaresCompany?.id || null,
         taxId: "900000001-0",
         phone: "3002222222"
@@ -1277,7 +1277,7 @@ function adminUsersHtml(current) {
       </select>
     </label>
     <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
-    <label>Nombre comercial <input name="company" value="Antares Cargo" /></label>
+    <label>Nombre comercial <input name="company" value="Antares" /></label>
     <label>NIT/RUT <input name="taxId" value="900000001-0" required /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos del usuario</legend>
@@ -2179,7 +2179,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
-      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${data.position}\nSalario: ${data.salary}\nFecha inicio: ${data.startDate}\nEmpresa: Antares Cargo`;
+      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${data.position}\nSalario: ${data.salary}\nFecha inicio: ${data.startDate}\nEmpresa: Antares`;
       const all = read(KEYS.contracts, []);
       all.unshift({
         id: uid(),
@@ -2205,7 +2205,7 @@ function bindDynamicEvents() {
       if (!employee) return;
       const contractText =
         `CONTRATO LABORAL\n` +
-        `Empresa: Antares Cargo\n` +
+        `Empresa: Antares\n` +
         `Empleado: ${employee.name}\n` +
         `Cédula: ${employee.idDoc}\n` +
         `Cargo: ${employee.position}\n` +
