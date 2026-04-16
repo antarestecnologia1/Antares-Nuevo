@@ -1152,42 +1152,18 @@ function ensureEnterpriseScaleData() {
   }
   write(KEYS.users, nextUsers);
 
-  let nextEmployees = [...employees];
-  if (nextEmployees.length < 110) {
-    const toCreate = 110 - nextEmployees.length;
-    const cityPool = ["Bogota D.C.", "Medellin", "Cali", "Barranquilla", "Pereira", "Bucaramanga"];
-    const positions = getActivePositions();
-    for (let i = 0; i < toCreate; i += 1) {
-      const p = positions[i % Math.max(positions.length, 1)] || {
-        id: "",
-        name: "Auxiliar Administrativo",
-        workerRole: "empleado",
-        baseSalary: CO_HR_RULES.minMonthlySalary,
-        contractTypeDefault: "Termino indefinido"
-      };
-      const city = cityPool[i % cityPool.length];
-      nextEmployees.push({
-        id: uid(),
-        name: `Empleado Escala ${String(i + 1).padStart(3, "0")}`,
-        documentType: "CC",
-        idDoc: String(100000000 + i),
-        positionId: p.id || "",
-        position: p.name,
-        workerRole: p.workerRole || "empleado",
-        contractType: p.contractTypeDefault || "Termino indefinido",
-        city,
-        address: `Zona empresarial ${i + 1}`,
-        phone: `301${String(1000000 + i).slice(-7)}`,
-        emergencyContact: "Contacto familiar",
-        emergencyPhone: `320${String(1000000 + i).slice(-7)}`,
-        companyId: antaresCompany?.id || null,
-        baseSalary: parseNum(p.baseSalary || CO_HR_RULES.minMonthlySalary),
-        startDate: "2026-01-01"
-      });
-    }
-    write(KEYS.payrollEmployees, nextEmployees);
-  }
+  localStorage.setItem(markerKey, nowIso());
+}
 
+function cleanupSeededScaleEmployees() {
+  const markerKey = "antares_cleanup_seed_employees_v1";
+  if (localStorage.getItem(markerKey)) return;
+  const employees = read(KEYS.payrollEmployees, []);
+  const toRemove = employees.filter((employee) => /^Empleado Escala \d+/i.test(String(employee.name || "")));
+  if (toRemove.length) {
+    const removed = deleteEmployeesCascade(toRemove.map((employee) => employee.id));
+    if (removed > 0) notify(`Se eliminaron ${removed} empleados de prueba en cascada.`, "info");
+  }
   localStorage.setItem(markerKey, nowIso());
 }
 
@@ -1361,6 +1337,7 @@ function seed() {
   ensureUsersAccountStatus();
   ensureVehicleDocs();
   ensureEnterpriseScaleData();
+  cleanupSeededScaleEmployees();
 }
 
 function getSession() {
@@ -2560,7 +2537,6 @@ function vehiclesHtml() {
 
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
-  const companyOptions = companySelectOptions();
   const rows = drivers
     .map((d) => `<tr>
       <td><strong>${d.name}</strong></td>
@@ -2574,40 +2550,11 @@ function driversHtml() {
       </div></td>
     </tr>`)
     .join("");
-  const formBody = `<form id="form-driver" class="p-form">
-    <label>${fieldLabel(IC.user, "Nombre")}<input name="name" required /></label>
-    <label>${fieldLabel(IC.file, "Tipo documento")}
-      <select name="documentType" required>
-        <option value="CC">Cedula de ciudadania</option>
-        <option value="CE">Cedula de extranjeria</option>
-        <option value="PAS">Pasaporte</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
-    <label>${fieldLabel(IC.file, "Licencia")}<input name="license" required /></label>
-    <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" required /></label>
-    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory" required><option>C1</option><option>C2</option><option>C3</option></select></label>
-    <label>${fieldLabel(IC.mapPin, "Departamento residencia")}
-      <select name="department" id="driver-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad residencia")}
-      <select name="city" id="driver-city" required><option value="">Seleccione un departamento...</option></select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Direccion residencia")}<input name="address" required /></label>
-    <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione...</option>${companyOptions}</select></label>
-    <label>${fieldLabel(IC.activity, "Tipo contrato")}<input name="contractType" required placeholder="Indefinido/Fijo" /></label>
-    <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" min="0" name="baseSalary" required /></label>
-    <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
-    <button class="btn btn-primary full" type="submit">${IC.userPlus} Agregar conductor</button>
-  </form>`;
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Empresa</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay conductores registrados.");
-  return createCollapsibleCard("create-driver", "userPlus", "Registrar conductor", null, formBody, "Registrar conductor")
-    + pcardWrap("user", "Conductores", drivers.length + " registrados", tableBody);
+  const info = `<p class="muted">Los conductores se crean automaticamente desde Contratacion o desde Empleados cuando el cargo es de conductor.</p>`;
+  return pcardWrap("user", "Conductores", drivers.length + " registrados", info + tableBody);
 }
 
 function transportTripsHtml() {
@@ -3391,6 +3338,107 @@ function resolveDriverForEmployee(employee) {
   return drivers.find((d) => String(d.name || "").trim().toLowerCase() === name) || null;
 }
 
+function syncDriverFromEmployee(employee, extraDriverData = {}) {
+  if (!employee || String(employee.workerRole || "") !== "conductor") return;
+  const drivers = read(KEYS.drivers, []);
+  const doc = String(employee.idDoc || "").trim();
+  const existing = drivers.find((d) => String(d.idDoc || "").trim() === doc);
+  const nextDriver = {
+    name: employee.name,
+    documentType: employee.documentType || "CC",
+    idDoc: doc,
+    phone: employee.phone || "",
+    license: String(extraDriverData.license || employee.license || "").trim(),
+    licenseCategory: String(extraDriverData.licenseCategory || employee.licenseCategory || "C2").trim(),
+    licenseExpiry: String(extraDriverData.licenseExpiry || employee.licenseExpiry || "").trim(),
+    city: employee.city || "",
+    department: employee.department || "",
+    address: employee.address || "",
+    emergencyContact: employee.emergencyContact || "",
+    emergencyPhone: employee.emergencyPhone || "",
+    companyId: employee.companyId || "",
+    available: true,
+    hiredAt: existing?.hiredAt || nowIso()
+  };
+  if (!nextDriver.license || !nextDriver.licenseExpiry) {
+    notify("Empleado con cargo conductor requiere licencia, categoria y fecha de vencimiento para sincronizar en Conductores.", "error");
+    return;
+  }
+  if (new Date(nextDriver.licenseExpiry).getTime() <= Date.now()) {
+    notify("No se puede registrar conductor con licencia vencida.", "error");
+    return;
+  }
+  if (existing) {
+    write(KEYS.drivers, drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d)));
+    return;
+  }
+  write(KEYS.drivers, [{ id: uid(), ...nextDriver }, ...drivers]);
+}
+
+function deleteEmployeesCascade(employeeIds = []) {
+  const ids = [...new Set(employeeIds.map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!ids.length) return 0;
+  const employees = read(KEYS.payrollEmployees, []);
+  const targets = employees.filter((employee) => ids.includes(String(employee.id)));
+  const targetDocSet = new Set(targets.map((employee) => String(employee.idDoc || "").trim()).filter(Boolean));
+  write(KEYS.payrollEmployees, employees.filter((employee) => !ids.includes(String(employee.id))));
+  write(KEYS.payrollRuns, read(KEYS.payrollRuns, []).filter((run) => !ids.includes(String(run.employeeId || ""))));
+  write(KEYS.hrAbsences, read(KEYS.hrAbsences, []).filter((absence) => !ids.includes(String(absence.employeeId || ""))));
+  write(
+    KEYS.contracts,
+    read(KEYS.contracts, []).filter((contract) => {
+      const employeeId = String(contract.employeeId || "");
+      const doc = String(contract.employeeIdDoc || "").trim();
+      if (ids.includes(employeeId)) return false;
+      if (doc && targetDocSet.has(doc)) return false;
+      return true;
+    })
+  );
+  write(
+    KEYS.drivers,
+    read(KEYS.drivers, []).filter((driver) => {
+      const doc = String(driver.idDoc || "").trim();
+      return !targetDocSet.has(doc);
+    })
+  );
+  return targets.length;
+}
+
+function mountUniversalModuleFilters() {
+  if (!nodes.viewRoot) return;
+  const tables = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
+  const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card, .p-card")];
+  if (!tables.length && !cards.length) return;
+  const host = document.createElement("div");
+  host.className = "toolbar";
+  host.style.marginBottom = "0.8rem";
+  host.innerHTML = `
+    <input id="module-filter-text" type="search" placeholder="Filtrar modulo..." style="min-width:240px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)" />
+    <button id="module-filter-clear" type="button" class="btn btn-sm btn-action">${IC.x} Limpiar</button>
+  `;
+  nodes.viewRoot.prepend(host);
+  const input = host.querySelector("#module-filter-text");
+  const clearBtn = host.querySelector("#module-filter-clear");
+  const apply = () => {
+    const needle = String(input?.value || "").toLowerCase().trim();
+    tables.forEach((tbody) => {
+      [...tbody.querySelectorAll("tr")].forEach((row) => {
+        const text = String(row.textContent || "").toLowerCase();
+        row.style.display = !needle || text.includes(needle) ? "" : "none";
+      });
+    });
+    cards.forEach((card) => {
+      const text = String(card.textContent || "").toLowerCase();
+      card.style.display = !needle || text.includes(needle) ? "" : "none";
+    });
+  };
+  input?.addEventListener("input", apply);
+  clearBtn?.addEventListener("click", () => {
+    if (input) input.value = "";
+    apply();
+  });
+}
+
 function tripsForDriverMonth(driver, month) {
   const range = monthRange(month);
   if (!range || !driver) return [];
@@ -3450,6 +3498,7 @@ function payrollHtml() {
           ? `<span class="emp-avatar" style="background-image:url('${av.replace(/'/g, "\\'")}')"></span>`
           : `<span class="emp-avatar emp-avatar-letter">${(e.name || "E").charAt(0).toUpperCase()}</span>`;
       return `<tr>
+      <td><input type="checkbox" data-employee-select value="${e.id}" /></td>
       <td><div class="emp-cell-name">${avatar}<div><strong>${e.name}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-employee" data-id="${e.id}">${IC.edit} Editar</button>
@@ -3500,6 +3549,9 @@ function payrollHtml() {
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
     <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
     <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
+    <label>${fieldLabel(IC.file, "Licencia (si es conductor)")}<input name="license" placeholder="C2 / C3" /></label>
+    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory"><option value="">Seleccione...</option><option>C1</option><option>C2</option><option>C3</option></select></label>
+    <label>${fieldLabel(IC.calendar, "Vence licencia (si es conductor)")}<input type="date" name="licenseExpiry" /></label>
     <label class="full">${fieldLabel(IC.user, "Foto (URL opcional)")}<input name="avatarUrl" placeholder="https://..." /></label>
     <label class="full">${fieldLabel(IC.file, "O subir foto")}<input type="file" name="avatarFile" accept="image/*" /></label>
     <p class="muted full">El cargo y salario deben cumplir parametros minimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}). ARL y aportes patronales son obligatorios en relacion real; aqui se gestiona registro y devengos del empleado.</p>
@@ -3551,7 +3603,7 @@ function payrollHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Dias</th><th>Soporte</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin incapacidades ni vacaciones registradas.");
   const empTable = employeeRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+    ? `<div style="margin-bottom:0.8rem" class="toolbar"><button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject">${IC.trash} Eliminar seleccionados (cascada)</button></div><div class="table-wrap"><table><thead><tr><th></th><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
@@ -3807,6 +3859,7 @@ function renderPortalView() {
     nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
   }
 
+  mountUniversalModuleFilters();
   bindDynamicEvents();
   applyFormWizards();
   applyModuleMicroAnimations();
@@ -5091,6 +5144,9 @@ function bindDynamicEvents() {
           companyId: raw.companyId,
           baseSalary,
           startDate: raw.startDate,
+          license: String(raw.license || "").trim(),
+          licenseCategory: String(raw.licenseCategory || "").trim(),
+          licenseExpiry: String(raw.licenseExpiry || "").trim(),
           avatarUrl
         };
       };
@@ -5109,9 +5165,24 @@ function bindDynamicEvents() {
           return;
         }
         const payload = buildPayload(avatarUrlValue);
+        if (payload.workerRole === "conductor") {
+          if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
+            notify("Para cargo conductor debes registrar licencia, categoria y fecha de vencimiento.", "error");
+            return;
+          }
+          if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+            notify("No se puede registrar conductor con licencia vencida.", "error");
+            return;
+          }
+        }
         const all = read(KEYS.payrollEmployees, []);
         all.push({ id: uid(), ...payload });
         write(KEYS.payrollEmployees, all);
+        syncDriverFromEmployee(payload, {
+          license: payload.license,
+          licenseCategory: payload.licenseCategory,
+          licenseExpiry: payload.licenseExpiry
+        });
         notify("Empleado creado correctamente.", "success");
         renderPortalView();
       };
@@ -5221,6 +5292,10 @@ function bindDynamicEvents() {
                 : e
             )
           );
+          const refreshed = read(KEYS.payrollEmployees, []).find((e) => e.id === target.id);
+          if (refreshed && refreshed.workerRole === "conductor") {
+            syncDriverFromEmployee(refreshed);
+          }
           notify("Empleado actualizado correctamente.", "success");
           renderPortalView();
           return true;
@@ -5233,19 +5308,50 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       openConfirmModal({
         title: "Eliminar empleado",
-        message: "El empleado sera removido de nomina.",
+        message: "El empleado sera removido en cascada (nomina, ausencias, contratos y conductor relacionado).",
         confirmText: "Eliminar",
         onConfirm: () => {
-          write(
-            KEYS.payrollEmployees,
-            read(KEYS.payrollEmployees, []).filter((e) => e.id !== btn.dataset.id)
-          );
-          notify("Empleado eliminado.", "success");
+          const removed = deleteEmployeesCascade([String(btn.dataset.id || "")]);
+          notify(removed ? "Empleado eliminado en cascada." : "No se encontro el empleado a eliminar.", removed ? "success" : "error");
           renderPortalView();
         }
       });
     });
   });
+
+  const employeesSelectAll = document.getElementById("employees-select-all");
+  if (employeesSelectAll) {
+    employeesSelectAll.addEventListener("click", (event) => {
+      event.preventDefault();
+      const checks = [...nodes.viewRoot.querySelectorAll("[data-employee-select]")];
+      const allSelected = checks.length > 0 && checks.every((check) => check.checked);
+      checks.forEach((check) => {
+        check.checked = !allSelected;
+      });
+    });
+  }
+
+  const employeesDeleteSelected = document.getElementById("employees-delete-selected");
+  if (employeesDeleteSelected) {
+    employeesDeleteSelected.addEventListener("click", (event) => {
+      event.preventDefault();
+      const selectedIds = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) => String(check.value || ""));
+      if (!selectedIds.length) {
+        notify("Selecciona al menos un empleado para eliminar.", "error");
+        return;
+      }
+      openConfirmModal({
+        title: "Eliminar empleados seleccionados",
+        message: `Se eliminaran ${selectedIds.length} empleados en cascada (nomina, ausencias, contratos y conductores asociados).`,
+        confirmText: "Eliminar en cascada",
+        onConfirm: () => {
+          const removed = deleteEmployeesCascade(selectedIds);
+          notify(`Se eliminaron ${removed} empleado(s) en cascada.`, "success");
+          renderPortalView();
+        }
+      });
+    });
+  }
 
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
