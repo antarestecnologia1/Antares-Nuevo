@@ -1446,6 +1446,7 @@ tbody tr:last-child td { border-bottom: none; }
 }
 
 /* Perm badge */
+/* Permission badges */
 .perm-badge {
   display: inline-block;
   padding: 0.18rem 0.5rem;
@@ -1455,6 +1456,228 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.72rem;
   font-weight: 600;
   margin: 2px;
+}
+
+/* ─── User cards ─── */
+.user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 0.8rem;
+}
+
+.user-card {
+  background: var(--white);
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.user-card:hover {
+  box-shadow: 0 8px 24px rgba(10, 46, 92, 0.10);
+  transform: translateY(-2px);
+}
+
+.pending-card {
+  border-left: 4px solid var(--warning);
+  background: linear-gradient(135deg, #FFFDF5, #FFFFFF);
+}
+
+.user-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.65rem;
+}
+
+.user-avatar {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.pending-avatar {
+  background: linear-gradient(135deg, #F59F00, #E67700);
+}
+
+.user-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-card-info h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-card-info p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-card-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.role-chip {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--role-color) 12%, transparent);
+  color: var(--role-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border: 1px solid color-mix(in srgb, var(--role-color) 25%, transparent);
+}
+
+.user-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid #F1F5F9;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+}
+
+.user-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.user-card-meta svg {
+  width: 14px !important;
+  height: 14px !important;
+  opacity: 0.5;
+}
+
+.user-card-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding-top: 0.5rem;
+}
+
+.perm-tag {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  background: #EEF2FF;
+  color: #4338CA;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border: 1px solid #E0E7FF;
+}
+
+.user-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #F1F5F9;
+  margin-top: 0.5rem;
+}
+
+/* Permission fieldset */
+.perm-fieldset {
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 0;
+}
+
+.perm-fieldset legend {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text);
+  padding: 0 0.4rem;
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.4rem;
+}
+
+.perm-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+}
+
+.perm-check:hover {
+  background: #F1F5F9;
+}
+
+.perm-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  border-radius: 4px;
+}
+
+.perm-check span {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+/* Company chips */
+.company-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.5rem;
+}
+
+.company-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #FAFBFD;
+  transition: border-color 0.2s ease;
+}
+
+.company-chip:hover {
+  border-color: var(--primary);
+}
+
+.company-chip strong {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.company-chip .muted {
+  font-size: 0.78rem;
 }
 
 /* ─── MODAL ─── */

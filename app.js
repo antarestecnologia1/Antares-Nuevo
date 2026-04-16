@@ -1180,95 +1180,160 @@ function transportCalendarHtml() {
 function adminUsersHtml(current) {
   const users = read(KEYS.users, []);
   const companies = read(KEYS.companies, []);
-  const permissionOptions = ALL_PERMISSIONS.map(
-    (permission) =>
-      `<label><input type="checkbox" name="permissions" value="${permission}" checked /> ${permission}</label>`
-  ).join("");
 
   const companyOptions = companies
-    .map((company) => `<option value="${company.id}">${company.name}</option>`)
+    .map((c) => `<option value="${c.id}">${c.name}</option>`)
     .join("");
 
   const userOptions = users
-    .filter((user) => user.id !== current.id)
-    .map((user) => `<option value="${user.id}">${user.name} (${user.role})</option>`)
+    .filter((u) => u.id !== current.id)
+    .map((u) => `<option value="${u.id}">${u.name} (${u.role})</option>`)
     .join("");
 
-  const accountStatusLabel = (status) => {
-    if (status === ACCOUNT_STATUS.APROBADO) return `<span class="status status-viaje_asignado">Aprobado</span>`;
-    if (status === ACCOUNT_STATUS.PENDIENTE) return `<span class="status status-pendiente">Pendiente</span>`;
-    if (status === ACCOUNT_STATUS.RECHAZADO) return `<span class="status status-rechazada">Rechazado</span>`;
+  const permChecks = ALL_PERMISSIONS.map(
+    (p) => `<label class="perm-check"><input type="checkbox" name="permissions" value="${p}" checked /><span>${p}</span></label>`
+  ).join("");
+  const permChecksClean = ALL_PERMISSIONS.map(
+    (p) => `<label class="perm-check"><input type="checkbox" name="permissions" value="${p}" /><span>${p}</span></label>`
+  ).join("");
+
+  const statusBadge = (s) => {
+    if (s === ACCOUNT_STATUS.APROBADO) return `<span class="status status-viaje_asignado">Aprobado</span>`;
+    if (s === ACCOUNT_STATUS.PENDIENTE) return `<span class="status status-pendiente">Pendiente</span>`;
+    if (s === ACCOUNT_STATUS.RECHAZADO) return `<span class="status status-rechazada">Rechazado</span>`;
     return `<span class="status status-viaje_asignado">Aprobado</span>`;
   };
 
-  const rows = users
-    .map((user) => {
-      const badges = (user.permissions || [])
-        .map((permission) => `<span class="perm-badge">${permission}</span>`)
-        .join("");
-      return `<tr>
-        <td><strong>${user.name}</strong></td>
-        <td>${user.email}</td>
-        <td><span class="perm-badge">${user.role}</span></td>
-        <td>${getCompanyById(user.companyId)?.name || user.company || "-"}</td>
-        <td>${accountStatusLabel(user.accountStatus)}</td>
-        <td>${badges || '<span class="muted">-</span>'}</td>
-        <td>${user.id === current.id ? '<span class="muted">Tu</span>' : `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${user.id}">${IC.trash} Eliminar</button>`}</td>
-      </tr>`;
-    })
-    .join("");
+  const roleBadge = (r) => {
+    const colors = { admin: "#1565C0", rrhh: "#7C3AED", client: "#0E7490" };
+    return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${r}</span>`;
+  };
 
+  // --- Usuarios tabla ---
+  const userCards = users.map((u) => {
+    const permList = (u.permissions || []).map((p) => `<span class="perm-tag">${p}</span>`).join("");
+    const isMe = u.id === current.id;
+    return `<div class="user-card">
+      <div class="user-card-top">
+        <div class="user-avatar">${u.name.charAt(0).toUpperCase()}</div>
+        <div class="user-card-info">
+          <h4>${u.name}${isMe ? ' <span class="muted" style="font-weight:400;font-size:0.78rem">(tu)</span>' : ""}</h4>
+          <p>${u.email}</p>
+        </div>
+        <div class="user-card-badges">
+          ${roleBadge(u.role)}
+          ${statusBadge(u.accountStatus)}
+        </div>
+      </div>
+      <div class="user-card-meta">
+        <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "Sin empresa"}</span>
+        ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
+      </div>
+      ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
+      ${!isMe ? `<div class="user-card-actions">
+        <button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>
+      </div>` : ""}
+    </div>`;
+  }).join("");
+
+  // --- Pendientes ---
   const pendingUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
-  const pendingRows = pendingUsers
-    .map((user) => `<tr>
-      <td><strong>${user.name}</strong></td>
-      <td>${user.email}</td>
-      <td>${getCompanyById(user.companyId)?.name || user.company || "-"}</td>
-      <td>${user.taxId || "-"}</td>
-      <td>${user.phone || "-"}</td>
-      <td>${user.registeredAt ? fmtDate(user.registeredAt) : "-"}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-approve" data-action="approve-registration" data-id="${user.id}">${IC.check} Aprobar</button>
-        <button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${user.id}">${IC.x} Rechazar</button>
-      </div></td>
-    </tr>`)
-    .join("");
+  const pendingCards = pendingUsers.map((u) => `<div class="user-card pending-card">
+    <div class="user-card-top">
+      <div class="user-avatar pending-avatar">${u.name.charAt(0).toUpperCase()}</div>
+      <div class="user-card-info">
+        <h4>${u.name}</h4>
+        <p>${u.email}</p>
+      </div>
+    </div>
+    <div class="user-card-meta">
+      <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "-"}</span>
+      <span>${IC.file} ${u.taxId || "-"}</span>
+      ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
+      ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
+    </div>
+    <div class="user-card-actions">
+      <button class="btn btn-sm btn-approve" data-action="approve-registration" data-id="${u.id}">${IC.check} Aprobar</button>
+      <button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${u.id}">${IC.x} Rechazar</button>
+    </div>
+  </div>`).join("");
 
-  const pendingBody = pendingRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Empresa</th><th>NIT/RUT</th><th>Telefono</th><th>Registro</th><th>Acciones</th></tr></thead><tbody>${pendingRows}</tbody></table></div>`
-    : "";
-
+  // --- Formularios ---
   const fUser = `<form id="form-admin-user-create" class="p-form">
-    <label>Nombre <input name="name" required /></label>
-    <label>Correo <input type="email" name="email" required /></label>
-    <label>Contraseña <input type="password" name="password" minlength="6" required /></label>
-    <label>Rol <select name="role" required><option value="${ROLES.ADMIN}">admin</option><option value="${ROLES.RRHH}">rrhh</option><option value="${ROLES.CLIENT}">client</option></select></label>
-    <label class="full">Empresa <select name="companyId" required><option value="">Seleccione empresa...</option>${companyOptions}</select></label>
+    <label>Nombre <input name="name" required placeholder="Nombre completo" /></label>
+    <label>Correo <input type="email" name="email" required placeholder="correo@empresa.com" /></label>
+    <label>Contraseña <input type="password" name="password" minlength="6" required placeholder="Min. 6 caracteres" /></label>
+    <label>Rol
+      <select name="role" required>
+        <option value="${ROLES.ADMIN}">Administrador</option>
+        <option value="${ROLES.RRHH}">Recursos Humanos</option>
+        <option value="${ROLES.CLIENT}">Cliente</option>
+      </select>
+    </label>
+    <label>Empresa
+      <select name="companyId" required>
+        <option value="">Seleccione...</option>
+        ${companyOptions}
+      </select>
+    </label>
+    <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
     <label>Nombre comercial <input name="company" value="Antares Cargo" /></label>
     <label>NIT/RUT <input name="taxId" value="900000001-0" required /></label>
-    <label>Telefono <input name="phone" required /></label>
-    <fieldset class="full"><legend>Permisos</legend><div class="p-form">${permissionOptions}</div></fieldset>
+    <fieldset class="full perm-fieldset">
+      <legend>Permisos del usuario</legend>
+      <div class="perm-grid">${permChecks}</div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
   </form>`;
+
   const fComp = `<form id="form-admin-company-create" class="p-form">
-    <label>Nombre empresa <input name="name" required /></label>
-    <label>NIT/RUT <input name="taxId" required /></label>
-    <label>Telefono <input name="phone" required /></label>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Crear empresa</button>
+    <label>Nombre empresa <input name="name" required placeholder="Nombre de la empresa" /></label>
+    <label>NIT/RUT <input name="taxId" required placeholder="000.000.000-0" /></label>
+    <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
   </form>`;
+
   const fPerm = `<form id="form-admin-user-permissions" class="p-form">
-    <label>Usuario <select name="userId" required><option value="">Seleccione...</option>${userOptions}</select></label>
-    <fieldset class="full"><legend>Permisos a asignar</legend><div class="p-form">${permissionOptions.replaceAll("checked", "")}</div></fieldset>
+    <label class="full">Seleccionar usuario
+      <select name="userId" required>
+        <option value="">Seleccione un usuario...</option>
+        ${userOptions}
+      </select>
+    </label>
+    <fieldset class="full perm-fieldset">
+      <legend>Permisos a asignar</legend>
+      <div class="perm-grid">${permChecksClean}</div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar permisos</button>
   </form>`;
-  const usersTable = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Empresa</th><th>Estado</th><th>Permisos</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("Sin usuarios registrados.");
 
-  return (pendingUsers.length > 0 ? pcardWrap("bell", "Registros pendientes (" + pendingUsers.length + ")", "Requieren aprobacion para acceder al portal", pendingBody, "p-card-alert") : "")
-    + `<div class="dash-grid">${pcardWrap("userPlus", "Crear usuario", null, fUser)}${pcardWrap("plus", "Crear empresa", null, fComp)}</div>`
-    + pcardWrap("save", "Permisos granulares", null, fPerm)
-    + pcardWrap("shield", "Usuarios del sistema", users.length + " usuarios", usersTable);
+  // --- Empresas tabla ---
+  const companyRows = companies.map((c) => `<div class="company-chip">
+    <strong>${c.name}</strong>
+    <span class="muted">${c.taxId || ""} · ${c.phone || ""}</span>
+  </div>`).join("");
+
+  // --- Render ---
+  let html = "";
+
+  if (pendingUsers.length > 0) {
+    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobacion para acceder", `<div class="user-grid">${pendingCards}</div>`, "p-card-alert");
+  }
+
+  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid">${userCards}</div>` : emptyState("Sin usuarios registrados."));
+
+  html += `<div class="dash-grid">`;
+  html += pcardWrap("userPlus", "Crear nuevo usuario", "Registrar un usuario con rol y permisos", fUser);
+  html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
+  html += `</div>`;
+
+  html += pcardWrap("save", "Asignar permisos", "Modificar los permisos de un usuario existente", fPerm);
+
+  if (companies.length > 0) {
+    html += pcardWrap("briefcase", "Empresas registradas", companies.length + " empresas", `<div class="company-grid">${companyRows}</div>`);
+  }
+
+  return html;
 }
 
 function historyHtml() {
