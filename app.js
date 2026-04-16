@@ -76,6 +76,20 @@ const PERMISSIONS = {
 };
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+const PERMISSION_META = {
+  [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
+  [PERMISSIONS.CLIENT_REQUESTS]: { title: "Solicitudes de cliente", desc: "Crear y consultar solicitudes propias." },
+  [PERMISSIONS.TRANSPORT_REQUESTS]: { title: "Bandeja de transporte", desc: "Aprobar, rechazar y editar solicitudes." },
+  [PERMISSIONS.TRANSPORT_TRIPS]: { title: "Gestion de viajes", desc: "Asignar y actualizar estados de viaje." },
+  [PERMISSIONS.TRANSPORT_VEHICLES]: { title: "Gestion de camiones", desc: "Registrar y modificar vehiculos." },
+  [PERMISSIONS.TRANSPORT_DRIVERS]: { title: "Gestion de conductores", desc: "Registrar y administrar conductores." },
+  [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Calendario operativo", desc: "Ver programacion de viajes." },
+  [PERMISSIONS.TRANSPORT_HISTORY]: { title: "Historial y reportes", desc: "Consultar historicos y filtros." },
+  [PERMISSIONS.PAYROLL_MANAGE]: { title: "Nomina", desc: "Gestionar empleados y liquidaciones." },
+  [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
+  [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
+  [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." }
+};
 
 const VIEW_PERMISSIONS = {
   dashboard: PERMISSIONS.DASHBOARD_VIEW,
@@ -124,7 +138,15 @@ const AUTO_APPROVE_MINUTES = 10;
 let state = {
   session: null,
   currentView: "dashboard",
-  authTab: "login"
+  authTab: "login",
+  authSecurity: {
+    failedAttempts: 0,
+    lockUntil: 0
+  },
+  adminUsersUi: {
+    panel: "",
+    editUserId: ""
+  }
 };
 
 const nodes = {
@@ -163,6 +185,40 @@ function uid() {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+async function hashPassword(raw) {
+  const input = String(raw || "");
+  if (!input) return "";
+  if (input.startsWith("sha256:")) return input;
+  if (!window.crypto?.subtle) return `sha256:${btoa(input)}`;
+  const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  const hex = [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `sha256:${hex}`;
+}
+
+async function verifyPassword(raw, storedHash) {
+  if (!String(storedHash || "").startsWith("sha256:")) {
+    return String(raw || "") === String(storedHash || "");
+  }
+  const hashed = await hashPassword(raw);
+  return hashed === storedHash;
+}
+
+function passwordStrengthLabel(password) {
+  const value = String(password || "");
+  let score = 0;
+  if (value.length >= 8) score += 1;
+  if (/[A-Z]/.test(value)) score += 1;
+  if (/[0-9]/.test(value)) score += 1;
+  if (/[^A-Za-z0-9]/.test(value)) score += 1;
+  if (score <= 1) return "Baja";
+  if (score <= 3) return "Media";
+  return "Alta";
 }
 
 function readCounters() {
@@ -480,32 +536,59 @@ function clearSession() {
 }
 
 function buildToken(user) {
-  return btoa(`${user.id}.${user.email}.${Date.now()}`);
+  const nonce = crypto.getRandomValues(new Uint32Array(2)).join("");
+  return btoa(`${user.id}.${user.role}.${Date.now()}.${nonce}`);
+}
+
+async function ensureUsersPasswordHashing() {
+  const users = read(KEYS.users, []);
+  let changed = false;
+  const secured = [];
+  for (const user of users) {
+    if (String(user.password || "").startsWith("sha256:")) {
+      secured.push(user);
+      continue;
+    }
+    changed = true;
+    secured.push({ ...user, password: await hashPassword(user.password) });
+  }
+  if (changed) write(KEYS.users, secured);
 }
 
 function authView() {
   const tab = state.authTab;
   if (tab === "login") {
     return `
-      <form id="form-login" class="form-grid">
-        <label class="full">Correo <input type="email" name="email" required /></label>
-        <label class="full">Contrasena <input type="password" name="password" required /></label>
-        <button class="btn btn-primary full" type="submit">Ingresar</button>
+      <form id="form-login" class="form-grid auth-form">
+        <label class="full">Correo corporativo <input type="email" name="email" autocomplete="username" required /></label>
+        <label class="full">Contrasena
+          <div class="password-field">
+            <input type="password" name="password" autocomplete="current-password" required />
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">Mostrar</button>
+          </div>
+        </label>
+        <button class="btn btn-primary full" type="submit">Ingresar de forma segura</button>
       </form>
-      <p class="muted">Demo: admin@antares.com/admin123 - rrhh@antares.com/rrhh123 - cliente@antares.com/cliente123</p>
+      <p class="muted auth-help">Usa tu correo y contrasena. Evita ingresar desde equipos compartidos.</p>
     `;
   }
 
   if (tab === "register") {
     return `
-      <form id="form-register" class="form-grid">
+      <form id="form-register" class="form-grid auth-form">
         <label>Nombre <input name="name" required /></label>
         <label>Empresa <input name="company" required /></label>
         <label>NIT/RUT <input name="taxId" required /></label>
         <label>Cargo <input name="position" required /></label>
         <label>Telefono <input name="phone" required /></label>
-        <label>Correo <input type="email" name="email" required /></label>
-        <label class="full">Contrasena <input type="password" minlength="6" name="password" required /></label>
+        <label>Correo <input type="email" name="email" autocomplete="username" required /></label>
+        <label class="full">Contrasena
+          <div class="password-field">
+            <input type="password" minlength="8" name="password" autocomplete="new-password" required />
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">Mostrar</button>
+          </div>
+          <small id="password-strength" class="muted">Seguridad: Baja</small>
+        </label>
         <button class="btn btn-primary full" type="submit">Crear cuenta cliente</button>
       </form>
     `;
@@ -540,17 +623,43 @@ function bindAuthForms() {
   const login = document.getElementById("form-login");
   const register = document.getElementById("form-register");
   const recover = document.getElementById("form-recover");
+  const togglePassword = document.querySelectorAll("[data-action='toggle-password']");
+  togglePassword.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetForm = String(btn.dataset.target || "");
+      const input = targetForm === "register"
+        ? register?.querySelector("input[name='password']")
+        : login?.querySelector("input[name='password']");
+      if (!input) return;
+      const visible = input.type === "text";
+      input.type = visible ? "password" : "text";
+      btn.textContent = visible ? "Mostrar" : "Ocultar";
+    });
+  });
 
   if (login) {
-    login.addEventListener("submit", (event) => {
+    login.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (Date.now() < state.authSecurity.lockUntil) {
+        const secs = Math.ceil((state.authSecurity.lockUntil - Date.now()) / 1000);
+        alert(`Demasiados intentos. Intenta nuevamente en ${secs} segundos.`);
+        return;
+      }
       const data = Object.fromEntries(new FormData(login).entries());
       const users = read(KEYS.users, []);
-      const user = users.find((u) => u.email === data.email && u.password === data.password);
-      if (!user) {
+      const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
+      const valid = user ? await verifyPassword(String(data.password || ""), user.password) : false;
+      if (!valid || !user) {
+        state.authSecurity.failedAttempts += 1;
+        if (state.authSecurity.failedAttempts >= 5) {
+          state.authSecurity.lockUntil = Date.now() + 60_000;
+          state.authSecurity.failedAttempts = 0;
+        }
         alert("Credenciales invalidas.");
         return;
       }
+      state.authSecurity.failedAttempts = 0;
+      state.authSecurity.lockUntil = 0;
       if (user.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
         alert("Tu cuenta aun esta pendiente de aprobacion por un administrador. Te notificaremos por correo cuando sea aprobada.");
         return;
@@ -566,15 +675,26 @@ function bindAuthForms() {
   }
 
   if (register) {
-    register.addEventListener("submit", (event) => {
+    const regPass = register.querySelector("input[name='password']");
+    const strength = register.querySelector("#password-strength");
+    if (regPass && strength) {
+      regPass.addEventListener("input", () => {
+        strength.textContent = `Seguridad: ${passwordStrengthLabel(regPass.value)}`;
+      });
+    }
+    register.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
       if (!/^\d/.test(String(data.taxId)) && !String(data.taxId).includes("-")) {
         alert("NIT/RUT invalido.");
         return;
       }
+      if (String(data.password || "").length < 8) {
+        alert("La contrasena debe tener minimo 8 caracteres.");
+        return;
+      }
       const users = read(KEYS.users, []);
-      if (users.some((u) => u.email === data.email)) {
+      if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(data.email))) {
         alert("El correo ya existe.");
         return;
       }
@@ -582,6 +702,8 @@ function bindAuthForms() {
       const newUser = {
         id: uid(),
         ...data,
+        email: normalizeEmail(data.email),
+        password: await hashPassword(data.password),
         role: ROLES.CLIENT,
         accountStatus: ACCOUNT_STATUS.PENDIENTE,
         companyId,
@@ -619,7 +741,7 @@ function bindAuthForms() {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(recover).entries());
       const users = read(KEYS.users, []);
-      const user = users.find((u) => u.email === data.email);
+      const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
       if (!user) {
         alert("No existe usuario con ese correo.");
         return;
@@ -627,9 +749,9 @@ function bindAuthForms() {
       sendEmail({
         to: user.email,
         subject: "Recuperacion de contrasena",
-        body: `Hola ${user.name}, tu contrasena demo es: ${user.password}`
+        body: `Hola ${user.name}, se solicito recuperacion de acceso. Por seguridad, solicita a un administrador restablecer tu contrasena.`
       });
-      alert("Correo de recuperacion enviado (simulado).");
+      alert("Solicitud enviada. Un administrador debe ayudarte a restablecer el acceso.");
     });
   }
 }
@@ -904,6 +1026,7 @@ function getVisibleRequestsForUser(user) {
 
 function hasPermission(user, permission) {
   if (!permission) return true;
+  if (user?.role === ROLES.ADMIN) return true;
   const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
   return permissions.includes(permission);
 }
@@ -916,14 +1039,56 @@ function canAccessRRHH(role) {
   return role === ROLES.ADMIN || role === ROLES.RRHH;
 }
 
+function isViewAllowedForUser(user, view) {
+  if (!user || !canAccessView(user, view)) return false;
+  if (view === "requests") return user.role === ROLES.CLIENT;
+  if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users"].includes(view)) {
+    return user.role === ROLES.ADMIN;
+  }
+  if (["payroll", "hiring"].includes(view)) return canAccessRRHH(user.role);
+  return true;
+}
+
+function viewFromPortalHash() {
+  const hash = String(window.location.hash || "");
+  if (!hash.startsWith("#portal/")) return "";
+  const view = hash.slice("#portal/".length).trim();
+  return VIEW_PERMISSIONS[view] ? view : "";
+}
+
+function syncPortalHash(view) {
+  const safeView = VIEW_PERMISSIONS[view] ? view : "dashboard";
+  const nextHash = `#portal/${safeView}`;
+  if (window.location.hash !== nextHash) {
+    history.replaceState(null, "", nextHash);
+  }
+}
+
+function enforcePortalViewFromUrl(user) {
+  if (!state.session || !user) return;
+  const candidate = viewFromPortalHash();
+  if (!candidate) {
+    syncPortalHash(state.currentView || "dashboard");
+    return;
+  }
+  if (!isViewAllowedForUser(user, candidate)) {
+    state.currentView = "dashboard";
+    syncPortalHash("dashboard");
+    alert("Ruta no autorizada. Se redirigio al dashboard.");
+    return;
+  }
+  state.currentView = candidate;
+}
+
 function setView(view) {
   const user = currentUser();
   if (!user) return;
-  if (!canAccessView(user, view)) {
+  if (!isViewAllowedForUser(user, view)) {
     alert("No tienes permisos para acceder a este módulo.");
     return;
   }
   state.currentView = view;
+  syncPortalHash(view);
   nodes.sideLinks.forEach((link) => {
     link.classList.toggle("active", link.dataset.view === view);
   });
@@ -957,12 +1122,14 @@ function renderPortal() {
       (link.classList.contains("client-only") && user.role !== ROLES.CLIENT) ||
       (link.classList.contains("rrhh-only") && !canAccessRRHH(user.role));
     const view = link.dataset.view;
-    const allowedByPermission = canAccessView(user, view);
+    const allowedByPermission = isViewAllowedForUser(user, view);
     link.classList.toggle("hidden", isRoleHidden || !allowedByPermission);
   });
   renderKpis();
-  if (!canAccessView(user, state.currentView)) {
+  enforcePortalViewFromUrl(user);
+  if (!isViewAllowedForUser(user, state.currentView)) {
     state.currentView = "dashboard";
+    syncPortalHash("dashboard");
   }
   renderPortalView();
 }
@@ -1180,6 +1347,8 @@ function transportCalendarHtml() {
 function adminUsersHtml(current) {
   const users = read(KEYS.users, []);
   const companies = read(KEYS.companies, []);
+  const ui = state.adminUsersUi || { panel: "", editUserId: "" };
+  const editingUser = ui.editUserId ? users.find((u) => u.id === ui.editUserId) : null;
 
   const companyOptions = companies
     .map((c) => `<option value="${c.id}">${c.name}</option>`)
@@ -1190,12 +1359,13 @@ function adminUsersHtml(current) {
     .map((u) => `<option value="${u.id}">${u.name} (${u.role})</option>`)
     .join("");
 
-  const permChecks = ALL_PERMISSIONS.map(
-    (p) => `<label class="perm-check"><input type="checkbox" name="permissions" value="${p}" checked /><span>${p}</span></label>`
-  ).join("");
-  const permChecksClean = ALL_PERMISSIONS.map(
-    (p) => `<label class="perm-check"><input type="checkbox" name="permissions" value="${p}" /><span>${p}</span></label>`
-  ).join("");
+  const permissionChecks = (selected = []) => ALL_PERMISSIONS.map((permission) => {
+    const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
+    return `<label class="perm-check">
+      <input type="checkbox" name="permissions" value="${permission}" ${selected.includes(permission) ? "checked" : ""} />
+      <span><strong>${meta.title}</strong><small>${meta.desc}</small></span>
+    </label>`;
+  }).join("");
 
   const statusBadge = (s) => {
     if (s === ACCOUNT_STATUS.APROBADO) return `<span class="status status-viaje_asignado">Aprobado</span>`;
@@ -1209,9 +1379,11 @@ function adminUsersHtml(current) {
     return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${r}</span>`;
   };
 
-  // --- Usuarios tabla ---
+  // --- Usuarios ---
   const userCards = users.map((u) => {
-    const permList = (u.permissions || []).map((p) => `<span class="perm-tag">${p}</span>`).join("");
+    const permList = (u.permissions || [])
+      .map((p) => `<span class="perm-tag">${PERMISSION_META[p]?.title || p}</span>`)
+      .join("");
     const isMe = u.id === current.id;
     return `<div class="user-card">
       <div class="user-card-top">
@@ -1231,6 +1403,7 @@ function adminUsersHtml(current) {
       </div>
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
       ${!isMe ? `<div class="user-card-actions">
+        <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${u.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>
       </div>` : ""}
     </div>`;
@@ -1281,7 +1454,7 @@ function adminUsersHtml(current) {
     <label>NIT/RUT <input name="taxId" value="900000001-0" required /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos del usuario</legend>
-      <div class="perm-grid">${permChecks}</div>
+      <div class="perm-grid">${permissionChecks([...ALL_PERMISSIONS])}</div>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
   </form>`;
@@ -1302,10 +1475,41 @@ function adminUsersHtml(current) {
     </label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos a asignar</legend>
-      <div class="perm-grid">${permChecksClean}</div>
+      <div class="perm-grid">${permissionChecks([])}</div>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar permisos</button>
   </form>`;
+
+  const fEdit = editingUser ? `<form id="form-admin-user-edit" class="p-form">
+    <input type="hidden" name="id" value="${editingUser.id}" />
+    <label>Nombre <input name="name" value="${editingUser.name || ""}" required /></label>
+    <label>Correo <input type="email" name="email" value="${editingUser.email || ""}" required /></label>
+    <label>Contraseña <input type="password" name="password" placeholder="Dejar vacio para conservar" /></label>
+    <label>Rol
+      <select name="role" required>
+        <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
+        <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
+        <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
+      </select>
+    </label>
+    <label>Empresa
+      <select name="companyId" required>
+        <option value="">Seleccione...</option>
+        ${companies.map((c) => `<option value="${c.id}" ${c.id === editingUser.companyId ? "selected" : ""}>${c.name}</option>`).join("")}
+      </select>
+    </label>
+    <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
+    <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
+    <label>NIT/RUT <input name="taxId" value="${editingUser.taxId || ""}" /></label>
+    <fieldset class="full perm-fieldset">
+      <legend>Permisos granulares</legend>
+      <div class="perm-grid">${permissionChecks(editingUser.permissions || [])}</div>
+    </fieldset>
+    <div class="toolbar full">
+      <button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>
+      <button class="btn btn-action" type="button" data-action="close-edit-user">${IC.x} Cancelar</button>
+    </div>
+  </form>` : "";
 
   // --- Empresas tabla ---
   const companyRows = companies.map((c) => `<div class="company-chip">
@@ -1321,13 +1525,16 @@ function adminUsersHtml(current) {
   }
 
   html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid">${userCards}</div>` : emptyState("Sin usuarios registrados."));
+  html += `<div class="toolbar" style="margin-bottom:0.8rem">
+    <button class="btn btn-action" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
+    <button class="btn btn-action" data-action="toggle-admin-panel" data-panel="create-company">${IC.plus} Nueva empresa</button>
+    <button class="btn btn-action" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.save} Asignar permisos</button>
+  </div>`;
 
-  html += `<div class="dash-grid">`;
-  html += pcardWrap("userPlus", "Crear nuevo usuario", "Registrar un usuario con rol y permisos", fUser);
-  html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
-  html += `</div>`;
-
-  html += pcardWrap("save", "Asignar permisos", "Modificar los permisos de un usuario existente", fPerm);
+  if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
+  if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
+  if (ui.panel === "set-permissions") html += pcardWrap("save", "Asignar permisos", "Selecciona usuario y permisos", fPerm);
+  if (editingUser) html += pcardWrap("edit", "Editar usuario", `Actualiza los datos de ${editingUser.name}`, fEdit);
 
   if (companies.length > 0) {
     html += pcardWrap("briefcase", "Empresas registradas", companies.length + " empresas", `<div class="company-grid">${companyRows}</div>`);
@@ -1516,7 +1723,7 @@ function renderPortalView() {
   };
   nodes.viewTitle.textContent = titles[view] || "Dashboard";
 
-  if (!canAccessView(user, view)) {
+  if (!isViewAllowedForUser(user, view)) {
     nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
   } else if (view === "dashboard") {
     nodes.viewRoot.innerHTML = viewDashboard();
@@ -1550,16 +1757,44 @@ function renderPortalView() {
 }
 
 function bindDynamicEvents() {
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = String(btn.dataset.panel || "");
+      const currentPanel = state.adminUsersUi?.panel || "";
+      state.adminUsersUi = {
+        panel: currentPanel === panel ? "" : panel,
+        editUserId: ""
+      };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='open-edit-user']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      if (!id) return;
+      state.adminUsersUi = { panel: "", editUserId: id };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.adminUsersUi = { panel: "", editUserId: "" };
+      renderPortalView();
+    });
+  });
+
   const adminUserCreate = document.getElementById("form-admin-user-create");
   if (adminUserCreate) {
-    adminUserCreate.addEventListener("submit", (event) => {
+    adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminUserCreate).entries());
       const permissions = [...adminUserCreate.querySelectorAll("input[name='permissions']:checked")].map(
         (input) => input.value
       );
       const users = read(KEYS.users, []);
-      if (users.some((item) => item.email === data.email)) {
+      if (users.some((item) => normalizeEmail(item.email) === normalizeEmail(data.email))) {
         alert("Ya existe un usuario con ese correo.");
         return;
       }
@@ -1571,18 +1806,24 @@ function bindDynamicEvents() {
       users.push({
         id: uid(),
         name: data.name,
-        email: data.email,
-        password: data.password,
+        email: normalizeEmail(data.email),
+        password: await hashPassword(data.password),
         role: data.role,
         accountStatus: ACCOUNT_STATUS.APROBADO,
         company: data.company || company.name,
         companyId: company.id,
         taxId: data.taxId,
         phone: data.phone,
-        permissions: permissions.length ? permissions : defaultPermissionsForRole(data.role)
+        permissions:
+          data.role === ROLES.ADMIN
+            ? [...ALL_PERMISSIONS]
+            : permissions.length
+              ? permissions
+              : defaultPermissionsForRole(data.role)
       });
       write(KEYS.users, users);
       alert("Usuario creado correctamente.");
+      state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
   }
@@ -1610,6 +1851,7 @@ function bindDynamicEvents() {
       });
       write(KEYS.companies, companies);
       alert("Empresa creada correctamente.");
+      state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
   }
@@ -1634,7 +1876,10 @@ function bindDynamicEvents() {
           user.id === userId
             ? {
                 ...user,
-                permissions: permissions.filter((permission) => ALL_PERMISSIONS.includes(permission))
+                permissions:
+                  user.role === ROLES.ADMIN
+                    ? [...ALL_PERMISSIONS]
+                    : permissions.filter((permission) => ALL_PERMISSIONS.includes(permission))
               }
             : user
         )
@@ -1649,6 +1894,64 @@ function bindDynamicEvents() {
         }
       }
       alert("Permisos actualizados.");
+      state.adminUsersUi = { panel: "", editUserId: "" };
+      renderPortalView();
+    });
+  }
+
+  const adminUserEdit = document.getElementById("form-admin-user-edit");
+  if (adminUserEdit) {
+    adminUserEdit.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(adminUserEdit).entries());
+      const userId = String(data.id || "");
+      if (!userId) return;
+      const users = read(KEYS.users, []);
+      const existing = users.find((u) => u.id === userId);
+      if (!existing) {
+        alert("Usuario no encontrado.");
+        return;
+      }
+      const duplicated = users.some((u) => u.id !== userId && normalizeEmail(u.email) === normalizeEmail(data.email));
+      if (duplicated) {
+        alert("Ya existe otro usuario con ese correo.");
+        return;
+      }
+      const company = getCompanyById(String(data.companyId || ""));
+      if (!company) {
+        alert("Debes seleccionar una empresa valida.");
+        return;
+      }
+      const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
+      const nextPassword = String(data.password || "").trim()
+        ? await hashPassword(String(data.password || "").trim())
+        : existing.password;
+      write(
+        KEYS.users,
+        users.map((u) =>
+          u.id === userId
+            ? {
+                ...u,
+                name: String(data.name || "").trim(),
+                email: normalizeEmail(data.email),
+                password: nextPassword,
+                role: String(data.role || u.role),
+                companyId: company.id,
+                company: String(data.company || company.name).trim(),
+                taxId: String(data.taxId || "").trim(),
+                phone: String(data.phone || "").trim(),
+                permissions:
+                  String(data.role || u.role) === ROLES.ADMIN
+                    ? [...ALL_PERMISSIONS]
+                    : permissions.length
+                      ? permissions.filter((p) => ALL_PERMISSIONS.includes(p))
+                      : defaultPermissionsForRole(String(data.role || u.role))
+              }
+            : u
+        )
+      );
+      alert("Usuario actualizado correctamente.");
+      state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
   }
@@ -2308,9 +2611,25 @@ function initGlobalEvents() {
     link.addEventListener("click", () => setView(link.dataset.view));
   });
 
+  window.addEventListener("hashchange", () => {
+    const user = currentUser();
+    if (!state.session || !user) return;
+    const urlView = viewFromPortalHash();
+    if (!urlView) return;
+    if (!isViewAllowedForUser(user, urlView)) {
+      state.currentView = "dashboard";
+      syncPortalHash("dashboard");
+      renderPortalView();
+      return;
+    }
+    state.currentView = urlView;
+    renderPortalView();
+  });
+
   nodes.logout.addEventListener("click", () => {
     clearSession();
     state.currentView = "dashboard";
+    history.replaceState(null, "", window.location.pathname + window.location.search);
     renderPortal();
   });
 }
@@ -2365,6 +2684,7 @@ function initPublicEffects() {
 }
 
 seed();
+ensureUsersPasswordHashing();
 initGlobalEvents();
 initPublicEffects();
 renderPortal();
