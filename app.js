@@ -775,9 +775,12 @@ function nextCounter(prefix) {
   return current;
 }
 
-function makeRequestNumber() {
-  const value = String(nextCounter("request")).padStart(6, "0");
-  return `SOL-${value}`;
+function makeRequestNumber(existingNumbers = new Set()) {
+  let code = `SOL-${String(nextCounter("request")).padStart(6, "0")}`;
+  while (existingNumbers.has(code)) {
+    code = `SOL-${String(nextCounter("request")).padStart(6, "0")}`;
+  }
+  return code;
 }
 
 function fmtDate(value) {
@@ -1018,14 +1021,21 @@ function ensureRequestsCompanyMapping() {
 function ensureRequestAndTripIdentifiers() {
   const requests = read(KEYS.requests, []);
   let changed = false;
+  const usedRequestNumbers = new Set(requests.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
+  const usedTripNumbers = new Set(
+    requests.map((r) => String(r.trip?.tripNumber || "").trim()).filter(Boolean)
+  );
   const mapped = requests.map((request) => {
     const next = { ...request };
     if (!next.requestNumber) {
-      next.requestNumber = makeRequestNumber();
+      next.requestNumber = makeRequestNumber(usedRequestNumbers);
+      usedRequestNumbers.add(next.requestNumber);
       changed = true;
     }
     if (next.trip && !next.trip.tripNumber) {
-      next.trip = { ...next.trip, tripNumber: makeTripNumber() };
+      const tripNumber = makeTripNumber(usedTripNumbers);
+      usedTripNumbers.add(tripNumber);
+      next.trip = { ...next.trip, tripNumber };
       changed = true;
     }
     return next;
@@ -2085,9 +2095,12 @@ function getCompatibleDriversForRequest(request, currentRequestId = null) {
   );
 }
 
-function makeTripNumber() {
-  const value = String(nextCounter("trip")).padStart(6, "0");
-  return `VIA-${value}`;
+function makeTripNumber(existingNumbers = new Set()) {
+  let code = `VIA-${String(nextCounter("trip")).padStart(6, "0")}`;
+  while (existingNumbers.has(code)) {
+    code = `VIA-${String(nextCounter("trip")).padStart(6, "0")}`;
+  }
+  return code;
 }
 
 function setVehicleAvailability(vehicleId, available) {
@@ -2156,9 +2169,12 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     return false;
   }
 
+  const usedTripNumbers = new Set(
+    requests.map((request) => String(request.trip?.tripNumber || "").trim()).filter(Boolean)
+  );
   const trip = {
     id: uid(),
-    tripNumber: makeTripNumber(),
+    tripNumber: makeTripNumber(usedTripNumbers),
     vehicleId: vehicle.id,
     vehiclePlate: vehicle ? vehicle.plate : "SIN-DISP",
     vehicleType: vehicle ? vehicle.type : current.vehicleType,
@@ -2194,7 +2210,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     saveNotification({
       userId: target.id,
       title: "Solicitud aprobada",
-      body: `Tu solicitud ${current.id} fue aprobada${auto ? " automaticamente" : ""}. Viaje ${trip.tripNumber}.`
+      body: `Tu solicitud ${current.requestNumber || current.id} fue aprobada${auto ? " automaticamente" : ""}. Viaje ${trip.tripNumber}.`
     });
     sendEmail({
       to: target.email,
@@ -3509,58 +3525,187 @@ function deleteEmployeesCascade(employeeIds = []) {
 
 function mountUniversalModuleFilters() {
   if (!nodes.viewRoot) return;
-  const tables = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
-  const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card, .p-card")];
-  if (!tables.length && !cards.length) return;
-  const table = nodes.viewRoot.querySelector(".table-wrap table");
-  const headers = table ? [...table.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
-  const host = document.createElement("div");
-  host.className = "toolbar";
-  host.style.marginBottom = "0.8rem";
+  const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
+  const tableRows = tableBodies.flatMap((tbody) => [...tbody.querySelectorAll("tr")]);
+  const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card")];
+  if (!tableRows.length && !cards.length) return;
+
+  const firstTable = nodes.viewRoot.querySelector(".table-wrap table");
+  const headers = firstTable ? [...firstTable.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
+  const moduleView = String(state.currentView || "");
+  const moduleLabels = {
+    requests: "Solicitudes",
+    "transport-requests": "Solicitudes transporte",
+    "transport-trips": "Viajes",
+    "transport-vehicles": "Flota",
+    "transport-drivers": "Conductores",
+    "transport-calendar": "Calendario",
+    history: "Historial",
+    payroll: "Nomina",
+    hiring: "Contratacion",
+    "admin-users": "Usuarios",
+    authorizations: "Autorizaciones",
+    notifications: "Notificaciones",
+    reports: "Reporteria"
+  };
+  const moduleLabel = moduleLabels[moduleView] || "Modulo";
+
+  const toIsoDateSafe = (textValue) => {
+    const text = String(textValue || "");
+    const localDateMatch = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (localDateMatch) {
+      const day = Number(localDateMatch[1]);
+      const month = Number(localDateMatch[2]);
+      const year = Number(localDateMatch[3].length === 2 ? `20${localDateMatch[3]}` : localDateMatch[3]);
+      if (day > 0 && month > 0 && month <= 12 && year >= 2000) {
+        return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+    }
+    const isoMatch = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+    return isoMatch ? `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}` : "";
+  };
+
+  const statusValues = [...new Set(
+    tableRows
+      .map((row) => row.querySelector(".status, .status-pretty"))
+      .filter(Boolean)
+      .map((node) => String(node.textContent || "").replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+  )];
+
+  const host = document.createElement("section");
+  host.className = "module-filters";
   host.innerHTML = `
-    <input id="module-filter-text" type="search" placeholder="Filtrar modulo..." style="min-width:240px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)" />
-    <select id="module-filter-column" style="min-width:190px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)">
-      <option value="">Filtro por campo</option>
-      ${headers.map((header, idx) => `<option value="${idx}">${header}</option>`).join("")}
-    </select>
-    <input id="module-filter-value" type="search" placeholder="Valor del campo..." style="min-width:220px;padding:0.45rem 0.65rem;border:1px solid var(--line);border-radius:8px;background:var(--white);color:var(--text)" />
-    <button id="module-filter-clear" type="button" class="btn btn-sm btn-action">${IC.x} Limpiar</button>
+    <div class="module-filters-head">
+      <div class="module-filters-title">${IC.filter} Filtros inteligentes · ${moduleLabel}</div>
+      <div class="module-filters-count" id="module-filter-count">0 resultados</div>
+    </div>
+    <div class="module-filters-grid">
+      <label class="module-filter-field">
+        <span>Busqueda general</span>
+        <input id="module-filter-text" type="search" placeholder="Ej: cliente, placa, conductor, solicitud..." />
+      </label>
+      <label class="module-filter-field">
+        <span>Campo</span>
+        <select id="module-filter-column">
+          <option value="">Todos los campos</option>
+          ${headers.map((header, idx) => `<option value="${idx}">${header}</option>`).join("")}
+        </select>
+      </label>
+      <label class="module-filter-field">
+        <span>Valor exacto/parcial</span>
+        <input id="module-filter-value" type="search" placeholder="Valor del campo seleccionado..." />
+      </label>
+      <label class="module-filter-field">
+        <span>Estado</span>
+        <select id="module-filter-status">
+          <option value="">Todos</option>
+          ${statusValues.map((status) => `<option value="${status.toLowerCase()}">${status}</option>`).join("")}
+        </select>
+      </label>
+      <label class="module-filter-field">
+        <span>Fecha desde</span>
+        <input id="module-filter-date-from" type="date" />
+      </label>
+      <label class="module-filter-field">
+        <span>Fecha hasta</span>
+        <input id="module-filter-date-to" type="date" />
+      </label>
+    </div>
+    <div class="module-filters-actions">
+      <div class="module-filter-quick-status" id="module-filter-quick-status"></div>
+      <button id="module-filter-clear" type="button" class="btn btn-sm btn-action">${IC.x} Limpiar filtros</button>
+    </div>
   `;
   nodes.viewRoot.prepend(host);
+
   const input = host.querySelector("#module-filter-text");
   const colSelect = host.querySelector("#module-filter-column");
   const valueInput = host.querySelector("#module-filter-value");
+  const statusSelect = host.querySelector("#module-filter-status");
+  const fromInput = host.querySelector("#module-filter-date-from");
+  const toInput = host.querySelector("#module-filter-date-to");
   const clearBtn = host.querySelector("#module-filter-clear");
+  const resultCounter = host.querySelector("#module-filter-count");
+  const quickStatusHost = host.querySelector("#module-filter-quick-status");
+
+  if (quickStatusHost && statusValues.length) {
+    quickStatusHost.innerHTML = statusValues
+      .map((status) => `<button type="button" class="filter-pill" data-status-pill="${status.toLowerCase()}">${status}</button>`)
+      .join("");
+  }
+
   const apply = () => {
     const needle = String(input?.value || "").toLowerCase().trim();
     const colIndex = Number(colSelect?.value || NaN);
     const colNeedle = String(valueInput?.value || "").toLowerCase().trim();
-    tables.forEach((tbody) => {
-      [...tbody.querySelectorAll("tr")].forEach((row) => {
-        const text = String(row.textContent || "").toLowerCase();
-        const cells = [...row.querySelectorAll("td")];
-        const colText = Number.isFinite(colIndex) && cells[colIndex] ? String(cells[colIndex].textContent || "").toLowerCase() : "";
-        const passGlobal = !needle || text.includes(needle);
-        const passColumn = !colNeedle || (Number.isFinite(colIndex) ? colText.includes(colNeedle) : text.includes(colNeedle));
-        row.style.display = passGlobal && passColumn ? "" : "none";
-      });
+    const selectedStatus = String(statusSelect?.value || "").toLowerCase().trim();
+    const fromDate = String(fromInput?.value || "").trim();
+    const toDate = String(toInput?.value || "").trim();
+    let visibleRows = 0;
+    let visibleCards = 0;
+
+    tableRows.forEach((row) => {
+      const text = String(row.textContent || "").toLowerCase();
+      const cells = [...row.querySelectorAll("td")];
+      const colText = Number.isFinite(colIndex) && cells[colIndex] ? String(cells[colIndex].textContent || "").toLowerCase() : "";
+      const statusText = String(row.querySelector(".status, .status-pretty")?.textContent || "").toLowerCase().trim();
+      const rowDate = toIsoDateSafe(row.textContent || "");
+      const passGlobal = !needle || text.includes(needle);
+      const passColumn = !colNeedle || (Number.isFinite(colIndex) ? colText.includes(colNeedle) : text.includes(colNeedle));
+      const passStatus = !selectedStatus || statusText.includes(selectedStatus);
+      const passFrom = !fromDate || (rowDate && rowDate >= fromDate);
+      const passTo = !toDate || (rowDate && rowDate <= toDate);
+      const visible = passGlobal && passColumn && passStatus && passFrom && passTo;
+      row.style.display = visible ? "" : "none";
+      if (visible) visibleRows += 1;
     });
+
     cards.forEach((card) => {
       const text = String(card.textContent || "").toLowerCase();
       const passGlobal = !needle || text.includes(needle);
       const passColumn = !colNeedle || text.includes(colNeedle);
-      card.style.display = passGlobal && passColumn ? "" : "none";
+      const passStatus = !selectedStatus || text.includes(selectedStatus);
+      const visible = passGlobal && passColumn && passStatus;
+      card.style.display = visible ? "" : "none";
+      if (visible) visibleCards += 1;
     });
+
+    const totalVisible = visibleRows + visibleCards;
+    if (resultCounter) {
+      resultCounter.textContent = `${totalVisible} resultado${totalVisible === 1 ? "" : "s"}`;
+    }
   };
+
   input?.addEventListener("input", apply);
   colSelect?.addEventListener("change", apply);
   valueInput?.addEventListener("input", apply);
+  statusSelect?.addEventListener("change", apply);
+  fromInput?.addEventListener("change", apply);
+  toInput?.addEventListener("change", apply);
   clearBtn?.addEventListener("click", () => {
     if (input) input.value = "";
     if (valueInput) valueInput.value = "";
     if (colSelect) colSelect.value = "";
+    if (statusSelect) statusSelect.value = "";
+    if (fromInput) fromInput.value = "";
+    if (toInput) toInput.value = "";
     apply();
   });
+
+  quickStatusHost?.querySelectorAll("[data-status-pill]").forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const value = String(pill.getAttribute("data-status-pill") || "");
+      const current = String(statusSelect?.value || "");
+      if (statusSelect) statusSelect.value = current === value ? "" : value;
+      quickStatusHost.querySelectorAll("[data-status-pill]").forEach((node) => {
+        node.classList.toggle("active", node.getAttribute("data-status-pill") === statusSelect?.value);
+      });
+      apply();
+    });
+  });
+
+  apply();
 }
 
 function tripsForDriverMonth(driver, month) {
@@ -4496,9 +4641,11 @@ function bindDynamicEvents() {
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
       const all = read(KEYS.requests, []);
+      const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
+      const requestNumber = makeRequestNumber(usedRequestNumbers);
       all.unshift({
         id: uid(),
-        requestNumber: makeRequestNumber(),
+        requestNumber,
         clientUserId: user.id,
         clientName: user.company,
         clientCompanyId: user.companyId,
@@ -4523,12 +4670,12 @@ function bindDynamicEvents() {
         saveNotification({
           userId: admin.id,
           title: "Nueva solicitud pendiente",
-          body: `Solicitud ${all[0].id} de ${user.company}`
+          body: `Solicitud ${requestNumber} de ${user.company}`
         });
         sendEmail({
           to: admin.email,
           subject: "Nueva solicitud de viaje",
-          body: `Revisar solicitud ${all[0].id}`
+          body: `Revisar solicitud ${requestNumber}`
         });
       });
 
@@ -4720,10 +4867,6 @@ function bindDynamicEvents() {
       }
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
-      if (!compatibleVehicles.length || !compatibleDrivers.length) {
-        notify("No hay camion/conductor compatible disponible para esta solicitud.", "error");
-        return;
-      }
       openEditModal({
         title: "Asignar viaje",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType}`,
@@ -4734,23 +4877,31 @@ function bindDynamicEvents() {
             label: "Camion",
             type: "select",
             required: true,
-            options: compatibleVehicles.map((vehicle) => ({
-              value: vehicle.id,
-              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
-            }))
+            options: compatibleVehicles.length
+              ? compatibleVehicles.map((vehicle) => ({
+                value: vehicle.id,
+                label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
+              }))
+              : [{ value: "", label: "No hay camiones compatibles disponibles" }]
           },
           {
             name: "driverId",
             label: "Conductor",
             type: "select",
             required: true,
-            options: compatibleDrivers.map((driver) => ({
-              value: driver.id,
-              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
-            }))
+            options: compatibleDrivers.length
+              ? compatibleDrivers.map((driver) => ({
+                value: driver.id,
+                label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
+              }))
+              : [{ value: "", label: "No hay conductores compatibles disponibles" }]
           }
         ],
         onSubmit: (form) => {
+          if (!compatibleVehicles.length || !compatibleDrivers.length) {
+            notify("No hay camion/conductor compatible para asignar este viaje.", "error");
+            return false;
+          }
           const ok = approveRequest(requestId, currentUser()?.name || "Administrador", false, String(form.vehicleId || ""), String(form.driverId || ""));
           if (!ok) return false;
           notify("Viaje creado y asignado correctamente.", "success");
