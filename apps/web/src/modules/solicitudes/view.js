@@ -37,7 +37,7 @@
       <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
       <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
     </form>`;
-    return pcardWrap("plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body);
+    return createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
   }
 
   function requestListClientHtml(user) {

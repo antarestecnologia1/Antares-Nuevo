@@ -2425,3 +2425,65 @@ body {
 .modal-info-body strong {
   color: #0d3f78;
 }
+
+/* ─── Public careers (Trabaja con nosotros) ─── */
+.careers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.25rem;
+}
+
+.careers-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.4rem;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.careers-card h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  color: var(--primary-dark);
+}
+
+.careers-card .careers-meta {
+  font-size: 0.86rem;
+  color: var(--text-soft);
+}
+
+.careers-card .careers-req {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  flex: 1;
+}
+
+/* ─── Nomina: empleado con mini foto ─── */
+.emp-cell-name {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.emp-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid rgba(21, 101, 192, 0.2);
+}
+
+.emp-avatar-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary-mid), var(--primary-dark));
+  color: var(--white);
+  font-weight: 700;
+  font-size: 0.95rem;
+}

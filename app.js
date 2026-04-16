@@ -37,6 +37,20 @@ function emptyState(text) {
   return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${text}</p></div>`;
 }
 
+function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
+  const expanded = Boolean(state.createPanels?.[panelId]);
+  const toggleText = expanded ? "Ocultar formulario" : expandLabel;
+  const cardBody = `<div class="toolbar" style="margin-bottom:0.8rem">
+    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${panelId}">
+      ${expanded ? IC.x : IC.plus} ${toggleText}
+    </button>
+  </div>
+  <div class="${expanded ? "" : "hidden"}" data-create-panel="${panelId}">
+    ${bodyHtml}
+  </div>`;
+  return pcardWrap(iconKey, title, subtitle, cardBody);
+}
+
 function notify(message, type = "info") {
   let box = document.getElementById("toast-container");
   if (!box) {
@@ -76,6 +90,15 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
           .join("");
         return `<label><span>${f.label}</span><select name="${f.name}" ${f.required ? "required" : ""}>${options}</select></label>`;
       }
+      if (f.type === "hidden") {
+        return `<input type="hidden" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" />`;
+      }
+      if (f.type === "textarea") {
+        return `<label class="full"><span>${f.label}</span><textarea name="${f.name}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${String(f.value ?? "").replace(/</g, "&lt;")}</textarea></label>`;
+      }
+      if (f.type === "file") {
+        return `<label class="full"><span>${f.label}</span><input type="file" name="${f.name}" ${f.accept ? `accept="${f.accept}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
+      }
       return `<label><span>${f.label}</span><input type="${f.type || "text"}" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" ${f.required ? "required" : ""} /></label>`;
     })
     .join("");
@@ -108,8 +131,17 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
   );
   content.querySelector("#crud-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
-    const result = onSubmit?.(payload);
+    const formEl = event.currentTarget;
+    const payload = Object.fromEntries(new FormData(formEl).entries());
+    const fileInputs = [...formEl.querySelectorAll("input[type='file']")];
+    fileInputs.forEach((input) => {
+      if (input.multiple) {
+        payload[input.name] = [...input.files].map((file) => file.name).join(", ");
+      } else if (input.files?.[0]) {
+        payload[input.name] = input.files[0].name;
+      }
+    });
+    const result = onSubmit?.(payload, formEl);
     if (result === false) return;
     close();
   });
@@ -321,8 +353,10 @@ const KEYS = {
   payrollRuns: "antares_payroll_runs_v2",
   vacancies: "antares_vacancies_v2",
   candidates: "antares_candidates_v2",
+  positions: "antares_positions_v2",
   interviews: "antares_interviews_v2",
   contracts: "antares_contracts_v2",
+  hrAbsences: "antares_hr_absences_v2",
   approvals: "antares_approvals_v2",
   session: "antares_session_v2"
 };
@@ -457,6 +491,11 @@ const CO_PAYROLL = {
   solidarityThresholdSmmlv: 4,
   smmlv: 1750905
 };
+const CO_HR_RULES = {
+  legalWeeklyHours: 46,
+  minMonthlySalary: 1423500,
+  transportAllowance: 200000
+};
 
 let state = {
   session: null,
@@ -469,7 +508,8 @@ let state = {
   adminUsersUi: {
     panel: "",
     editUserId: ""
-  }
+  },
+  createPanels: {}
 };
 
 const nodes = {
@@ -631,6 +671,12 @@ function saveNotification({ userId, title, body }) {
   write(KEYS.notifications, all);
 }
 
+function notifyHrUsers(title, body) {
+  read(KEYS.users, [])
+    .filter((u) => u.role === ROLES.ADMIN || u.role === ROLES.RRHH)
+    .forEach((u) => saveNotification({ userId: u.id, title, body }));
+}
+
 function sendEmail({ to, subject, body }) {
   const outbox = read(KEYS.emails, []);
   outbox.unshift({ id: uid(), to, subject, body, createdAt: nowIso() });
@@ -664,6 +710,20 @@ function getCompanyById(companyId) {
 function companySelectOptions(selectedId = "") {
   return read(KEYS.companies, [])
     .map((company) => `<option value="${company.id}" ${company.id === selectedId ? "selected" : ""}>${company.name}</option>`)
+    .join("");
+}
+
+function getActivePositions() {
+  return read(KEYS.positions, []).filter((p) => p.active !== false);
+}
+
+function getPositionById(positionId) {
+  return read(KEYS.positions, []).find((item) => item.id === positionId) || null;
+}
+
+function positionSelectOptions(selectedId = "") {
+  return getActivePositions()
+    .map((position) => `<option value="${position.id}" ${position.id === selectedId ? "selected" : ""}>${position.name} · $${parseNum(position.baseSalary).toLocaleString("es-CO")}</option>`)
     .join("");
 }
 
@@ -918,6 +978,15 @@ function seed() {
     ]);
   }
 
+  if (!localStorage.getItem(KEYS.positions)) {
+    write(KEYS.positions, [
+      { id: uid(), name: "Auxiliar Logistico", workerRole: "empleado", baseSalary: 1800000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
+      { id: uid(), name: "Analista de Operaciones", workerRole: "empleado", baseSalary: 2400000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
+      { id: uid(), name: "Conductor Nacional C2", workerRole: "conductor", baseSalary: 2200000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
+      { id: uid(), name: "Conductor Tractocamion C3", workerRole: "conductor", baseSalary: 3000000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() }
+    ]);
+  }
+
   [
     KEYS.companies,
     KEYS.counters,
@@ -929,9 +998,11 @@ function seed() {
     KEYS.payrollRuns,
     KEYS.vacancies,
     KEYS.candidates,
+    KEYS.positions,
     KEYS.interviews,
-    KEYS.contracts
-    ,KEYS.approvals
+    KEYS.contracts,
+    KEYS.hrAbsences,
+    KEYS.approvals
   ].forEach((key) => {
     if (!localStorage.getItem(key)) write(key, []);
   });
@@ -1287,7 +1358,7 @@ function canTransitionStatus(currentStatus, nextStatus) {
 
 function canClientManageRequest(request) {
   if (!request) return false;
-  return request.status === STATUS.PENDIENTE;
+  return currentUser()?.role === ROLES.ADMIN && request.status === STATUS.PENDIENTE;
 }
 
 function applyStandbyCharge(request, actorName) {
@@ -1813,7 +1884,7 @@ function requestFormHtml() {
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-  return pcardWrap("plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body);
+  return createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
 }
 
 function requestListClientHtml(user) {
@@ -1906,7 +1977,8 @@ function vehiclesHtml() {
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Refrigerado</th><th>SOAT</th><th>Tecnomecanica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay vehiculos registrados.");
-  return pcardWrap("plus", "Registrar vehiculo", null, formBody) + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehiculos", tableBody);
+  return createCollapsibleCard("create-vehicle", "plus", "Registrar vehiculo", null, formBody, "Registrar vehiculo")
+    + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehiculos", tableBody);
 }
 
 function driversHtml() {
@@ -1952,7 +2024,8 @@ function driversHtml() {
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Empresa</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay conductores registrados.");
-  return pcardWrap("userPlus", "Registrar conductor", null, formBody) + pcardWrap("user", "Conductores", drivers.length + " registrados", tableBody);
+  return createCollapsibleCard("create-driver", "userPlus", "Registrar conductor", null, formBody, "Registrar conductor")
+    + pcardWrap("user", "Conductores", drivers.length + " registrados", tableBody);
 }
 
 function transportTripsHtml() {
@@ -1996,7 +2069,7 @@ function transportTripsHtml() {
     </div>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
   </form>`;
-  return (pendingForTrip.length ? pcardWrap("plus", "Crear viaje", "Selecciona manualmente camion y conductor segun la carga", createTripForm) : "")
+  return (pendingForTrip.length ? createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona manualmente camion y conductor segun la carga", createTripForm, "Crear viaje") : "")
     + pcardWrap("compass", "Viajes activos", trips.length + " viajes", body);
 }
 
@@ -2326,28 +2399,41 @@ function topVehicles(requests) {
 function payrollHtml() {
   const employees = read(KEYS.payrollEmployees, []);
   const companies = read(KEYS.companies, []);
+  const positions = getActivePositions();
+  const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
   const runs = read(KEYS.payrollRuns, []);
+  const absences = read(KEYS.hrAbsences, []);
   const pending = runs.filter((r) => !r.paid).length;
   const employeeRows = employees
-    .map((e) => `<tr>
-      <td><strong>${e.name}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
+    .map((e) => {
+      const av = String(e.avatarUrl || "");
+      const avatar =
+        av && /^https?:\/\//i.test(av)
+          ? `<span class="emp-avatar" style="background-image:url('${av.replace(/'/g, "\\'")}')"></span>`
+          : `<span class="emp-avatar emp-avatar-letter">${(e.name || "E").charAt(0).toUpperCase()}</span>`;
+      return `<tr>
+      <td><div class="emp-cell-name">${avatar}<div><strong>${e.name}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="edit-employee" data-id="${e.id}">${IC.edit} Editar</button>
         <button class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${e.id}">${IC.trash} Eliminar</button>
       </div></td>
-    </tr>`)
+    </tr>`;
+    })
     .join("");
   const runRows = runs
     .map((r) => `<tr>
       <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
       <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
-      <td><button class="btn btn-sm btn-action" data-action="payslip" data-id="${r.id}">${IC.printer} Desprendible</button></td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-action" data-action="payslip" data-id="${r.id}">${IC.printer} Desprendible</button>
+        ${!r.paid ? `<button class="btn btn-sm btn-approve" data-action="mark-payroll-paid" data-id="${r.id}">${IC.check} Marcar pagado</button>` : ""}
+      </div></td>
     </tr>`)
     .join("");
 
   const formEmp = `<form id="form-employee" class="p-form">
-    <label>${fieldLabel(IC.user, "Nombre")}<input name="name" required /></label>
+    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
     <label>${fieldLabel(IC.file, "Tipo documento")}
       <select name="documentType" required>
         <option value="CC">Cedula de ciudadania</option>
@@ -2356,68 +2442,148 @@ function payrollHtml() {
       </select>
     </label>
     <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Cargo")}<input name="position" required /></label>
-    <label>${fieldLabel(IC.activity, "Tipo contrato")}<input name="contractType" required /></label>
+    <label>${fieldLabel(IC.briefcase, "Cargo (catalogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratacion</option>${positionOpts}</select></label>
+    <label>${fieldLabel(IC.activity, "Tipo contrato")}
+      <select name="contractType" id="emp-contract-type" required>
+        <option value="Termino indefinido">Termino indefinido</option>
+        <option value="Termino fijo">Termino fijo</option>
+        <option value="Obra o labor">Obra o labor</option>
+      </select>
+    </label>
     <label>${fieldLabel(IC.mapPin, "Ciudad")}<input name="city" required /></label>
     <label>${fieldLabel(IC.mapPin, "Direccion")}<input name="address" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
     <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-    <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" name="baseSalary" required /></label>
+    <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
     <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
+    <label class="full">${fieldLabel(IC.user, "Foto (URL opcional)")}<input name="avatarUrl" placeholder="https://..." /></label>
+    <label class="full">${fieldLabel(IC.file, "O subir foto")}<input type="file" name="avatarFile" accept="image/*" /></label>
+    <p class="muted full">El cargo y salario deben cumplir parametros minimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}). ARL y aportes patronales son obligatorios en relacion real; aqui se gestiona registro y devengos del empleado.</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
   const formPay = `<form id="form-payroll" class="p-form">
     <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
     <label>Mes <input type="month" name="month" required /></label>
     <label>Horas extras <input type="number" name="extras" value="0" /></label>
-    <label>Aux transporte <input type="number" name="aux" value="0" /></label>
+    <label>Aux transporte <input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" /></label>
     <label>Bonificaciones <input type="number" name="bonus" value="0" /></label>
-    <p class="muted full">Deducciones automaticas Colombia: Salud 4%, Pension 4% y Fondo de Solidaridad 1% para IBC superior a 4 SMMLV.</p>
+    <p class="muted full">Deducciones empleado (referencia): Salud 4%, Pension 4% sobre IBC; Fondo de Solidaridad Pensional 1% si IBC supera 4 SMMLV. Valores legales definitivos dependen del periodo y norma vigente.</p>
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidacion</button>
   </form>`;
+  const formAbsence = `<form id="form-hr-absence" class="p-form">
+    <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.idDoc}</option>`).join("")}</select></label>
+    <label>Tipo de ausencia
+      <select name="absenceType" required>
+        <option value="incapacidad">Incapacidad (EPS / enfermedad general o accidente)</option>
+        <option value="vacaciones">Vacaciones remuneradas</option>
+        <option value="licencia">Licencia (maternidad/paternidad u otra)</option>
+        <option value="calamidad">Licencia por calamidad domestica (3 dias/calendario ano)</option>
+      </select>
+    </label>
+    <label>Desde <input type="date" name="startDate" required /></label>
+    <label>Hasta <input type="date" name="endDate" required /></label>
+    <label class="full">No. incapacidad o soporte (si aplica) <input name="supportNumber" placeholder="Codigo EPS / radicado" /></label>
+    <label class="full">EPS o entidad (incapacidad) <input name="epsEntity" placeholder="Nombre EPS" /></label>
+    <label class="full">Observaciones <textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
+    <p class="muted full">Registro interno para control de nomina y ausencias. Pagos de incapacidad y causacion de vacaciones en sistema real requieren parametrizacion contable y validacion con normativa vigente (CST, Ley 1562 de 2012, Decreto 2649, entre otros).</p>
+    <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
+  </form>`;
+  const absenceRows = absences
+    .map(
+      (a) => `<tr>
+      <td>${fmtDate(a.createdAt)}</td>
+      <td>${a.employeeName}</td>
+      <td>${a.absenceType === "incapacidad" ? "Incapacidad" : a.absenceType === "vacaciones" ? "Vacaciones" : a.absenceType === "licencia" ? "Licencia" : "Calamidad"}</td>
+      <td>${a.startDate} → ${a.endDate}</td>
+      <td>${a.days}</td>
+      <td><span class="muted">${a.supportNumber || "-"}</span></td>
+    </tr>`
+    )
+    .join("");
+  const absenceTable = absenceRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Dias</th><th>Soporte</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
+    : emptyState("Sin incapacidades ni vacaciones registradas.");
   const empTable = employeeRows
     ? `<div class="table-wrap"><table><thead><tr><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
-  return `<div class="dash-grid">${pcardWrap("userPlus", "Registro empleado", null, formEmp)}${pcardWrap("dollar", "Liquidacion mensual", null, formPay)}</div>`
+  return `<div class="dash-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", null, formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>`
     + pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)
+    + pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)
     + pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable);
 }
 
 function hiringHtml() {
   const vacancies = read(KEYS.vacancies, []);
   const candidates = read(KEYS.candidates, []);
+  const positions = read(KEYS.positions, []);
+  const activePositions = positions.filter((p) => p.active !== false);
   const interviews = read(KEYS.interviews, []);
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
   const companies = read(KEYS.companies, []);
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
 
-  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
-  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}</td><td>${c.vacancyTitle}</td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
+  const positionRows = positions
+    .map((p) => `<tr>
+      <td><strong>${p.name}</strong></td>
+      <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
+      <td>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</td>
+      <td>${p.contractTypeDefault || "-"}</td>
+      <td>${p.legalBasis || "CST"}</td>
+      <td>${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}</td>
+      <td><button class="btn btn-sm btn-action" data-action="toggle-position" data-id="${p.id}">${IC.toggle} Estado</button></td>
+    </tr>`)
+    .join("");
+
+  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
+  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}</td><td>${c.vacancyTitle || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
   const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
-  const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
+  const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
-  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo <input name="title" required /></label><label>Requisitos <input name="requirements" required /></label><label>Salario ofrecido <input type="number" name="salaryOffer" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
+  const fPosition = `<form id="form-position" class="p-form">
+    <label>Nombre del cargo <input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
+    <label>Rol del cargo
+      <select name="workerRole" required>
+        <option value="empleado">Empleado</option>
+        <option value="conductor">Conductor</option>
+      </select>
+    </label>
+    <label>Salario base mensual (COP) <input type="number" name="baseSalary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
+    <label>Tipo de contrato sugerido
+      <select name="contractTypeDefault" required>
+        <option value="Termino indefinido">Termino indefinido</option>
+        <option value="Termino fijo">Termino fijo</option>
+        <option value="Obra o labor">Obra o labor</option>
+      </select>
+    </label>
+    <label class="full">Base legal (referencia) <input name="legalBasis" value="CST art. 45-46 y normatividad laboral vigente" /></label>
+    <p class="muted full">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} horas/semana.</p>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
+  </form>`;
+  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo publicado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Titulo visible vacante <input name="title" required /></label><label>Requisitos <input name="requirements" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
   const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Ciudad <input name="city" required /></label><label>Direccion <input name="address" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
   const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
-  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Rol contratado <select name="workerRole" required><option value="empleado">Empleado</option><option value="conductor">Conductor</option></select></label><label>Cargo <input name="position" required /></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario <input type="number" name="salary" required /></label><label>Tipo contrato <input name="contractType" required placeholder="Termino indefinido/fijo/obra" /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
   const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
-  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
-  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Correo</th><th>Vacante</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
+  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
+  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Correo</th><th>Vacante</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
-  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
+  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
 
-  return `<div class="dash-grid">${pcardWrap("plus", "Nueva vacante", null, fVac)}${pcardWrap("userPlus", "Registrar candidato", null, fCand)}</div>`
+  return `<div class="dash-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", null, fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", null, fCand, "Registrar candidato")}</div>`
+    + pcardWrap("briefcase", "Catalogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)
     + pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)
     + pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)
-    + `<div class="dash-grid">${pcardWrap("calendar", "Programar entrevista", null, fInt)}${pcardWrap("file", "Generar contrato", null, fCon)}</div>`
-    + pcardWrap("printer", "Contrato desde nomina", null, fEmpCon)
+    + `<div class="dash-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", null, fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", null, fCon, "Generar contrato")}</div>`
+    + createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", null, fEmpCon, "Crear contrato desde nomina")
     + pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)
     + pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon);
 }
@@ -2560,6 +2726,83 @@ function renderPortalView() {
 }
 
 function bindDynamicEvents() {
+  const actor = currentUser();
+  const isAdmin = actor?.role === ROLES.ADMIN;
+  const restrictedActions = new Set([
+    "edit",
+    "cancel",
+    "approve",
+    "reject",
+    "edit-admin",
+    "delete-admin",
+    "trip-status",
+    "edit-vehicle",
+    "toggle-vehicle",
+    "edit-driver",
+    "toggle-driver",
+    "edit-employee",
+    "delete-employee",
+    "close-vacancy",
+    "toggle-position",
+    "mark-payroll-paid",
+    "candidate-status",
+    "open-edit-user",
+    "delete-user",
+    "approve-registration",
+    "reject-registration",
+    "approval-approve",
+    "approval-reject"
+  ]);
+
+  if (!isAdmin) {
+    nodes.viewRoot.querySelectorAll("[data-action]").forEach((node) => {
+      const action = String(node.dataset.action || "");
+      if (!restrictedActions.has(action)) return;
+      if (node.matches("button")) node.classList.add("hidden");
+      if (node.matches("select")) {
+        node.setAttribute("disabled", "true");
+        node.style.opacity = "0.6";
+        node.style.cursor = "not-allowed";
+      }
+    });
+    nodes.viewRoot.addEventListener(
+      "click",
+      (event) => {
+        const trigger = event.target.closest("[data-action]");
+        const action = String(trigger?.dataset?.action || "");
+        if (!restrictedActions.has(action)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        notify("Solo el administrador puede editar o eliminar en este modulo.", "error");
+      },
+      true
+    );
+    nodes.viewRoot.addEventListener(
+      "change",
+      (event) => {
+        const trigger = event.target.closest("[data-action]");
+        const action = String(trigger?.dataset?.action || "");
+        if (!restrictedActions.has(action)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        notify("Solo el administrador puede editar o eliminar en este modulo.", "error");
+      },
+      true
+    );
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-create-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panelId = String(btn.dataset.panel || "");
+      if (!panelId) return;
+      state.createPanels = {
+        ...(state.createPanels || {}),
+        [panelId]: !Boolean(state.createPanels?.[panelId])
+      };
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const panel = String(btn.dataset.panel || "");
@@ -3162,23 +3405,10 @@ function bindDynamicEvents() {
 
     createTripForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      const actor = currentUser();
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
       if (!requestId) {
         notify("Selecciona una solicitud pendiente.", "error");
-        return;
-      }
-      if (actor?.role !== ROLES.ADMIN) {
-        queueApproval({
-          type: "approve_trip_request",
-          title: `Aprobacion de viaje para solicitud ${requestId}`,
-          payload: { requestId },
-          requestedByUserId: actor?.id || "",
-          requestedByName: actor?.name || "Usuario"
-        });
-        notify("Solicitud de aprobacion de viaje enviada al administrador.", "info");
-        renderPortalView();
         return;
       }
       const request = read(KEYS.requests, []).find((item) => item.id === requestId);
@@ -3544,32 +3774,124 @@ function bindDynamicEvents() {
 
   const employeeForm = document.getElementById("form-employee");
   if (employeeForm) {
+    const empPosSelect = employeeForm.querySelector("#emp-position-select");
+    const empSalary = employeeForm.querySelector("#emp-base-salary");
+    const empContract = employeeForm.querySelector("#emp-contract-type");
+    const syncEmpFromPosition = () => {
+      const position = getPositionById(String(empPosSelect?.value || ""));
+      if (!position || !empSalary || !empContract) return;
+      empSalary.value = String(parseNum(position.baseSalary));
+      empContract.value = position.contractTypeDefault || "Termino indefinido";
+    };
+    if (empPosSelect) {
+      empPosSelect.addEventListener("change", syncEmpFromPosition);
+      syncEmpFromPosition();
+    }
     employeeForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const actor = currentUser();
-      const data = Object.fromEntries(new FormData(employeeForm).entries());
-      const docValidation = validateColombianDocument(data.documentType, data.idDoc);
+      const raw = Object.fromEntries(new FormData(employeeForm).entries());
+      const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
         return;
       }
-      data.idDoc = docValidation.normalized;
-      if (actor?.role !== ROLES.ADMIN) {
-        queueApproval({
-          type: "create_employee",
-          title: `Creacion de empleado ${data.name}`,
-          payload: data,
-          requestedByUserId: actor?.id || "",
-          requestedByName: actor?.name || "Usuario"
-        });
-        notify("Solicitud de empleado enviada a autorizaciones.", "info");
-        renderPortalView();
+      const position = getPositionById(String(raw.positionId || ""));
+      if (!position || position.active === false) {
+        notify("Selecciona un cargo activo del catalogo (modulo Contratacion).", "error");
         return;
       }
-      const all = read(KEYS.payrollEmployees, []);
-      all.push({ id: uid(), workerRole: "empleado", ...data });
-      write(KEYS.payrollEmployees, all);
-      notify("Empleado creado correctamente.", "success");
+      const baseSalary = parseNum(raw.baseSalary);
+      if (baseSalary < CO_HR_RULES.minMonthlySalary) {
+        notify(`El salario no puede ser inferior al minimo legal referenciado (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        return;
+      }
+      const fileInput = employeeForm.querySelector("input[name='avatarFile']");
+      const file = fileInput?.files?.[0];
+      const buildPayload = (avatarUrlValue, opts = {}) => {
+        const merged = String(avatarUrlValue ?? raw.avatarUrl ?? "").trim();
+        const strip = Boolean(opts.stripLargeAvatar) && merged.startsWith("data:");
+        const avatarUrl = strip ? "" : merged;
+        return {
+          name: String(raw.name || "").trim(),
+          documentType: raw.documentType,
+          idDoc: docValidation.normalized,
+          positionId: position.id,
+          position: position.name,
+          workerRole: position.workerRole || "empleado",
+          contractType: raw.contractType || position.contractTypeDefault || "Termino indefinido",
+          city: String(raw.city || "").trim(),
+          address: String(raw.address || "").trim(),
+          phone: String(raw.phone || "").trim(),
+          emergencyContact: String(raw.emergencyContact || "").trim(),
+          emergencyPhone: String(raw.emergencyPhone || "").trim(),
+          companyId: raw.companyId,
+          baseSalary,
+          startDate: raw.startDate,
+          avatarUrl
+        };
+      };
+      const saveEmployee = (avatarUrlValue) => {
+        if (actor?.role !== ROLES.ADMIN) {
+          const payload = buildPayload(avatarUrlValue, { stripLargeAvatar: true });
+          queueApproval({
+            type: "create_employee",
+            title: `Creacion de empleado ${payload.name}`,
+            payload,
+            requestedByUserId: actor?.id || "",
+            requestedByName: actor?.name || "Usuario"
+          });
+          notify("Solicitud de empleado enviada a autorizaciones.", "info");
+          renderPortalView();
+          return;
+        }
+        const payload = buildPayload(avatarUrlValue);
+        const all = read(KEYS.payrollEmployees, []);
+        all.push({ id: uid(), ...payload });
+        write(KEYS.payrollEmployees, all);
+        notify("Empleado creado correctamente.", "success");
+        renderPortalView();
+      };
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = () => saveEmployee(String(reader.result || ""));
+        reader.readAsDataURL(file);
+      } else {
+        saveEmployee(String(raw.avatarUrl || "").trim());
+      }
+    });
+  }
+
+  const absenceForm = document.getElementById("form-hr-absence");
+  if (absenceForm) {
+    absenceForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(absenceForm).entries());
+      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
+      if (!employee) return;
+      const start = new Date(`${data.startDate}T12:00:00`);
+      const end = new Date(`${data.endDate}T12:00:00`);
+      if (end.getTime() < start.getTime()) {
+        notify("La fecha final debe ser igual o posterior al inicio.", "error");
+        return;
+      }
+      const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+      const list = read(KEYS.hrAbsences, []);
+      list.unshift({
+        id: uid(),
+        employeeId: employee.id,
+        employeeName: employee.name,
+        absenceType: data.absenceType,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        days,
+        supportNumber: String(data.supportNumber || "").trim(),
+        epsEntity: String(data.epsEntity || "").trim(),
+        notes: String(data.notes || "").trim(),
+        createdAt: nowIso()
+      });
+      write(KEYS.hrAbsences, list);
+      notify("Ausencia registrada en expediente digital de RRHH.", "success");
       renderPortalView();
     });
   }
@@ -3579,20 +3901,46 @@ function bindDynamicEvents() {
       const all = read(KEYS.payrollEmployees, []);
       const target = all.find((e) => e.id === btn.dataset.id);
       if (!target) return;
+      const posOpts = getActivePositions().map((p) => ({ value: p.id, label: `${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}` }));
       openEditModal({
         title: "Editar empleado",
         subtitle: target.name,
         submitText: "Actualizar empleado",
         fields: [
-          { name: "position", label: "Cargo", value: target.position, required: true },
-          { name: "baseSalary", label: "Salario base", type: "number", value: target.baseSalary, required: true }
+          {
+            name: "positionId",
+            label: "Cargo (catalogo)",
+            type: "select",
+            required: true,
+            value: target.positionId || "",
+            options: [{ value: "", label: "Seleccione..." }, ...posOpts]
+          },
+          { name: "baseSalary", label: "Salario base", type: "number", value: target.baseSalary, required: true },
+          { name: "avatarUrl", label: "Foto URL (opcional)", value: target.avatarUrl || "" }
         ],
         onSubmit: (form) => {
+          const position = getPositionById(String(form.positionId || ""));
+          if (!position) {
+            notify("Selecciona un cargo valido.", "error");
+            return false;
+          }
+          const baseSalary = parseNum(form.baseSalary);
+          if (baseSalary < CO_HR_RULES.minMonthlySalary) {
+            notify(`Salario inferior al minimo referenciado (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+            return false;
+          }
           write(
             KEYS.payrollEmployees,
             all.map((e) =>
               e.id === target.id
-                ? { ...e, position: String(form.position || "").trim(), baseSalary: parseNum(form.baseSalary) }
+                ? {
+                    ...e,
+                    positionId: position.id,
+                    position: position.name,
+                    workerRole: position.workerRole || e.workerRole,
+                    baseSalary,
+                    avatarUrl: String(form.avatarUrl || "").trim() || e.avatarUrl
+                  }
                 : e
             )
           );
@@ -3666,30 +4014,69 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const run = read(KEYS.payrollRuns, []).find((r) => r.id === btn.dataset.id);
       if (!run) return;
-      const pop = window.open("", "_blank", "width=600,height=700");
+      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
+      const company = employee ? getCompanyById(employee.companyId) : null;
+      const pop = window.open("", "_blank", "width=720,height=900");
+      const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
       pop.document.write(`
-        <html><head><title>Desprendible ${run.employeeName}</title></head>
-        <body style="font-family:Arial;padding:20px">
-          <h1>Desprendible de pago</h1>
-          <p>Empleado: ${run.employeeName}</p>
-          <p>Periodo: ${run.month}</p>
-          <p>Devengado: $${parseNum(run.gross).toLocaleString("es-CO")}</p>
-          <p>IBC: $${parseNum(run.ibc).toLocaleString("es-CO")}</p>
-          <p>Salud empleado (4%): $${parseNum(run.health).toLocaleString("es-CO")}</p>
-          <p>Pension empleado (4%): $${parseNum(run.pension).toLocaleString("es-CO")}</p>
-          <p>Fondo solidaridad: $${parseNum(run.solidarity).toLocaleString("es-CO")}</p>
-          <p>Total deducciones: $${parseNum(run.deductions).toLocaleString("es-CO")}</p>
-          <p>Neto: $${parseNum(run.net).toLocaleString("es-CO")}</p>
-          <p>Generado: ${fmtDate(run.createdAt)}</p>
+        <html><head><meta charset="utf-8"/><title>Desprendible ${run.employeeName}</title></head>
+        <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
+          <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px">
+            <h1 style="margin:0;font-size:1.35rem">Desprendible de nomina</h1>
+            <p style="margin:0.35rem 0 0;font-size:0.9rem;color:#555">Documento informativo para el trabajador · Colombia</p>
+          </div>
+          <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
+            <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${company?.name || "Antares"}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Trabajador</strong></td><td>${run.employeeName}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${employee?.idDoc || "-"}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${employee?.position || "-"}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Periodo liquidado</strong></td><td>${run.month}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
+          </table>
+          <h2 style="font-size:1rem;margin:1.2rem 0 0.5rem">Devengos y deducciones</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+            <thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>
+            <tbody>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Total devengado</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.gross).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">IBC (base cotizacion)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.ibc).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte salud empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.health).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte pension empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.pension).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Fondo de solidaridad pensional (si aplica)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.solidarity).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd"><strong>Total deducciones</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right"><strong>$${parseNum(run.deductions).toLocaleString("es-CO")}</strong></td></tr>
+              <tr><td style="padding:10px 8px"><strong>Neto a pagar</strong></td><td style="padding:10px 8px;text-align:right;font-size:1.05rem"><strong>${netStr}</strong></td></tr>
+            </tbody>
+          </table>
+          <p style="font-size:0.78rem;color:#666;margin-top:1.5rem">
+            Nota: Los porcentajes de salud y pension aqui mostrados corresponden a la parte a cargo del trabajador en regimen ordinario.
+            Parafiscales (SENA, ICBF, caja si aplica) y aportes patronales no estan desglosados en este prototipo.
+            Conserve este documento para fines de auditoria interna. Generado: ${fmtDate(run.createdAt)}.
+          </p>
+          <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
         </body></html>
       `);
       pop.document.close();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='mark-payroll-paid']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
       const all = read(KEYS.payrollRuns, []);
-      write(
-        KEYS.payrollRuns,
-        all.map((item) => (item.id === run.id ? { ...item, paid: true } : item))
-      );
-      renderPortalView();
+      const run = all.find((r) => r.id === id);
+      if (!run || run.paid) return;
+      openConfirmModal({
+        title: "Confirmar pago de nomina",
+        message: `Marcar como pagada la liquidacion de ${run.employeeName} (${run.month}) por ${parseNum(run.net).toLocaleString("es-CO")} COP neto.`,
+        confirmText: "Marcar pagado",
+        onConfirm: () => {
+          write(
+            KEYS.payrollRuns,
+            all.map((item) => (item.id === id ? { ...item, paid: true, paidAt: nowIso() } : item))
+          );
+          notify("Liquidacion marcada como pagada.", "success");
+          renderPortalView();
+        }
+      });
     });
   });
 
@@ -3712,15 +4099,79 @@ function bindDynamicEvents() {
 
   const vacancyForm = document.getElementById("form-vacancy");
   if (vacancyForm) {
+    const positionSelect = vacancyForm.querySelector("select[name='positionId']");
+    const titleInput = vacancyForm.querySelector("input[name='title']");
+    if (positionSelect && titleInput) {
+      const syncTitleFromPosition = () => {
+        if (titleInput.value.trim()) return;
+        const position = getPositionById(String(positionSelect.value || ""));
+        if (position) titleInput.value = `Vacante ${position.name}`;
+      };
+      positionSelect.addEventListener("change", syncTitleFromPosition);
+      syncTitleFromPosition();
+    }
+
     vacancyForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
+      const position = getPositionById(String(data.positionId || ""));
+      if (!position || position.active === false) {
+        notify("Selecciona un cargo activo para publicar la vacante.", "error");
+        return;
+      }
       const all = read(KEYS.vacancies, []);
-      all.unshift({ id: uid(), ...data, status: "Publicada", createdAt: nowIso() });
+      all.unshift({
+        id: uid(),
+        ...data,
+        salaryOffer: parseNum(position.baseSalary),
+        positionName: position.name,
+        workerRole: position.workerRole || "empleado",
+        contractTypeDefault: position.contractTypeDefault || "Termino indefinido",
+        status: "Publicada",
+        createdAt: nowIso()
+      });
       write(KEYS.vacancies, all);
       renderPortalView();
     });
   }
+
+  const positionForm = document.getElementById("form-position");
+  if (positionForm) {
+    positionForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(positionForm).entries());
+      const minSalary = CO_HR_RULES.minMonthlySalary;
+      if (parseNum(data.baseSalary) < minSalary) {
+        notify(`El salario base no puede ser inferior al minimo legal vigente (${minSalary.toLocaleString("es-CO")}).`, "error");
+        return;
+      }
+      const all = read(KEYS.positions, []);
+      all.unshift({
+        id: uid(),
+        name: String(data.name || "").trim(),
+        workerRole: String(data.workerRole || "empleado"),
+        baseSalary: parseNum(data.baseSalary),
+        contractTypeDefault: String(data.contractTypeDefault || "Termino indefinido"),
+        legalBasis: String(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
+        active: true,
+        createdAt: nowIso()
+      });
+      write(KEYS.positions, all);
+      notify("Cargo creado correctamente.", "success");
+      renderPortalView();
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-position']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const all = read(KEYS.positions, []);
+      const target = all.find((p) => p.id === btn.dataset.id);
+      if (!target) return;
+      write(KEYS.positions, all.map((p) => (p.id === target.id ? { ...p, active: target.active === false } : p)));
+      notify(target.active === false ? "Cargo activado." : "Cargo inactivado.", "info");
+      renderPortalView();
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-vacancy']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -3761,6 +4212,7 @@ function bindDynamicEvents() {
         vacancyTitle: vac.title,
         status: PIPELINE[0],
         attachments: files,
+        source: "Portal RRHH",
         createdAt: nowIso()
       });
       write(KEYS.candidates, all);
@@ -3809,17 +4261,36 @@ function bindDynamicEvents() {
 
   const contractForm = document.getElementById("form-contract");
   if (contractForm) {
+    const positionSelect = contractForm.querySelector("select[name='positionId']");
+    const salaryInput = contractForm.querySelector("input[name='salary']");
+    const contractTypeSelect = contractForm.querySelector("select[name='contractType']");
+    if (positionSelect && salaryInput && contractTypeSelect) {
+      const syncContractFromPosition = () => {
+        const position = getPositionById(String(positionSelect.value || ""));
+        if (!position) return;
+        salaryInput.value = String(parseNum(position.baseSalary));
+        contractTypeSelect.value = position.contractTypeDefault || "Termino indefinido";
+      };
+      positionSelect.addEventListener("change", syncContractFromPosition);
+      syncContractFromPosition();
+    }
+
     contractForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
+      const position = getPositionById(String(data.positionId || ""));
+      if (!position || position.active === false) {
+        notify("Debes seleccionar un cargo activo para contratar.", "error");
+        return;
+      }
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
         notify("Selecciona una empresa valida para el contrato.", "error");
         return;
       }
-      const workerRole = String(data.workerRole || "empleado");
+      const workerRole = String(position.workerRole || "empleado");
       if (workerRole === "conductor" && (!data.license || !data.licenseExpiry)) {
         notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
         return;
@@ -3828,19 +4299,25 @@ function bindDynamicEvents() {
         notify("No se puede contratar conductor con licencia vencida.", "error");
         return;
       }
-      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${data.position}\nSalario: ${data.salary}\nFecha inicio: ${data.startDate}\nEmpresa: ${company.name}`;
+      const agreedSalary = parseNum(data.salary);
+      if (agreedSalary < CO_HR_RULES.minMonthlySalary) {
+        notify(`El salario pactado no puede ser inferior al minimo legal vigente (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        return;
+      }
+      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nEmpresa: ${company.name}`;
       const all = read(KEYS.contracts, []);
       all.unshift({
         id: uid(),
         candidateId: candidate.id,
         candidateName: candidate.name,
         workerRole,
-        position: data.position,
-        salary: data.salary,
+        positionId: position.id,
+        position: position.name,
+        salary: agreedSalary,
         startDate: data.startDate,
         companyId: company.id,
         companyName: company.name,
-        contractType: data.contractType,
+        contractType: data.contractType || position.contractTypeDefault || "Termino indefinido",
         content: text,
         createdAt: nowIso()
       });
@@ -3855,8 +4332,9 @@ function bindDynamicEvents() {
           name: candidate.name,
           idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (candidate.idDoc || candidate.document || uid()),
           documentType: candidate.documentType || "CC",
-          position: data.position,
-          contractType: data.contractType,
+          position: position.name,
+          positionId: position.id,
+          contractType: data.contractType || position.contractTypeDefault || "Termino indefinido",
           workerRole,
           city: candidate.city || "",
           address: candidate.address || "",
@@ -3864,7 +4342,7 @@ function bindDynamicEvents() {
           emergencyContact: candidate.emergencyContact || "",
           emergencyPhone: candidate.emergencyPhone || "",
           companyId: company.id,
-          baseSalary: parseNum(data.salary),
+          baseSalary: agreedSalary,
           startDate: data.startDate
         });
         write(KEYS.payrollEmployees, employees);
@@ -3978,7 +4456,7 @@ function bindDynamicEvents() {
               : u
           )
         );
-        alert("Perfil actualizado.");
+        notify("Perfil actualizado correctamente.", "success");
         renderPortal();
       };
       if (file) {
@@ -4028,7 +4506,14 @@ function bindDynamicEvents() {
         }
       } else if (approval.type === "create_employee") {
         const employees = read(KEYS.payrollEmployees, []);
-        employees.push({ id: uid(), workerRole: "empleado", ...approval.payload });
+        const payload = { ...approval.payload };
+        const pos = payload.positionId ? getPositionById(String(payload.positionId)) : null;
+        if (pos) {
+          payload.position = pos.name;
+          payload.workerRole = pos.workerRole || payload.workerRole || "empleado";
+          payload.contractType = payload.contractType || pos.contractTypeDefault || "Termino indefinido";
+        }
+        employees.push({ id: uid(), workerRole: payload.workerRole || "empleado", ...payload });
         write(KEYS.payrollEmployees, employees);
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
@@ -4057,11 +4542,82 @@ function bindDynamicEvents() {
           write(KEYS.payrollEmployees, employees);
         }
       } else if (approval.type === "approve_trip_request") {
-        const ok = approveRequest(String(approval.payload.requestId || ""), actor.name, false);
-        if (!ok) {
-          notify("No fue posible aprobar el viaje: faltan recursos compatibles.", "error");
+        const requestId = String(approval.payload.requestId || "");
+        const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+        if (!request) {
+          notify("No se encontro la solicitud asociada a esta autorizacion.", "error");
           return;
         }
+
+        const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
+        const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+
+        openEditModal({
+          title: "Aprobar solicitud de viaje",
+          subtitle: "Puedes asignar camion y conductor ahora, o dejar pendiente para asignacion manual.",
+          submitText: "Aprobar",
+          fields: [
+            {
+              name: "vehicleId",
+              label: "Camion (opcional)",
+              type: "select",
+              options: [
+                { value: "", label: "Dejar sin asignar por ahora" },
+                ...compatibleVehicles.map((vehicle) => ({
+                  value: vehicle.id,
+                  label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}`
+                }))
+              ]
+            },
+            {
+              name: "driverId",
+              label: "Conductor (opcional)",
+              type: "select",
+              options: [
+                { value: "", label: "Dejar sin asignar por ahora" },
+                ...compatibleDrivers.map((driver) => ({
+                  value: driver.id,
+                  label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
+                }))
+              ]
+            }
+          ],
+          onSubmit: (form) => {
+            const vehicleId = String(form.vehicleId || "").trim();
+            const driverId = String(form.driverId || "").trim();
+
+            if ((vehicleId && !driverId) || (!vehicleId && driverId)) {
+              notify("Para asignar automaticamente debes seleccionar camion y conductor.", "error");
+              return false;
+            }
+
+            const ok = vehicleId && driverId
+              ? approveRequest(requestId, actor.name, false, vehicleId, driverId)
+              : approveRequest(requestId, actor.name, true);
+
+            if (!ok) {
+              notify("No fue posible aprobar la solicitud con los recursos seleccionados.", "error");
+              return false;
+            }
+
+            const latestApprovals = read(KEYS.approvals, []);
+            write(
+              KEYS.approvals,
+              latestApprovals.map((a) =>
+                a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
+              )
+            );
+
+            notify(
+              vehicleId && driverId
+                ? "Autorizacion aprobada y viaje asignado correctamente."
+                : "Autorizacion aprobada. Solicitud pendiente de asignacion manual de viaje.",
+              "success"
+            );
+            renderPortalView();
+          }
+        });
+        return;
       }
 
       write(
@@ -4159,7 +4715,7 @@ function initGlobalEvents() {
     write(KEYS.contacts, all);
     sendEmail({ to: "comercial@antarescargo.com", subject: "Nuevo lead B2B", body: JSON.stringify(data) });
     nodes.b2bForm.reset();
-    alert("Contacto enviado.");
+    notify("Contacto enviado. Gracias por escribirnos.", "success");
   });
 
   nodes.sideLinks.forEach((link) => {
@@ -4187,6 +4743,137 @@ function initGlobalEvents() {
     history.replaceState(null, "", window.location.pathname + window.location.search);
     renderPortal();
   });
+}
+
+function getPublicPublishedVacancies() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return read(KEYS.vacancies, []).filter((v) => {
+    if (v.status !== "Publicada") return false;
+    if (!v.deadline) return true;
+    return new Date(`${v.deadline}T12:00:00`).getTime() >= today.getTime();
+  });
+}
+
+function openPublicVacancyApplyModal(vacancy) {
+  openEditModal({
+    title: "Postulacion en linea",
+    subtitle: `${vacancy.title} — ${vacancy.positionName || "Vacante Antares"}`,
+    submitText: "Enviar candidatura",
+    fields: [
+      { type: "hidden", name: "vacancyId", value: vacancy.id },
+      { name: "name", label: "Nombre completo", required: true },
+      { name: "email", label: "Correo electronico", type: "email", required: true },
+      { name: "phone", label: "Telefono", required: true },
+      {
+        name: "documentType",
+        label: "Tipo de documento",
+        type: "select",
+        required: true,
+        value: "CC",
+        options: [
+          { value: "CC", label: "Cedula de ciudadania" },
+          { value: "CE", label: "Cedula de extranjeria" },
+          { value: "PAS", label: "Pasaporte" }
+        ]
+      },
+      { name: "idDoc", label: "Numero de documento", required: true },
+      { name: "city", label: "Ciudad de residencia", required: true },
+      { name: "address", label: "Direccion", required: true },
+      {
+        name: "experience",
+        label: "Experiencia y competencias (resumen)",
+        type: "textarea",
+        required: true,
+        rows: 4
+      },
+      {
+        name: "attachments",
+        label: "Hoja de vida (PDF, Word o imagen)",
+        type: "file",
+        accept: ".pdf,.doc,.docx,image/*",
+        required: true
+      }
+    ],
+    onSubmit: (form) => {
+      const vac = read(KEYS.vacancies, []).find((x) => x.id === form.vacancyId);
+      if (!vac || vac.status !== "Publicada") {
+        notify("Esta vacante ya no esta disponible.", "error");
+        return false;
+      }
+      const docValidation = validateColombianDocument(form.documentType, form.idDoc);
+      if (!docValidation.ok) {
+        notify(docValidation.message, "error");
+        return false;
+      }
+      const fileLabel = String(form.attachments || "").trim();
+      const all = read(KEYS.candidates, []);
+      all.unshift({
+        id: uid(),
+        name: String(form.name || "").trim(),
+        email: normalizeEmail(form.email),
+        phone: String(form.phone || "").trim(),
+        documentType: form.documentType,
+        idDoc: docValidation.normalized,
+        city: String(form.city || "").trim(),
+        address: String(form.address || "").trim(),
+        vacancyId: vac.id,
+        vacancyTitle: vac.title,
+        experienceNotes: String(form.experience || "").trim(),
+        status: PIPELINE[0],
+        attachments: fileLabel ? [fileLabel] : [],
+        source: "Sitio web",
+        createdAt: nowIso()
+      });
+      write(KEYS.candidates, all);
+      sendEmail({
+        to: normalizeEmail(form.email),
+        subject: "Postulacion recibida - Antares",
+        body: `Hola ${form.name}, registramos tu postulacion a "${vac.title}". Nuestro equipo de seleccion revisara tu perfil.`
+      });
+      notifyHrUsers(
+        "Nueva postulacion (web)",
+        `${form.name} aplico a "${vac.title}". Revise Contratacion · Pipeline de candidatos.`
+      );
+      notify("Candidatura enviada. Revisa tu correo para la confirmacion.", "success");
+      return true;
+    }
+  });
+}
+
+function initPublicCareers() {
+  const grid = document.getElementById("careers-vacancies-grid");
+  if (!grid) return;
+  const render = () => {
+    const list = getPublicPublishedVacancies();
+    if (!list.length) {
+      grid.innerHTML =
+        '<div class="careers-card"><p class="muted" style="margin:0">No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.</p></div>';
+      return;
+    }
+    grid.innerHTML = list
+      .map((v) => {
+        const salary = parseNum(v.salaryOffer);
+        const salaryStr = `$${salary.toLocaleString("es-CO")}`;
+        const deadline = v.deadline ? `Cierre: ${v.deadline}` : "Sin fecha limite";
+        const req = String(v.requirements || "").slice(0, 180);
+        const more = String(v.requirements || "").length > 180 ? "…" : "";
+        return `<article class="careers-card lift-card">
+          <h3>${v.title}</h3>
+          <div class="careers-meta">${v.positionName || "Cargo"} · ${salaryStr} · ${deadline}</div>
+          <p class="careers-req muted">${req}${more}</p>
+          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${v.id}">Aplicar</button>
+        </article>`;
+      })
+      .join("");
+    grid.querySelectorAll("[data-careers-apply]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const vac = read(KEYS.vacancies, []).find((x) => x.id === btn.dataset.id);
+        if (vac) openPublicVacancyApplyModal(vac);
+      });
+    });
+  };
+  render();
 }
 
 function initPublicEffects() {
@@ -4236,6 +4923,8 @@ function initPublicEffects() {
       card.style.transform = "";
     });
   });
+
+  initPublicCareers();
 }
 
 window.AppLegacyViews = {
