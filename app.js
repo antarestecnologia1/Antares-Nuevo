@@ -453,6 +453,7 @@ const VIEW_PERMISSIONS = {
   "transport-drivers": PERMISSIONS.TRANSPORT_DRIVERS,
   "transport-calendar": PERMISSIONS.TRANSPORT_CALENDAR,
   history: PERMISSIONS.TRANSPORT_HISTORY,
+  reports: PERMISSIONS.TRANSPORT_HISTORY,
   payroll: PERMISSIONS.PAYROLL_MANAGE,
   hiring: PERMISSIONS.HIRING_MANAGE,
   "admin-users": PERMISSIONS.USERS_MANAGE,
@@ -2256,6 +2257,7 @@ function isViewAllowedForUser(user, view) {
   if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users", "authorizations"].includes(view)) {
     return user.role === ROLES.ADMIN;
   }
+  if (view === "reports") return user.role === ROLES.ADMIN || canAccessRRHH(user.role);
   if (["payroll", "hiring"].includes(view)) return canAccessRRHH(user.role);
   return true;
 }
@@ -3058,6 +3060,308 @@ function topVehicles(requests) {
     .map(([name, qty]) => `${name} (${qty})`);
 }
 
+function toCsv(rows = [], columns = []) {
+  const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+  const header = columns.map((col) => esc(col.label)).join(",");
+  const body = rows.map((row) => columns.map((col) => esc(row[col.key])).join(",")).join("\n");
+  return `${header}\n${body}`;
+}
+
+function downloadCsv(filename, rows = [], columns = []) {
+  const csv = toCsv(rows, columns);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function openReportPdf(title, columns = [], rows = []) {
+  const thead = `<tr>${columns.map((col) => `<th>${col.label}</th>`).join("")}</tr>`;
+  const tbody = rows.length
+    ? rows
+        .map((row) => `<tr>${columns.map((col) => `<td>${String(row[col.key] ?? "-")}</td>`).join("")}</tr>`)
+        .join("")
+    : `<tr><td colspan="${Math.max(1, columns.length)}">Sin datos para el periodo seleccionado.</td></tr>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><title>${title}</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}
+      h1{margin:0 0 8px;font-size:22px;color:#0b3f8a}
+      .m{color:#64748b;font-size:12px;margin-bottom:14px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{border:1px solid #dbe3ee;padding:7px 8px;text-align:left}
+      th{background:#eef4ff;color:#1e3a8a}
+      @media print{body{padding:0}}
+    </style></head><body>
+      <h1>${title}</h1><div class="m">Generado: ${fmtDate(nowIso())}</div>
+      <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+      <script>window.print()</script>
+    </body></html>`;
+  const pop = window.open("", "_blank");
+  if (!pop) {
+    notify("No se pudo abrir la ventana de reporte PDF.", "error");
+    return;
+  }
+  pop.document.open();
+  pop.document.write(html);
+  pop.document.close();
+}
+
+function buildReportDataset(reportId) {
+  const requests = read(KEYS.requests, []);
+  if (reportId === "fleet_summary") {
+    const rows = read(KEYS.vehicles, []).map((vehicle) => {
+      const trips = requests.filter((r) => r.trip?.vehicleId === vehicle.id);
+      const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+      return {
+        plate: vehicle.plate,
+        type: vehicle.type,
+        capacityKg: parseNum(vehicle.capacityKg),
+        available: vehicle.available ? "Disponible" : "Ocupado",
+        trips: trips.length,
+        completedTrips: completed,
+        soat: vehicle.soatExpeditionDate || "-",
+        tech: vehicle.techInspectionExpeditionDate || "-"
+      };
+    });
+    return {
+      title: "Reporte de camiones y utilización",
+      columns: [
+        { key: "plate", label: "Placa" },
+        { key: "type", label: "Tipo" },
+        { key: "capacityKg", label: "Capacidad kg" },
+        { key: "available", label: "Estado" },
+        { key: "trips", label: "Viajes totales" },
+        { key: "completedTrips", label: "Viajes finalizados" },
+        { key: "soat", label: "SOAT" },
+        { key: "tech", label: "Tecnomecanica" }
+      ],
+      rows,
+      fileName: "reporte_camiones.csv"
+    };
+  }
+  if (reportId === "trips_operations") {
+    const rows = requests.filter((r) => r.trip).map((request) => ({
+      tripNumber: request.trip.tripNumber,
+      requestNumber: request.requestNumber || request.id,
+      client: request.clientName,
+      driver: request.trip.driverName,
+      vehicle: request.trip.vehiclePlate,
+      route: formatRoute(request),
+      status: request.status,
+      assignedAt: fmtDate(request.trip.assignedAt || request.approvedAt || request.createdAt),
+      deliveredAt: fmtDate(request.deliveredAt || request.closedAt || request.trip.etaDelivery)
+    }));
+    return {
+      title: "Reporte operativo de viajes",
+      columns: [
+        { key: "tripNumber", label: "Viaje" },
+        { key: "requestNumber", label: "Solicitud" },
+        { key: "client", label: "Cliente" },
+        { key: "driver", label: "Conductor" },
+        { key: "vehicle", label: "Camion" },
+        { key: "route", label: "Ruta" },
+        { key: "status", label: "Estado" },
+        { key: "assignedAt", label: "Asignado" },
+        { key: "deliveredAt", label: "Entrega/Cierre" }
+      ],
+      rows,
+      fileName: "reporte_viajes.csv"
+    };
+  }
+  if (reportId === "requests_lifecycle") {
+    const rows = requests.map((request) => ({
+      requestNumber: request.requestNumber || request.id,
+      client: request.clientName,
+      company: getCompanyById(request.clientCompanyId)?.name || "-",
+      route: formatRoute(request),
+      value: parseNum(request.tripValue || request.insuredValue || 0),
+      status: request.status,
+      createdAt: fmtDate(request.createdAt),
+      approvedAt: fmtDate(request.approvedAt)
+    }));
+    return {
+      title: "Reporte de solicitudes",
+      columns: [
+        { key: "requestNumber", label: "Solicitud" },
+        { key: "client", label: "Solicitante" },
+        { key: "company", label: "Empresa" },
+        { key: "route", label: "Ruta" },
+        { key: "value", label: "Valor viaje" },
+        { key: "status", label: "Estado" },
+        { key: "createdAt", label: "Creada" },
+        { key: "approvedAt", label: "Aprobada" }
+      ],
+      rows,
+      fileName: "reporte_solicitudes.csv"
+    };
+  }
+  if (reportId === "drivers_performance") {
+    const rows = read(KEYS.drivers, []).map((driver) => {
+      const trips = requests.filter((r) => r.trip?.driverId === driver.id);
+      return {
+        name: driver.name,
+        doc: driver.idDoc || "-",
+        phone: driver.phone || "-",
+        company: getCompanyById(driver.companyId)?.name || "-",
+        license: `${driver.license || "-"} (${driver.licenseCategory || "-"})`,
+        trips: trips.length,
+        completedTrips: trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length
+      };
+    });
+    return {
+      title: "Reporte de conductores",
+      columns: [
+        { key: "name", label: "Conductor" },
+        { key: "doc", label: "Documento" },
+        { key: "phone", label: "Telefono" },
+        { key: "company", label: "Empresa" },
+        { key: "license", label: "Licencia" },
+        { key: "trips", label: "Viajes totales" },
+        { key: "completedTrips", label: "Viajes finalizados" }
+      ],
+      rows,
+      fileName: "reporte_conductores.csv"
+    };
+  }
+  if (reportId === "payroll_summary") {
+    const rows = read(KEYS.payrollRuns, []).map((run) => ({
+      month: run.month,
+      employee: run.employeeName,
+      gross: parseNum(run.gross),
+      travelAllowance: parseNum(run.travelAllowance || 0),
+      fuelReimbursement: parseNum(run.fuelReimbursement || 0),
+      deductions: parseNum(run.deductions),
+      net: parseNum(run.net),
+      status: run.paid ? "Pagado" : "Pendiente"
+    }));
+    return {
+      title: "Reporte de nomina",
+      columns: [
+        { key: "month", label: "Mes" },
+        { key: "employee", label: "Empleado" },
+        { key: "gross", label: "Devengado" },
+        { key: "travelAllowance", label: "Viaticos" },
+        { key: "fuelReimbursement", label: "Reembolso combustible" },
+        { key: "deductions", label: "Deducciones" },
+        { key: "net", label: "Neto" },
+        { key: "status", label: "Estado" }
+      ],
+      rows,
+      fileName: "reporte_nomina.csv"
+    };
+  }
+  if (reportId === "hiring_pipeline") {
+    const rows = read(KEYS.candidates, []).map((candidate) => ({
+      name: candidate.name,
+      vacancy: candidate.vacancyTitle,
+      source: candidate.source || "-",
+      status: candidate.status,
+      expectedSalary: parseNum(candidate.expectedSalary || 0),
+      createdAt: fmtDate(candidate.createdAt)
+    }));
+    return {
+      title: "Reporte de contratacion y pipeline",
+      columns: [
+        { key: "name", label: "Candidato" },
+        { key: "vacancy", label: "Vacante" },
+        { key: "source", label: "Fuente" },
+        { key: "status", label: "Estado proceso" },
+        { key: "expectedSalary", label: "Aspiracion" },
+        { key: "createdAt", label: "Fecha" }
+      ],
+      rows,
+      fileName: "reporte_contratacion.csv"
+    };
+  }
+  if (reportId === "users_access") {
+    const rows = read(KEYS.users, []).map((user) => ({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      company: getCompanyById(user.companyId)?.name || user.company || "-",
+      status: user.accountStatus || "aprobado",
+      permissions: (user.permissions || []).length
+    }));
+    return {
+      title: "Reporte de usuarios y accesos",
+      columns: [
+        { key: "name", label: "Nombre" },
+        { key: "email", label: "Correo" },
+        { key: "role", label: "Rol" },
+        { key: "company", label: "Empresa" },
+        { key: "status", label: "Estado cuenta" },
+        { key: "permissions", label: "Permisos" }
+      ],
+      rows,
+      fileName: "reporte_usuarios.csv"
+    };
+  }
+  if (reportId === "authorizations_traceability") {
+    const rows = read(KEYS.approvals, []).map((approval) => ({
+      title: approval.title,
+      type: approval.type,
+      status: approval.status,
+      requestedBy: approval.requestedByName,
+      requestedAt: fmtDate(approval.requestedAt),
+      reviewedBy: approval.reviewedBy || "-",
+      reviewedAt: fmtDate(approval.reviewedAt)
+    }));
+    return {
+      title: "Reporte de autorizaciones",
+      columns: [
+        { key: "title", label: "Titulo" },
+        { key: "type", label: "Tipo" },
+        { key: "status", label: "Estado" },
+        { key: "requestedBy", label: "Solicitante" },
+        { key: "requestedAt", label: "Fecha solicitud" },
+        { key: "reviewedBy", label: "Aprobador" },
+        { key: "reviewedAt", label: "Fecha revision" }
+      ],
+      rows,
+      fileName: "reporte_autorizaciones.csv"
+    };
+  }
+  return {
+    title: "Reporte",
+    columns: [{ key: "message", label: "Detalle" }],
+    rows: [{ message: "Reporte no definido." }],
+    fileName: "reporte.csv"
+  };
+}
+
+function reportsHtml() {
+  const cards = [
+    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", desc: "Estado de flota, viajes por vehículo y cumplimiento documental." },
+    { id: "trips_operations", icon: "compass", title: "Viajes operativos", desc: "Trazabilidad end-to-end de viajes, tiempos y estados." },
+    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", desc: "Ciclo de vida de solicitudes por cliente, estado y valor." },
+    { id: "drivers_performance", icon: "user", title: "Conductores", desc: "Productividad, viajes finalizados y estado de licencias." },
+    { id: "payroll_summary", icon: "dollar", title: "Nomina consolidada", desc: "Devengos, viaticos, reembolsos, deducciones y neto." },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Contratacion y pipeline", desc: "Seguimiento de vacantes y candidatos por etapa." },
+    { id: "users_access", icon: "shield", title: "Usuarios y accesos", desc: "Roles, permisos, empresas y estado de cuentas." },
+    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", desc: "Trazabilidad completa de aprobaciones y decisiones." }
+  ];
+  const body = `<div class="dash-grid">
+    ${cards
+      .map((card) => `
+      <article class="p-card">
+        <div class="p-card-header">
+          <div class="p-card-header-left"><div class="p-card-icon">${IC[card.icon] || IC.activity}</div><div><h2>${card.title}</h2><p>${card.desc}</p></div></div>
+        </div>
+        <div class="p-card-body">
+          <div class="toolbar">
+            <button class="btn btn-sm btn-action" data-action="generate-report" data-report="${card.id}" data-format="pdf">${IC.file} PDF</button>
+            <button class="btn btn-sm btn-approve" data-action="generate-report" data-report="${card.id}" data-format="excel">${IC.download} Excel</button>
+          </div>
+        </div>
+      </article>`)
+      .join("")}
+  </div>`;
+  return pcardWrap("activity", "Centro de reporteria", "Exporta reportes profesionales por modulo en PDF o Excel", body);
+}
+
 function monthRange(month) {
   const m = String(month || "").trim();
   if (!/^\d{4}-\d{2}$/.test(m)) return null;
@@ -3457,6 +3761,7 @@ function renderPortalView() {
     "transport-drivers": "Transporte · Conductores",
     "transport-calendar": "Transporte · Calendario",
     history: "Transporte · Historial y reportes",
+    reports: "Centro de reporteria",
     payroll: "Nomina",
     hiring: "Contratacion",
     "admin-users": "Administración · Usuarios y permisos",
@@ -3484,6 +3789,8 @@ function renderPortalView() {
     nodes.viewRoot.innerHTML = renderFromModule("transporte", "transportCalendarHtml");
   } else if (view === "history" && user.role === ROLES.ADMIN) {
     nodes.viewRoot.innerHTML = renderFromModule("transporte", "historyHtml");
+  } else if (view === "reports" && (user.role === ROLES.ADMIN || canAccessRRHH(user.role))) {
+    nodes.viewRoot.innerHTML = renderFromModule("transporte", "reportsHtml");
   } else if (view === "payroll" && canAccessRRHH(user.role)) {
     nodes.viewRoot.innerHTML = renderFromModule("rrhh", "payrollHtml");
   } else if (view === "hiring" && canAccessRRHH(user.role)) {
@@ -4310,6 +4617,21 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='trip-invoice']").forEach((btn) => {
     btn.addEventListener("click", () => {
       openTripInvoicePdf(String(btn.dataset.id || ""));
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='generate-report']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const reportId = String(btn.dataset.report || "");
+      const format = String(btn.dataset.format || "pdf");
+      const report = buildReportDataset(reportId);
+      if (format === "excel") {
+        downloadCsv(report.fileName || "reporte.csv", report.rows || [], report.columns || []);
+        notify("Reporte exportado en formato Excel (CSV).", "success");
+        return;
+      }
+      openReportPdf(report.title || "Reporte", report.columns || [], report.rows || []);
+      notify("Reporte PDF generado correctamente.", "success");
     });
   });
 
@@ -6030,6 +6352,7 @@ window.AppLegacyViews = {
   driversHtml,
   transportCalendarHtml,
   historyHtml,
+  reportsHtml,
   payrollHtml,
   hiringHtml,
   adminUsersHtml,

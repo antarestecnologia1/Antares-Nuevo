@@ -6,6 +6,7 @@
     vehiclesHtml: (...args) => window.AppLegacyViews?.vehiclesHtml?.(...args) || "",
     driversHtml: (...args) => window.AppLegacyViews?.driversHtml?.(...args) || "",
     transportCalendarHtml: (...args) => window.AppLegacyViews?.transportCalendarHtml?.(...args) || "",
-    historyHtml: (...args) => window.AppLegacyViews?.historyHtml?.(...args) || ""
+    historyHtml: (...args) => window.AppLegacyViews?.historyHtml?.(...args) || "",
+    reportsHtml: (...args) => window.AppLegacyViews?.reportsHtml?.(...args) || ""
   };
 })();
