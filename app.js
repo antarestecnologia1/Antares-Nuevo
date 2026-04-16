@@ -364,7 +364,10 @@ const KEYS = {
 const ROLES = {
   ADMIN: "admin",
   CLIENT: "client",
-  RRHH: "rrhh"
+  RRHH: "rrhh",
+  ADMINISTRACION: "administracion",
+  AUXILIAR_ADMINISTRATIVO: "auxiliar_administrativo",
+  LIDER_ADMINISTRATIVO: "lider_administrativo"
 };
 
 const PERMISSIONS = {
@@ -550,6 +553,12 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function nowLocalIso() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 19);
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -603,7 +612,10 @@ function makeRequestNumber() {
 
 function fmtDate(value) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("es-CO");
+  const normalized = /\dT\d/.test(String(value || "")) && !String(value || "").endsWith("Z")
+    ? `${value}Z`
+    : value;
+  return new Date(normalized).toLocaleString("es-CO");
 }
 
 function addYears(dateValue, years) {
@@ -673,7 +685,7 @@ function saveNotification({ userId, title, body }) {
 
 function notifyHrUsers(title, body) {
   read(KEYS.users, [])
-    .filter((u) => u.role === ROLES.ADMIN || u.role === ROLES.RRHH)
+    .filter((u) => canAccessRRHH(u.role))
     .forEach((u) => saveNotification({ userId: u.id, title, body }));
 }
 
@@ -811,11 +823,19 @@ function ensureRequestAndTripIdentifiers() {
 
 function defaultPermissionsForRole(role) {
   if (role === ROLES.ADMIN) return [...ALL_PERMISSIONS];
-  if (role === ROLES.RRHH) {
+  if ([ROLES.RRHH, ROLES.ADMINISTRACION, ROLES.LIDER_ADMINISTRATIVO].includes(role)) {
     return [
       PERMISSIONS.DASHBOARD_VIEW,
       PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.HIRING_MANAGE,
+      PERMISSIONS.PROFILE_VIEW,
+      PERMISSIONS.NOTIFICATIONS_VIEW
+    ];
+  }
+  if (role === ROLES.AUXILIAR_ADMINISTRATIVO) {
+    return [
+      PERMISSIONS.DASHBOARD_VIEW,
+      PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.PROFILE_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW
     ];
@@ -850,6 +870,154 @@ function ensureUsersAccountStatus() {
     return { ...user, accountStatus: ACCOUNT_STATUS.APROBADO };
   });
   if (changed) write(KEYS.users, updated);
+}
+
+function ensureEnterpriseScaleData() {
+  const markerKey = "antares_enterprise_seed_v1";
+  if (localStorage.getItem(markerKey)) return;
+
+  const users = read(KEYS.users, []);
+  const employees = read(KEYS.payrollEmployees, []);
+  const companies = read(KEYS.companies, []);
+
+  let nextCompanies = [...companies];
+  if (nextCompanies.length < 16) {
+    const needed = 16 - nextCompanies.length;
+    for (let i = 0; i < needed; i += 1) {
+      const n = i + 1;
+      nextCompanies.push({
+        id: uid(),
+        name: `Cliente Corporativo ${String(n).padStart(2, "0")} SAS`,
+        taxId: `900${String(500000 + n).padStart(6, "0")}-${(n % 9) + 1}`,
+        phone: `3007${String(100000 + n).slice(-6)}`,
+        createdAt: nowIso()
+      });
+    }
+    write(KEYS.companies, nextCompanies);
+  }
+
+  const refreshedCompanies = read(KEYS.companies, []);
+  const antaresCompany = refreshedCompanies[0] || null;
+  const clientCompanies = refreshedCompanies.filter((c, idx) => idx > 0).slice(0, 18);
+
+  let nextUsers = [...users];
+  if (!nextUsers.some((u) => u.role === ROLES.ADMINISTRACION)) {
+    nextUsers.push({
+      id: uid(),
+      name: "Coordinacion Administrativa",
+      email: "administracion@antares.com",
+      password: "AdminAntares123!",
+      role: ROLES.ADMINISTRACION,
+      accountStatus: ACCOUNT_STATUS.APROBADO,
+      permissions: defaultPermissionsForRole(ROLES.ADMINISTRACION),
+      company: antaresCompany?.name || "Antares",
+      companyId: antaresCompany?.id || null,
+      taxId: antaresCompany?.taxId || "",
+      phone: "3006100000",
+      city: "Bogota D.C.",
+      department: "Bogota",
+      address: "Oficina administrativa"
+    });
+  }
+  if (!nextUsers.some((u) => u.role === ROLES.LIDER_ADMINISTRATIVO)) {
+    nextUsers.push({
+      id: uid(),
+      name: "Lider Administrativo",
+      email: "lider.administrativo@antares.com",
+      password: "AdminAntares123!",
+      role: ROLES.LIDER_ADMINISTRATIVO,
+      accountStatus: ACCOUNT_STATUS.APROBADO,
+      permissions: defaultPermissionsForRole(ROLES.LIDER_ADMINISTRATIVO),
+      company: antaresCompany?.name || "Antares",
+      companyId: antaresCompany?.id || null,
+      taxId: antaresCompany?.taxId || "",
+      phone: "3006200000",
+      city: "Bogota D.C.",
+      department: "Bogota",
+      address: "Oficina administrativa"
+    });
+  }
+  if (!nextUsers.some((u) => u.role === ROLES.AUXILIAR_ADMINISTRATIVO)) {
+    nextUsers.push({
+      id: uid(),
+      name: "Auxiliar Administrativo",
+      email: "auxiliar.administrativo@antares.com",
+      password: "AdminAntares123!",
+      role: ROLES.AUXILIAR_ADMINISTRATIVO,
+      accountStatus: ACCOUNT_STATUS.APROBADO,
+      permissions: defaultPermissionsForRole(ROLES.AUXILIAR_ADMINISTRATIVO),
+      company: antaresCompany?.name || "Antares",
+      companyId: antaresCompany?.id || null,
+      taxId: antaresCompany?.taxId || "",
+      phone: "3006300000",
+      city: "Bogota D.C.",
+      department: "Bogota",
+      address: "Oficina administrativa"
+    });
+  }
+
+  const currentClientUsers = nextUsers.filter((u) => u.role === ROLES.CLIENT).length;
+  if (currentClientUsers < 15) {
+    const toCreate = 15 - currentClientUsers;
+    for (let i = 0; i < toCreate; i += 1) {
+      const company = clientCompanies[i % clientCompanies.length];
+      nextUsers.push({
+        id: uid(),
+        name: `Cliente Operativo ${String(i + 1).padStart(2, "0")}`,
+        email: `cliente${String(i + 1).padStart(2, "0")}@antares-demo.com`,
+        password: "Cliente123!",
+        role: ROLES.CLIENT,
+        accountStatus: ACCOUNT_STATUS.APROBADO,
+        permissions: defaultPermissionsForRole(ROLES.CLIENT),
+        company: company?.name || "Cliente",
+        companyId: company?.id || null,
+        taxId: company?.taxId || "",
+        phone: `3008${String(100000 + i).slice(-6)}`,
+        city: "Bogota D.C.",
+        department: "Bogota",
+        address: "Sede cliente"
+      });
+    }
+  }
+  write(KEYS.users, nextUsers);
+
+  let nextEmployees = [...employees];
+  if (nextEmployees.length < 110) {
+    const toCreate = 110 - nextEmployees.length;
+    const cityPool = ["Bogota D.C.", "Medellin", "Cali", "Barranquilla", "Pereira", "Bucaramanga"];
+    const positions = getActivePositions();
+    for (let i = 0; i < toCreate; i += 1) {
+      const p = positions[i % Math.max(positions.length, 1)] || {
+        id: "",
+        name: "Auxiliar Administrativo",
+        workerRole: "empleado",
+        baseSalary: CO_HR_RULES.minMonthlySalary,
+        contractTypeDefault: "Termino indefinido"
+      };
+      const city = cityPool[i % cityPool.length];
+      nextEmployees.push({
+        id: uid(),
+        name: `Empleado Escala ${String(i + 1).padStart(3, "0")}`,
+        documentType: "CC",
+        idDoc: String(100000000 + i),
+        positionId: p.id || "",
+        position: p.name,
+        workerRole: p.workerRole || "empleado",
+        contractType: p.contractTypeDefault || "Termino indefinido",
+        city,
+        address: `Zona empresarial ${i + 1}`,
+        phone: `301${String(1000000 + i).slice(-7)}`,
+        emergencyContact: "Contacto familiar",
+        emergencyPhone: `320${String(1000000 + i).slice(-7)}`,
+        companyId: antaresCompany?.id || null,
+        baseSalary: parseNum(p.baseSalary || CO_HR_RULES.minMonthlySalary),
+        startDate: "2026-01-01"
+      });
+    }
+    write(KEYS.payrollEmployees, nextEmployees);
+  }
+
+  localStorage.setItem(markerKey, nowIso());
 }
 
 function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
@@ -1013,6 +1181,7 @@ function seed() {
   ensureUsersPermissions();
   ensureUsersAccountStatus();
   ensureVehicleDocs();
+  ensureEnterpriseScaleData();
 }
 
 function getSession() {
@@ -1361,6 +1530,27 @@ function canClientManageRequest(request) {
   return currentUser()?.role === ROLES.ADMIN && request.status === STATUS.PENDIENTE;
 }
 
+function hasUnsavedPortalFormData() {
+  if (!nodes.viewRoot) return false;
+  const forms = [...nodes.viewRoot.querySelectorAll("form")];
+  if (!forms.length) return false;
+  if (document.activeElement && nodes.viewRoot.contains(document.activeElement) && document.activeElement.closest("form")) {
+    return true;
+  }
+  return forms.some((form) => {
+    const fields = [...form.querySelectorAll("input, select, textarea")];
+    return fields.some((field) => {
+      const el = field;
+      if (el.disabled || el.readOnly) return false;
+      const type = String(el.type || "").toLowerCase();
+      if (["hidden", "submit", "button", "reset"].includes(type)) return false;
+      if (type === "checkbox" || type === "radio") return !!el.checked;
+      if (type === "file") return !!el.files?.length;
+      return String(el.value || "").trim() !== "";
+    });
+  });
+}
+
 function applyStandbyCharge(request, actorName) {
   const hoursRaw = prompt("Horas en standby:", "1");
   if (!hoursRaw) return null;
@@ -1578,7 +1768,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     etaPickup: current.pickupAt,
     etaDelivery: current.etaDelivery || current.pickupAt,
     assignedBy: actorName,
-    assignedAt: nowIso(),
+    assignedAt: nowLocalIso(),
     realtimeStatus: STATUS.VIAJE_ASIGNADO
   };
 
@@ -1587,7 +1777,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
       ? {
           ...r,
           status: STATUS.VIAJE_ASIGNADO,
-          approvedAt: nowIso(),
+          approvedAt: nowLocalIso(),
           approvedBy: actorName,
           autoApproved: auto,
           rejectionReason: "",
@@ -1672,7 +1862,22 @@ function canAccessView(user, view) {
 }
 
 function canAccessRRHH(role) {
-  return role === ROLES.ADMIN || role === ROLES.RRHH;
+  return [
+    ROLES.ADMIN,
+    ROLES.RRHH,
+    ROLES.ADMINISTRACION,
+    ROLES.AUXILIAR_ADMINISTRATIVO,
+    ROLES.LIDER_ADMINISTRATIVO
+  ].includes(role);
+}
+
+function requiresAdminHrApproval(role) {
+  return [
+    ROLES.RRHH,
+    ROLES.ADMINISTRACION,
+    ROLES.AUXILIAR_ADMINISTRATIVO,
+    ROLES.LIDER_ADMINISTRATIVO
+  ].includes(role);
 }
 
 function isViewAllowedForUser(user, view) {
@@ -2124,7 +2329,14 @@ function adminUsersHtml(current) {
   };
 
   const roleBadge = (r) => {
-    const colors = { admin: "#1565C0", rrhh: "#7C3AED", client: "#0E7490" };
+    const colors = {
+      admin: "#1565C0",
+      rrhh: "#7C3AED",
+      administracion: "#1D4ED8",
+      auxiliar_administrativo: "#0EA5E9",
+      lider_administrativo: "#4F46E5",
+      client: "#0E7490"
+    };
     return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${r}</span>`;
   };
 
@@ -2203,6 +2415,9 @@ function adminUsersHtml(current) {
       <select name="role" required>
         <option value="${ROLES.ADMIN}">Administrador</option>
         <option value="${ROLES.RRHH}">Recursos Humanos</option>
+        <option value="${ROLES.ADMINISTRACION}">Administracion</option>
+        <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
+        <option value="${ROLES.LIDER_ADMINISTRATIVO}">Lider administrativo</option>
         <option value="${ROLES.CLIENT}">Cliente</option>
       </select>
     </label>
@@ -2262,6 +2477,9 @@ function adminUsersHtml(current) {
       <select name="role" required>
         <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
         <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
+        <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administracion</option>
+        <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
+        <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Lider administrativo</option>
         <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
       </select>
     </label>
@@ -2295,6 +2513,9 @@ function adminUsersHtml(current) {
   let html = "";
   const adminCount = users.filter((u) => u.role === ROLES.ADMIN).length;
   const rrhhCount = users.filter((u) => u.role === ROLES.RRHH).length;
+  const adminOfficeCount = users.filter((u) =>
+    [ROLES.ADMINISTRACION, ROLES.AUXILIAR_ADMINISTRATIVO, ROLES.LIDER_ADMINISTRATIVO].includes(u.role)
+  ).length;
   const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
   const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
 
@@ -2307,6 +2528,9 @@ function adminUsersHtml(current) {
     </div>
     <div class="users-hero-item">
       <span>RRHH</span><strong>${rrhhCount}</strong>
+    </div>
+    <div class="users-hero-item">
+      <span>Administrativos</span><strong>${adminOfficeCount}</strong>
     </div>
     <div class="users-hero-item">
       <span>Clientes</span><strong>${clientCount}</strong>
@@ -2744,7 +2968,6 @@ function bindDynamicEvents() {
     "delete-employee",
     "close-vacancy",
     "toggle-position",
-    "mark-payroll-paid",
     "candidate-status",
     "open-edit-user",
     "delete-user",
@@ -3340,40 +3563,67 @@ function bindDynamicEvents() {
       if (!request) return;
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
-      if (!compatibleVehicles.length || !compatibleDrivers.length) {
-        notify("No hay combinacion disponible de camion/conductor para esta solicitud.", "error");
-        return;
-      }
       openEditModal({
-        title: "Asignacion manual de viaje",
+        title: "Aprobar solicitud",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
-        submitText: "Aprobar y crear viaje",
+        submitText: "Confirmar aprobacion",
         fields: [
+          {
+            name: "mode",
+            label: "Modo de aprobacion",
+            type: "select",
+            required: true,
+            value: "pending",
+            options: [
+              { value: "pending", label: "Aprobar y dejar pendiente asignacion manual" },
+              { value: "assign_now", label: "Aprobar y asignar camion + conductor ahora" }
+            ]
+          },
           {
             name: "vehicleId",
             label: "Selecciona camion compatible",
             type: "select",
-            required: true,
-            options: compatibleVehicles.map((vehicle) => ({
+            required: false,
+            options: [
+              { value: "", label: compatibleVehicles.length ? "Sin asignar por ahora" : "No hay camiones compatibles disponibles" },
+              ...compatibleVehicles.map((vehicle) => ({
               value: vehicle.id,
               label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
-            }))
+              }))
+            ]
           },
           {
             name: "driverId",
             label: "Selecciona conductor disponible",
             type: "select",
-            required: true,
-            options: compatibleDrivers.map((driver) => ({
+            required: false,
+            options: [
+              { value: "", label: compatibleDrivers.length ? "Sin asignar por ahora" : "No hay conductores compatibles disponibles" },
+              ...compatibleDrivers.map((driver) => ({
               value: driver.id,
               label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}`
-            }))
+              }))
+            ]
           }
         ],
         onSubmit: (form) => {
-          const ok = approveRequest(requestId, actor?.name || "Administrador", false, String(form.vehicleId || ""), String(form.driverId || ""));
+          const mode = String(form.mode || "pending");
+          const vehicleId = String(form.vehicleId || "").trim();
+          const driverId = String(form.driverId || "").trim();
+          if (mode === "assign_now" && (!vehicleId || !driverId)) {
+            notify("Para asignar ahora debes seleccionar camion y conductor.", "error");
+            return false;
+          }
+          const ok = mode === "assign_now"
+            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId)
+            : approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
-          notify("Solicitud aprobada y viaje asignado correctamente.", "success");
+          notify(
+            mode === "assign_now"
+              ? "Solicitud aprobada y viaje asignado correctamente."
+              : "Solicitud aprobada. Quedo pendiente de asignacion manual.",
+            "success"
+          );
           renderPortalView();
           return true;
         }
@@ -3866,6 +4116,7 @@ function bindDynamicEvents() {
   if (absenceForm) {
     absenceForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      const actor = currentUser();
       const data = Object.fromEntries(new FormData(absenceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) return;
@@ -3877,7 +4128,7 @@ function bindDynamicEvents() {
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
       const list = read(KEYS.hrAbsences, []);
-      list.unshift({
+      const absencePayload = {
         id: uid(),
         employeeId: employee.id,
         employeeName: employee.name,
@@ -3889,7 +4140,20 @@ function bindDynamicEvents() {
         epsEntity: String(data.epsEntity || "").trim(),
         notes: String(data.notes || "").trim(),
         createdAt: nowIso()
-      });
+      };
+      if (requiresAdminHrApproval(actor?.role || "")) {
+        queueApproval({
+          type: "register_hr_absence",
+          title: `Registro de ausencia de ${employee.name}`,
+          payload: absencePayload,
+          requestedByUserId: actor?.id || "",
+          requestedByName: actor?.name || "Usuario"
+        });
+        notify("Solicitud de ausencia enviada a aprobacion de administrador.", "info");
+        renderPortalView();
+        return;
+      }
+      list.unshift(absencePayload);
       write(KEYS.hrAbsences, list);
       notify("Ausencia registrada en expediente digital de RRHH.", "success");
       renderPortalView();
@@ -4060,10 +4324,23 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='mark-payroll-paid']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const actor = currentUser();
       const id = String(btn.dataset.id || "");
       const all = read(KEYS.payrollRuns, []);
       const run = all.find((r) => r.id === id);
       if (!run || run.paid) return;
+      if (requiresAdminHrApproval(actor?.role || "")) {
+        queueApproval({
+          type: "mark_payroll_paid",
+          title: `Aprobar pago de nomina ${run.employeeName} (${run.month})`,
+          payload: { payrollRunId: run.id, employeeName: run.employeeName, month: run.month },
+          requestedByUserId: actor?.id || "",
+          requestedByName: actor?.name || "Usuario"
+        });
+        notify("Solicitud de marcacion de pago enviada a aprobacion de administrador.", "info");
+        renderPortalView();
+        return;
+      }
       openConfirmModal({
         title: "Confirmar pago de nomina",
         message: `Marcar como pagada la liquidacion de ${run.employeeName} (${run.month}) por ${parseNum(run.net).toLocaleString("es-CO")} COP neto.`,
@@ -4541,6 +4818,31 @@ function bindDynamicEvents() {
           });
           write(KEYS.payrollEmployees, employees);
         }
+      } else if (approval.type === "register_hr_absence") {
+        const absences = read(KEYS.hrAbsences, []);
+        absences.unshift({
+          ...approval.payload,
+          id: approval.payload?.id || uid(),
+          approvedBy: actor.name,
+          approvedAt: nowIso()
+        });
+        write(KEYS.hrAbsences, absences);
+      } else if (approval.type === "mark_payroll_paid") {
+        const payrollRunId = String(approval.payload?.payrollRunId || "");
+        if (!payrollRunId) {
+          notify("Solicitud de pago sin liquidacion asociada.", "error");
+          return;
+        }
+        const runs = read(KEYS.payrollRuns, []);
+        const targetRun = runs.find((r) => r.id === payrollRunId);
+        if (!targetRun) {
+          notify("No se encontro la liquidacion solicitada.", "error");
+          return;
+        }
+        write(
+          KEYS.payrollRuns,
+          runs.map((r) => (r.id === payrollRunId ? { ...r, paid: true, paidAt: nowIso(), paidApprovedBy: actor.name } : r))
+        );
       } else if (approval.type === "approve_trip_request") {
         const requestId = String(approval.payload.requestId || "");
         const request = read(KEYS.requests, []).find((item) => item.id === requestId);
@@ -4953,8 +5255,6 @@ renderPortal();
 setInterval(() => {
   if (!state.session) return;
   updateAutoApprove();
-  const typingRequestForm = state.currentView === "requests" && !!document.getElementById("form-request");
-  if (!typingRequestForm) {
-    renderPortalView();
-  }
+  if (hasUnsavedPortalFormData()) return;
+  renderPortalView();
 }, 30000);
