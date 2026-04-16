@@ -1203,6 +1203,12 @@ function seed() {
     ]);
   }
 
+  if (!localStorage.getItem(KEYS.travelAllowanceRules)) {
+    write(KEYS.travelAllowanceRules, {
+      interDepartmentTripAmount: 85000
+    });
+  }
+
   [
     KEYS.companies,
     KEYS.counters,
@@ -1212,6 +1218,8 @@ function seed() {
     KEYS.emails,
     KEYS.payrollEmployees,
     KEYS.payrollRuns,
+    KEYS.fuelLogs,
+    KEYS.vehicleTechnicalLogs,
     KEYS.vacancies,
     KEYS.candidates,
     KEYS.positions,
@@ -2819,10 +2827,15 @@ function adminUsersHtml(current) {
 function historyHtml() {
   const requests = read(KEYS.requests, []);
   const users = read(KEYS.users, []);
+  const drivers = read(KEYS.drivers, []);
+  const vehicles = read(KEYS.vehicles, []);
+  const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const options = users
     .filter((u) => u.role === ROLES.CLIENT)
     .map((u) => `<option value="${u.id}">${u.company}</option>`)
     .join("");
+  const driverOptions = drivers.map((d) => `<option value="${d.id}">${d.name}</option>`).join("");
+  const vehicleOptions = vehicles.map((v) => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join("");
   const rows = requests
     .map((r) => `<tr>
       <td>${fmtDate(r.createdAt)}</td>
@@ -2841,14 +2854,64 @@ function historyHtml() {
     <label>Estado <select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
     <button class="btn btn-primary full" type="submit">${IC.filter} Aplicar filtro</button>
   </form>`;
+  const driverReportBody = `<form id="driver-month-report-form" class="p-form">
+    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
+    <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
+    <button class="btn btn-primary full" type="submit">${IC.activity} Generar reporte mensual</button>
+  </form>
+  <div id="driver-month-report-output" class="muted" style="margin-top:0.75rem">Selecciona conductor y mes para ver viaticos, combustible y viajes realizados.</div>`;
+  const fuelForm = `<form id="form-fuel-log" class="p-form">
+    <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
+    <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
+    <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" /></label>
+    <label>${fieldLabel(IC.activity, "Litros")}<input type="number" step="0.01" min="0.01" name="liters" required /></label>
+    <label>${fieldLabel(IC.dollar, "Valor total")}<input type="number" min="0" name="totalCost" required /></label>
+    <label>${fieldLabel(IC.clock, "Odometro km")}<input type="number" min="0" name="odometerKm" /></label>
+    <label>${fieldLabel(IC.mapPin, "Estacion")}<input name="station" placeholder="EDS..." /></label>
+    <label>${fieldLabel(IC.briefcase, "Pagado por")}
+      <select name="paidBy">
+        <option value="empresa">Empresa</option>
+        <option value="conductor">Conductor (reembolso nomina)</option>
+      </select>
+    </label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
+  </form>`;
+  const technicalForm = `<form id="form-technical-log" class="p-form">
+    <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
+    <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+    <label>${fieldLabel(IC.activity, "Tipo")}
+      <select name="type">
+        <option value="preventivo">Mantenimiento preventivo</option>
+        <option value="correctivo">Mantenimiento correctivo</option>
+        <option value="falla">Falla tecnica</option>
+      </select>
+    </label>
+    <label>${fieldLabel(IC.file, "Descripcion")}<input name="description" required /></label>
+    <label>${fieldLabel(IC.dollar, "Costo")}<input type="number" min="0" name="cost" required /></label>
+    <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
+    <label>${fieldLabel(IC.check, "Estado")}
+      <select name="status">
+        <option>Pendiente</option>
+        <option>En proceso</option>
+        <option>Resuelto</option>
+      </select>
+    </label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
+  </form>`;
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Vehiculo</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
     : emptyState("Sin registros.");
   const reportBody = `<div class="dash-grid" style="margin-top:1rem">
     ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
     ${pcardWrap("truck", "Vehiculos mas usados", null, `<p>${topVehicles(requests).join(", ") || "Sin datos"}</p>`)}
+    ${pcardWrap("dollar", "Regla actual de viaticos", null, `<p>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje entre departamentos</p>`)}
   </div>`;
-  return pcardWrap("filter", "Filtros", null, filterBody) + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody) + reportBody;
+  return pcardWrap("filter", "Filtros", null, filterBody)
+    + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody)
+    + pcardWrap("activity", "Reporte mensual por conductor (viaticos)", null, driverReportBody)
+    + `<div class="dash-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
+    + reportBody;
 }
 
 function topClients(requests) {
@@ -2873,9 +2936,72 @@ function topVehicles(requests) {
     .map(([name, qty]) => `${name} (${qty})`);
 }
 
+function monthRange(month) {
+  const m = String(month || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(m)) return null;
+  const [year, monthNum] = m.split("-").map(Number);
+  const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+  const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+  return { start, end };
+}
+
+function dateInRange(value, range) {
+  if (!range) return false;
+  const ts = new Date(value || "").getTime();
+  if (!Number.isFinite(ts)) return false;
+  return ts >= range.start.getTime() && ts <= range.end.getTime();
+}
+
+function resolveDriverForEmployee(employee) {
+  if (!employee) return null;
+  const drivers = read(KEYS.drivers, []);
+  const doc = String(employee.idDoc || "").trim();
+  if (doc) {
+    const byDoc = drivers.find((d) => String(d.idDoc || "").trim() === doc);
+    if (byDoc) return byDoc;
+  }
+  const name = String(employee.name || "").trim().toLowerCase();
+  if (!name) return null;
+  return drivers.find((d) => String(d.name || "").trim().toLowerCase() === name) || null;
+}
+
+function tripsForDriverMonth(driver, month) {
+  const range = monthRange(month);
+  if (!range || !driver) return [];
+  return read(KEYS.requests, []).filter((request) => {
+    if (!request?.trip || ![STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status)) return false;
+    if (String(request.trip.driverId || "") !== String(driver.id || "")) return false;
+    const refDate = request.closedAt || request.deliveredAt || request.trip.etaDelivery || request.trip.etaPickup || request.createdAt;
+    return dateInRange(refDate, range);
+  });
+}
+
+function calculateDriverTripReport(driverId, month) {
+  const range = monthRange(month);
+  if (!range || !driverId) {
+    return { trips: [], tripCount: 0, interDepartmentTrips: 0, viaticTotal: 0, fuelTotal: 0, technicalTotal: 0, kmEstimated: 0 };
+  }
+  const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(driverId));
+  if (!driver) {
+    return { trips: [], tripCount: 0, interDepartmentTrips: 0, viaticTotal: 0, fuelTotal: 0, technicalTotal: 0, kmEstimated: 0 };
+  }
+  const trips = tripsForDriverMonth(driver, month);
+  const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
+  const interDepartmentTrips = trips.filter((trip) => String(trip.originDepartment || "") !== String(trip.destinationDepartment || "")).length;
+  const viaticTotal = interDepartmentTrips * parseNum(rules.interDepartmentTripAmount);
+  const fuelLogs = read(KEYS.fuelLogs, []).filter((log) => String(log.driverId || "") === String(driver.id) && dateInRange(log.date, range));
+  const fuelTotal = fuelLogs.reduce((acc, log) => acc + parseNum(log.totalCost), 0);
+  const technicalTotal = read(KEYS.vehicleTechnicalLogs, [])
+    .filter((log) => dateInRange(log.date, range) && trips.some((t) => String(t.trip?.vehicleId || "") === String(log.vehicleId || "")))
+    .reduce((acc, log) => acc + parseNum(log.cost), 0);
+  const kmEstimated = trips.reduce((acc, trip) => acc + Math.max(0, parseNum(trip.distanceKm || 0)), 0);
+  return { trips, tripCount: trips.length, interDepartmentTrips, viaticTotal, fuelTotal, technicalTotal, kmEstimated };
+}
+
 function payrollHtml() {
   const employees = read(KEYS.payrollEmployees, []);
   const companies = read(KEYS.companies, []);
+  const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const positions = getActivePositions();
   const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
@@ -2908,7 +3034,7 @@ function payrollHtml() {
     .join("");
   const runRows = runs
     .map((r) => `<tr>
-      <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
+      <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
       <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-action" data-action="payslip" data-id="${r.id}">${IC.printer} Desprendible</button>
@@ -2956,9 +3082,12 @@ function payrollHtml() {
   const formPay = `<form id="form-payroll" class="p-form">
     <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
     <label>Mes <input type="month" name="month" required /></label>
+    <label>${fieldLabel(IC.dollar, "Viaticos manuales")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
+    <label>${fieldLabel(IC.dollar, "Reembolso combustible manual")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
     <label>Horas extras <input type="number" name="extras" value="0" /></label>
     <label>Aux transporte <input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" /></label>
     <label>Bonificaciones <input type="number" name="bonus" value="0" /></label>
+    <p class="muted full">Para conductores el sistema suma automaticamente viaticos por viajes interdepartamentales ($${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje) y reembolsos de combustible pagado por conductor en el mes seleccionado. Puedes ajustar manualmente si hay novedades.</p>
     <p class="muted full">Deducciones empleado (referencia): Salud 4%, Pension 4% sobre IBC; Fondo de Solidaridad Pensional 1% si IBC supera 4 SMMLV. Valores legales definitivos dependen del periodo y norma vigente.</p>
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidacion</button>
   </form>`;
@@ -2999,7 +3128,7 @@ function payrollHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
-    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
+    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
   return `<div class="dash-grid payroll-kpi-grid">
       <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
@@ -4351,6 +4480,112 @@ function bindDynamicEvents() {
     });
   }
 
+  const driverMonthReportForm = document.getElementById("driver-month-report-form");
+  if (driverMonthReportForm) {
+    driverMonthReportForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(driverMonthReportForm).entries());
+      const output = document.getElementById("driver-month-report-output");
+      if (!output) return;
+      const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
+      if (!driver || !monthRange(data.month)) {
+        output.innerHTML = `<p class="muted">Selecciona conductor y mes valido.</p>`;
+        return;
+      }
+      const report = calculateDriverTripReport(driver.id, data.month);
+      const rows = report.trips
+        .map((trip) => `<tr>
+          <td>${trip.trip?.tripNumber || "-"}</td>
+          <td>${fmtDate(trip.deliveredAt || trip.closedAt || trip.trip?.etaDelivery || trip.trip?.etaPickup || trip.createdAt)}</td>
+          <td>${trip.originDepartment || "-"} → ${trip.destinationDepartment || "-"}</td>
+          <td>${trip.trip?.vehiclePlate || "-"}</td>
+          <td>${prettyStatus(trip.status, "trip")}</td>
+        </tr>`)
+        .join("");
+      output.innerHTML = `
+        <div class="dash-grid">
+          <div class="p-card"><h4 style="margin:0 0 0.4rem">Viajes del mes</h4><strong>${report.tripCount}</strong></div>
+          <div class="p-card"><h4 style="margin:0 0 0.4rem">Interdepartamentales</h4><strong>${report.interDepartmentTrips}</strong></div>
+          <div class="p-card"><h4 style="margin:0 0 0.4rem">Viaticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
+          <div class="p-card"><h4 style="margin:0 0 0.4rem">Combustible registrado</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
+          <div class="p-card"><h4 style="margin:0 0 0.4rem">Costo tecnico flota asociada</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
+        </div>
+        ${rows
+          ? `<div class="table-wrap" style="margin-top:0.7rem"><table><thead><tr><th>Viaje</th><th>Fecha cierre</th><th>Ruta departamentos</th><th>Camion</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          : `<p class="muted">No hay viajes finalizados para ese periodo.</p>`}
+      `;
+    });
+  }
+
+  const fuelLogForm = document.getElementById("form-fuel-log");
+  if (fuelLogForm) {
+    fuelLogForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(fuelLogForm).entries());
+      const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
+      const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
+      if (!vehicle || !driver) {
+        notify("Selecciona camion y conductor validos.", "error");
+        return;
+      }
+      const liters = parseNum(data.liters);
+      const totalCost = parseNum(data.totalCost);
+      if (liters <= 0 || totalCost < 0) {
+        notify("Litros y costo de combustible no son validos.", "error");
+        return;
+      }
+      const list = read(KEYS.fuelLogs, []);
+      list.unshift({
+        id: uid(),
+        date: data.date || nowIso().slice(0, 10),
+        vehicleId: vehicle.id,
+        vehiclePlate: vehicle.plate,
+        driverId: driver.id,
+        driverName: driver.name,
+        tripNumber: String(data.tripNumber || "").trim(),
+        liters,
+        totalCost,
+        costPerLiter: liters > 0 ? Math.round(totalCost / liters) : 0,
+        odometerKm: parseNum(data.odometerKm),
+        station: String(data.station || "").trim(),
+        paidBy: String(data.paidBy || "empresa"),
+        createdAt: nowIso()
+      });
+      write(KEYS.fuelLogs, list);
+      notify("Consumo de combustible registrado.", "success");
+      renderPortalView();
+    });
+  }
+
+  const technicalLogForm = document.getElementById("form-technical-log");
+  if (technicalLogForm) {
+    technicalLogForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(technicalLogForm).entries());
+      const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
+      if (!vehicle) {
+        notify("Selecciona un camion valido.", "error");
+        return;
+      }
+      const list = read(KEYS.vehicleTechnicalLogs, []);
+      list.unshift({
+        id: uid(),
+        date: data.date || nowIso().slice(0, 10),
+        vehicleId: vehicle.id,
+        vehiclePlate: vehicle.plate,
+        type: String(data.type || "preventivo"),
+        description: String(data.description || "").trim(),
+        cost: parseNum(data.cost),
+        downtimeHours: parseNum(data.downtimeHours),
+        status: String(data.status || "Pendiente"),
+        createdAt: nowIso()
+      });
+      write(KEYS.vehicleTechnicalLogs, list);
+      notify("Novedad tecnica registrada correctamente.", "success");
+      renderPortalView();
+    });
+  }
+
   const employeeForm = document.getElementById("form-employee");
   if (employeeForm) {
     attachDepartmentCitySelects(employeeForm, {
@@ -4575,11 +4810,27 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(payrollForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) return;
+      if (!monthRange(data.month)) {
+        notify("Selecciona un mes valido para liquidar.", "error");
+        return;
+      }
+      const linkedDriver = employee.workerRole === "conductor" ? resolveDriverForEmployee(employee) : null;
+      const monthlyDriver = linkedDriver ? calculateDriverTripReport(linkedDriver.id, data.month) : null;
+      const autoTravelAllowance = monthlyDriver ? monthlyDriver.viaticTotal : 0;
+      const autoFuelReimbursement = linkedDriver
+        ? read(KEYS.fuelLogs, [])
+            .filter((log) => String(log.driverId || "") === String(linkedDriver.id) && String(log.paidBy || "empresa") === "conductor" && dateInRange(log.date, monthRange(data.month)))
+            .reduce((acc, log) => acc + parseNum(log.totalCost), 0)
+        : 0;
+      const travelAllowanceManual = parseNum(data.travelAllowanceManual);
+      const fuelReimbursementManual = parseNum(data.fuelReimbursementManual);
+      const travelAllowance = autoTravelAllowance + travelAllowanceManual;
+      const fuelReimbursement = autoFuelReimbursement + fuelReimbursementManual;
       const baseSalary = parseNum(employee.baseSalary);
       const extras = parseNum(data.extras);
       const aux = parseNum(data.aux);
       const bonus = parseNum(data.bonus);
-      const gross = baseSalary + extras + aux + bonus;
+      const gross = baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement;
       const ibc = baseSalary + extras + bonus;
       const health = ibc * CO_PAYROLL.healthEmployeeRate;
       const pension = ibc * CO_PAYROLL.pensionEmployeeRate;
@@ -4593,6 +4844,14 @@ function bindDynamicEvents() {
         month: data.month,
         gross,
         ibc,
+        travelAllowance,
+        fuelReimbursement,
+        travelAllowanceAuto: autoTravelAllowance,
+        fuelReimbursementAuto: autoFuelReimbursement,
+        travelAllowanceManual,
+        fuelReimbursementManual,
+        tripCount: monthlyDriver?.tripCount || 0,
+        interDepartmentTrips: monthlyDriver?.interDepartmentTrips || 0,
         health,
         pension,
         solidarity,
@@ -4636,6 +4895,8 @@ function bindDynamicEvents() {
             <thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>
             <tbody>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Total devengado</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.gross).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Viaticos</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.travelAllowance || 0).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Reembolso combustible</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.fuelReimbursement || 0).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">IBC (base cotizacion)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.ibc).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte salud empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.health).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte pension empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.pension).toLocaleString("es-CO")}</td></tr>
@@ -4647,6 +4908,7 @@ function bindDynamicEvents() {
           <p style="font-size:0.78rem;color:#666;margin-top:1.5rem">
             Nota: Los porcentajes de salud y pension aqui mostrados corresponden a la parte a cargo del trabajador en regimen ordinario.
             Parafiscales (SENA, ICBF, caja si aplica) y aportes patronales no estan desglosados en este prototipo.
+            ${parseNum(run.interDepartmentTrips || 0) > 0 ? `Incluye ${parseNum(run.interDepartmentTrips || 0)} viaje(s) interdepartamental(es) para viaticos del periodo. ` : ""}
             Conserve este documento para fines de auditoria interna. Generado: ${fmtDate(run.createdAt)}.
           </p>
           <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
@@ -4695,8 +4957,8 @@ function bindDynamicEvents() {
   if (exportPayroll) {
     exportPayroll.addEventListener("click", () => {
       const rows = read(KEYS.payrollRuns, []);
-      const csv = ["Mes,Empleado,Devengado,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"]
-        .concat(rows.map((r) => `${r.month},${r.employeeName},${r.gross},${r.ibc || 0},${r.health || 0},${r.pension || 0},${r.solidarity || 0},${r.deductions},${r.net},${r.paid ? "Pagado" : "Pendiente"}`))
+      const csv = ["Mes,Empleado,Devengado,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"]
+        .concat(rows.map((r) => `${r.month},${r.employeeName},${r.gross},${r.travelAllowance || 0},${r.fuelReimbursement || 0},${r.ibc || 0},${r.health || 0},${r.pension || 0},${r.solidarity || 0},${r.deductions},${r.net},${r.paid ? "Pagado" : "Pendiente"}`))
         .join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
