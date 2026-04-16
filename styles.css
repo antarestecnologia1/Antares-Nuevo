@@ -2213,3 +2213,114 @@ tbody tr:last-child td { border-bottom: none; }
   .grid-3, .grid-4 { grid-template-columns: 1fr; }
   .coverage-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── MAGNIFIC EXPERIENCE LAYER ─── */
+body {
+  background:
+    radial-gradient(1200px 500px at 100% -10%, rgba(33, 150, 243, 0.15), transparent 70%),
+    radial-gradient(900px 450px at -10% 20%, rgba(10, 46, 92, 0.16), transparent 72%),
+    #f5f9ff;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 120px;
+  background: linear-gradient(180deg, transparent 0%, rgba(245, 249, 255, 0.92) 100%);
+  pointer-events: none;
+}
+
+.section,
+.portal-main {
+  position: relative;
+}
+
+.section::before,
+.portal-main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(21, 101, 192, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(21, 101, 192, 0.03) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 90%);
+}
+
+.p-card,
+.kpi,
+.media-card,
+.step,
+.coverage-card,
+.contact-form {
+  border: 1px solid rgba(21, 101, 192, 0.14) !important;
+  box-shadow: 0 10px 36px rgba(7, 30, 61, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.p-card:hover,
+.kpi:hover,
+.media-card:hover,
+.step:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 44px rgba(7, 30, 61, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.btn {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 12px 28px rgba(13, 71, 161, 0.30);
+}
+
+.btn-primary:hover {
+  filter: saturate(1.08) brightness(1.03);
+}
+
+.p-form {
+  gap: 0.95rem;
+}
+
+.p-form label {
+  border: 1px solid rgba(21, 101, 192, 0.16);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 251, 255, 0.92));
+}
+
+.p-form label:focus-within {
+  border-color: rgba(21, 101, 192, 0.48);
+  box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.14);
+}
+
+.p-form input,
+.p-form select,
+.p-form textarea {
+  border: 1px solid rgba(21, 101, 192, 0.18);
+  background: #fff;
+}
+
+.p-form input:focus,
+.p-form select:focus,
+.p-form textarea:focus {
+  border-color: rgba(21, 101, 192, 0.55);
+  box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.12);
+}
+
+.table-wrap table thead th {
+  background: linear-gradient(180deg, #edf4fd 0%, #e6f0fb 100%);
+}
+
+.table-wrap table tbody tr:hover {
+  background: rgba(21, 101, 192, 0.05);
+}
+
+.status {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-weight: 700;
+}

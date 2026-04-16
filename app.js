@@ -838,6 +838,12 @@ function authView() {
     return `
       <form id="form-register" class="form-grid auth-form">
         <label>Nombre <input name="name" required /></label>
+        <label>Tipo de persona
+          <select name="personType" required>
+            <option value="Natural">Natural</option>
+            <option value="Juridica">Juridica</option>
+          </select>
+        </label>
         <label>Tipo documento
           <select name="documentType" required>
             <option value="CC">Cedula de ciudadania</option>
@@ -847,9 +853,11 @@ function authView() {
           </select>
         </label>
         <label>Numero documento/NIT <input name="taxId" required /></label>
+        <label>Expedicion documento <input type="date" name="documentIssuedAt" required /></label>
         <label>Cargo <input name="position" required /></label>
         <label>Telefono <input name="phone" required /></label>
         <label>Ciudad <input name="city" required placeholder="Ej: Medellin" /></label>
+        <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
         <label>Correo <input type="email" name="email" autocomplete="username" required /></label>
         <label class="full">Contrasena
           <div class="password-field">
@@ -1479,9 +1487,13 @@ function requestFormHtml() {
     </div>
     <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
     <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
+    <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
     <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
     <label>${fieldLabel(IC.dollar, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+    <label>${fieldLabel(IC.dollar, "Valor asegurado (COP)")}<input type="number" min="0" name="insuredValue" required /></label>
     <label>${fieldLabel(IC.activity, "Temperatura requerida")}<input name="temperature" placeholder="Ej: 4C" /></label>
+    <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
+    <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
@@ -1547,7 +1559,7 @@ function vehiclesHtml() {
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate);
       return `<tr>
       <td><strong>${v.plate}</strong></td>
-      <td>${v.type}</td>
+      <td>${v.type}<br><span class="muted">${v.brand || "-"} · ${v.model || "-"} · ${v.year || "-"}</span></td>
       <td>${v.capacityKg.toLocaleString("es-CO")} kg</td>
       <td>${v.refrigerated ? '<span class="status status-viaje_asignado">Si</span>' : '<span class="status status-espera_standby">No</span>'}</td>
       <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
@@ -1562,9 +1574,13 @@ function vehiclesHtml() {
     .join("");
   const formBody = `<form id="form-vehicle" class="p-form">
     <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
+    <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required /></label>
+    <label>${fieldLabel(IC.grid, "Linea/Modelo")}<input name="model" required /></label>
+    <label>${fieldLabel(IC.calendar, "Ano modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
     <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
     <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
     <label>${fieldLabel(IC.activity, "Refrigerado")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
+    <label>${fieldLabel(IC.clock, "Kilometraje")}<input type="number" min="0" name="mileageKm" required /></label>
     <label>${fieldLabel(IC.calendar, "Expedicion SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
     <label>${fieldLabel(IC.calendar, "Expedicion tecnomecanica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
     <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehiculo</button>
@@ -1582,7 +1598,7 @@ function driversHtml() {
     .map((d) => `<tr>
       <td><strong>${d.name}</strong></td>
       <td>${d.phone}</td>
-      <td>${d.license}</td>
+      <td>${d.license}<br><span class="muted">${d.licenseCategory || "-"} · vence ${d.licenseExpiry || "-"}</span></td>
       <td>${getCompanyById(d.companyId)?.name || "-"}</td>
       <td>${d.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
       <td><div class="toolbar">
@@ -1603,7 +1619,11 @@ function driversHtml() {
     <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
     <label>${fieldLabel(IC.file, "Licencia")}<input name="license" required /></label>
+    <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" required /></label>
+    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory" required><option>C1</option><option>C2</option><option>C3</option></select></label>
     <label>${fieldLabel(IC.mapPin, "Ciudad residencia")}<input name="city" required /></label>
+    <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
+    <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione...</option>${companyOptions}</select></label>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Agregar conductor</button>
   </form>`;
@@ -1732,6 +1752,7 @@ function adminUsersHtml(current) {
       <div class="user-card-meta">
         <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "Sin empresa"}</span>
         ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
+        ${u.city ? `<span>${IC.mapPin} ${u.city}${u.department ? `, ${u.department}` : ""}</span>` : ""}
       </div>
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
       ${!isMe ? `<div class="user-card-actions">
@@ -1792,6 +1813,8 @@ function adminUsersHtml(current) {
     </label>
     <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
     <label>Ciudad <input name="city" required placeholder="Ciudad principal" /></label>
+    <label>Departamento <input name="department" required placeholder="Ej: Antioquia" /></label>
+    <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
     <label>Nombre comercial <input name="company" value="Antares" /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos del usuario</legend>
@@ -1847,6 +1870,8 @@ function adminUsersHtml(current) {
     </label>
     <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
     <label>Ciudad <input name="city" value="${editingUser.city || ""}" /></label>
+    <label>Departamento <input name="department" value="${editingUser.department || ""}" /></label>
+    <label>Direccion <input name="address" value="${editingUser.address || ""}" /></label>
     <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
     <label>NIT/RUT <input name="taxId" value="${editingUser.taxId || ""}" /></label>
     <fieldset class="full perm-fieldset">
@@ -2006,6 +2031,10 @@ function payrollHtml() {
     <label>${fieldLabel(IC.briefcase, "Cargo")}<input name="position" required /></label>
     <label>${fieldLabel(IC.activity, "Tipo contrato")}<input name="contractType" required /></label>
     <label>${fieldLabel(IC.mapPin, "Ciudad")}<input name="city" required /></label>
+    <label>${fieldLabel(IC.mapPin, "Direccion")}<input name="address" required /></label>
+    <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
+    <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
+    <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
     <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" name="baseSalary" required /></label>
     <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
@@ -2260,11 +2289,15 @@ function bindDynamicEvents() {
         role: data.role,
         documentType: data.documentType,
         accountStatus: ACCOUNT_STATUS.APROBADO,
+        personType: data.personType || "Natural",
+        documentIssuedAt: data.documentIssuedAt || "",
         company: data.company || company.name,
         companyId: company.id,
         taxId: data.taxId,
         phone: data.phone,
         city: data.city,
+        department: data.department,
+        address: data.address,
         permissions:
           data.role === ROLES.ADMIN
             ? [...ALL_PERMISSIONS]
@@ -2388,11 +2421,15 @@ function bindDynamicEvents() {
                 password: nextPassword,
                 role: String(data.role || u.role),
                 documentType: String(data.documentType || u.documentType || "CC"),
+                personType: String(data.personType || u.personType || "Natural"),
+                documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
                 companyId: company.id,
                 company: String(data.company || company.name).trim(),
                 taxId: String(data.taxId || "").trim(),
                 phone: String(data.phone || "").trim(),
                 city: String(data.city || "").trim(),
+                department: String(data.department || u.department || "").trim(),
+                address: String(data.address || u.address || "").trim(),
                 permissions:
                   String(data.role || u.role) === ROLES.ADMIN
                     ? [...ALL_PERMISSIONS]
@@ -2801,9 +2838,13 @@ function bindDynamicEvents() {
       list.push({
         id: uid(),
         plate: String(data.plate).toUpperCase(),
+        brand: String(data.brand || "").trim(),
+        model: String(data.model || "").trim(),
+        year: parseNum(data.year),
         type: data.type,
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
+        mileageKm: parseNum(data.mileageKm),
         soatExpeditionDate: data.soatExpeditionDate,
         techInspectionExpeditionDate: data.techInspectionExpeditionDate,
         available: true
@@ -2861,7 +2902,11 @@ function bindDynamicEvents() {
         submitText: "Guardar cambios",
         fields: [
           { name: "plate", label: "Placa", value: target.plate, required: true },
+          { name: "brand", label: "Marca", value: target.brand || "", required: true },
+          { name: "model", label: "Linea/Modelo", value: target.model || "", required: true },
+          { name: "year", label: "Ano modelo", type: "number", value: target.year || "", required: true },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
+          { name: "mileageKm", label: "Kilometraje", type: "number", value: target.mileageKm || 0, required: true },
           { name: "soatExpeditionDate", label: "Expedicion SOAT", type: "date", value: target.soatExpeditionDate, required: true },
           {
             name: "techInspectionExpeditionDate",
@@ -2879,7 +2924,11 @@ function bindDynamicEvents() {
                 ? {
                     ...v,
                     plate: String(form.plate || "").toUpperCase(),
+                    brand: String(form.brand || "").trim(),
+                    model: String(form.model || "").trim(),
+                    year: parseNum(form.year),
                     capacityKg: parseNum(form.capacityKg),
+                    mileageKm: parseNum(form.mileageKm),
                     soatExpeditionDate: form.soatExpeditionDate,
                     techInspectionExpeditionDate: form.techInspectionExpeditionDate
                   }
@@ -3317,12 +3366,16 @@ function bindDynamicEvents() {
             password: await hashPassword(approval.payload.password || "Cambio123!"),
             role: approval.payload.role,
             documentType: approval.payload.documentType || "CC",
+            personType: approval.payload.personType || "Natural",
+            documentIssuedAt: approval.payload.documentIssuedAt || "",
             accountStatus: ACCOUNT_STATUS.APROBADO,
             company: approval.payload.companyName || getCompanyById(approval.payload.companyId)?.name || "",
             companyId: approval.payload.companyId,
             taxId: approval.payload.taxId,
             phone: approval.payload.phone,
             city: approval.payload.city || "",
+            department: approval.payload.department || "",
+            address: approval.payload.address || "",
             permissions:
               approval.payload.role === ROLES.ADMIN
                 ? [...ALL_PERMISSIONS]
