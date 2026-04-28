@@ -1000,6 +1000,18 @@ label {
   font-weight: 500;
 }
 
+.required-with-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.required-marker {
+  color: #D62828;
+  font-weight: 800;
+  line-height: 1;
+}
+
 input, select, textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -2492,24 +2504,24 @@ body {
 }
 
 body[data-theme="dark"] .portal-layout {
-  background: linear-gradient(180deg, #050c18 0%, #0b1729 100%);
+  background: linear-gradient(180deg, #071120 0%, #0d1d33 100%);
 }
 
 body[data-theme="dark"] .portal-main {
-  background: #0c1a2b;
+  background: #112136;
 }
 
 body[data-theme="dark"] .p-card,
 body[data-theme="dark"] .kpi,
 body[data-theme="dark"] .table-wrap,
 body[data-theme="dark"] .card {
-  background: #122238;
-  border-color: #27415f;
+  background: #182a41;
+  border-color: #345577;
   color: var(--text);
 }
 
 body[data-theme="dark"] .p-card-header {
-  background: linear-gradient(135deg, #11243b, #172f4a);
+  background: linear-gradient(135deg, #1a304b, #203b5b);
 }
 
 body[data-theme="dark"] .portal-header h1 {
@@ -2517,7 +2529,7 @@ body[data-theme="dark"] .portal-header h1 {
 }
 
 body[data-theme="dark"] tbody tr:hover {
-  background: #162b45;
+  background: #233d5c;
 }
 
 body[data-theme="dark"] table th,
@@ -2535,17 +2547,17 @@ body[data-theme="dark"] .p-form label,
 body[data-theme="dark"] .card p,
 body[data-theme="dark"] .card li,
 body[data-theme="dark"] .table-wrap tbody td {
-  color: #a8beda;
+  color: #c3d7ef;
 }
 
 body[data-theme="dark"] .top-nav {
-  background: rgba(7, 16, 30, 0.95);
+  background: rgba(12, 27, 46, 0.96);
 }
 
 body[data-theme="dark"] .theme-toggle,
 body[data-theme="dark"] .lang-toggle {
-  background: rgba(9, 21, 37, 0.75);
-  border-color: #2d4d70;
+  background: rgba(22, 45, 74, 0.9);
+  border-color: #4d74a0;
 }
 
 body[data-theme="dark"] .module-filters {
@@ -2587,9 +2599,10 @@ body[data-theme="dark"] .section-trusted,
 body[data-theme="dark"] .section-gallery,
 body[data-theme="dark"] #about,
 body[data-theme="dark"] #fleet,
+body[data-theme="dark"] #news,
 body[data-theme="dark"] #careers,
 body[data-theme="dark"] #contact {
-  background: #0a1728 !important;
+  background: #10243b !important;
 }
 
 body[data-theme="dark"] .section h2,
@@ -2600,7 +2613,40 @@ body[data-theme="dark"] .section-head p {
 }
 
 body[data-theme="dark"] .wave-divider path {
-  fill: #0a1728 !important;
+  fill: #10243b !important;
+}
+
+body[data-theme="dark"] .section-head p,
+body[data-theme="dark"] .section p,
+body[data-theme="dark"] .muted {
+  color: #c8dcf3 !important;
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+  background: #1a314c;
+  color: #ecf4ff;
+  border-color: #49719c;
+}
+
+body[data-theme="dark"] input::placeholder,
+body[data-theme="dark"] textarea::placeholder {
+  color: #a9c0db;
+}
+
+body[data-theme="dark"] .news-tag {
+  background: rgba(85, 155, 230, 0.18);
+  border-color: rgba(124, 183, 245, 0.38);
+  color: #ddecff;
+}
+
+body[data-theme="dark"] .btn-outline,
+body[data-theme="dark"] .btn-action,
+body[data-theme="dark"] .btn-text {
+  background: #1b334f;
+  border-color: #4a729e;
+  color: #e6f1ff;
 }
 
 .p-card,
@@ -2803,7 +2849,7 @@ body[data-theme="dark"] .wave-divider path {
 }
 
 .careers-card .careers-meta {
-  font-size: 0.86rem;
+    font-size: 0.86rem;
   color: var(--text-soft);
 }
 
@@ -2811,6 +2857,32 @@ body[data-theme="dark"] .wave-divider path {
   font-size: 0.88rem;
   line-height: 1.45;
   flex: 1;
+}
+
+/* ─── News ─── */
+.section-news {
+  background: linear-gradient(180deg, #F7FBFF 0%, #EFF6FF 100%);
+}
+
+.news-card {
+  border-top: 3px solid var(--primary);
+  padding-top: 1.2rem;
+}
+
+.news-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.26rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(21, 101, 192, 0.1);
+  border: 1px solid rgba(21, 101, 192, 0.2);
+  color: var(--primary-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  margin-bottom: 0.55rem;
 }
 
 /* ─── Nomina: empleado con mini foto ─── */

@@ -31,6 +31,7 @@
           <a href="#gallery">Galeria</a>
           <a href="#media">Videos</a>
           <a href="#coverage">Cobertura</a>
+          <a href="#news">Novedades</a>
           <a href="#careers">Trabaja con nosotros</a>
           <a href="#contact">Contacto</a>
         </nav>
@@ -654,6 +655,43 @@
         <path fill="#F5F9FF" d="M0,32 C480,80 960,0 1440,48 L1440,80 L0,80 Z"/>
       </svg>
 
+      <!-- NEWS -->
+      <section id="news" class="section section-news" style="background:#F5F9FF">
+        <div class="container">
+          <div class="section-head" data-reveal>
+            <div class="section-icon-header">
+              <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9l7 7v7a2 2 0 0 1-2 2z"/><path d="M14 3v8h8"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="17" y2="17"/><line x1="7" y1="9" x2="10" y2="9"/>
+              </svg>
+              <h2>Novedades y mejoras</h2>
+            </div>
+            <p>
+              Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.
+            </p>
+          </div>
+          <div class="grid-3">
+            <article class="card news-card lift-card" data-reveal>
+              <span class="news-tag">Operacion</span>
+              <h3>Seguimiento de viajes reforzado</h3>
+              <p>Incorporamos alertas internas para detectar desvíos de ruta y mejorar tiempos de respuesta en incidentes.</p>
+              <small class="muted">Actualizado: Abril 2026</small>
+            </article>
+            <article class="card news-card lift-card" data-reveal>
+              <span class="news-tag">Calidad</span>
+              <h3>Cadena de frio con mayor control</h3>
+              <p>Se ajustaron protocolos de temperatura por tipo de flor y duracion de trayecto para reducir mermas.</p>
+              <small class="muted">Actualizado: Abril 2026</small>
+            </article>
+            <article class="card news-card lift-card" data-reveal>
+              <span class="news-tag">Plataforma</span>
+              <h3>Nuevos contratos Word automatizados</h3>
+              <p>Al crear empleados se generan contratos en formato Word conservando la estructura oficial de la empresa.</p>
+              <small class="muted">Actualizado: Abril 2026</small>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <!-- CAREERS -->
       <section id="careers" class="section section-careers" style="background:#F5F9FF">
         <div class="container">
@@ -932,6 +970,20 @@
     <script src="./apps/web/src/modules/autorizaciones/view.js"></script>
     <script src="./apps/web/src/modules/perfil/view.js"></script>
     <script src="./apps/web/src/modules/notificaciones/view.js"></script>
+    <script src="./modules/auth/index.js"></script>
+    <script src="./modules/users/index.js"></script>
+    <script src="./modules/companies/index.js"></script>
+    <script src="./modules/vehicles/index.js"></script>
+    <script src="./modules/drivers/index.js"></script>
+    <script src="./modules/trips/index.js"></script>
+    <script src="./modules/requests/index.js"></script>
+    <script src="./modules/notifications/index.js"></script>
+    <script src="./modules/payroll/index.js"></script>
+    <script src="./modules/recruitment/index.js"></script>
+    <script src="./modules/files/index.js"></script>
+    <script src="./modules/domain-bootstrap.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-xXDvecy63+f7W6FR7fvj7jY3n0zqxd6QbaO5jM90+hCbGyF/F7fs/3Gzdh0dX8GZFODdgNpTi27C3l2qC5xRtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="./modules/recruitment/contracts-docx.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

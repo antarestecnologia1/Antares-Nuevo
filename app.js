@@ -587,6 +587,14 @@ function capturePublicTextNodes() {
 
 function translatePublicText(text, lang) {
   if (lang !== "en") return text;
+  const normalizePublicKey = (value) =>
+    String(value || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
   const dict = {
     "Inicio": "Home",
     "Nosotros": "About",
@@ -598,6 +606,7 @@ function translatePublicText(text, lang) {
     "Galeria": "Gallery",
     "Videos": "Videos",
     "Cobertura": "Coverage",
+    "Novedades": "Updates",
     "Trabaja con nosotros": "Careers",
     "Contacto": "Contact",
     "Portal": "Portal",
@@ -624,6 +633,18 @@ function translatePublicText(text, lang) {
     "Galeria operativa": "Operations gallery",
     "Videos relacionados": "Related videos",
     "Cobertura nacional": "Nationwide coverage",
+    "Novedades y mejoras": "News and updates",
+    "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent updates in operations, technology, and service to keep our clients informed.",
+    "Operacion": "Operations",
+    "Calidad": "Quality",
+    "Plataforma": "Platform",
+    "Seguimiento de viajes reforzado": "Enhanced trip tracking",
+    "Incorporamos alertas internas para detectar desvíos de ruta y mejorar tiempos de respuesta en incidentes.": "We added internal alerts to detect route deviations and improve incident response times.",
+    "Cadena de frio con mayor control": "Stronger cold-chain control",
+    "Se ajustaron protocolos de temperatura por tipo de flor y duracion de trayecto para reducir mermas.": "Temperature protocols were refined by flower type and route duration to reduce losses.",
+    "Nuevos contratos Word automatizados": "New automated Word contracts",
+    "Al crear empleados se generan contratos en formato Word conservando la estructura oficial de la empresa.": "When creating employees, Word contracts are generated while preserving the company official format.",
+    "Actualizado: Abril 2026": "Updated: April 2026",
     "Rutas principales": "Main routes",
     "Corredores frecuentes": "Frequent corridors",
     "Formulario de contacto B2B": "B2B contact form",
@@ -665,10 +686,14 @@ function translatePublicText(text, lang) {
     "Cerrar sesion": "Sign out",
     "Todos los derechos reservados.": "All rights reserved."
   };
-  const key = String(text || "").replace(/\s+/g, " ").trim();
+  const key = normalizePublicKey(text);
+  const normalizedDict = Object.entries(dict).reduce((acc, [es, en]) => {
+    acc[normalizePublicKey(es)] = en;
+    return acc;
+  }, {});
   if (!key) return text;
-  if (!dict[key]) return text;
-  return String(text || "").replace(key, dict[key]);
+  if (!normalizedDict[key]) return text;
+  return normalizedDict[key];
 }
 
 function tPublic(textEs) {
@@ -2659,7 +2684,7 @@ function vehiclesHtml() {
     <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
     <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required /></label>
     <label>${fieldLabel(IC.grid, "Linea/Modelo")}<input name="model" required /></label>
-    <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
+    <label>${fieldLabel(IC.calendar, "Ano modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
     <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
     <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
     <label>${fieldLabel(IC.activity, "Refrigerado")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
@@ -3872,6 +3897,16 @@ function payrollHtml() {
     <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
     <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
+    <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}
+      <select name="contractTemplateKind" required>
+        <option value="oficina">Contrato trabajo personal oficina</option>
+        <option value="fijo">Contrato personal termino fijo</option>
+        <option value="prestacion">Contrato prestacion de servicios conductores</option>
+      </select>
+    </label>
+    <label>${fieldLabel(IC.calendar, "Duracion contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses" /></label>
+    <label>${fieldLabel(IC.briefcase, "Banco cuenta bancaria")}<input name="bankName" required placeholder="Nombre del banco" /></label>
+    <label>${fieldLabel(IC.file, "Cuenta bancaria")}<input name="bankAccount" required placeholder="Numero de cuenta" /></label>
     <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
     <label>${fieldLabel(IC.file, "Licencia (si es conductor)")}<input name="license" placeholder="C2 / C3" /></label>
     <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory"><option value="">Seleccione...</option><option>C1</option><option>C2</option><option>C3</option></select></label>
@@ -5321,7 +5356,7 @@ function bindDynamicEvents() {
           { name: "plate", label: "Placa", value: target.plate, required: true },
           { name: "brand", label: "Marca", value: target.brand || "", required: true },
           { name: "model", label: "Linea/Modelo", value: target.model || "", required: true },
-          { name: "year", label: "Año modelo", type: "number", value: target.year || "", required: true },
+          { name: "year", label: "Ano modelo", type: "number", value: target.year || "", required: true },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
           { name: "mileageKm", label: "Kilometraje", type: "number", value: target.mileageKm || 0, required: true },
           { name: "soatExpeditionDate", label: "Expedicion SOAT", type: "date", value: target.soatExpeditionDate, required: true },
@@ -5543,7 +5578,7 @@ function bindDynamicEvents() {
       empPosSelect.addEventListener("change", syncEmpFromPosition);
       syncEmpFromPosition();
     }
-    employeeForm.addEventListener("submit", (event) => {
+    employeeForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
       const raw = Object.fromEntries(new FormData(employeeForm).entries());
@@ -5584,6 +5619,10 @@ function bindDynamicEvents() {
           emergencyPhone: String(raw.emergencyPhone || "").trim(),
           companyId: raw.companyId,
           baseSalary,
+          contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
+          contractDuration: String(raw.contractDuration || "").trim(),
+          bankName: String(raw.bankName || "").trim(),
+          bankAccount: String(raw.bankAccount || "").trim(),
           startDate: raw.startDate,
           license: String(raw.license || "").trim(),
           licenseCategory: String(raw.licenseCategory || "").trim(),
@@ -5591,7 +5630,7 @@ function bindDynamicEvents() {
           avatarUrl
         };
       };
-      const saveEmployee = (avatarUrlValue) => {
+      const saveEmployee = async (avatarUrlValue) => {
         if (actor?.role !== ROLES.ADMIN) {
           const payload = buildPayload(avatarUrlValue, { stripLargeAvatar: true });
           queueApproval({
@@ -5624,15 +5663,38 @@ function bindDynamicEvents() {
           licenseCategory: payload.licenseCategory,
           licenseExpiry: payload.licenseExpiry
         });
-        notify("Empleado creado correctamente.", "success");
+        if (window.RecruitmentDomain?.generateEmployeeContractDocx) {
+          try {
+            await window.RecruitmentDomain.generateEmployeeContractDocx({
+              contractTemplateKind: payload.contractTemplateKind,
+              nombre_empleado: payload.name,
+              cedula_empleado: payload.idDoc,
+              ciudad_empleado: payload.city,
+              banco_cuenta_bancaria: payload.bankName,
+              salario: payload.baseSalary,
+              salario_letras: "",
+              duracion_contrato: payload.contractDuration,
+              cuenta_bancaria: payload.bankAccount,
+              cargo_empleado: payload.position,
+              signDate: payload.startDate
+            });
+            notify("Empleado creado y contrato Word generado.", "success");
+          } catch (error) {
+            notify(`Empleado creado. No se pudo generar Word: ${error?.message || "Error desconocido"}`, "error");
+          }
+        } else {
+          notify("Empleado creado correctamente.", "success");
+        }
         renderPortalView();
       };
       if (file) {
         const reader = new FileReader();
-        reader.onload = () => saveEmployee(String(reader.result || ""));
+        reader.onload = async () => {
+          await saveEmployee(String(reader.result || ""));
+        };
         reader.readAsDataURL(file);
       } else {
-        saveEmployee(String(raw.avatarUrl || "").trim());
+        await saveEmployee(String(raw.avatarUrl || "").trim());
       }
     });
   }
@@ -6710,6 +6772,56 @@ function initGlobalEvents() {
     history.replaceState(null, "", window.location.pathname + window.location.search);
     renderPortal();
   });
+
+  initRequiredFieldIndicators();
+}
+
+function initRequiredFieldIndicators() {
+  const markerClass = "required-marker";
+
+  const placeMarker = (label) => {
+    if (!label || label.querySelector(`.${markerClass}`)) return;
+    const marker = document.createElement("span");
+    marker.className = markerClass;
+    marker.textContent = "*";
+    marker.setAttribute("aria-hidden", "true");
+
+    const labelTextNode = label.querySelector("span");
+    if (labelTextNode) {
+      labelTextNode.classList.add("required-with-marker");
+      labelTextNode.append(" ", marker);
+      return;
+    }
+
+    label.classList.add("required-with-marker");
+    label.append(" ", marker);
+  };
+
+  const scanRequiredFields = (root = document) => {
+    const requiredFields = root.querySelectorAll("input[required], select[required], textarea[required]");
+    requiredFields.forEach((field) => {
+      if (field.type === "hidden") return;
+      const label = field.closest("label");
+      placeMarker(label);
+    });
+  };
+
+  scanRequiredFields(document);
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof Element)) return;
+        if (node.matches("input[required], select[required], textarea[required]")) {
+          const label = node.closest("label");
+          placeMarker(label);
+        }
+        scanRequiredFields(node);
+      });
+    });
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 function getPublicPublishedVacancies() {
@@ -6917,6 +7029,12 @@ seed();
 ensureUsersPasswordHashing();
 initGlobalEvents();
 initPublicEffects();
+if (window.DomainRegistry?.list) {
+  const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
+  if (missingDomains.length) {
+    console.warn("Dominios sin inicializar:", missingDomains.join(", "));
+  }
+}
 renderPortal();
 setInterval(() => {
   if (!state.session) return;
