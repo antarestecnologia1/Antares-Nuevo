@@ -96,19 +96,24 @@ img { max-width: 100%; }
 
 nav {
   display: flex;
-  gap: 0.15rem;
-  flex-wrap: wrap;
+  gap: 0.05rem;
+  flex-wrap: nowrap;
   align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+
+nav::-webkit-scrollbar { display: none; }
 
 nav a {
   color: rgba(255,255,255,0.78);
   text-decoration: none;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   position: relative;
-  padding: 0.35rem 0.55rem;
+  padding: 0.32rem 0.45rem;
   border-radius: 8px;
+  white-space: nowrap;
 }
 
 nav a:hover {
@@ -165,13 +170,14 @@ nav a:hover::after { width: 60%; }
 
 .theme-option,
 .lang-option {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   border: none;
   background: transparent;
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
