@@ -585,136 +585,232 @@ function capturePublicTextNodes() {
   publicTextCaptured = true;
 }
 
+function normalizePublicKey(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function escapePublicRegexFragment(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Spanish → English strings for the public site (source HTML uses plain ASCII in many words). */
+const PUBLIC_ES_EN_DICT = {
+  Inicio: "Home",
+  Nosotros: "About",
+  Equipo: "Team",
+  Empresas: "Companies",
+  Testimonios: "Testimonials",
+  Flota: "Fleet",
+  Servicios: "Services",
+  Cobertura: "Coverage",
+  Novedades: "Updates",
+  "Trabaja con nosotros": "Careers",
+  Contacto: "Contact",
+  Portal: "Portal",
+  Tema: "Theme",
+  Idioma: "Language",
+  Principal: "Main",
+  "Menu de navegacion": "Open navigation menu",
+  "Modo claro": "Light mode",
+  "Modo oscuro": "Dark mode",
+  "Logistica premium para floricultura y exportacion": "Premium logistics for floriculture and exports",
+  "Transporte especializado de flores con": "Specialized flower transportation with",
+  "trazabilidad total": "full traceability",
+  "Operamos con turbos, camiones y tractocamiones para llevar tu carga": "We operate turbo trucks, medium trucks, and tractor-trailers to move your cargo",
+  "con control de temperatura, seguridad y cumplimiento en toda Colombia.": "with temperature control, security, and on-time compliance across Colombia.",
+  Contactenos: "Contact us",
+  "Ingresar al portal": "Enter portal",
+  "Entregas mensuales": "Monthly deliveries",
+  "Nivel de cumplimiento": "Service compliance",
+  "Tiempo de respuesta": "Response time",
+  "Quienes somos": "Who we are",
+  "Somos una compania con enfoque B2B especializada en logistica de": "We are a B2B-focused company specialized in logistics for",
+  "flor. Integramos tecnologia, experiencia operativa y servicio al": "flowers. We combine technology, operational experience, and customer",
+  "cliente para garantizar entregas puntuales y seguras.": "service to ensure on-time, secure deliveries.",
+  Valores: "Values",
+  "Compromiso con tiempos de entrega.": "Commitment to delivery times.",
+  "Calidad operativa y trazabilidad.": "Operational quality and traceability.",
+  "Atencion humana y cercana.": "Human, approachable service.",
+  "Mejora continua con datos.": "Continuous improvement driven by data.",
+  "Equipo directivo": "Leadership team",
+  "Liderazgo estrategico y operativo para asegurar excelencia en cada": "Strategic and operational leadership to ensure excellence on every",
+  "viaje y en toda la cadena de servicio.": "trip and across the entire service chain.",
+  "Foto de prueba (reemplazable)": "Placeholder photo (replaceable)",
+  "Direccion general": "Executive leadership",
+  "Vision estrategica, alianzas y crecimiento sostenible.": "Strategic vision, partnerships, and sustainable growth.",
+  Operacion: "Operations",
+  "Ejecucion logistica, eficiencia de flota y cumplimiento.": "Logistics execution, fleet efficiency, and reliability.",
+  Administracion: "Administration",
+  "Soporte documental, atencion y gestion interna diaria.": "Document support, customer care, and day-to-day internal management.",
+  "Auxiliar administrativa": "Administrative assistant",
+  "Gestion administrativa": "Business administration",
+  "Lider administrativo": "Administrative lead",
+  "Control de procesos, coordinacion y mejora continua.": "Process control, coordination, and continuous improvement.",
+  "Empresas que confian en nosotros": "Companies that trust us",
+  "Aliados del sector floricultor, comercializador y exportador que": "Allies across floriculture, trading, and exports who",
+  "priorizan puntualidad y conservacion de cadena de frio.": "prioritize punctuality and cold-chain integrity.",
+  "Empresas atendidas en el ultimo ano.": "Companies served in the last year.",
+  "Clientes recurrentes por nivel de servicio.": "Repeat clients driven by service quality.",
+  "Monitoreo de operacion y trazabilidad.": "Operations monitoring and traceability.",
+  "Lo que dicen nuestros clientes": "What our clients say",
+  "Experiencias reales de empresas que gestionan volumen, calidad y": "Real stories from companies managing volume, quality, and",
+  "tiempos exigentes.": "tight timelines.",
+  '"Redujimos reprocesos logisticos en un 32% desde que operamos': '"We cut logistics rework by 32% since we started working',
+  'con Antares. Son rapidos, claros y muy confiables."': 'with Antares. They are fast, clear, and very reliable."',
+  "Directora de Operaciones": "Director of Operations",
+  "Gerente Logistico": "Logistics Manager",
+  "Coordinadora Comercial": "Commercial Coordinator",
+  '"La trazabilidad por estado de viaje nos dio control real del': '"Trip-status traceability gave us real control over the',
+  'proceso. Excelente coordinacion y cumplimiento."': 'process. Excellent coordination and execution."',
+  '"El manejo de cadena de frio y puntualidad en entregas criticas': '"Cold-chain handling and punctuality on critical deliveries',
+  'ha sido sobresaliente. Equipo altamente profesional."': 'have been outstanding. A highly professional team."',
+  "Nuestra flota": "Our fleet",
+  "Vehiculos especializados con control de temperatura para cada necesidad logistica.": "Specialized vehicles with temperature control for every logistics need.",
+  "Capacidad:": "Capacity:",
+  "Cajas:": "Boxes:",
+  "Ideal para rutas urbanas y regionales": "Ideal for urban and regional routes",
+  Camion: "Truck",
+  "Balance entre volumen y eficiencia": "Balance of volume and efficiency",
+  Tractocamion: "Tractor-trailer",
+  "Alto volumen y larga distancia": "High volume and long distance",
+  "Nuestros servicios": "Our services",
+  "Soluciones logisticas integrales para el sector floricultor y de exportacion.": "End-to-end logistics solutions for floriculture and exports.",
+  "Refrigerado y especializado": "Refrigerated and specialized",
+  "Control de temperatura con monitoreo constante para conservar la frescura y calidad de la flor desde el origen hasta el destino.": "Temperature control with continuous monitoring to preserve freshness and flower quality from origin to destination.",
+  "Monitoreo operativo": "Operational monitoring",
+  "Seguimiento en tiempo real por estado de viaje, notificaciones automaticas y visibilidad completa del proceso logistico.": "Real-time tracking by trip status, automated notifications, and full visibility of the logistics process.",
+  "Atencion B2B": "B2B service",
+  "Modelo de servicio dedicado para exportadores y comercializadores con acuerdos de servicio personalizados.": "A dedicated service model for exporters and traders with tailored service agreements.",
+  "Cobertura nacional": "Nationwide coverage",
+  "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for floriculture and exports.",
+  "Rutas principales": "Main routes",
+  "Corredores frecuentes": "Frequent corridors",
+  Sabana: "Savannah",
+  "Sabana de Bogota": "Bogota savannah",
+  "Antioquia floricultora": "Flower-growing Antioquia",
+  "Puertos de exportacion": "Export ports",
+  "Eje cafetero": "Coffee axis",
+  "Costa atlantica": "Atlantic coast",
+  "Bogota D.C.": "Bogota D.C.",
+  Medellin: "Medellin",
+  Rionegro: "Rionegro",
+  Cali: "Cali",
+  Pereira: "Pereira",
+  Armenia: "Armenia",
+  Bucaramanga: "Bucaramanga",
+  Cartagena: "Cartagena",
+  Barranquilla: "Barranquilla",
+  "Novedades y mejoras": "News and updates",
+  "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent changes in operations, technology, and service to keep our clients informed.",
+  "Infraestructura y competitividad": "Infrastructure and competitiveness",
+  "Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion": "Puerto Antioquia boosts exports: our tractor-trailer in operation",
+  "Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.": "Our operation supports a key export route for flowers and avocado from Antioquia to international markets.",
+  "Tu navegador no soporta video HTML5.": "Your browser does not support HTML5 video.",
+  "Puerto Antioquia @puerto_antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades. ¡En Antioquia, la infraestructura se traduce en hechos!": "Puerto Antioquia @puerto_antioquia in Urabá marks a before-and-after for competitiveness in Antioquia and the country. Every day, ships sail with products from the countryside: 130,000 flower stems grown in La Ceja bound for England, and 23 tons of Hass avocado from the southwest headed to Belgium. In the past, these exports left through Santa Marta, meaning longer times and higher costs. Today, the world enters and leaves through Urabá, generating logistics savings, jobs, and new opportunities. In Antioquia, infrastructure becomes concrete results!",
+  "Fuente: Gobernacion de Antioquia · Actualizado: Abril 2026": "Source: Government of Antioquia · Updated: April 2026",
+  "Imagen operativa en ruta": "Operational image on the road",
+  "Nuestra tractomula en escenario real de cargue y despacho.": "Our tractor-trailer in a real loading and dispatch scenario.",
+  "Presencia de marca en carretera": "Brand presence on the road",
+  "Vehiculos visibles, cuidados y alineados con estandares de servicio.": "Visible, well-maintained vehicles aligned with service standards.",
+  Marca: "Brand",
+  Calidad: "Quality",
+  Plataforma: "Platform",
+  "Seguimiento de viajes reforzado": "Enhanced trip tracking",
+  "Incorporamos alertas internas para detectar desvíos de ruta y mejorar tiempos de respuesta en incidentes.": "We added internal alerts to detect route deviations and improve incident response times.",
+  "Cadena de frio con mayor control": "Stronger cold-chain control",
+  "Se ajustaron protocolos de temperatura por tipo de flor y duracion de trayecto para reducir mermas.": "Temperature protocols were tuned by flower type and journey length to reduce shrinkage.",
+  "Nuevos contratos Word automatizados": "New automated Word contracts",
+  "Al crear empleados se generan contratos en formato Word conservando la estructura oficial de la empresa.": "When creating employees, Word contracts are generated while preserving the company’s official structure.",
+  "Actualizado: Abril 2026": "Updated: April 2026",
+  "Vacantes publicadas desde nuestro portal de RRHH. Postulate de forma segura; tu hoja de vida llega al modulo de": "Open roles from our HR portal. Apply securely; your résumé goes straight to the",
+  Contratacion: "Recruitment",
+  "para que el equipo revise tu perfil.": "module so the team can review your profile.",
+  "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).": "Vacancies sync with the same team that manages candidates in the portal (same local browser database).",
+  "Formulario de contacto B2B": "B2B contact form",
+  Nombre: "Name",
+  Empresa: "Company",
+  "NIT/RUT": "Tax ID",
+  Cargo: "Role",
+  Telefono: "Phone",
+  Correo: "Email",
+  "Tipo de servicio": "Service type",
+  "Seleccione...": "Select...",
+  "Transporte refrigerado": "Refrigerated transport",
+  "Transporte dedicado": "Dedicated transport",
+  "Servicio eventual": "On-demand service",
+  Mensaje: "Message",
+  "Enviar solicitud": "Send request",
+  Aplicar: "Apply",
+  Cierre: "Closing",
+  "Sin fecha limite": "Open deadline",
+  "No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.": "There are no openings right now. Check back soon or reach us via Contact.",
+  Direccion: "Address",
+  "Las solicitudes se guardan en base de datos local del navegador y": "Requests are stored in the browser’s local database and",
+  "generan una notificacion simulada de email.": "trigger a simulated email notification.",
+  Legal: "Legal",
+  "Politica de privacidad": "Privacy policy",
+  "Terminos y condiciones": "Terms and conditions",
+  "Redes sociales": "Social media",
+  "Transporte especializado de flores para empresas en toda Colombia.": "Specialized flower transport for companies across Colombia.",
+  "Camiones y utilización": "Trucks and utilization",
+  Nomina: "Payroll",
+  "Mi perfil": "My profile",
+  Notificaciones: "Notifications",
+  "Cerrar sesion": "Sign out",
+  "Todos los derechos reservados.": "All rights reserved.",
+  WhatsApp: "WhatsApp",
+  "Contactar por WhatsApp": "Contact via WhatsApp",
+  "Galeria operativa": "Operations gallery",
+  "Videos relacionados": "Related videos",
+  Claro: "Light",
+  Oscuro: "Dark"
+};
+
+let publicTranslationSortedEntries = null;
+function getPublicTranslationSortedEntries() {
+  if (!publicTranslationSortedEntries) {
+    publicTranslationSortedEntries = Object.entries(PUBLIC_ES_EN_DICT).sort((a, b) => b[0].length - a[0].length);
+  }
+  return publicTranslationSortedEntries;
+}
+
 function translatePublicText(text, lang) {
   if (lang !== "en") return text;
-  const normalizePublicKey = (value) =>
-    String(value || "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
+  const raw = String(text || "");
+  const leading = raw.match(/^\s*/)?.[0] ?? "";
+  const trailing = raw.match(/\s*$/)?.[0] ?? "";
+  const collapsed = raw.replace(/\s+/g, " ").trim();
+  if (!collapsed) return text;
 
-  const dict = {
-    "Inicio": "Home",
-    "Nosotros": "About",
-    "Equipo": "Team",
-    "Empresas": "Companies",
-    "Testimonios": "Testimonials",
-    "Flota": "Fleet",
-    "Servicios": "Services",
-    "Cobertura": "Coverage",
-    "Novedades": "Updates",
-    "Trabaja con nosotros": "Careers",
-    "Contacto": "Contact",
-    "Portal": "Portal",
-    "Tema": "Theme",
-    "Idioma": "Language",
-    "Claro": "Light",
-    "Oscuro": "Dark",
-    "Logistica premium para floricultura y exportacion": "Premium logistics for floriculture and exports",
-    "Transporte especializado de flores con": "Specialized flower transportation with",
-    "trazabilidad total": "full traceability",
-    "Operamos con turbos, camiones y tractocamiones para llevar tu carga\n            con control de temperatura, seguridad y cumplimiento en toda Colombia.": "We operate turbo trucks, medium trucks, and tractor-trailers to move your cargo with temperature control, security, and on-time compliance across Colombia.",
-    "Contactenos": "Contact us",
-    "Ingresar al portal": "Enter portal",
-    "Entregas mensuales": "Monthly deliveries",
-    "Nivel de cumplimiento": "Service compliance",
-    "Tiempo de respuesta": "Response time",
-    "Quienes somos": "Who we are",
-    "Valores": "Values",
-    "Equipo directivo": "Leadership team",
-    "Empresas que confian en nosotros": "Companies that trust us",
-    "Lo que dicen nuestros clientes": "What our clients say",
-    "Nuestra flota": "Our fleet",
-    "Nuestros servicios": "Our services",
-    "Galeria operativa": "Operations gallery",
-    "Videos relacionados": "Related videos",
-    "Cobertura nacional": "Nationwide coverage",
-    "Novedades y mejoras": "News and updates",
-    "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent updates in operations, technology, and service to keep our clients informed.",
-    "Infraestructura y competitividad": "Infrastructure and competitiveness",
-    "Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion": "Puerto Antioquia boosts exports: our tractor-trailer in operation",
-    "Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.": "Our operation supports a key export route for flowers and avocado from Antioquia to international markets.",
-    "Puerto Antioquia @puerto_antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades. ¡En Antioquia, la infraestructura se traduce en hechos!": "Puerto Antioquia @puerto_antioquia in Uraba marks a turning point for the competitiveness of Antioquia and the country. Every day, ships depart with field products: 130,000 flower stems grown in La Ceja head to England, and 23 tons of Hass avocado from Southwestern Antioquia reach Belgium. In the past, these exports departed from Santa Marta, with higher times and costs. Today, the world enters and leaves through Uraba, generating logistics savings, jobs, and new opportunities. In Antioquia, infrastructure translates into real results!",
-    "Fuente: Gobernacion de Antioquia · Actualizado: Abril 2026": "Source: Government of Antioquia · Updated: April 2026",
-    "Imagen operativa en ruta": "Operational image on route",
-    "Nuestra tractomula en escenario real de cargue y despacho.": "Our tractor-trailer in a real loading and dispatch scenario.",
-    "Presencia de marca en carretera": "Brand presence on the road",
-    "Vehiculos visibles, cuidados y alineados con estandares de servicio.": "Visible, well-maintained vehicles aligned with service standards.",
-    "Operacion": "Operations",
-    "Calidad": "Quality",
-    "Plataforma": "Platform",
-    "Seguimiento de viajes reforzado": "Enhanced trip tracking",
-    "Incorporamos alertas internas para detectar desvíos de ruta y mejorar tiempos de respuesta en incidentes.": "We added internal alerts to detect route deviations and improve incident response times.",
-    "Cadena de frio con mayor control": "Stronger cold-chain control",
-    "Se ajustaron protocolos de temperatura por tipo de flor y duracion de trayecto para reducir mermas.": "Temperature protocols were refined by flower type and route duration to reduce losses.",
-    "Nuevos contratos Word automatizados": "New automated Word contracts",
-    "Al crear empleados se generan contratos en formato Word conservando la estructura oficial de la empresa.": "When creating employees, Word contracts are generated while preserving the company official format.",
-    "Actualizado: Abril 2026": "Updated: April 2026",
-    "Rutas principales": "Main routes",
-    "Corredores frecuentes": "Frequent corridors",
-    "Sabana de Bogota": "Bogota Savannah",
-    "Antioquia floricultora": "Flower-growing Antioquia",
-    "Puertos de exportacion": "Export ports",
-    "Eje cafetero": "Coffee region",
-    "Costa atlantica": "Atlantic coast",
-    "Bogota D.C.": "Bogota D.C.",
-    "Medellin": "Medellin",
-    "Rionegro": "Rionegro",
-    "Cali": "Cali",
-    "Pereira": "Pereira",
-    "Armenia": "Armenia",
-    "Bucaramanga": "Bucaramanga",
-    "Cartagena": "Cartagena",
-    "Barranquilla": "Barranquilla",
-    "Formulario de contacto B2B": "B2B contact form",
-    "Nombre": "Name",
-    "Empresa": "Company",
-    "Cargo": "Role",
-    "Telefono": "Phone",
-    "Correo": "Email",
-    "Tipo de servicio": "Service type",
-    "Seleccione...": "Select...",
-    "Transporte refrigerado": "Refrigerated transport",
-    "Transporte dedicado": "Dedicated transport",
-    "Servicio eventual": "Occasional service",
-    "Mensaje": "Message",
-    "Enviar solicitud": "Send request",
-    "Aplicar": "Apply",
-    "Cierre": "Closing",
-    "Sin fecha limite": "No deadline",
-    "No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.": "There are no published openings at the moment. Check back soon or contact us.",
-    "Lo que dicen nuestros clientes": "What our clients say",
-    "Soluciones logisticas integrales para el sector floricultor y de exportacion.": "End-to-end logistics solutions for the floriculture and export sector.",
-    "Vehiculos especializados con control de temperatura para cada necesidad logistica.": "Specialized vehicles with temperature control for every logistics need.",
-    "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for the floriculture and export sector.",
-    "Vacantes publicadas desde nuestro portal de RRHH. Postulate de forma segura; tu hoja de vida llega al modulo de": "Open positions published from our HR portal. Apply safely; your resume is sent directly to the",
-    "Contratacion": "Recruitment",
-    "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).": "Vacancies are synchronized with the same team that manages candidates in the portal (same local browser database).",
-    "Contacto": "Contact",
-    "Legal": "Legal",
-    "Politica de privacidad": "Privacy policy",
-    "Terminos y condiciones": "Terms and conditions",
-    "Redes sociales": "Social media",
-    "Transporte especializado de flores para empresas en toda Colombia.": "Specialized flower transportation for companies across Colombia.",
-    "Rutas principales": "Main routes",
-    "Corredores frecuentes": "Frequent corridors",
-    "Camiones y utilización": "Trucks and utilization",
-    "Nomina": "Payroll"
-    ,"Mi perfil": "My profile",
-    "Notificaciones": "Notifications",
-    "Cerrar sesion": "Sign out",
-    "Todos los derechos reservados.": "All rights reserved."
-  };
-  const key = normalizePublicKey(text);
-  const normalizedDict = Object.entries(dict).reduce((acc, [es, en]) => {
+  const normalizedDict = Object.entries(PUBLIC_ES_EN_DICT).reduce((acc, [es, en]) => {
     acc[normalizePublicKey(es)] = en;
     return acc;
   }, {});
-  if (!key) return text;
-  if (!normalizedDict[key]) return text;
-  return normalizedDict[key];
+
+  const fullKey = normalizePublicKey(collapsed);
+  let out;
+  if (normalizedDict[fullKey]) {
+    out = normalizedDict[fullKey];
+  } else {
+    out = collapsed;
+    const phraseThreshold = 14;
+    for (const [es, en] of getPublicTranslationSortedEntries()) {
+      const src = String(es).replace(/\s+/g, " ").trim();
+      if (!src || !out.includes(src)) continue;
+      if (src.length >= phraseThreshold || /\s/.test(src)) {
+        out = out.split(src).join(en);
+      } else {
+        const re = new RegExp(`\\b${escapePublicRegexFragment(src)}\\b`, "g");
+        out = out.replace(re, en);
+      }
+    }
+  }
+  return leading + out + trailing;
 }
 
 function tPublic(textEs) {
@@ -749,6 +845,38 @@ function applyPublicLanguage(lang = "es") {
   });
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
+
+  document.title = lang === "en" ? "Antares — Specialized Transport" : "Antares- Transporte Especializado";
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) {
+    metaDesc.setAttribute(
+      "content",
+      lang === "en"
+        ? "Refrigerated freight platform specialized in flowers. Turbo trucks, rigids, and tractor-trailers with full traceability."
+        : "Plataforma de transporte de carga refrigerada especializada en flores. Turbos, camiones y tractocamiones con trazabilidad total."
+    );
+  }
+
+  const mainNav = document.getElementById("main-nav");
+  if (mainNav) mainNav.setAttribute("aria-label", lang === "en" ? "Main" : "Principal");
+
+  const logoMarquee = document.querySelector(".logo-marquee");
+  if (logoMarquee) logoMarquee.setAttribute("aria-label", lang === "en" ? "Partner companies" : "Empresas aliadas");
+
+  const waFab = document.querySelector(".whatsapp-fab");
+  if (waFab) {
+    const waLabel = lang === "en" ? "Contact via WhatsApp" : "Contactar por WhatsApp";
+    waFab.setAttribute("aria-label", waLabel);
+    waFab.setAttribute("title", waLabel);
+  }
+
+  if (nodes.themeTogglePublic) nodes.themeTogglePublic.setAttribute("aria-label", lang === "en" ? "Theme" : "Tema");
+  if (nodes.langTogglePublic) nodes.langTogglePublic.setAttribute("aria-label", lang === "en" ? "Language" : "Idioma");
+
+  const hamburgerBtn = document.getElementById("hamburger-btn");
+  if (hamburgerBtn) {
+    hamburgerBtn.setAttribute("aria-label", lang === "en" ? "Open navigation menu" : "Menu de navegacion");
+  }
 }
 
 function applyTheme(theme = "light") {
