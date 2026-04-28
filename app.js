@@ -603,8 +603,6 @@ function translatePublicText(text, lang) {
     "Testimonios": "Testimonials",
     "Flota": "Fleet",
     "Servicios": "Services",
-    "Galeria": "Gallery",
-    "Videos": "Videos",
     "Cobertura": "Coverage",
     "Novedades": "Updates",
     "Trabaja con nosotros": "Careers",
@@ -635,6 +633,15 @@ function translatePublicText(text, lang) {
     "Cobertura nacional": "Nationwide coverage",
     "Novedades y mejoras": "News and updates",
     "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent updates in operations, technology, and service to keep our clients informed.",
+    "Infraestructura y competitividad": "Infrastructure and competitiveness",
+    "Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion": "Puerto Antioquia boosts exports: our tractor-trailer in operation",
+    "Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.": "Our operation supports a key export route for flowers and avocado from Antioquia to international markets.",
+    "Puerto Antioquia @puerto_antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades. ¡En Antioquia, la infraestructura se traduce en hechos!": "Puerto Antioquia @puerto_antioquia in Uraba marks a turning point for the competitiveness of Antioquia and the country. Every day, ships depart with field products: 130,000 flower stems grown in La Ceja head to England, and 23 tons of Hass avocado from Southwestern Antioquia reach Belgium. In the past, these exports departed from Santa Marta, with higher times and costs. Today, the world enters and leaves through Uraba, generating logistics savings, jobs, and new opportunities. In Antioquia, infrastructure translates into real results!",
+    "Fuente: Gobernacion de Antioquia · Actualizado: Abril 2026": "Source: Government of Antioquia · Updated: April 2026",
+    "Imagen operativa en ruta": "Operational image on route",
+    "Nuestra tractomula en escenario real de cargue y despacho.": "Our tractor-trailer in a real loading and dispatch scenario.",
+    "Presencia de marca en carretera": "Brand presence on the road",
+    "Vehiculos visibles, cuidados y alineados con estandares de servicio.": "Visible, well-maintained vehicles aligned with service standards.",
     "Operacion": "Operations",
     "Calidad": "Quality",
     "Plataforma": "Platform",
@@ -647,6 +654,20 @@ function translatePublicText(text, lang) {
     "Actualizado: Abril 2026": "Updated: April 2026",
     "Rutas principales": "Main routes",
     "Corredores frecuentes": "Frequent corridors",
+    "Sabana de Bogota": "Bogota Savannah",
+    "Antioquia floricultora": "Flower-growing Antioquia",
+    "Puertos de exportacion": "Export ports",
+    "Eje cafetero": "Coffee region",
+    "Costa atlantica": "Atlantic coast",
+    "Bogota D.C.": "Bogota D.C.",
+    "Medellin": "Medellin",
+    "Rionegro": "Rionegro",
+    "Cali": "Cali",
+    "Pereira": "Pereira",
+    "Armenia": "Armenia",
+    "Bucaramanga": "Bucaramanga",
+    "Cartagena": "Cartagena",
+    "Barranquilla": "Barranquilla",
     "Formulario de contacto B2B": "B2B contact form",
     "Nombre": "Name",
     "Empresa": "Company",
@@ -726,18 +747,8 @@ function applyPublicLanguage(lang = "es") {
     const el = document.querySelector(selector);
     if (el) el.textContent = value;
   });
-  applyGoogleTranslate(lang);
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
-}
-
-function applyGoogleTranslate(lang = "es") {
-  const combo = document.querySelector(".goog-te-combo");
-  if (!combo) return;
-  const target = lang === "en" ? "en" : "es";
-  if (combo.value === target) return;
-  combo.value = target;
-  combo.dispatchEvent(new Event("change"));
 }
 
 function applyTheme(theme = "light") {

@@ -45,7 +45,6 @@
             <button type="button" class="lang-option" data-lang-option="es" aria-label="Español">🇨🇴</button>
             <button type="button" class="lang-option" data-lang-option="en" aria-label="English">🇺🇸</button>
           </div>
-          <div id="google_translate_element" class="google-translate-box" aria-label="Google Translate"></div>
         </div>
         <button id="open-auth" class="btn btn-primary">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
@@ -564,25 +563,42 @@
               Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.
             </p>
           </div>
-          <div class="grid-3">
-            <article class="card news-card lift-card" data-reveal>
-              <span class="news-tag">Operacion</span>
-              <h3>Seguimiento de viajes reforzado</h3>
-              <p>Incorporamos alertas internas para detectar desvíos de ruta y mejorar tiempos de respuesta en incidentes.</p>
-              <small class="muted">Actualizado: Abril 2026</small>
+          <div class="grid-2">
+            <article class="card news-card news-feature lift-card" data-reveal>
+              <span class="news-tag">Infraestructura y competitividad</span>
+              <h3>Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion</h3>
+              <p class="news-lead">
+                Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.
+              </p>
+              <div class="news-video-wrap">
+                <video controls preload="metadata" poster="imagenes%20empresa/tractomula_completa.jpeg">
+                  <source src="imagenes%20empresa/video.mp4" type="video/mp4" />
+                  Tu navegador no soporta video HTML5.
+                </video>
+              </div>
+              <blockquote class="news-quote">
+                Puerto Antioquia @puerto_antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades. ¡En Antioquia, la infraestructura se traduce en hechos!
+              </blockquote>
+              <small class="muted">Fuente: Gobernacion de Antioquia · Actualizado: Abril 2026</small>
             </article>
-            <article class="card news-card lift-card" data-reveal>
-              <span class="news-tag">Calidad</span>
-              <h3>Cadena de frio con mayor control</h3>
-              <p>Se ajustaron protocolos de temperatura por tipo de flor y duracion de trayecto para reducir mermas.</p>
-              <small class="muted">Actualizado: Abril 2026</small>
-            </article>
-            <article class="card news-card lift-card" data-reveal>
-              <span class="news-tag">Plataforma</span>
-              <h3>Nuevos contratos Word automatizados</h3>
-              <p>Al crear empleados se generan contratos en formato Word conservando la estructura oficial de la empresa.</p>
-              <small class="muted">Actualizado: Abril 2026</small>
-            </article>
+            <div class="news-gallery-stack">
+              <article class="card news-card news-media lift-card" data-reveal>
+                <img src="imagenes%20empresa/tractomula_de_frente.jpeg" alt="Tractomula de frente en operacion logistica" loading="lazy" />
+                <div class="news-media-copy">
+                  <span class="news-tag">Flota</span>
+                  <h3>Imagen operativa en ruta</h3>
+                  <p>Nuestra tractomula en escenario real de cargue y despacho.</p>
+                </div>
+              </article>
+              <article class="card news-card news-media lift-card" data-reveal>
+                <img src="imagenes%20empresa/imagen_cabezote.jpeg" alt="Cabezote de tractomula Antares" loading="lazy" />
+                <div class="news-media-copy">
+                  <span class="news-tag">Marca</span>
+                  <h3>Presencia de marca en carretera</h3>
+                  <p>Vehiculos visibles, cuidados y alineados con estandares de servicio.</p>
+                </div>
+              </article>
+            </div>
           </div>
         </div>
       </section>
@@ -878,15 +894,6 @@
     <script src="./modules/files/index.js"></script>
     <script src="./modules/domain-bootstrap.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-xXDvecy63+f7W6FR7fvj7jY3n0zqxd6QbaO5jM90+hCbGyF/F7fs/3Gzdh0dX8GZFODdgNpTi27C3l2qC5xRtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script>
-      function googleTranslateElementInit() {
-        new google.translate.TranslateElement(
-          { pageLanguage: "es", includedLanguages: "es,en", autoDisplay: false },
-          "google_translate_element"
-        );
-      }
-    </script>
-    <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
     <script src="./app.js"></script>
   </body>
