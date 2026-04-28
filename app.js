@@ -726,8 +726,18 @@ function applyPublicLanguage(lang = "es") {
     const el = document.querySelector(selector);
     if (el) el.textContent = value;
   });
+  applyGoogleTranslate(lang);
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
+}
+
+function applyGoogleTranslate(lang = "es") {
+  const combo = document.querySelector(".goog-te-combo");
+  if (!combo) return;
+  const target = lang === "en" ? "en" : "es";
+  if (combo.value === target) return;
+  combo.value = target;
+  combo.dispatchEvent(new Event("change"));
 }
 
 function applyTheme(theme = "light") {
