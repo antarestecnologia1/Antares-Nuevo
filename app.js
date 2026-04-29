@@ -4508,7 +4508,13 @@ function hiringHtml() {
   const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo publicado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Titulo visible vacante <input name="title" required /></label><label>Departamento vacante <select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad de la vacante <select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label><label>Modalidad <select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Hibrido</option><option value="Remoto">Remoto</option></select></label><label>Jornada <select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label><label>Cupos <input type="number" min="1" name="openings" value="1" required /></label><label>Requisitos <input name="requirements" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
   const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Departamento residencia <select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad <select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label><label>Direccion <input name="address" required /></label><label>Anos experiencia <input type="number" min="0" name="experienceYears" value="0" required /></label><label>Aspiracion salarial (COP) <input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required /></label><label>Disponibilidad ingreso <input type="date" name="availabilityDate" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
   const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
-  const fCon = `<form id="form-contract" class="p-form"><label>Candidato contratado <select name="candidateId" required><option value="">Seleccione</option>${candidates.filter((c) => c.status === "Contratado").map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <input name="eps" required placeholder="Nueva EPS / Sura / Sanitas..." /></label><label>Fondo pension <input name="pensionFund" required placeholder="Porvenir / Colfondos..." /></label><label>ARL <input name="arl" required placeholder="Sura / Positiva / Colmena..." /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const contractPeopleOptions = [
+    ...candidates
+      .filter((c) => c.status === "Contratado")
+      .map((c) => `<option value="candidate:${c.id}">Candidato · ${c.name}</option>`),
+    ...employees.map((e) => `<option value="employee:${e.id}">Empleado · ${e.name}${e.position ? ` (${e.position})` : ""}</option>`)
+  ].join("");
+  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <input name="eps" required placeholder="Nueva EPS / Sura / Sanitas..." /></label><label>Fondo pension <input name="pensionFund" required placeholder="Porvenir / Colfondos..." /></label><label>ARL <input name="arl" required placeholder="Sura / Positiva / Colmena..." /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Puedes generar contrato desde un candidato en estado contratado o desde un empleado ya creado en nomina.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
   const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
@@ -6665,9 +6671,25 @@ function bindDynamicEvents() {
 
   const contractForm = document.getElementById("form-contract");
   if (contractForm) {
+    const personSelect = contractForm.querySelector("select[name='personRef']");
     const positionSelect = contractForm.querySelector("select[name='positionId']");
+    const companySelect = contractForm.querySelector("select[name='companyId']");
     const salaryInput = contractForm.querySelector("input[name='salary']");
     const contractTypeSelect = contractForm.querySelector("select[name='contractType']");
+    const syncContractFromSource = () => {
+      const sourceRef = String(personSelect?.value || "").trim();
+      if (!sourceRef) return;
+      const [sourceType, sourceId] = sourceRef.includes(":") ? sourceRef.split(":") : ["candidate", sourceRef];
+      if (sourceType === "employee") {
+        const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(sourceId || ""));
+        if (!employee) return;
+        const employeePosition = employee.positionId ? getPositionById(String(employee.positionId || "")) : null;
+        if (positionSelect && employeePosition?.active !== false) positionSelect.value = String(employeePosition.id);
+        if (companySelect && employee.companyId) companySelect.value = String(employee.companyId);
+        if (salaryInput && parseNum(employee.baseSalary) > 0) salaryInput.value = String(parseNum(employee.baseSalary));
+        if (contractTypeSelect && employee.contractType) contractTypeSelect.value = String(employee.contractType);
+      }
+    };
     if (positionSelect && salaryInput && contractTypeSelect) {
       const syncContractFromPosition = () => {
         const position = getPositionById(String(positionSelect.value || ""));
@@ -6678,12 +6700,29 @@ function bindDynamicEvents() {
       positionSelect.addEventListener("change", syncContractFromPosition);
       syncContractFromPosition();
     }
+    if (personSelect) {
+      personSelect.addEventListener("change", syncContractFromSource);
+      syncContractFromSource();
+    }
 
     contractForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(contractForm).entries());
-      const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
-      if (!candidate) return;
+      const sourceRef = String(data.personRef || data.candidateId || "").trim();
+      if (!sourceRef) {
+        notify("Selecciona una persona para generar el contrato.", "error");
+        return;
+      }
+      const [sourceTypeRaw, sourceIdRaw] = sourceRef.includes(":") ? sourceRef.split(":") : ["candidate", sourceRef];
+      const sourceType = String(sourceTypeRaw || "candidate");
+      const sourceId = String(sourceIdRaw || "");
+      const candidate = sourceType === "candidate" ? read(KEYS.candidates, []).find((c) => String(c.id) === sourceId) : null;
+      const employeeSource = sourceType === "employee" ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === sourceId) : null;
+      const subject = candidate || employeeSource;
+      if (!subject) {
+        notify("No se encontro la persona seleccionada para contratar.", "error");
+        return;
+      }
       const position = getPositionById(String(data.positionId || ""));
       if (!position || position.active === false) {
         notify("Debes seleccionar un cargo activo para contratar.", "error");
@@ -6710,11 +6749,14 @@ function bindDynamicEvents() {
         notify("Debes registrar EPS, fondo de pension y ARL para cerrar contrato.", "error");
         return;
       }
-      if (workerRole === "conductor" && (!data.license || !data.licenseExpiry)) {
+      const resolvedLicense = String(data.license || subject.license || "").trim();
+      const resolvedLicenseCategory = String(data.licenseCategory || subject.licenseCategory || resolvedLicense || "").trim();
+      const resolvedLicenseExpiry = String(data.licenseExpiry || subject.licenseExpiry || "").trim();
+      if (workerRole === "conductor" && (!resolvedLicense || !resolvedLicenseExpiry)) {
         notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
         return;
       }
-      if (workerRole === "conductor" && new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
+      if (workerRole === "conductor" && new Date(`${resolvedLicenseExpiry}T12:00:00`).getTime() <= Date.now()) {
         notify("No se puede contratar conductor con licencia vencida.", "error");
         return;
       }
@@ -6723,12 +6765,17 @@ function bindDynamicEvents() {
         notify(`El salario pactado no puede ser inferior al minimo legal vigente (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
         return;
       }
-      const text = `CONTRATO LABORAL\nEmpleado: ${candidate.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
+      const sourceLabel = sourceType === "employee" ? "Empleado" : "Candidato";
+      const text = `CONTRATO LABORAL\nEmpleado: ${subject.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
       const all = read(KEYS.contracts, []);
       all.unshift({
         id: uid(),
-        candidateId: candidate.id,
-        candidateName: candidate.name,
+        source: sourceLabel,
+        sourceType,
+        candidateId: sourceType === "candidate" ? subject.id : "",
+        candidateName: sourceType === "candidate" ? subject.name : "",
+        employeeId: sourceType === "employee" ? subject.id : "",
+        employeeName: sourceType === "employee" ? subject.name : "",
         workerRole,
         positionId: position.id,
         position: position.name,
@@ -6748,35 +6795,65 @@ function bindDynamicEvents() {
       });
       write(KEYS.contracts, all);
 
-      const employeeDocValidation = validateColombianDocument("CC", candidate.idDoc || candidate.docId || candidate.document || "");
+      const subjectDocRaw = subject.idDoc || subject.docId || subject.document || "";
+      const employeeDocValidation = validateColombianDocument("CC", subjectDocRaw);
       const employees = read(KEYS.payrollEmployees, []);
-      const existingEmployee = employees.find((e) => String(e.email || "").toLowerCase() === String(candidate.email || "").toLowerCase());
-      if (!existingEmployee) {
-        employees.push({
-          id: uid(),
-          name: candidate.name,
-          idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (candidate.idDoc || candidate.document || uid()),
-          documentType: candidate.documentType || "CC",
-          position: position.name,
-          positionId: position.id,
-          contractType,
-          probationMonths,
-          endDate,
-          workSchedule: String(data.workSchedule || "Diurna"),
-          eps: String(data.eps || "").trim(),
-          pensionFund: String(data.pensionFund || "").trim(),
-          arl: String(data.arl || "").trim(),
-          workerRole,
-          city: candidate.city || "",
-          address: candidate.address || "",
-          phone: candidate.phone || "",
-          emergencyContact: candidate.emergencyContact || "",
-          emergencyPhone: candidate.emergencyPhone || "",
-          companyId: company.id,
-          baseSalary: agreedSalary,
-          startDate: data.startDate
-        });
-        write(KEYS.payrollEmployees, employees);
+      if (sourceType === "candidate") {
+        const existingEmployee = employees.find((e) => String(e.email || "").toLowerCase() === String(subject.email || "").toLowerCase());
+        if (!existingEmployee) {
+          employees.push({
+            id: uid(),
+            name: subject.name,
+            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (subject.idDoc || subject.document || uid()),
+            documentType: subject.documentType || "CC",
+            position: position.name,
+            positionId: position.id,
+            contractType,
+            probationMonths,
+            endDate,
+            workSchedule: String(data.workSchedule || "Diurna"),
+            eps: String(data.eps || "").trim(),
+            pensionFund: String(data.pensionFund || "").trim(),
+            arl: String(data.arl || "").trim(),
+            workerRole,
+            city: subject.city || "",
+            address: subject.address || "",
+            phone: subject.phone || "",
+            emergencyContact: subject.emergencyContact || "",
+            emergencyPhone: subject.emergencyPhone || "",
+            companyId: company.id,
+            baseSalary: agreedSalary,
+            startDate: data.startDate
+          });
+          write(KEYS.payrollEmployees, employees);
+        }
+      } else {
+        write(
+          KEYS.payrollEmployees,
+          employees.map((item) =>
+            String(item.id) === String(subject.id)
+              ? {
+                  ...item,
+                  position: position.name,
+                  positionId: position.id,
+                  contractType,
+                  probationMonths,
+                  endDate,
+                  workSchedule: String(data.workSchedule || "Diurna"),
+                  eps: String(data.eps || "").trim(),
+                  pensionFund: String(data.pensionFund || "").trim(),
+                  arl: String(data.arl || "").trim(),
+                  workerRole,
+                  companyId: company.id,
+                  baseSalary: agreedSalary,
+                  startDate: data.startDate,
+                  license: resolvedLicense || item.license || "",
+                  licenseCategory: resolvedLicenseCategory || item.licenseCategory || "",
+                  licenseExpiry: resolvedLicenseExpiry || item.licenseExpiry || ""
+                }
+              : item
+          )
+        );
       }
 
       if (workerRole === "conductor") {
@@ -6785,16 +6862,16 @@ function bindDynamicEvents() {
         if (!existsDriver) {
           drivers.push({
             id: uid(),
-            name: candidate.name,
-            documentType: candidate.documentType || "CC",
-            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (candidate.idDoc || uid()),
-            phone: candidate.phone || "",
-            license: data.license,
-            licenseCategory: data.licenseCategory || data.license || "C2",
-            licenseExpiry: data.licenseExpiry,
-            city: candidate.city || "",
-            emergencyContact: candidate.emergencyContact || "",
-            emergencyPhone: candidate.emergencyPhone || "",
+            name: subject.name,
+            documentType: subject.documentType || "CC",
+            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (subject.idDoc || uid()),
+            phone: subject.phone || "",
+            license: resolvedLicense,
+            licenseCategory: resolvedLicenseCategory || "C2",
+            licenseExpiry: resolvedLicenseExpiry,
+            city: subject.city || "",
+            emergencyContact: subject.emergencyContact || "",
+            emergencyPhone: subject.emergencyPhone || "",
             companyId: company.id,
             available: true,
             hiredAt: nowIso()
@@ -6803,8 +6880,10 @@ function bindDynamicEvents() {
         }
       }
 
-      sendEmail({ to: candidate.email, subject: "Oferta/Contrato generado", body: text });
-      notify(`Contrato generado y vinculación registrada como ${workerRole}.`, "success");
+      if (subject.email) {
+        sendEmail({ to: subject.email, subject: "Oferta/Contrato generado", body: text });
+      }
+      notify(`Contrato generado para ${sourceLabel.toLowerCase()} y vinculación registrada como ${workerRole}.`, "success");
       renderPortalView();
     });
   }

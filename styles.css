@@ -3718,6 +3718,90 @@ body[data-theme="dark"] .modal-card {
   box-shadow: 0 12px 30px rgba(2, 10, 20, 0.38);
 }
 
+/* Portal clarity pass: dark typography + layout consistency */
+.portal-main .dash-grid {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.portal-main .p-form {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  align-items: start;
+}
+
+body[data-theme="dark"] .portal-main,
+body[data-theme="dark"] .portal-main p,
+body[data-theme="dark"] .portal-main li,
+body[data-theme="dark"] .portal-main label,
+body[data-theme="dark"] .portal-main .dash-stat-label,
+body[data-theme="dark"] .portal-main .empty-state p {
+  color: #d2e6ff;
+}
+
+body[data-theme="dark"] .portal-main strong,
+body[data-theme="dark"] .portal-main h2,
+body[data-theme="dark"] .portal-main h3,
+body[data-theme="dark"] .portal-main h4,
+body[data-theme="dark"] .portal-main .module-filters-title,
+body[data-theme="dark"] .portal-main .hr-kpi-card strong,
+body[data-theme="dark"] .portal-main .payroll-kpi-card strong {
+  color: #ecf5ff;
+}
+
+body[data-theme="dark"] .dash-stat-row,
+body[data-theme="dark"] .user-card-meta,
+body[data-theme="dark"] .user-card-actions {
+  border-color: #3f6085;
+}
+
+body[data-theme="dark"] .empty-state {
+  color: #bad2ef;
+}
+
+body[data-theme="dark"] .empty-state-icon {
+  background: #213b59;
+  color: #b8d9ff;
+}
+
+body[data-theme="dark"] .perm-badge,
+body[data-theme="dark"] .role-chip {
+  background: rgba(112, 171, 239, 0.14);
+  border-color: rgba(135, 190, 247, 0.35);
+  color: #d6e9ff;
+}
+
+body[data-theme="dark"] .hr-alert-item,
+body[data-theme="dark"] .hr-kpi-card,
+body[data-theme="dark"] .payroll-kpi-card {
+  background: #182f49;
+  border-color: #4a7099;
+  color: #d9eaff;
+}
+
+body[data-theme="dark"] .hr-kpi-card span,
+body[data-theme="dark"] .payroll-kpi-card span {
+  color: #b8d3f1;
+}
+
+body[data-theme="dark"] .timer-badge {
+  background: rgba(245, 159, 0, 0.2);
+  color: #ffe5a8;
+  border: 1px solid rgba(245, 159, 0, 0.4);
+}
+
+body[data-theme="dark"] .portal-main .btn-action:hover {
+  border-color: #7cb6ff;
+  color: #eff6ff;
+  background: #264768;
+}
+
+@media (max-width: 1320px) {
+  .portal-main .dash-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .auth-login-shell {
     grid-template-columns: 1fr;
