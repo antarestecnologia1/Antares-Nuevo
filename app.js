@@ -361,6 +361,7 @@ const KEYS = {
   interviews: "antares_interviews_v2",
   contracts: "antares_contracts_v2",
   hrAbsences: "antares_hr_absences_v2",
+  sstCompliance: "antares_sst_compliance_v2",
   approvals: "antares_approvals_v2",
   session: "antares_session_v2"
 };
@@ -385,6 +386,7 @@ const PERMISSIONS = {
   TRANSPORT_HISTORY: "transport_history",
   PAYROLL_MANAGE: "payroll_manage",
   HIRING_MANAGE: "hiring_manage",
+  SST_COMPLIANCE: "sst_compliance",
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
   PROFILE_VIEW: "profile_view",
@@ -438,6 +440,7 @@ const PERMISSION_META = {
   [PERMISSIONS.TRANSPORT_HISTORY]: { title: "Historial y reportes", desc: "Consultar historicos y filtros." },
   [PERMISSIONS.PAYROLL_MANAGE]: { title: "Nomina", desc: "Gestionar empleados y liquidaciones." },
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
+  [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: { title: "Autorizaciones", desc: "Aprobar solicitudes de operaciones y personal." },
   [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
@@ -456,6 +459,7 @@ const VIEW_PERMISSIONS = {
   reports: PERMISSIONS.TRANSPORT_HISTORY,
   payroll: PERMISSIONS.PAYROLL_MANAGE,
   hiring: PERMISSIONS.HIRING_MANAGE,
+  "labor-compliance": PERMISSIONS.SST_COMPLIANCE,
   "admin-users": PERMISSIONS.USERS_MANAGE,
   authorizations: PERMISSIONS.AUTHORIZATIONS_MANAGE,
   profile: PERMISSIONS.PROFILE_VIEW,
@@ -1538,6 +1542,7 @@ function defaultPermissionsForRole(role) {
       PERMISSIONS.DASHBOARD_VIEW,
       PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.HIRING_MANAGE,
+      PERMISSIONS.SST_COMPLIANCE,
       PERMISSIONS.PROFILE_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW
     ];
@@ -1762,6 +1767,7 @@ function purgeDemoData() {
     KEYS.interviews,
     KEYS.contracts,
     KEYS.hrAbsences,
+    KEYS.sstCompliance,
     KEYS.approvals
   ].forEach((key) => write(key, []));
   write(KEYS.counters, {});
@@ -1927,6 +1933,7 @@ function seed() {
     KEYS.interviews,
     KEYS.contracts,
     KEYS.hrAbsences,
+    KEYS.sstCompliance,
     KEYS.approvals
   ].forEach((key) => {
     if (!localStorage.getItem(key)) write(key, []);
@@ -2876,7 +2883,7 @@ function isViewAllowedForUser(user, view) {
     return user.role === ROLES.ADMIN;
   }
   if (view === "reports") return user.role === ROLES.ADMIN || canAccessRRHH(user.role);
-  if (["payroll", "hiring"].includes(view)) return canAccessRRHH(user.role);
+  if (["payroll", "hiring", "labor-compliance"].includes(view)) return canAccessRRHH(user.role);
   return true;
 }
 
@@ -3671,12 +3678,15 @@ function toCsv(rows = [], columns = []) {
 }
 
 const REPORT_RULES = {
+  executive_control_tower: { permission: PERMISSIONS.DASHBOARD_VIEW, rrhhAllowed: true },
+  service_levels: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   fleet_summary: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
   hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
+  labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
   users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },
   authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE, adminOnly: true }
 };
@@ -3734,6 +3744,34 @@ function openReportPdf(title, columns = [], rows = []) {
   pop.document.close();
 }
 
+function deriveRequestOperationalValue(request) {
+  const invoiceTotal = parseNum(request?.trip?.invoice?.total || 0);
+  if (invoiceTotal > 0) return invoiceTotal;
+  const base = parseNum(request?.insuredValue || request?.tripValue || 0);
+  const standby = parseNum(request?.standbyChargeTotal || 0);
+  return base + standby;
+}
+
+function minutesBetween(startDate, endDate) {
+  const startTs = new Date(startDate || "").getTime();
+  const endTs = new Date(endDate || "").getTime();
+  if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs < startTs) return 0;
+  return Math.round((endTs - startTs) / 60000);
+}
+
+function hoursBetween(startDate, endDate) {
+  const mins = minutesBetween(startDate, endDate);
+  return Number((mins / 60).toFixed(2));
+}
+
+function slaStatusForRequest(request) {
+  if (!request?.trip) return "Sin viaje";
+  const etaTs = new Date(request.trip.etaDelivery || "").getTime();
+  const deliveredTs = new Date(request.deliveredAt || request.closedAt || request.trip.etaDelivery || "").getTime();
+  if (!Number.isFinite(etaTs) || !Number.isFinite(deliveredTs)) return "Sin dato";
+  return deliveredTs <= etaTs ? "Cumple SLA" : "Incumple SLA";
+}
+
 function buildReportDataset(reportId, actor = currentUser()) {
   if (!canAccessReport(actor, reportId)) {
     return {
@@ -3744,10 +3782,78 @@ function buildReportDataset(reportId, actor = currentUser()) {
     };
   }
   const requests = read(KEYS.requests, []);
+  if (reportId === "executive_control_tower") {
+    const trips = requests.filter((request) => request.trip);
+    const closedTrips = requests.filter((request) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status));
+    const pendingApprovals = requests.filter((request) => request.status === STATUS.PENDIENTE).length;
+    const sstControls = read(KEYS.sstCompliance, []);
+    const payrollRuns = read(KEYS.payrollRuns, []);
+    const contracts = read(KEYS.contracts, []);
+    const totalRevenue = requests.reduce((acc, request) => acc + deriveRequestOperationalValue(request), 0);
+    const paidPayroll = payrollRuns.filter((run) => run.paid).reduce((acc, run) => acc + parseNum(run.net), 0);
+    const openApprovals = read(KEYS.approvals, []).filter((approval) => approval.status === "pendiente").length;
+    const rows = [
+      { metric: "Solicitudes totales", value: requests.length, detail: "Acumulado histórico", category: "Operación" },
+      { metric: "Solicitudes pendientes", value: pendingApprovals, detail: "Esperando gestión operativa", category: "Operación" },
+      { metric: "Viajes cerrados", value: closedTrips.length, detail: `${trips.length} viajes creados`, category: "Operación" },
+      { metric: "Ingresos operativos estimados", value: `$${parseNum(totalRevenue).toLocaleString("es-CO")}`, detail: "Incluye standby e invoice", category: "Finanzas" },
+      { metric: "Nómina neta pagada", value: `$${parseNum(paidPayroll).toLocaleString("es-CO")}`, detail: `${payrollRuns.length} liquidaciones`, category: "Finanzas" },
+      { metric: "Contratos emitidos", value: contracts.length, detail: "Formalización laboral", category: "RRHH" },
+      { metric: "Controles SST activos", value: sstControls.length, detail: "Seguridad social y documental", category: "Cumplimiento" },
+      { metric: "Aprobaciones abiertas", value: openApprovals, detail: "Solicitudes por decidir", category: "Gobierno" }
+    ];
+    return {
+      title: "Control Tower ejecutivo",
+      columns: [
+        { key: "category", label: "Categoría" },
+        { key: "metric", label: "Métrica" },
+        { key: "value", label: "Valor" },
+        { key: "detail", label: "Detalle" }
+      ],
+      rows,
+      fileName: "reporte_control_tower.csv"
+    };
+  }
+  if (reportId === "service_levels") {
+    const rows = requests
+      .filter((request) => request.trip)
+      .map((request) => ({
+        requestNumber: request.requestNumber || request.id,
+        tripNumber: request.trip?.tripNumber || "-",
+        client: request.clientName || "-",
+        route: formatRoute(request),
+        pickupAt: fmtDate(request.trip?.etaPickup || request.pickupAt),
+        etaDelivery: fmtDate(request.trip?.etaDelivery || request.etaDelivery),
+        deliveredAt: fmtDate(request.deliveredAt || request.closedAt || request.trip?.etaDelivery),
+        cycleHours: hoursBetween(request.createdAt, request.deliveredAt || request.closedAt || request.trip?.etaDelivery),
+        approvalMinutes: minutesBetween(request.createdAt, request.approvedAt),
+        slaStatus: slaStatusForRequest(request)
+      }));
+    return {
+      title: "Reporte de niveles de servicio (SLA)",
+      columns: [
+        { key: "requestNumber", label: "Solicitud" },
+        { key: "tripNumber", label: "Viaje" },
+        { key: "client", label: "Cliente" },
+        { key: "route", label: "Ruta" },
+        { key: "pickupAt", label: "Recogida" },
+        { key: "etaDelivery", label: "ETA entrega" },
+        { key: "deliveredAt", label: "Entrega real" },
+        { key: "cycleHours", label: "Ciclo (h)" },
+        { key: "approvalMinutes", label: "Aprobación (min)" },
+        { key: "slaStatus", label: "SLA" }
+      ],
+      rows,
+      fileName: "reporte_sla_servicio.csv"
+    };
+  }
   if (reportId === "fleet_summary") {
     const rows = read(KEYS.vehicles, []).map((vehicle) => {
       const trips = requests.filter((r) => r.trip?.vehicleId === vehicle.id);
       const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+      const utilizationPct = trips.length ? Number(((completed / trips.length) * 100).toFixed(1)) : 0;
+      const soatRisk = docExpiryStatus(vehicle.soatExpeditionDate);
+      const techRisk = docExpiryStatus(vehicle.techInspectionExpeditionDate);
       return {
         plate: vehicle.plate,
         type: vehicle.type,
@@ -3755,6 +3861,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
         available: vehicle.available ? "Disponible" : "Ocupado",
         trips: trips.length,
         completedTrips: completed,
+        utilizationPct: `${utilizationPct}%`,
+        riskLevel: soatRisk.days < 0 || techRisk.days < 0 ? "Crítico" : (soatRisk.days <= 30 || techRisk.days <= 30 ? "Atención" : "Controlado"),
         soat: vehicle.soatExpeditionDate || "-",
         tech: vehicle.techInspectionExpeditionDate || "-"
       };
@@ -3768,6 +3876,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "available", label: "Estado" },
         { key: "trips", label: "Viajes totales" },
         { key: "completedTrips", label: "Viajes finalizados" },
+        { key: "utilizationPct", label: "Utilización" },
+        { key: "riskLevel", label: "Riesgo documental" },
         { key: "soat", label: "SOAT" },
         { key: "tech", label: "Tecnomecanica" }
       ],
@@ -3784,6 +3894,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
       vehicle: request.trip.vehiclePlate,
       route: formatRoute(request),
       status: request.status,
+      slaStatus: slaStatusForRequest(request),
+      cycleHours: hoursBetween(request.createdAt, request.deliveredAt || request.closedAt || request.trip.etaDelivery),
       assignedAt: fmtDate(request.trip.assignedAt || request.approvedAt || request.createdAt),
       deliveredAt: fmtDate(request.deliveredAt || request.closedAt || request.trip.etaDelivery)
     }));
@@ -3797,6 +3909,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "vehicle", label: "Camion" },
         { key: "route", label: "Ruta" },
         { key: "status", label: "Estado" },
+        { key: "slaStatus", label: "SLA" },
+        { key: "cycleHours", label: "Ciclo (h)" },
         { key: "assignedAt", label: "Asignado" },
         { key: "deliveredAt", label: "Entrega/Cierre" }
       ],
@@ -3810,8 +3924,10 @@ function buildReportDataset(reportId, actor = currentUser()) {
       client: request.clientName,
       company: getCompanyById(request.clientCompanyId)?.name || "-",
       route: formatRoute(request),
-      value: parseNum(request.tripValue || request.insuredValue || 0),
+      value: parseNum(deriveRequestOperationalValue(request)),
       status: request.status,
+      approvalMinutes: minutesBetween(request.createdAt, request.approvedAt),
+      hasTrip: request.trip ? "Sí" : "No",
       createdAt: fmtDate(request.createdAt),
       approvedAt: fmtDate(request.approvedAt)
     }));
@@ -3824,6 +3940,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "route", label: "Ruta" },
         { key: "value", label: "Valor viaje" },
         { key: "status", label: "Estado" },
+        { key: "approvalMinutes", label: "Aprobación (min)" },
+        { key: "hasTrip", label: "Tiene viaje" },
         { key: "createdAt", label: "Creada" },
         { key: "approvedAt", label: "Aprobada" }
       ],
@@ -3834,12 +3952,14 @@ function buildReportDataset(reportId, actor = currentUser()) {
   if (reportId === "drivers_performance") {
     const rows = read(KEYS.drivers, []).map((driver) => {
       const trips = requests.filter((r) => r.trip?.driverId === driver.id);
+      const licenseDays = daysUntil(driver.licenseExpiry);
       return {
         name: driver.name,
         doc: driver.idDoc || "-",
         phone: driver.phone || "-",
         company: getCompanyById(driver.companyId)?.name || "-",
         license: `${driver.license || "-"} (${driver.licenseCategory || "-"})`,
+        licenseDays: Number.isFinite(licenseDays) ? licenseDays : "-",
         trips: trips.length,
         completedTrips: trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length
       };
@@ -3852,6 +3972,7 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "phone", label: "Telefono" },
         { key: "company", label: "Empresa" },
         { key: "license", label: "Licencia" },
+        { key: "licenseDays", label: "Días vigencia licencia" },
         { key: "trips", label: "Viajes totales" },
         { key: "completedTrips", label: "Viajes finalizados" }
       ],
@@ -3887,12 +4008,17 @@ function buildReportDataset(reportId, actor = currentUser()) {
     };
   }
   if (reportId === "hiring_pipeline") {
+    const interviews = read(KEYS.interviews, []);
+    const contracts = read(KEYS.contracts, []);
     const rows = read(KEYS.candidates, []).map((candidate) => ({
       name: candidate.name,
       vacancy: candidate.vacancyTitle,
       source: candidate.source || "-",
       status: candidate.status,
       expectedSalary: parseNum(candidate.expectedSalary || 0),
+      hasInterview: interviews.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
+      hasContract: contracts.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
+      stageAgeDays: Math.max(0, Math.floor((Date.now() - new Date(candidate.createdAt || nowIso()).getTime()) / 86400000)),
       createdAt: fmtDate(candidate.createdAt)
     }));
     return {
@@ -3903,10 +4029,43 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "source", label: "Fuente" },
         { key: "status", label: "Estado proceso" },
         { key: "expectedSalary", label: "Aspiracion" },
+        { key: "hasInterview", label: "Entrevista" },
+        { key: "hasContract", label: "Contrato" },
+        { key: "stageAgeDays", label: "Edad etapa (días)" },
         { key: "createdAt", label: "Fecha" }
       ],
       rows,
       fileName: "reporte_contratacion.csv"
+    };
+  }
+  if (reportId === "labor_compliance") {
+    const records = read(KEYS.sstCompliance, []);
+    const rows = records.map((item) => ({
+      employee: item.employeeName || "-",
+      control: item.recordType || "-",
+      provider: item.provider || "-",
+      dueDate: item.dueDate || "-",
+      daysToDue: Number.isFinite(daysUntil(item.dueDate)) ? daysUntil(item.dueDate) : "-",
+      riskLevel: Number.isFinite(daysUntil(item.dueDate)) ? (daysUntil(item.dueDate) < 0 ? "Vencido" : daysUntil(item.dueDate) <= 30 ? "Próximo a vencer" : "Controlado") : "Sin fecha",
+      status: item.status || "-",
+      documentCode: item.documentCode || "-",
+      createdAt: fmtDate(item.createdAt)
+    }));
+    return {
+      title: "Reporte de cumplimiento laboral y SST",
+      columns: [
+        { key: "employee", label: "Empleado" },
+        { key: "control", label: "Control" },
+        { key: "provider", label: "Entidad" },
+        { key: "dueDate", label: "Vencimiento" },
+        { key: "daysToDue", label: "Días al vencimiento" },
+        { key: "riskLevel", label: "Riesgo" },
+        { key: "status", label: "Estado" },
+        { key: "documentCode", label: "Codigo" },
+        { key: "createdAt", label: "Registro" }
+      ],
+      rows,
+      fileName: "reporte_cumplimiento_sst.csv"
     };
   }
   if (reportId === "users_access") {
@@ -3940,7 +4099,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
       requestedBy: approval.requestedByName,
       requestedAt: fmtDate(approval.requestedAt),
       reviewedBy: approval.reviewedBy || "-",
-      reviewedAt: fmtDate(approval.reviewedAt)
+      reviewedAt: fmtDate(approval.reviewedAt),
+      resolutionHours: approval.reviewedAt ? hoursBetween(approval.requestedAt, approval.reviewedAt) : "-"
     }));
     return {
       title: "Reporte de autorizaciones",
@@ -3951,7 +4111,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "requestedBy", label: "Solicitante" },
         { key: "requestedAt", label: "Fecha solicitud" },
         { key: "reviewedBy", label: "Aprobador" },
-        { key: "reviewedAt", label: "Fecha revision" }
+        { key: "reviewedAt", label: "Fecha revision" },
+        { key: "resolutionHours", label: "Resolución (h)" }
       ],
       rows,
       fileName: "reporte_autorizaciones.csv"
@@ -3968,12 +4129,15 @@ function buildReportDataset(reportId, actor = currentUser()) {
 function reportsHtml() {
   const user = currentUser();
   const cards = [
+    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", desc: "Consolida operación, finanzas, RRHH y cumplimiento en un tablero único." },
+    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", desc: "Mide cumplimiento de entregas, tiempos de aprobación y ciclo operativo." },
     { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", desc: "Estado de flota, viajes por vehículo y cumplimiento documental." },
     { id: "trips_operations", icon: "compass", title: "Viajes operativos", desc: "Trazabilidad end-to-end de viajes, tiempos y estados." },
     { id: "requests_lifecycle", icon: "file", title: "Solicitudes", desc: "Ciclo de vida de solicitudes por cliente, estado y valor." },
     { id: "drivers_performance", icon: "user", title: "Conductores", desc: "Productividad, viajes finalizados y estado de licencias." },
     { id: "payroll_summary", icon: "dollar", title: "Nomina consolidada", desc: "Devengos, viaticos, reembolsos, deducciones y neto." },
     { id: "hiring_pipeline", icon: "briefcase", title: "Contratacion y pipeline", desc: "Seguimiento de vacantes y candidatos por etapa." },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", desc: "Estado de seguridad social, vencimientos y soportes auditables." },
     { id: "users_access", icon: "shield", title: "Usuarios y accesos", desc: "Roles, permisos, empresas y estado de cuentas." },
     { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", desc: "Trazabilidad completa de aprobaciones y decisiones." }
   ];
@@ -3996,7 +4160,7 @@ function reportsHtml() {
       .join("")}
   </div>`
     : `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
-  return pcardWrap("activity", "Centro de reporteria", "Exporta reportes profesionales por modulo en PDF o Excel", body);
+  return pcardWrap("activity", "Centro de reportería", "Reportes ejecutivos y operativos en PDF/Excel para decisiones empresariales", body);
 }
 
 function monthRange(month) {
@@ -4096,6 +4260,8 @@ function deleteEmployeesCascade(employeeIds = []) {
 
 function mountUniversalModuleFilters() {
   if (!nodes.viewRoot) return;
+  const moduleView = String(state.currentView || "");
+  if (["profile"].includes(moduleView)) return;
   const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
   const tableRows = tableBodies.flatMap((tbody) => [...tbody.querySelectorAll("tr")]);
   const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card")];
@@ -4103,7 +4269,6 @@ function mountUniversalModuleFilters() {
 
   const firstTable = nodes.viewRoot.querySelector(".table-wrap table");
   const headers = firstTable ? [...firstTable.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
-  const moduleView = String(state.currentView || "");
   const moduleLabels = {
     requests: "Solicitudes",
     "transport-requests": "Solicitudes transporte",
@@ -4594,6 +4759,86 @@ function hiringHtml() {
   </section>`;
 }
 
+function laborComplianceHtml() {
+  const employees = read(KEYS.payrollEmployees, []);
+  const contracts = read(KEYS.contracts, []);
+  const records = read(KEYS.sstCompliance, []);
+  const todayTs = Date.now();
+  const dueSoonDays = 30;
+  const expiringContracts = contracts.filter((contract) => {
+    if (!contract.endDate) return false;
+    const endTs = new Date(`${contract.endDate}T12:00:00`).getTime();
+    if (!Number.isFinite(endTs) || endTs < todayTs) return false;
+    return (endTs - todayTs) / 86400000 <= dueSoonDays;
+  });
+  const missingSocialSecurity = employees.filter((employee) => !employee.eps || !employee.pensionFund || !employee.arl);
+  const expiringLicenses = employees.filter((employee) => {
+    if (!employee.licenseExpiry) return false;
+    const expTs = new Date(`${employee.licenseExpiry}T12:00:00`).getTime();
+    if (!Number.isFinite(expTs) || expTs < todayTs) return false;
+    return (expTs - todayTs) / 86400000 <= dueSoonDays;
+  });
+  const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
+  const recordRows = records
+    .map((record) => {
+      const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
+      return `<tr>
+        <td><strong>${record.recordType || "-"}</strong><br><span class="muted">${record.documentCode || "Sin codigo"}</span></td>
+        <td>${employee?.name || record.employeeName || "-"}</td>
+        <td>${record.provider || "-"}</td>
+        <td>${record.dueDate || "-"}</td>
+        <td>${record.status || "Pendiente"}</td>
+        <td>${record.notes || "-"}</td>
+      </tr>`;
+    })
+    .join("");
+  const alertsBody = `<div class="hr-alert-list">
+      <div class="hr-alert-item"><strong>Contratos por vencer (30 dias):</strong> ${expiringContracts.length}</div>
+      <div class="hr-alert-item"><strong>Empleados con seguridad social incompleta:</strong> ${missingSocialSecurity.length}</div>
+      <div class="hr-alert-item"><strong>Licencias por vencer (30 dias):</strong> ${expiringLicenses.length}</div>
+      <div class="hr-alert-item"><strong>Registros documentales en auditoria:</strong> ${records.length}</div>
+    </div>`;
+  const complianceForm = `<form id="form-sst-compliance" class="p-form">
+      <label>Empleado <select name="employeeId" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
+      <label>Tipo de control
+        <select name="recordType" required>
+          <option value="">Seleccione...</option>
+          <option value="Afiliacion EPS">Afiliacion EPS</option>
+          <option value="Afiliacion pension">Afiliacion pension</option>
+          <option value="Afiliacion ARL">Afiliacion ARL</option>
+          <option value="Examen medico ocupacional">Examen medico ocupacional</option>
+          <option value="Capacitacion SST">Capacitacion SST</option>
+          <option value="Inspeccion documental">Inspeccion documental</option>
+        </select>
+      </label>
+      <label>Entidad / proveedor <input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
+      <label>Fecha de vencimiento / control <input type="date" name="dueDate" required /></label>
+      <label>Estado
+        <select name="status" required>
+          <option value="Pendiente">Pendiente</option>
+          <option value="En gestion">En gestion</option>
+          <option value="Cumplido">Cumplido</option>
+        </select>
+      </label>
+      <label>Codigo documental <input name="documentCode" required placeholder="Ej: SST-2026-001" /></label>
+      <label class="full">Evidencia / observaciones <textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
+      <p class="muted full">Cumplimiento Colombia: valida afiliacion activa a EPS, pension y ARL, soportes SST y trazabilidad de controles por empleado.</p>
+      <button class="btn btn-primary full" type="submit">${IC.plus} Registrar control legal/SST</button>
+    </form>`;
+  const recordsTable = recordRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
+    : emptyState("No hay controles de cumplimiento registrados.");
+  return `<div class="dash-grid hr-kpi-grid">
+      <div class="hr-kpi-card"><span>Controles activos</span><strong>${records.length}</strong></div>
+      <div class="hr-kpi-card"><span>Contratos por vencer</span><strong>${expiringContracts.length}</strong></div>
+      <div class="hr-kpi-card"><span>Seguridad social incompleta</span><strong>${missingSocialSecurity.length}</strong></div>
+      <div class="hr-kpi-card"><span>Licencias por vencer</span><strong>${expiringLicenses.length}</strong></div>
+    </div>`
+    + pcardWrap("activity", "Alertas legales y SST", "Vigencias y cumplimiento crítico", alertsBody)
+    + createCollapsibleCard("create-sst-control", "shield", "Registrar control legal/SST", "Expediente laboral, seguridad social y auditoria", complianceForm, "Registrar control")
+    + pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable);
+}
+
 function notificationsHtml() {
   const user = currentUser();
   const list = read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
@@ -4613,32 +4858,41 @@ function notificationsHtml() {
 
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
-  const body = `<form id="form-profile" class="p-form">
-    <label>Nombre <input name="name" value="${user.name || ""}" required /></label>
-    <label>Correo <input type="email" value="${user.email || ""}" disabled /></label>
-    <label>Telefono <input name="phone" value="${user.phone || ""}" /></label>
-    <label>Empresa
-      <input value="${companyName}" disabled />
-      <input type="hidden" name="companyId" value="${user.companyId || ""}" />
-    </label>
-    <label>NIT/RUT <input name="taxId" value="${user.taxId || ""}" /></label>
-    <label class="full">Foto (URL)
-      <input name="avatarUrl" placeholder="https://..." value="${user.avatarUrl || ""}" />
-    </label>
-    <label class="full">Subir foto
-      <input type="file" name="avatarFile" accept="image/*" />
-    </label>
-    <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
-  </form>`;
-  const preview = `<div class="user-card" style="max-width:280px">
-      <div class="user-card-top">
-        <div class="user-avatar" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');background-size:cover;background-position:center;color:transparent;` : ""}">
-          ${user.avatarUrl ? "." : (user.name || "U").charAt(0).toUpperCase()}
-        </div>
-        <div class="user-card-info"><h4>${user.name}</h4><p>${user.role}</p></div>
+  const body = `<section class="profile-shell">
+    <div class="profile-hero-card">
+      <div class="profile-avatar ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}">
+        ${user.avatarUrl ? "." : (user.name || "U").charAt(0).toUpperCase()}
       </div>
-    </div>`;
-  return `<div class="dash-grid">${pcardWrap("user", "Mi perfil", "Actualiza tu informacion personal", body)}${pcardWrap("eye", "Vista previa", null, preview)}</div>`;
+      <div class="profile-hero-info">
+        <h3>${user.name || "Usuario"}</h3>
+        <p>${user.role || "Perfil"}</p>
+        <div class="profile-hero-chips">
+          <span>${companyName}</span>
+          <span>${user.email || "-"}</span>
+          <span>Estado: ${user.accountStatus || "aprobado"}</span>
+        </div>
+      </div>
+    </div>
+    <form id="form-profile" class="p-form profile-form">
+      <label>Nombre completo <input name="name" value="${user.name || ""}" required /></label>
+      <label>Correo corporativo <input type="email" value="${user.email || ""}" disabled /></label>
+      <label>Telefono de contacto <input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
+      <label>NIT/RUT asociado <input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
+      <label class="full">Empresa
+        <input value="${companyName}" disabled />
+        <input type="hidden" name="companyId" value="${user.companyId || ""}" />
+      </label>
+      <label class="full">Foto de perfil (URL)
+        <input name="avatarUrl" placeholder="https://..." value="${user.avatarUrl || ""}" />
+      </label>
+      <label class="full">Subir foto
+        <input type="file" name="avatarFile" accept="image/*" />
+      </label>
+      <p class="muted full legal-form-note">Mantén datos de contacto y NIT/RUT actualizados para soporte contractual y trazabilidad administrativa.</p>
+      <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
+    </form>
+  </section>`;
+  return pcardWrap("user", "Mi perfil", "Información profesional y datos de cuenta", body, "p-card-profile");
 }
 
 function authorizationsHtml() {
@@ -4712,7 +4966,11 @@ const MODULE_BLUEPRINTS = {
   hiring: {
     focus: "Pipeline de talento y contratación",
     checkpoints: ["Cumplir flujo de selección", "Formalizar contratos a tiempo", "Sincronizar candidato-empleado"],
-    recommendation: "Módulo recomendado a futuro: Cumplimiento Laboral y SST (expedientes, seguridad social, vencimientos y auditoría legal)."
+    recommendation: "Integre este flujo con Cumplimiento Laboral y SST para cerrar brechas entre contratación, seguridad social y auditoría."
+  },
+  "labor-compliance": {
+    focus: "Control legal laboral y SST",
+    checkpoints: ["Monitorear vencimientos críticos", "Asegurar soportes de seguridad social", "Dejar trazabilidad auditable por empleado"]
   },
   "admin-users": {
     focus: "Gobierno de accesos y seguridad",
@@ -4755,6 +5013,87 @@ function renderModuleShell(view, title, bodyHtml) {
   </section>`;
 }
 
+function enforceColombianFormStandards() {
+  const setAttr = (selector, attrs = {}) => {
+    const node = document.querySelector(selector);
+    if (!node) return;
+    Object.entries(attrs).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      node.setAttribute(key, String(value));
+    });
+  };
+  const appendLegalNote = (formId, text) => {
+    const form = document.getElementById(formId);
+    if (!form || form.querySelector(`[data-legal-note="${formId}"]`)) return;
+    const note = document.createElement("p");
+    note.className = "muted full legal-form-note";
+    note.dataset.legalNote = formId;
+    note.textContent = text;
+    form.appendChild(note);
+  };
+
+  setAttr("#form-vehicle input[name='plate']", { pattern: "[A-Z]{3}[0-9]{3}", maxlength: "6", placeholder: "ABC123" });
+  setAttr("#form-vehicle input[name='year']", { min: "1990", max: String(new Date().getFullYear() + 1) });
+  appendLegalNote("form-vehicle", "Documentación vigente exigida en Colombia: SOAT y tecnomecánica activa para operación.");
+
+  setAttr("#form-admin-company-create input[name='taxId']", { pattern: "[0-9\\-]{6,20}", minlength: "6", maxlength: "20", placeholder: "900123456-7" });
+  setAttr("#form-admin-company-create input[name='phone']", { pattern: "[0-9]{7,15}", minlength: "7", maxlength: "15", placeholder: "6011234567" });
+  appendLegalNote("form-admin-company-create", "Registre razón social y NIT/RUT válido para trazabilidad tributaria y contractual.");
+
+  setAttr("#form-admin-user-create input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  setAttr("#form-admin-user-edit input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  appendLegalNote("form-admin-user-create", "Valide identificación y datos de contacto conforme a políticas de gestión de datos personales.");
+
+  setAttr("#form-employee input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
+  setAttr("#form-employee input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  setAttr("#form-employee input[name='emergencyPhone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  setAttr("#form-employee input[name='bankAccount']", { minlength: "8", maxlength: "24", placeholder: "Cuenta bancaria del trabajador" });
+  appendLegalNote("form-employee", "Incluya datos completos de seguridad social y soporte de vinculación según CST y SG-SST.");
+
+  setAttr("#form-position input[name='baseSalary']", { min: String(CO_HR_RULES.minMonthlySalary) });
+  appendLegalNote("form-position", "El salario base del cargo no puede ser inferior al mínimo legal vigente.");
+
+  setAttr("#form-vacancy input[name='openings']", { min: "1" });
+  setAttr("#form-vacancy input[name='deadline']", { min: nowIso().slice(0, 10) });
+  appendLegalNote("form-vacancy", "Defina requisitos y plazo de cierre para soportar auditoría del proceso de selección.");
+
+  setAttr("#form-candidate input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  setAttr("#form-candidate input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
+  appendLegalNote("form-candidate", "Para contratación formal en Colombia debe existir identificación válida y soportes verificables.");
+
+  setAttr("#form-interview input[name='when']", { min: new Date().toISOString().slice(0, 16) });
+  appendLegalNote("form-interview", "Registre entrevistador y fecha para trazabilidad del proceso de contratación.");
+
+  setAttr("#form-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
+  setAttr("#form-contract input[name='probationMonths']", { min: "0", max: "2" });
+  appendLegalNote("form-contract", "Contrato laboral exige afiliaciones activas a EPS, pensión y ARL previo al ingreso efectivo.");
+
+  setAttr("#form-employee-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
+  appendLegalNote("form-employee-contract", "Use este flujo para formalizar contrato de empleado activo con evidencia documental.");
+
+  setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
+  appendLegalNote("form-hr-absence", "Toda ausencia debe contar con soporte y periodo validado para cumplimiento laboral.");
+
+  setAttr("#form-sst-compliance input[name='documentCode']", { minlength: "4", maxlength: "32" });
+  appendLegalNote("form-sst-compliance", "Mantenga trazabilidad documental de SST y seguridad social por empleado.");
+
+  const requestPrice = document.querySelector("#form-request input[name='tripValue']");
+  if (requestPrice) {
+    requestPrice.value = "0";
+    requestPrice.setAttribute("readonly", "true");
+    requestPrice.setAttribute("aria-readonly", "true");
+    requestPrice.setAttribute("title", "La tarifa la define Antares al asignar el viaje.");
+    const requestLabel = requestPrice.closest("label");
+    if (requestLabel && !requestLabel.querySelector("[data-price-msg]")) {
+      const msg = document.createElement("small");
+      msg.className = "muted";
+      msg.dataset.priceMsg = "1";
+      msg.textContent = "La tarifa final del viaje es definida por Antares en la asignación operativa.";
+      requestLabel.appendChild(msg);
+    }
+  }
+}
+
 function renderPortalView() {
   updateAutoApprove();
   closeCompletedTripsAndGenerateInvoices();
@@ -4775,6 +5114,7 @@ function renderPortalView() {
     reports: "Centro de reporteria",
     payroll: "Nomina",
     hiring: "Contratacion",
+    "labor-compliance": "Cumplimiento laboral y SST",
     "admin-users": "Administración · Usuarios y permisos",
     authorizations: "Autorizaciones",
     profile: "Mi perfil",
@@ -4807,6 +5147,8 @@ function renderPortalView() {
     content = renderFromModule("rrhh", "payrollHtml");
   } else if (view === "hiring" && canAccessRRHH(user.role)) {
     content = renderFromModule("rrhh", "hiringHtml");
+  } else if (view === "labor-compliance" && canAccessRRHH(user.role)) {
+    content = renderFromModule("rrhh", "laborComplianceHtml");
   } else if (view === "admin-users" && user.role === ROLES.ADMIN) {
     content = renderFromModule("usuarios", "adminUsersHtml", user);
   } else if (view === "authorizations" && user.role === ROLES.ADMIN) {
@@ -4822,6 +5164,7 @@ function renderPortalView() {
 
   mountUniversalModuleFilters();
   bindDynamicEvents();
+  enforceColombianFormStandards();
   applyFormWizards();
   applyModuleMicroAnimations();
 }
@@ -5011,6 +5354,16 @@ function bindDynamicEvents() {
     adminCompanyCreate.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
+      const nitValidation = validateColombianDocument("NIT", data.taxId);
+      if (!nitValidation.ok) {
+        notify(`NIT invalido: ${nitValidation.message}`, "error");
+        return;
+      }
+      const companyPhone = String(data.phone || "").trim();
+      if (!/^\d{7,15}$/.test(companyPhone)) {
+        notify("Telefono de empresa invalido. Usa solo digitos (7 a 15).", "error");
+        return;
+      }
       const companies = read(KEYS.companies, []);
       if (
         companies.some(
@@ -5022,9 +5375,9 @@ function bindDynamicEvents() {
       }
       companies.push({
         id: uid(),
-        name: data.name,
-        taxId: data.taxId,
-        phone: data.phone,
+        name: String(data.name || "").trim(),
+        taxId: nitValidation.normalized,
+        phone: companyPhone,
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
@@ -5333,6 +5686,7 @@ function bindDynamicEvents() {
         return;
       }
       const { pickupDate, pickupTime, deliveryDate, deliveryTime, ...payload } = data;
+      payload.tripValue = 0;
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
       const all = read(KEYS.requests, []);
@@ -5852,13 +6206,24 @@ function bindDynamicEvents() {
     vehicleForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
+      const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
+        notify("Placa invalida. Usa formato colombiano ABC123.", "error");
+        return;
+      }
+      const modelYear = parseNum(data.year);
+      const currentYear = new Date().getFullYear();
+      if (modelYear < 1990 || modelYear > currentYear + 1) {
+        notify("Año de modelo invalido para el vehiculo.", "error");
+        return;
+      }
       const list = read(KEYS.vehicles, []);
       list.push({
         id: uid(),
-        plate: String(data.plate).toUpperCase(),
+        plate,
         brand: String(data.brand || "").trim(),
         model: String(data.model || "").trim(),
-        year: parseNum(data.year),
+        year: modelYear,
         type: data.type,
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
@@ -5883,6 +6248,10 @@ function bindDynamicEvents() {
       event.preventDefault();
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
+      if (!/^\d{10,15}$/.test(String(data.phone || "").trim())) {
+        notify("Telefono del conductor invalido. Usa solo digitos (10 a 15).", "error");
+        return;
+      }
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
@@ -6646,6 +7015,11 @@ function bindDynamicEvents() {
     vacancyForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
+      const deadlineTs = new Date(`${String(data.deadline || "")}T12:00:00`).getTime();
+      if (!Number.isFinite(deadlineTs) || deadlineTs < Date.now()) {
+        notify("La fecha límite de la vacante debe ser hoy o posterior.", "error");
+        return;
+      }
       const position = getPositionById(String(data.positionId || ""));
       if (!position || position.active === false) {
         notify("Selecciona un cargo activo para publicar la vacante.", "error");
@@ -6740,6 +7114,11 @@ function bindDynamicEvents() {
         notify(`La aspiracion salarial no puede ser menor al minimo de referencia (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
         return;
       }
+      const availabilityTs = new Date(`${String(data.availabilityDate || "")}T12:00:00`).getTime();
+      if (!Number.isFinite(availabilityTs) || availabilityTs < new Date(new Date().toDateString()).getTime()) {
+        notify("La disponibilidad de ingreso debe ser hoy o posterior.", "error");
+        return;
+      }
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: uid(),
@@ -6797,6 +7176,11 @@ function bindDynamicEvents() {
     interviewForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(interviewForm).entries());
+      const interviewTs = new Date(String(data.when || "")).getTime();
+      if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
+        notify("La entrevista debe programarse en fecha/hora futura.", "error");
+        return;
+      }
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
       if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {
@@ -6898,6 +7282,11 @@ function bindDynamicEvents() {
       const contractType = String(data.contractType || position.contractTypeDefault || "Termino indefinido");
       const probationMonths = Math.min(2, Math.max(0, parseNum(data.probationMonths || 0)));
       const endDate = String(data.endDate || "").trim();
+      const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
+      if (!Number.isFinite(startDateTs) || startDateTs < new Date(new Date().toDateString()).getTime()) {
+        notify("La fecha de inicio contractual debe ser hoy o posterior.", "error");
+        return;
+      }
       if (contractType === "Termino fijo" && !endDate) {
         notify("Para contrato a termino fijo debes indicar fecha de finalizacion.", "error");
         return;
@@ -7060,6 +7449,11 @@ function bindDynamicEvents() {
     employeeContractForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(employeeContractForm).entries());
+      const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
+      if (!Number.isFinite(startDateTs) || startDateTs < new Date(new Date().toDateString()).getTime()) {
+        notify("La fecha de inicio contractual debe ser hoy o posterior.", "error");
+        return;
+      }
       const employee = read(KEYS.payrollEmployees, []).find((item) => item.id === data.employeeId);
       if (!employee) return;
       const contractText =
@@ -7101,6 +7495,41 @@ function bindDynamicEvents() {
         </html>
       `);
       popup.document.close();
+      renderPortalView();
+    });
+  }
+
+  const sstComplianceForm = document.getElementById("form-sst-compliance");
+  if (sstComplianceForm) {
+    sstComplianceForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(sstComplianceForm).entries());
+      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
+      if (!employee) {
+        notify("Selecciona un empleado valido para el control.", "error");
+        return;
+      }
+      const dueDate = String(data.dueDate || "");
+      if (!dueDate) {
+        notify("Debes indicar la fecha de vencimiento/control.", "error");
+        return;
+      }
+      const list = read(KEYS.sstCompliance, []);
+      list.unshift({
+        id: uid(),
+        employeeId: employee.id,
+        employeeName: employee.name,
+        recordType: String(data.recordType || "").trim(),
+        provider: String(data.provider || "").trim(),
+        dueDate,
+        status: String(data.status || "Pendiente"),
+        documentCode: String(data.documentCode || "").trim().toUpperCase(),
+        notes: String(data.notes || "").trim(),
+        createdAt: nowIso(),
+        createdBy: currentUser()?.name || "Sistema"
+      });
+      write(KEYS.sstCompliance, list);
+      notify("Control de cumplimiento/SST registrado.", "success");
       renderPortalView();
     });
   }
@@ -7824,6 +8253,7 @@ window.AppLegacyViews = {
   reportsHtml,
   payrollHtml,
   hiringHtml,
+  laborComplianceHtml,
   adminUsersHtml,
   authorizationsHtml,
   profileHtml,
