@@ -92,9 +92,42 @@
   }
 
   /**
-   * Rellena el parrafo tipo:
-   * "en la ciudad de _____ ... a los ___ dias del mes de _____ de _____"
-   * (guiones bajos o espacios en plantillas Word).
+   * Convierte salario numerico a texto para clausulas (referencia legal Colombia).
+   */
+  function formatSalarioLetrasPesos(n) {
+    const num = Math.round(Number(n) || 0);
+    if (num <= 0) return "";
+    const words = toWordsEs(num);
+    return `${words} pesos colombianos`;
+  }
+
+  /**
+   * Lista ordenada de marcadores para Word: primero los mas largos para no truncar
+   * (ej. salario antes que salario_letras romperia el placeholder).
+   */
+  function buildContractDocxMergeEntries(input) {
+    const salaryNumber = Number(input.salario || 0);
+    const letters =
+      String(input.salario_letras || "").trim() ||
+      formatSalarioLetrasPesos(salaryNumber);
+    const pairs = [
+      ["nombre_empleado", String(input.nombre_empleado || "").trim()],
+      ["cedula_empleado", String(input.cedula_empleado || "").trim()],
+      ["ciudad_empleado", String(input.ciudad_empleado || "").trim()],
+      ["banco_cuenta_bancaria", String(input.banco_cuenta_bancaria || "").trim()],
+      ["cuenta_bancaria", String(input.cuenta_bancaria || "").trim()],
+      ["salario_letras", letters],
+      ["duracion_contrato", String(input.duracion_contrato || "").trim()],
+      ["cargo_empleado", String(input.cargo_empleado || "").trim()],
+      ["salario", String(Math.round(salaryNumber))]
+    ];
+    return pairs.sort((a, b) => b[0].length - a[0].length);
+  }
+
+  /**
+   * Rellena el parrafo tipo constancia:
+   * "Para constancia se firma ... en la ciudad de _____ a los ___ dias del mes de _____ de _____"
+   * Incluye tolerancia a saltos de linea Word y runs partidos (XML).
    */
   function replaceDateSentence(xml, city, dateValue) {
     const dt = dateValue ? new Date(`${dateValue}T12:00:00`) : new Date();
@@ -108,13 +141,21 @@
     const y = escapeXml(year);
 
     let out = xml;
-    const blank = "[\\s_\\u00a0]{2,}";
+    const blank = "[\\s_\\u00a0]{1,}";
 
     out = out.replace(new RegExp(`(en la ciudad de\\s*)(${blank})`, "gi"), `$1${c}`);
     out = out.replace(new RegExp(`(a los\\s*)(${blank})(d[ií]as)`, "gi"), `$1${d} $3`);
     out = out.replace(new RegExp(`(mes de\\s*)(${blank})(\\s*de\\s*)(${blank})`, "gi"), `$1${m}$3${y}`);
-
     out = out.replace(new RegExp(`(de\\s*)(${blank})(\\s*</w:t>)`, "gi"), `$1${y}$3`);
+
+    out = out.replace(
+      /(en la ciudad de\s*)(<\/w:t><\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>)([\s_]+)(<\/w:t>)/gi,
+      `$1$2${c}$4`
+    );
+    out = out.replace(
+      /(a los\s*)(<\/w:t><\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>)([\s_]+)(<\/w:t>\s*<\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>)(d[ií]as)/gi,
+      `$1$2${d}$4$5`
+    );
 
     return out;
   }
@@ -133,6 +174,7 @@
       if (full.includes(`Cc. ${esc}`) || full.includes(esc)) return full;
       return `${open}Cc. ${esc}<\/w:t>`;
     });
+    out = out.replace(/(<w:t[^>]*>)\s*Cc:\s*<\/w:t>/gi, `$1Cc: ${esc}<\/w:t>`);
     return out;
   }
 
@@ -151,17 +193,9 @@
     const sourceBuffer = await response.arrayBuffer();
 
     const salaryNumber = Number(input.salario || 0);
-    const map = {
-      nombre_empleado: String(input.nombre_empleado || ""),
-      cedula_empleado: String(input.cedula_empleado || ""),
-      ciudad_empleado: String(input.ciudad_empleado || ""),
-      banco_cuenta_bancaria: String(input.banco_cuenta_bancaria || ""),
-      salario: String(Math.round(salaryNumber)),
-      salario_letras: String(input.salario_letras || toWordsEs(salaryNumber)),
-      duracion_contrato: String(input.duracion_contrato || ""),
-      cuenta_bancaria: String(input.cuenta_bancaria || ""),
-      cargo_empleado: String(input.cargo_empleado || "")
-    };
+    const mergeEntries = buildContractDocxMergeEntries(input);
+    const ciudadFirma = mergeEntries.find((x) => x[0] === "ciudad_empleado")?.[1] || "";
+    const cedulaVal = mergeEntries.find((x) => x[0] === "cedula_empleado")?.[1] || "";
 
     const zip = await JSZipLib.loadAsync(sourceBuffer);
     const wordEntries = Object.keys(zip.files).filter((name) => /^word\/.*\.xml$/i.test(name));
@@ -170,18 +204,19 @@
       wordEntries.map(async (entry) => {
         const xml = await zip.file(entry).async("string");
         let next = xml;
-        Object.entries(map).forEach(([key, val]) => {
+        mergeEntries.forEach(([key, val]) => {
           const escaped = escapeXml(val);
-          next = next.replace(new RegExp(key, "g"), escaped);
+          next = next.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), escaped);
         });
-        next = replaceDateSentence(next, map.ciudad_empleado, input.signDate || "");
-        next = injectCedulaAfterCcRuns(next, map.cedula_empleado);
+        next = replaceDateSentence(next, ciudadFirma, input.signDate || "");
+        next = injectCedulaAfterCcRuns(next, cedulaVal);
         zip.file(entry, next);
       })
     );
 
     const output = await zip.generateAsync({ type: "blob" });
-    const safeName = String(map.nombre_empleado || "empleado").replace(/[^a-z0-9]+/gi, "_");
+    const nombreSafe = mergeEntries.find((x) => x[0] === "nombre_empleado")?.[1] || "empleado";
+    const safeName = String(nombreSafe).replace(/[^a-z0-9]+/gi, "_");
     const fileName = `contrato_${kind}_${safeName}.docx`;
     const url = URL.createObjectURL(output);
     const a = document.createElement("a");
@@ -198,6 +233,8 @@
   window.RecruitmentDomain.TEMPLATE_BY_KIND = TEMPLATE_BY_KIND;
   window.RecruitmentDomain.inferTemplateKind = inferTemplateKind;
   window.RecruitmentDomain.toWordsEs = toWordsEs;
+  window.RecruitmentDomain.formatSalarioLetrasPesos = formatSalarioLetrasPesos;
+  window.RecruitmentDomain.buildContractDocxMergeEntries = buildContractDocxMergeEntries;
   window.RecruitmentDomain.ensureJsZip = ensureJsZip;
   window.RecruitmentDomain.generateEmployeeContractDocx = generateEmployeeContractDocx;
 })();

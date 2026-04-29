@@ -30,7 +30,6 @@ const IC = {
   printer: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
   chevronLeft: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
   chevronRight: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
-  mapPin: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
   building: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><line x1="9" y1="15" x2="9.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/></svg>',
   badge: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5l1 7L12 18l-4.5 2.5 1-7"/></svg>',
   lock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
@@ -5935,7 +5934,7 @@ function hiringHtml() {
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestacion servicios</button>
       </div>
     </fieldset>
-    <p class="muted full legal-form-note">Marcadores: nombre_empleado, cedula_empleado, ciudad_empleado, banco_cuenta_bancaria, cuenta_bancaria, salario, salario_letras, duracion_contrato, cargo_empleado. Parrafo de constancia: ciudad, dia, mes y año. Ultima hoja Cc.: se anexa la cedula.</p>
+    <p class="muted full legal-form-note">Plantillas en <strong>documentacion/*.docx</strong>: se sustituyen los textos <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong>, <strong>salario_letras</strong> (o se genera en letras + pesos colombianos), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong> con los datos del empleado en Nomina. El parrafo &quot;Para constancia se firma… en la ciudad de… a los… dias del mes de… de…&quot; se completa con la ciudad del empleado y la fecha de firma. En la ultima hoja, la linea <strong>Cc.</strong> recibe la <strong>cedula_empleado</strong>.</p>
     <button class="btn btn-primary full" type="submit">${IC.file} Generar y descargar contrato Word</button>
   </form>`;
 
@@ -6591,6 +6590,11 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
   if (!kind || !templates[kind]) {
     kind = window.RecruitmentDomain?.inferTemplateKind ? window.RecruitmentDomain.inferTemplateKind(ct, wr) : "oficina";
   }
+  const base = parseNum(employee.baseSalary);
+  const wordsSalary =
+    window.RecruitmentDomain?.formatSalarioLetrasPesos
+      ? window.RecruitmentDomain.formatSalarioLetrasPesos(base)
+      : "";
   return {
     contractTemplateKind: kind,
     contractType: ct,
@@ -6600,8 +6604,8 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
     ciudad_empleado: String(employee.city || "").trim(),
     banco_cuenta_bancaria: String(employee.bankName || "").trim(),
     cuenta_bancaria: String(employee.bankAccount || "").trim(),
-    salario: parseNum(employee.baseSalary),
-    salario_letras: "",
+    salario: base,
+    salario_letras: wordsSalary,
     duracion_contrato:
       String(employee.contractDuration || "").trim() ||
       describeContractDurationForDocx({ contractType: ct, startDate: signDate, endDate: employee.endDate || "" }),
@@ -9561,6 +9565,10 @@ function bindDynamicEvents() {
             })
           );
         } else {
+          const salLet =
+            salaryVal > 0 && window.RecruitmentDomain?.formatSalarioLetrasPesos
+              ? window.RecruitmentDomain.formatSalarioLetrasPesos(salaryVal)
+              : "";
           await generateOfficialWordContract({
             contractTemplateKind: templateKind,
             contractType,
@@ -9571,7 +9579,7 @@ function bindDynamicEvents() {
             banco_cuenta_bancaria: String(employee?.bankName || "").trim(),
             cuenta_bancaria: String(employee?.bankAccount || "").trim(),
             salario: salaryVal,
-            salario_letras: "",
+            salario_letras: salLet || "",
             duracion_contrato: describeContractDurationForDocx({
               contractType: contractType || "Termino indefinido",
               startDate: c.startDate || "",
