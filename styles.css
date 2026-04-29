@@ -4352,13 +4352,20 @@ body[data-theme="dark"] .p-form textarea {
   object-fit: contain;
   object-position: center;
   background: linear-gradient(180deg, #e8f1fc, #dbe9f8);
-  padding: 0.2rem;
+  padding: 0.15rem;
+}
+
+.news-media .news-evidence-frame img.news-img-truck-side {
+  transform: scale(1.03);
+  transform-origin: center center;
 }
 
 .news-media .news-evidence-frame img.news-img-truck {
   object-fit: contain;
-  object-position: center;
+  object-position: 50% 58%;
   background: linear-gradient(180deg, #e8f1fc, #dbe9f8);
+  transform: scale(1.11);
+  transform-origin: center center;
 }
 
 @media (max-width: 960px) {
