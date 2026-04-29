@@ -21,6 +21,10 @@
   --shadow-btn: 0 6px 20px rgba(21, 101, 192, 0.30);
   --radius: 16px;
   --radius-sm: 10px;
+  --module-accent-start: #5B7CF7;
+  --module-accent-end: #22A6E6;
+  --module-soft-bg: linear-gradient(180deg, #F7FBFF 0%, #F0F6FF 100%);
+  --module-border-strong: #B8D0EB;
 }
 
 body[data-theme="dark"] {
@@ -31,6 +35,10 @@ body[data-theme="dark"] {
   --primary-light: #14263C;
   --shadow-card: 0 8px 30px rgba(2, 7, 16, 0.45);
   --shadow-card-hover: 0 16px 40px rgba(2, 7, 16, 0.58);
+  --module-accent-start: #5A74D8;
+  --module-accent-end: #2690CC;
+  --module-soft-bg: linear-gradient(180deg, #182C45 0%, #13253B 100%);
+  --module-border-strong: #486A8F;
 }
 
 * { box-sizing: border-box; }
@@ -1813,31 +1821,38 @@ tbody tr:last-child td { border-bottom: none; }
 .btn-sm .btn-icon { width: 14px; height: 14px; }
 
 .btn-approve {
-  background: linear-gradient(135deg, #1B8E5F, #157A50);
+  background: linear-gradient(135deg, #26a269, #1b8e5f);
   color: var(--white);
   border: none;
+  box-shadow: 0 8px 16px rgba(27, 142, 95, 0.26);
 }
 
 .btn-approve:hover { filter: brightness(1.1); transform: translateY(-1px); }
 
 .btn-reject {
-  background: linear-gradient(135deg, #D62828, #B02020);
+  background: linear-gradient(135deg, #e54848, #cc2f2f);
   color: var(--white);
   border: none;
+  box-shadow: 0 8px 16px rgba(204, 47, 47, 0.24);
 }
 
 .btn-reject:hover { filter: brightness(1.1); transform: translateY(-1px); }
 
 .btn-action {
-  background: var(--white);
-  color: var(--text);
-  border: 1px solid var(--line);
+  background: linear-gradient(135deg, #5f82f6, #2f9ee0);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 10px 18px rgba(47, 116, 198, 0.22);
 }
 
 .btn-action:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: rgba(21,101,192,0.04);
+  transform: translateY(-1px);
+  filter: saturate(1.08) brightness(1.03);
+  box-shadow: 0 14px 24px rgba(37, 103, 181, 0.28);
+}
+
+.toolbar .btn {
+  border-radius: 10px;
 }
 
 /* Portal forms */
@@ -3754,7 +3769,7 @@ body[data-theme="dark"] .p-form textarea {
   width: 56px;
   height: 56px;
   min-width: 56px;
-  border-radius: 14px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3774,8 +3789,9 @@ body[data-theme="dark"] .p-form textarea {
   width: 74px;
   height: 74px;
   min-width: 74px;
-  border-radius: 20px;
+  border-radius: 50%;
   box-shadow: 0 12px 24px rgba(9, 30, 66, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.85);
 }
 
 .profile-hero-kicker {
@@ -3853,6 +3869,33 @@ body[data-theme="dark"] .p-form textarea {
   font-size: 1rem;
 }
 
+.profile-key-data {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.profile-key-item {
+  border: 1px solid rgba(21, 101, 192, 0.16);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff, #f7fbff);
+  padding: 0.68rem 0.8rem;
+}
+
+.profile-key-item p {
+  margin: 0 0 0.22rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  color: #7f95b0;
+}
+
+.profile-key-item strong {
+  color: #1f3f63;
+  font-size: 0.95rem;
+}
+
 .profile-form {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
@@ -3866,6 +3909,10 @@ body[data-theme="dark"] .p-form textarea {
 
 @media (max-width: 920px) {
   .profile-stats-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-key-data {
     grid-template-columns: 1fr;
   }
 
@@ -4216,9 +4263,127 @@ body[data-theme="dark"] .profile-stat-card strong {
   color: #ecf5ff;
 }
 
+body[data-theme="dark"] .profile-key-item {
+  background: linear-gradient(180deg, #182f49, #162a41);
+  border-color: #456b94;
+}
+
+body[data-theme="dark"] .profile-key-item p {
+  color: #a9c8ea;
+}
+
+body[data-theme="dark"] .profile-key-item strong {
+  color: #ecf5ff;
+}
+
 body[data-theme="dark"] .profile-form-centered {
   background: linear-gradient(180deg, rgba(24, 46, 72, 0.96), rgba(19, 39, 60, 0.98));
   border-color: #446892;
+}
+
+/* Unified module accent system (light/dark) */
+.module-shell[data-module-view="dashboard"] {
+  --module-accent-start: #4f7ff2;
+  --module-accent-end: #26a7df;
+}
+
+.module-shell[data-module-view^="transport-"],
+.module-shell[data-module-view="history"],
+.module-shell[data-module-view="reports"] {
+  --module-accent-start: #1f95b8;
+  --module-accent-end: #34b3c9;
+}
+
+.module-shell[data-module-view="payroll"],
+.module-shell[data-module-view="hiring"],
+.module-shell[data-module-view="labor-compliance"] {
+  --module-accent-start: #6a6de8;
+  --module-accent-end: #4a8ee8;
+}
+
+.module-shell[data-module-view="admin-users"],
+.module-shell[data-module-view="authorizations"] {
+  --module-accent-start: #5a73d4;
+  --module-accent-end: #4a8cc9;
+}
+
+.module-shell[data-module-view="notifications"] {
+  --module-accent-start: #5e82f0;
+  --module-accent-end: #3fa7dd;
+}
+
+.portal-main .module-shell-head,
+.portal-main .hiring-executive-strip,
+.portal-main .payroll-executive-strip {
+  border-color: var(--module-border-strong);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--module-accent-start) 12%, #ffffff 88%), color-mix(in srgb, var(--module-accent-end) 10%, #ffffff 90%));
+}
+
+.portal-main .p-card,
+.portal-main .table-wrap,
+.portal-main .users-hero-item,
+.portal-main .user-card {
+  border-color: color-mix(in srgb, var(--module-border-strong) 78%, #ffffff 22%);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--module-accent-start) 16%, transparent);
+}
+
+.portal-main .p-card-header {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--module-accent-start) 8%, #ffffff 92%), color-mix(in srgb, var(--module-accent-end) 10%, #ffffff 90%));
+}
+
+.portal-main .p-card-body {
+  background: var(--module-soft-bg);
+}
+
+.portal-main .kpi,
+.portal-main .hr-kpi-card,
+.portal-main .payroll-kpi-card,
+.portal-main .profile-stat-card,
+.portal-main .profile-key-item {
+  border-color: color-mix(in srgb, var(--module-border-strong) 82%, #ffffff 18%);
+}
+
+.portal-main .table-wrap table thead th {
+  background: color-mix(in srgb, var(--module-accent-start) 8%, transparent);
+}
+
+.portal-main .module-checkpoint {
+  background: color-mix(in srgb, var(--module-accent-start) 12%, #ffffff 88%);
+  border-color: color-mix(in srgb, var(--module-accent-end) 22%, #ffffff 78%);
+}
+
+.portal-main .btn-action {
+  background: linear-gradient(135deg, var(--module-accent-start), var(--module-accent-end));
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+body[data-theme="dark"] .portal-main .module-shell-head,
+body[data-theme="dark"] .portal-main .hiring-executive-strip,
+body[data-theme="dark"] .portal-main .payroll-executive-strip {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--module-accent-start) 24%, #0f1f34 76%), color-mix(in srgb, var(--module-accent-end) 22%, #0f1f34 78%));
+}
+
+body[data-theme="dark"] .portal-main .p-card,
+body[data-theme="dark"] .portal-main .table-wrap,
+body[data-theme="dark"] .portal-main .users-hero-item,
+body[data-theme="dark"] .portal-main .user-card {
+  border-color: color-mix(in srgb, var(--module-border-strong) 88%, #0d1b2d 12%);
+  box-shadow: 0 12px 30px rgba(2, 10, 20, 0.36);
+}
+
+body[data-theme="dark"] .portal-main .p-card-header {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--module-accent-start) 20%, #13253b 80%), color-mix(in srgb, var(--module-accent-end) 20%, #12253a 80%));
+}
+
+body[data-theme="dark"] .portal-main .p-card-body {
+  background: var(--module-soft-bg);
+}
+
+body[data-theme="dark"] .portal-main .btn-action {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--module-accent-start) 78%, #1b2f4d 22%), color-mix(in srgb, var(--module-accent-end) 78%, #1b2f4d 22%));
+  border-color: rgba(149, 196, 255, 0.45);
+  color: #f3f9ff;
 }
 
 /* Portal clarity pass: dark typography + layout consistency */
@@ -4294,9 +4459,9 @@ body[data-theme="dark"] .timer-badge {
 }
 
 body[data-theme="dark"] .portal-main .btn-action:hover {
-  border-color: #7cb6ff;
-  color: #eff6ff;
-  background: #264768;
+  border-color: #8fc2ff;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4b68ca, #2f7db8);
 }
 
 @media (max-width: 1320px) {

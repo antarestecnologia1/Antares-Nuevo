@@ -4881,6 +4881,7 @@ function notificationsHtml() {
 
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
+  const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
       <div class="profile-avatar profile-avatar-lg ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}">
@@ -4902,6 +4903,12 @@ function profileHtml(user) {
       <article class="profile-stat-card"><p>Privacidad</p><strong>Datos sensibles ocultos</strong></article>
       <article class="profile-stat-card"><p>Rol asignado</p><strong>${user.role || "Usuario"}</strong></article>
     </div>
+    <section class="profile-key-data">
+      <article class="profile-key-item"><p>Documento / NIT</p><strong>${user.taxId || "Sin registrar"}</strong></article>
+      <article class="profile-key-item"><p>Telefono</p><strong>${user.phone || "Sin registrar"}</strong></article>
+      <article class="profile-key-item"><p>Empresa</p><strong>${companyName}</strong></article>
+      <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
+    </section>
     <form id="form-profile" class="p-form profile-form profile-form-centered">
       <label>Nombre completo <input name="name" value="${user.name || ""}" required /></label>
       <label>Correo corporativo <input type="email" value="${user.email || ""}" disabled /></label>
@@ -5019,27 +5026,63 @@ const MODULE_BLUEPRINTS = {
   }
 };
 
-function renderModuleShell(view, title, bodyHtml) {
+function renderModuleShell(view, _title, bodyHtml) {
   const blueprint = MODULE_BLUEPRINTS[view];
   if (!blueprint) return bodyHtml;
-  const checkpoints = (blueprint.checkpoints || [])
-    .map((item) => `<span class="module-checkpoint">${item}</span>`)
-    .join("");
-  const recommendation = blueprint.recommendation
-    ? `<p class="module-recommendation"><strong>Recomendación:</strong> ${blueprint.recommendation}</p>`
-    : "";
-  return `<section class="module-shell">
-    <div class="module-shell-head">
-      <div>
-        <p class="module-shell-kicker">Operacion empresarial</p>
-        <h2>${title}</h2>
-        <p class="module-shell-focus">${blueprint.focus || ""}</p>
-      </div>
-      <div class="module-checkpoints">${checkpoints}</div>
-    </div>
-    ${recommendation}
+  return `<section class="module-shell" data-module-view="${view}">
     <div class="module-shell-body">${bodyHtml}</div>
   </section>`;
+}
+
+function orderDirectChildrenBySelectors(container, selectors) {
+  if (!container || !Array.isArray(selectors) || selectors.length === 0) return;
+  const children = [...container.children];
+  if (children.length < 2) return;
+  const ordered = [];
+  const used = new Set();
+  selectors.forEach((selector) => {
+    children.forEach((child) => {
+      if (used.has(child)) return;
+      if (child.matches(selector)) {
+        ordered.push(child);
+        used.add(child);
+      }
+    });
+  });
+  children.forEach((child) => {
+    if (used.has(child)) return;
+    ordered.push(child);
+  });
+  const changed = ordered.some((child, idx) => child !== children[idx]);
+  if (!changed) return;
+  ordered.forEach((child) => container.appendChild(child));
+}
+
+function applyManualModuleLayout() {
+  if (!nodes.viewRoot || state.currentView === "profile") return;
+  const view = String(state.currentView || "");
+  const plans = {
+    dashboard: [{ container: ".module-shell-body", order: [".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }],
+    "transport-requests": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
+    "transport-trips": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
+    "transport-vehicles": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
+    "transport-drivers": [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
+    "transport-calendar": [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
+    history: [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }],
+    payroll: [{ container: ".payroll-shell", order: [".payroll-actions-grid", ".payroll-executive-strip", ".payroll-kpi-grid", ".payroll-data-grid"] }],
+    hiring: [{ container: ".hiring-shell", order: [".hr-flow-block", ".hiring-executive-strip", ".hr-kpi-grid", ".hiring-data-grid"] }],
+    "labor-compliance": [{ container: ".module-shell-body", order: ["[id^='create-']", ".hr-kpi-grid", ".p-card", ".table-wrap", ".empty-state"] }],
+    "admin-users": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }],
+    authorizations: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
+    notifications: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+  };
+  const plan = plans[view];
+  if (!plan) return;
+  plan.forEach(({ container, order }) => {
+    nodes.viewRoot.querySelectorAll(container).forEach((node) => {
+      orderDirectChildrenBySelectors(node, order);
+    });
+  });
 }
 
 function enforceColombianFormStandards() {
@@ -5191,6 +5234,7 @@ function renderPortalView() {
   }
   nodes.viewRoot.innerHTML = renderModuleShell(view, titles[view] || "Dashboard", content);
 
+  applyManualModuleLayout();
   mountUniversalModuleFilters();
   bindDynamicEvents();
   enforceColombianFormStandards();
