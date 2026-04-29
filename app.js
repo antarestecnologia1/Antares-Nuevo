@@ -493,6 +493,14 @@ const ACCOUNT_STATUS = {
 };
 
 const PIPELINE = ["Recibido", "Preseleccionado", "Entrevistado", "Oferta enviada", "Contratado", "Descartado"];
+const PIPELINE_TRANSITIONS = {
+  Recibido: ["Preseleccionado", "Descartado"],
+  Preseleccionado: ["Entrevistado", "Descartado"],
+  Entrevistado: ["Oferta enviada", "Descartado"],
+  "Oferta enviada": ["Contratado", "Descartado"],
+  Contratado: [],
+  Descartado: []
+};
 const AUTO_APPROVE_MINUTES = 10;
 const CO_PAYROLL = {
   healthEmployeeRate: 0.04,
@@ -506,6 +514,29 @@ const CO_HR_RULES = {
   minMonthlySalary: 1423500,
   transportAllowance: 200000
 };
+
+function validateCandidatePipelineTransition(candidate, nextStatus) {
+  const currentStatus = String(candidate?.status || PIPELINE[0]);
+  const targetStatus = String(nextStatus || currentStatus);
+  if (currentStatus === targetStatus) return { ok: true };
+  const allowed = PIPELINE_TRANSITIONS[currentStatus] || [];
+  if (!allowed.includes(targetStatus)) {
+    return { ok: false, message: `Flujo invalido: ${currentStatus} -> ${targetStatus}. Debes respetar el orden del pipeline.` };
+  }
+  if (targetStatus === "Oferta enviada") {
+    const hasInterview = read(KEYS.interviews, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
+    if (!hasInterview) {
+      return { ok: false, message: "Para enviar oferta primero debes registrar entrevista del candidato." };
+    }
+  }
+  if (targetStatus === "Contratado") {
+    const hasContract = read(KEYS.contracts, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
+    if (!hasContract) {
+      return { ok: false, message: "Para marcar como contratado primero debes generar el contrato laboral." };
+    }
+  }
+  return { ok: true };
+}
 
 let state = {
   session: null,
@@ -4510,11 +4541,11 @@ function hiringHtml() {
   const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
   const contractPeopleOptions = [
     ...candidates
-      .filter((c) => c.status === "Contratado")
+      .filter((c) => c.status === "Oferta enviada")
       .map((c) => `<option value="candidate:${c.id}">Candidato · ${c.name}</option>`),
     ...employees.map((e) => `<option value="employee:${e.id}">Empleado · ${e.name}${e.position ? ` (${e.position})` : ""}</option>`)
   ].join("");
-  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <input name="eps" required placeholder="Nueva EPS / Sura / Sanitas..." /></label><label>Fondo pension <input name="pensionFund" required placeholder="Porvenir / Colfondos..." /></label><label>ARL <input name="arl" required placeholder="Sura / Positiva / Colmena..." /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Puedes generar contrato desde un candidato en estado contratado o desde un empleado ya creado en nomina.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <input name="eps" required placeholder="Nueva EPS / Sura / Sanitas..." /></label><label>Fondo pension <input name="pensionFund" required placeholder="Porvenir / Colfondos..." /></label><label>ARL <input name="arl" required placeholder="Sura / Positiva / Colmena..." /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Flujo Colombia sugerido: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. El contrato de candidato solo se habilita desde oferta enviada.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
   const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
@@ -4529,22 +4560,38 @@ function hiringHtml() {
       <div class="hr-alert-item"><strong>Candidatos activos en pipeline:</strong> ${activeCandidates.length || 0}</div>
       <div class="hr-alert-item"><strong>Contratos generados este mes:</strong> ${contractsThisMonth.length || 0}</div>
     </div>`;
+  const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
+  const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
+  const executiveStrip = `<div class="hiring-executive-strip">
+      <div>
+        <p class="hiring-strip-kicker">Gestion de talento</p>
+        <h2>Centro de contratación empresarial</h2>
+        <p class="muted">Operacion unificada para cargos, vacantes, pipeline, entrevistas y contratos con trazabilidad laboral.</p>
+      </div>
+      <div class="hiring-strip-metrics">
+        <span><strong>${candidateConversion}%</strong> conversion contractual</span>
+        <span><strong>${urgentItems}</strong> alertas prioritarias</span>
+        <span><strong>${employees.length}</strong> empleados en base</span>
+      </div>
+    </div>`;
 
-  return `<div class="dash-grid hr-kpi-grid">
+  return `<section class="hiring-shell">${executiveStrip}
+    <div class="dash-grid hr-kpi-grid hiring-kpi-grid">
       <div class="hr-kpi-card"><span>Vacantes abiertas</span><strong>${openVacancies.length}</strong></div>
       <div class="hr-kpi-card"><span>Candidatos activos</span><strong>${activeCandidates.length}</strong></div>
       <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
       <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
-    </div>`
-    + `<div class="dash-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", null, fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", null, fCand, "Registrar candidato")}</div>`
-    + pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)
-    + pcardWrap("briefcase", "Catalogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)
-    + pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)
-    + pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)
-    + `<div class="dash-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", null, fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", null, fCon, "Generar contrato")}</div>`
-    + createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", null, fEmpCon, "Crear contrato desde nomina")
-    + pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)
-    + pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon);
+    </div>
+    <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
+    <div class="dash-grid hiring-data-grid">
+      ${pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)}
+      ${pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)}
+      ${pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)}
+      ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
+      ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
+      ${pcardWrap("briefcase", "Catalogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+    </div>
+  </section>`;
 }
 
 function notificationsHtml() {
@@ -4621,6 +4668,93 @@ function renderFromModule(moduleName, exportName, ...args) {
   return "";
 }
 
+const MODULE_BLUEPRINTS = {
+  dashboard: {
+    focus: "Monitoreo ejecutivo del negocio",
+    checkpoints: ["Revisar KPIs diarios", "Validar alertas activas", "Priorizar cuellos operativos"]
+  },
+  requests: {
+    focus: "Gestión comercial y solicitudes del cliente",
+    checkpoints: ["Completar datos obligatorios", "Revisar estado por solicitud", "Confirmar trazabilidad del servicio"]
+  },
+  "transport-requests": {
+    focus: "Aprobación y orquestación de operación",
+    checkpoints: ["Priorizar por SLA", "Asignar recursos disponibles", "Escalar casos críticos"]
+  },
+  "transport-trips": {
+    focus: "Control del ciclo de viaje",
+    checkpoints: ["Actualizar estados en tiempo real", "Revisar incidencias", "Cerrar viajes completados"]
+  },
+  "transport-vehicles": {
+    focus: "Disponibilidad y salud de flota",
+    checkpoints: ["Validar documentación vigente", "Controlar mantenimientos", "Depurar unidades inactivas"]
+  },
+  "transport-drivers": {
+    focus: "Gestión de conductores y cumplimiento",
+    checkpoints: ["Verificar licencias vigentes", "Confirmar disponibilidad", "Monitorear datos de contacto"]
+  },
+  "transport-calendar": {
+    focus: "Planificación de agenda operativa",
+    checkpoints: ["Sincronizar fechas clave", "Evitar sobreasignación", "Asegurar cobertura por franja"]
+  },
+  history: {
+    focus: "Trazabilidad histórica y auditoría",
+    checkpoints: ["Aplicar filtros por periodo", "Comparar estados cerrados", "Validar consistencia de datos"]
+  },
+  reports: {
+    focus: "Inteligencia operativa y desempeño",
+    checkpoints: ["Medir productividad", "Detectar tendencias", "Definir planes de mejora"]
+  },
+  payroll: {
+    focus: "Control de nómina y cumplimiento laboral",
+    checkpoints: ["Liquidar periodos pendientes", "Auditar deducciones", "Confirmar pagos realizados"]
+  },
+  hiring: {
+    focus: "Pipeline de talento y contratación",
+    checkpoints: ["Cumplir flujo de selección", "Formalizar contratos a tiempo", "Sincronizar candidato-empleado"],
+    recommendation: "Módulo recomendado a futuro: Cumplimiento Laboral y SST (expedientes, seguridad social, vencimientos y auditoría legal)."
+  },
+  "admin-users": {
+    focus: "Gobierno de accesos y seguridad",
+    checkpoints: ["Revisar permisos por rol", "Desactivar cuentas inactivas", "Auditar cambios críticos"]
+  },
+  authorizations: {
+    focus: "Control y trazabilidad de aprobaciones",
+    checkpoints: ["Resolver pendientes críticos", "Documentar decisiones", "Reducir tiempos de respuesta"]
+  },
+  profile: {
+    focus: "Gestión de identidad del usuario",
+    checkpoints: ["Actualizar datos de contacto", "Mantener empresa asociada", "Verificar foto y datos fiscales"]
+  },
+  notifications: {
+    focus: "Seguimiento de alertas del sistema",
+    checkpoints: ["Priorizar notificaciones nuevas", "Cerrar acciones pendientes", "Mantener bandeja limpia"]
+  }
+};
+
+function renderModuleShell(view, title, bodyHtml) {
+  const blueprint = MODULE_BLUEPRINTS[view];
+  if (!blueprint) return bodyHtml;
+  const checkpoints = (blueprint.checkpoints || [])
+    .map((item) => `<span class="module-checkpoint">${item}</span>`)
+    .join("");
+  const recommendation = blueprint.recommendation
+    ? `<p class="module-recommendation"><strong>Recomendación:</strong> ${blueprint.recommendation}</p>`
+    : "";
+  return `<section class="module-shell">
+    <div class="module-shell-head">
+      <div>
+        <p class="module-shell-kicker">Operacion empresarial</p>
+        <h2>${title}</h2>
+        <p class="module-shell-focus">${blueprint.focus || ""}</p>
+      </div>
+      <div class="module-checkpoints">${checkpoints}</div>
+    </div>
+    ${recommendation}
+    <div class="module-shell-body">${bodyHtml}</div>
+  </section>`;
+}
+
 function renderPortalView() {
   updateAutoApprove();
   closeCompletedTripsAndGenerateInvoices();
@@ -4648,41 +4782,43 @@ function renderPortalView() {
   };
   nodes.viewTitle.textContent = titles[view] || "Dashboard";
 
+  let content = "";
   if (!isViewAllowedForUser(user, view)) {
-    nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
+    content = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
   } else if (view === "dashboard") {
-    nodes.viewRoot.innerHTML = renderFromModule("dashboard", "viewDashboard");
+    content = renderFromModule("dashboard", "viewDashboard");
   } else if (view === "requests" && (user.role === ROLES.CLIENT || user.role === ROLES.ADMIN)) {
-    nodes.viewRoot.innerHTML = `${renderFromModule("solicitudes", "requestFormHtml")}${renderFromModule("solicitudes", "requestListClientHtml", user)}`;
+    content = `${renderFromModule("solicitudes", "requestFormHtml")}${renderFromModule("solicitudes", "requestListClientHtml", user)}`;
   } else if (view === "transport-requests" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "adminQueueHtml");
+    content = renderFromModule("transporte", "adminQueueHtml");
   } else if (view === "transport-trips" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "transportTripsHtml");
+    content = renderFromModule("transporte", "transportTripsHtml");
   } else if (view === "transport-vehicles" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "vehiclesHtml");
+    content = renderFromModule("transporte", "vehiclesHtml");
   } else if (view === "transport-drivers" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "driversHtml");
+    content = renderFromModule("transporte", "driversHtml");
   } else if (view === "transport-calendar" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "transportCalendarHtml");
+    content = renderFromModule("transporte", "transportCalendarHtml");
   } else if (view === "history" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "historyHtml");
+    content = renderFromModule("transporte", "historyHtml");
   } else if (view === "reports" && (user.role === ROLES.ADMIN || canAccessRRHH(user.role))) {
-    nodes.viewRoot.innerHTML = renderFromModule("transporte", "reportsHtml");
+    content = renderFromModule("transporte", "reportsHtml");
   } else if (view === "payroll" && canAccessRRHH(user.role)) {
-    nodes.viewRoot.innerHTML = renderFromModule("rrhh", "payrollHtml");
+    content = renderFromModule("rrhh", "payrollHtml");
   } else if (view === "hiring" && canAccessRRHH(user.role)) {
-    nodes.viewRoot.innerHTML = renderFromModule("rrhh", "hiringHtml");
+    content = renderFromModule("rrhh", "hiringHtml");
   } else if (view === "admin-users" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("usuarios", "adminUsersHtml", user);
+    content = renderFromModule("usuarios", "adminUsersHtml", user);
   } else if (view === "authorizations" && user.role === ROLES.ADMIN) {
-    nodes.viewRoot.innerHTML = renderFromModule("autorizaciones", "authorizationsHtml");
+    content = renderFromModule("autorizaciones", "authorizationsHtml");
   } else if (view === "profile") {
-    nodes.viewRoot.innerHTML = renderFromModule("perfil", "profileHtml", user);
+    content = renderFromModule("perfil", "profileHtml", user);
   } else if (view === "notifications") {
-    nodes.viewRoot.innerHTML = renderFromModule("notificaciones", "notificationsHtml");
+    content = renderFromModule("notificaciones", "notificationsHtml");
   } else {
-    nodes.viewRoot.innerHTML = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
+    content = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
   }
+  nodes.viewRoot.innerHTML = renderModuleShell(view, titles[view] || "Dashboard", content);
 
   mountUniversalModuleFilters();
   bindDynamicEvents();
@@ -6634,6 +6770,14 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='candidate-status']").forEach((select) => {
     select.addEventListener("change", () => {
       const all = read(KEYS.candidates, []);
+      const currentCandidate = all.find((c) => c.id === select.dataset.id);
+      if (!currentCandidate) return;
+      const statusValidation = validateCandidatePipelineTransition(currentCandidate, select.value);
+      if (!statusValidation.ok) {
+        notify(statusValidation.message, "error");
+        renderPortalView();
+        return;
+      }
       const updated = all.map((c) => (c.id === select.dataset.id ? { ...c, status: select.value } : c));
       write(KEYS.candidates, updated);
       const current = updated.find((c) => c.id === select.dataset.id);
@@ -6655,6 +6799,10 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(interviewForm).entries());
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
+      if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {
+        notify("No puedes programar entrevista para candidato descartado o ya contratado.", "error");
+        return;
+      }
       const all = read(KEYS.interviews, []);
       all.unshift({
         id: uid(),
@@ -6664,6 +6812,15 @@ function bindDynamicEvents() {
         interviewer: data.interviewer
       });
       write(KEYS.interviews, all);
+      const candidateList = read(KEYS.candidates, []);
+      write(
+        KEYS.candidates,
+        candidateList.map((item) =>
+          item.id === candidate.id && ["Recibido", "Preseleccionado"].includes(String(item.status || ""))
+            ? { ...item, status: "Entrevistado" }
+            : item
+        )
+      );
       sendEmail({ to: candidate.email, subject: "Entrevista programada", body: `Fecha: ${data.when}` });
       renderPortalView();
     });
@@ -6721,6 +6878,10 @@ function bindDynamicEvents() {
       const subject = candidate || employeeSource;
       if (!subject) {
         notify("No se encontro la persona seleccionada para contratar.", "error");
+        return;
+      }
+      if (sourceType === "candidate" && String(candidate?.status || "") !== "Oferta enviada") {
+        notify("Para candidatos, primero debes pasar por entrevista y dejar estado en 'Oferta enviada'.", "error");
         return;
       }
       const position = getPositionById(String(data.positionId || ""));
@@ -6827,6 +6988,12 @@ function bindDynamicEvents() {
           });
           write(KEYS.payrollEmployees, employees);
         }
+        const updatedCandidates = read(KEYS.candidates, []).map((item) =>
+          String(item.id) === String(subject.id)
+            ? { ...item, status: "Contratado", hiredAt: nowIso(), hiredByContractAt: nowIso() }
+            : item
+        );
+        write(KEYS.candidates, updatedCandidates);
       } else {
         write(
           KEYS.payrollEmployees,

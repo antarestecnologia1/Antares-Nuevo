@@ -10,6 +10,7 @@
     "dev:web": "npm run dev -w web",
     "dev:api": "npm run start:dev -w api",
     "build:web": "npm run build -w web",
-    "build:api": "npm run build -w api"
+    "build:api": "npm run build -w api",
+    "test:portal-qa": "node qa/portal-regression-tests.mjs"
   }
 }
