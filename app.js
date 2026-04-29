@@ -4881,22 +4881,28 @@ function notificationsHtml() {
 
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
-  const body = `<section class="profile-shell">
-    <div class="profile-hero-card">
-      <div class="profile-avatar ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}">
+  const body = `<section class="profile-shell profile-shell-centered">
+    <article class="profile-hero-card profile-hero-card-centered">
+      <div class="profile-avatar profile-avatar-lg ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}">
         ${user.avatarUrl ? "." : (user.name || "U").charAt(0).toUpperCase()}
       </div>
-      <div class="profile-hero-info">
+      <div class="profile-hero-info profile-hero-info-centered">
+        <p class="profile-hero-kicker">Panel personal</p>
         <h3>${user.name || "Usuario"}</h3>
-        <p>${user.role || "Perfil"}</p>
+        <p>${user.email || "-"}</p>
         <div class="profile-hero-chips">
+          <span>${String(user.role || "perfil").toUpperCase()}</span>
+          <span>${String(user.accountStatus || "activo").toUpperCase()}</span>
           <span>${companyName}</span>
-          <span>${user.email || "-"}</span>
-          <span>Estado: ${user.accountStatus || "aprobado"}</span>
         </div>
       </div>
+    </article>
+    <div class="profile-stats-strip">
+      <article class="profile-stat-card"><p>Estado de cuenta</p><strong>${user.accountStatus || "Activo"}</strong></article>
+      <article class="profile-stat-card"><p>Privacidad</p><strong>Datos sensibles ocultos</strong></article>
+      <article class="profile-stat-card"><p>Rol asignado</p><strong>${user.role || "Usuario"}</strong></article>
     </div>
-    <form id="form-profile" class="p-form profile-form">
+    <form id="form-profile" class="p-form profile-form profile-form-centered">
       <label>Nombre completo <input name="name" value="${user.name || ""}" required /></label>
       <label>Correo corporativo <input type="email" value="${user.email || ""}" disabled /></label>
       <label>Telefono de contacto <input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
