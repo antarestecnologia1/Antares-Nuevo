@@ -4623,16 +4623,32 @@ function payrollHtml() {
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
-  return `<div class="dash-grid payroll-kpi-grid">
-      <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
-      <div class="payroll-kpi-card"><span>Liquidaciones pendientes</span><strong>${pending}</strong></div>
-      <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
-      <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
-    </div>`
-    + `<div class="dash-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", null, formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>`
-    + pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)
-    + pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)
-    + pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable);
+  const payrollStrip = `<div class="payroll-executive-strip">
+      <div>
+        <p class="payroll-strip-kicker">Gestión humana</p>
+        <h2>Centro de nómina y personal</h2>
+        <p class="muted">Opera registro de empleados, liquidación mensual y ausencias desde un flujo claro y auditable.</p>
+      </div>
+      <div class="payroll-strip-metrics">
+        <span><strong>${employees.length}</strong> empleados activos</span>
+        <span><strong>${pending}</strong> pagos pendientes</span>
+        <span><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
+      </div>
+    </div>`;
+  return `<section class="payroll-shell">${payrollStrip}
+      <div class="dash-grid payroll-kpi-grid">
+        <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
+        <div class="payroll-kpi-card"><span>Liquidaciones pendientes</span><strong>${pending}</strong></div>
+        <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
+        <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
+      </div>
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", "Calcula devengos, deducciones y neto del periodo", formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>
+      <div class="dash-grid payroll-data-grid">
+        ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
+        ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
+        ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
+      </div>
+    </section>`;
 }
 
 function hiringHtml() {
@@ -4747,7 +4763,14 @@ function hiringHtml() {
       <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
       <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
     </div>
-    <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
+    <div class="hr-flow-block">
+      <h3>Fase 1 · Atracción y selección</h3>
+      <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}</div>
+    </div>
+    <div class="hr-flow-block">
+      <h3>Fase 2 · Entrevista y formalización</h3>
+      <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
+    </div>
     <div class="dash-grid hiring-data-grid">
       ${pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)}
       ${pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)}
