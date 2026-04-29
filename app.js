@@ -28,6 +28,14 @@ const IC = {
   save: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   userPlus: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
   printer: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  chevronLeft: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  chevronRight: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  mapPin: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  building: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><line x1="9" y1="15" x2="9.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/></svg>',
+  badge: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5l1 7L12 18l-4.5 2.5 1-7"/></svg>',
+  lock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  mail: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+  upload: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
 };
 
 function pcardWrap(iconKey, title, subtitle, bodyHtml, extraClass = "") {
@@ -518,6 +526,22 @@ const CO_HR_RULES = {
   minMonthlySalary: 1423500,
   transportAllowance: 200000
 };
+const CO_CATALOGS = {
+  licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
+  eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
+  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa"],
+  bloodTypes: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
+  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"]
+};
+
+function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Seleccione...") {
+  const normalizedSelected = String(selected || "");
+  const options = values.map((value) => {
+    const safeValue = String(value || "").trim();
+    return `<option value="${safeValue}" ${safeValue === normalizedSelected ? "selected" : ""}>${safeValue}</option>`;
+  });
+  return [`<option value="">${placeholder}</option>`, ...options].join("");
+}
 
 function validateCandidatePipelineTransition(candidate, nextStatus) {
   const currentStatus = String(candidate?.status || PIPELINE[0]);
@@ -556,7 +580,13 @@ let state = {
     panel: "",
     editUserId: ""
   },
-  createPanels: {}
+  createPanels: {},
+  calendarFocus: null,
+  payrollFilters: {
+    period: "all",
+    employee: "",
+    status: "all"
+  }
 };
 
 const nodes = {
@@ -2964,6 +2994,60 @@ function renderPortal() {
     syncPortalHash("dashboard");
   }
   renderPortalView();
+  updateNotificationBadge();
+  startNotificationsPolling();
+}
+
+let __notificationsPollHandle = null;
+let __lastSeenNotificationIds = null;
+
+function getCurrentNotifications() {
+  const user = currentUser();
+  if (!user) return [];
+  return read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
+}
+
+function updateNotificationBadge() {
+  const link = document.querySelector('.side-link[data-view="notifications"]');
+  if (!link) return;
+  const list = getCurrentNotifications();
+  const unread = list.filter((n) => !n.readAt).length;
+  let badge = link.querySelector(".side-link-badge");
+  if (unread > 0) {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "side-link-badge";
+      link.appendChild(badge);
+    }
+    badge.textContent = unread > 99 ? "99+" : String(unread);
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+function startNotificationsPolling() {
+  if (__notificationsPollHandle) return;
+  __lastSeenNotificationIds = new Set(getCurrentNotifications().map((n) => n.id));
+  __notificationsPollHandle = setInterval(() => {
+    const user = currentUser();
+    if (!user) return;
+    const current = getCurrentNotifications();
+    const seen = __lastSeenNotificationIds || new Set();
+    const fresh = current.filter((n) => !seen.has(n.id));
+    if (fresh.length) {
+      fresh.forEach((n) => {
+        if (typeof notify === "function") {
+          const message = `${n.title}${n.body ? " — " + n.body : ""}`;
+          notify(message, "info");
+        }
+      });
+      __lastSeenNotificationIds = new Set(current.map((n) => n.id));
+      updateNotificationBadge();
+      if (state.currentView === "notifications") {
+        renderPortalView();
+      }
+    }
+  }, 5000);
 }
 
 function renderKpis() {
@@ -3084,7 +3168,6 @@ function requestFormHtml() {
     <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
     <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
     <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
-    <label>${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" min="0" name="tripValue" required /></label>
     <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
@@ -3150,67 +3233,149 @@ function adminQueueHtml() {
 
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
+  const totalCount = vehicles.length;
+  const availableCount = vehicles.filter((v) => v.available).length;
+  const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
+  const documentRiskCount = vehicles.filter((v) => {
+    const soat = docExpiryStatus(v.soatExpeditionDate);
+    const tec = docExpiryStatus(v.techInspectionExpeditionDate);
+    return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
+      ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
+  }).length;
   const rows = vehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate);
+      const refrigeratedTag = v.refrigerated
+        ? '<span class="status status-viaje_asignado">Termoking</span>'
+        : '<span class="status status-espera_standby">Carga seca</span>';
+      const availabilityTag = v.available
+        ? '<span class="status status-viaje_asignado">Disponible</span>'
+        : '<span class="status status-rechazada">Ocupado</span>';
       return `<tr>
-      <td><strong>${v.plate}</strong></td>
-      <td>${v.type}<br><span class="muted">${v.brand || "-"} · ${v.model || "-"} · ${v.year || "-"}</span></td>
-      <td>${v.capacityKg.toLocaleString("es-CO")} kg</td>
-      <td>${v.refrigerated ? '<span class="status status-viaje_asignado">Si</span>' : '<span class="status status-espera_standby">No</span>'}</td>
-      <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
-      <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
-      <td>${v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
-        <button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}">${IC.trash} Eliminar</button>
-      </div></td>
-    </tr>`;
+        <td>
+          <div class="vehicle-cell">
+            <span class="vehicle-plate">${v.plate}</span>
+            <span class="muted">${v.brand || "-"} · ${v.model || "-"} · ${v.year || "-"}</span>
+          </div>
+        </td>
+        <td>${v.type}</td>
+        <td><strong>${parseNum(v.capacityKg).toLocaleString("es-CO")}</strong> <span class="muted">kg</span></td>
+        <td>${refrigeratedTag}</td>
+        <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
+        <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
+        <td>${availabilityTag}</td>
+        <td><div class="toolbar">
+          <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
+          <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
+          <button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}">${IC.trash} Eliminar</button>
+        </div></td>
+      </tr>`;
     })
     .join("");
   const formBody = `<form id="form-vehicle" class="p-form">
-    <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required /></label>
-    <label>${fieldLabel(IC.grid, "Linea/Modelo")}<input name="model" required /></label>
-    <label>${fieldLabel(IC.calendar, "Ano modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
-    <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
-    <label>${fieldLabel(IC.activity, "Refrigerado")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
-    <label>${fieldLabel(IC.clock, "Kilometraje")}<input type="number" min="0" name="mileageKm" required /></label>
-    <label>${fieldLabel(IC.calendar, "Expedicion SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
-    <label>${fieldLabel(IC.calendar, "Expedicion tecnomecanica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehiculo</button>
+    <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" /></label>
+    <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required placeholder="Ej: Kenworth" /></label>
+    <label>${fieldLabel(IC.grid, "Linea / Modelo")}<input name="model" required placeholder="Ej: T800" /></label>
+    <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
+    <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+    <label>${fieldLabel(IC.scale, "Capacidad (kg)")}<input type="number" min="1" name="capacityKg" required placeholder="Ej: 18000" /></label>
+    <label>${fieldLabel(IC.activity, "Termoking (refrigerado)")}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
+    <label>${fieldLabel(IC.calendar, "Expedición SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
+    <label>${fieldLabel(IC.calendar, "Expedición tecnomecánica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehículo</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Refrigerado</th><th>SOAT</th><th>Tecnomecanica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("No hay vehiculos registrados.");
-  return createCollapsibleCard("create-vehicle", "plus", "Registrar vehiculo", null, formBody, "Registrar vehiculo")
-    + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehiculos", tableBody);
+    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay vehículos registrados.");
+  const heroStrip = `<div class="fleet-hero-strip">
+      <div>
+        <p class="fleet-hero-kicker">Flota Antares</p>
+        <h2>Centro operativo de camiones</h2>
+        <p class="muted">Gestiona placas, capacidades, equipos Termoking y vigencia documental con alertas automáticas.</p>
+      </div>
+      <div class="fleet-hero-metrics">
+        <div class="fleet-hero-metric"><span>Total flota</span><strong>${totalCount}</strong></div>
+        <div class="fleet-hero-metric"><span>Disponibles</span><strong>${availableCount}</strong></div>
+        <div class="fleet-hero-metric"><span>Termoking</span><strong>${thermokingCount}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Documentos en riesgo</span><strong>${documentRiskCount}</strong></div>
+      </div>
+    </div>`;
+  return heroStrip
+    + createCollapsibleCard("create-vehicle", "plus", "Registrar vehículo", "Datos legales, capacidad y equipo de frío", formBody, "Registrar vehículo")
+    + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody);
 }
 
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
-  const rows = drivers
-    .map((d) => `<tr>
-      <td><strong>${d.name}</strong></td>
-      <td>${d.phone}</td>
-      <td>${d.license}<br><span class="muted">${d.licenseCategory || "-"} · vence ${d.licenseExpiry || "-"}</span></td>
-      <td>${getCompanyById(d.companyId)?.name || "-"}</td>
-      <td>${d.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
-        <button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}">${IC.trash} Eliminar</button>
-      </div></td>
-    </tr>`)
+  const totalDrivers = drivers.length;
+  const availableDrivers = drivers.filter((d) => d.available).length;
+  const expiringSoon = drivers.filter((d) => {
+    if (!d.licenseExpiry) return false;
+    const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
+    return days >= 0 && days <= 60;
+  }).length;
+  const expired = drivers.filter((d) => {
+    if (!d.licenseExpiry) return false;
+    return new Date(`${d.licenseExpiry}T12:00:00`).getTime() < Date.now();
+  }).length;
+  const cards = drivers
+    .map((d) => {
+      const initials = String(d.name || "C")
+        .split(/\s+/)
+        .map((p) => p.charAt(0).toUpperCase())
+        .slice(0, 2)
+        .join("");
+      const statusTag = d.available
+        ? '<span class="status status-viaje_asignado">Disponible</span>'
+        : '<span class="status status-rechazada">Ocupado</span>';
+      const licStatus = (() => {
+        if (!d.licenseExpiry) return '<span class="status status-pendiente">Sin fecha</span>';
+        const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
+        if (days < 0) return '<span class="status status-rechazada">Vencida</span>';
+        if (days <= 60) return `<span class="status status-pendiente">Vence en ${days}d</span>`;
+        return '<span class="status status-viaje_asignado">Vigente</span>';
+      })();
+      return `<article class="driver-card">
+        <header class="driver-card-head">
+          <div class="driver-avatar">${initials}</div>
+          <div class="driver-card-title">
+            <h4>${d.name || "Conductor"}</h4>
+            <p class="muted">${getCompanyById(d.companyId)?.name || "-"}</p>
+          </div>
+          <div class="driver-card-status">${statusTag}</div>
+        </header>
+        <div class="driver-card-body">
+          <div class="driver-info-row"><span>${IC.phone}</span><span>${d.phone || "-"}</span></div>
+          <div class="driver-info-row"><span>${IC.file}</span><span>${d.license || "-"} · ${d.licenseCategory || "-"}</span></div>
+          <div class="driver-info-row"><span>${IC.calendar}</span><span>Vence: ${d.licenseExpiry || "-"} ${licStatus}</span></div>
+        </div>
+        <footer class="driver-card-actions">
+          <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
+          <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
+          <button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}">${IC.trash} Eliminar</button>
+        </footer>
+      </article>`;
+    })
     .join("");
-  const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Empresa</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+  const heroStrip = `<div class="drivers-hero-strip">
+      <div>
+        <p class="drivers-hero-kicker">Equipo de conducción</p>
+        <h2>Conductores activos</h2>
+        <p class="muted">Visión rápida del equipo de conductores con licencias, disponibilidad y vigencia documental.</p>
+      </div>
+      <div class="drivers-hero-metrics">
+        <div class="drivers-hero-metric"><span>Total conductores</span><strong>${totalDrivers}</strong></div>
+        <div class="drivers-hero-metric"><span>Disponibles</span><strong>${availableDrivers}</strong></div>
+        <div class="drivers-hero-metric drivers-hero-metric-warn"><span>Por vencer 60d</span><strong>${expiringSoon}</strong></div>
+        <div class="drivers-hero-metric drivers-hero-metric-alert"><span>Vencidas</span><strong>${expired}</strong></div>
+      </div>
+    </div>`;
+  const grid = cards
+    ? `<div class="drivers-grid">${cards}</div>`
     : emptyState("No hay conductores registrados.");
-  const info = `<p class="muted">Los conductores se crean automaticamente desde Contratacion o desde Empleados cuando el cargo es de conductor.</p>`;
-  return pcardWrap("user", "Conductores", drivers.length + " registrados", info + tableBody);
+  const info = `<p class="muted" style="margin:0 0 0.6rem">Los conductores se crean automáticamente desde <strong>Contratación</strong> o desde <strong>Empleados</strong> cuando el cargo es de conductor.</p>`;
+  return heroStrip + pcardWrap("user", "Conductores", drivers.length + " registrados", info + grid);
 }
 
 function transportTripsHtml() {
@@ -3262,20 +3427,149 @@ function transportCalendarHtml() {
   const requests = read(KEYS.requests, [])
     .filter((r) => r.trip)
     .sort((a, b) => new Date(a.trip.etaPickup).getTime() - new Date(b.trip.etaPickup).getTime());
-  const rows = requests
-    .map((r) => `<tr>
-      <td><strong>${new Date(r.trip.etaPickup).toLocaleDateString("es-CO")}</strong></td>
-      <td>${new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</td>
-      <td>${r.trip.driverName}</td>
-      <td>${r.trip.vehiclePlate}</td>
-      <td>${r.trip.route}</td>
-      <td>${prettyStatus(r.status, "trip")}</td>
-    </tr>`)
-    .join("");
-  const body = rows
-    ? `<p class="muted" style="margin:0 0 0.8rem">Un conductor y un camion no se pueden asignar a dos viajes en la misma hora.</p><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Conductor</th><th>Camion</th><th>Ruta</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("No hay programacion registrada.");
-  return pcardWrap("calendar", "Calendario de programacion", requests.length + " viajes programados", body);
+
+  const focus = state.calendarFocus instanceof Date && !Number.isNaN(state.calendarFocus.getTime())
+    ? new Date(state.calendarFocus)
+    : new Date();
+  focus.setHours(12, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const year = focus.getFullYear();
+  const month = focus.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startWeekday = firstDayOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+  const eventsByDay = new Map();
+  requests.forEach((r) => {
+    const d = new Date(r.trip.etaPickup);
+    if (Number.isNaN(d.getTime())) return;
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+    eventsByDay.get(key).push(r);
+  });
+
+  const monthLabel = focus.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+  const buildCell = (day, monthOffset) => {
+    const cellDate = new Date(year, month + monthOffset, day);
+    cellDate.setHours(0, 0, 0, 0);
+    const key = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
+    const dayEvents = eventsByDay.get(key) || [];
+    const isOther = monthOffset !== 0;
+    const isToday = cellDate.getTime() === today.getTime();
+    const dotPalette = ["dot-blue", "dot-teal", "dot-violet", "dot-orange"];
+    const eventList = dayEvents
+      .slice(0, 3)
+      .map((r, idx) => {
+        const time = new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+        const dot = dotPalette[idx % dotPalette.length];
+        return `<button type="button" class="cal-event ${dot}" data-action="cal-event" data-id="${r.id}">
+          <span class="cal-event-time">${time}</span>
+          <span class="cal-event-title">${r.trip.tripNumber || "-"} · ${r.clientName || ""}</span>
+        </button>`;
+      })
+      .join("");
+    const more = dayEvents.length > 3 ? `<span class="cal-more">+${dayEvents.length - 3} más</span>` : "";
+    return `<div class="cal-cell ${isOther ? "cal-cell-other" : ""} ${isToday ? "cal-cell-today" : ""} ${dayEvents.length ? "cal-cell-has-events" : ""}">
+      <div class="cal-day">${day}${isToday ? '<span class="cal-today-pill">Hoy</span>' : ""}</div>
+      <div class="cal-events">${eventList}${more}</div>
+    </div>`;
+  };
+
+  const cells = [];
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    cells.push(buildCell(daysInPrevMonth - i, -1));
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(buildCell(d, 0));
+  }
+  while (cells.length % 7 !== 0) {
+    const nextDay = cells.length - (startWeekday + daysInMonth) + 1;
+    cells.push(buildCell(nextDay, 1));
+  }
+
+  const weekDays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const weekdayHeaders = weekDays.map((d) => `<div class="cal-weekday">${d}</div>`).join("");
+
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  const todayEvents = eventsByDay.get(todayKey) || [];
+  const upcoming = requests
+    .filter((r) => new Date(r.trip.etaPickup).getTime() >= today.getTime())
+    .slice(0, 8);
+
+  const todayList = todayEvents.length
+    ? todayEvents
+        .map((r) => {
+          const time = new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="cal-day-event">
+            <div class="cal-day-event-time">${time}</div>
+            <div class="cal-day-event-info">
+              <strong>${r.trip.tripNumber || "-"}</strong>
+              <span class="muted">${r.trip.driverName || "-"} · ${r.trip.vehiclePlate || "-"}</span>
+              <span class="muted">${r.trip.route || formatRoute(r)}</span>
+            </div>
+            <div class="cal-day-event-status">${prettyStatus(r.status, "trip")}</div>
+          </div>`;
+        })
+        .join("")
+    : `<p class="muted">Sin viajes para hoy.</p>`;
+
+  const upcomingList = upcoming.length
+    ? upcoming
+        .map((r) => {
+          const date = new Date(r.trip.etaPickup);
+          const dateLabel = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+          const time = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="cal-upcoming-item">
+            <div class="cal-upcoming-date">
+              <strong>${dateLabel}</strong>
+              <span class="muted">${time}</span>
+            </div>
+            <div class="cal-upcoming-info">
+              <strong>${r.trip.tripNumber || "-"}</strong>
+              <span class="muted">${r.clientName || "-"}</span>
+              <span class="muted">${r.trip.driverName || "-"} · ${r.trip.vehiclePlate || "-"}</span>
+            </div>
+            <div>${prettyStatus(r.status, "trip")}</div>
+          </div>`;
+        })
+        .join("")
+    : `<p class="muted">No hay programación próxima.</p>`;
+
+  const calendarShell = `<section class="calendar-shell">
+    <div class="calendar-toolbar">
+      <div class="calendar-title-block">
+        <p class="calendar-kicker">Programación operativa</p>
+        <h2>${monthLabelCap}</h2>
+        <p class="muted">Vista mensual con todos los viajes asignados. Conductor y camión no pueden coincidir en la misma hora.</p>
+      </div>
+      <div class="calendar-controls">
+        <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="-1">${IC.chevronLeft || ""} Anterior</button>
+        <button type="button" class="btn btn-action btn-sm" data-action="cal-today">Hoy</button>
+        <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="1">Siguiente ${IC.chevronRight || ""}</button>
+      </div>
+    </div>
+    <div class="calendar-legend">
+      <span class="cal-legend-item"><span class="cal-dot dot-blue"></span>En curso</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-teal"></span>Programado</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-violet"></span>Asignado</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-orange"></span>Otros</span>
+    </div>
+    <div class="calendar-grid">
+      <div class="cal-weekdays">${weekdayHeaders}</div>
+      <div class="cal-days">${cells.join("")}</div>
+    </div>
+    <div class="calendar-side-grid">
+      ${pcardWrap("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
+      ${pcardWrap("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
+    </div>
+  </section>`;
+
+  return calendarShell;
 }
 
 function adminUsersHtml(current) {
@@ -3378,43 +3672,43 @@ function adminUsersHtml(current) {
 
   // --- Formularios ---
   const fUser = `<form id="form-admin-user-create" class="p-form">
-    <label>Nombre <input name="name" required placeholder="Nombre completo" /></label>
-    <label>Correo <input type="email" name="email" required placeholder="correo@empresa.com" /></label>
-    <label>Contraseña <input type="password" name="password" minlength="6" required placeholder="Min. 6 caracteres" /></label>
-    <label>Tipo documento
+    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej: Laura Castañeda" /></label>
+    <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" required placeholder="correo@empresa.com" /></label>
+    <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" minlength="6" required placeholder="Mín. 6 caracteres" /></label>
+    <label>${fieldLabel(IC.file, "Tipo documento")}
       <select name="documentType" required>
-        <option value="CC">Cedula de ciudadania</option>
-        <option value="CE">Cedula de extranjeria</option>
+        <option value="CC">Cédula de ciudadanía</option>
+        <option value="CE">Cédula de extranjería</option>
         <option value="NIT">NIT</option>
         <option value="PAS">Pasaporte</option>
       </select>
     </label>
-    <label>Documento/NIT <input name="taxId" value="900000001-0" required /></label>
-    <label>Rol
+    <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="900000001-0" required /></label>
+    <label>${fieldLabel(IC.shield, "Rol")}
       <select name="role" required>
         <option value="${ROLES.ADMIN}">Administrador</option>
         <option value="${ROLES.RRHH}">Recursos Humanos</option>
-        <option value="${ROLES.ADMINISTRACION}">Administracion</option>
+        <option value="${ROLES.ADMINISTRACION}">Administración</option>
         <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
-        <option value="${ROLES.LIDER_ADMINISTRATIVO}">Lider administrativo</option>
+        <option value="${ROLES.LIDER_ADMINISTRATIVO}">Líder administrativo</option>
         <option value="${ROLES.CLIENT}">Cliente</option>
       </select>
     </label>
-    <label>Empresa
+    <label>${fieldLabel(IC.briefcase, "Empresa")}
       <select name="companyId" required>
         <option value="">Seleccione...</option>
         ${companyOptions}
       </select>
     </label>
-    <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
-    <label>Departamento
+    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento")}
       <select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
     </label>
-    <label>Ciudad
+    <label>${fieldLabel(IC.mapPin, "Ciudad")}
       <select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select>
     </label>
-    <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
-    <label>Nombre comercial <input name="company" value="Antares" /></label>
+    <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" /></label>
+    <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="Antares" /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos del usuario</legend>
       <div class="perm-grid">${permissionChecks([...ALL_PERMISSIONS])}</div>
@@ -3423,14 +3717,14 @@ function adminUsersHtml(current) {
   </form>`;
 
   const fComp = `<form id="form-admin-company-create" class="p-form">
-    <label>Nombre empresa <input name="name" required placeholder="Nombre de la empresa" /></label>
-    <label>NIT/RUT <input name="taxId" required placeholder="000.000.000-0" /></label>
-    <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
+    <label>${fieldLabel(IC.briefcase, "Nombre empresa")}<input name="name" required placeholder="Nombre de la empresa" /></label>
+    <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" required placeholder="900.000.000-0" /></label>
+    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
   </form>`;
 
   const fPerm = `<form id="form-admin-user-permissions" class="p-form">
-    <label class="full">Seleccionar usuario
+    <label class="full">${fieldLabel(IC.user, "Seleccionar usuario")}
       <select name="userId" required>
         <option value="">Seleccione un usuario...</option>
         ${userOptions}
@@ -3445,41 +3739,41 @@ function adminUsersHtml(current) {
 
   const fEdit = editingUser ? `<form id="form-admin-user-edit" class="p-form">
     <input type="hidden" name="id" value="${editingUser.id}" />
-    <label>Nombre <input name="name" value="${editingUser.name || ""}" required /></label>
-    <label>Correo <input type="email" name="email" value="${editingUser.email || ""}" required /></label>
-    <label>Contraseña <input type="password" name="password" placeholder="Dejar vacio para conservar" /></label>
-    <label>Tipo documento
+    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${editingUser.name || ""}" required /></label>
+    <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" value="${editingUser.email || ""}" required /></label>
+    <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" placeholder="Dejar vacío para conservar" /></label>
+    <label>${fieldLabel(IC.file, "Tipo documento")}
       <select name="documentType" required>
-        <option value="CC" ${editingUser.documentType === "CC" ? "selected" : ""}>Cedula de ciudadania</option>
-        <option value="CE" ${editingUser.documentType === "CE" ? "selected" : ""}>Cedula de extranjeria</option>
+        <option value="CC" ${editingUser.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
+        <option value="CE" ${editingUser.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
         <option value="NIT" ${editingUser.documentType === "NIT" ? "selected" : ""}>NIT</option>
         <option value="PAS" ${editingUser.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
       </select>
     </label>
-    <label>Rol
+    <label>${fieldLabel(IC.shield, "Rol")}
       <select name="role" required>
         <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
         <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
-        <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administracion</option>
+        <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administración</option>
         <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
-        <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Lider administrativo</option>
+        <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
         <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
       </select>
     </label>
-    <label>Empresa
+    <label>${fieldLabel(IC.briefcase, "Empresa")}
       <input value="${getCompanyById(editingUser.companyId)?.name || editingUser.company || "-"}" disabled />
       <input type="hidden" name="companyId" value="${editingUser.companyId || ""}" />
     </label>
-    <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
-    <label>Departamento
+    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${editingUser.phone || ""}" /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento")}
       <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
     </label>
-    <label>Ciudad
+    <label>${fieldLabel(IC.mapPin, "Ciudad")}
       <select name="city" id="admin-edit-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingUser.department || "", editingUser.city || "")}</select>
     </label>
-    <label>Direccion <input name="address" value="${editingUser.address || ""}" /></label>
-    <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
-    <label>NIT/RUT <input name="taxId" value="${editingUser.taxId || ""}" /></label>
+    <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" value="${editingUser.address || ""}" /></label>
+    <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="${editingUser.company || ""}" /></label>
+    <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" value="${editingUser.taxId || ""}" /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
       <div class="perm-grid">${permissionChecks(editingUser.permissions || [])}</div>
@@ -3506,42 +3800,38 @@ function adminUsersHtml(current) {
   const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
   const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
 
-  html += `<div class="users-hero">
-    <div class="users-hero-item">
-      <span>Total usuarios</span><strong>${users.length}</strong>
+  html += `<div class="users-hero-strip">
+    <div>
+      <p class="users-hero-kicker">Gobernanza de accesos</p>
+      <h2>Usuarios y permisos del sistema</h2>
+      <p class="muted">Aprueba registros, gestiona roles, asigna permisos granulares y administra empresas asociadas.</p>
     </div>
-    <div class="users-hero-item">
-      <span>Admins</span><strong>${adminCount}</strong>
+    <div class="users-hero-actions">
+      <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
+      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
+      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
     </div>
-    <div class="users-hero-item">
-      <span>RRHH</span><strong>${rrhhCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Administrativos</span><strong>${adminOfficeCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Clientes</span><strong>${clientCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Aprobados</span><strong>${approvedCount}</strong>
-    </div>
+  </div>`;
+
+  html += `<div class="users-stats-grid">
+    <div class="users-stat-card users-stat-blue"><span>Total usuarios</span><strong>${users.length}</strong></div>
+    <div class="users-stat-card users-stat-violet"><span>Administradores</span><strong>${adminCount}</strong></div>
+    <div class="users-stat-card users-stat-cyan"><span>RRHH</span><strong>${rrhhCount}</strong></div>
+    <div class="users-stat-card users-stat-emerald"><span>Administrativos</span><strong>${adminOfficeCount}</strong></div>
+    <div class="users-stat-card users-stat-orange"><span>Clientes</span><strong>${clientCount}</strong></div>
+    <div class="users-stat-card users-stat-green"><span>Aprobados</span><strong>${approvedCount}</strong></div>
   </div>`;
 
   if (pendingUsers.length > 0) {
-    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobacion para acceder", `<div class="user-grid user-grid-pending">${pendingCards}</div>`, "p-card-alert");
+    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobación para acceder", `<div class="user-grid user-grid-pending">${pendingCards}</div>`, "p-card-alert");
   }
-
-  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
-  html += `<div class="toolbar users-actions">
-    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
-    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="create-company">${IC.plus} Nueva empresa</button>
-    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.save} Asignar permisos</button>
-  </div>`;
 
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
   if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
   if (ui.panel === "set-permissions") html += pcardWrap("save", "Asignar permisos", "Selecciona usuario y permisos", fPerm);
   if (editingUser) html += pcardWrap("edit", "Editar usuario", `Actualiza los datos de ${editingUser.name}`, fEdit);
+
+  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
 
   if (companies.length > 0) {
     html += pcardWrap("briefcase", "Empresas registradas", companies.length + " empresas", `<div class="company-grid">${companyRows}</div>`);
@@ -4476,15 +4766,31 @@ function payrollHtml() {
   const positions = getActivePositions();
   const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
-  const runs = read(KEYS.payrollRuns, []);
+  const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
-  const pending = runs.filter((r) => !r.paid).length;
-  const totalPayrollMonth = runs
-    .filter((r) => {
-      const now = new Date();
-      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      return String(r.month || "") === ym;
-    })
+  const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+  const filterPeriod = String(filters.period || "all");
+  const filterEmployee = String(filters.employee || "");
+  const filterStatus = String(filters.status || "all");
+  const now = new Date();
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastYm = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, "0")}`;
+  const runs = allRuns.filter((r) => {
+    const matchPeriod =
+      filterPeriod === "all" ||
+      (filterPeriod === "current" && String(r.month || "") === currentYm) ||
+      (filterPeriod === "previous" && String(r.month || "") === lastYm);
+    const matchEmployee = !filterEmployee || String(r.employeeId || "") === filterEmployee;
+    const matchStatus =
+      filterStatus === "all" ||
+      (filterStatus === "paid" && r.paid) ||
+      (filterStatus === "pending" && !r.paid);
+    return matchPeriod && matchEmployee && matchStatus;
+  });
+  const pending = allRuns.filter((r) => !r.paid).length;
+  const totalPayrollMonth = allRuns
+    .filter((r) => String(r.month || "") === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const employeeRows = employees
@@ -4515,6 +4821,11 @@ function payrollHtml() {
     </tr>`)
     .join("");
 
+  const licenseCategoryOptions = selectOptionsFromCatalog(CO_CATALOGS.licenseCategories);
+  const epsOptions = selectOptionsFromCatalog(CO_CATALOGS.eps);
+  const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
+  const bloodTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bloodTypes);
+  const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
   const formEmp = `<form id="form-employee" class="p-form">
     <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
     <label>${fieldLabel(IC.file, "Tipo documento")}
@@ -4543,7 +4854,11 @@ function payrollHtml() {
     <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
     <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
     <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
+    <label>${fieldLabel(IC.activity, "Tipo de sangre")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
     <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
+    <label>${fieldLabel(IC.file, "EPS")}<select name="eps" required>${epsOptions}</select></label>
+    <label>${fieldLabel(IC.file, "Fondo de pension")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
+    <label>${fieldLabel(IC.file, "ARL")}<select name="arl" required>${arlOptions}</select></label>
     <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
     <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}
       <select name="contractTemplateKind" required>
@@ -4556,11 +4871,10 @@ function payrollHtml() {
     <label>${fieldLabel(IC.briefcase, "Banco cuenta bancaria")}<input name="bankName" required placeholder="Nombre del banco" /></label>
     <label>${fieldLabel(IC.file, "Cuenta bancaria")}<input name="bankAccount" required placeholder="Numero de cuenta" /></label>
     <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
-    <label>${fieldLabel(IC.file, "Licencia (si es conductor)")}<input name="license" placeholder="C2 / C3" /></label>
-    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory"><option value="">Seleccione...</option><option>C1</option><option>C2</option><option>C3</option></select></label>
+    <label>${fieldLabel(IC.file, "Licencia (si es conductor)")}<input name="license" placeholder="Ej: 12C34567890" /></label>
+    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
     <label>${fieldLabel(IC.calendar, "Vence licencia (si es conductor)")}<input type="date" name="licenseExpiry" /></label>
-    <label class="full">${fieldLabel(IC.user, "Foto (URL opcional)")}<input name="avatarUrl" placeholder="https://..." /></label>
-    <label class="full">${fieldLabel(IC.file, "O subir foto")}<input type="file" name="avatarFile" accept="image/*" /></label>
+    <label class="full">${fieldLabel(IC.upload, "Foto del empleado")}<input type="file" name="avatarFile" accept="image/*" /></label>
     <p class="muted full">El cargo y salario deben cumplir parametros minimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}). ARL y aportes patronales son obligatorios en relacion real; aqui se gestiona registro y devengos del empleado.</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
@@ -4589,7 +4903,7 @@ function payrollHtml() {
     <label>Desde <input type="date" name="startDate" required /></label>
     <label>Hasta <input type="date" name="endDate" required /></label>
     <label class="full">No. incapacidad o soporte (si aplica) <input name="supportNumber" placeholder="Codigo EPS / radicado" /></label>
-    <label class="full">EPS o entidad (incapacidad) <input name="epsEntity" placeholder="Nombre EPS" /></label>
+    <label class="full">EPS o entidad (incapacidad) <select name="epsEntity">${epsOptions}<option value="Otra">Otra</option></select></label>
     <label class="full">Observaciones <textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
     <p class="muted full">Registro interno para control de nomina y ausencias. Pagos de incapacidad y causacion de vacaciones en sistema real requieren parametrizacion contable y validacion con normativa vigente (CST, Ley 1562 de 2012, Decreto 2649, entre otros).</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
@@ -4627,6 +4941,25 @@ function payrollHtml() {
         <span><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
       </div>
     </div>`;
+  const employeeOpts = employees
+    .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
+    .join("");
+  const filtersHtml = `<form id="payroll-filters" class="payroll-filters-bar">
+      <label>${fieldLabel(IC.calendar, "Periodo")}<select name="period">
+        <option value="all" ${filterPeriod === "all" ? "selected" : ""}>Todos los periodos</option>
+        <option value="current" ${filterPeriod === "current" ? "selected" : ""}>Mes actual</option>
+        <option value="previous" ${filterPeriod === "previous" ? "selected" : ""}>Mes anterior</option>
+      </select></label>
+      <label>${fieldLabel(IC.user, "Empleado")}<select name="employee">
+        <option value="">Todos</option>${employeeOpts}
+      </select></label>
+      <label>${fieldLabel(IC.activity, "Estado")}<select name="status">
+        <option value="all" ${filterStatus === "all" ? "selected" : ""}>Todos</option>
+        <option value="paid" ${filterStatus === "paid" ? "selected" : ""}>Pagado</option>
+        <option value="pending" ${filterStatus === "pending" ? "selected" : ""}>Pendiente</option>
+      </select></label>
+      <button type="button" class="btn btn-action btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
+    </form>`;
   return `<section class="payroll-shell">${payrollStrip}
       <div class="dash-grid payroll-kpi-grid">
         <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
@@ -4634,8 +4967,9 @@ function payrollHtml() {
         <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
         <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
       </div>
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", "Calcula devengos, deducciones y neto del periodo", formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>
-      <div class="dash-grid payroll-data-grid">
+      ${pcardWrap("filter", "Filtros de nómina", "Refina por periodo, empleado o estado de pago", filtersHtml)}
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catálogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", "Calcula devengos, deducciones y neto del periodo", formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>
+      <div class="payroll-data-grid">
         ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
         ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
         ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
@@ -4653,6 +4987,10 @@ function hiringHtml() {
   const employees = read(KEYS.payrollEmployees, []);
   const companies = read(KEYS.companies, []);
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  const licenseCategoryOptions = selectOptionsFromCatalog(CO_CATALOGS.licenseCategories);
+  const epsOptions = selectOptionsFromCatalog(CO_CATALOGS.eps);
+  const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
+  const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
   const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
@@ -4718,7 +5056,7 @@ function hiringHtml() {
       .map((c) => `<option value="candidate:${c.id}">Candidato · ${c.name}</option>`),
     ...employees.map((e) => `<option value="employee:${e.id}">Empleado · ${e.name}${e.position ? ` (${e.position})` : ""}</option>`)
   ].join("");
-  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <input name="eps" required placeholder="Nueva EPS / Sura / Sanitas..." /></label><label>Fondo pension <input name="pensionFund" required placeholder="Porvenir / Colfondos..." /></label><label>ARL <input name="arl" required placeholder="Sura / Positiva / Colmena..." /></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="C2/C3" /></label><label>Categoria licencia <input name="licenseCategory" placeholder="C2/C3" /></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Flujo Colombia sugerido: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. El contrato de candidato solo se habilita desde oferta enviada.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
+  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <select name="eps" required>${epsOptions}</select></label><label>Fondo pension <select name="pensionFund" required>${pensionFundOptions}</select></label><label>ARL <select name="arl" required>${arlOptions}</select></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="Ej: 12C34567890" /></label><label>Categoria licencia <select name="licenseCategory">${licenseCategoryOptions}</select></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Flujo Colombia sugerido: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. El contrato de candidato solo se habilita desde oferta enviada.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
   const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
@@ -4749,7 +5087,7 @@ function hiringHtml() {
     </div>`;
 
   return `<section class="hiring-shell">${executiveStrip}
-    <div class="dash-grid hr-kpi-grid hiring-kpi-grid">
+    <div class="hiring-kpi-grid">
       <div class="hr-kpi-card"><span>Vacantes abiertas</span><strong>${openVacancies.length}</strong></div>
       <div class="hr-kpi-card"><span>Candidatos activos</span><strong>${activeCandidates.length}</strong></div>
       <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
@@ -4757,19 +5095,19 @@ function hiringHtml() {
     </div>
     <div class="hr-flow-block">
       <h3>Fase 1 · Atracción y selección</h3>
-      <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}</div>
+      <div class="hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}</div>
     </div>
     <div class="hr-flow-block">
       <h3>Fase 2 · Entrevista y formalización</h3>
-      <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
+      <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
     </div>
-    <div class="dash-grid hiring-data-grid">
+    <div class="hiring-data-grid">
       ${pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)}
       ${pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)}
       ${pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)}
       ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
       ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
-      ${pcardWrap("briefcase", "Catalogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+      ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
     </div>
   </section>`;
 }
@@ -4856,19 +5194,49 @@ function laborComplianceHtml() {
 
 function notificationsHtml() {
   const user = currentUser();
-  const list = read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
-  const rows = list
-    .map((n) => `<tr>
-      <td>${fmtDate(n.createdAt)}</td>
-      <td><strong>${n.title}</strong></td>
-      <td>${n.body}</td>
-      <td>${n.readAt ? '<span class="status status-completada">Leida</span>' : '<span class="status status-pendiente">Nueva</span>'}</td>
-    </tr>`)
+  const list = read(KEYS.notifications, [])
+    .filter((n) => n.userId === user.id || user.role === ROLES.ADMIN)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const unread = list.filter((n) => !n.readAt).length;
+  const items = list
+    .map((n) => {
+      const tag = String(n.title || "").toLowerCase().includes("solicitud")
+        ? '<span class="notif-tag notif-tag-blue">Solicitud</span>'
+        : String(n.title || "").toLowerCase().includes("autoriza")
+          ? '<span class="notif-tag notif-tag-violet">Autorización</span>'
+          : '<span class="notif-tag notif-tag-slate">Sistema</span>';
+      const dot = n.readAt ? "" : '<span class="notif-dot"></span>';
+      return `<article class="notif-card ${n.readAt ? "" : "notif-card-unread"}">
+        <div class="notif-leading">${dot}<span class="notif-icon">${IC.bell}</span></div>
+        <div class="notif-content">
+          <div class="notif-head">${tag}<span class="muted notif-time">${fmtDate(n.createdAt)}</span></div>
+          <h4>${n.title || "Notificación"}</h4>
+          <p>${n.body || ""}</p>
+        </div>
+        <div class="notif-actions">
+          ${n.readAt ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${n.id}">${IC.check} Marcar leída</button>`}
+        </div>
+      </article>`;
+    })
     .join("");
-  const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Titulo</th><th>Mensaje</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+  const body = list.length
+    ? `<div class="notif-toolbar">
+        <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
+      </div>
+      <div class="notif-list">${items}</div>`
     : emptyState("No tienes notificaciones.");
-  return pcardWrap("bell", "Notificaciones", list.length + " notificaciones", body);
+  const heroStrip = `<div class="notif-hero-strip">
+      <div>
+        <p class="notif-hero-kicker">Centro de notificaciones</p>
+        <h2>Bandeja de alertas</h2>
+        <p class="muted">Aquí llegan en tiempo real las solicitudes entrantes, aprobaciones y eventos del sistema.</p>
+      </div>
+      <div class="notif-hero-metrics">
+        <div class="notif-hero-metric"><span>Total</span><strong>${list.length}</strong></div>
+        <div class="notif-hero-metric notif-hero-metric-alert"><span>Sin leer</span><strong>${unread}</strong></div>
+      </div>
+    </div>`;
+  return heroStrip + pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body);
 }
 
 function profileHtml(user) {
@@ -4902,19 +5270,17 @@ function profileHtml(user) {
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
     <form id="form-profile" class="p-form profile-form profile-form-centered">
-      <label>Nombre completo <input name="name" value="${user.name || ""}" required /></label>
-      <label>Correo corporativo <input type="email" value="${user.email || ""}" disabled /></label>
-      <label>Telefono de contacto <input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
-      <label>NIT/RUT asociado <input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
-      <label class="full">Empresa
+      <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${user.name || ""}" required /></label>
+      <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
+      <label>${fieldLabel(IC.phone, "Teléfono de contacto")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
+      <label>${fieldLabel(IC.badge, "NIT / RUT asociado")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
+      <label class="full">${fieldLabel(IC.briefcase, "Empresa")}
         <input value="${companyName}" disabled />
         <input type="hidden" name="companyId" value="${user.companyId || ""}" />
       </label>
-      <label class="full">Foto de perfil (URL)
-        <input name="avatarUrl" placeholder="https://..." value="${user.avatarUrl || ""}" />
-      </label>
-      <label class="full">Subir foto
+      <label class="full">${fieldLabel(IC.upload, "Subir foto de perfil")}
         <input type="file" name="avatarFile" accept="image/*" />
+        <small class="muted">Formatos JPG/PNG/WebP. La imagen se guarda directamente desde tu equipo.</small>
       </label>
       <p class="muted full legal-form-note">Mantén datos de contacto y NIT/RUT actualizados para soporte contractual y trazabilidad administrativa.</p>
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
@@ -5079,10 +5445,20 @@ function enforceColombianFormStandards() {
     note.textContent = text;
     form.appendChild(note);
   };
+  const ensureSelectOptions = (selector, values = [], placeholder = "Seleccione...") => {
+    const select = document.querySelector(selector);
+    if (!select || select.tagName !== "SELECT") return;
+    const currentValue = String(select.value || "");
+    select.innerHTML = selectOptionsFromCatalog(values, currentValue, placeholder);
+    if (currentValue && values.includes(currentValue)) {
+      select.value = currentValue;
+    }
+  };
 
   setAttr("#form-vehicle input[name='plate']", { pattern: "[A-Z]{3}[0-9]{3}", maxlength: "6", placeholder: "ABC123" });
   setAttr("#form-vehicle input[name='year']", { min: "1990", max: String(new Date().getFullYear() + 1) });
   appendLegalNote("form-vehicle", "Documentación vigente exigida en Colombia: SOAT y tecnomecánica activa para operación.");
+  ensureSelectOptions("#form-driver select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
 
   setAttr("#form-admin-company-create input[name='taxId']", { pattern: "[0-9\\-]{6,20}", minlength: "6", maxlength: "20", placeholder: "900123456-7" });
   setAttr("#form-admin-company-create input[name='phone']", { pattern: "[0-9]{7,15}", minlength: "7", maxlength: "15", placeholder: "6011234567" });
@@ -5096,6 +5472,11 @@ function enforceColombianFormStandards() {
   setAttr("#form-employee input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
   setAttr("#form-employee input[name='emergencyPhone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
   setAttr("#form-employee input[name='bankAccount']", { minlength: "8", maxlength: "24", placeholder: "Cuenta bancaria del trabajador" });
+  ensureSelectOptions("#form-employee select[name='bloodType']", CO_CATALOGS.bloodTypes, "Seleccione tipo de sangre...");
+  ensureSelectOptions("#form-employee select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
+  ensureSelectOptions("#form-employee select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
+  ensureSelectOptions("#form-employee select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
+  ensureSelectOptions("#form-employee select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
   appendLegalNote("form-employee", "Incluya datos completos de seguridad social y soporte de vinculación según CST y SG-SST.");
 
   setAttr("#form-position input[name='baseSalary']", { min: String(CO_HR_RULES.minMonthlySalary) });
@@ -5114,12 +5495,17 @@ function enforceColombianFormStandards() {
 
   setAttr("#form-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
   setAttr("#form-contract input[name='probationMonths']", { min: "0", max: "2" });
+  ensureSelectOptions("#form-contract select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
+  ensureSelectOptions("#form-contract select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
+  ensureSelectOptions("#form-contract select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
+  ensureSelectOptions("#form-contract select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
   appendLegalNote("form-contract", "Contrato laboral exige afiliaciones activas a EPS, pensión y ARL previo al ingreso efectivo.");
 
   setAttr("#form-employee-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
   appendLegalNote("form-employee-contract", "Use este flujo para formalizar contrato de empleado activo con evidencia documental.");
 
   setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
+  ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "Otra"], "Seleccione EPS/entidad...");
   appendLegalNote("form-hr-absence", "Toda ausencia debe contar con soporte y periodo validado para cumplimiento laboral.");
 
   setAttr("#form-sst-compliance input[name='documentCode']", { minlength: "4", maxlength: "32" });
@@ -5139,6 +5525,8 @@ function enforceColombianFormStandards() {
       msg.textContent = "La tarifa final del viaje es definida por Antares en la asignación operativa.";
       requestLabel.appendChild(msg);
     }
+  } else {
+    appendLegalNote("form-request", "La tarifa final del viaje no la define el cliente; Antares la asigna en la programación del viaje.");
   }
 }
 
@@ -5745,6 +6133,92 @@ function bindDynamicEvents() {
     });
   }
 
+  const payrollFiltersForm = document.getElementById("payroll-filters");
+  if (payrollFiltersForm) {
+    payrollFiltersForm.querySelectorAll("select").forEach((select) => {
+      select.addEventListener("change", () => {
+        state.payrollFilters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+        const key = String(select.name || "");
+        if (!key) return;
+        state.payrollFilters[key] = String(select.value || "");
+        renderPortalView();
+      });
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-clear-filters']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { period: "all", employee: "", status: "all" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      const list = read(KEYS.notifications, []);
+      write(
+        KEYS.notifications,
+        list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
+      );
+      renderPortalView();
+      updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const list = read(KEYS.notifications, []);
+      const ts = nowIso();
+      write(
+        KEYS.notifications,
+        list.map((n) => (n.readAt ? n : { ...n, readAt: ts }))
+      );
+      renderPortalView();
+      updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-nav']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const step = parseInt(btn.dataset.step || "0", 10) || 0;
+      const base = state.calendarFocus instanceof Date && !Number.isNaN(state.calendarFocus.getTime())
+        ? new Date(state.calendarFocus)
+        : new Date();
+      base.setHours(12, 0, 0, 0);
+      base.setMonth(base.getMonth() + step);
+      state.calendarFocus = base;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-today']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.calendarFocus = new Date();
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-event']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      const req = read(KEYS.requests, []).find((r) => r.id === id);
+      if (!req?.trip) return;
+      openInfoModal({
+        title: `Viaje ${req.trip.tripNumber || ""}`,
+        subtitle: `${req.clientName || ""} · ${prettyStatus(req.status, "trip")}`,
+        bodyHtml: `<div class="dash-grid">
+          <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
+          <div><strong>Ruta:</strong> ${req.trip.route || formatRoute(req)}</div>
+          <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+          <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+          <div><strong>Camión:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
+          <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+        </div>`
+      });
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='detail']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
@@ -6239,7 +6713,6 @@ function bindDynamicEvents() {
         type: data.type,
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
-        mileageKm: parseNum(data.mileageKm),
         soatExpeditionDate: data.soatExpeditionDate,
         techInspectionExpeditionDate: data.techInspectionExpeditionDate,
         available: true
@@ -6332,20 +6805,29 @@ function bindDynamicEvents() {
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
       openEditModal({
-        title: "Editar camion",
+        title: "Editar camión",
         subtitle: target.plate,
         submitText: "Guardar cambios",
         fields: [
           { name: "plate", label: "Placa", value: target.plate, required: true },
           { name: "brand", label: "Marca", value: target.brand || "", required: true },
           { name: "model", label: "Linea/Modelo", value: target.model || "", required: true },
-          { name: "year", label: "Ano modelo", type: "number", value: target.year || "", required: true },
+          { name: "year", label: "Año modelo", type: "number", value: target.year || "", required: true },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
-          { name: "mileageKm", label: "Kilometraje", type: "number", value: target.mileageKm || 0, required: true },
-          { name: "soatExpeditionDate", label: "Expedicion SOAT", type: "date", value: target.soatExpeditionDate, required: true },
+          {
+            name: "refrigerated",
+            label: "Termoking (refrigerado)",
+            type: "select",
+            value: target.refrigerated ? "true" : "false",
+            options: [
+              { value: "true", label: "Sí, equipo Termoking" },
+              { value: "false", label: "No, carga seca" }
+            ]
+          },
+          { name: "soatExpeditionDate", label: "Expedición SOAT", type: "date", value: target.soatExpeditionDate, required: true },
           {
             name: "techInspectionExpeditionDate",
-            label: "Expedicion tecnomecanica",
+            label: "Expedición tecnomecánica",
             type: "date",
             value: target.techInspectionExpeditionDate,
             required: true
@@ -6363,14 +6845,14 @@ function bindDynamicEvents() {
                     model: String(form.model || "").trim(),
                     year: parseNum(form.year),
                     capacityKg: parseNum(form.capacityKg),
-                    mileageKm: parseNum(form.mileageKm),
+                    refrigerated: String(form.refrigerated || "false") === "true",
                     soatExpeditionDate: form.soatExpeditionDate,
                     techInspectionExpeditionDate: form.techInspectionExpeditionDate
                   }
                 : v
             )
           );
-          notify("Camion actualizado correctamente.", "success");
+          notify("Camión actualizado correctamente.", "success");
           renderPortalView();
           return true;
         }
@@ -6399,13 +6881,36 @@ function bindDynamicEvents() {
         submitText: "Actualizar conductor",
         fields: [
           { name: "name", label: "Nombre completo", value: target.name, required: true },
-          { name: "phone", label: "Telefono", value: target.phone, required: true }
+          { name: "phone", label: "Telefono", value: target.phone, required: true },
+          { name: "license", label: "No. licencia", value: target.license || "" },
+          {
+            name: "licenseCategory",
+            label: "Categoria licencia",
+            type: "select",
+            value: target.licenseCategory || "",
+            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))]
+          },
+          { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" }
         ],
         onSubmit: (form) => {
+          const expiryValue = String(form.licenseExpiry || "").trim();
+          if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
+            notify("La licencia debe tener vigencia futura.", "error");
+            return false;
+          }
           write(
             KEYS.drivers,
             all.map((d) =>
-              d.id === target.id ? { ...d, name: String(form.name || "").trim(), phone: String(form.phone || "").trim() } : d
+              d.id === target.id
+                ? {
+                    ...d,
+                    name: String(form.name || "").trim(),
+                    phone: String(form.phone || "").trim(),
+                    license: String(form.license || "").trim(),
+                    licenseCategory: String(form.licenseCategory || "").trim(),
+                    licenseExpiry: expiryValue
+                  }
+                : d
             )
           );
           notify("Conductor actualizado correctamente.", "success");
@@ -6600,7 +7105,11 @@ function bindDynamicEvents() {
           phone: String(raw.phone || "").trim(),
           emergencyContact: String(raw.emergencyContact || "").trim(),
           emergencyPhone: String(raw.emergencyPhone || "").trim(),
+          bloodType: String(raw.bloodType || "").trim(),
           companyId: raw.companyId,
+          eps: String(raw.eps || "").trim(),
+          pensionFund: String(raw.pensionFund || "").trim(),
+          arl: String(raw.arl || "").trim(),
           baseSalary,
           contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
           contractDuration: String(raw.contractDuration || "").trim(),
@@ -6750,6 +7259,34 @@ function bindDynamicEvents() {
             options: [{ value: "", label: "Seleccione..." }, ...posOpts]
           },
           { name: "baseSalary", label: "Salario base", type: "number", value: target.baseSalary, required: true },
+          {
+            name: "bloodType",
+            label: "Tipo de sangre",
+            type: "select",
+            value: target.bloodType || "",
+            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))]
+          },
+          {
+            name: "eps",
+            label: "EPS",
+            type: "select",
+            value: target.eps || "",
+            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))]
+          },
+          {
+            name: "pensionFund",
+            label: "Fondo de pension",
+            type: "select",
+            value: target.pensionFund || "",
+            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.pensionFunds.map((item) => ({ value: item, label: item }))]
+          },
+          {
+            name: "arl",
+            label: "ARL",
+            type: "select",
+            value: target.arl || "",
+            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.arl.map((item) => ({ value: item, label: item }))]
+          },
           { name: "avatarUrl", label: "Foto URL (opcional)", value: target.avatarUrl || "" }
         ],
         onSubmit: (form) => {
@@ -6773,6 +7310,10 @@ function bindDynamicEvents() {
                     position: position.name,
                     workerRole: position.workerRole || e.workerRole,
                     baseSalary,
+                    bloodType: String(form.bloodType || "").trim(),
+                    eps: String(form.eps || "").trim(),
+                    pensionFund: String(form.pensionFund || "").trim(),
+                    arl: String(form.arl || "").trim(),
                     avatarUrl: String(form.avatarUrl || "").trim() || e.avatarUrl
                   }
                 : e
@@ -7555,7 +8096,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(profileForm).entries());
       const fileInput = profileForm.querySelector("input[name='avatarFile']");
       const file = fileInput?.files?.[0];
-      const applyProfile = (avatarUrlValue = String(data.avatarUrl || "")) => {
+      const applyProfile = (avatarUrlValue = "") => {
         const users = read(KEYS.users, []);
         const company = getCompanyById(String(data.companyId || ""));
         write(
@@ -7582,7 +8123,7 @@ function bindDynamicEvents() {
         reader.onload = () => applyProfile(String(reader.result || ""));
         reader.readAsDataURL(file);
       } else {
-        applyProfile(String(data.avatarUrl || ""));
+        applyProfile("");
       }
     });
   }
