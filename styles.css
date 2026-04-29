@@ -1723,7 +1723,10 @@ body.portal-mode .whatsapp-fab {
 .p-card + .p-card { margin-top: 1rem; }
 
 /* En grillas, el margen entre .p-card rompe la alineacion de filas; el hueco lo cubre gap */
-.dash-grid > .p-card {
+.dash-grid > .p-card,
+.hiring-actions-grid > .p-card,
+.hiring-data-grid > .p-card,
+.payroll-actions-grid > .p-card {
   margin-top: 0;
 }
 
@@ -5797,6 +5800,22 @@ body[data-theme="dark"] .portal-main .btn-action {
 
 @media (min-width: 960px) {
   .portal-main .history-insights-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Contratacion: filas de acciones alineadas (3 + 2 tarjetas) y panel de seguimiento */
+@media (min-width: 900px) {
+  .hiring-actions-grid.hiring-actions-row--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hiring-actions-grid.hiring-actions-row--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .hiring-data-grid.hiring-results-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

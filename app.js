@@ -5804,18 +5804,18 @@ function hiringHtml() {
       </header>
       <div class="hr-flow-block">
         <h3>Cargos, vacantes y candidatos</h3>
-        <div class="hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
+        <div class="hiring-actions-grid hiring-actions-row--three">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
       </div>
       <div class="hr-flow-block">
         <h3>Entrevistas y contratos</h3>
-        <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
+        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
       </div>
     </section>`;
   const hiringDataBlock = `<section class="ops-block">
       <header class="ops-block-head">
         <h3>Seguimiento y resultados</h3>
       </header>
-      <div class="hiring-data-grid">
+      <div class="hiring-data-grid hiring-results-grid">
         ${pcardWrap("activity", "Alertas", null, alertsBody)}
         ${pcardWrap("activity", "Pipeline de candidatos", sortedCandidates.length + " visibles", tCand)}
         ${pcardWrap("briefcase", "Vacantes", filteredVacancies.length + " visibles", tVac)}
