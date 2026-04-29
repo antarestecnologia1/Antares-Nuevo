@@ -5804,6 +5804,12 @@ body[data-theme="dark"] .portal-main .btn-action {
   }
 }
 
+@media (min-width: 900px) {
+  .portal-main .dash-grid.trips-actions-row--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Contratacion: filas de acciones alineadas (3 + 2 tarjetas) y panel de seguimiento */
 @media (min-width: 900px) {
   .hiring-actions-grid.hiring-actions-row--three {
@@ -6097,6 +6103,10 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   border-color: rgba(254, 202, 202, 0.6);
 }
 .drivers-hero-metric-warn {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(251, 191, 36, 0.25));
+  border-color: rgba(254, 215, 170, 0.6);
+}
+.fleet-hero-metric-warn {
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(251, 191, 36, 0.25));
   border-color: rgba(254, 215, 170, 0.6);
 }

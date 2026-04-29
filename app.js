@@ -83,6 +83,18 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
+/** Hero de métricas con el mismo estilo visual que Transporte · Camiones (franja azul + tarjetas). */
+function moduleFleetHeroStrip(metrics) {
+  const inner = (metrics || [])
+    .map(({ label, value, tone }) => {
+      const extra =
+        tone === "warn" ? " fleet-hero-metric-warn" : tone === "alert" ? " fleet-hero-metric-alert" : "";
+      return `<div class="fleet-hero-metric${extra}"><span>${escapeHtml(String(label))}</span><strong>${escapeHtml(String(value))}</strong></div>`;
+    })
+    .join("");
+  return `<div class="fleet-hero-strip fleet-hero-strip--solo"><div class="fleet-hero-metrics">${inner}</div></div>`;
+}
+
 function isAntaresDebugEnabled() {
   try {
     return typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true;
@@ -1532,6 +1544,12 @@ function getConfiguredTripValue(request) {
   const rates = read(KEYS.tripRouteRates, {});
   const configured = parseNum(rates[routeRateKeyFromRequest(request)]);
   return configured > 0 ? configured : 0;
+}
+
+function buildTripRouteRateKey(originDepartment, originCity, destinationDepartment, destinationCity) {
+  const origin = `${String(originDepartment || "").trim()}|${String(originCity || "").trim()}`.toLowerCase();
+  const destination = `${String(destinationDepartment || "").trim()}|${String(destinationCity || "").trim()}`.toLowerCase();
+  return `${origin}->${destination}`;
 }
 
 function slugStatus(value) {
@@ -3555,7 +3573,19 @@ function viewDashboard() {
     ? ""
     : pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody);
 
-  return `<div class="dash-grid">
+  const pendientes = list.filter((r) =>
+    [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
+  ).length;
+  const conViaje = list.filter((r) => r.trip).length;
+  const enOperacion = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const dashHero = moduleFleetHeroStrip([
+    { label: "Solicitudes visibles", value: list.length },
+    { label: "Con viaje", value: conViaje },
+    { label: "En operacion", value: enOperacion },
+    { label: "Pendientes / asignacion", value: pendientes, tone: pendientes ? "warn" : undefined }
+  ]);
+
+  return `${dashHero}<div class="dash-grid">
     ${pcardWrap("truck", "Por tipo de vehiculo", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos de vehiculos aun"))}
     ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
     ${qualityCard}
@@ -3567,39 +3597,68 @@ function requestFormHtml() {
     return window.AppModules.solicitudes.requestFormHtml();
   }
   const user = currentUser();
+  const list = getVisibleRequestsForUser(user);
+  const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
+  const conViaje = list.filter((r) => r.trip).length;
+  const enOp = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const clientHero = moduleFleetHeroStrip([
+    { label: "Mis solicitudes", value: list.length },
+    { label: "Con viaje", value: conViaje },
+    { label: "En operacion", value: enOp },
+    { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
+  ]);
   const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
   const departments = Object.keys(COLOMBIA_LOCATIONS)
     .map((dept) => `<option value="${dept}">${dept}</option>`)
     .join("");
-  const body = `<form id="form-request" class="p-form">
-    <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
-      <input value="${companyName}" disabled />
-      <input type="hidden" name="companyId" value="${user?.companyId || ""}" />
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
-    <label>${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
-    <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
-    <label>${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
-    <div class="full datetime-group">
-      <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
-      <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-      <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
-      <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
-    </div>
-    <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
-    <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
-    <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
-    <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
+  const body = `<form id="form-request" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.briefcase} Empresa y ruta</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
+          <input value="${escapeHtml(companyName)}" disabled />
+          <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
+        </label>
+        <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.calendar} Ventanas de servicio</legend>
+      <div class="form-section-grid datetime-group">
+        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
+        <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
+        <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.truck} Carga y vehiculo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
+        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
+        <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
+        <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.user} Contacto en sitio</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
+        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
+      </div>
+    </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
+    <p class="muted full legal-form-note">La solicitud queda sujeta a aprobacion operativa y disponibilidad de flota.</p>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-  return createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
+  return clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
 }
 
 function requestListClientHtml(user) {
@@ -3634,7 +3693,16 @@ function requestListClientHtml(user) {
 }
 
 function adminQueueHtml() {
-  const requests = reqRead().filter((r) => r.status === STATUS.PENDIENTE);
+  const allReq = reqRead();
+  const requests = allReq.filter((r) => r.status === STATUS.PENDIENTE);
+  const pendingAssign = allReq.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length;
+  const activeOps = allReq.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const queueHero = moduleFleetHeroStrip([
+    { label: "Bandeja pendiente", value: requests.length, tone: requests.length ? "warn" : undefined },
+    { label: "Total solicitudes", value: allReq.length },
+    { label: "Aprob. sin asignar", value: pendingAssign, tone: pendingAssign ? "warn" : undefined },
+    { label: "Viajes en operacion", value: activeOps }
+  ]);
   const rows = requests
     .map((r) => `<tr>
       <td><strong>${r.requestNumber || r.id}</strong></td>
@@ -3653,7 +3721,7 @@ function adminQueueHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Vehiculo</th><th>Timer</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay solicitudes pendientes.");
-  return pcardWrap("inbox", "Bandeja de pendientes", requests.length + " solicitudes por revisar", body, requests.length > 0 ? "p-card-alert" : "");
+  return `${queueHero}${pcardWrap("inbox", "Bandeja de pendientes", requests.length + " solicitudes por revisar", body, requests.length > 0 ? "p-card-alert" : "")}`;
 }
 
 function vehiclesHtml() {
@@ -3823,14 +3891,12 @@ function driversHtml() {
       </article>`;
     })
     .join("");
-  const heroStrip = `<div class="drivers-hero-strip drivers-hero-strip--solo">
-      <div class="drivers-hero-metrics">
-        <div class="drivers-hero-metric"><span>Total</span><strong>${totalDrivers}</strong></div>
-        <div class="drivers-hero-metric"><span>Disponibles</span><strong>${availableDrivers}</strong></div>
-        <div class="drivers-hero-metric drivers-hero-metric-warn"><span>Lic. 60 d</span><strong>${expiringSoon}</strong></div>
-        <div class="drivers-hero-metric drivers-hero-metric-alert"><span>Vencidas</span><strong>${expired}</strong></div>
-      </div>
-    </div>`;
+  const heroStrip = moduleFleetHeroStrip([
+    { label: "Total", value: totalDrivers },
+    { label: "Disponibles", value: availableDrivers },
+    { label: "Lic. 60 d", value: expiringSoon, tone: expiringSoon ? "warn" : undefined },
+    { label: "Vencidas", value: expired, tone: expired ? "alert" : undefined }
+  ]);
   const grid = cards
     ? `<div class="drivers-grid">${cards}</div>`
     : emptyState("No hay conductores registrados.");
@@ -3839,10 +3905,14 @@ function driversHtml() {
 }
 
 function transportTripsHtml() {
+  const rates = read(KEYS.tripRouteRates, {});
+  const rateEntries = Object.entries(rates).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
   const pendingForTrip = reqRead().filter(
     (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
   );
   const trips = reqRead().filter((r) => r.trip);
+  const activeOps = trips.filter((r) => activeTripStatuses().includes(r.status)).length;
+  const departmentsOpts = departmentOptions();
   const rows = trips
     .map((r) => {
       const currentStatus = r.status;
@@ -3865,22 +3935,94 @@ function transportTripsHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
-  const createTripForm = `<form id="form-create-trip" class="p-form">
-    <label class="full">Solicitud pendiente
-      <select name="requestId" required>
-        <option value="">Seleccione...</option>
-        ${pendingForTrip.map((r) => `<option value="${r.id}" data-createdby="${r.requestedByName || "-"}" data-route="${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}" data-company="${r.clientName || "-"}">${r.requestNumber || r.id} · ${r.clientName} · ${r.originCity} → ${r.destinationCity}</option>`).join("")}
-      </select>
-    </label>
-    <div id="trip-request-preview" class="trip-preview full">
-      <p><strong>Solicitante:</strong> <span data-preview="createdBy">-</span></p>
-      <p><strong>Cliente:</strong> <span data-preview="company">-</span></p>
-      <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
-    </div>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
+
+  const formatRateRowLabel = (key) => {
+    const [orig, dest] = String(key).split("->");
+    const [od, oc] = String(orig || "").split("|");
+    const [dd, dc] = String(dest || "").split("|");
+    return `${escapeHtml(od || "-")} · ${escapeHtml(oc || "-")} → ${escapeHtml(dd || "-")} · ${escapeHtml(dc || "-")}`;
+  };
+  const ratesRows = rateEntries.length
+    ? rateEntries
+        .map(([key, val]) => {
+          const safeKey = encodeURIComponent(key);
+          return `<tr>
+          <td><strong>${formatRateRowLabel(key)}</strong></td>
+          <td><strong>$${parseNum(val).toLocaleString("es-CO")}</strong></td>
+          <td><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}">${IC.trash} Quitar</button></td>
+        </tr>`;
+        })
+        .join("")
+    : "";
+  const ratesTable = ratesRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Trayecto</th><th>Tarifa (COP)</th><th></th></tr></thead><tbody>${ratesRows}</tbody></table></div>`
+    : emptyState("No hay tarifas por trayecto. Define rutas para autocompletar precios al asignar.");
+
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.mapPin} Origen del trayecto</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione...</option>${departmentsOpts}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="originCity" id="route-rate-origin-city" required><option value="">Seleccione departamento...</option></select></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.mapPin} Destino</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione...</option>${departmentsOpts}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Seleccione departamento...</option></select></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.dollar} Tarifa sugerida</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ej: 4200000" /></label>
+      </div>
+    </fieldset>
+    <p class="muted full legal-form-note">Misma combinacion origen/destino que en solicitudes de cliente. Si ya existe, se actualiza el valor.</p>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
   </form>`;
-  return (pendingForTrip.length ? createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona manualmente camion y conductor segun la carga", createTripForm, "Crear viaje") : "")
-    + pcardWrap("compass", "Viajes operativos", trips.length + " viajes", body);
+
+  const pendingSelectOpts = pendingForTrip
+    .map(
+      (r) =>
+        `<option value="${escapeAttr(r.id)}" data-createdby="${escapeAttr(r.requestedByName || "-")}" data-route="${escapeAttr(`${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}`)}" data-company="${escapeAttr(r.clientName || "-")}">${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${escapeHtml(r.originCity || "")} → ${escapeHtml(r.destinationCity || "")}</option>`
+    )
+    .join("");
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.compass} Solicitud</legend>
+      <label class="full">${fieldLabel(IC.compass, "Solicitud pendiente de asignacion")}
+        <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
+          <option value="">${pendingForTrip.length ? "Seleccione..." : "No hay solicitudes pendientes"}</option>
+          ${pendingSelectOpts}
+        </select>
+      </label>
+      <div id="trip-request-preview" class="trip-preview full">
+        <p><strong>Solicitante:</strong> <span data-preview="createdBy">-</span></p>
+        <p><strong>Cliente:</strong> <span data-preview="company">-</span></p>
+        <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
+      </div>
+    </fieldset>
+    <p class="muted full">${pendingForTrip.length ? "Al enviar se abrira el selector de camion, conductor y precio del viaje." : "Aprobá solicitudes desde Transporte · Solicitudes o esperá la ventana de autoaprobacion."}</p>
+    <button class="btn btn-primary full" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje desde solicitud</button>
+  </form>`;
+
+  const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
+      <div class="fleet-hero-metrics">
+        <div class="fleet-hero-metric"><span>Viajes</span><strong>${trips.length}</strong></div>
+        <div class="fleet-hero-metric"><span>En operacion</span><strong>${activeOps}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Sin asignar</span><strong>${pendingForTrip.length}</strong></div>
+        <div class="fleet-hero-metric"><span>Tarifas trayecto</span><strong>${rateEntries.length}</strong></div>
+      </div>
+    </div>`;
+
+  const actionGrid = `<div class="dash-grid trips-actions-row--two">
+    ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
+    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Asigna camion y conductor a una solicitud aprobada", createTripForm, "Asignar viaje")}
+  </div>`;
+
+  return `${heroStrip}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}`;
 }
 
 function transportCalendarHtml() {
@@ -4044,7 +4186,14 @@ function transportCalendarHtml() {
     </div>
   </section>`;
 
-  return calendarShell;
+  const calHero = moduleFleetHeroStrip([
+    { label: "Viajes en sistema", value: allTrips.length },
+    { label: "Tras filtros", value: requests.length },
+    { label: "Hoy", value: todayEvents.length },
+    { label: "Proximos", value: upcoming.length }
+  ]);
+
+  return calHero + calendarShell;
 }
 
 function adminUsersHtml(current) {
@@ -4291,13 +4440,14 @@ function adminUsersHtml(current) {
 
   // --- Render ---
   let html = "";
-  const adminCount = users.filter((u) => u.role === ROLES.ADMIN).length;
-  const rrhhCount = users.filter((u) => u.role === ROLES.RRHH).length;
-  const adminOfficeCount = users.filter((u) =>
-    [ROLES.ADMINISTRACION, ROLES.AUXILIAR_ADMINISTRATIVO, ROLES.LIDER_ADMINISTRATIVO].includes(u.role)
-  ).length;
-  const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
   const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
+
+  html += moduleFleetHeroStrip([
+    { label: "Usuarios", value: users.length },
+    { label: "Aprobados", value: approvedCount },
+    { label: "Registro pendiente", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
+    { label: "Empresas", value: companies.length }
+  ]);
 
   html += `<div class="users-hero-strip users-hero-strip--solo">
     <div class="users-hero-actions">
@@ -4305,15 +4455,6 @@ function adminUsersHtml(current) {
       <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
       <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
     </div>
-  </div>`;
-
-  html += `<div class="users-stats-grid">
-    <div class="users-stat-card users-stat-blue"><span>Total usuarios</span><strong>${users.length}</strong></div>
-    <div class="users-stat-card users-stat-violet"><span>Administradores</span><strong>${adminCount}</strong></div>
-    <div class="users-stat-card users-stat-cyan"><span>RRHH</span><strong>${rrhhCount}</strong></div>
-    <div class="users-stat-card users-stat-emerald"><span>Administrativos</span><strong>${adminOfficeCount}</strong></div>
-    <div class="users-stat-card users-stat-orange"><span>Clientes</span><strong>${clientCount}</strong></div>
-    <div class="users-stat-card users-stat-green"><span>Aprobados</span><strong>${approvedCount}</strong></div>
   </div>`;
 
   if (pendingUsers.length > 0) {
@@ -4336,6 +4477,24 @@ function adminUsersHtml(current) {
 
 function historyHtml() {
   const requests = reqRead();
+  const histHero = moduleFleetHeroStrip([
+    { label: "Registros", value: requests.length },
+    {
+      label: "Finalizadas",
+      value: requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length
+    },
+    {
+      label: "En curso",
+      value: requests.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length
+    },
+    {
+      label: "Sin viaje",
+      value: requests.filter((r) => !r.trip).length,
+      tone: requests.some((r) => !r.trip && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status))
+        ? "warn"
+        : undefined
+    }
+  ]);
   const users = read(KEYS.users, []);
   const drivers = read(KEYS.drivers, []);
   const vehicles = read(KEYS.vehicles, []);
@@ -4357,56 +4516,81 @@ function historyHtml() {
     </tr>`)
     .join("");
 
-  const filterBody = `<form id="history-filter" class="p-form">
-    <label>Desde <input type="date" name="from" /></label>
-    <label>Hasta <input type="date" name="to" /></label>
-    <label>Cliente <select name="client"><option value="">Todos</option>${options}</select></label>
-    <label>Estado <select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
+  const filterBody = `<form id="history-filter" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.filter} Periodo y criterios</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+        <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+        <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${options}</select></label>
+        <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.filter} Aplicar filtro</button>
   </form>`;
-  const driverReportBody = `<form id="driver-month-report-form" class="p-form">
-    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
-    <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
+  const driverReportBody = `<form id="driver-month-report-form" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.activity} Reporte conductor</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.activity} Generar reporte mensual</button>
   </form>
   <div id="driver-month-report-output" class="muted" style="margin-top:0.75rem">Selecciona conductor y mes para ver viaticos, combustible y viajes realizados.</div>`;
-  const fuelForm = `<form id="form-fuel-log" class="p-form">
-    <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
-    <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
-    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
-    <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" /></label>
-    <label>${fieldLabel(IC.activity, "Litros")}<input type="number" step="0.01" min="0.01" name="liters" required /></label>
-    <label>${fieldLabel(IC.dollar, "Valor total")}<input type="number" min="0" name="totalCost" required /></label>
-    <label>${fieldLabel(IC.clock, "Odometro km")}<input type="number" min="0" name="odometerKm" /></label>
-    <label>${fieldLabel(IC.mapPin, "Estacion")}<input name="station" placeholder="EDS..." /></label>
-    <label>${fieldLabel(IC.briefcase, "Pagado por")}
-      <select name="paidBy">
-        <option value="empresa">Empresa</option>
-        <option value="conductor">Conductor (reembolso nomina)</option>
-      </select>
-    </label>
+  const fuelForm = `<form id="form-fuel-log" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.calendar} Carga de combustible</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
+        <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.dollar} Montos y trazabilidad</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.activity, "Litros")}<input type="number" step="0.01" min="0.01" name="liters" required /></label>
+        <label>${fieldLabel(IC.dollar, "Valor total")}<input type="number" min="0" name="totalCost" required /></label>
+        <label>${fieldLabel(IC.clock, "Odometro km")}<input type="number" min="0" name="odometerKm" /></label>
+        <label>${fieldLabel(IC.mapPin, "Estacion")}<input name="station" placeholder="EDS..." /></label>
+        <label>${fieldLabel(IC.briefcase, "Pagado por")}
+          <select name="paidBy">
+            <option value="empresa">Empresa</option>
+            <option value="conductor">Conductor (reembolso nomina)</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
   </form>`;
-  const technicalForm = `<form id="form-technical-log" class="p-form">
-    <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
-    <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
-    <label>${fieldLabel(IC.activity, "Tipo")}
-      <select name="type">
-        <option value="preventivo">Mantenimiento preventivo</option>
-        <option value="correctivo">Mantenimiento correctivo</option>
-        <option value="falla">Falla tecnica</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.file, "Descripcion")}<input name="description" required /></label>
-    <label>${fieldLabel(IC.dollar, "Costo")}<input type="number" min="0" name="cost" required /></label>
-    <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
-    <label>${fieldLabel(IC.check, "Estado")}
-      <select name="status">
-        <option>Pendiente</option>
-        <option>En proceso</option>
-        <option>Resuelto</option>
-      </select>
-    </label>
+  const technicalForm = `<form id="form-technical-log" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.truck} Novedad de taller</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
+        <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo")}
+          <select name="type">
+            <option value="preventivo">Mantenimiento preventivo</option>
+            <option value="correctivo">Mantenimiento correctivo</option>
+            <option value="falla">Falla tecnica</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.file, "Descripcion")}<input name="description" required /></label>
+        <label>${fieldLabel(IC.dollar, "Costo")}<input type="number" min="0" name="cost" required /></label>
+        <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
+        <label>${fieldLabel(IC.check, "Estado")}
+          <select name="status">
+            <option>Pendiente</option>
+            <option>En proceso</option>
+            <option>Resuelto</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
   </form>`;
   const tableBody = rows
@@ -4417,7 +4601,8 @@ function historyHtml() {
     ${pcardWrap("truck", "Vehiculos mas usados", null, `<p>${topVehicles(requests).join(", ") || "Sin datos"}</p>`)}
     ${pcardWrap("dollar", "Regla actual de viaticos", null, `<p>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje entre departamentos</p>`)}
   </div>`;
-  return pcardWrap("filter", "Filtros", null, filterBody)
+  return histHero
+    + pcardWrap("filter", "Filtros", null, filterBody)
     + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody)
     + pcardWrap("activity", "Reporte mensual por conductor (viaticos)", null, driverReportBody)
     + `<div class="dash-grid history-ops-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
@@ -4918,6 +5103,12 @@ function reportsHtml() {
     { id: "authorizations_traceability", icon: "check", title: "Autorizaciones" }
   ];
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
+  const reportsHero = moduleFleetHeroStrip([
+    { label: "Disponibles para ti", value: visibleCards.length },
+    { label: "Catalogo total", value: cards.length },
+    { label: "Sin acceso", value: cards.length - visibleCards.length, tone: cards.length - visibleCards.length ? "warn" : undefined },
+    { label: "Formatos", value: "PDF + XLSX" }
+  ]);
   const body = visibleCards.length
     ? `<div class="dash-grid">
     ${visibleCards
@@ -4936,7 +5127,7 @@ function reportsHtml() {
       .join("")}
   </div>`
     : `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
-  return pcardWrap("activity", "Reportería", null, body);
+  return reportsHero + pcardWrap("activity", "Reportería", null, body);
 }
 
 function monthRange(month) {
@@ -5485,13 +5676,6 @@ function payrollHtml() {
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
-  const payrollStrip = `<div class="payroll-executive-strip payroll-executive-strip--solo">
-      <div class="payroll-strip-metrics">
-        <span><strong>${employees.length}</strong> empleados activos</span>
-        <span><strong>${pending}</strong> pagos pendientes</span>
-        <span><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
-      </div>
-    </div>`;
   const employeeOpts = employees
     .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
     .join("");
@@ -5551,14 +5735,18 @@ function payrollHtml() {
         ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
       </div>
     </section>`;
-  return `<section class="payroll-shell">${payrollHead}${payrollStrip}
+  const payrollFleetHero = moduleFleetHeroStrip([
+    { label: "Empleados", value: employees.length },
+    { label: "Pagos pendientes", value: pending, tone: pending ? "warn" : undefined },
+    { label: "Neto liquidado (mes)", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}` },
+    {
+      label: "Ausencias por revisar",
+      value: pendingAbsenceApprovals,
+      tone: pendingAbsenceApprovals ? "warn" : undefined
+    }
+  ]);
+  return `<section class="payroll-shell">${payrollFleetHero}${payrollHead}
       ${payrollActions}
-      <div class="dash-grid payroll-kpi-grid">
-        <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
-        <div class="payroll-kpi-card"><span>Liquidaciones pendientes</span><strong>${pending}</strong></div>
-        <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
-        <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
-      </div>
       <section class="ops-block">
         <header class="ops-block-head">
           <h3>Filtro operativo</h3>
@@ -5765,13 +5953,16 @@ function hiringHtml() {
     </div>`;
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
-  const executiveStrip = `<div class="hiring-executive-strip hiring-executive-strip--solo">
-      <div class="hiring-strip-metrics">
-        <span><strong>${candidateConversion}%</strong> conversión</span>
-        <span><strong>${urgentItems}</strong> alertas</span>
-        <span><strong>${employees.length}</strong> en nómina</span>
-      </div>
-    </div>`;
+  const hiringFleetHero = moduleFleetHeroStrip([
+    { label: "Vacantes abiertas", value: openVacancies.length },
+    { label: "Candidatos activos", value: activeCandidates.length },
+    { label: "Contratos del mes", value: contractsThisMonth.length },
+    {
+      label: "Alertas / conversion",
+      value: `${urgentItems} · ${candidateConversion}%`,
+      tone: urgentItems ? "warn" : undefined
+    }
+  ]);
 
   const hiringHead = `<div class="ops-module-head ops-module-head-hiring">
       <div class="ops-module-title">
@@ -5824,14 +6015,8 @@ function hiringHtml() {
         ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
       </div>
     </section>`;
-  return `<section class="hiring-shell">${hiringHead}${executiveStrip}
+  return `<section class="hiring-shell">${hiringHead}${hiringFleetHero}
     ${hiringActions}
-    <div class="hiring-kpi-grid">
-      <div class="hr-kpi-card"><span>Vacantes abiertas</span><strong>${openVacancies.length}</strong></div>
-      <div class="hr-kpi-card"><span>Candidatos activos</span><strong>${activeCandidates.length}</strong></div>
-      <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
-      <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
-    </div>
     ${hiringExecutionBlock}
     ${hiringDataBlock}
   </section>`;
@@ -5876,42 +6061,65 @@ function laborComplianceHtml() {
       <div class="hr-alert-item"><strong>Licencias por vencer (30 dias):</strong> ${expiringLicenses.length}</div>
       <div class="hr-alert-item"><strong>Registros documentales en auditoria:</strong> ${records.length}</div>
     </div>`;
-  const complianceForm = `<form id="form-sst-compliance" class="p-form">
-      <label>Empleado <select name="employeeId" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
-      <label>Tipo de control
-        <select name="recordType" required>
-          <option value="">Seleccione...</option>
-          <option value="Afiliacion EPS">Afiliacion EPS</option>
-          <option value="Afiliacion pension">Afiliacion pension</option>
-          <option value="Afiliacion ARL">Afiliacion ARL</option>
-          <option value="Examen medico ocupacional">Examen medico ocupacional</option>
-          <option value="Capacitacion SST">Capacitacion SST</option>
-          <option value="Inspeccion documental">Inspeccion documental</option>
-        </select>
-      </label>
-      <label>Entidad / proveedor <input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
-      <label>Fecha de vencimiento / control <input type="date" name="dueDate" required /></label>
-      <label>Estado
-        <select name="status" required>
-          <option value="Pendiente">Pendiente</option>
-          <option value="En gestion">En gestion</option>
-          <option value="Cumplido">Cumplido</option>
-        </select>
-      </label>
-      <label>Codigo documental <input name="documentCode" required placeholder="Ej: SST-2026-001" /></label>
-      <label class="full">Evidencia / observaciones <textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
-      <p class="muted full">Cumplimiento Colombia: valida afiliacion activa a EPS, pension y ARL, soportes SST y trazabilidad de controles por empleado.</p>
+  const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored">
+      <fieldset class="form-section form-section-blue full">
+        <legend>${IC.user} Empleado y tipo</legend>
+        <div class="form-section-grid">
+          <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
+          <label class="full">${fieldLabel(IC.file, "Tipo de control")}
+            <select name="recordType" required>
+              <option value="">Seleccione...</option>
+              <option value="Afiliacion EPS">Afiliacion EPS</option>
+              <option value="Afiliacion pension">Afiliacion pension</option>
+              <option value="Afiliacion ARL">Afiliacion ARL</option>
+              <option value="Examen medico ocupacional">Examen medico ocupacional</option>
+              <option value="Capacitacion SST">Capacitacion SST</option>
+              <option value="Inspeccion documental">Inspeccion documental</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section form-section-emerald full">
+        <legend>${IC.shield} Seguimiento</legend>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.briefcase, "Entidad / proveedor")}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
+          <label>${fieldLabel(IC.calendar, "Vencimiento / control")}<input type="date" name="dueDate" required /></label>
+          <label>${fieldLabel(IC.activity, "Estado")}
+            <select name="status" required>
+              <option value="Pendiente">Pendiente</option>
+              <option value="En gestion">En gestion</option>
+              <option value="Cumplido">Cumplido</option>
+            </select>
+          </label>
+          <label>${fieldLabel(IC.hash, "Codigo documental")}<input name="documentCode" required placeholder="Ej: SST-2026-001" /></label>
+        </div>
+      </fieldset>
+      <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
+      <p class="muted full legal-form-note">Cumplimiento Colombia: valida afiliacion activa a EPS, pension y ARL, soportes SST y trazabilidad de controles por empleado.</p>
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar control legal/SST</button>
     </form>`;
   const recordsTable = recordRows
     ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
     : emptyState("No hay controles de cumplimiento registrados.");
-  return `<div class="dash-grid hr-kpi-grid">
-      <div class="hr-kpi-card"><span>Controles activos</span><strong>${records.length}</strong></div>
-      <div class="hr-kpi-card"><span>Contratos por vencer</span><strong>${expiringContracts.length}</strong></div>
-      <div class="hr-kpi-card"><span>Seguridad social incompleta</span><strong>${missingSocialSecurity.length}</strong></div>
-      <div class="hr-kpi-card"><span>Licencias por vencer</span><strong>${expiringLicenses.length}</strong></div>
-    </div>`
+  const laborHero = moduleFleetHeroStrip([
+    { label: "Controles", value: records.length },
+    {
+      label: "Contratos por vencer",
+      value: expiringContracts.length,
+      tone: expiringContracts.length ? "warn" : undefined
+    },
+    {
+      label: "SS incompleta",
+      value: missingSocialSecurity.length,
+      tone: missingSocialSecurity.length ? "warn" : undefined
+    },
+    {
+      label: "Licencias prox.",
+      value: expiringLicenses.length,
+      tone: expiringLicenses.length ? "warn" : undefined
+    }
+  ]);
+  return laborHero
     + pcardWrap("activity", "Alertas", null, alertsBody)
     + createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar")
     + pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable);
@@ -5944,24 +6152,56 @@ function notificationsHtml() {
       </article>`;
     })
     .join("");
+  const readCount = list.length - unread;
+  const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
   const body = list.length
     ? `<div class="notif-toolbar">
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
       </div>
       <div class="notif-list">${items}</div>`
     : emptyState("No tienes notificaciones.");
-  const heroStrip = `<div class="notif-hero-strip notif-hero-strip--solo">
-      <div class="notif-hero-metrics">
-        <div class="notif-hero-metric"><span>Total</span><strong>${list.length}</strong></div>
-        <div class="notif-hero-metric notif-hero-metric-alert"><span>Sin leer</span><strong>${unread}</strong></div>
-      </div>
-    </div>`;
+  const heroStrip = moduleFleetHeroStrip([
+    { label: "Total", value: list.length },
+    { label: "Sin leer", value: unread, tone: unread ? "warn" : undefined },
+    { label: "Leidas", value: readCount },
+    { label: "% leidas", value: `${readPct}%` }
+  ]);
   return heroStrip + pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body);
 }
 
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
   const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
+  const profileFields = [
+    "name",
+    "phone",
+    "taxId",
+    "documentType",
+    "birthDate",
+    "emergencyContact",
+    "emergencyPhone",
+    "city",
+    "department"
+  ];
+  const filled = profileFields.filter((f) => String(user[f] ?? "").trim()).length;
+  const profilePct = Math.round((filled / profileFields.length) * 100);
+  const daysInPortal = user.createdAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000))
+    : 0;
+  const profileHero = moduleFleetHeroStrip([
+    {
+      label: "Perfil completo",
+      value: `${profilePct}%`,
+      tone: profilePct < 70 ? "warn" : undefined
+    },
+    { label: "Dias en portal", value: daysInPortal },
+    {
+      label: "Cuenta",
+      value: user.accountStatus === ACCOUNT_STATUS.APROBADO ? "Activa" : "Revision",
+      tone: user.accountStatus !== ACCOUNT_STATUS.APROBADO ? "warn" : undefined
+    },
+    { label: "Permisos", value: (user.permissions || []).length }
+  ]);
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
       <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}" title="Cambiar foto de perfil">
@@ -6031,12 +6271,18 @@ function profileHtml(user) {
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
     </form>
   </section>`;
-  return pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
+  return profileHero + pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
 }
 
 function authorizationsHtml() {
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
+  const authHero = moduleFleetHeroStrip([
+    { label: "Total registros", value: approvals.length },
+    { label: "Pendientes", value: pending.length, tone: pending.length ? "warn" : undefined },
+    { label: "Aprobadas", value: approvals.filter((a) => a.status === "aprobado").length },
+    { label: "Rechazadas", value: approvals.filter((a) => a.status === "rechazado").length }
+  ]);
   const rows = pending.map((a) => `<tr>
     <td><strong>${a.title}</strong></td>
     <td>${a.type}</td>
@@ -6050,7 +6296,7 @@ function authorizationsHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Titulo</th><th>Tipo</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay autorizaciones pendientes.");
-  return pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
+  return authHero + pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
 }
 
 function renderFromModule(moduleName, exportName, ...args) {
@@ -6414,6 +6660,7 @@ function bindDynamicEvents() {
     "edit-driver",
     "toggle-driver",
     "delete-driver",
+    "delete-route-rate",
     "edit-employee",
     "delete-employee",
     "close-vacancy",
@@ -7267,6 +7514,26 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='delete-route-rate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const encoded = String(btn.dataset.rateKey || "");
+      const key = decodeURIComponent(encoded);
+      if (!key) return;
+      openConfirmModal({
+        title: "Quitar tarifa de trayecto",
+        message: "Esta ruta dejara de sugerir precio al asignar viajes.",
+        confirmText: "Quitar tarifa",
+        onConfirm: () => {
+          const rates = read(KEYS.tripRouteRates, {});
+          delete rates[key];
+          write(KEYS.tripRouteRates, rates);
+          notify("Tarifa eliminada.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
   const createTripForm = document.getElementById("form-create-trip");
   if (createTripForm) {
     const select = createTripForm.querySelector("select[name='requestId']");
@@ -7367,6 +7634,49 @@ function bindDynamicEvents() {
         }
       });
       return;
+    });
+  }
+
+  const routeRateFormEl = document.getElementById("form-route-rate");
+  if (routeRateFormEl) {
+    const originDept = routeRateFormEl.querySelector("#route-rate-origin-dept");
+    const originCity = routeRateFormEl.querySelector("#route-rate-origin-city");
+    const destDept = routeRateFormEl.querySelector("#route-rate-dest-dept");
+    const destCity = routeRateFormEl.querySelector("#route-rate-dest-city");
+    const fillRouteRateCities = (departmentSelect, citySelect) => {
+      const department = String(departmentSelect?.value || "");
+      const cities = COLOMBIA_LOCATIONS[department] || [];
+      citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
+        .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
+        .join("")}`;
+    };
+    if (originDept && originCity) {
+      originDept.addEventListener("change", () => fillRouteRateCities(originDept, originCity));
+    }
+    if (destDept && destCity) {
+      destDept.addEventListener("change", () => fillRouteRateCities(destDept, destCity));
+    }
+    routeRateFormEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(routeRateFormEl).entries());
+      const od = String(data.originDepartment || "").trim();
+      const oc = String(data.originCity || "").trim();
+      const dd = String(data.destinationDepartment || "").trim();
+      const dc = String(data.destinationCity || "").trim();
+      const tripRateCop = parseNum(data.tripRateCop);
+      if (!od || !oc || !dd || !dc) {
+        notify("Selecciona departamento y ciudad de origen y destino.", "error");
+        return;
+      }
+      if (tripRateCop <= 0) {
+        notify("Indica un valor valido en COP.", "error");
+        return;
+      }
+      const key = buildTripRouteRateKey(od, oc, dd, dc);
+      const next = { ...read(KEYS.tripRouteRates, {}), [key]: tripRateCop };
+      write(KEYS.tripRouteRates, next);
+      notify("Tarifa de trayecto guardada.", "success");
+      renderPortalView();
     });
   }
 
