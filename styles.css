@@ -59,6 +59,10 @@ img { max-width: 100%; }
   margin: 0 auto;
 }
 
+.top-nav .container {
+  width: min(1360px, 96%);
+}
+
 /* ─── NAV ─── */
 .top-nav {
   position: sticky;
@@ -104,6 +108,8 @@ nav {
   align-items: center;
   overflow-x: auto;
   scrollbar-width: none;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 nav::-webkit-scrollbar { display: none; }
@@ -111,10 +117,10 @@ nav::-webkit-scrollbar { display: none; }
 nav a {
   color: rgba(255,255,255,0.78);
   text-decoration: none;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   position: relative;
-  padding: 0.32rem 0.45rem;
+  padding: 0.3rem 0.38rem;
   border-radius: 8px;
   white-space: nowrap;
 }
@@ -164,6 +170,8 @@ nav a:hover::after { width: 60%; }
 #open-auth {
   white-space: nowrap;
   flex-shrink: 0;
+  padding: 0.58rem 0.95rem;
+  font-size: 0.86rem;
 }
 
 .theme-toggle,
@@ -2479,6 +2487,18 @@ tbody tr:last-child td { border-bottom: none; }
   .footer-bg-truck { width: 150px; height: 150px; }
 }
 
+@media (max-width: 1320px) {
+  nav a {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.32rem;
+  }
+
+  #open-auth {
+    padding: 0.52rem 0.82rem;
+    font-size: 0.82rem;
+  }
+}
+
 @media (max-width: 480px) {
   .hero-stats { grid-template-columns: 1fr; }
   .grid-3, .grid-4 { grid-template-columns: 1fr; }
@@ -2647,6 +2667,45 @@ body[data-theme="dark"] .muted {
   color: #c8dcf3 !important;
 }
 
+body[data-theme="dark"] .section-trusted .logo-marquee {
+  background: #132940;
+  border-color: #3a5d84;
+}
+
+body[data-theme="dark"] .section-trusted .logo-pill {
+  background: #1a3552;
+  border-color: #4873a3;
+  color: #e8f2ff;
+}
+
+body[data-theme="dark"] .mini-metric h3 {
+  color: #9cc9ff;
+}
+
+body[data-theme="dark"] .mini-metric-icon {
+  background: #1e3b5b;
+  color: #8ec1ff;
+}
+
+body[data-theme="dark"] .hierarchy-card {
+  background: linear-gradient(165deg, #162a41 0%, #1c3550 85%);
+  border-color: #3c5f86;
+}
+
+body[data-theme="dark"] .role-badge {
+  background: rgba(115, 178, 255, 0.12);
+  border-color: rgba(135, 188, 255, 0.35);
+  color: #d8e9ff;
+}
+
+body[data-theme="dark"] .hierarchy-card h3 {
+  color: #eaf3ff;
+}
+
+body[data-theme="dark"] .photo-note {
+  color: #afc8e5;
+}
+
 body[data-theme="dark"] input,
 body[data-theme="dark"] select,
 body[data-theme="dark"] textarea {
@@ -2741,6 +2800,19 @@ body[data-theme="dark"] .btn-text {
 .p-form textarea:focus {
   border-color: rgba(21, 101, 192, 0.55);
   box-shadow: 0 0 0 4px rgba(21, 101, 192, 0.12);
+}
+
+body[data-theme="dark"] .p-form label {
+  background: linear-gradient(180deg, rgba(18, 38, 60, 0.96), rgba(15, 33, 52, 0.96));
+  border-color: #466a93;
+}
+
+body[data-theme="dark"] .p-form input,
+body[data-theme="dark"] .p-form select,
+body[data-theme="dark"] .p-form textarea {
+  background: #1a314c;
+  color: #ecf4ff;
+  border-color: #4f78a5;
 }
 
 .table-wrap table thead th {
