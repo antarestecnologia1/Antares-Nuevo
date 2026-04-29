@@ -834,6 +834,9 @@ body[data-theme="light"] .lang-option.active {
 }
 
 .logo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   padding: 0.5rem 1rem;
   border-radius: 999px;
   background: var(--primary-light);
@@ -842,6 +845,21 @@ body[data-theme="light"] .lang-option.active {
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.ally-logo {
+  width: 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(21, 101, 192, 0.25);
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.22);
+}
+
+.ally-name {
+  font-weight: 700;
 }
 
 .trusted-grid { margin-top: 0.5rem; }
@@ -3262,6 +3280,12 @@ body[data-theme="dark"] .section-trusted .logo-pill {
   background: #1a3552;
   border-color: #4873a3;
   color: #e8f2ff;
+}
+
+body[data-theme="dark"] .section-trusted .ally-logo {
+  background: #10243a;
+  border-color: rgba(129, 187, 255, 0.32);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.28);
 }
 
 body[data-theme="dark"] .mini-metric h3 {
