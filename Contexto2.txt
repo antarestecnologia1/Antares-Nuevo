@@ -1,3 +1,145 @@
+ANTARES NUEVO - CONTEXTO OPERATIVO ACTUALIZADO
+Fecha de actualizacion: 2026-04-28
+
+OBJETIVO DE ESTE ARCHIVO
+- Servir como memoria rapida del estado real del proyecto para retomarlo en futuras sesiones.
+- Priorizar lo implementado, decisiones tomadas y pendientes concretos.
+
+RESUMEN DEL PROYECTO
+- Proyecto web unificado en HTML/CSS/JS (sin build step obligatorio).
+- Contiene:
+  1) Sitio publico corporativo (landing B2B).
+  2) Portal interno/clientes con autenticacion y modulos operativos.
+- Traduccion ES/EN manejada en app.js (sin Google Translate).
+- Tema claro/oscuro activo para sitio y portal.
+
+ARCHIVOS CLAVE
+- index.html: estructura del sitio publico, auth modal y contenedor del portal.
+- styles.css: sistema visual completo, responsive, dark mode hardening.
+- app.js: logica de negocio, auth, traduccion, efectos, modulos portal.
+
+ESTADO ACTUAL - SITIO PUBLICO
+- Header reorganizado y optimizado:
+  - orden corporativo de secciones.
+  - scroll spy activo por seccion (link activo segun viewport).
+  - mejoras de ajuste en anchos para evitar cortes en navegacion.
+- Hero:
+  - copy orientado a B2B.
+  - CTA principal ajustado a conversion ("Solicitar propuesta").
+- About:
+  - estructura mejorada con pilar adicional "Estandar empresarial".
+- Seccion nueva "Proceso operativo estandar":
+  - 4 pasos (planeacion, asignacion, monitoreo, cierre).
+- Trusted companies:
+  - traduccion y dark mode corregidos.
+- Testimonials:
+  - mejoras visuales + bloque agregado de casos de exito B2B.
+- News:
+  - video e imagenes sin recorte (object-fit contain).
+  - chips de impacto/metricas.
+  - filtros y tratamiento visual para realzar color y brillo.
+  - clase dedicada para destacar trailer blanco (video-highlight-white).
+- Contacto B2B:
+  - redisenado premium completo.
+  - mas campos de precalificacion comercial.
+  - UX de llenado mejorada (placeholders, ayudas, jerarquia).
+
+FORMULARIO B2B - ESTADO FUNCIONAL
+- Campos base + nuevos campos:
+  - operationType, operationFrequency, startWindow, monthlyVolumeKg.
+- Validaciones implementadas en app.js:
+  - email valido.
+  - telefono colombiano valido (10 digitos, inicia por 3).
+  - mensaje minimo de contexto.
+  - volumen mensual minimo.
+- Formateo automatico de telefono:
+  - +57 XXX XXX XX XX.
+- Errores inline por campo:
+  - clases field-invalid y field-error.
+- Persistencia:
+  - guarda solicitud en storage local (KEYS.contacts).
+  - dispara email simulado.
+
+AUTH MODAL (LOGIN / REGISTRO / RECUPERAR)
+- Redisenado a estilo empresarial:
+  - cabecera premium.
+  - tab de ingreso renombrado.
+  - panel lateral de confianza y seguridad.
+- Mejoras UX:
+  - placeholders mas profesionales.
+  - copy de onboarding mas claro.
+  - mascara de telefono en registro.
+- Flujo funcional:
+  - login con lock temporal por intentos fallidos.
+  - registro con validaciones documentales y edad.
+  - recuperacion por solicitud a administrador.
+
+TRADUCCION ES/EN
+- Estrategia hibrida:
+  - traduccion por match exacto + reemplazo por frases.
+  - overrides por selector para nodos complejos.
+- Diccionario central:
+  - PUBLIC_ES_EN_DICT en app.js.
+- Importante:
+  - se agregaron nuevas claves para:
+    - proceso operativo,
+    - casos de exito,
+    - chips de impacto,
+    - formulario B2B premium,
+    - textos del auth modal.
+- Placeholders:
+  - traduccion dinamica ES/EN en applyPublicLanguage.
+
+TEMA OSCURO - ESTADO
+- Hardening aplicado en styles.css:
+  - footer oscuro consistente.
+  - tarjetas, tablas, filtros, modales y formularios en portal.
+  - chips/badges y estados ajustados a contraste.
+- Se corrigieron puntos claros en:
+  - trusted section,
+  - hierarchy cards,
+  - news media/video,
+  - formulario de contacto,
+  - auth modal.
+
+ESTADO ACTUAL - PORTAL / MODULOS
+- Modulos existentes y funcionales:
+  - Dashboard
+  - Solicitudes
+  - Transporte (requests, trips, vehicles, drivers, calendar, history, reports)
+  - RRHH (payroll, hiring)
+  - Usuarios y permisos
+  - Autorizaciones
+  - Perfil
+  - Notificaciones
+- Generacion de contratos Word:
+  - soporte por plantilla docx conservando formato (modulo recruitment).
+
+DECISIONES TECNICAS IMPORTANTES
+- Se mantuvo stack sin build obligatorio para despliegue simple.
+- Cloudflare Pages recomendado con build vacio y salida raiz.
+- Traduccion 100% in-app, sin dependencias externas de traduccion automatica.
+
+PENDIENTES RECOMENDADOS (SIGUIENTE ITERACION)
+- QA visual final por modulo con checklist:
+  - Dashboard, Solicitudes, Transporte, RRHH, Usuarios, Autorizaciones, Perfil, Notificaciones.
+- Ajuste fino de textos en ingles para tono comercial uniforme.
+- Validaciones en vivo campo a campo en auth (feedback inmediato).
+- Autoguardado de borrador para formulario B2B.
+- Ajuste final de accesibilidad:
+  - labels/aria completos en elementos dinamicos.
+  - validacion de contraste automatica.
+
+CHECKLIST RAPIDO AL RETOMAR
+1) Abrir index y alternar ES/EN en todas las secciones.
+2) Alternar tema claro/oscuro en sitio y portal.
+3) Probar envio de formulario B2B con validaciones invalidas/validas.
+4) Probar modal auth: login/register/recover.
+5) Verificar header activo por scroll en desktop y mobile.
+6) Validar que News/Testimonials/Casos de exito no se desborden en responsive.
+
+NOTA
+- Si se agregan nuevas secciones o cambios grandes de copy, actualizar PUBLIC_ES_EN_DICT y PUBLIC_TEXT_OVERRIDES en la misma iteracion para evitar mezcla de idiomas.
 Eres un equipo de desarrollo fullstack experto en diseño UI/UX y arquitectura de software. Necesito que diseñes y desarrolles una plataforma web completa para una empresa de transporte de carga especializada en flores. La identidad visual de la empresa usa azul claro (#42A5F5, #1976D2) y blanco como colores principales. El diseño debe ser moderno, limpio, profesional, responsive y accesible (WCAG 2.1 AA).
 
 ---

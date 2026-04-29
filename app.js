@@ -570,7 +570,7 @@ let publicTextCaptured = false;
 
 function capturePublicTextNodes() {
   if (publicTextCaptured) return;
-  const scopes = [document.querySelector(".top-nav"), document.getElementById("public-app"), document.querySelector(".site-footer")].filter(Boolean);
+  const scopes = [document.querySelector(".top-nav"), document.getElementById("public-app"), document.querySelector(".site-footer"), document.getElementById("auth-modal")].filter(Boolean);
   scopes.forEach((scope) => {
     const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
     let current = walker.nextNode();
@@ -749,6 +749,42 @@ const PUBLIC_ES_EN_DICT = {
   "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).": "Vacancies sync with the same team that manages candidates in the portal (same local browser database).",
   "Formulario de contacto B2B": "B2B contact form",
   "Cuentanos tu necesidad logistica y te compartimos una propuesta tecnica y comercial.": "Tell us your logistics needs and we will share a technical and commercial proposal.",
+  "Cuentanos tu operacion y te proponemos una solucion logistica ajustada a tu nivel de servicio.": "Tell us about your operation and we will propose a logistics solution tailored to your service level.",
+  "Respuesta comercial < 30 min": "Commercial response < 30 min",
+  "Atencion especializada B2B": "Specialized B2B support",
+  "Confidencialidad de datos": "Data confidentiality",
+  "Al enviar, un asesor B2B te contactara para validar requerimientos tecnicos y comerciales.": "After submitting, a B2B advisor will contact you to validate technical and commercial requirements.",
+  "Enviar solicitud B2B": "Send B2B request",
+  "Tipo de operacion": "Operation type",
+  Exportacion: "Export",
+  "Distribucion nacional": "Domestic distribution",
+  "Operacion mixta": "Mixed operation",
+  "Frecuencia estimada": "Estimated frequency",
+  Diaria: "Daily",
+  Semanal: "Weekly",
+  Quincenal: "Biweekly",
+  Mensual: "Monthly",
+  "Ventana de inicio": "Start window",
+  "Inmediata (0-7 dias)": "Immediate (0-7 days)",
+  "Corto plazo (8-30 dias)": "Short term (8-30 days)",
+  "Planificada (31+ dias)": "Planned (31+ days)",
+  "Volumen mensual aprox. (kg)": "Approx. monthly volume (kg)",
+  "Portal empresarial Antares": "Antares enterprise portal",
+  "Ingreso seguro para clientes y equipos operativos.": "Secure access for clients and operational teams.",
+  Ingresar: "Sign in",
+  "Ingreso empresarial seguro": "Secure enterprise access",
+  "Accede a tu operacion con trazabilidad, control de permisos y registro de actividad.": "Access your operation with traceability, permission control, and activity records.",
+  "Portal disenado para equipos de operaciones, administracion y recursos humanos.": "Portal designed for operations, administration, and HR teams.",
+  "Sesion cifrada": "Encrypted session",
+  "Historial de cambios": "Change history",
+  "Soporte corporativo": "Corporate support",
+  "Usa credenciales corporativas. Evita ingresar desde equipos compartidos o redes publicas.": "Use corporate credentials. Avoid signing in from shared devices or public networks.",
+  "Registro de cliente empresarial": "Enterprise client registration",
+  "Completa tu perfil para habilitar aprobacion de acceso y configuracion de servicios.": "Complete your profile to enable access approval and service setup.",
+  "Tu solicitud sera revisada por un administrador antes de habilitar acceso al portal.": "Your request will be reviewed by an administrator before portal access is enabled.",
+  "Recuperacion de acceso": "Access recovery",
+  "Te ayudamos a restablecer el acceso de forma segura con validacion administrativa.": "We help you restore access securely with administrative validation.",
+  "Solicitar recuperacion": "Request recovery",
   "Caso de exito · Exportador floricola": "Success case · Floriculture exporter",
   "De 9 incidentes mensuales a 2 con control en ruta": "From 9 monthly incidents down to 2 with route control",
   "Integramos seguimiento por hitos, control de temperatura y alertas tempranas para reducir desviaciones en despachos de alto valor.": "We integrated milestone tracking, temperature control, and early alerts to reduce deviations in high-value dispatches.",
@@ -928,6 +964,34 @@ function applyPublicLanguage(lang = "es") {
     if (el) el.textContent = value;
   });
 
+  const placeholderMap = {
+    es: {
+      "input[name='name']": "Ej. Laura Castaneda",
+      "input[name='company']": "Ej. FloraExport SAS",
+      "input[name='taxId']": "Ej. 900123456-7",
+      "input[name='position']": "Ej. Directora de Operaciones",
+      "input[name='phone']": "+57 300 000 0000",
+      "input[name='email']": "nombre@empresa.com",
+      "input[name='monthlyVolumeKg']": "Ej. 12000",
+      "textarea[name='message']": "Cuentanos origen/destino, volumen aproximado, frecuencia y ventana de entrega."
+    },
+    en: {
+      "input[name='name']": "E.g. Laura Castaneda",
+      "input[name='company']": "E.g. FloraExport SAS",
+      "input[name='taxId']": "E.g. 900123456-7",
+      "input[name='position']": "E.g. Director of Operations",
+      "input[name='phone']": "+57 300 000 0000",
+      "input[name='email']": "name@company.com",
+      "input[name='monthlyVolumeKg']": "E.g. 12000",
+      "textarea[name='message']": "Tell us origin/destination, approximate volume, frequency, and delivery window."
+    }
+  };
+  const placeholders = placeholderMap[lang] || placeholderMap.es;
+  Object.entries(placeholders).forEach(([selector, value]) => {
+    const el = document.querySelector(`#contact ${selector}`);
+    if (el) el.setAttribute("placeholder", value);
+  });
+
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
 
@@ -976,6 +1040,70 @@ function applyTheme(theme = "light") {
 
 function uid() {
   return Math.random().toString(36).slice(2, 11);
+}
+
+function formatColombianPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(-10);
+  if (!digits) return "";
+  const parts = [
+    digits.slice(0, 3),
+    digits.slice(3, 6),
+    digits.slice(6, 8),
+    digits.slice(8, 10)
+  ].filter(Boolean);
+  return `+57 ${parts.join(" ")}`.trim();
+}
+
+function clearFieldError(field) {
+  if (!field) return;
+  field.classList.remove("field-invalid");
+  const label = field.closest("label");
+  const error = label?.querySelector(".field-error");
+  if (error) error.remove();
+}
+
+function setFieldError(field, message) {
+  if (!field) return;
+  const label = field.closest("label");
+  if (!label) return;
+  clearFieldError(field);
+  field.classList.add("field-invalid");
+  const hint = document.createElement("small");
+  hint.className = "field-error";
+  hint.textContent = message;
+  label.appendChild(hint);
+}
+
+function initB2BFormExperience() {
+  const form = nodes.b2bForm;
+  if (!form) return;
+  const phoneInput = form.querySelector("input[name='phone']");
+  const emailInput = form.querySelector("input[name='email']");
+  const messageInput = form.querySelector("textarea[name='message']");
+  const volumeInput = form.querySelector("input[name='monthlyVolumeKg']");
+
+  if (phoneInput) {
+    phoneInput.addEventListener("input", () => {
+      const cursorAtEnd = phoneInput.selectionStart === phoneInput.value.length;
+      phoneInput.value = formatColombianPhone(phoneInput.value);
+      if (cursorAtEnd) phoneInput.setSelectionRange(phoneInput.value.length, phoneInput.value.length);
+      clearFieldError(phoneInput);
+    });
+  }
+
+  if (emailInput) {
+    emailInput.addEventListener("input", () => clearFieldError(emailInput));
+  }
+  if (messageInput) {
+    messageInput.addEventListener("input", () => clearFieldError(messageInput));
+  }
+  if (volumeInput) {
+    volumeInput.addEventListener("input", () => clearFieldError(volumeInput));
+  }
+
+  form.querySelectorAll("input,select,textarea").forEach((field) => {
+    field.addEventListener("change", () => clearFieldError(field));
+  });
 }
 
 function nowIso() {
@@ -1754,34 +1882,47 @@ function authView() {
   const deptOptions = departmentOptions();
   if (tab === "login") {
     return `
+      <div class="auth-header-premium">
+        <h3>Ingreso empresarial seguro</h3>
+        <p class="muted">Accede a tu operacion con trazabilidad, control de permisos y registro de actividad.</p>
+      </div>
       <div class="auth-login-shell">
-        <form id="form-login" class="form-grid auth-form">
-          <label class="full">Correo corporativo <input type="email" name="email" autocomplete="username" required /></label>
-          <label class="full">Contrasena
+        <form id="form-login" class="form-grid auth-form auth-pane">
+          <label class="full"><span>Correo corporativo</span><input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
+          <label class="full"><span>Contrasena</span>
             <div class="password-field">
               <input type="password" name="password" autocomplete="current-password" required />
               <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">Mostrar</button>
             </div>
           </label>
-          <button class="btn btn-primary full" type="submit">Ingresar de forma segura</button>
+          <button class="btn btn-primary full" type="submit">Ingresar al portal</button>
         </form>
-        <div class="auth-login-side">
+        <div class="auth-login-side auth-pane">
           <h3>Acceso seguro Antares</h3>
-          <p class="muted">Gestiona solicitudes, viajes y talento humano en un solo portal operativo.</p>
+          <p class="muted">Portal disenado para equipos de operaciones, administracion y recursos humanos.</p>
           <ul class="auth-bullets">
             <li>Control por roles y permisos granulares</li>
             <li>Trazabilidad de aprobaciones y auditoria</li>
             <li>Operacion alineada a flujos empresariales</li>
           </ul>
+          <div class="auth-side-pills">
+            <span>Sesion cifrada</span>
+            <span>Historial de cambios</span>
+            <span>Soporte corporativo</span>
+          </div>
         </div>
       </div>
-      <p class="muted auth-help">Usa tu correo y contrasena. Evita ingresar desde equipos compartidos.</p>
+      <p class="muted auth-help">Usa credenciales corporativas. Evita ingresar desde equipos compartidos o redes publicas.</p>
     `;
   }
 
   if (tab === "register") {
     return `
-      <form id="form-register" class="form-grid auth-form">
+      <div class="auth-header-premium">
+        <h3>Registro de cliente empresarial</h3>
+        <p class="muted">Completa tu perfil para habilitar aprobacion de acceso y configuracion de servicios.</p>
+      </div>
+      <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
         <label>Primer nombre <input name="firstName" required /></label>
         <label>Segundo nombre <input name="middleName" /></label>
         <label>Primer apellido <input name="lastName" required /></label>
@@ -1814,7 +1955,7 @@ function authView() {
         </label>
         <label>Cargo <input name="position" required /></label>
         <label>Area <input name="workArea" required placeholder="Ej: Operaciones" /></label>
-        <label>Telefono <input name="phone" required /></label>
+        <label>Telefono <input name="phone" placeholder="+57 300 000 0000" required /></label>
         <label>Departamento
           <select name="department" id="register-department" required>
             <option value="">Seleccione...</option>
@@ -1827,7 +1968,7 @@ function authView() {
           </select>
         </label>
         <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
-        <label>Correo <input type="email" name="email" autocomplete="username" required /></label>
+        <label>Correo <input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
         <label class="full">Contrasena
           <div class="password-field">
             <input type="password" minlength="8" name="password" autocomplete="new-password" required />
@@ -1837,15 +1978,22 @@ function authView() {
         </label>
         <label class="full">Confirmar contrasena <input type="password" minlength="8" name="passwordConfirm" autocomplete="new-password" required /></label>
         <label class="full"><input type="checkbox" name="acceptTerms" required /> Acepto terminos, politica de privacidad y tratamiento de datos (Habeas Data).</label>
+        <div class="full auth-inline-note">
+          <small class="muted">Tu solicitud sera revisada por un administrador antes de habilitar acceso al portal.</small>
+        </div>
         <button class="btn btn-primary full" type="submit">Crear cuenta cliente</button>
       </form>
     `;
   }
 
   return `
-    <form id="form-recover" class="form-grid">
-      <label class="full">Correo registrado <input type="email" name="email" required /></label>
-      <button class="btn btn-primary full" type="submit">Enviar recuperacion</button>
+    <div class="auth-header-premium">
+      <h3>Recuperacion de acceso</h3>
+      <p class="muted">Te ayudamos a restablecer el acceso de forma segura con validacion administrativa.</p>
+    </div>
+    <form id="form-recover" class="form-grid auth-pane">
+      <label class="full"><span>Correo registrado</span><input type="email" name="email" placeholder="nombre@empresa.com" required /></label>
+      <button class="btn btn-primary full" type="submit">Solicitar recuperacion</button>
     </form>
   `;
 }
@@ -1927,6 +2075,14 @@ function bindAuthForms() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    const registerPhone = register.querySelector("input[name='phone']");
+    if (registerPhone) {
+      registerPhone.addEventListener("input", () => {
+        const cursorAtEnd = registerPhone.selectionStart === registerPhone.value.length;
+        registerPhone.value = formatColombianPhone(registerPhone.value);
+        if (cursorAtEnd) registerPhone.setSelectionRange(registerPhone.value.length, registerPhone.value.length);
+      });
+    }
     const regPass = register.querySelector("input[name='password']");
     const strength = register.querySelector("#password-strength");
     if (regPass && strength) {
@@ -6972,7 +7128,40 @@ function initGlobalEvents() {
 
   nodes.b2bForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
+    const emailValue = normalizeEmail(data.email);
+    const phoneDigits = String(data.phone || "").replace(/\D/g, "");
+    const messageValue = String(data.message || "").trim();
+    const monthlyVolume = parseNum(data.monthlyVolumeKg);
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
+
+    const errors = [];
+    if (!emailValid) {
+      setFieldError(nodes.b2bForm.querySelector("input[name='email']"), "Ingresa un correo corporativo valido.");
+      errors.push("email");
+    }
+    if (phoneDigits.length !== 10 || !phoneDigits.startsWith("3")) {
+      setFieldError(nodes.b2bForm.querySelector("input[name='phone']"), "Ingresa un celular colombiano valido (10 digitos).");
+      errors.push("phone");
+    }
+    if (messageValue.length < 30) {
+      setFieldError(nodes.b2bForm.querySelector("textarea[name='message']"), "Cuéntanos un poco mas del requerimiento (minimo 30 caracteres).");
+      errors.push("message");
+    }
+    if (monthlyVolume < 100) {
+      setFieldError(nodes.b2bForm.querySelector("input[name='monthlyVolumeKg']"), "Ingresa un volumen mensual mayor o igual a 100 kg.");
+      errors.push("volume");
+    }
+    if (errors.length) {
+      notify("Revisa los campos marcados para enviar tu solicitud B2B.", "error");
+      return;
+    }
+
+    data.email = emailValue;
+    data.phone = formatColombianPhone(data.phone);
+    data.message = messageValue;
+    data.monthlyVolumeKg = monthlyVolume;
     const all = read(KEYS.contacts, []);
     all.unshift({ id: uid(), ...data, createdAt: nowIso() });
     write(KEYS.contacts, all);
@@ -7008,6 +7197,7 @@ function initGlobalEvents() {
   });
 
   initRequiredFieldIndicators();
+  initB2BFormExperience();
 }
 
 function initRequiredFieldIndicators() {
