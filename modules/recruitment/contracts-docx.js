@@ -1,13 +1,11 @@
 (() => {
-  /**
-   * Plantillas oficiales en /documentacion (archivos físicos del repositorio).
-   * Las rutas deben coincidir con los nombres bajo la carpeta documentacion/.
-   */
   const TEMPLATE_BY_KIND = {
     oficina: "documentacion/CONTRATO_TRABAJO_PERSONAL_OFICINA.docx",
     fijo: "documentacion/CONTRATO_PERSONAL_TERMINO_FIJO.docx",
     prestacion: "documentacion/CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
   };
+
+  const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
   function inferTemplateKind(contractType, workerRole) {
     const wr = String(workerRole || "").toLowerCase();
@@ -68,23 +66,78 @@
     return parts.join(" ").replace(/\s+/g, " ").trim();
   }
 
+  function loadScriptOnce(src) {
+    if (typeof window.JSZip === "function") return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.async = true;
+      s.crossOrigin = "anonymous";
+      s.src = src;
+      s.onload = () => {
+        if (typeof window.JSZip === "function") resolve();
+        else reject(new Error("JSZip no expuso el objeto global"));
+      };
+      s.onerror = () => reject(new Error("No se pudo cargar JSZip (compruebe conexion o CDN)"));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureJsZip() {
+    if (typeof window.JSZip === "function") return window.JSZip;
+    await loadScriptOnce(JSZIP_CDN);
+    if (typeof window.JSZip !== "function") {
+      throw new Error("JSZip no esta disponible: recargue la pagina o permita el script CDN.");
+    }
+    return window.JSZip;
+  }
+
+  /**
+   * Rellena el parrafo tipo:
+   * "en la ciudad de _____ ... a los ___ dias del mes de _____ de _____"
+   * (guiones bajos o espacios en plantillas Word).
+   */
   function replaceDateSentence(xml, city, dateValue) {
     const dt = dateValue ? new Date(`${dateValue}T12:00:00`) : new Date();
     const validDate = Number.isFinite(dt.getTime()) ? dt : new Date();
     const day = String(validDate.getDate());
     const month = MONTHS_ES[validDate.getMonth()];
     const year = String(validDate.getFullYear());
+    const c = escapeXml(city);
+    const d = escapeXml(day);
+    const m = escapeXml(month);
+    const y = escapeXml(year);
 
     let out = xml;
-    out = out.replace(/(en la ciudad de\s*)(_+)/gi, `$1${escapeXml(city)}`);
-    out = out.replace(/(a los\s*)(_+)/gi, `$1${escapeXml(day)}`);
-    out = out.replace(/(mes de\s*)(_+)/gi, `$1${escapeXml(month)}`);
-    out = out.replace(/(mes de\s*[a-zA-ZáéíóúÁÉÍÓÚñÑ]+\s*)(_+)/gi, `$1${escapeXml(year)}`);
+    const blank = "[\\s_\\u00a0]{2,}";
+
+    out = out.replace(new RegExp(`(en la ciudad de\\s*)(${blank})`, "gi"), `$1${c}`);
+    out = out.replace(new RegExp(`(a los\\s*)(${blank})(d[ií]as)`, "gi"), `$1${d} $3`);
+    out = out.replace(new RegExp(`(mes de\\s*)(${blank})(\\s*de\\s*)(${blank})`, "gi"), `$1${m}$3${y}`);
+
+    out = out.replace(new RegExp(`(de\\s*)(${blank})(\\s*</w:t>)`, "gi"), `$1${y}$3`);
+
+    return out;
+  }
+
+  /**
+   * Ultima hoja: lineas con solo "Cc." reciben la cedula.
+   * Cubre runs partidos y variantes de puntuacion en word/document.xml.
+   */
+  function injectCedulaAfterCcRuns(xml, cedula) {
+    const esc = escapeXml(cedula);
+    if (!esc) return xml;
+
+    let out = xml;
+    out = out.replace(/(<w:t[^>]*>)\s*Cc\.\s*<\/w:t>/gi, `$1Cc. ${esc}<\/w:t>`);
+    out = out.replace(/(<w:t[^>]*>)\s*Cc\s*<\/w:t>/gi, (full, open) => {
+      if (full.includes(`Cc. ${esc}`) || full.includes(esc)) return full;
+      return `${open}Cc. ${esc}<\/w:t>`;
+    });
     return out;
   }
 
   async function generateEmployeeContractDocx(input) {
-    if (!window.JSZip) throw new Error("JSZip no esta disponible en el navegador.");
+    const JSZipLib = await ensureJsZip();
 
     let kind = String(input.contractTemplateKind || "").trim().toLowerCase();
     if (!TEMPLATE_BY_KIND[kind]) {
@@ -110,7 +163,7 @@
       cargo_empleado: String(input.cargo_empleado || "")
     };
 
-    const zip = await JSZip.loadAsync(sourceBuffer);
+    const zip = await JSZipLib.loadAsync(sourceBuffer);
     const wordEntries = Object.keys(zip.files).filter((name) => /^word\/.*\.xml$/i.test(name));
 
     await Promise.all(
@@ -119,12 +172,10 @@
         let next = xml;
         Object.entries(map).forEach(([key, val]) => {
           const escaped = escapeXml(val);
-          const re = new RegExp(key, "g");
-          next = next.replace(re, escaped);
+          next = next.replace(new RegExp(key, "g"), escaped);
         });
         next = replaceDateSentence(next, map.ciudad_empleado, input.signDate || "");
-        next = next.replace(/>Cc\.<\/w:t>/g, `>Cc. ${escapeXml(map.cedula_empleado)}<\/w:t>`);
-        next = next.replace(/>Cc<\/w:t>/g, `>Cc. ${escapeXml(map.cedula_empleado)}<\/w:t>`);
+        next = injectCedulaAfterCcRuns(next, map.cedula_empleado);
         zip.file(entry, next);
       })
     );
@@ -146,5 +197,7 @@
   window.RecruitmentDomain = window.RecruitmentDomain || {};
   window.RecruitmentDomain.TEMPLATE_BY_KIND = TEMPLATE_BY_KIND;
   window.RecruitmentDomain.inferTemplateKind = inferTemplateKind;
+  window.RecruitmentDomain.toWordsEs = toWordsEs;
+  window.RecruitmentDomain.ensureJsZip = ensureJsZip;
   window.RecruitmentDomain.generateEmployeeContractDocx = generateEmployeeContractDocx;
 })();

@@ -595,9 +595,21 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
     }
   }
   if (targetStatus === "Contratado") {
-    const hasContract = read(KEYS.contracts, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
-    if (!hasContract) {
-      return { ok: false, message: "Para marcar como contratado primero debes generar el contrato laboral." };
+    const byCandidate = read(KEYS.contracts, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
+    const candDoc = String(candidate.idDoc || "").trim();
+    const byEmployeeDoc =
+      Boolean(candDoc) &&
+      read(KEYS.contracts, []).some((item) => {
+        if (!item.employeeId) return false;
+        const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(item.employeeId));
+        return emp && String(emp.idDoc || "").trim() === candDoc;
+      });
+    if (!byCandidate && !byEmployeeDoc) {
+      return {
+        ok: false,
+        message:
+          "Para marcar como contratado debe existir un contrato generado (desde nomina, misma cedula) o el registro historico por candidato."
+      };
     }
   }
   return { ok: true };
@@ -636,7 +648,7 @@ const nodes = {
   b2bForm: document.getElementById("b2b-form"),
   publicApp: document.getElementById("public-app"),
   portalApp: document.getElementById("portal-app"),
-  sideLinks: [...document.querySelectorAll(".side-link")],
+  sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
   logout: document.getElementById("logout"),
   viewTitle: document.getElementById("view-title"),
   viewRoot: document.getElementById("view-root"),
@@ -736,6 +748,12 @@ const PUBLIC_ES_EN_DICT = {
   Equipo: "Team",
   Empresas: "Companies",
   Testimonios: "Testimonials",
+  Aliados: "Partners",
+  Actualidad: "News",
+  Experiencias: "Client stories",
+  Liderazgo: "Leadership",
+  Carreras: "Careers",
+  "Abrir menu de navegacion": "Open navigation menu",
   Flota: "Fleet",
   Servicios: "Services",
   Cobertura: "Coverage",
@@ -1161,7 +1179,10 @@ function applyPublicLanguage(lang = "es") {
 
   const hamburgerBtn = document.getElementById("hamburger-btn");
   if (hamburgerBtn) {
-    hamburgerBtn.setAttribute("aria-label", lang === "en" ? "Open navigation menu" : "Menu de navegacion");
+    hamburgerBtn.setAttribute(
+      "aria-label",
+      lang === "en" ? "Open navigation menu" : "Abrir menu de navegacion"
+    );
   }
 }
 
@@ -2048,6 +2069,16 @@ function seed() {
   purgeDemoData();
 }
 
+const SESSION_IDLE_MS = 30 * 60 * 1000;
+const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
+const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
+const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
+
+let __sessionActivityThrottleAt = 0;
+let __sessionIdleCheckTimer = null;
+let __sessionApiRefreshTimer = null;
+let __sessionActivityHandler = null;
+
 function getSession() {
   return read(KEYS.session, null);
 }
@@ -2057,7 +2088,111 @@ function setSession(sessionData) {
   state.session = sessionData;
 }
 
+function stopSessionSecurityWatch() {
+  if (__sessionActivityHandler) {
+    ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach((ev) => {
+      window.removeEventListener(ev, __sessionActivityHandler);
+    });
+    __sessionActivityHandler = null;
+  }
+  if (__sessionIdleCheckTimer) {
+    clearInterval(__sessionIdleCheckTimer);
+    __sessionIdleCheckTimer = null;
+  }
+  if (__sessionApiRefreshTimer) {
+    clearInterval(__sessionApiRefreshTimer);
+    __sessionApiRefreshTimer = null;
+  }
+}
+
+function bumpSessionActivityTimestamp() {
+  const s = getSession();
+  if (!s) return;
+  const now = Date.now();
+  setSession({ ...s, lastActivityAt: now });
+}
+
+function throttledBumpSessionActivity() {
+  const now = Date.now();
+  if (now - __sessionActivityThrottleAt < SESSION_ACTIVITY_THROTTLE_MS) return;
+  __sessionActivityThrottleAt = now;
+  bumpSessionActivityTimestamp();
+}
+
+function checkSessionIdleAndLogout() {
+  const s = getSession();
+  if (!s) return;
+  const last = typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0;
+  if (!last || Date.now() - last <= SESSION_IDLE_MS) return;
+  stopSessionSecurityWatch();
+  clearSession();
+  state.currentView = "dashboard";
+  history.replaceState(null, "", window.location.pathname + window.location.search);
+  notify("Sesión cerrada por 30 minutos de inactividad.", "info");
+  renderPortal();
+}
+
+async function tryApiRefreshBridge() {
+  const api = window.AntaresApi;
+  const session = getSession();
+  if (!api?.getBase?.() || !session?.userId || !session?.refreshToken) return;
+  const base = String(api.getBase()).replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${base}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ userId: session.userId, refreshToken: session.refreshToken })
+    });
+    if (!res.ok) return;
+    const body = await res.json();
+    if (!body?.accessToken) return;
+    api.setAccessToken(body.accessToken);
+    const now = Date.now();
+    setSession({
+      ...session,
+      accessToken: body.accessToken,
+      refreshToken: body.refreshToken || session.refreshToken,
+      lastActivityAt: now
+    });
+  } catch (_e) {
+    /* API opcional */
+  }
+}
+
+function refreshClientSessionTokenIfDue() {
+  const s = getSession();
+  if (!s) return;
+  const user = currentUser();
+  if (!user) return;
+  const now = Date.now();
+  const lastAct = typeof s.lastActivityAt === "number" ? s.lastActivityAt : now;
+  if (now - lastAct > SESSION_IDLE_MS) return;
+  const issued = typeof s.tokenIssuedAt === "number" ? s.tokenIssuedAt : 0;
+  if (now - issued < SESSION_CLIENT_TOKEN_ROTATE_MS) return;
+  setSession({ ...getSession(), token: buildToken(user), tokenIssuedAt: now });
+}
+
+async function scheduledSessionTokenMaintenance() {
+  const s = getSession();
+  if (!s || !currentUser()) return;
+  const lastAct = typeof s.lastActivityAt === "number" ? s.lastActivityAt : Date.now();
+  if (Date.now() - lastAct > SESSION_IDLE_MS) return;
+  await tryApiRefreshBridge();
+  refreshClientSessionTokenIfDue();
+}
+
+function startSessionSecurityWatch() {
+  stopSessionSecurityWatch();
+  __sessionActivityHandler = throttledBumpSessionActivity;
+  ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach((ev) => {
+    window.addEventListener(ev, __sessionActivityHandler, { passive: true });
+  });
+  __sessionIdleCheckTimer = setInterval(checkSessionIdleAndLogout, 60 * 1000);
+  __sessionApiRefreshTimer = setInterval(() => void scheduledSessionTokenMaintenance(), SESSION_API_REFRESH_MS);
+}
+
 function clearSession() {
+  stopSessionSecurityWatch();
   localStorage.removeItem(KEYS.session);
   state.session = null;
   try {
@@ -2085,7 +2220,8 @@ async function tryApiLoginBridge(user, password) {
       setSession({
         ...session,
         accessToken: body.accessToken,
-        refreshToken: body.refreshToken || ""
+        refreshToken: body.refreshToken || "",
+        lastActivityAt: Date.now()
       });
     }
     if (window.DomainModules?.requests?.hydrateFromApiIfEnabled) {
@@ -2307,7 +2443,13 @@ function bindAuthForms() {
         notify("Tu solicitud de registro fue rechazada. Contacta a soporte.", "error");
         return;
       }
-      setSession({ userId: user.id, role: user.role, token: buildToken(user) });
+      setSession({
+        userId: user.id,
+        role: user.role,
+        token: buildToken(user),
+        lastActivityAt: Date.now(),
+        tokenIssuedAt: Date.now()
+      });
       void tryApiLoginBridge(user, String(data.password || ""));
       hideAuth();
       renderPortal();
@@ -3060,14 +3202,39 @@ function setView(view) {
 }
 
 function renderPortal() {
-  const session = getSession();
+  let session = getSession();
   if (!session) {
+    stopSessionSecurityWatch();
     document.body.classList.remove("portal-mode");
+    document.body.classList.remove("public-nav-open");
+    const pubNav = document.getElementById("main-nav");
+    if (pubNav) pubNav.classList.remove("nav-open");
+    const pubHam = document.getElementById("hamburger-btn");
+    if (pubHam) pubHam.setAttribute("aria-expanded", "false");
     nodes.publicApp.classList.remove("hidden");
     nodes.portalApp.classList.add("hidden");
     return;
   }
+  const ts = Date.now();
+  if (typeof session.lastActivityAt !== "number") {
+    session = {
+      ...session,
+      lastActivityAt: ts,
+      tokenIssuedAt: typeof session.tokenIssuedAt === "number" ? session.tokenIssuedAt : ts
+    };
+    setSession(session);
+  } else if (ts - session.lastActivityAt > SESSION_IDLE_MS) {
+    clearSession();
+    notify("Sesión cerrada por 30 minutos de inactividad.", "info");
+    renderPortal();
+    return;
+  }
   state.session = session;
+  document.body.classList.remove("public-nav-open");
+  const pubNavOpen = document.getElementById("main-nav");
+  if (pubNavOpen) pubNavOpen.classList.remove("nav-open");
+  const pubHamOpen = document.getElementById("hamburger-btn");
+  if (pubHamOpen) pubHamOpen.setAttribute("aria-expanded", "false");
   document.body.classList.add("portal-mode");
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
@@ -3111,6 +3278,7 @@ function renderPortal() {
   renderPortalView();
   updateNotificationBadge();
   startNotificationsPolling();
+  startSessionSecurityWatch();
 }
 
 let __notificationsPollHandle = null;
@@ -3165,202 +3333,8 @@ function startNotificationsPolling() {
   }, 5000);
 }
 
-function kpiCardsTripPipeline(user) {
-  const visible = getVisibleRequestsForUser(user);
-  return [
-    { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length, icon: IC.clock, color: "kpi-icon-warning" },
-    { label: "Viaje asignado", value: visible.filter((r) => r.status === STATUS.VIAJE_ASIGNADO).length, icon: IC.check, color: "kpi-icon-success" },
-    { label: "En tránsito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length, icon: IC.truck, color: "kpi-icon-primary" },
-    { label: "Completadas", value: visible.filter((r) => r.status === STATUS.COMPLETADA).length, icon: IC.shield, color: "kpi-icon-teal" }
-  ];
-}
-
 function buildHeaderKpiCardsForView(view, user) {
-  const v = String(view || "dashboard");
-
-  const V_TRIP = new Set([
-    "dashboard",
-    "requests",
-    "transport-requests",
-    "transport-trips",
-    "transport-calendar",
-    "history"
-  ]);
-  if (V_TRIP.has(v)) return kpiCardsTripPipeline(user);
-
-  if (v === "transport-vehicles") {
-    const vehicles = read(KEYS.vehicles, []);
-    const documentRiskCount = vehicles.filter((veh) => {
-      const soat = docExpiryStatus(veh.soatExpeditionDate);
-      const tec = docExpiryStatus(veh.techInspectionExpeditionDate);
-      return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
-        ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
-    }).length;
-    return [
-      { label: "Total flota", value: vehicles.length, icon: IC.truck, color: "kpi-icon-primary" },
-      { label: "Disponibles", value: vehicles.filter((veh) => veh.available).length, icon: IC.check, color: "kpi-icon-success" },
-      { label: "Termoking", value: vehicles.filter((veh) => veh.refrigerated).length, icon: IC.activity, color: "kpi-icon-teal" },
-      { label: "Docs. en riesgo", value: documentRiskCount, icon: IC.alertTriangle, color: "kpi-icon-warning" }
-    ];
-  }
-
-  if (v === "transport-drivers") {
-    const drivers = read(KEYS.drivers, []);
-    const expiringSoon = drivers.filter((d) => {
-      if (!d.licenseExpiry) return false;
-      const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
-      return days >= 0 && days <= 60;
-    }).length;
-    const expired = drivers.filter((d) => {
-      if (!d.licenseExpiry) return false;
-      return new Date(`${d.licenseExpiry}T12:00:00`).getTime() < Date.now();
-    }).length;
-    return [
-      { label: "Conductores", value: drivers.length, icon: IC.users, color: "kpi-icon-primary" },
-      { label: "Disponibles", value: drivers.filter((d) => d.available).length, icon: IC.check, color: "kpi-icon-success" },
-      { label: "Lic. 60 días", value: expiringSoon, icon: IC.clock, color: "kpi-icon-warning" },
-      { label: "Lic. vencidas", value: expired, icon: IC.alertTriangle, color: "kpi-icon-rose" }
-    ];
-  }
-
-  if (v === "payroll") {
-    const employees = read(KEYS.payrollEmployees, []);
-    const allRuns = read(KEYS.payrollRuns, []);
-    const pending = allRuns.filter((r) => !r.paid).length;
-    const now = new Date();
-    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const totalPayrollMonth = allRuns
-      .filter((r) => String(r.month || "") === currentYm)
-      .reduce((acc, run) => acc + parseNum(run.net), 0);
-    const pendingAbsenceApprovals = read(KEYS.approvals, []).filter(
-      (a) => a.status === "pendiente" && a.type === "register_hr_absence"
-    ).length;
-    return [
-      { label: "Empleados activos", value: employees.length, icon: IC.users, color: "kpi-icon-primary" },
-      { label: "Pagos pendientes", value: pending, icon: IC.clock, color: "kpi-icon-warning" },
-      { label: "Neto mes actual", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}`, icon: IC.dollar, color: "kpi-icon-teal" },
-      { label: "Ausencias por revisar", value: pendingAbsenceApprovals, icon: IC.activity, color: "kpi-icon-violet" }
-    ];
-  }
-
-  if (v === "hiring") {
-    const vacancies = read(KEYS.vacancies, []);
-    const candidates = read(KEYS.candidates, []);
-    const positions = read(KEYS.positions, []);
-    const contracts = read(KEYS.contracts, []);
-    const today = new Date();
-    const openVacancies = vacancies.filter((vac) => vac.status === "Publicada");
-    const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
-    const activePositions = positions.filter((p) => p.active !== false);
-    const contractsThisMonth = contracts.filter((c) => {
-      const d = new Date(c.createdAt || "");
-      return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    });
-    return [
-      { label: "Vacantes abiertas", value: openVacancies.length, icon: IC.briefcase, color: "kpi-icon-primary" },
-      { label: "Candidatos activos", value: activeCandidates.length, icon: IC.userPlus, color: "kpi-icon-violet" },
-      { label: "Contratos mes", value: contractsThisMonth.length, icon: IC.file, color: "kpi-icon-teal" },
-      { label: "Cargos activos", value: activePositions.length, icon: IC.layers, color: "kpi-icon-success" }
-    ];
-  }
-
-  if (v === "labor-compliance") {
-    const employees = read(KEYS.payrollEmployees, []);
-    const contracts = read(KEYS.contracts, []);
-    const records = read(KEYS.sstCompliance, []);
-    const todayTs = Date.now();
-    const dueSoonDays = 30;
-    const expiringContracts = contracts.filter((contract) => {
-      if (!contract.endDate) return false;
-      const endTs = new Date(`${contract.endDate}T12:00:00`).getTime();
-      if (!Number.isFinite(endTs) || endTs < todayTs) return false;
-      return (endTs - todayTs) / 86400000 <= dueSoonDays;
-    });
-    const missingSocialSecurity = employees.filter((emp) => !emp.eps || !emp.pensionFund || !emp.arl);
-    const expiringLicenses = employees.filter((emp) => {
-      if (!emp.licenseExpiry) return false;
-      const expTs = new Date(`${emp.licenseExpiry}T12:00:00`).getTime();
-      if (!Number.isFinite(expTs) || expTs < todayTs) return false;
-      return (expTs - todayTs) / 86400000 <= dueSoonDays;
-    });
-    return [
-      { label: "Controles SST", value: records.length, icon: IC.shield, color: "kpi-icon-teal" },
-      { label: "Contratos por vencer", value: expiringContracts.length, icon: IC.calendar, color: "kpi-icon-warning" },
-      { label: "SS incompleta", value: missingSocialSecurity.length, icon: IC.heart, color: "kpi-icon-rose" },
-      { label: "Licencias 30 d", value: expiringLicenses.length, icon: IC.file, color: "kpi-icon-violet" }
-    ];
-  }
-
-  if (v === "admin-users") {
-    const users = read(KEYS.users, []);
-    const adminCount = users.filter((u) => u.role === ROLES.ADMIN).length;
-    const rrhhCount = users.filter((u) => u.role === ROLES.RRHH).length;
-    const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
-    const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
-    return [
-      { label: "Usuarios totales", value: users.length, icon: IC.users, color: "kpi-icon-primary" },
-      { label: "Administradores", value: adminCount, icon: IC.shield, color: "kpi-icon-violet" },
-      { label: "Clientes", value: clientCount, icon: IC.briefcase, color: "kpi-icon-teal" },
-      { label: "Cuentas aprobadas", value: approvedCount, icon: IC.check, color: "kpi-icon-success" }
-    ];
-  }
-
-  if (v === "authorizations") {
-    const approvals = read(KEYS.approvals, []);
-    const pending = approvals.filter((a) => a.status === "pendiente").length;
-    const approved = approvals.filter((a) => a.status === "aprobado").length;
-    const rejected = approvals.filter((a) => a.status === "rechazado").length;
-    return [
-      { label: "Pendientes", value: pending, icon: IC.clock, color: "kpi-icon-warning" },
-      { label: "Aprobadas", value: approved, icon: IC.check, color: "kpi-icon-success" },
-      { label: "Rechazadas", value: rejected, icon: IC.x, color: "kpi-icon-rose" },
-      { label: "Histórico total", value: approvals.length, icon: IC.file, color: "kpi-icon-slate" }
-    ];
-  }
-
-  if (v === "profile") {
-    const fields = ["name", "email", "phone", "taxId", "documentType", "address", "city", "department", "emergencyContact", "emergencyPhone"];
-    const filled = fields.filter((field) => String(user[field] ?? "").trim() !== "").length;
-    const pct = Math.round((filled / fields.length) * 100);
-    const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
-    return [
-      { label: "Completitud perfil", value: `${pct}%`, icon: IC.user, color: "kpi-icon-primary" },
-      { label: "Rol en portal", value: String(user.role || "-").toUpperCase(), icon: IC.badge, color: "kpi-icon-violet" },
-      { label: "Empresa", value: companyName.length > 12 ? `${companyName.slice(0, 12)}…` : companyName, icon: IC.building, color: "kpi-icon-teal" },
-      { label: "Documento / NIT", value: user.taxId && String(user.taxId).length ? user.taxId : "Pendiente", icon: IC.file, color: "kpi-icon-slate" }
-    ];
-  }
-
-  if (v === "notifications") {
-    const list = read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
-    const unread = list.filter((n) => !n.readAt).length;
-    const read = list.length - unread;
-    const startDay = new Date();
-    startDay.setHours(0, 0, 0, 0);
-    const todayCount = list.filter((n) => new Date(n.createdAt).getTime() >= startDay.getTime()).length;
-    return [
-      { label: "Notificaciones", value: list.length, icon: IC.bell, color: "kpi-icon-primary" },
-      { label: "Sin leer", value: unread, icon: IC.mail, color: "kpi-icon-warning" },
-      { label: "Leídas", value: read, icon: IC.check, color: "kpi-icon-success" },
-      { label: "Recibidas hoy", value: todayCount, icon: IC.clock, color: "kpi-icon-teal" }
-    ];
-  }
-
-  if (v === "reports") {
-    const reportIds = Object.keys(REPORT_RULES);
-    const enabled = reportIds.filter((id) => canAccessReport(user, id)).length;
-    const requests = reqRead();
-    const inTransit = requests.filter((r) => r.status === STATUS.EN_TRANSITO).length;
-    const openApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente").length;
-    return [
-      { label: "Reportes disponibles", value: enabled, icon: IC.activity, color: "kpi-icon-primary" },
-      { label: "Solicitudes", value: requests.length, icon: IC.file, color: "kpi-icon-slate" },
-      { label: "En tránsito", value: inTransit, icon: IC.truck, color: "kpi-icon-teal" },
-      { label: "Autorizaciones abiertas", value: openApprovals, icon: IC.shield, color: "kpi-icon-warning" }
-    ];
-  }
-
-  return kpiCardsTripPipeline(user);
+  return [];
 }
 
 function renderKpis() {
@@ -5436,12 +5410,6 @@ function hiringHtml() {
   const interviews = read(KEYS.interviews, []);
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
-  const companies = read(KEYS.companies, []);
-  const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
-  const licenseCategoryOptions = selectOptionsFromCatalog(CO_CATALOGS.licenseCategories);
-  const epsOptions = selectOptionsFromCatalog(CO_CATALOGS.eps);
-  const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
-  const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
   const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
@@ -5571,107 +5539,33 @@ function hiringHtml() {
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button>
   </form>`;
-  const contractPeopleOptions = [
-    ...candidates
-      .filter((c) => c.status === "Oferta enviada")
-      .map((c) => `<option value="candidate:${c.id}">Candidato · ${c.name}</option>`),
-    ...employees.map((e) => `<option value="employee:${e.id}">Empleado · ${e.name}${e.position ? ` (${e.position})` : ""}</option>`)
-  ].join("");
-  const payFreqOptsHr = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
-  const uniformOpts = selectOptionsFromCatalog(CO_CATALOGS.uniformIssuance);
-  const workScheduleOptsHr = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
+  const signDateDefault = new Date().toISOString().slice(0, 10);
   const fCon = `<form id="form-contract" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
-      <legend>${IC.user} Persona a contratar</legend>
+      <legend>${IC.file} Descargar contrato Word</legend>
+      <p class="muted full">Registre antes el empleado en <strong>Nómina</strong> con nombre, documento, ciudad, banco, cuenta, salario, duración y tipo de contrato. Aquí solo elige la persona, la plantilla (o automática) y la <strong>fecha de firma</strong> del párrafo de constancia.</p>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.user, "Persona")}<select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label>
-        <label>${fieldLabel(IC.briefcase, "Cargo asignado")}<select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label>
-        <label>${fieldLabel(IC.briefcase, "Empresa contratante")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-      </div>
-    </fieldset>
-
-    <fieldset class="form-section form-section-violet full">
-      <legend>${IC.file} Tipo y vigencia del contrato</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" required>${CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("")}</select></label>
-        <label>${fieldLabel(IC.file, "Plantilla Word (carpeta documentacion)")}<select name="contractTemplateKind" required>
+        <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.position || "-"} · CC ${e.idDoc || "-"}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.file, "Plantilla Word")}<select name="contractTemplateKind">
+          <option value="">Automatica segun tipo de contrato y rol</option>
           <option value="oficina">CONTRATO_TRABAJO_PERSONAL_OFICINA.docx</option>
           <option value="fijo">CONTRATO_PERSONAL_TERMINO_FIJO.docx</option>
           <option value="prestacion">CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx</option>
         </select></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de inicio")}<input type="date" name="startDate" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de fin (si aplica)")}<input type="date" name="endDate" /></label>
-        <label>${fieldLabel(IC.clock, "Periodo de prueba (meses)")}<input type="number" min="0" max="2" name="probationMonths" value="2" /></label>
-        <label>${fieldLabel(IC.clock, "Jornada / turno")}<select name="workSchedule" required>${workScheduleOptsHr}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Lugar de trabajo")}<input name="workplace" required placeholder="Ej: Bogotá, Sede Norte" /></label>
-        <label>${fieldLabel(IC.alertTriangle, "Causal terminación previsto")}<select name="terminationCause">
-          ${CO_CATALOGS.contractTerminationCauses.map((c) => `<option>${c}</option>`).join("")}
-        </select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de firma (constancia)")}<input type="date" name="signDate" required value="${signDateDefault}" /></label>
       </div>
     </fieldset>
-
-    <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.dollar} Compensación y dotación</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.dollar, "Salario pactado (COP)")}<input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
-        <label>${fieldLabel(IC.shield, "Salario integral")}<select name="integralSalary">
-          <option value="false">No (10+ prestaciones)</option>
-          <option value="true">Sí (≥ 13 SMMLV + 30% factor prestacional)</option>
-        </select></label>
-        <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOptsHr}</select></label>
-        <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" /></label>
-        <label>${fieldLabel(IC.package, "Dotación (Ley 11/1984)")}<select name="uniformIssuance">${uniformOpts}</select></label>
-        <label>${fieldLabel(IC.dollar, "Retención en la fuente")}<select name="incomeRetention">
-          <option value="auto">Cálculo automático (UVT)</option>
-          <option value="exento">Exento</option>
-          <option value="manual">Procedimiento 2 (manual)</option>
-        </select></label>
-      </div>
-    </fieldset>
-
-    <fieldset class="form-section form-section-cyan full">
-      <legend>${IC.shield} Seguridad social</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.heart, "EPS")}<select name="eps" required>${epsOptions}</select></label>
-        <label>${fieldLabel(IC.shield, "Fondo de pensión")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
-        <label>${fieldLabel(IC.shield, "ARL")}<select name="arl" required>${arlOptions}</select></label>
-      </div>
-    </fieldset>
-
-    <fieldset class="form-section form-section-rose full">
-      <legend>${IC.truck} Información del conductor (si aplica)</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.file, "N° licencia")}<input name="license" placeholder="Ej: 12C34567890" /></label>
-        <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
-        <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
-      </div>
-    </fieldset>
-
     <fieldset class="form-section form-section-amber full">
-      <legend>${IC.download} Prueba de plantillas Word</legend>
-      <p class="muted full">Genera un <strong>.docx</strong> con datos ficticios (no guarda contrato ni persona). Sirve para comprobar que las plantillas en <strong>documentacion/</strong> cargan y sustituyen marcadores.</p>
+      <legend>${IC.download} Prueba de plantilla (datos demo)</legend>
+      <p class="muted full">No usa la ficha del empleado; solo verifica la plantilla y la descarga.</p>
       <div class="form-section-grid" style="gap:0.6rem">
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
-        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Término fijo</button>
-        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestación servicios</button>
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Termino fijo</button>
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestacion servicios</button>
       </div>
     </fieldset>
-
-    <p class="muted full legal-form-note">Flujo Colombia: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. Salario integral aplica para sueldos ≥ 13 SMMLV ($${(13 * CO_HR_RULES.minMonthlySalary).toLocaleString("es-CO")}). Auxilio de transporte solo para salarios &lt; 2 SMMLV.</p>
-    <button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button>
-  </form>`;
-  const fEmpCon = `<form id="form-employee-contract" class="p-form p-form-colored">
-    <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label>
-    <label>${fieldLabel(IC.file, "Plantilla Word (documentacion)")}<select name="contractTemplateKind" required>
-      <option value="oficina">CONTRATO_TRABAJO_PERSONAL_OFICINA.docx</option>
-      <option value="fijo">CONTRATO_PERSONAL_TERMINO_FIJO.docx</option>
-      <option value="prestacion">CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx</option>
-    </select></label>
-    <label>${fieldLabel(IC.dollar, "Salario acordado (COP)")}<input type="number" name="salary" required min="${CO_HR_RULES.minMonthlySalary}" /></label>
-    <label>${fieldLabel(IC.calendar, "Fecha de inicio")}<input type="date" name="startDate" required /></label>
-    <label>${fieldLabel(IC.activity, "Tipo de contrato")}<input name="contractType" required placeholder="Ej: Termino indefinido" /></label>
-    <p class="muted full">Se descarga el .docx rellenado desde la carpeta <strong>documentacion</strong>, con la misma estructura que las plantillas oficiales.</p>
-    <button class="btn btn-primary full" type="submit">${IC.file} Generar contrato Word</button>
+    <p class="muted full legal-form-note">Marcadores: nombre_empleado, cedula_empleado, ciudad_empleado, banco_cuenta_bancaria, cuenta_bancaria, salario, salario_letras, duracion_contrato, cargo_empleado. Parrafo de constancia: ciudad, dia, mes y año. Ultima hoja Cc.: se anexa la cedula.</p>
+    <button class="btn btn-primary full" type="submit">${IC.file} Generar y descargar contrato Word</button>
   </form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
@@ -5714,7 +5608,7 @@ function hiringHtml() {
     </div>
     <div class="hr-flow-block">
       <h3>Fase 2 · Entrevista y formalización</h3>
-      <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
+      <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Contrato Word", "Empleado creado en nomina; datos desde la ficha", fCon, "Descargar contrato")}</div>
     </div>
     <div class="hiring-data-grid">
       ${pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)}
@@ -6134,19 +6028,10 @@ function enforceColombianFormStandards() {
   setAttr("#form-interview input[name='when']", { min: new Date().toISOString().slice(0, 16) });
   appendLegalNote("form-interview", "Registre entrevistador y fecha para trazabilidad del proceso de contratación.");
 
-  setAttr("#form-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
-  setAttr("#form-contract input[name='probationMonths']", { min: "0", max: "2" });
-  ensureSelectOptions("#form-contract select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
-  ensureSelectOptions("#form-contract select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
-  ensureSelectOptions("#form-contract select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
-  ensureSelectOptions("#form-contract select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
   appendLegalNote(
     "form-contract",
-    "Contrato laboral exige afiliaciones activas a EPS, pensión y ARL previo al ingreso efectivo. El Word se arma desde las plantillas oficiales en la carpeta documentacion/."
+    "El Word se genera con datos del empleado en nómina y plantillas en documentacion/. Si falla la descarga, compruebe conexion (JSZip) y que el empleado tenga ciudad, banco y cuenta completos."
   );
-
-  setAttr("#form-employee-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
-  appendLegalNote("form-employee-contract", "Use este flujo para formalizar contrato de empleado activo con evidencia documental.");
 
   setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
   ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "Otra"], "Seleccione EPS/entidad...");
@@ -6221,6 +6106,50 @@ function describeContractDurationForDocx(data) {
   if (ct === "Termino fijo") return "Término fijo (plazo contractual en cláusulas)";
   if (ct === "Prestacion de servicios") return "Prestación de servicios";
   return start ? `Vigencia desde ${start} · ${ct || "según anexo"}` : String(ct || "Según cláusulas y normativa aplicable");
+}
+
+function validateEmployeeContractDocFields(emp) {
+  const miss = [];
+  if (!String(emp.name || "").trim()) miss.push("nombre completo");
+  if (!String(emp.idDoc || "").trim()) miss.push("numero de documento");
+  if (!String(emp.city || "").trim()) miss.push("ciudad de residencia");
+  if (!String(emp.bankName || "").trim()) miss.push("banco");
+  if (!String(emp.bankAccount || "").trim()) miss.push("numero de cuenta");
+  if (parseNum(emp.baseSalary) < CO_HR_RULES.minMonthlySalary) miss.push("salario base (minimo legal)");
+  if (!String(emp.contractDuration || "").trim()) miss.push("duracion del contrato");
+  if (!String(emp.contractType || "").trim()) miss.push("tipo de contrato");
+  const pos = getPositionById(String(emp.positionId || ""));
+  if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
+  return miss;
+}
+
+function buildEmployeeContractDocxPayload(employee, opts = {}) {
+  let kind = String(opts.contractTemplateKind || "").trim().toLowerCase();
+  const signDate = String(opts.signDate || employee.startDate || new Date().toISOString().slice(0, 10)).trim();
+  const positionName = getPositionById(String(employee.positionId || ""))?.name || String(employee.position || "").trim();
+  const wr = String(employee.workerRole || (String(positionName).toLowerCase().includes("conductor") ? "conductor" : "empleado"));
+  const ct = String(employee.contractType || "Termino indefinido");
+  const templates = window.RecruitmentDomain?.TEMPLATE_BY_KIND || {};
+  if (!kind || !templates[kind]) {
+    kind = window.RecruitmentDomain?.inferTemplateKind ? window.RecruitmentDomain.inferTemplateKind(ct, wr) : "oficina";
+  }
+  return {
+    contractTemplateKind: kind,
+    contractType: ct,
+    workerRole: wr,
+    nombre_empleado: String(employee.name || "").trim(),
+    cedula_empleado: String(employee.idDoc || "").trim(),
+    ciudad_empleado: String(employee.city || "").trim(),
+    banco_cuenta_bancaria: String(employee.bankName || "").trim(),
+    cuenta_bancaria: String(employee.bankAccount || "").trim(),
+    salario: parseNum(employee.baseSalary),
+    salario_letras: "",
+    duracion_contrato:
+      String(employee.contractDuration || "").trim() ||
+      describeContractDurationForDocx({ contractType: ct, startDate: signDate, endDate: employee.endDate || "" }),
+    cargo_empleado: positionName,
+    signDate
+  };
 }
 
 async function generateOfficialWordContract(payload) {
@@ -8592,359 +8521,73 @@ function bindDynamicEvents() {
         }
       });
     });
-    const personSelect = contractForm.querySelector("select[name='personRef']");
-    const positionSelect = contractForm.querySelector("select[name='positionId']");
-    const companySelect = contractForm.querySelector("select[name='companyId']");
-    const salaryInput = contractForm.querySelector("input[name='salary']");
-    const contractTypeSelect = contractForm.querySelector("select[name='contractType']");
     const templateSelect = contractForm.querySelector("select[name='contractTemplateKind']");
-    const syncContractFromSource = () => {
-      const sourceRef = String(personSelect?.value || "").trim();
-      if (!sourceRef) return;
-      const [sourceType, sourceId] = sourceRef.includes(":") ? sourceRef.split(":") : ["candidate", sourceRef];
-      if (sourceType === "employee") {
-        const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(sourceId || ""));
-        if (!employee) return;
-        const employeePosition = employee.positionId ? getPositionById(String(employee.positionId || "")) : null;
-        if (positionSelect && employeePosition?.active !== false) positionSelect.value = String(employeePosition.id);
-        if (companySelect && employee.companyId) companySelect.value = String(employee.companyId);
-        if (salaryInput && parseNum(employee.baseSalary) > 0) salaryInput.value = String(parseNum(employee.baseSalary));
-        if (contractTypeSelect && employee.contractType) contractTypeSelect.value = String(employee.contractType);
-      }
+    const employeeSelect = contractForm.querySelector("select[name='employeeId']");
+    const syncTemplateFromEmployee = () => {
+      if (!templateSelect || !employeeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
+      if (String(templateSelect.value || "").trim()) return;
+      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(employeeSelect.value || ""));
+      if (!employee) return;
+      const wr = employee.workerRole || (String(employee.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
+      templateSelect.value = window.RecruitmentDomain.inferTemplateKind(employee.contractType || "Termino indefinido", wr);
     };
-    const syncTemplateKindFromContract = () => {
-      if (!templateSelect || !positionSelect || !contractTypeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
-      const position = getPositionById(String(positionSelect.value || ""));
-      const ct = String(contractTypeSelect.value || position?.contractTypeDefault || "");
-      templateSelect.value = window.RecruitmentDomain.inferTemplateKind(ct, position?.workerRole);
-    };
-    if (positionSelect && salaryInput && contractTypeSelect) {
-      const syncContractFromPosition = () => {
-        const position = getPositionById(String(positionSelect.value || ""));
-        if (!position) return;
-        salaryInput.value = String(parseNum(position.baseSalary));
-        contractTypeSelect.value = position.contractTypeDefault || "Termino indefinido";
-      };
-      positionSelect.addEventListener("change", () => {
-        syncContractFromPosition();
-        syncTemplateKindFromContract();
-      });
-      contractTypeSelect.addEventListener("change", syncTemplateKindFromContract);
-      syncContractFromPosition();
-      syncTemplateKindFromContract();
-    }
-    if (personSelect) {
-      personSelect.addEventListener("change", () => {
-        syncContractFromSource();
-        syncTemplateKindFromContract();
-      });
-      syncContractFromSource();
+    if (employeeSelect) {
+      employeeSelect.addEventListener("change", syncTemplateFromEmployee);
     }
 
     contractForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(contractForm).entries());
-      const sourceRef = String(data.personRef || data.candidateId || "").trim();
-      if (!sourceRef) {
-        notify("Selecciona una persona para generar el contrato.", "error");
+      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
+      if (!employee) {
+        notify("Seleccione un empleado valido.", "error");
         return;
       }
-      const [sourceTypeRaw, sourceIdRaw] = sourceRef.includes(":") ? sourceRef.split(":") : ["candidate", sourceRef];
-      const sourceType = String(sourceTypeRaw || "candidate");
-      const sourceId = String(sourceIdRaw || "");
-      const candidate = sourceType === "candidate" ? read(KEYS.candidates, []).find((c) => String(c.id) === sourceId) : null;
-      const employeeSource = sourceType === "employee" ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === sourceId) : null;
-      const subject = candidate || employeeSource;
-      if (!subject) {
-        notify("No se encontro la persona seleccionada para contratar.", "error");
+      const missing = validateEmployeeContractDocFields(employee);
+      if (missing.length) {
+        notify(`Complete en la ficha del empleado (Nomina): ${missing.join(", ")}.`, "error");
         return;
       }
-      if (sourceType === "candidate" && String(candidate?.status || "") !== "Oferta enviada") {
-        notify("Para candidatos, primero debes pasar por entrevista y dejar estado en 'Oferta enviada'.", "error");
+      const signDate = String(data.signDate || "").trim();
+      if (!signDate) {
+        notify("Indique la fecha de firma.", "error");
         return;
       }
-      const position = getPositionById(String(data.positionId || ""));
-      if (!position || position.active === false) {
-        notify("Debes seleccionar un cargo activo para contratar.", "error");
-        return;
-      }
-      const company = getCompanyById(String(data.companyId || ""));
-      if (!company) {
-        notify("Selecciona una empresa valida para el contrato.", "error");
-        return;
-      }
-      const workerRole = String(position.workerRole || "empleado");
-      const contractType = String(data.contractType || position.contractTypeDefault || "Termino indefinido");
-      const probationMonths = Math.min(2, Math.max(0, parseNum(data.probationMonths || 0)));
-      const endDate = String(data.endDate || "").trim();
-      const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
-      if (!Number.isFinite(startDateTs) || startDateTs < new Date(new Date().toDateString()).getTime()) {
-        notify("La fecha de inicio contractual debe ser hoy o posterior.", "error");
-        return;
-      }
-      if (contractType === "Termino fijo" && !endDate) {
-        notify("Para contrato a termino fijo debes indicar fecha de finalizacion.", "error");
-        return;
-      }
-      if (endDate && new Date(`${endDate}T12:00:00`).getTime() <= new Date(`${data.startDate}T12:00:00`).getTime()) {
-        notify("La fecha final del contrato debe ser posterior al inicio.", "error");
-        return;
-      }
-      if (!String(data.eps || "").trim() || !String(data.pensionFund || "").trim() || !String(data.arl || "").trim()) {
-        notify("Debes registrar EPS, fondo de pension y ARL para cerrar contrato.", "error");
-        return;
-      }
-      const resolvedLicense = String(data.license || subject.license || "").trim();
-      const resolvedLicenseCategory = String(data.licenseCategory || subject.licenseCategory || resolvedLicense || "").trim();
-      const resolvedLicenseExpiry = String(data.licenseExpiry || subject.licenseExpiry || "").trim();
-      if (workerRole === "conductor" && (!resolvedLicense || !resolvedLicenseExpiry)) {
-        notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
-        return;
-      }
-      if (workerRole === "conductor" && new Date(`${resolvedLicenseExpiry}T12:00:00`).getTime() <= Date.now()) {
-        notify("No se puede contratar conductor con licencia vencida.", "error");
-        return;
-      }
-      const agreedSalary = parseNum(data.salary);
-      if (agreedSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`El salario pactado no puede ser inferior al minimo legal vigente (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
-        return;
-      }
-      const sourceLabel = sourceType === "employee" ? "Empleado" : "Candidato";
-      const templateKind = String(data.contractTemplateKind || "").trim().toLowerCase();
-      const subjectDocRaw = subject.idDoc || subject.docId || subject.document || "";
-      const text = `CONTRATO LABORAL\nEmpleado: ${subject.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPlantilla Word: ${templateKind}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
-      const all = read(KEYS.contracts, []);
-      all.unshift({
-        id: uid(),
-        source: sourceLabel,
-        sourceType,
-        candidateId: sourceType === "candidate" ? subject.id : "",
-        candidateName: sourceType === "candidate" ? subject.name : "",
-        employeeId: sourceType === "employee" ? subject.id : "",
-        employeeName: sourceType === "employee" ? subject.name : "",
-        workerRole,
-        positionId: position.id,
-        position: position.name,
-        salary: agreedSalary,
-        startDate: data.startDate,
-        companyId: company.id,
-        companyName: company.name,
-        contractType,
-        contractTemplateKind: templateKind,
-        idDocSnapshot: String(subjectDocRaw || "").trim(),
-        probationMonths,
-        endDate,
-        workSchedule: String(data.workSchedule || "Diurna"),
-        eps: String(data.eps || "").trim(),
-        pensionFund: String(data.pensionFund || "").trim(),
-        arl: String(data.arl || "").trim(),
-        content: text,
-        createdAt: nowIso()
+      const payload = buildEmployeeContractDocxPayload(employee, {
+        contractTemplateKind: data.contractTemplateKind,
+        signDate
       });
-      write(KEYS.contracts, all);
-
-      const employeeDocValidation = validateColombianDocument("CC", subjectDocRaw);
-      const employees = read(KEYS.payrollEmployees, []);
-      if (sourceType === "candidate") {
-        const existingEmployee = employees.find((e) => String(e.email || "").toLowerCase() === String(subject.email || "").toLowerCase());
-        if (!existingEmployee) {
-          employees.push({
-            id: uid(),
-            name: subject.name,
-            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (subject.idDoc || subject.document || uid()),
-            documentType: subject.documentType || "CC",
-            position: position.name,
-            positionId: position.id,
-            contractType,
-            probationMonths,
-            endDate,
-            workSchedule: String(data.workSchedule || "Diurna"),
-            eps: String(data.eps || "").trim(),
-            pensionFund: String(data.pensionFund || "").trim(),
-            arl: String(data.arl || "").trim(),
-            workerRole,
-            city: subject.city || "",
-            address: subject.address || "",
-            phone: subject.phone || "",
-            emergencyContact: subject.emergencyContact || "",
-            emergencyPhone: subject.emergencyPhone || "",
-            companyId: company.id,
-            baseSalary: agreedSalary,
-            startDate: data.startDate
-          });
-          write(KEYS.payrollEmployees, employees);
-        }
-        const updatedCandidates = read(KEYS.candidates, []).map((item) =>
-          String(item.id) === String(subject.id)
-            ? { ...item, status: "Contratado", hiredAt: nowIso(), hiredByContractAt: nowIso() }
-            : item
-        );
-        write(KEYS.candidates, updatedCandidates);
-      } else {
-        write(
-          KEYS.payrollEmployees,
-          employees.map((item) =>
-            String(item.id) === String(subject.id)
-              ? {
-                  ...item,
-                  position: position.name,
-                  positionId: position.id,
-                  contractType,
-                  probationMonths,
-                  endDate,
-                  workSchedule: String(data.workSchedule || "Diurna"),
-                  eps: String(data.eps || "").trim(),
-                  pensionFund: String(data.pensionFund || "").trim(),
-                  arl: String(data.arl || "").trim(),
-                  workerRole,
-                  companyId: company.id,
-                  baseSalary: agreedSalary,
-                  startDate: data.startDate,
-                  license: resolvedLicense || item.license || "",
-                  licenseCategory: resolvedLicenseCategory || item.licenseCategory || "",
-                  licenseExpiry: resolvedLicenseExpiry || item.licenseExpiry || ""
-                }
-              : item
-          )
-        );
-      }
-
-      if (workerRole === "conductor") {
-        const drivers = read(KEYS.drivers, []);
-        const existsDriver = drivers.some((d) => String(d.idDoc || "") === String(employeeDocValidation.normalized || ""));
-        if (!existsDriver) {
-          drivers.push({
-            id: uid(),
-            name: subject.name,
-            documentType: subject.documentType || "CC",
-            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (subject.idDoc || uid()),
-            phone: subject.phone || "",
-            license: resolvedLicense,
-            licenseCategory: resolvedLicenseCategory || "C2",
-            licenseExpiry: resolvedLicenseExpiry,
-            city: subject.city || "",
-            emergencyContact: subject.emergencyContact || "",
-            emergencyPhone: subject.emergencyPhone || "",
-            companyId: company.id,
-            available: true,
-            hiredAt: nowIso()
-          });
-          write(KEYS.drivers, drivers);
-        }
-      }
-
-      if (subject.email) {
-        sendEmail({ to: subject.email, subject: "Oferta/Contrato generado", body: text });
-      }
-      let wordNote = "";
-      try {
-        await generateOfficialWordContract({
-          contractTemplateKind: templateKind,
-          contractType,
-          workerRole,
-          nombre_empleado: subject.name,
-          cedula_empleado: String(subjectDocRaw || "").trim(),
-          ciudad_empleado: String(subject.city || data.workplace || company.name || "").trim(),
-          banco_cuenta_bancaria: String(subject.bankName || "").trim(),
-          cuenta_bancaria: String(subject.bankAccount || "").trim(),
-          salario: agreedSalary,
-          salario_letras: "",
-          duracion_contrato: describeContractDurationForDocx({ contractType, startDate: data.startDate, endDate }),
-          cargo_empleado: position.name,
-          signDate: data.startDate
-        });
-        wordNote = " Documento Word generado desde la carpeta documentacion/.";
-      } catch (wordErr) {
-        wordNote = ` Advertencia: no se descargó el Word (${wordErr?.message || "error"}). El registro interno sí quedó guardado.`;
-      }
-      notify(`Contrato generado para ${sourceLabel.toLowerCase()} y vinculación registrada como ${workerRole}.${wordNote}`, wordNote.startsWith(" Advertencia") ? "warning" : "success");
-      renderPortalView();
-    });
-  }
-
-  const employeeContractForm = document.getElementById("form-employee-contract");
-  if (employeeContractForm) {
-    const empContractTemplateSelect = employeeContractForm.querySelector("select[name='contractTemplateKind']");
-    const empContractEmployeeSelect = employeeContractForm.querySelector("select[name='employeeId']");
-    const syncEmpContractTemplate = () => {
-      if (!empContractTemplateSelect || !empContractEmployeeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
-      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(empContractEmployeeSelect.value || ""));
-      if (!employee) return;
-      const wr = employee.workerRole || (String(employee.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
-      empContractTemplateSelect.value = window.RecruitmentDomain.inferTemplateKind(employee.contractType || "Termino indefinido", wr);
-    };
-    if (empContractEmployeeSelect) {
-      empContractEmployeeSelect.addEventListener("change", syncEmpContractTemplate);
-      syncEmpContractTemplate();
-    }
-    employeeContractForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const data = Object.fromEntries(new FormData(employeeContractForm).entries());
-      const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
-      if (!Number.isFinite(startDateTs) || startDateTs < new Date(new Date().toDateString()).getTime()) {
-        notify("La fecha de inicio contractual debe ser hoy o posterior.", "error");
-        return;
-      }
-      const employee = read(KEYS.payrollEmployees, []).find((item) => item.id === data.employeeId);
-      if (!employee) return;
-      const agreedSalary = parseNum(data.salary);
-      if (agreedSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`El salario no puede ser inferior al mínimo legal (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
-        return;
-      }
-      const contractTypeStr = String(data.contractType || employee.contractType || "").trim();
-      const templateKind = String(data.contractTemplateKind || "").trim().toLowerCase();
-      const wr = employee.workerRole || "empleado";
       const contractText =
         `CONTRATO LABORAL\n` +
-        `Empresa: Antares\n` +
         `Empleado: ${employee.name}\n` +
-        `Cédula: ${employee.idDoc}\n` +
-        `Cargo: ${employee.position}\n` +
-        `Tipo de contrato: ${contractTypeStr}\n` +
-        `Plantilla Word: ${templateKind}\n` +
-        `Salario: ${agreedSalary}\n` +
-        `Fecha de inicio: ${data.startDate}\n` +
-        `Fecha de generación: ${new Date().toLocaleDateString("es-CO")}\n`;
-
-      const all = read(KEYS.contracts, []);
-      all.unshift({
-        id: uid(),
-        employeeId: employee.id,
-        employeeName: employee.name,
-        position: employee.position,
-        salary: agreedSalary,
-        startDate: data.startDate,
-        contractType: contractTypeStr,
-        contractTemplateKind: templateKind,
-        idDocSnapshot: String(employee.idDoc || "").trim(),
-        workerRole: wr,
-        source: "Empleado",
-        content: contractText,
-        createdAt: nowIso()
-      });
-      write(KEYS.contracts, all);
-
+        `Cedula: ${employee.idDoc}\n` +
+        `Cargo: ${payload.cargo_empleado}\n` +
+        `Tipo: ${payload.contractType}\n` +
+        `Plantilla: ${payload.contractTemplateKind}\n` +
+        `Salario: ${payload.salario}\n` +
+        `Firma constancia: ${signDate}\n`;
       try {
-        await generateOfficialWordContract({
-          contractTemplateKind: templateKind,
-          contractType: contractTypeStr,
-          workerRole: wr,
-          nombre_empleado: employee.name,
-          cedula_empleado: String(employee.idDoc || "").trim(),
-          ciudad_empleado: String(employee.city || "").trim(),
-          banco_cuenta_bancaria: String(employee.bankName || "").trim(),
-          cuenta_bancaria: String(employee.bankAccount || "").trim(),
-          salario: agreedSalary,
-          salario_letras: "",
-          duracion_contrato: describeContractDurationForDocx({ contractType: contractTypeStr, startDate: data.startDate, endDate: "" }),
-          cargo_empleado: String(employee.position || ""),
-          signDate: data.startDate
+        await generateOfficialWordContract(payload);
+        const all = read(KEYS.contracts, []);
+        all.unshift({
+          id: uid(),
+          employeeId: employee.id,
+          employeeName: employee.name,
+          position: payload.cargo_empleado,
+          salary: payload.salario,
+          startDate: signDate,
+          contractType: payload.contractType,
+          contractTemplateKind: payload.contractTemplateKind,
+          idDocSnapshot: String(employee.idDoc || "").trim(),
+          workerRole: payload.workerRole,
+          source: "Empleado",
+          content: contractText,
+          createdAt: nowIso()
         });
-        notify("Contrato registrado y Word oficial descargado (documentacion/).", "success");
+        write(KEYS.contracts, all);
+        notify("Contrato Word descargado y registro guardado.", "success");
       } catch (wordErr) {
-        notify(`Contrato registrado. No se pudo generar Word: ${wordErr?.message || "error"}`, "warning");
+        notify(`No se pudo generar el Word: ${wordErr?.message || "error"}`, "error");
       }
       renderPortalView();
     });
@@ -9277,25 +8920,34 @@ function bindDynamicEvents() {
       const workerRole = String(c.workerRole || employee?.workerRole || "empleado");
 
       try {
-        await generateOfficialWordContract({
-          contractTemplateKind: templateKind,
-          contractType,
-          workerRole,
-          nombre_empleado: displayName,
-          cedula_empleado: docId,
-          ciudad_empleado: String(employee?.city || c.companyName || "").trim(),
-          banco_cuenta_bancaria: String(employee?.bankName || "").trim(),
-          cuenta_bancaria: String(employee?.bankAccount || "").trim(),
-          salario: salaryVal,
-          salario_letras: "",
-          duracion_contrato: describeContractDurationForDocx({
-            contractType: contractType || "Termino indefinido",
-            startDate: c.startDate || "",
-            endDate: c.endDate || ""
-          }),
-          cargo_empleado: String(c.position || employee?.position || ""),
-          signDate: c.startDate
-        });
+        if (employee && validateEmployeeContractDocFields(employee).length === 0) {
+          await generateOfficialWordContract(
+            buildEmployeeContractDocxPayload(employee, {
+              contractTemplateKind: templateKind,
+              signDate: c.startDate || employee.startDate
+            })
+          );
+        } else {
+          await generateOfficialWordContract({
+            contractTemplateKind: templateKind,
+            contractType,
+            workerRole,
+            nombre_empleado: displayName,
+            cedula_empleado: docId,
+            ciudad_empleado: String(employee?.city || c.companyName || "").trim(),
+            banco_cuenta_bancaria: String(employee?.bankName || "").trim(),
+            cuenta_bancaria: String(employee?.bankAccount || "").trim(),
+            salario: salaryVal,
+            salario_letras: "",
+            duracion_contrato: describeContractDurationForDocx({
+              contractType: contractType || "Termino indefinido",
+              startDate: c.startDate || "",
+              endDate: c.endDate || ""
+            }),
+            cargo_empleado: String(c.position || employee?.position || ""),
+            signDate: c.startDate
+          });
+        }
         notify("Se descargó de nuevo el Word usando las plantillas de documentacion/.", "success");
       } catch (err) {
         const popup = window.open("", "_blank", "width=800,height=900");
@@ -9332,11 +8984,40 @@ function initGlobalEvents() {
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const mainNav = document.getElementById("main-nav");
   if (hamburgerBtn && mainNav) {
-    hamburgerBtn.addEventListener("click", () => {
+    const syncPublicNavDrawer = () => {
+      const open = mainNav.classList.contains("nav-open");
+      document.body.classList.toggle("public-nav-open", open);
+      hamburgerBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    hamburgerBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
       mainNav.classList.toggle("nav-open");
+      syncPublicNavDrawer();
     });
     mainNav.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => mainNav.classList.remove("nav-open"));
+      link.addEventListener("click", () => {
+        mainNav.classList.remove("nav-open");
+        syncPublicNavDrawer();
+      });
+    });
+    document.addEventListener("click", (event) => {
+      if (!mainNav.classList.contains("nav-open")) return;
+      const t = event.target;
+      if (mainNav.contains(t) || hamburgerBtn.contains(t)) return;
+      mainNav.classList.remove("nav-open");
+      syncPublicNavDrawer();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !mainNav.classList.contains("nav-open")) return;
+      mainNav.classList.remove("nav-open");
+      syncPublicNavDrawer();
+      hamburgerBtn.focus();
+    });
+    window.addEventListener("resize", () => {
+      if (!window.matchMedia("(min-width: 921px)").matches) return;
+      if (!mainNav.classList.contains("nav-open")) return;
+      mainNav.classList.remove("nav-open");
+      syncPublicNavDrawer();
     });
   }
 
