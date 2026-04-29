@@ -4305,10 +4305,13 @@ body[data-theme="dark"] .p-form textarea {
 .news-evidence-frame {
   margin: 0;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   flex: 1 1 0;
   min-height: 0;
   background: #0c1f33;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .news-evidence-gallery--stack .news-evidence-frame {
@@ -4322,13 +4325,14 @@ body[data-theme="dark"] .p-form textarea {
 .news-media .news-evidence-frame img {
   position: relative;
   inset: auto;
-  width: 100%;
-  height: auto;
-  max-height: none;
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
   display: block;
-  padding: 0.4rem;
+  padding: 0.3rem;
   margin: 0;
   background: #0c1f33;
   filter: saturate(1.22) contrast(1.12) brightness(1.08);
