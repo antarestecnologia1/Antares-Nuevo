@@ -3620,17 +3620,12 @@ function vehiclesHtml() {
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay vehículos registrados.");
-  const heroStrip = `<div class="fleet-hero-strip">
-      <div>
-        <p class="fleet-hero-kicker">Flota Antares</p>
-        <h2>Centro operativo de camiones</h2>
-        <p class="muted">Gestiona placas, capacidades, equipos Termoking y vigencia documental con alertas automáticas.</p>
-      </div>
+  const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
       <div class="fleet-hero-metrics">
         <div class="fleet-hero-metric"><span>Total flota</span><strong>${totalCount}</strong></div>
         <div class="fleet-hero-metric"><span>Disponibles</span><strong>${availableCount}</strong></div>
         <div class="fleet-hero-metric"><span>Termoking</span><strong>${thermokingCount}</strong></div>
-        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Documentos en riesgo</span><strong>${documentRiskCount}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Docs. en riesgo</span><strong>${documentRiskCount}</strong></div>
       </div>
     </div>`;
   return heroStrip
@@ -3690,16 +3685,11 @@ function driversHtml() {
       </article>`;
     })
     .join("");
-  const heroStrip = `<div class="drivers-hero-strip">
-      <div>
-        <p class="drivers-hero-kicker">Equipo de conducción</p>
-        <h2>Conductores activos</h2>
-        <p class="muted">Visión rápida del equipo de conductores con licencias, disponibilidad y vigencia documental.</p>
-      </div>
+  const heroStrip = `<div class="drivers-hero-strip drivers-hero-strip--solo">
       <div class="drivers-hero-metrics">
-        <div class="drivers-hero-metric"><span>Total conductores</span><strong>${totalDrivers}</strong></div>
+        <div class="drivers-hero-metric"><span>Total</span><strong>${totalDrivers}</strong></div>
         <div class="drivers-hero-metric"><span>Disponibles</span><strong>${availableDrivers}</strong></div>
-        <div class="drivers-hero-metric drivers-hero-metric-warn"><span>Por vencer 60d</span><strong>${expiringSoon}</strong></div>
+        <div class="drivers-hero-metric drivers-hero-metric-warn"><span>Lic. 60 d</span><strong>${expiringSoon}</strong></div>
         <div class="drivers-hero-metric drivers-hero-metric-alert"><span>Vencidas</span><strong>${expired}</strong></div>
       </div>
     </div>`;
@@ -3886,9 +3876,7 @@ function transportCalendarHtml() {
   const calendarShell = `<section class="calendar-shell">
     <div class="calendar-toolbar">
       <div class="calendar-title-block">
-        <p class="calendar-kicker">Programación operativa</p>
         <h2>${monthLabelCap}</h2>
-        <p class="muted">Vista mensual con todos los viajes asignados. Conductor y camión no pueden coincidir en la misma hora.</p>
       </div>
       <div class="calendar-controls">
         <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="-1">${IC.chevronLeft || ""} Anterior</button>
@@ -4173,12 +4161,7 @@ function adminUsersHtml(current) {
   const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
   const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
 
-  html += `<div class="users-hero-strip">
-    <div>
-      <p class="users-hero-kicker">Gobernanza de accesos</p>
-      <h2>Usuarios y permisos del sistema</h2>
-      <p class="muted">Aprueba registros, gestiona roles, asigna permisos granulares y administra empresas asociadas.</p>
-    </div>
+  html += `<div class="users-hero-strip users-hero-strip--solo">
     <div class="users-hero-actions">
       <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
       <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
@@ -4784,17 +4767,17 @@ function buildReportDataset(reportId, actor = currentUser()) {
 function reportsHtml() {
   const user = currentUser();
   const cards = [
-    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", desc: "Consolida operación, finanzas, RRHH y cumplimiento en un tablero único." },
-    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", desc: "Mide cumplimiento de entregas, tiempos de aprobación y ciclo operativo." },
-    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", desc: "Estado de flota, viajes por vehículo y cumplimiento documental." },
-    { id: "trips_operations", icon: "compass", title: "Viajes operativos", desc: "Trazabilidad end-to-end de viajes, tiempos y estados." },
-    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", desc: "Ciclo de vida de solicitudes por cliente, estado y valor." },
-    { id: "drivers_performance", icon: "user", title: "Conductores", desc: "Productividad, viajes finalizados y estado de licencias." },
-    { id: "payroll_summary", icon: "dollar", title: "Nomina consolidada", desc: "Devengos, viaticos, reembolsos, deducciones y neto." },
-    { id: "hiring_pipeline", icon: "briefcase", title: "Contratacion y pipeline", desc: "Seguimiento de vacantes y candidatos por etapa." },
-    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", desc: "Estado de seguridad social, vencimientos y soportes auditables." },
-    { id: "users_access", icon: "shield", title: "Usuarios y accesos", desc: "Roles, permisos, empresas y estado de cuentas." },
-    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", desc: "Trazabilidad completa de aprobaciones y decisiones." }
+    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo" },
+    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)" },
+    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización" },
+    { id: "trips_operations", icon: "compass", title: "Viajes operativos" },
+    { id: "requests_lifecycle", icon: "file", title: "Solicitudes" },
+    { id: "drivers_performance", icon: "user", title: "Conductores" },
+    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada" },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline" },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST" },
+    { id: "users_access", icon: "shield", title: "Usuarios y accesos" },
+    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones" }
   ];
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
   const body = visibleCards.length
@@ -4803,7 +4786,7 @@ function reportsHtml() {
       .map((card) => `
       <article class="p-card">
         <div class="p-card-header">
-          <div class="p-card-header-left"><div class="p-card-icon">${IC[card.icon] || IC.activity}</div><div><h2>${card.title}</h2><p>${card.desc}</p></div></div>
+          <div class="p-card-header-left"><div class="p-card-icon">${IC[card.icon] || IC.activity}</div><div><h2>${card.title}</h2></div></div>
         </div>
         <div class="p-card-body">
           <div class="toolbar">
@@ -4815,7 +4798,7 @@ function reportsHtml() {
       .join("")}
   </div>`
     : `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
-  return pcardWrap("activity", "Centro de reportería", "Reportes ejecutivos y operativos en PDF/Excel para decisiones empresariales", body);
+  return pcardWrap("activity", "Reportería", null, body);
 }
 
 function monthRange(month) {
@@ -5354,12 +5337,7 @@ function payrollHtml() {
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
-  const payrollStrip = `<div class="payroll-executive-strip">
-      <div>
-        <p class="payroll-strip-kicker">Gestión humana</p>
-        <h2>Centro de nómina y personal</h2>
-        <p class="muted">Opera registro de empleados, liquidación mensual y ausencias desde un flujo claro y auditable.</p>
-      </div>
+  const payrollStrip = `<div class="payroll-executive-strip payroll-executive-strip--solo">
       <div class="payroll-strip-metrics">
         <span><strong>${employees.length}</strong> empleados activos</span>
         <span><strong>${pending}</strong> pagos pendientes</span>
@@ -5392,7 +5370,7 @@ function payrollHtml() {
         <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
         <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
       </div>
-      ${pcardWrap("filter", "Filtros de nómina", "Refina por periodo, empleado o estado de pago", filtersHtml)}
+      ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
       <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catálogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", "Calcula devengos, deducciones y neto del periodo", formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>
       <div class="payroll-data-grid">
         ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
@@ -5582,16 +5560,11 @@ function hiringHtml() {
     </div>`;
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
-  const executiveStrip = `<div class="hiring-executive-strip">
-      <div>
-        <p class="hiring-strip-kicker">Gestion de talento</p>
-        <h2>Centro de contratación empresarial</h2>
-        <p class="muted">Operacion unificada para cargos, vacantes, pipeline, entrevistas y contratos con trazabilidad laboral.</p>
-      </div>
+  const executiveStrip = `<div class="hiring-executive-strip hiring-executive-strip--solo">
       <div class="hiring-strip-metrics">
-        <span><strong>${candidateConversion}%</strong> conversion contractual</span>
-        <span><strong>${urgentItems}</strong> alertas prioritarias</span>
-        <span><strong>${employees.length}</strong> empleados en base</span>
+        <span><strong>${candidateConversion}%</strong> conversión</span>
+        <span><strong>${urgentItems}</strong> alertas</span>
+        <span><strong>${employees.length}</strong> en nómina</span>
       </div>
     </div>`;
 
@@ -5603,15 +5576,15 @@ function hiringHtml() {
       <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
     </div>
     <div class="hr-flow-block">
-      <h3>Fase 1 · Atracción y selección</h3>
-      <div class="hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}</div>
+      <h3>Cargos, vacantes y candidatos</h3>
+      <div class="hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
     </div>
     <div class="hr-flow-block">
-      <h3>Fase 2 · Entrevista y formalización</h3>
-      <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Contrato Word", "Empleado creado en nomina; datos desde la ficha", fCon, "Descargar contrato")}</div>
+      <h3>Entrevistas y contratos</h3>
+      <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
     </div>
     <div class="hiring-data-grid">
-      ${pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)}
+      ${pcardWrap("activity", "Alertas", null, alertsBody)}
       ${pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)}
       ${pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)}
       ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
@@ -5696,8 +5669,8 @@ function laborComplianceHtml() {
       <div class="hr-kpi-card"><span>Seguridad social incompleta</span><strong>${missingSocialSecurity.length}</strong></div>
       <div class="hr-kpi-card"><span>Licencias por vencer</span><strong>${expiringLicenses.length}</strong></div>
     </div>`
-    + pcardWrap("activity", "Alertas legales y SST", "Vigencias y cumplimiento crítico", alertsBody)
-    + createCollapsibleCard("create-sst-control", "shield", "Registrar control legal/SST", "Expediente laboral, seguridad social y auditoria", complianceForm, "Registrar control")
+    + pcardWrap("activity", "Alertas", null, alertsBody)
+    + createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar")
     + pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable);
 }
 
@@ -5734,12 +5707,7 @@ function notificationsHtml() {
       </div>
       <div class="notif-list">${items}</div>`
     : emptyState("No tienes notificaciones.");
-  const heroStrip = `<div class="notif-hero-strip">
-      <div>
-        <p class="notif-hero-kicker">Centro de notificaciones</p>
-        <h2>Bandeja de alertas</h2>
-        <p class="muted">Aquí llegan en tiempo real las solicitudes entrantes, aprobaciones y eventos del sistema.</p>
-      </div>
+  const heroStrip = `<div class="notif-hero-strip notif-hero-strip--solo">
       <div class="notif-hero-metrics">
         <div class="notif-hero-metric"><span>Total</span><strong>${list.length}</strong></div>
         <div class="notif-hero-metric notif-hero-metric-alert"><span>Sin leer</span><strong>${unread}</strong></div>
@@ -5758,7 +5726,6 @@ function profileHtml(user) {
         <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
-        <p class="profile-hero-kicker">Panel personal</p>
         <h3>${user.name || "Usuario"}</h3>
         <p>${user.email || "-"}</p>
         <div class="profile-hero-chips">
@@ -5821,7 +5788,7 @@ function profileHtml(user) {
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
     </form>
   </section>`;
-  return pcardWrap("user", "Mi perfil", "Información profesional y datos de cuenta", body, "p-card-profile");
+  return pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
 }
 
 function authorizationsHtml() {

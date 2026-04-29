@@ -4984,6 +4984,46 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
+.fleet-hero-strip--solo,
+.drivers-hero-strip--solo,
+.notif-hero-strip--solo {
+  justify-content: center;
+}
+
+.fleet-hero-strip--solo .fleet-hero-metrics,
+.drivers-hero-strip--solo .drivers-hero-metrics,
+.notif-hero-strip--solo .notif-hero-metrics {
+  width: 100%;
+  justify-content: center;
+}
+
+.users-hero-strip--solo {
+  justify-content: flex-end;
+}
+
+.payroll-executive-strip--solo,
+.hiring-executive-strip--solo {
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.payroll-executive-strip--solo .payroll-strip-metrics,
+.hiring-executive-strip--solo .hiring-strip-metrics {
+  min-width: 0;
+  flex: 1 1 100%;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.45rem;
+}
+
+.payroll-executive-strip--solo .payroll-strip-metrics span,
+.hiring-executive-strip--solo .hiring-strip-metrics span {
+  justify-content: center;
+  text-align: center;
+}
+
 .vehicle-cell {
   display: flex;
   flex-direction: column;
@@ -5095,6 +5135,10 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   color: #fff;
   font-size: 1.5rem;
   text-transform: capitalize;
+}
+
+.calendar-title-block h2 {
+  margin: 0;
 }
 .calendar-toolbar p {
   margin: 0;
