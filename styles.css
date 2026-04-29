@@ -4496,9 +4496,209 @@ body[data-theme="dark"] .p-form textarea {
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
 }
 
+/* ─── Compact Pro Layout: Nomina + Contratacion ─── */
+.payroll-shell,
+.hiring-shell {
+  gap: 0.7rem;
+}
+
+.payroll-shell .p-card,
+.hiring-shell .p-card {
+  border-radius: 12px;
+}
+
+.payroll-shell .p-card-header,
+.hiring-shell .p-card-header {
+  padding: 0.62rem 0.78rem;
+}
+
+.payroll-shell .p-card-header h2,
+.hiring-shell .p-card-header h2 {
+  font-size: 0.98rem;
+}
+
+.payroll-shell .p-card-header p,
+.hiring-shell .p-card-header p {
+  font-size: 0.78rem;
+}
+
+.payroll-shell .p-card-body,
+.hiring-shell .p-card-body {
+  padding: 0.72rem 0.82rem 0.82rem;
+}
+
+.payroll-shell .table-wrap,
+.hiring-shell .table-wrap {
+  border-radius: 10px;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.payroll-shell .table-wrap table thead th,
+.hiring-shell .table-wrap table thead th {
+  font-size: 0.73rem;
+  padding: 0.46rem 0.56rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.payroll-shell .table-wrap table tbody td,
+.hiring-shell .table-wrap table tbody td {
+  font-size: 0.79rem;
+  padding: 0.48rem 0.56rem;
+  line-height: 1.3;
+}
+
+.payroll-shell .status,
+.hiring-shell .status {
+  font-size: 0.68rem;
+  padding: 0.16rem 0.42rem;
+}
+
+.payroll-shell .btn.btn-sm,
+.hiring-shell .btn.btn-sm {
+  padding: 0.34rem 0.54rem;
+  font-size: 0.75rem;
+}
+
+.ops-module-head {
+  padding: 0.72rem 0.82rem;
+  border-radius: 12px;
+}
+
+.ops-module-title h2 {
+  font-size: 1.03rem;
+}
+
+.ops-module-kicker {
+  margin-bottom: 0.2rem;
+}
+
+.ops-chip {
+  padding: 0.22rem 0.52rem;
+  font-size: 0.72rem;
+}
+
+.ops-chip strong {
+  font-size: 0.78rem;
+}
+
+.ops-command-bar {
+  padding: 0.5rem 0.58rem;
+  border-radius: 10px;
+}
+
+.ops-command-group {
+  gap: 0.36rem;
+}
+
+.ops-command-group .btn.is-active {
+  background: linear-gradient(135deg, #0f4c8a, #1b6ab7);
+  color: #fff;
+  border-color: #1a5d9e;
+}
+
+.ops-block {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ops-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.18rem 0.1rem;
+}
+
+.ops-block-head h3 {
+  margin: 0;
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #496d95;
+}
+
+.payroll-executive-strip,
+.hiring-executive-strip {
+  border-radius: 12px;
+  padding: 0.72rem 0.8rem;
+}
+
+.payroll-strip-metrics span,
+.hiring-strip-metrics span {
+  padding: 0.33rem 0.5rem;
+  font-size: 0.76rem;
+}
+
+.payroll-kpi-grid,
+.hiring-kpi-grid {
+  margin-bottom: 0.6rem;
+}
+
+.payroll-kpi-card,
+.hr-kpi-card {
+  min-height: 4.55rem;
+  padding: 0.62rem 0.72rem;
+  border-radius: 10px;
+}
+
+.payroll-kpi-card span,
+.hr-kpi-card span {
+  font-size: 0.74rem;
+}
+
+.payroll-kpi-card strong,
+.hr-kpi-card strong {
+  font-size: 1.08rem;
+}
+
+.payroll-data-grid {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+.hiring-data-grid {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+}
+
+.payroll-shell .p-form,
+.hiring-shell .p-form {
+  gap: 0.7rem;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.payroll-shell .p-form label,
+.hiring-shell .p-form label {
+  padding: 0.5rem 0.62rem;
+}
+
+.payroll-shell .form-section,
+.hiring-shell .form-section {
+  padding: 0.56rem 0.62rem 0.62rem;
+  border-radius: 10px;
+}
+
+.payroll-shell .form-section legend,
+.hiring-shell .form-section legend {
+  font-size: 0.78rem;
+}
+
+.payroll-shell .form-section-grid,
+.hiring-shell .form-section-grid {
+  gap: 0.58rem;
+}
+
+.hr-flow-block h3 {
+  font-size: 0.88rem;
+}
+
 .hr-flow-block {
   display: grid;
   gap: 0.55rem;
+  padding: 0.56rem 0.62rem;
+  border-radius: 10px;
+  border: 1px solid #d8e8f8;
+  background: linear-gradient(180deg, #f8fcff 0%, #eef5fc 100%);
 }
 
 .hr-flow-block h3 {
@@ -4685,6 +4885,30 @@ body[data-theme="dark"] .ops-chip strong {
 body[data-theme="dark"] .ops-command-bar {
   background: linear-gradient(180deg, #1b324c, #192d43);
   border-color: #486c95;
+}
+
+body[data-theme="dark"] .ops-command-group .btn.is-active {
+  background: linear-gradient(135deg, #1f70c1, #2a87dd);
+  border-color: #3b8fdd;
+}
+
+body[data-theme="dark"] .ops-block-head h3 {
+  color: #9ac5f2;
+}
+
+body[data-theme="dark"] .hr-flow-block {
+  background: linear-gradient(180deg, #182f48 0%, #162a40 100%);
+  border-color: #43688f;
+}
+
+body[data-theme="dark"] .payroll-shell .table-wrap table tbody td,
+body[data-theme="dark"] .hiring-shell .table-wrap table tbody td {
+  color: #d2e7ff;
+}
+
+body[data-theme="dark"] .payroll-shell .p-card-header p,
+body[data-theme="dark"] .hiring-shell .p-card-header p {
+  color: #bdd6f2;
 }
 
 body[data-theme="dark"] .payroll-executive-strip {
@@ -5026,6 +5250,20 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 
   .ops-command-group {
     width: 100%;
+  }
+
+  .ops-block-head {
+    padding: 0.1rem 0;
+  }
+
+  .payroll-data-grid,
+  .hiring-data-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payroll-shell .p-form,
+  .hiring-shell .p-form {
+    grid-template-columns: 1fr;
   }
 
   .module-shell-head {

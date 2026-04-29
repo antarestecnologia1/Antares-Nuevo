@@ -636,6 +636,14 @@ let state = {
     period: "all",
     employee: "",
     status: "all"
+  },
+  payrollUi: {
+    runSort: "recent"
+  },
+  hiringUi: {
+    candidateFilter: "active",
+    vacancyFilter: "open",
+    candidateSort: "recent"
   }
 };
 
@@ -5125,6 +5133,8 @@ function payrollHtml() {
   const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
   const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+  const payrollUi = state.payrollUi || { runSort: "recent" };
+  const runSort = String(payrollUi.runSort || "recent");
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
@@ -5143,6 +5153,14 @@ function payrollHtml() {
       (filterStatus === "paid" && r.paid) ||
       (filterStatus === "pending" && !r.paid);
     return matchPeriod && matchEmployee && matchStatus;
+  });
+  const sortedRuns = [...runs].sort((a, b) => {
+    if (runSort === "pending_first") {
+      if (Boolean(a.paid) !== Boolean(b.paid)) return a.paid ? 1 : -1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    }
+    if (runSort === "net_desc") return parseNum(b.net) - parseNum(a.net);
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
   const pending = allRuns.filter((r) => !r.paid).length;
   const totalPayrollMonth = allRuns
@@ -5166,7 +5184,7 @@ function payrollHtml() {
     </tr>`;
     })
     .join("");
-  const runRows = runs
+  const runRows = sortedRuns
     .map((r) => `<tr>
       <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
       <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
@@ -5380,7 +5398,29 @@ function payrollHtml() {
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll">${IC.dollar} Nueva liquidación</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Nueva ausencia</button>
       </div>
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-outline ${filterStatus === "pending" ? "is-active" : ""}" type="button" data-action="payroll-focus-pending">${IC.alertTriangle} Solo pendientes</button>
+        <button class="btn btn-sm btn-outline ${filterStatus === "all" ? "is-active" : ""}" type="button" data-action="payroll-focus-all">${IC.layers} Ver todo</button>
+        <button class="btn btn-sm btn-outline ${runSort === "pending_first" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="pending_first">${IC.activity} Pendientes primero</button>
+        <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Neto mayor</button>
+      </div>
     </div>`;
+  const payrollExecutionBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Ejecución de nómina</h3>
+      </header>
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
+    </section>`;
+  const payrollDataBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Control y trazabilidad</h3>
+      </header>
+      <div class="payroll-data-grid">
+        ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
+        ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
+        ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
+      </div>
+    </section>`;
   return `<section class="payroll-shell">${payrollHead}${payrollStrip}
       ${payrollActions}
       <div class="dash-grid payroll-kpi-grid">
@@ -5389,13 +5429,14 @@ function payrollHtml() {
         <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
         <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
       </div>
-      ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
-      <div class="payroll-data-grid">
-        ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
-        ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
-        ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
-      </div>
+      <section class="ops-block">
+        <header class="ops-block-head">
+          <h3>Filtro operativo</h3>
+        </header>
+        ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
+      </section>
+      ${payrollExecutionBlock}
+      ${payrollDataBlock}
     </section>`;
 }
 
@@ -5411,6 +5452,10 @@ function hiringHtml() {
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
   const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
+  const hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+  const candidateFilter = String(hiringUi.candidateFilter || "active");
+  const vacancyFilter = String(hiringUi.vacancyFilter || "open");
+  const candidateSort = String(hiringUi.candidateSort || "recent");
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
     return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -5438,8 +5483,19 @@ function hiringHtml() {
     </tr>`)
     .join("");
 
-  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>${v.city || "-"} · ${v.modality || "-"}</td><td>${v.openings || 1}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
-  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
+  const filteredVacancies = vacancies.filter((v) => (vacancyFilter === "open" ? v.status === "Publicada" : true));
+  const filteredCandidates = candidates.filter((c) => {
+    if (candidateFilter === "active") return !["Contratado", "Descartado"].includes(String(c.status || ""));
+    if (candidateFilter === "finalized") return ["Contratado", "Descartado"].includes(String(c.status || ""));
+    return true;
+  });
+  const sortedCandidates = [...filteredCandidates].sort((a, b) => {
+    if (candidateSort === "pipeline") return PIPELINE.indexOf(String(a.status || PIPELINE[0])) - PIPELINE.indexOf(String(b.status || PIPELINE[0]));
+    if (candidateSort === "experience") return parseNum(b.experienceYears || 0) - parseNum(a.experienceYears || 0);
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
+  const vacRows = filteredVacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>${v.city || "-"} · ${v.modality || "-"}</td><td>${v.openings || 1}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
+  const candRows = sortedCandidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
   const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
   const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.contractType || "-"}${c.endDate ? `<br><span class="muted">Fin: ${c.endDate}</span>` : ""}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
@@ -5605,7 +5661,39 @@ function hiringHtml() {
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Nuevo candidato</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-contract">${IC.file} Generar contrato</button>
       </div>
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-outline ${candidateFilter === "active" ? "is-active" : ""}" type="button" data-action="hiring-candidates-active">${IC.activity} Candidatos activos</button>
+        <button class="btn btn-sm btn-outline ${candidateFilter === "all" ? "is-active" : ""}" type="button" data-action="hiring-candidates-all">${IC.layers} Todos candidatos</button>
+        <button class="btn btn-sm btn-outline ${vacancyFilter === "open" ? "is-active" : ""}" type="button" data-action="hiring-vacancies-open">${IC.briefcase} Vacantes abiertas</button>
+        <button class="btn btn-sm btn-outline ${candidateSort === "pipeline" ? "is-active" : ""}" type="button" data-action="hiring-sort-candidates" data-sort="pipeline">${IC.filter} Orden pipeline</button>
+      </div>
     </div>`;
+  const hiringExecutionBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Operación de contratación</h3>
+      </header>
+      <div class="hr-flow-block">
+        <h3>Cargos, vacantes y candidatos</h3>
+        <div class="hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
+      </div>
+      <div class="hr-flow-block">
+        <h3>Entrevistas y contratos</h3>
+        <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
+      </div>
+    </section>`;
+  const hiringDataBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Seguimiento y resultados</h3>
+      </header>
+      <div class="hiring-data-grid">
+        ${pcardWrap("activity", "Alertas", null, alertsBody)}
+        ${pcardWrap("activity", "Pipeline de candidatos", sortedCandidates.length + " visibles", tCand)}
+        ${pcardWrap("briefcase", "Vacantes", filteredVacancies.length + " visibles", tVac)}
+        ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
+        ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
+        ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+      </div>
+    </section>`;
   return `<section class="hiring-shell">${hiringHead}${executiveStrip}
     ${hiringActions}
     <div class="hiring-kpi-grid">
@@ -5614,22 +5702,8 @@ function hiringHtml() {
       <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
       <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
     </div>
-    <div class="hr-flow-block">
-      <h3>Cargos, vacantes y candidatos</h3>
-      <div class="hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
-    </div>
-    <div class="hr-flow-block">
-      <h3>Entrevistas y contratos</h3>
-      <div class="hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
-    </div>
-    <div class="hiring-data-grid">
-      ${pcardWrap("activity", "Alertas", null, alertsBody)}
-      ${pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)}
-      ${pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)}
-      ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
-      ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
-      ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
-    </div>
+    ${hiringExecutionBlock}
+    ${hiringDataBlock}
   </section>`;
 }
 
@@ -6785,6 +6859,28 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-clear-filters']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.payrollFilters = { period: "all", employee: "", status: "all" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-pending']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { ...(state.payrollFilters || {}), status: "pending" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { ...(state.payrollFilters || {}), status: "all" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-sort-runs']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollUi = state.payrollUi || { runSort: "recent" };
+      state.payrollUi.runSort = String(btn.dataset.sort || "recent");
       renderPortalView();
     });
   });
@@ -8390,6 +8486,38 @@ function bindDynamicEvents() {
         KEYS.vacancies,
         all.map((v) => (v.id === btn.dataset.id ? { ...v, status: "Cerrada" } : v))
       );
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-active']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.candidateFilter = "active";
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.candidateFilter = "all";
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-open']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-sort-candidates']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
       renderPortalView();
     });
   });
