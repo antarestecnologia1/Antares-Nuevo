@@ -4083,7 +4083,7 @@ body[data-theme="dark"] .p-form textarea {
 
 .news-proof-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   margin: 0.55rem 0 0.2rem;
 }
