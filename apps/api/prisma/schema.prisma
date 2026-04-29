@@ -1,3 +1,7 @@
+// Esquema DEMO para Nest (User, TripRequest en inglés).
+// Si la base ya tiene el esquema español de BD/postgres (usuarios, solicitudes_transporte, …),
+// no ejecute prisma migrate contra esa misma base: use solo los scripts SQL del repo o alinee modelos aparte.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,6 +10,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 
 enum Role {
   ADMIN

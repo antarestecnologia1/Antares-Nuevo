@@ -1,8 +1,15 @@
 node_modules
 .next
 dist
-.env
-.env.local
 coverage
 *.log
+
+# Secretos — rutas explícitas (.env.example sigue versionado)
+/.env
+/apps/api/.env
+/apps/web/.env.local
+/apps/web/.env
+/config/supabase.public.js
+/config/antares.local.js
+
 apps/api/prisma/migrations

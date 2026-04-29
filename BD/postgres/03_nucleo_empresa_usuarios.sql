@@ -18,6 +18,10 @@ CREATE TABLE usuarios (
   correo_electronico              VARCHAR(320) NOT NULL,
   hash_contrasena                 TEXT NOT NULL,
   nombre_completo                 VARCHAR(255) NOT NULL,
+  primer_nombre                   VARCHAR(120),
+  segundo_nombre                  VARCHAR(120),
+  primer_apellido                 VARCHAR(120),
+  segundo_apellido                VARCHAR(120),
   rol                             rol_usuario NOT NULL DEFAULT 'client',
   estado_cuenta                   estado_cuenta_usuario NOT NULL DEFAULT 'pendiente',
   numero_identificacion           VARCHAR(32),
@@ -25,11 +29,16 @@ CREATE TABLE usuarios (
   tipo_documento                  VARCHAR(8),
   tipo_persona                    VARCHAR(32),
   fecha_expedicion_documento      DATE,
+  genero                          VARCHAR(40),
+  cargo_registro                  VARCHAR(255),
+  area_trabajo                    VARCHAR(120),
   departamento                    VARCHAR(120),
   ciudad                          VARCHAR(120),
   direccion                       TEXT,
   nombre_empresa_texto_legacy     VARCHAR(255),
   fecha_nacimiento                DATE,
+  fecha_aceptacion_terminos       TIMESTAMPTZ,
+  checklist_registro_json         JSONB NOT NULL DEFAULT '{}',
   contacto_emergencia             VARCHAR(255),
   telefono_emergencia             VARCHAR(32),
   parentesco_emergencia           VARCHAR(120),
@@ -44,6 +53,15 @@ CREATE TABLE usuarios (
 
 COMMENT ON TABLE usuarios IS 'Portal y sesión; equivalente a KEYS.users.';
 COMMENT ON COLUMN usuarios.nombre_empresa_texto_legacy IS 'Denormalizado histórico; preferir id_empresa.';
+COMMENT ON COLUMN usuarios.primer_nombre IS 'Formulario registro: firstName.';
+COMMENT ON COLUMN usuarios.segundo_nombre IS 'Formulario registro: middleName.';
+COMMENT ON COLUMN usuarios.primer_apellido IS 'Formulario registro: lastName.';
+COMMENT ON COLUMN usuarios.segundo_apellido IS 'Formulario registro: secondLastName.';
+COMMENT ON COLUMN usuarios.genero IS 'Formulario registro: gender.';
+COMMENT ON COLUMN usuarios.cargo_registro IS 'Formulario registro: position (cargo).';
+COMMENT ON COLUMN usuarios.area_trabajo IS 'Formulario registro: workArea.';
+COMMENT ON COLUMN usuarios.fecha_aceptacion_terminos IS 'Momento de aceptación Habeas Data / términos (acceptTerms).';
+COMMENT ON COLUMN usuarios.checklist_registro_json IS 'Equivalente a profileQualityChecklist en app (idVerified, acceptedTermsAt, etc.).';
 
 CREATE TABLE permisos_usuario (
   id_usuario    UUID NOT NULL REFERENCES usuarios (id) ON DELETE CASCADE,

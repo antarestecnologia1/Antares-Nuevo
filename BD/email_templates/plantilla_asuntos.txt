@@ -1,0 +1,6 @@
+Confirm signup     → Antares — Confirma tu cuenta
+Invite user        → Antares — Invitación al portal
+Magic Link         → Antares — Tu enlace de acceso
+Change Email       → Antares — Confirma tu nuevo correo
+Reset Password     → Antares — Restablecer contraseña
+Reauthentication   → Antares — Código de verificación

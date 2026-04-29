@@ -2680,12 +2680,12 @@ function bindAuthForms() {
         saveNotification({
           userId: admin.id,
           title: "Nuevo registro de cliente pendiente",
-          body: `${data.name} solicita acceso al portal. Falta asociar empresa en aprobacion.`
+          body: `${fullName} solicita acceso al portal. Falta asociar empresa en aprobacion.`
         });
         sendEmail({
           to: admin.email,
           subject: "Nuevo registro de cliente pendiente de aprobacion",
-          body: `Cliente: ${data.name} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
+          body: `Cliente: ${fullName} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
         });
       });
       notify("Registro enviado. Tu cuenta sera revisada por un administrador.", "success");

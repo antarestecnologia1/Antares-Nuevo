@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#F5F9FF;font-family:'Segoe UI',Inter,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#F5F9FF;padding:32px 16px;"><tr><td align="center">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(10,46,92,0.10);">
+<tr><td style="background:linear-gradient(135deg,#1565C0 0%,#2196F3 100%);padding:28px 32px;text-align:center;">
+<div style="color:#fff;font-size:22px;font-weight:700;">Antares</div>
+<div style="color:rgba(255,255,255,0.92);font-size:13px;margin-top:6px;">Verificación de identidad</div>
+</td></tr>
+<tr><td style="padding:36px 32px;text-align:center;">
+<h1 style="margin:0 0 12px;font-size:20px;color:#0B1D33;">Código de verificación</h1>
+<p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#344F69;">Introduce este código para confirmar que eres tú. Caduca en pocos minutos.</p>
+<div style="display:inline-block;padding:20px 36px;border-radius:14px;background:linear-gradient(180deg,#F0F6FD 0%,#E3EEFA 100%);border:2px solid #C5D8EC;margin:8px 0 28px;">
+<span style="font-size:32px;font-weight:800;letter-spacing:0.35em;color:#0A2E5C;font-family:Consolas,Monaco,monospace;">{{ .Token }}</span>
+</div>
+<p style="margin:0;font-size:13px;color:#647896;">No compartas este código. Antares nunca te lo pedirá por teléfono ni WhatsApp.</p>
+</td></tr>
+<tr><td style="padding:20px 32px 32px;border-top:1px solid #E3EEFA;">
+<p style="margin:0;font-size:12px;color:#8899AE;text-align:center;">{{ .SiteURL }}</p>
+</td></tr>
+</table></td></tr></table>
+</body></html>
