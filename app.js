@@ -818,6 +818,53 @@ function tPublic(textEs) {
   return translatePublicText(textEs, "en");
 }
 
+function setElementTextPreserveChildren(selector, text) {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  const textNodes = [...el.childNodes].filter(
+    (node) => node.nodeType === Node.TEXT_NODE && String(node.nodeValue || "").trim()
+  );
+  if (!textNodes.length) {
+    el.appendChild(document.createTextNode(` ${text}`));
+    return;
+  }
+  const target = textNodes[textNodes.length - 1];
+  const leading = /^\s/.test(target.nodeValue || "") ? " " : "";
+  const trailing = /\s$/.test(target.nodeValue || "") ? " " : "";
+  target.nodeValue = `${leading}${text}${trailing}`;
+}
+
+const PUBLIC_TEXT_OVERRIDES = {
+  es: {
+    "#trusted .section-head p": "Aliados del sector floricultor, comercializador y exportador que priorizan puntualidad y conservacion de cadena de frio.",
+    "#trusted .mini-metric:nth-child(1) p": "Empresas atendidas en el ultimo ano.",
+    "#trusted .mini-metric:nth-child(2) p": "Clientes recurrentes por nivel de servicio.",
+    "#trusted .mini-metric:nth-child(3) p": "Monitoreo de operacion y trazabilidad.",
+    "#about .grid-2 article:nth-child(1) p": "Somos una compania con enfoque B2B especializada en logistica de flor. Integramos tecnologia, experiencia operativa y servicio al cliente para garantizar entregas puntuales y seguras.",
+    "#hierarchy .section-head p": "Liderazgo estrategico y operativo para asegurar excelencia en cada viaje y en toda la cadena de servicio.",
+    "#testimonials .section-head p": "Experiencias reales de empresas que gestionan volumen, calidad y tiempos exigentes.",
+    "#services .section-head p": "Soluciones logisticas integrales para el sector floricultor y de exportacion.",
+    "#coverage .section-head p": "Rutas principales y corredores frecuentes para el sector floricultor y exportador.",
+    "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
+    "#careers .muted": "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).",
+    "#contact .container > article:nth-child(2) .muted": "Las solicitudes se guardan en base de datos local del navegador y generan una notificacion simulada de email."
+  },
+  en: {
+    "#trusted .section-head p": "Allies across floriculture, trading, and exports who prioritize punctuality and cold-chain integrity.",
+    "#trusted .mini-metric:nth-child(1) p": "Companies served in the last year.",
+    "#trusted .mini-metric:nth-child(2) p": "Repeat clients driven by service quality.",
+    "#trusted .mini-metric:nth-child(3) p": "Operations monitoring and traceability.",
+    "#about .grid-2 article:nth-child(1) p": "We are a B2B-focused company specialized in flower logistics. We combine technology, operational expertise, and customer service to ensure secure and on-time deliveries.",
+    "#hierarchy .section-head p": "Strategic and operational leadership that ensures excellence on every trip and across the full service chain.",
+    "#testimonials .section-head p": "Real stories from companies managing high volume, strict quality, and demanding timelines.",
+    "#services .section-head p": "End-to-end logistics solutions for floriculture and export operations.",
+    "#coverage .section-head p": "Main routes and frequent corridors for the floriculture and export sector.",
+    "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
+    "#careers .muted": "Vacancies are synchronized with the same team that manages candidates in the portal (same local browser database).",
+    "#contact .container > article:nth-child(2) .muted": "Requests are stored in the browser local database and trigger a simulated email notification."
+  }
+};
+
 function applyPublicLanguage(lang = "es") {
   capturePublicTextNodes();
   publicTextStore.forEach(({ node, original }) => {
@@ -840,9 +887,15 @@ function applyPublicLanguage(lang = "es") {
   };
   const attrs = attrMap[lang] || attrMap.es;
   Object.entries(attrs).forEach(([selector, value]) => {
+    setElementTextPreserveChildren(selector, value);
+  });
+
+  const textOverrides = PUBLIC_TEXT_OVERRIDES[lang] || PUBLIC_TEXT_OVERRIDES.es;
+  Object.entries(textOverrides).forEach(([selector, value]) => {
     const el = document.querySelector(selector);
     if (el) el.textContent = value;
   });
+
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
 
