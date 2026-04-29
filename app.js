@@ -749,7 +749,73 @@ function write(key, value) {
     return;
   }
   localStorage.setItem(key, JSON.stringify(value));
+  if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+    window.AntaresPortalSync.schedule(key, value);
+  }
 }
+
+function decodeJwtPayload(token) {
+  try {
+    const part = String(token || "").split(".")[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json);
+  } catch (_e) {
+    return null;
+  }
+}
+
+function applyPortalBootstrapPayload(p) {
+  if (!p || typeof p !== "object") return;
+  const PS = window.AntaresPortalSync;
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    __applyPortalBootstrapPayloadInner(p);
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
+  }
+}
+
+function __applyPortalBootstrapPayloadInner(p) {
+  const map = [
+    ["users", KEYS.users],
+    ["companies", KEYS.companies],
+    ["counters", KEYS.counters],
+    ["contacts", KEYS.contacts],
+    ["requests", KEYS.requests],
+    ["vehicles", KEYS.vehicles],
+    ["drivers", KEYS.drivers],
+    ["notifications", KEYS.notifications],
+    ["emails", KEYS.emails],
+    ["payrollEmployees", KEYS.payrollEmployees],
+    ["payrollRuns", KEYS.payrollRuns],
+    ["fuelLogs", KEYS.fuelLogs],
+    ["vehicleTechnicalLogs", KEYS.vehicleTechnicalLogs],
+    ["travelAllowanceRules", KEYS.travelAllowanceRules],
+    ["vacancies", KEYS.vacancies],
+    ["candidates", KEYS.candidates],
+    ["positions", KEYS.positions],
+    ["interviews", KEYS.interviews],
+    ["contracts", KEYS.contracts],
+    ["hrAbsences", KEYS.hrAbsences],
+    ["sstCompliance", KEYS.sstCompliance],
+    ["tripRouteRates", KEYS.tripRouteRates],
+    ["approvals", KEYS.approvals]
+  ];
+  for (const [prop, key] of map) {
+    if (p[prop] !== undefined) write(key, p[prop]);
+  }
+}
+
+async function applyPortalBootstrapFromApi() {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || !api.getAccessToken?.()) return false;
+  const p = await api.getJson("/portal/bootstrap");
+  applyPortalBootstrapPayload(p);
+  return true;
+}
+
+window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 
 function reqRead() {
   return typeof DomainModules?.requests?.readAllSync === "function"
@@ -2077,52 +2143,14 @@ function seed() {
     ]);
   }
 
-  const seededCompanies = read(KEYS.companies, []);
-  const antaresCompany = seededCompanies.find((c) => c.name === "Antares");
-  const floraCompany = seededCompanies.find((c) => c.name === "Flora Export SAS");
-
+  /* Usuarios solo por BD / API; vaciar caché local de usuarios demo en migración one-shot */
+  const USERS_STORAGE_VERSION = "v4-db-only";
+  if (localStorage.getItem("antares_users_storage_ver") !== USERS_STORAGE_VERSION) {
+    write(KEYS.users, []);
+    localStorage.setItem("antares_users_storage_ver", USERS_STORAGE_VERSION);
+  }
   if (!localStorage.getItem(KEYS.users)) {
-    write(KEYS.users, [
-      {
-        id: uid(),
-        name: "Admin Antares",
-        email: "admin@antares.com",
-        password: "admin123",
-        role: ROLES.ADMIN,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.ADMIN),
-        company: "Antares",
-        companyId: antaresCompany?.id || null,
-        taxId: "900000001-0",
-        phone: "3001111111"
-      },
-      {
-        id: uid(),
-        name: "RRHH Antares",
-        email: "rrhh@antares.com",
-        password: "rrhh123",
-        role: ROLES.RRHH,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.RRHH),
-        company: "Antares",
-        companyId: antaresCompany?.id || null,
-        taxId: "900000001-0",
-        phone: "3002222222"
-      },
-      {
-        id: uid(),
-        name: "Cliente Demo",
-        email: "cliente@antares.com",
-        password: "cliente123",
-        role: ROLES.CLIENT,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.CLIENT),
-        company: "Flora Export SAS",
-        companyId: floraCompany?.id || null,
-        taxId: "901000222-1",
-        phone: "3003333333"
-      }
-    ]);
+    write(KEYS.users, []);
   }
 
   if (!localStorage.getItem(KEYS.vehicles)) {
@@ -2349,12 +2377,10 @@ async function tryApiLoginBridge(user, password) {
         lastActivityAt: Date.now()
       });
     }
-    if (window.DomainModules?.requests?.hydrateFromApiIfEnabled) {
-      const ok = await window.DomainModules.requests.hydrateFromApiIfEnabled();
-      if (ok && state.session && currentUser()) {
-        renderPortalView();
-        updateNotificationBadge();
-      }
+    const bootOk = await applyPortalBootstrapFromApi();
+    if (bootOk && state.session && currentUser()) {
+      renderPortalView();
+      updateNotificationBadge();
     }
   } catch (_e) {
     /* API opcional: sesion local sigue valida */
@@ -2546,9 +2572,60 @@ function bindAuthForms() {
         return;
       }
       const data = Object.fromEntries(new FormData(login).entries());
+      const passwordRaw = String(data.password || "");
+
+      if (window.AntaresApi?.getBase?.()) {
+        try {
+          const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
+          const res = await fetch(`${base}/api/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ email: data.email, password: passwordRaw })
+          });
+          const body = res.ok ? await res.json().catch(() => null) : null;
+          if (body?.accessToken && body?.refreshToken) {
+            window.AntaresApi.setAccessToken(body.accessToken);
+            await applyPortalBootstrapFromApi();
+            const payload = decodeJwtPayload(body.accessToken);
+            const uid = payload?.sub;
+            const usersAfter = read(KEYS.users, []);
+            const userApi = usersAfter.find((u) => String(u.id) === String(uid));
+            if (!userApi) {
+              notify("No se pudo cargar tu perfil desde la base de datos.", "error");
+              return;
+            }
+            if (userApi.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
+              notify("Tu cuenta aun esta pendiente de aprobacion por un administrador.", "info");
+              return;
+            }
+            if (userApi.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
+              notify("Tu solicitud de registro fue rechazada. Contacta a soporte.", "error");
+              return;
+            }
+            state.authSecurity.failedAttempts = 0;
+            state.authSecurity.lockUntil = 0;
+            setSession({
+              userId: userApi.id,
+              role: userApi.role,
+              token: buildToken(userApi),
+              accessToken: body.accessToken,
+              refreshToken: body.refreshToken,
+              lastActivityAt: Date.now(),
+              tokenIssuedAt: Date.now()
+            });
+            hideAuth();
+            startSessionSecurityWatch();
+            renderPortal();
+            return;
+          }
+        } catch (_e) {
+          /* intentar sesion local */
+        }
+      }
+
       const users = read(KEYS.users, []);
       const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
-      const valid = user ? await verifyPassword(String(data.password || ""), user.password) : false;
+      const valid = user ? await verifyPassword(passwordRaw, user.password) : false;
       if (!valid || !user) {
         state.authSecurity.failedAttempts += 1;
         if (state.authSecurity.failedAttempts >= 5) {
@@ -2575,8 +2652,9 @@ function bindAuthForms() {
         lastActivityAt: Date.now(),
         tokenIssuedAt: Date.now()
       });
-      void tryApiLoginBridge(user, String(data.password || ""));
+      void tryApiLoginBridge(user, passwordRaw);
       hideAuth();
+      startSessionSecurityWatch();
       renderPortal();
     });
   }
@@ -2640,6 +2718,51 @@ function bindAuthForms() {
         notify("El usuario debe ser mayor de edad para registrarse.", "error");
         return;
       }
+
+      if (window.AntaresApi?.getBase?.()) {
+        try {
+          const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
+          const res = await fetch(`${base}/api/auth/register-portal`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              firstName: data.firstName,
+              middleName: data.middleName || "",
+              lastName: data.lastName,
+              secondLastName: data.secondLastName || "",
+              personType: data.personType,
+              documentType: data.documentType,
+              taxId: data.taxId,
+              documentIssuedAt: data.documentIssuedAt,
+              birthDate: data.birthDate,
+              gender: data.gender,
+              position: data.position,
+              workArea: data.workArea,
+              phone: data.phone,
+              department: data.department,
+              city: data.city,
+              address: data.address,
+              email: data.email,
+              password: data.password,
+              acceptTerms: Boolean(data.acceptTerms)
+            })
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message || res.statusText;
+            notify(String(msg || "No se pudo registrar en el servidor."), "error");
+            return;
+          }
+          notify(body?.message || "Registro enviado. Tu cuenta sera revisada por un administrador.", "success");
+          state.authTab = "login";
+          renderAuthTab();
+          return;
+        } catch (err) {
+          notify(String(err?.message || err), "error");
+          return;
+        }
+      }
+
       const users = read(KEYS.users, []);
       if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(data.email))) {
         notify("El correo ya existe.", "error");

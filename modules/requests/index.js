@@ -96,6 +96,9 @@ window.DomainModules = window.DomainModules || {};
   }
 
   async function hydrateFromApiIfEnabled() {
+    if (typeof window.applyPortalBootstrapFromApi === "function") {
+      return window.applyPortalBootstrapFromApi();
+    }
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return false;
     const rows = await api.getJson("/requests");
@@ -124,6 +127,9 @@ window.DomainModules = window.DomainModules || {};
   async function createViaApi(portalRow, pickupAtIso) {
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) throw new Error("API no configurada");
+    if (typeof window.applyPortalBootstrapFromApi === "function") {
+      return { ...portalRow, apiSynced: true };
+    }
     const dto = portalToCreateDto(portalRow, pickupAtIso);
     const created = await api.postJson("/requests", dto);
     return mapApiRowToPortal(created, portalRow);
@@ -132,6 +138,9 @@ window.DomainModules = window.DomainModules || {};
   async function approveViaApi(requestId) {
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return null;
+    if (typeof window.applyPortalBootstrapFromApi === "function") {
+      return { ok: true };
+    }
     return api.postJson(`/requests/${encodeURIComponent(String(requestId))}/approve`, {});
   }
 

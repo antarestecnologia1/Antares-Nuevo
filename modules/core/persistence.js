@@ -16,6 +16,9 @@
 
     write(key, value) {
       localStorage.setItem(key, JSON.stringify(value));
+      if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+        window.AntaresPortalSync.schedule(key, value);
+      }
     },
 
     remove(key) {

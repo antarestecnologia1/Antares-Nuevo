@@ -15,6 +15,7 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 9. `postgres/09_rls_tablas.sql` — RLS (tablas públicas) para roles `anon` / `authenticated` de Supabase
 10. `postgres/10_rls_storage_supabase.sql` — RLS de Storage (tras crear en el panel los buckets indicados en el script)
 11. *(Solo bases ya creadas sin campos de registro)* `postgres/11_alter_usuarios_campos_registro.sql`
+12. `postgres/12_usuarios_refresh_token_api.sql` — columna `refresh_token_hash` para rotación de JWT en la API Nest
 
 **Manual de despliegue (Word):** generar con `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 
