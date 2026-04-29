@@ -749,6 +749,21 @@ const PUBLIC_ES_EN_DICT = {
   "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).": "Vacancies sync with the same team that manages candidates in the portal (same local browser database).",
   "Formulario de contacto B2B": "B2B contact form",
   "Cuentanos tu necesidad logistica y te compartimos una propuesta tecnica y comercial.": "Tell us your logistics needs and we will share a technical and commercial proposal.",
+  "Caso de exito · Exportador floricola": "Success case · Floriculture exporter",
+  "De 9 incidentes mensuales a 2 con control en ruta": "From 9 monthly incidents down to 2 with route control",
+  "Integramos seguimiento por hitos, control de temperatura y alertas tempranas para reducir desviaciones en despachos de alto valor.": "We integrated milestone tracking, temperature control, and early alerts to reduce deviations in high-value dispatches.",
+  "incidencias criticas": "critical incidents",
+  "visibilidad operativa": "operational visibility",
+  "puesta en marcha": "go-live",
+  "Caso de exito · Comercializador": "Success case · Distributor",
+  "Escalamiento de temporada alta sin perder puntualidad": "Peak-season scaling without losing punctuality",
+  "Con planeacion de flota y monitoreo 24/7 mantuvimos continuidad operativa durante picos de demanda y cierres de ventana.": "With fleet planning and 24/7 monitoring, we maintained operational continuity during demand peaks and narrow loading windows.",
+  "quiebres de cadena de frio": "cold-chain breaks",
+  "capacidad en picos": "peak capacity",
+  "entregas en SLA": "SLA deliveries",
+  "-18% tiempos de conexion": "-18% connection times",
+  "+23% eficiencia logistica": "+23% logistics efficiency",
+  "98.7% entregas a tiempo": "98.7% on-time deliveries",
   Nombre: "Name",
   Empresa: "Company",
   "NIT/RUT": "Tax ID",
@@ -7174,7 +7189,59 @@ function initPublicCareers() {
   render();
 }
 
+function initPublicScrollSpy() {
+  const mainNav = document.getElementById("main-nav");
+  if (!mainNav) return;
+  const links = [...mainNav.querySelectorAll("a[href^='#']")];
+  if (!links.length) return;
+
+  const sectionIds = links
+    .map((link) => String(link.getAttribute("href") || "").replace("#", "").trim())
+    .filter(Boolean);
+  const sections = sectionIds
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+  if (!sections.length) return;
+
+  const setActive = (id) => {
+    links.forEach((link) => {
+      const targetId = String(link.getAttribute("href") || "").replace("#", "").trim();
+      link.classList.toggle("active", targetId === id);
+    });
+  };
+
+  const visibleRatioById = new Map();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const id = entry.target.id;
+        visibleRatioById.set(id, entry.isIntersecting ? entry.intersectionRatio : 0);
+      });
+      const best = [...visibleRatioById.entries()].sort((a, b) => b[1] - a[1])[0];
+      if (best && best[1] > 0) setActive(best[0]);
+    },
+    { threshold: [0.2, 0.35, 0.5, 0.7], rootMargin: "-18% 0px -55% 0px" }
+  );
+
+  sections.forEach((section) => {
+    visibleRatioById.set(section.id, 0);
+    observer.observe(section);
+  });
+
+  links.forEach((link) => {
+    link.addEventListener("click", () => {
+      const targetId = String(link.getAttribute("href") || "").replace("#", "").trim();
+      if (targetId) setActive(targetId);
+    });
+  });
+
+  setActive(sectionIds[0]);
+}
+
 function initPublicEffects() {
+  initPublicCareers();
+  initPublicScrollSpy();
+
   const revealItems = document.querySelectorAll("[data-reveal]");
   if (!revealItems.length) return;
 
@@ -7222,7 +7289,6 @@ function initPublicEffects() {
     });
   });
 
-  initPublicCareers();
 }
 
 window.AppLegacyViews = {

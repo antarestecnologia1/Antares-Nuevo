@@ -130,6 +130,11 @@ nav a:hover {
   background: rgba(255,255,255,0.08);
 }
 
+nav a.active {
+  color: #ffffff;
+  background: rgba(70,145,230,0.22);
+}
+
 nav a::after {
   content: "";
   position: absolute;
@@ -144,6 +149,7 @@ nav a::after {
 }
 
 nav a:hover::after { width: 60%; }
+nav a.active::after { width: 70%; }
 
 .hamburger {
   display: none;
@@ -505,11 +511,11 @@ nav a:hover::after { width: 60%; }
 }
 
 .lift-card {
-  transition: transform 0.35s cubic-bezier(.4,0,.2,1), box-shadow 0.35s cubic-bezier(.4,0,.2,1), border-color 0.35s ease;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.25s ease;
 }
 
 .lift-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-card-hover);
   border-color: #90CAF9;
 }
@@ -519,9 +525,9 @@ nav a:hover::after { width: 60%; }
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(120deg, transparent 10%, rgba(255, 255, 255, 0.5), transparent 35%);
+  background: linear-gradient(120deg, transparent 18%, rgba(255, 255, 255, 0.35), transparent 42%);
   transform: translateX(-120%);
-  transition: transform 0.7s ease;
+  transition: transform 0.55s ease;
   pointer-events: none;
 }
 
@@ -858,6 +864,40 @@ nav a:hover::after { width: 60%; }
   font-size: 0.82rem;
 }
 
+.success-cases {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.success-case-card h3 {
+  margin: 0.35rem 0 0.45rem;
+}
+
+.success-case-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.success-case-metrics span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(21, 101, 192, 0.08);
+  border: 1px solid rgba(21, 101, 192, 0.18);
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.78rem;
+  color: #204d7f;
+}
+
+.success-case-metrics b {
+  font-size: 0.84rem;
+}
+
 /* ─── GALLERY / MEDIA ─── */
 .section-gallery { position: relative; }
 
@@ -1106,8 +1146,8 @@ body.portal-mode .whatsapp-fab {
 /* ─── REVEAL ANIMATION ─── */
 [data-reveal] {
   opacity: 0;
-  transform: translateY(24px) scale(0.98);
-  transition: opacity 0.8s cubic-bezier(.4,0,.2,1), transform 0.8s cubic-bezier(.4,0,.2,1);
+  transform: translateY(14px) scale(0.992);
+  transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
 [data-reveal].is-visible {
@@ -2803,9 +2843,28 @@ body[data-theme="dark"] .news-video-wrap video {
   filter: saturate(1.12) contrast(1.08) brightness(1.06);
 }
 
+body[data-theme="dark"] .news-video-wrap video.video-highlight-white {
+  filter: saturate(1.16) contrast(1.1) brightness(1.14);
+}
+
 body[data-theme="dark"] .news-media img {
   background: linear-gradient(180deg, #132940, #0f2237);
   filter: saturate(1.14) contrast(1.09) brightness(1.07);
+}
+
+body[data-theme="dark"] .news-media img.news-img-truck {
+  filter: saturate(1.18) contrast(1.1) brightness(1.13);
+}
+
+body[data-theme="dark"] .news-media img.news-img-brand {
+  filter: saturate(1.2) contrast(1.11) brightness(1.1);
+}
+
+body[data-theme="dark"] .impact-chip,
+body[data-theme="dark"] .success-case-metrics span {
+  background: rgba(113, 170, 240, 0.16);
+  border-color: rgba(133, 187, 247, 0.35);
+  color: #dcedff;
 }
 
 body[data-theme="dark"] .btn-outline,
@@ -3096,7 +3155,11 @@ body[data-theme="dark"] .p-form textarea {
   display: block;
   object-fit: contain;
   background: radial-gradient(circle at center, #183452 0%, #0b1e33 100%);
-  filter: saturate(1.08) contrast(1.06) brightness(1.03);
+  filter: saturate(1.14) contrast(1.1) brightness(1.09);
+}
+
+.news-video-wrap video.video-highlight-white {
+  filter: saturate(1.18) contrast(1.12) brightness(1.16);
 }
 
 .news-quote {
@@ -3127,8 +3190,35 @@ body[data-theme="dark"] .p-form textarea {
   object-fit: contain;
   display: block;
   background: linear-gradient(180deg, #e8f1fc, #dbe9f8);
-  filter: saturate(1.16) contrast(1.08) brightness(1.05);
+  filter: saturate(1.2) contrast(1.1) brightness(1.08);
   padding: 0.3rem;
+}
+
+.news-media img.news-img-truck {
+  filter: saturate(1.2) contrast(1.12) brightness(1.13);
+}
+
+.news-media img.news-img-brand {
+  filter: saturate(1.22) contrast(1.12) brightness(1.1);
+}
+
+.news-impact-strip {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.impact-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(21, 101, 192, 0.22);
+  background: rgba(21, 101, 192, 0.08);
+  padding: 0.26rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #1f4d81;
 }
 
 .news-media-copy {
@@ -3244,6 +3334,132 @@ body[data-theme="dark"] .p-form textarea {
 .payroll-kpi-card strong {
   color: var(--primary-dark);
   font-size: 1.15rem;
+}
+
+/* ─── Dark Theme Hardening (public + portal) ─── */
+body[data-theme="dark"] .site-footer {
+  background: linear-gradient(180deg, #061223 0%, #08192c 55%, #0a1f36 100%);
+  border-top: 1px solid rgba(117, 164, 219, 0.18);
+}
+
+body[data-theme="dark"] .site-footer h4 {
+  color: rgba(212, 230, 253, 0.72);
+}
+
+body[data-theme="dark"] .site-footer p {
+  color: rgba(223, 238, 255, 0.82);
+}
+
+body[data-theme="dark"] .footer-social a {
+  background: rgba(17, 41, 67, 0.92);
+  border-color: rgba(112, 157, 212, 0.35);
+  color: rgba(221, 237, 255, 0.85);
+}
+
+body[data-theme="dark"] .footer-social a:hover {
+  background: #2b69b3;
+  border-color: #5d99df;
+  color: #ffffff;
+}
+
+body[data-theme="dark"] .footer-bottom {
+  border-top-color: rgba(121, 165, 218, 0.2);
+  color: rgba(205, 225, 249, 0.72);
+}
+
+body[data-theme="dark"] .users-hero-item,
+body[data-theme="dark"] .users-action-btn,
+body[data-theme="dark"] .user-card,
+body[data-theme="dark"] .pending-card,
+body[data-theme="dark"] .user-grid-pending .user-card,
+body[data-theme="dark"] .module-filters,
+body[data-theme="dark"] .company-chip,
+body[data-theme="dark"] .datetime-group,
+body[data-theme="dark"] .trip-preview,
+body[data-theme="dark"] .perm-fieldset,
+body[data-theme="dark"] .auth-login-side,
+body[data-theme="dark"] .auth-help,
+body[data-theme="dark"] .tabs,
+body[data-theme="dark"] .modal-card {
+  background: #162b44;
+  border-color: #466b94;
+}
+
+body[data-theme="dark"] .users-hero-item strong,
+body[data-theme="dark"] .user-card-info h4,
+body[data-theme="dark"] .company-chip strong,
+body[data-theme="dark"] .perm-fieldset legend,
+body[data-theme="dark"] .auth-login-side h3,
+body[data-theme="dark"] .modal-info-body strong {
+  color: #e8f3ff;
+}
+
+body[data-theme="dark"] .users-hero-item span,
+body[data-theme="dark"] .user-card-info p,
+body[data-theme="dark"] .user-card-meta,
+body[data-theme="dark"] .perm-check span,
+body[data-theme="dark"] .perm-check span small,
+body[data-theme="dark"] .company-chip .muted,
+body[data-theme="dark"] .trip-preview p,
+body[data-theme="dark"] .modal-info-body {
+  color: #c5dbf4;
+}
+
+body[data-theme="dark"] .user-card-meta,
+body[data-theme="dark"] .user-card-actions {
+  border-top-color: #3f5f84;
+}
+
+body[data-theme="dark"] .perm-tag {
+  background: #2a3e63;
+  border-color: #4f74a3;
+  color: #dcebff;
+}
+
+body[data-theme="dark"] .perm-tag-more {
+  background: #243851;
+  border-color: #486b95;
+  color: #cfe3fb;
+}
+
+body[data-theme="dark"] .perm-check:hover {
+  background: #21364f;
+}
+
+body[data-theme="dark"] .perm-check span strong {
+  color: #e6f1ff;
+}
+
+body[data-theme="dark"] .table-wrap table thead th {
+  background: linear-gradient(180deg, #1a304a 0%, #223c5d 100%);
+  color: #d9eaff;
+  border-bottom-color: #4a6f99;
+}
+
+body[data-theme="dark"] .table-wrap table tbody tr:hover {
+  background: #24415f;
+}
+
+body[data-theme="dark"] .tabs {
+  background: #203852;
+}
+
+body[data-theme="dark"] .tab {
+  color: #c0d8f4;
+}
+
+body[data-theme="dark"] .tab.active {
+  background: #2f71bc;
+  color: #ffffff;
+}
+
+body[data-theme="dark"] .p-card-header,
+body[data-theme="dark"] .module-filters,
+body[data-theme="dark"] .users-hero-item,
+body[data-theme="dark"] .user-card,
+body[data-theme="dark"] .company-chip,
+body[data-theme="dark"] .modal-card {
+  box-shadow: 0 12px 30px rgba(2, 10, 20, 0.38);
 }
 
 @media (max-width: 900px) {
