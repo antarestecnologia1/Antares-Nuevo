@@ -3875,7 +3875,7 @@ body[data-theme="dark"] .p-form textarea {
   box-shadow: 0 6px 16px rgba(8, 35, 68, 0.22);
 }
 
-.news-evidence-hook strong {
+.news-evidence-hook > strong {
   display: block;
   font-size: 0.82rem;
   letter-spacing: 0.04em;
