@@ -5363,7 +5363,26 @@ function payrollHtml() {
       </select></label>
       <button type="button" class="btn btn-action btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
     </form>`;
-  return `<section class="payroll-shell">${payrollStrip}
+  const payrollHead = `<div class="ops-module-head">
+      <div class="ops-module-title">
+        <span class="ops-module-kicker">Recursos humanos</span>
+        <h2>Nómina y gestión de personal</h2>
+      </div>
+      <div class="ops-module-chips">
+        <span class="ops-chip"><strong>${employees.length}</strong> empleados</span>
+        <span class="ops-chip"><strong>${pending}</strong> pendientes</span>
+        <span class="ops-chip"><strong>${pendingAbsenceApprovals}</strong> por revisar</span>
+      </div>
+    </div>`;
+  const payrollActions = `<div class="ops-command-bar">
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-employee">${IC.userPlus} Nuevo empleado</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll">${IC.dollar} Nueva liquidación</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Nueva ausencia</button>
+      </div>
+    </div>`;
+  return `<section class="payroll-shell">${payrollHead}${payrollStrip}
+      ${payrollActions}
       <div class="dash-grid payroll-kpi-grid">
         <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
         <div class="payroll-kpi-card"><span>Liquidaciones pendientes</span><strong>${pending}</strong></div>
@@ -5371,7 +5390,7 @@ function payrollHtml() {
         <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
       </div>
       ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catálogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", "Calcula devengos, deducciones y neto del periodo", formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
       <div class="payroll-data-grid">
         ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
         ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
@@ -5568,7 +5587,27 @@ function hiringHtml() {
       </div>
     </div>`;
 
-  return `<section class="hiring-shell">${executiveStrip}
+  const hiringHead = `<div class="ops-module-head ops-module-head-hiring">
+      <div class="ops-module-title">
+        <span class="ops-module-kicker">Recursos humanos</span>
+        <h2>Contratación y selección</h2>
+      </div>
+      <div class="ops-module-chips">
+        <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes</span>
+        <span class="ops-chip"><strong>${activeCandidates.length}</strong> candidatos</span>
+        <span class="ops-chip"><strong>${contractsThisMonth.length}</strong> contratos mes</span>
+      </div>
+    </div>`;
+  const hiringActions = `<div class="ops-command-bar">
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-position">${IC.briefcase} Nuevo cargo</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-vacancy">${IC.plus} Nueva vacante</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Nuevo candidato</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-contract">${IC.file} Generar contrato</button>
+      </div>
+    </div>`;
+  return `<section class="hiring-shell">${hiringHead}${executiveStrip}
+    ${hiringActions}
     <div class="hiring-kpi-grid">
       <div class="hr-kpi-card"><span>Vacantes abiertas</span><strong>${openVacancies.length}</strong></div>
       <div class="hr-kpi-card"><span>Candidatos activos</span><strong>${activeCandidates.length}</strong></div>
