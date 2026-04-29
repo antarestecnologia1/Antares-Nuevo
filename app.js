@@ -608,6 +608,7 @@ const PUBLIC_ES_EN_DICT = {
   Flota: "Fleet",
   Servicios: "Services",
   Cobertura: "Coverage",
+  Proceso: "Process",
   Novedades: "Updates",
   "Trabaja con nosotros": "Careers",
   Contacto: "Contact",
@@ -621,9 +622,12 @@ const PUBLIC_ES_EN_DICT = {
   "Logistica premium para floricultura y exportacion": "Premium logistics for floriculture and exports",
   "Transporte especializado de flores con": "Specialized flower transportation with",
   "trazabilidad total": "full traceability",
+  "Operamos una red B2B con turbos, camiones y tractocamiones para movilizar": "We operate a B2B network with turbo trucks, medium trucks, and tractor-trailers to move",
+  "flor de exportacion con control de temperatura, seguridad y cumplimiento en toda Colombia.": "export flowers with temperature control, safety, and compliance across Colombia.",
   "Operamos con turbos, camiones y tractocamiones para llevar tu carga": "We operate turbo trucks, medium trucks, and tractor-trailers to move your cargo",
   "con control de temperatura, seguridad y cumplimiento en toda Colombia.": "with temperature control, security, and on-time compliance across Colombia.",
   Contactenos: "Contact us",
+  "Solicitar propuesta": "Request proposal",
   "Ingresar al portal": "Enter portal",
   "Entregas mensuales": "Monthly deliveries",
   "Nivel de cumplimiento": "Service compliance",
@@ -651,6 +655,8 @@ const PUBLIC_ES_EN_DICT = {
   "Gestion administrativa": "Business administration",
   "Lider administrativo": "Administrative lead",
   "Control de procesos, coordinacion y mejora continua.": "Process control, coordination, and continuous improvement.",
+  "Estandar empresarial": "Business standard",
+  "Operamos con procesos definidos, seguimiento documentado, niveles de servicio medibles y una cultura de mejora continua orientada a resultados.": "We operate with defined processes, documented follow-up, measurable service levels, and a results-driven continuous improvement culture.",
   "Empresas que confian en nosotros": "Companies that trust us",
   "Aliados del sector floricultor, comercializador y exportador que": "Allies across floriculture, trading, and exports who",
   "priorizan puntualidad y conservacion de cadena de frio.": "prioritize punctuality and cold-chain integrity.",
@@ -686,6 +692,16 @@ const PUBLIC_ES_EN_DICT = {
   "Seguimiento en tiempo real por estado de viaje, notificaciones automaticas y visibilidad completa del proceso logistico.": "Real-time tracking by trip status, automated notifications, and full visibility of the logistics process.",
   "Atencion B2B": "B2B service",
   "Modelo de servicio dedicado para exportadores y comercializadores con acuerdos de servicio personalizados.": "A dedicated service model for exporters and traders with tailored service agreements.",
+  "Proceso operativo estandar": "Standard operating process",
+  "Un flujo claro de punta a punta para proteger la cadena de frio y asegurar entregas confiables.": "A clear end-to-end flow to protect the cold chain and ensure reliable deliveries.",
+  "Planeacion de ruta": "Route planning",
+  "Definimos origen, ventanas de cargue, destino y contingencias segun criticidad de la carga.": "We define origin, loading windows, destination, and contingencies according to shipment criticality.",
+  "Asignacion de flota": "Fleet assignment",
+  "Seleccionamos vehiculo y conductor acorde a volumen, temperatura objetivo y tiempos de entrega.": "We assign the right vehicle and driver based on volume, target temperature, and delivery windows.",
+  "Monitoreo en viaje": "In-transit monitoring",
+  "Hacemos seguimiento en tiempo real del estado del viaje y puntos criticos de la operacion.": "We track trip status and critical checkpoints in real time.",
+  "Cierre y trazabilidad": "Closure and traceability",
+  "Registramos novedades, evidencia de entrega y reporte para analisis de cumplimiento.": "We record incidents, proof of delivery, and compliance reporting.",
   "Cobertura nacional": "Nationwide coverage",
   "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for floriculture and exports.",
   "Rutas principales": "Main routes",
@@ -732,6 +748,7 @@ const PUBLIC_ES_EN_DICT = {
   "para que el equipo revise tu perfil.": "module so the team can review your profile.",
   "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).": "Vacancies sync with the same team that manages candidates in the portal (same local browser database).",
   "Formulario de contacto B2B": "B2B contact form",
+  "Cuentanos tu necesidad logistica y te compartimos una propuesta tecnica y comercial.": "Tell us your logistics needs and we will share a technical and commercial proposal.",
   Nombre: "Name",
   Empresa: "Company",
   "NIT/RUT": "Tax ID",
@@ -840,7 +857,7 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#trusted .mini-metric:nth-child(1) p": "Empresas atendidas en el ultimo ano.",
     "#trusted .mini-metric:nth-child(2) p": "Clientes recurrentes por nivel de servicio.",
     "#trusted .mini-metric:nth-child(3) p": "Monitoreo de operacion y trazabilidad.",
-    "#about .grid-2 article:nth-child(1) p": "Somos una compania con enfoque B2B especializada en logistica de flor. Integramos tecnologia, experiencia operativa y servicio al cliente para garantizar entregas puntuales y seguras.",
+    "#about .about-grid article:nth-child(1) p": "Somos un operador logistico B2B especializado en transporte refrigerado para floricultores, comercializadores y exportadores. Integramos tecnologia, disciplina operativa y servicio cercano para garantizar entregas puntuales.",
     "#hierarchy .section-head p": "Liderazgo estrategico y operativo para asegurar excelencia en cada viaje y en toda la cadena de servicio.",
     "#testimonials .section-head p": "Experiencias reales de empresas que gestionan volumen, calidad y tiempos exigentes.",
     "#services .section-head p": "Soluciones logisticas integrales para el sector floricultor y de exportacion.",
@@ -854,7 +871,7 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#trusted .mini-metric:nth-child(1) p": "Companies served in the last year.",
     "#trusted .mini-metric:nth-child(2) p": "Repeat clients driven by service quality.",
     "#trusted .mini-metric:nth-child(3) p": "Operations monitoring and traceability.",
-    "#about .grid-2 article:nth-child(1) p": "We are a B2B-focused company specialized in flower logistics. We combine technology, operational expertise, and customer service to ensure secure and on-time deliveries.",
+    "#about .about-grid article:nth-child(1) p": "We are a B2B logistics operator specialized in refrigerated transport for growers, distributors, and exporters. We combine technology, operational discipline, and close support to ensure on-time deliveries.",
     "#hierarchy .section-head p": "Strategic and operational leadership that ensures excellence on every trip and across the full service chain.",
     "#testimonials .section-head p": "Real stories from companies managing high volume, strict quality, and demanding timelines.",
     "#services .section-head p": "End-to-end logistics solutions for floriculture and export operations.",
@@ -899,14 +916,14 @@ function applyPublicLanguage(lang = "es") {
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
 
-  document.title = lang === "en" ? "Antares — Specialized Transport" : "Antares- Transporte Especializado";
+  document.title = lang === "en" ? "Antares — B2B Refrigerated Logistics" : "Antares - Logistica Refrigerada B2B";
   const metaDesc = document.querySelector('meta[name="description"]');
   if (metaDesc) {
     metaDesc.setAttribute(
       "content",
       lang === "en"
-        ? "Refrigerated freight platform specialized in flowers. Turbo trucks, rigids, and tractor-trailers with full traceability."
-        : "Plataforma de transporte de carga refrigerada especializada en flores. Turbos, camiones y tractocamiones con trazabilidad total."
+        ? "B2B logistics operator specialized in refrigerated transport for floriculture and exports, with traceability, compliance, and 24/7 monitoring across Colombia."
+        : "Operador logistico B2B especializado en transporte refrigerado para floricultura y exportacion, con trazabilidad, cumplimiento y monitoreo 24/7 en Colombia."
     );
   }
 
