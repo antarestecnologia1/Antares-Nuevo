@@ -11,6 +11,7 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 5. `postgres/05_rrhh.sql`
 6. `postgres/06_sistema.sql`
 7. `postgres/07_indices.sql`
+8. *(Opcional)* `postgres/08_seed_tarifas_trayecto.sql` — datos demo de tarifas por trayecto
 
 ## Mapa módulo ↔ tablas ↔ `localStorage` (app.js)
 
