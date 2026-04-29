@@ -277,10 +277,38 @@ nav a.active::after { width: 70%; }
   justify-content: center;
 }
 
-.lang-option .flag-emoji {
-  font-size: 1rem;
-  line-height: 1;
-  filter: saturate(1.1);
+.lang-option .flag-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(10, 46, 92, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.lang-option .flag-co {
+  background: linear-gradient(
+    to bottom,
+    #fcd116 0%,
+    #fcd116 50%,
+    #003893 50%,
+    #003893 75%,
+    #ce1126 75%,
+    #ce1126 100%
+  );
+}
+
+.lang-option .flag-us {
+  background:
+    linear-gradient(to bottom, #3c3b6e 0 52%, transparent 52% 100%),
+    repeating-linear-gradient(
+      to bottom,
+      #b22234 0 10%,
+      #ffffff 10% 20%
+    );
+  background-size: 55% 55%, 100% 100%;
+  background-position: left top, center;
+  background-repeat: no-repeat;
 }
 
 .theme-option.active,
