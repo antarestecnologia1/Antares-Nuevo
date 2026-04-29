@@ -4344,6 +4344,12 @@ body[data-theme="dark"] .p-form textarea {
   filter: saturate(1.22) contrast(1.12) brightness(1.08);
 }
 
+.news-media .news-evidence-frame img.news-img-truck {
+  object-fit: contain;
+  object-position: center;
+  background: linear-gradient(180deg, #e8f1fc, #dbe9f8);
+}
+
 @media (max-width: 960px) {
   .news-evidence-gallery--stack {
     flex: none;
@@ -5744,7 +5750,37 @@ body[data-theme="dark"] .portal-main .btn-action {
 .portal-main .dash-grid {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
+}
+
+.portal-main .dash-grid > .p-card,
+.portal-main .hiring-actions-grid > .p-card,
+.portal-main .hiring-data-grid > .p-card,
+.portal-main .payroll-data-grid > .p-card,
+.portal-main .user-grid > .user-card,
+.portal-main .user-grid-pending > .user-card,
+.portal-main .kpi-grid > .kpi,
+.portal-main .users-stats-grid > .users-stat-card,
+.portal-main .hr-kpi-grid > .hr-kpi-card,
+.portal-main .payroll-kpi-grid > .payroll-kpi-card {
+  height: 100%;
+}
+
+.portal-main .dash-grid > .p-card,
+.portal-main .hiring-actions-grid > .p-card,
+.portal-main .hiring-data-grid > .p-card,
+.portal-main .payroll-data-grid > .p-card,
+.portal-main .user-grid > .user-card,
+.portal-main .user-grid-pending > .user-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.portal-main .dash-grid > .p-card .p-card-body,
+.portal-main .hiring-actions-grid > .p-card .p-card-body,
+.portal-main .hiring-data-grid > .p-card .p-card-body,
+.portal-main .payroll-data-grid > .p-card .p-card-body {
+  flex: 1;
 }
 
 .portal-main .p-form {
