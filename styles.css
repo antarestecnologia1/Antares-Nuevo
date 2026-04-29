@@ -4344,6 +4344,17 @@ body[data-theme="dark"] .p-form textarea {
   filter: saturate(1.22) contrast(1.12) brightness(1.08);
 }
 
+.news-media .news-evidence-gallery--stack .news-evidence-frame {
+  aspect-ratio: 4 / 3;
+}
+
+.news-media .news-evidence-gallery--stack .news-evidence-frame img {
+  object-fit: contain;
+  object-position: center;
+  background: linear-gradient(180deg, #e8f1fc, #dbe9f8);
+  padding: 0.2rem;
+}
+
 .news-media .news-evidence-frame img.news-img-truck {
   object-fit: contain;
   object-position: center;
