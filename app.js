@@ -388,9 +388,12 @@ const KEYS = {
   contracts: "antares_contracts_v2",
   hrAbsences: "antares_hr_absences_v2",
   sstCompliance: "antares_sst_compliance_v2",
+  tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
   session: "antares_session_v2"
 };
+
+const CO_TIMEZONE = "America/Bogota";
 
 const ROLES = {
   ADMIN: "admin",
@@ -1338,13 +1341,51 @@ function initB2BFormExperience() {
 }
 
 function nowIso() {
-  return new Date().toISOString();
+  return colombiaNowIso();
 }
 
 function nowLocalIso() {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 19);
+  return colombiaNowIso().slice(0, 19);
+}
+
+function getColombiaDateParts(dateValue = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: CO_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+  const parts = formatter.formatToParts(dateValue);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || "00";
+  return {
+    year: pick("year"),
+    month: pick("month"),
+    day: pick("day"),
+    hour: pick("hour"),
+    minute: pick("minute"),
+    second: pick("second")
+  };
+}
+
+function colombiaNowIso() {
+  const p = getColombiaDateParts(new Date());
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}-05:00`;
+}
+
+function colombiaTodayIsoDate() {
+  const p = getColombiaDateParts(new Date());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+function buildColombiaOffsetDateTime(datePart, timePart) {
+  const date = String(datePart || "").trim();
+  const time = String(timePart || "").trim();
+  if (!date || !time) return "";
+  return `${date}T${time}:00-05:00`;
 }
 
 function normalizeEmail(email) {
@@ -1403,10 +1444,7 @@ function makeRequestNumber(existingNumbers = new Set()) {
 
 function fmtDate(value) {
   if (!value) return "-";
-  const normalized = /\dT\d/.test(String(value || "")) && !String(value || "").endsWith("Z")
-    ? `${value}Z`
-    : value;
-  return new Date(normalized).toLocaleString("es-CO");
+  return new Date(value).toLocaleString("es-CO", { timeZone: CO_TIMEZONE });
 }
 
 function addYears(dateValue, years) {
@@ -1438,9 +1476,20 @@ function formatRoute(request) {
 
 function toInputDate(isoDate) {
   if (!isoDate) return "";
-  const d = new Date(isoDate);
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16);
+  const p = getColombiaDateParts(new Date(isoDate));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+function routeRateKeyFromRequest(request) {
+  const origin = `${String(request?.originDepartment || "").trim()}|${String(request?.originCity || "").trim()}`.toLowerCase();
+  const destination = `${String(request?.destinationDepartment || "").trim()}|${String(request?.destinationCity || "").trim()}`.toLowerCase();
+  return `${origin}->${destination}`;
+}
+
+function getConfiguredTripValue(request) {
+  const rates = read(KEYS.tripRouteRates, {});
+  const configured = parseNum(rates[routeRateKeyFromRequest(request)]);
+  return configured > 0 ? configured : 0;
 }
 
 function slugStatus(value) {
@@ -2040,6 +2089,9 @@ function seed() {
     write(KEYS.travelAllowanceRules, {
       interDepartmentTripAmount: 85000
     });
+  }
+  if (!localStorage.getItem(KEYS.tripRouteRates)) {
+    write(KEYS.tripRouteRates, {});
   }
 
   [
@@ -2954,6 +3006,39 @@ function getCompatibleDriversForRequest(request, currentRequestId = null) {
   );
 }
 
+function getVehicleCandidatesForRequest(request, currentRequestId = null) {
+  const requiresRefrigeration = String(request?.serviceType || "").toLowerCase().includes("refrigerada");
+  return read(KEYS.vehicles, [])
+    .filter((vehicle) => {
+      if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
+      if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
+      if (requiresRefrigeration && !vehicle.refrigerated) return false;
+      return true;
+    })
+    .map((vehicle) => {
+      const soatDays = docExpiryStatus(vehicle.soatExpeditionDate).days;
+      const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate).days;
+      const busy = isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
+      return {
+        ...vehicle,
+        isBusy: busy || !vehicle.available,
+        hasExpiredDocs: soatDays < 0 || techDays < 0
+      };
+    });
+}
+
+function getDriverCandidatesForRequest(request, currentRequestId = null) {
+  return read(KEYS.drivers, []).map((driver) => {
+    const expiredLicense = daysUntil(driver.licenseExpiry) < 0;
+    const busy = isDriverBusyAtHour(driver, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
+    return {
+      ...driver,
+      isBusy: busy || !driver.available,
+      hasExpiredDocs: expiredLicense
+    };
+  });
+}
+
 function makeTripNumber(existingNumbers = new Set()) {
   let code = `VIA-${String(nextCounter("trip")).padStart(6, "0")}`;
   while (existingNumbers.has(code)) {
@@ -2974,7 +3059,7 @@ function setDriverAvailability(driverId, available) {
   write(KEYS.drivers, next);
 }
 
-function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "") {
+function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "", selectedTripValue = null) {
   const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   const canAssignTrip = current && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(current.status);
@@ -3054,6 +3139,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     r.id === requestId
       ? {
           ...r,
+          tripValue: parseNum(selectedTripValue ?? r.tripValue),
           status: STATUS.VIAJE_ASIGNADO,
           approvedAt: nowLocalIso(),
           approvedBy: actorName,
@@ -6755,8 +6841,7 @@ function bindDynamicEvents() {
       destinationDepartment.addEventListener("change", () => fillCityOptions(destinationDepartment, destinationCity));
     }
     if (pickupDate) {
-      const now = new Date();
-      const today = now.toISOString().split("T")[0];
+      const today = colombiaTodayIsoDate();
       pickupDate.min = today;
       if (deliveryDate) deliveryDate.min = today;
     }
@@ -6773,8 +6858,8 @@ function bindDynamicEvents() {
         notify("Debes seleccionar fecha y hora de recogida y entrega.", "error");
         return;
       }
-      const pickupAt = `${pickupDateValue}T${pickupTimeValue}`;
-      const etaDelivery = `${deliveryDateValue}T${deliveryTimeValue}`;
+      const pickupAt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
+      const etaDelivery = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
       const pickupDateTime = new Date(pickupAt);
       const deliveryDateTime = new Date(etaDelivery);
       if (pickupDateTime.getTime() < Date.now()) {
@@ -7048,6 +7133,9 @@ function bindDynamicEvents() {
       if (!request) return;
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+      const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
+      const driverCandidates = getDriverCandidatesForRequest(request, requestId);
+      const configuredTripValue = getConfiguredTripValue(request);
       openEditModal({
         title: "Aprobar solicitud",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
@@ -7070,10 +7158,10 @@ function bindDynamicEvents() {
             type: "select",
             required: false,
             options: [
-              { value: "", label: compatibleVehicles.length ? "Sin asignar por ahora" : "No hay camiones compatibles disponibles" },
-              ...compatibleVehicles.map((vehicle) => ({
+              { value: "", label: vehicleCandidates.length ? "Sin asignar por ahora" : "No hay camiones compatibles para el tipo/peso" },
+              ...vehicleCandidates.map((vehicle) => ({
               value: vehicle.id,
-              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
+              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
               }))
             ]
           },
@@ -7083,25 +7171,41 @@ function bindDynamicEvents() {
             type: "select",
             required: false,
             options: [
-              { value: "", label: compatibleDrivers.length ? "Sin asignar por ahora" : "No hay conductores compatibles disponibles" },
-              ...compatibleDrivers.map((driver) => ({
+              { value: "", label: driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores registrados" },
+              ...driverCandidates.map((driver) => ({
               value: driver.id,
-              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}`
+              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
               }))
             ]
+          },
+          {
+            name: "tripValue",
+            label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
+            type: "number",
+            required: false,
+            value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
           }
         ],
         onSubmit: (form) => {
           const selectedMode = String(form.mode || "pending");
           const vehicleId = String(form.vehicleId || "").trim();
           const driverId = String(form.driverId || "").trim();
+          const tripValue = parseNum(form.tripValue);
           const mode = vehicleId && driverId ? "assign_now" : selectedMode;
           if (mode === "assign_now" && (!vehicleId || !driverId)) {
             notify("Para asignar ahora debes seleccionar camion y conductor.", "error");
             return false;
           }
+          if (mode === "assign_now" && tripValue <= 0) {
+            notify("Debes definir el precio del viaje para asignar.", "error");
+            return false;
+          }
+          if (mode === "assign_now" && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
+            notify("No puedes asignar recursos ocupados o vencidos para ese horario.", "error");
+            return false;
+          }
           const ok = mode === "assign_now"
-            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId)
+            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue)
             : approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
           notify(
@@ -7154,6 +7258,7 @@ function bindDynamicEvents() {
       }
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+      const configuredTripValue = getConfiguredTripValue(request);
       openEditModal({
         title: "Asignar viaje",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType}`,
@@ -7182,6 +7287,13 @@ function bindDynamicEvents() {
                 label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
               }))
               : [{ value: "", label: "No hay conductores compatibles disponibles" }]
+          },
+          {
+            name: "tripValue",
+            label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
+            type: "number",
+            required: true,
+            value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
           }
         ],
         onSubmit: (form) => {
@@ -7189,7 +7301,19 @@ function bindDynamicEvents() {
             notify("No hay camion/conductor compatible para asignar este viaje.", "error");
             return false;
           }
-          const ok = approveRequest(requestId, currentUser()?.name || "Administrador", false, String(form.vehicleId || ""), String(form.driverId || ""));
+          const tripValue = parseNum(form.tripValue);
+          if (tripValue <= 0) {
+            notify("Debes definir el precio del viaje para asignar.", "error");
+            return false;
+          }
+          const ok = approveRequest(
+            requestId,
+            currentUser()?.name || "Administrador",
+            false,
+            String(form.vehicleId || ""),
+            String(form.driverId || ""),
+            tripValue
+          );
           if (!ok) return false;
           notify("Viaje creado y asignado correctamente.", "success");
           renderPortalView();
@@ -8932,6 +9056,9 @@ function bindDynamicEvents() {
 
         const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+        const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
+        const driverCandidates = getDriverCandidatesForRequest(request, requestId);
+        const configuredTripValue = getConfiguredTripValue(request);
 
         openEditModal({
           title: "Aprobar solicitud de viaje",
@@ -8944,9 +9071,9 @@ function bindDynamicEvents() {
               type: "select",
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
-                ...compatibleVehicles.map((vehicle) => ({
+                ...vehicleCandidates.map((vehicle) => ({
                   value: vehicle.id,
-                  label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}`
+                  label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
                 }))
               ]
             },
@@ -8956,24 +9083,40 @@ function bindDynamicEvents() {
               type: "select",
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
-                ...compatibleDrivers.map((driver) => ({
+                ...driverCandidates.map((driver) => ({
                   value: driver.id,
-                  label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
+                  label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
                 }))
               ]
+            },
+            {
+              name: "tripValue",
+              label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
+              type: "number",
+              required: false,
+              value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
             }
           ],
           onSubmit: (form) => {
             const vehicleId = String(form.vehicleId || "").trim();
             const driverId = String(form.driverId || "").trim();
+            const tripValue = parseNum(form.tripValue);
 
             if ((vehicleId && !driverId) || (!vehicleId && driverId)) {
               notify("Para asignar automaticamente debes seleccionar camion y conductor.", "error");
               return false;
             }
+            if (vehicleId && driverId && tripValue <= 0) {
+              notify("Debes definir el precio del viaje para asignar.", "error");
+              return false;
+            }
+            if (vehicleId && driverId && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
+              notify("No puedes asignar recursos ocupados o vencidos para ese horario.", "error");
+              return false;
+            }
 
             const ok = vehicleId && driverId
-              ? approveRequest(requestId, actor.name, false, vehicleId, driverId)
+              ? approveRequest(requestId, actor.name, false, vehicleId, driverId, tripValue)
               : approveRequest(requestId, actor.name, true);
 
             if (!ok) {

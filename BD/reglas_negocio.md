@@ -36,6 +36,7 @@ Documento complementario a los scripts en `postgres/` (**tablas y columnas en es
 | **Fechas** | `fecha_hora_recogida` y política de “no pasado”; `fecha_hora_entrega_estimada` > recogida. |
 | **Estados** | Valores = `estado_solicitud_transporte`, texto como en `STATUS` de `app.js`. Transiciones según `STATUS_TRANSITIONS`. |
 | **Tarifa** | El cliente no fija la tarifa final; Antares asigna (`valor_tarifa_viaje`). |
+| **Tarifa por trayecto** | Cuando exista configuración previa, autocompletar desde `tarifas_trayecto` y permitir ajuste operativo. |
 | **Viaje** | `viajes_transporte` 1:1 con `solicitudes_transporte` cuando hay recurso; sin fila si solo está aprobada sin asignar. `numero_viaje` único. |
 | **Ocupación** | `disponible` / `ocupado_por_sistema` en flota; coherencia con viajes activos en app. |
 

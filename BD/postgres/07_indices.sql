@@ -8,6 +8,7 @@ CREATE INDEX idx_solicitudes_id_empresa_cliente ON solicitudes_transporte (id_em
 CREATE INDEX idx_solicitudes_id_usuario ON solicitudes_transporte (id_usuario_solicitante);
 CREATE INDEX idx_solicitudes_estado ON solicitudes_transporte (estado);
 CREATE INDEX idx_solicitudes_fecha_creacion ON solicitudes_transporte (fecha_creacion DESC);
+CREATE INDEX idx_tarifas_trayecto_origen_destino ON tarifas_trayecto (departamento_origen, ciudad_origen, departamento_destino, ciudad_destino) WHERE activo = true;
 
 CREATE INDEX idx_viajes_id_vehiculo ON viajes_transporte (id_vehiculo);
 CREATE INDEX idx_viajes_id_conductor ON viajes_transporte (id_conductor);

@@ -22,6 +22,7 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 | Parámetros legales (SMMLV, etc.) | `parametros_sistema` | — |
 | Vehículos | `vehiculos` | `vehicles` |
 | Conductores | `conductores` | `drivers` |
+| Tarifas por trayecto | `tarifas_trayecto` | `tripRouteRates` |
 | Solicitudes de viaje | `solicitudes_transporte` | `requests` |
 | Viajes asignados | `viajes_transporte` | (objeto `trip` dentro de `requests`) |
 | Combustible | `registros_combustible` | `fuelLogs` |
