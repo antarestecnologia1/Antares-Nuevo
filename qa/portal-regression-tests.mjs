@@ -25,7 +25,9 @@ function regexCount(content, pattern) {
 function run() {
   const indexHtml = read("index.html");
   const appJs = read("app.js");
+  const portalArchitectureJs = read("modules/portal/architecture.js");
   const stylesCss = read("styles.css");
+  const portalSource = `${appJs}\n${portalArchitectureJs}`;
 
   // 1) Index integrity
   includesAll(
@@ -89,23 +91,38 @@ function run() {
 
   // 4) Portal modules coverage
   includesAll(
-    appJs,
+    portalSource,
     [
-      'dashboard: "Dashboard"',
-      'requests: "Solicitudes"',
-      '"transport-requests": "Transporte · Solicitudes"',
-      '"transport-trips": "Transporte · Viajes"',
-      '"transport-vehicles": "Transporte · Camiones"',
-      '"transport-drivers": "Transporte · Conductores"',
-      '"transport-calendar": "Transporte · Calendario"',
-      'history: "Transporte · Historial y reportes"',
-      'reports: "Centro de reporteria"',
-      'payroll: "Nomina"',
-      'hiring: "Contratacion"',
-      '"admin-users": "Administración · Usuarios y permisos"',
-      'authorizations: "Autorizaciones"',
-      'profile: "Mi perfil"',
-      'notifications: "Notificaciones"'
+      "dashboard:",
+      'title: "Dashboard"',
+      "requests:",
+      'title: "Solicitudes"',
+      '"transport-requests":',
+      'title: "Transporte · Solicitudes"',
+      '"transport-trips":',
+      'title: "Transporte · Viajes"',
+      '"transport-vehicles":',
+      'title: "Transporte · Camiones"',
+      '"transport-drivers":',
+      'title: "Transporte · Conductores"',
+      '"transport-calendar":',
+      'title: "Transporte · Calendario"',
+      "history:",
+      'title: "Transporte · Historial y reportes"',
+      "reports:",
+      'title: "Centro de reporteria"',
+      "payroll:",
+      'title: "Nomina"',
+      "hiring:",
+      'title: "Contratacion"',
+      '"admin-users":',
+      'title: "Administración · Usuarios y permisos"',
+      "authorizations:",
+      'title: "Autorizaciones"',
+      "profile:",
+      'title: "Mi perfil"',
+      "notifications:",
+      'title: "Notificaciones"'
     ],
     "portal-modules"
   );

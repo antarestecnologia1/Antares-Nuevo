@@ -690,7 +690,7 @@ const PUBLIC_ES_EN_DICT = {
   "Gestion administrativa": "Business administration",
   "Lider administrativo": "Administrative lead",
   "Control de procesos, coordinacion y mejora continua.": "Process control, coordination, and continuous improvement.",
-  "Estandar empresarial": "Business standard",
+  "Estandar empresarial": "Enterprise standard",
   "Operamos con procesos definidos, seguimiento documentado, niveles de servicio medibles y una cultura de mejora continua orientada a resultados.": "We operate with defined processes, documented follow-up, measurable service levels, and a results-driven continuous improvement culture.",
   "Empresas que confian en nosotros": "Companies that trust us",
   "Aliados del sector floricultor, comercializador y exportador que": "Allies across floriculture, trading, and exports who",
@@ -698,6 +698,7 @@ const PUBLIC_ES_EN_DICT = {
   "Empresas atendidas en el ultimo ano.": "Companies served in the last year.",
   "Clientes recurrentes por nivel de servicio.": "Repeat clients driven by service quality.",
   "Monitoreo de operacion y trazabilidad.": "Operations monitoring and traceability.",
+  "Rastrea tu envio": "Track your shipment",
   "Lo que dicen nuestros clientes": "What our clients say",
   "Experiencias reales de empresas que gestionan volumen, calidad y": "Real stories from companies managing volume, quality, and",
   "tiempos exigentes.": "tight timelines.",
@@ -2874,48 +2875,41 @@ function requiresAdminHrApproval(role) {
 }
 
 function isViewAllowedForUser(user, view) {
-  if (!user || !canAccessView(user, view)) return false;
-  if (user.role === ROLES.CLIENT) {
-    return ["dashboard", "requests", "profile", "notifications"].includes(view);
-  }
-  if (view === "requests") return user.role === ROLES.CLIENT || user.role === ROLES.ADMIN;
-  if (["transport-requests", "transport-trips", "transport-vehicles", "transport-drivers", "transport-calendar", "history", "admin-users", "authorizations"].includes(view)) {
-    return user.role === ROLES.ADMIN;
-  }
-  if (view === "reports") return user.role === ROLES.ADMIN || canAccessRRHH(user.role);
-  if (["payroll", "hiring", "labor-compliance"].includes(view)) return canAccessRRHH(user.role);
-  return true;
+  return PortalAccessCore.isViewAllowed({
+    user,
+    view,
+    canAccessView,
+    portalArch: PortalArch,
+    ROLES,
+    canAccessRRHH
+  });
 }
 
 function viewFromPortalHash() {
-  const hash = String(window.location.hash || "");
-  if (!hash.startsWith("#portal/")) return "";
-  const view = hash.slice("#portal/".length).trim();
-  return VIEW_PERMISSIONS[view] ? view : "";
+  return PortalRouterCore.getViewFromHash({
+    hash: window.location.hash,
+    isKnownView: PortalArch.isKnownView
+  });
 }
 
 function syncPortalHash(view) {
-  const safeView = VIEW_PERMISSIONS[view] ? view : "dashboard";
-  const nextHash = `#portal/${safeView}`;
-  if (window.location.hash !== nextHash) {
-    history.replaceState(null, "", nextHash);
-  }
+  PortalRouterCore.syncHash({
+    view,
+    isKnownView: PortalArch.isKnownView,
+    fallbackView: "dashboard"
+  });
 }
 
 function enforcePortalViewFromUrl(user) {
-  if (!state.session || !user) return;
-  const candidate = viewFromPortalHash();
-  if (!candidate) {
-    syncPortalHash(state.currentView || "dashboard");
-    return;
-  }
-  if (!isViewAllowedForUser(user, candidate)) {
-    state.currentView = "dashboard";
-    syncPortalHash("dashboard");
-    alert("Ruta no autorizada. Se redirigio al dashboard.");
-    return;
-  }
-  state.currentView = candidate;
+  PortalRouterCore.enforceViewFromUrl({
+    state,
+    user,
+    getViewFromHashFn: viewFromPortalHash,
+    syncHashFn: syncPortalHash,
+    isViewAllowed: isViewAllowedForUser,
+    fallbackView: "dashboard",
+    onUnauthorized: () => alert("Ruta no autorizada. Se redirigio al dashboard.")
+  });
 }
 
 function setView(view) {
@@ -2927,9 +2921,7 @@ function setView(view) {
   }
   state.currentView = view;
   syncPortalHash(view);
-  nodes.sideLinks.forEach((link) => {
-    link.classList.toggle("active", link.dataset.view === view);
-  });
+  PortalRouterCore.activateSideLinks(nodes.sideLinks, view);
   renderPortalView();
 }
 
@@ -4958,131 +4950,115 @@ function renderFromModule(moduleName, exportName, ...args) {
   return "";
 }
 
-const MODULE_BLUEPRINTS = {
-  dashboard: {
-    focus: "Monitoreo ejecutivo del negocio",
-    checkpoints: ["Revisar KPIs diarios", "Validar alertas activas", "Priorizar cuellos operativos"]
+const PortalArch = window.PortalArchitecture || {
+  isKnownView: (view) => Boolean(VIEW_PERMISSIONS[String(view || "")]),
+  shouldUseShell: () => true,
+  getTitle: (view) => String(view || "Dashboard"),
+  getLayoutPlan: () => null,
+  isAllowedByRole: () => true,
+  resolveContent: ({ accessDeniedFactory }) => accessDeniedFactory()
+};
+
+const PortalAccessCore = window.PortalCoreAccess || {
+  isViewAllowed: ({ user, view, canAccessView, portalArch, ROLES, canAccessRRHH }) =>
+    Boolean(user) && canAccessView(user, view) && portalArch.isAllowedByRole(user, view, { ROLES, canAccessRRHH })
+};
+
+const PortalRouterCore = window.PortalCoreRouter || {
+  getViewFromHash: ({ hash, isKnownView }) => {
+    const raw = String(hash || "");
+    if (!raw.startsWith("#portal/")) return "";
+    const view = raw.slice("#portal/".length).trim();
+    return isKnownView(view) ? view : "";
   },
-  requests: {
-    focus: "Gestión comercial y solicitudes del cliente",
-    checkpoints: ["Completar datos obligatorios", "Revisar estado por solicitud", "Confirmar trazabilidad del servicio"]
+  syncHash: ({ view, isKnownView, fallbackView = "dashboard" }) => {
+    const safeView = isKnownView(view) ? view : fallbackView;
+    const nextHash = `#portal/${safeView}`;
+    if (window.location.hash !== nextHash) history.replaceState(null, "", nextHash);
   },
-  "transport-requests": {
-    focus: "Aprobación y orquestación de operación",
-    checkpoints: ["Priorizar por SLA", "Asignar recursos disponibles", "Escalar casos críticos"]
+  enforceViewFromUrl: ({ state, user, getViewFromHashFn, syncHashFn, isViewAllowed, fallbackView = "dashboard", onUnauthorized }) => {
+    if (!state?.session || !user) return;
+    const candidate = getViewFromHashFn();
+    if (!candidate) {
+      syncHashFn(state.currentView || fallbackView);
+      return;
+    }
+    if (!isViewAllowed(user, candidate)) {
+      state.currentView = fallbackView;
+      syncHashFn(fallbackView);
+      if (typeof onUnauthorized === "function") onUnauthorized(candidate);
+      return;
+    }
+    state.currentView = candidate;
   },
-  "transport-trips": {
-    focus: "Control del ciclo de viaje",
-    checkpoints: ["Actualizar estados en tiempo real", "Revisar incidencias", "Cerrar viajes completados"]
+  activateSideLinks: (sideLinks, view) =>
+    (sideLinks || []).forEach((link) => link.classList.toggle("active", link.dataset.view === view))
+};
+
+const PortalRendererCore = window.PortalCoreRenderer || {
+  resolveViewContent: ({ user, view, isViewAllowed, resolveContent, accessDeniedFactory }) =>
+    !isViewAllowed(user, view) ? accessDeniedFactory() : resolveContent(user, view),
+  safeResolve: ({ view, resolver, onError, fallbackFactory }) => {
+    try {
+      return resolver();
+    } catch (error) {
+      if (typeof onError === "function") onError({ view, error });
+      return fallbackFactory();
+    }
   },
-  "transport-vehicles": {
-    focus: "Disponibilidad y salud de flota",
-    checkpoints: ["Validar documentación vigente", "Controlar mantenimientos", "Depurar unidades inactivas"]
-  },
-  "transport-drivers": {
-    focus: "Gestión de conductores y cumplimiento",
-    checkpoints: ["Verificar licencias vigentes", "Confirmar disponibilidad", "Monitorear datos de contacto"]
-  },
-  "transport-calendar": {
-    focus: "Planificación de agenda operativa",
-    checkpoints: ["Sincronizar fechas clave", "Evitar sobreasignación", "Asegurar cobertura por franja"]
-  },
-  history: {
-    focus: "Trazabilidad histórica y auditoría",
-    checkpoints: ["Aplicar filtros por periodo", "Comparar estados cerrados", "Validar consistencia de datos"]
-  },
-  reports: {
-    focus: "Inteligencia operativa y desempeño",
-    checkpoints: ["Medir productividad", "Detectar tendencias", "Definir planes de mejora"]
-  },
-  payroll: {
-    focus: "Control de nómina y cumplimiento laboral",
-    checkpoints: ["Liquidar periodos pendientes", "Auditar deducciones", "Confirmar pagos realizados"]
-  },
-  hiring: {
-    focus: "Pipeline de talento y contratación",
-    checkpoints: ["Cumplir flujo de selección", "Formalizar contratos a tiempo", "Sincronizar candidato-empleado"],
-    recommendation: "Integre este flujo con Cumplimiento Laboral y SST para cerrar brechas entre contratación, seguridad social y auditoría."
-  },
-  "labor-compliance": {
-    focus: "Control legal laboral y SST",
-    checkpoints: ["Monitorear vencimientos críticos", "Asegurar soportes de seguridad social", "Dejar trazabilidad auditable por empleado"]
-  },
-  "admin-users": {
-    focus: "Gobierno de accesos y seguridad",
-    checkpoints: ["Revisar permisos por rol", "Desactivar cuentas inactivas", "Auditar cambios críticos"]
-  },
-  authorizations: {
-    focus: "Control y trazabilidad de aprobaciones",
-    checkpoints: ["Resolver pendientes críticos", "Documentar decisiones", "Reducir tiempos de respuesta"]
-  },
-  profile: {
-    focus: "Gestión de identidad del usuario",
-    checkpoints: ["Actualizar datos de contacto", "Mantener empresa asociada", "Verificar foto y datos fiscales"]
-  },
-  notifications: {
-    focus: "Seguimiento de alertas del sistema",
-    checkpoints: ["Priorizar notificaciones nuevas", "Cerrar acciones pendientes", "Mantener bandeja limpia"]
+  applyManualLayout: ({ viewRoot, plan }) => {
+    if (!viewRoot || !plan) return;
+    plan.forEach(({ container, order }) => {
+      const nodesToOrder = [...viewRoot.querySelectorAll(container)];
+      nodesToOrder.forEach((containerNode) => {
+        const children = [...containerNode.children];
+        if (children.length < 2 || !Array.isArray(order) || !order.length) return;
+        const ordered = [];
+        const used = new Set();
+        order.forEach((selector) => {
+          children.forEach((child) => {
+            if (used.has(child) || !child.matches(selector)) return;
+            ordered.push(child);
+            used.add(child);
+          });
+        });
+        children.forEach((child) => {
+          if (used.has(child)) return;
+          ordered.push(child);
+        });
+        const changed = ordered.some((child, idx) => child !== children[idx]);
+        if (changed) ordered.forEach((child) => containerNode.appendChild(child));
+      });
+    });
   }
 };
 
 function renderModuleShell(view, _title, bodyHtml) {
-  const blueprint = MODULE_BLUEPRINTS[view];
-  if (!blueprint) return bodyHtml;
+  if (!PortalArch.shouldUseShell(view)) return bodyHtml;
   return `<section class="module-shell" data-module-view="${view}">
     <div class="module-shell-body">${bodyHtml}</div>
   </section>`;
 }
 
-function orderDirectChildrenBySelectors(container, selectors) {
-  if (!container || !Array.isArray(selectors) || selectors.length === 0) return;
-  const children = [...container.children];
-  if (children.length < 2) return;
-  const ordered = [];
-  const used = new Set();
-  selectors.forEach((selector) => {
-    children.forEach((child) => {
-      if (used.has(child)) return;
-      if (child.matches(selector)) {
-        ordered.push(child);
-        used.add(child);
-      }
-    });
+function accessDeniedModuleCard() {
+  return pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
+}
+
+function getPortalViewContent(user, view) {
+  return PortalArch.resolveContent({
+    user,
+    view,
+    renderFromModule,
+    accessDeniedFactory: accessDeniedModuleCard
   });
-  children.forEach((child) => {
-    if (used.has(child)) return;
-    ordered.push(child);
-  });
-  const changed = ordered.some((child, idx) => child !== children[idx]);
-  if (!changed) return;
-  ordered.forEach((child) => container.appendChild(child));
 }
 
 function applyManualModuleLayout() {
   if (!nodes.viewRoot || state.currentView === "profile") return;
   const view = String(state.currentView || "");
-  const plans = {
-    dashboard: [{ container: ".module-shell-body", order: [".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }],
-    "transport-requests": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
-    "transport-trips": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
-    "transport-vehicles": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
-    "transport-drivers": [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
-    "transport-calendar": [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
-    history: [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }],
-    payroll: [{ container: ".payroll-shell", order: [".payroll-actions-grid", ".payroll-executive-strip", ".payroll-kpi-grid", ".payroll-data-grid"] }],
-    hiring: [{ container: ".hiring-shell", order: [".hr-flow-block", ".hiring-executive-strip", ".hr-kpi-grid", ".hiring-data-grid"] }],
-    "labor-compliance": [{ container: ".module-shell-body", order: ["[id^='create-']", ".hr-kpi-grid", ".p-card", ".table-wrap", ".empty-state"] }],
-    "admin-users": [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }],
-    authorizations: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }],
-    notifications: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
-  };
-  const plan = plans[view];
+  const plan = PortalArch.getLayoutPlan(view);
   if (!plan) return;
-  plan.forEach(({ container, order }) => {
-    nodes.viewRoot.querySelectorAll(container).forEach((node) => {
-      orderDirectChildrenBySelectors(node, order);
-    });
-  });
+  PortalRendererCore.applyManualLayout({ viewRoot: nodes.viewRoot, plan });
 }
 
 function enforceColombianFormStandards() {
@@ -5174,65 +5150,28 @@ function renderPortalView() {
 
   const user = currentUser();
   const view = state.currentView;
-  const titles = {
-    dashboard: "Dashboard",
-    requests: "Solicitudes",
-    "transport-requests": "Transporte · Solicitudes",
-    "transport-trips": "Transporte · Viajes",
-    "transport-vehicles": "Transporte · Camiones",
-    "transport-drivers": "Transporte · Conductores",
-    "transport-calendar": "Transporte · Calendario",
-    history: "Transporte · Historial y reportes",
-    reports: "Centro de reporteria",
-    payroll: "Nomina",
-    hiring: "Contratacion",
-    "labor-compliance": "Cumplimiento laboral y SST",
-    "admin-users": "Administración · Usuarios y permisos",
-    authorizations: "Autorizaciones",
-    profile: "Mi perfil",
-    notifications: "Notificaciones"
-  };
-  nodes.viewTitle.textContent = titles[view] || "Dashboard";
-
-  let content = "";
-  if (!isViewAllowedForUser(user, view)) {
-    content = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para este modulo."));
-  } else if (view === "dashboard") {
-    content = renderFromModule("dashboard", "viewDashboard");
-  } else if (view === "requests" && (user.role === ROLES.CLIENT || user.role === ROLES.ADMIN)) {
-    content = `${renderFromModule("solicitudes", "requestFormHtml")}${renderFromModule("solicitudes", "requestListClientHtml", user)}`;
-  } else if (view === "transport-requests" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("transporte", "adminQueueHtml");
-  } else if (view === "transport-trips" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("transporte", "transportTripsHtml");
-  } else if (view === "transport-vehicles" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("transporte", "vehiclesHtml");
-  } else if (view === "transport-drivers" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("transporte", "driversHtml");
-  } else if (view === "transport-calendar" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("transporte", "transportCalendarHtml");
-  } else if (view === "history" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("transporte", "historyHtml");
-  } else if (view === "reports" && (user.role === ROLES.ADMIN || canAccessRRHH(user.role))) {
-    content = renderFromModule("transporte", "reportsHtml");
-  } else if (view === "payroll" && canAccessRRHH(user.role)) {
-    content = renderFromModule("rrhh", "payrollHtml");
-  } else if (view === "hiring" && canAccessRRHH(user.role)) {
-    content = renderFromModule("rrhh", "hiringHtml");
-  } else if (view === "labor-compliance" && canAccessRRHH(user.role)) {
-    content = renderFromModule("rrhh", "laborComplianceHtml");
-  } else if (view === "admin-users" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("usuarios", "adminUsersHtml", user);
-  } else if (view === "authorizations" && user.role === ROLES.ADMIN) {
-    content = renderFromModule("autorizaciones", "authorizationsHtml");
-  } else if (view === "profile") {
-    content = renderFromModule("perfil", "profileHtml", user);
-  } else if (view === "notifications") {
-    content = renderFromModule("notificaciones", "notificationsHtml");
-  } else {
-    content = pcardWrap("shield", "Acceso restringido", null, emptyState("No tienes autorizacion para esta vista."));
-  }
-  nodes.viewRoot.innerHTML = renderModuleShell(view, titles[view] || "Dashboard", content);
+  const viewTitle = PortalArch.getTitle(view);
+  nodes.viewTitle.textContent = viewTitle;
+  const content = PortalRendererCore.safeResolve({
+    view,
+    resolver: () =>
+      PortalRendererCore.resolveViewContent({
+        user,
+        view,
+        isViewAllowed: isViewAllowedForUser,
+        resolveContent: getPortalViewContent,
+        accessDeniedFactory: accessDeniedModuleCard
+      }),
+    onError: ({ view: failedView, error }) => console.error("portal-render-error", { view: failedView, error }),
+    fallbackFactory: () =>
+      pcardWrap(
+        "activity",
+        "Error de renderizado",
+        "Se detectó un problema en el módulo",
+        `<p class="muted">Recarga la vista o cambia de módulo para continuar. Si persiste, revisa consola y registra el incidente.</p>`
+      )
+  });
+  nodes.viewRoot.innerHTML = renderModuleShell(view, viewTitle, content);
 
   applyManualModuleLayout();
   mountUniversalModuleFilters();
