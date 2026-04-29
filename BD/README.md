@@ -12,6 +12,10 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 6. `postgres/06_sistema.sql`
 7. `postgres/07_indices.sql`
 8. *(Opcional)* `postgres/08_seed_tarifas_trayecto.sql` — datos demo de tarifas por trayecto
+9. `postgres/09_rls_tablas.sql` — RLS (tablas públicas) para roles `anon` / `authenticated` de Supabase
+10. `postgres/10_rls_storage_supabase.sql` — RLS de Storage (tras crear en el panel los buckets indicados en el script)
+
+**Manual de despliegue (Word):** generar con `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 
 ## Mapa módulo ↔ tablas ↔ `localStorage` (app.js)
 

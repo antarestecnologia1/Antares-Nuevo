@@ -90,9 +90,9 @@ COMMENT ON TABLE entrevistas IS 'KEYS.interviews; fecha_hora = campo when del fo
 CREATE TABLE contratos (
   id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   etiqueta_origen             VARCHAR(64),
-  tipo_origen_persona       VARCHAR(32) NOT NULL,
-  id_candidato              UUID,
-  nombre_candidato_denorm   VARCHAR(255),
+  tipo_persona_origen         VARCHAR(32) NOT NULL,
+  id_candidato                UUID,
+  nombre_candidato_denorm     VARCHAR(255),
   id_empleado                 UUID,
   nombre_empleado_denorm      VARCHAR(255),
   rol_trabajador              VARCHAR(32) NOT NULL,

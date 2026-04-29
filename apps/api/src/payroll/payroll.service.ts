@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { marcaTiempoColombiaIso } from "../common/colombia-time";
 import { GenerateSlipDto } from "./dto/generate-slip.dto";
 
 @Injectable()
@@ -11,7 +12,7 @@ export class PayrollService {
       gross: dto.gross,
       deductions: dto.deductions,
       net,
-      generatedAt: new Date().toISOString()
+      generatedAt: marcaTiempoColombiaIso()
     };
   }
 }

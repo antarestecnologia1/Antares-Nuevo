@@ -1434,6 +1434,12 @@ function colombiaTodayIsoDate() {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */
+function colombiaDatetimeLocalString(dateValue = new Date()) {
+  const p = getColombiaDateParts(dateValue);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
 function buildColombiaOffsetDateTime(datePart, timePart) {
   const date = String(datePart || "").trim();
   const time = String(timePart || "").trim();
@@ -2038,7 +2044,7 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
 function ensureVehicleDocs() {
   const vehicles = read(KEYS.vehicles, []);
   let changed = false;
-  const nowDate = new Date().toISOString().slice(0, 10);
+  const nowDate = colombiaTodayIsoDate();
   const updated = vehicles.map((v) => {
     if (v.soatExpeditionDate && v.techInspectionExpeditionDate) return v;
     changed = true;
@@ -4331,7 +4337,7 @@ function adminUsersHtml(current) {
           <option value="false">Deshabilitada</option>
           <option value="true">Habilitada (recomendado)</option>
         </select></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${new Date().toISOString().slice(0, 10)}" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${colombiaTodayIsoDate()}" /></label>
       </div>
     </fieldset>
 
@@ -5909,7 +5915,7 @@ function hiringHtml() {
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button>
   </form>`;
-  const signDateDefault = new Date().toISOString().slice(0, 10);
+  const signDateDefault = colombiaTodayIsoDate();
   const fCon = `<form id="form-contract" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.file} Descargar contrato Word</legend>
@@ -6480,7 +6486,7 @@ function enforceColombianFormStandards() {
   setAttr("#form-candidate input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
   appendLegalNote("form-candidate", "Para contratación formal en Colombia debe existir identificación válida y soportes verificables.");
 
-  setAttr("#form-interview input[name='when']", { min: new Date().toISOString().slice(0, 16) });
+  setAttr("#form-interview input[name='when']", { min: colombiaDatetimeLocalString() });
   appendLegalNote("form-interview", "Registre entrevistador y fecha para trazabilidad del proceso de contratación.");
 
   appendLegalNote(
@@ -6582,7 +6588,7 @@ function validateEmployeeContractDocFields(emp) {
 
 function buildEmployeeContractDocxPayload(employee, opts = {}) {
   let kind = String(opts.contractTemplateKind || "").trim().toLowerCase();
-  const signDate = String(opts.signDate || employee.startDate || new Date().toISOString().slice(0, 10)).trim();
+  const signDate = String(opts.signDate || employee.startDate || colombiaTodayIsoDate()).trim();
   const positionName = getPositionById(String(employee.positionId || ""))?.name || String(employee.position || "").trim();
   const wr = String(employee.workerRole || (String(positionName).toLowerCase().includes("conductor") ? "conductor" : "empleado"));
   const ct = String(employee.contractType || "Termino indefinido");
@@ -6627,7 +6633,7 @@ function buildContractDocxTestPayload(templateKind) {
   const contractType =
     kind === "prestacion" ? "Prestacion de servicios" : kind === "fijo" ? "Termino fijo" : "Termino indefinido";
   const workerRole = kind === "prestacion" ? "conductor" : "empleado";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = colombiaTodayIsoDate();
   const endDate = kind === "fijo" ? "2027-12-31" : "";
   return {
     contractTemplateKind: kind,
