@@ -1,9 +1,22 @@
 (() => {
+  /**
+   * Plantillas oficiales en /documentacion (archivos físicos del repositorio).
+   * Las rutas deben coincidir con los nombres bajo la carpeta documentacion/.
+   */
   const TEMPLATE_BY_KIND = {
     oficina: "documentacion/CONTRATO_TRABAJO_PERSONAL_OFICINA.docx",
     fijo: "documentacion/CONTRATO_PERSONAL_TERMINO_FIJO.docx",
     prestacion: "documentacion/CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
   };
+
+  function inferTemplateKind(contractType, workerRole) {
+    const wr = String(workerRole || "").toLowerCase();
+    const ct = String(contractType || "").trim();
+    if (wr === "conductor") return "prestacion";
+    if (ct === "Prestacion de servicios" || ct.toLowerCase().includes("prestacion")) return "prestacion";
+    if (ct === "Termino fijo") return "fijo";
+    return "oficina";
+  }
 
   const MONTHS_ES = [
     "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -73,7 +86,10 @@
   async function generateEmployeeContractDocx(input) {
     if (!window.JSZip) throw new Error("JSZip no esta disponible en el navegador.");
 
-    const kind = String(input.contractTemplateKind || "").trim().toLowerCase();
+    let kind = String(input.contractTemplateKind || "").trim().toLowerCase();
+    if (!TEMPLATE_BY_KIND[kind]) {
+      kind = inferTemplateKind(input.contractType, input.workerRole);
+    }
     const templatePath = TEMPLATE_BY_KIND[kind];
     if (!templatePath) throw new Error("No se encontro la plantilla de contrato seleccionada.");
 
@@ -128,5 +144,7 @@
   }
 
   window.RecruitmentDomain = window.RecruitmentDomain || {};
+  window.RecruitmentDomain.TEMPLATE_BY_KIND = TEMPLATE_BY_KIND;
+  window.RecruitmentDomain.inferTemplateKind = inferTemplateKind;
   window.RecruitmentDomain.generateEmployeeContractDocx = generateEmployeeContractDocx;
 })();

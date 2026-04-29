@@ -35,21 +35,21 @@ window.PortalArchitecture = (() => {
       access: "admin",
       shell: true,
       renderer: [{ module: "transporte", exportName: "vehiclesHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-drivers": {
       title: "Transporte · Conductores",
       access: "admin",
       shell: true,
       renderer: [{ module: "transporte", exportName: "driversHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".drivers-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-calendar": {
       title: "Transporte · Calendario",
       access: "admin",
       shell: true,
       renderer: [{ module: "transporte", exportName: "transportCalendarHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".calendar-shell", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     history: {
       title: "Transporte · Historial y reportes",
@@ -69,28 +69,28 @@ window.PortalArchitecture = (() => {
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "payrollHtml" }],
-      layoutPlan: [{ container: ".payroll-shell", order: [".payroll-actions-grid", ".payroll-executive-strip", ".payroll-kpi-grid", ".payroll-data-grid"] }]
+      layoutPlan: [{ container: ".payroll-shell", order: [".payroll-executive-strip", ".payroll-kpi-grid", ".p-card", ".payroll-actions-grid", ".payroll-data-grid"] }]
     },
     hiring: {
       title: "Contratacion",
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "hiringHtml" }],
-      layoutPlan: [{ container: ".hiring-shell", order: [".hr-flow-block", ".hiring-executive-strip", ".hr-kpi-grid", ".hiring-data-grid"] }]
+      layoutPlan: [{ container: ".hiring-shell", order: [".hiring-executive-strip", ".hiring-kpi-grid", ".hr-flow-block", ".hiring-data-grid"] }]
     },
     "labor-compliance": {
       title: "Cumplimiento laboral y SST",
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "laborComplianceHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: ["[id^='create-']", ".hr-kpi-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".hr-kpi-grid", "[id^='create-']", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "admin-users": {
       title: "Administración · Usuarios y permisos",
       access: "admin",
       shell: true,
       renderer: [{ module: "usuarios", exportName: "adminUsersHtml", passUser: true }],
-      layoutPlan: [{ container: ".module-shell-body", order: ["[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".users-hero-strip", ".users-stats-grid", "[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     authorizations: {
       title: "Autorizaciones",
@@ -110,7 +110,7 @@ window.PortalArchitecture = (() => {
       access: "any",
       shell: true,
       renderer: [{ module: "notificaciones", exportName: "notificationsHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".notif-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     }
   };
 

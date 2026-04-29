@@ -36,6 +36,24 @@ const IC = {
   lock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   mail: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
   upload: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  fuel: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2v0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>',
+  satellite: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  package: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+  layers: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+  card: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+  hash: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+  award: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>',
+  heart: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+  graduation: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
+  palette: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+  globe: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  bank: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"/><path d="M3 10l9-7 9 7"/><path d="M5 21V10"/><path d="M19 21V10"/><path d="M9 21V14h6v7"/></svg>',
+  flag: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+  star: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  cake: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3"/><path d="M12 8v3"/><path d="M17 8v3"/><path d="M7 4h0"/><path d="M12 4h0"/><path d="M17 4h0"/></svg>',
+  users: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  alertTriangle: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  search: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
 };
 
 function pcardWrap(iconKey, title, subtitle, bodyHtml, extraClass = "") {
@@ -529,9 +547,28 @@ const CO_HR_RULES = {
 const CO_CATALOGS = {
   licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
   eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
-  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa"],
+  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa", "Equidad", "Mapfre"],
   bloodTypes: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
-  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"]
+  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"],
+  severanceFunds: ["Porvenir", "Proteccion", "Colfondos", "Skandia", "FNA"],
+  compensationFunds: ["Colsubsidio", "Cafam", "Compensar", "Comfama", "Comfandi", "Cafaba", "Comfenalco Antioquia", "Comfenalco Valle", "Cajacopi"],
+  arlRiskLevels: ["I", "II", "III", "IV", "V"],
+  bodyTypes: ["Furgon seco", "Furgon refrigerado (Termoking)", "Estacas", "Plancha", "Cisterna", "Granelero", "Volqueta"],
+  fuelTypes: ["Diesel ACPM", "Gas Natural Vehicular (GNV)", "Gasolina corriente", "Hibrido"],
+  axleConfig: ["2 ejes (4 llantas)", "3 ejes (6 llantas)", "4 ejes (8 llantas)", "5 ejes (10 llantas)", "6 ejes (12 llantas)"],
+  documentTypes: ["CC", "CE", "PAS", "PEP", "TI"],
+  contractTypes: ["Termino indefinido", "Termino fijo", "Obra o labor", "Prestacion de servicios", "Aprendizaje SENA"],
+  workSchedule: ["Diurna", "Nocturna", "Mixta", "Por turnos"],
+  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"],
+  contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
+  banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
+  accountTypes: ["Ahorros", "Corriente"],
+  educationLevel: ["Primaria", "Bachiller", "Tecnico", "Tecnologo", "Profesional", "Posgrado"],
+  maritalStatus: ["Soltero(a)", "Casado(a)", "Union libre", "Separado(a)", "Divorciado(a)", "Viudo(a)"],
+  genders: ["Masculino", "Femenino", "Otro", "Prefiero no decirlo"],
+  vehicleColors: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo", "Verde", "Amarillo", "Naranja"],
+  contractTerminationCauses: ["Vencimiento de termino", "Mutuo acuerdo", "Justa causa", "Sin justa causa", "Renuncia voluntaria", "Termino de obra", "Pension"],
+  uniformIssuance: ["Enero/Mayo/Septiembre", "Abril/Agosto/Diciembre", "No aplica"]
 };
 
 function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Seleccione...") {
@@ -582,6 +619,7 @@ let state = {
   },
   createPanels: {},
   calendarFocus: null,
+  calendarFilters: { driver: "", vehicle: "", status: "" },
   payrollFilters: {
     period: "all",
     employee: "",
@@ -619,6 +657,8 @@ const UI_PREFS = {
 };
 
 function read(key, fallback = []) {
+  const P = window.AntaresPersistence;
+  if (P && typeof P.read === "function") return P.read(key, fallback);
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
   } catch (_error) {
@@ -627,7 +667,33 @@ function read(key, fallback = []) {
 }
 
 function write(key, value) {
+  const P = window.AntaresPersistence;
+  if (P && typeof P.write === "function") {
+    P.write(key, value);
+    return;
+  }
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function reqRead() {
+  return typeof DomainModules?.requests?.readAllSync === "function"
+    ? DomainModules.requests.readAllSync()
+    : read(KEYS.requests, []);
+}
+
+function reqWrite(next) {
+  if (typeof DomainModules?.requests?.writeAllSync === "function") {
+    DomainModules.requests.writeAllSync(next);
+  } else {
+    write(KEYS.requests, next);
+  }
+}
+
+if (typeof window.DomainModules?.requests?.attachStorage === "function") {
+  window.DomainModules.requests.attachStorage({ KEYS, read, write });
+}
+if (typeof window.DomainRegistry?.wireFromAntares === "function") {
+  window.DomainRegistry.wireFromAntares({ KEYS, read, write });
 }
 
 const publicTextStore = [];
@@ -1528,7 +1594,7 @@ function ensureCompaniesAndUserMapping() {
 
 function ensureRequestsCompanyMapping() {
   const users = read(KEYS.users, []);
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const mapped = requests.map((request) => {
     if (request.clientCompanyId) return request;
     const owner = users.find((user) => user.id === request.clientUserId);
@@ -1538,11 +1604,11 @@ function ensureRequestsCompanyMapping() {
       requestedByName: request.requestedByName || owner?.name || request.clientName
     };
   });
-  write(KEYS.requests, mapped);
+  reqWrite(mapped);
 }
 
 function ensureRequestAndTripIdentifiers() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   let changed = false;
   const usedRequestNumbers = new Set(requests.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
   const usedTripNumbers = new Set(
@@ -1563,7 +1629,7 @@ function ensureRequestAndTripIdentifiers() {
     }
     return next;
   });
-  if (changed) write(KEYS.requests, mapped);
+  if (changed) reqWrite(mapped);
 }
 
 function defaultPermissionsForRole(role) {
@@ -1994,6 +2060,44 @@ function setSession(sessionData) {
 function clearSession() {
   localStorage.removeItem(KEYS.session);
   state.session = null;
+  try {
+    localStorage.removeItem("antares_api_access_token");
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+async function tryApiLoginBridge(user, password) {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || !user?.email) return;
+  try {
+    const url = `${api.getBase()}/api/auth/login`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email: user.email, password })
+    });
+    const body = res.ok ? await res.json() : null;
+    if (!body?.accessToken) return;
+    api.setAccessToken(body.accessToken);
+    const session = getSession();
+    if (session) {
+      setSession({
+        ...session,
+        accessToken: body.accessToken,
+        refreshToken: body.refreshToken || ""
+      });
+    }
+    if (window.DomainModules?.requests?.hydrateFromApiIfEnabled) {
+      const ok = await window.DomainModules.requests.hydrateFromApiIfEnabled();
+      if (ok && state.session && currentUser()) {
+        renderPortalView();
+        updateNotificationBadge();
+      }
+    }
+  } catch (_e) {
+    /* API opcional: sesion local sigue valida */
+  }
 }
 
 function buildToken(user) {
@@ -2204,6 +2308,7 @@ function bindAuthForms() {
         return;
       }
       setSession({ userId: user.id, role: user.role, token: buildToken(user) });
+      void tryApiLoginBridge(user, String(data.password || ""));
       hideAuth();
       renderPortal();
     });
@@ -2366,7 +2471,7 @@ function activeTripStatuses() {
 }
 
 function getActiveTrips() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   return requests.filter((r) => r.trip && activeTripStatuses().includes(r.status));
 }
 
@@ -2420,7 +2525,7 @@ function buildTripInvoice(request) {
 }
 
 function closeCompletedTripsAndGenerateInvoices() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   let changed = false;
   const oneHourMs = 60 * 60 * 1000;
   const now = Date.now();
@@ -2441,23 +2546,20 @@ function closeCompletedTripsAndGenerateInvoices() {
     };
   });
   if (changed) {
-    write(KEYS.requests, next);
+    reqWrite(next);
     recalculateResourceAvailability();
   }
 }
 
 function openTripInvoicePdf(requestId) {
-  const request = read(KEYS.requests, []).find((r) => r.id === requestId);
+  const request = reqRead().find((r) => r.id === requestId);
   if (!request?.trip) {
     notify("No hay viaje disponible para facturar.", "error");
     return;
   }
   const invoice = request.trip.invoice || buildTripInvoice(request);
-  const requests = read(KEYS.requests, []);
-  write(
-    KEYS.requests,
-    requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r))
-  );
+  const requests = reqRead();
+  reqWrite(requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r)));
 
   const html = `<!doctype html>
   <html lang="es">
@@ -2590,7 +2692,7 @@ function applyStandbyCharge(request, actorName) {
 }
 
 function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const target = requests.find((request) => request.id === requestId);
   if (!target) return false;
 
@@ -2624,7 +2726,7 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
         }
       : request
   );
-  write(KEYS.requests, updated);
+  reqWrite(updated);
   recalculateResourceAvailability();
   return true;
 }
@@ -2723,14 +2825,13 @@ function setDriverAvailability(driverId, available) {
 }
 
 function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "") {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   const canAssignTrip = current && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(current.status);
   if (!current || !canAssignTrip) return false;
 
   if (auto) {
-    write(
-      KEYS.requests,
+    reqWrite(
       requests.map((r) =>
         r.id === requestId
           ? {
@@ -2744,6 +2845,9 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
           : r
       )
     );
+    if (current.apiSynced && window.DomainModules?.requests?.approveViaApi) {
+      void window.DomainModules.requests.approveViaApi(requestId).catch(() => {});
+    }
     const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
     if (targetUser) {
       saveNotification({
@@ -2809,7 +2913,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
         }
       : r
   );
-  write(KEYS.requests, next);
+  reqWrite(next);
 
   const users = read(KEYS.users, []);
   const target = users.find((u) => u.id === current.clientUserId);
@@ -2829,7 +2933,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
 }
 
 function rejectRequest(requestId, reason, actorName) {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   if (!current) return;
   const next = requests.map((r) =>
@@ -2837,7 +2941,7 @@ function rejectRequest(requestId, reason, actorName) {
       ? { ...r, status: STATUS.RECHAZADA, approvedAt: nowIso(), approvedBy: actorName, rejectionReason: reason }
       : r
   );
-  write(KEYS.requests, next);
+  reqWrite(next);
 
   const user = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
   if (user) {
@@ -2847,7 +2951,7 @@ function rejectRequest(requestId, reason, actorName) {
 }
 
 function updateAutoApprove() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   requests
     .filter((r) => r.status === STATUS.PENDIENTE)
     .forEach((r) => {
@@ -2868,7 +2972,7 @@ function currentUser() {
 }
 
 function getVisibleRequestsForUser(user) {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   if (!user) return [];
   if (user.role === ROLES.ADMIN) return requests;
   return requests.filter((request) => request.clientCompanyId === user.companyId);
@@ -2978,6 +3082,17 @@ function renderPortal() {
   document.querySelectorAll(".admin-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.ADMIN));
   document.querySelectorAll(".client-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.CLIENT));
   document.querySelectorAll(".rrhh-only").forEach((n) => n.classList.toggle("hidden", !canAccessRRHH(user.role)));
+  if (window.DomainModules?.requests?.hydrateFromApiIfEnabled && window.AntaresApi?.isConfigured?.()) {
+    void window.DomainModules.requests
+      .hydrateFromApiIfEnabled()
+      .then((ok) => {
+        if (ok) {
+          renderPortalView();
+          updateNotificationBadge();
+        }
+      })
+      .catch((err) => console.warn("Sincronizar solicitudes (API):", err));
+  }
   nodes.sideLinks.forEach((link) => {
     const isRoleHidden =
       (link.classList.contains("admin-only") && user.role !== ROLES.ADMIN) ||
@@ -3050,19 +3165,217 @@ function startNotificationsPolling() {
   }, 5000);
 }
 
-function renderKpis() {
-  const user = currentUser();
+function kpiCardsTripPipeline(user) {
   const visible = getVisibleRequestsForUser(user);
-  const cards = [
+  return [
     { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length, icon: IC.clock, color: "kpi-icon-warning" },
     { label: "Viaje asignado", value: visible.filter((r) => r.status === STATUS.VIAJE_ASIGNADO).length, icon: IC.check, color: "kpi-icon-success" },
-    { label: "En transito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length, icon: IC.truck, color: "kpi-icon-primary" },
+    { label: "En tránsito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length, icon: IC.truck, color: "kpi-icon-primary" },
     { label: "Completadas", value: visible.filter((r) => r.status === STATUS.COMPLETADA).length, icon: IC.shield, color: "kpi-icon-teal" }
   ];
+}
+
+function buildHeaderKpiCardsForView(view, user) {
+  const v = String(view || "dashboard");
+
+  const V_TRIP = new Set([
+    "dashboard",
+    "requests",
+    "transport-requests",
+    "transport-trips",
+    "transport-calendar",
+    "history"
+  ]);
+  if (V_TRIP.has(v)) return kpiCardsTripPipeline(user);
+
+  if (v === "transport-vehicles") {
+    const vehicles = read(KEYS.vehicles, []);
+    const documentRiskCount = vehicles.filter((veh) => {
+      const soat = docExpiryStatus(veh.soatExpeditionDate);
+      const tec = docExpiryStatus(veh.techInspectionExpeditionDate);
+      return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
+        ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
+    }).length;
+    return [
+      { label: "Total flota", value: vehicles.length, icon: IC.truck, color: "kpi-icon-primary" },
+      { label: "Disponibles", value: vehicles.filter((veh) => veh.available).length, icon: IC.check, color: "kpi-icon-success" },
+      { label: "Termoking", value: vehicles.filter((veh) => veh.refrigerated).length, icon: IC.activity, color: "kpi-icon-teal" },
+      { label: "Docs. en riesgo", value: documentRiskCount, icon: IC.alertTriangle, color: "kpi-icon-warning" }
+    ];
+  }
+
+  if (v === "transport-drivers") {
+    const drivers = read(KEYS.drivers, []);
+    const expiringSoon = drivers.filter((d) => {
+      if (!d.licenseExpiry) return false;
+      const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
+      return days >= 0 && days <= 60;
+    }).length;
+    const expired = drivers.filter((d) => {
+      if (!d.licenseExpiry) return false;
+      return new Date(`${d.licenseExpiry}T12:00:00`).getTime() < Date.now();
+    }).length;
+    return [
+      { label: "Conductores", value: drivers.length, icon: IC.users, color: "kpi-icon-primary" },
+      { label: "Disponibles", value: drivers.filter((d) => d.available).length, icon: IC.check, color: "kpi-icon-success" },
+      { label: "Lic. 60 días", value: expiringSoon, icon: IC.clock, color: "kpi-icon-warning" },
+      { label: "Lic. vencidas", value: expired, icon: IC.alertTriangle, color: "kpi-icon-rose" }
+    ];
+  }
+
+  if (v === "payroll") {
+    const employees = read(KEYS.payrollEmployees, []);
+    const allRuns = read(KEYS.payrollRuns, []);
+    const pending = allRuns.filter((r) => !r.paid).length;
+    const now = new Date();
+    const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const totalPayrollMonth = allRuns
+      .filter((r) => String(r.month || "") === currentYm)
+      .reduce((acc, run) => acc + parseNum(run.net), 0);
+    const pendingAbsenceApprovals = read(KEYS.approvals, []).filter(
+      (a) => a.status === "pendiente" && a.type === "register_hr_absence"
+    ).length;
+    return [
+      { label: "Empleados activos", value: employees.length, icon: IC.users, color: "kpi-icon-primary" },
+      { label: "Pagos pendientes", value: pending, icon: IC.clock, color: "kpi-icon-warning" },
+      { label: "Neto mes actual", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}`, icon: IC.dollar, color: "kpi-icon-teal" },
+      { label: "Ausencias por revisar", value: pendingAbsenceApprovals, icon: IC.activity, color: "kpi-icon-violet" }
+    ];
+  }
+
+  if (v === "hiring") {
+    const vacancies = read(KEYS.vacancies, []);
+    const candidates = read(KEYS.candidates, []);
+    const positions = read(KEYS.positions, []);
+    const contracts = read(KEYS.contracts, []);
+    const today = new Date();
+    const openVacancies = vacancies.filter((vac) => vac.status === "Publicada");
+    const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
+    const activePositions = positions.filter((p) => p.active !== false);
+    const contractsThisMonth = contracts.filter((c) => {
+      const d = new Date(c.createdAt || "");
+      return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    });
+    return [
+      { label: "Vacantes abiertas", value: openVacancies.length, icon: IC.briefcase, color: "kpi-icon-primary" },
+      { label: "Candidatos activos", value: activeCandidates.length, icon: IC.userPlus, color: "kpi-icon-violet" },
+      { label: "Contratos mes", value: contractsThisMonth.length, icon: IC.file, color: "kpi-icon-teal" },
+      { label: "Cargos activos", value: activePositions.length, icon: IC.layers, color: "kpi-icon-success" }
+    ];
+  }
+
+  if (v === "labor-compliance") {
+    const employees = read(KEYS.payrollEmployees, []);
+    const contracts = read(KEYS.contracts, []);
+    const records = read(KEYS.sstCompliance, []);
+    const todayTs = Date.now();
+    const dueSoonDays = 30;
+    const expiringContracts = contracts.filter((contract) => {
+      if (!contract.endDate) return false;
+      const endTs = new Date(`${contract.endDate}T12:00:00`).getTime();
+      if (!Number.isFinite(endTs) || endTs < todayTs) return false;
+      return (endTs - todayTs) / 86400000 <= dueSoonDays;
+    });
+    const missingSocialSecurity = employees.filter((emp) => !emp.eps || !emp.pensionFund || !emp.arl);
+    const expiringLicenses = employees.filter((emp) => {
+      if (!emp.licenseExpiry) return false;
+      const expTs = new Date(`${emp.licenseExpiry}T12:00:00`).getTime();
+      if (!Number.isFinite(expTs) || expTs < todayTs) return false;
+      return (expTs - todayTs) / 86400000 <= dueSoonDays;
+    });
+    return [
+      { label: "Controles SST", value: records.length, icon: IC.shield, color: "kpi-icon-teal" },
+      { label: "Contratos por vencer", value: expiringContracts.length, icon: IC.calendar, color: "kpi-icon-warning" },
+      { label: "SS incompleta", value: missingSocialSecurity.length, icon: IC.heart, color: "kpi-icon-rose" },
+      { label: "Licencias 30 d", value: expiringLicenses.length, icon: IC.file, color: "kpi-icon-violet" }
+    ];
+  }
+
+  if (v === "admin-users") {
+    const users = read(KEYS.users, []);
+    const adminCount = users.filter((u) => u.role === ROLES.ADMIN).length;
+    const rrhhCount = users.filter((u) => u.role === ROLES.RRHH).length;
+    const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
+    const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
+    return [
+      { label: "Usuarios totales", value: users.length, icon: IC.users, color: "kpi-icon-primary" },
+      { label: "Administradores", value: adminCount, icon: IC.shield, color: "kpi-icon-violet" },
+      { label: "Clientes", value: clientCount, icon: IC.briefcase, color: "kpi-icon-teal" },
+      { label: "Cuentas aprobadas", value: approvedCount, icon: IC.check, color: "kpi-icon-success" }
+    ];
+  }
+
+  if (v === "authorizations") {
+    const approvals = read(KEYS.approvals, []);
+    const pending = approvals.filter((a) => a.status === "pendiente").length;
+    const approved = approvals.filter((a) => a.status === "aprobado").length;
+    const rejected = approvals.filter((a) => a.status === "rechazado").length;
+    return [
+      { label: "Pendientes", value: pending, icon: IC.clock, color: "kpi-icon-warning" },
+      { label: "Aprobadas", value: approved, icon: IC.check, color: "kpi-icon-success" },
+      { label: "Rechazadas", value: rejected, icon: IC.x, color: "kpi-icon-rose" },
+      { label: "Histórico total", value: approvals.length, icon: IC.file, color: "kpi-icon-slate" }
+    ];
+  }
+
+  if (v === "profile") {
+    const fields = ["name", "email", "phone", "taxId", "documentType", "address", "city", "department", "emergencyContact", "emergencyPhone"];
+    const filled = fields.filter((field) => String(user[field] ?? "").trim() !== "").length;
+    const pct = Math.round((filled / fields.length) * 100);
+    const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
+    return [
+      { label: "Completitud perfil", value: `${pct}%`, icon: IC.user, color: "kpi-icon-primary" },
+      { label: "Rol en portal", value: String(user.role || "-").toUpperCase(), icon: IC.badge, color: "kpi-icon-violet" },
+      { label: "Empresa", value: companyName.length > 12 ? `${companyName.slice(0, 12)}…` : companyName, icon: IC.building, color: "kpi-icon-teal" },
+      { label: "Documento / NIT", value: user.taxId && String(user.taxId).length ? user.taxId : "Pendiente", icon: IC.file, color: "kpi-icon-slate" }
+    ];
+  }
+
+  if (v === "notifications") {
+    const list = read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
+    const unread = list.filter((n) => !n.readAt).length;
+    const read = list.length - unread;
+    const startDay = new Date();
+    startDay.setHours(0, 0, 0, 0);
+    const todayCount = list.filter((n) => new Date(n.createdAt).getTime() >= startDay.getTime()).length;
+    return [
+      { label: "Notificaciones", value: list.length, icon: IC.bell, color: "kpi-icon-primary" },
+      { label: "Sin leer", value: unread, icon: IC.mail, color: "kpi-icon-warning" },
+      { label: "Leídas", value: read, icon: IC.check, color: "kpi-icon-success" },
+      { label: "Recibidas hoy", value: todayCount, icon: IC.clock, color: "kpi-icon-teal" }
+    ];
+  }
+
+  if (v === "reports") {
+    const reportIds = Object.keys(REPORT_RULES);
+    const enabled = reportIds.filter((id) => canAccessReport(user, id)).length;
+    const requests = reqRead();
+    const inTransit = requests.filter((r) => r.status === STATUS.EN_TRANSITO).length;
+    const openApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente").length;
+    return [
+      { label: "Reportes disponibles", value: enabled, icon: IC.activity, color: "kpi-icon-primary" },
+      { label: "Solicitudes", value: requests.length, icon: IC.file, color: "kpi-icon-slate" },
+      { label: "En tránsito", value: inTransit, icon: IC.truck, color: "kpi-icon-teal" },
+      { label: "Autorizaciones abiertas", value: openApprovals, icon: IC.shield, color: "kpi-icon-warning" }
+    ];
+  }
+
+  return kpiCardsTripPipeline(user);
+}
+
+function renderKpis() {
+  if (!nodes.kpiCards) return;
+  const user = currentUser();
+  if (!user) {
+    nodes.kpiCards.innerHTML = "";
+    return;
+  }
+  const view = String(state.currentView || "dashboard");
+  const cards = buildHeaderKpiCardsForView(view, user);
   nodes.kpiCards.innerHTML = cards.map((c) => `
     <article class="kpi">
       <div class="kpi-icon ${c.color}">${c.icon}</div>
-      <div class="kpi-data"><span>${c.label}</span><b>${c.value}</b></div>
+      <div class="kpi-data"><span>${c.label}</span><b class="kpi-value">${c.value}</b></div>
     </article>
   `).join("");
 }
@@ -3209,7 +3522,7 @@ function requestListClientHtml(user) {
 }
 
 function adminQueueHtml() {
-  const requests = read(KEYS.requests, []).filter((r) => r.status === STATUS.PENDIENTE);
+  const requests = reqRead().filter((r) => r.status === STATUS.PENDIENTE);
   const rows = requests
     .map((r) => `<tr>
       <td><strong>${r.requestNumber || r.id}</strong></td>
@@ -3273,17 +3586,62 @@ function vehiclesHtml() {
       </tr>`;
     })
     .join("");
-  const formBody = `<form id="form-vehicle" class="p-form">
-    <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" /></label>
-    <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required placeholder="Ej: Kenworth" /></label>
-    <label>${fieldLabel(IC.grid, "Linea / Modelo")}<input name="model" required placeholder="Ej: T800" /></label>
-    <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
-    <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>${fieldLabel(IC.scale, "Capacidad (kg)")}<input type="number" min="1" name="capacityKg" required placeholder="Ej: 18000" /></label>
-    <label>${fieldLabel(IC.activity, "Termoking (refrigerado)")}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
-    <label>${fieldLabel(IC.calendar, "Expedición SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
-    <label>${fieldLabel(IC.calendar, "Expedición tecnomecánica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehículo</button>
+  const bodyTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bodyTypes);
+  const fuelTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.fuelTypes);
+  const axleOptions = selectOptionsFromCatalog(CO_CATALOGS.axleConfig);
+  const colorOptions = selectOptionsFromCatalog(CO_CATALOGS.vehicleColors);
+  const formBody = `<form id="form-vehicle" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.truck} Identificación del vehículo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" /></label>
+        <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required placeholder="Ej: Kenworth, Chevrolet, Hino" /></label>
+        <label>${fieldLabel(IC.grid, "Línea / Modelo")}<input name="model" required placeholder="Ej: T800, NPR" /></label>
+        <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej: ${new Date().getFullYear()}" /></label>
+        <label>${fieldLabel(IC.palette, "Color")}<select name="color" required>${colorOptions}</select></label>
+        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Camión</option><option>Tractocamión</option></select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.layers} Especificaciones técnicas</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.package, "Tipo de carrocería")}<select name="bodyType" required>${bodyTypeOptions}</select></label>
+        <label>${fieldLabel(IC.activity, "Termoking (refrigerado)")}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
+        <label>${fieldLabel(IC.scale, "Capacidad (kg)")}<input type="number" min="1" name="capacityKg" required placeholder="Ej: 18000" /></label>
+        <label>${fieldLabel(IC.fuel, "Tipo de combustible")}<select name="fuelType" required>${fuelTypeOptions}</select></label>
+        <label>${fieldLabel(IC.layers, "Configuración de ejes")}<select name="axleConfig" required>${axleOptions}</select></label>
+        <label>${fieldLabel(IC.hash, "Número de motor")}<input name="engineNumber" required placeholder="Ej: 6BT5.9" /></label>
+        <label>${fieldLabel(IC.hash, "Número de chasis (VIN)")}<input name="vin" required maxlength="17" minlength="11" placeholder="17 caracteres" style="text-transform:uppercase" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.shield} Documentación legal vigente (Colombia)</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.card, "Tarjeta de propiedad N°")}<input name="ownershipCard" required placeholder="Ej: 12345678" /></label>
+        <label>${fieldLabel(IC.calendar, "Expedición SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Vence SOAT")}<input type="date" name="soatExpiryDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Expedición tecnomecánica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Vence tecnomecánica")}<input type="date" name="techInspectionExpiryDate" required /></label>
+        <label>${fieldLabel(IC.shield, "Póliza RC contractual N°")}<input name="rcPolicyContract" placeholder="Ej: 0123456" /></label>
+        <label>${fieldLabel(IC.shield, "Póliza RC extracontractual N°")}<input name="rcPolicyExtra" placeholder="Ej: 0654321" /></label>
+        <label>${fieldLabel(IC.calendar, "Vence pólizas RCP")}<input type="date" name="rcPolicyExpiry" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.satellite} Equipos y trazabilidad</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="true">Sí, GPS activo</option><option value="false">Sin GPS</option></select></label>
+        <label>${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej: Detektor, Skyangel, Geolocator" /></label>
+        <label>${fieldLabel(IC.user, "Propietario / Empresa")}<input name="ownerName" placeholder="Persona o razón social del titular" /></label>
+        <label>${fieldLabel(IC.badge, "NIT / Cédula propietario")}<input name="ownerTaxId" placeholder="Ej: 900123456-7" /></label>
+      </div>
+    </fieldset>
+
+    <p class="muted full legal-form-note">Documentación obligatoria en Colombia: tarjeta de propiedad, SOAT, tecnomecánica, RC contractual y extracontractual. Para transporte refrigerado se exige certificación de cadena de frío y registro INVIMA cuando aplique.</p>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -3379,10 +3737,10 @@ function driversHtml() {
 }
 
 function transportTripsHtml() {
-  const pendingForTrip = read(KEYS.requests, []).filter(
+  const pendingForTrip = reqRead().filter(
     (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
   );
-  const trips = read(KEYS.requests, []).filter((r) => r.trip);
+  const trips = reqRead().filter((r) => r.trip);
   const rows = trips
     .map((r) => {
       const currentStatus = r.status;
@@ -3424,9 +3782,20 @@ function transportTripsHtml() {
 }
 
 function transportCalendarHtml() {
-  const requests = read(KEYS.requests, [])
-    .filter((r) => r.trip)
+  const filters = state.calendarFilters || { driver: "", vehicle: "", status: "" };
+  const allTrips = reqRead().filter((r) => r.trip);
+  const requests = allTrips
+    .filter((r) => {
+      if (filters.driver && String(r.trip.driverId || "") !== filters.driver) return false;
+      if (filters.vehicle && String(r.trip.vehicleId || "") !== filters.vehicle) return false;
+      if (filters.status && String(r.status || "") !== filters.status) return false;
+      return true;
+    })
     .sort((a, b) => new Date(a.trip.etaPickup).getTime() - new Date(b.trip.etaPickup).getTime());
+
+  const driversList = read(KEYS.drivers, []);
+  const vehiclesList = read(KEYS.vehicles, []);
+  const statusList = [...new Set(allTrips.map((r) => r.status))];
 
   const focus = state.calendarFocus instanceof Date && !Number.isNaN(state.calendarFocus.getTime())
     ? new Date(state.calendarFocus)
@@ -3553,6 +3922,12 @@ function transportCalendarHtml() {
         <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="1">Siguiente ${IC.chevronRight || ""}</button>
       </div>
     </div>
+    <form id="calendar-filters" class="calendar-filters-bar">
+      <label>${fieldLabel(IC.user, "Conductor")}<select name="driver"><option value="">Todos</option>${driversList.map((d) => `<option value="${d.id}" ${filters.driver === d.id ? "selected" : ""}>${d.name}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicle"><option value="">Todos</option>${vehiclesList.map((v) => `<option value="${v.id}" ${filters.vehicle === v.id ? "selected" : ""}>${v.plate} · ${v.type}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${statusList.map((s) => `<option value="${s}" ${filters.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+      <button type="button" class="btn btn-sm btn-action" data-action="cal-clear-filters">${IC.x} Limpiar</button>
+    </form>
     <div class="calendar-legend">
       <span class="cal-legend-item"><span class="cal-dot dot-blue"></span>En curso</span>
       <span class="cal-legend-item"><span class="cal-dot dot-teal"></span>Programado</span>
@@ -3671,46 +4046,64 @@ function adminUsersHtml(current) {
   </div>`).join("");
 
   // --- Formularios ---
-  const fUser = `<form id="form-admin-user-create" class="p-form">
-    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej: Laura Castañeda" /></label>
-    <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" required placeholder="correo@empresa.com" /></label>
-    <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" minlength="6" required placeholder="Mín. 6 caracteres" /></label>
-    <label>${fieldLabel(IC.file, "Tipo documento")}
-      <select name="documentType" required>
-        <option value="CC">Cédula de ciudadanía</option>
-        <option value="CE">Cédula de extranjería</option>
-        <option value="NIT">NIT</option>
-        <option value="PAS">Pasaporte</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="900000001-0" required /></label>
-    <label>${fieldLabel(IC.shield, "Rol")}
-      <select name="role" required>
-        <option value="${ROLES.ADMIN}">Administrador</option>
-        <option value="${ROLES.RRHH}">Recursos Humanos</option>
-        <option value="${ROLES.ADMINISTRACION}">Administración</option>
-        <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
-        <option value="${ROLES.LIDER_ADMINISTRATIVO}">Líder administrativo</option>
-        <option value="${ROLES.CLIENT}">Cliente</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}
-      <select name="companyId" required>
-        <option value="">Seleccione...</option>
-        ${companyOptions}
-      </select>
-    </label>
-    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
-    <label>${fieldLabel(IC.mapPin, "Departamento")}
-      <select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad")}
-      <select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select>
-    </label>
-    <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" /></label>
-    <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="Antares" /></label>
+  const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.user} Datos personales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej: Laura Castañeda" /></label>
+        <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" name="email" required placeholder="correo@empresa.com" /></label>
+        <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" minlength="6" required placeholder="Mín. 6 caracteres" /></label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>
+          <option value="CC">Cédula de ciudadanía</option>
+          <option value="CE">Cédula de extranjería</option>
+          <option value="NIT">NIT</option>
+          <option value="PAS">Pasaporte</option>
+        </select></label>
+        <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="900000001-0" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.shield} Acceso y rol</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.shield, "Rol")}<select name="role" required>
+          <option value="${ROLES.ADMIN}">Administrador</option>
+          <option value="${ROLES.RRHH}">Recursos Humanos</option>
+          <option value="${ROLES.ADMINISTRACION}">Administración</option>
+          <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
+          <option value="${ROLES.LIDER_ADMINISTRATIVO}">Líder administrativo</option>
+          <option value="${ROLES.CLIENT}">Cliente</option>
+        </select></label>
+        <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
+          <option value="">Seleccione...</option>
+          ${companyOptions}
+        </select></label>
+        <label>${fieldLabel(IC.lock, "Autenticación 2FA")}<select name="twoFactorEnabled">
+          <option value="false">Deshabilitada</option>
+          <option value="true">Habilitada (recomendado)</option>
+        </select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${new Date().toISOString().slice(0, 10)}" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.mapPin} Ubicación</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" /></label>
+        <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="Antares" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.upload} Avatar (opcional)</legend>
+      <label class="full">${fieldLabel(IC.upload, "Foto del usuario")}<input type="file" name="avatarFile" accept="image/*" /></label>
+    </fieldset>
+
     <fieldset class="full perm-fieldset">
-      <legend>Permisos del usuario</legend>
+      <legend>${IC.shield} Permisos del usuario</legend>
       <div class="perm-grid">${permissionChecks([...ALL_PERMISSIONS])}</div>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
@@ -3774,6 +4167,12 @@ function adminUsersHtml(current) {
     <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" value="${editingUser.address || ""}" /></label>
     <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="${editingUser.company || ""}" /></label>
     <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" value="${editingUser.taxId || ""}" /></label>
+    <label>${fieldLabel(IC.lock, "Autenticación 2FA")}<select name="twoFactorEnabled">
+      <option value="false" ${!editingUser.twoFactorEnabled ? "selected" : ""}>Deshabilitada</option>
+      <option value="true" ${editingUser.twoFactorEnabled ? "selected" : ""}>Habilitada (recomendado)</option>
+    </select></label>
+    <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${editingUser.systemJoinDate || (editingUser.createdAt ? String(editingUser.createdAt).slice(0,10) : "")}" /></label>
+    <label class="full">${fieldLabel(IC.upload, "Cambiar avatar")}<input type="file" name="avatarFile" accept="image/*" /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
       <div class="perm-grid">${permissionChecks(editingUser.permissions || [])}</div>
@@ -3841,7 +4240,7 @@ function adminUsersHtml(current) {
 }
 
 function historyHtml() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const users = read(KEYS.users, []);
   const drivers = read(KEYS.drivers, []);
   const vehicles = read(KEYS.vehicles, []);
@@ -4063,7 +4462,7 @@ function buildReportDataset(reportId, actor = currentUser()) {
       fileName: "reporte_restringido.csv"
     };
   }
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   if (reportId === "executive_control_tower") {
     const trips = requests.filter((request) => request.trip);
     const closedTrips = requests.filter((request) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status));
@@ -4729,7 +5128,7 @@ function mountUniversalModuleFilters() {
 function tripsForDriverMonth(driver, month) {
   const range = monthRange(month);
   if (!range || !driver) return [];
-  return read(KEYS.requests, []).filter((request) => {
+  return reqRead().filter((request) => {
     if (!request?.trip || ![STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status)) return false;
     if (String(request.trip.driverId || "") !== String(driver.id || "")) return false;
     const refDate = request.closedAt || request.deliveredAt || request.trip.etaDelivery || request.trip.etaPickup || request.createdAt;
@@ -4826,56 +5225,108 @@ function payrollHtml() {
   const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
   const bloodTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bloodTypes);
   const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
-  const formEmp = `<form id="form-employee" class="p-form">
-    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
-    <label>${fieldLabel(IC.file, "Tipo documento")}
-      <select name="documentType" required>
-        <option value="CC">Cedula de ciudadania</option>
-        <option value="CE">Cedula de extranjeria</option>
-        <option value="PAS">Pasaporte</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Cargo (catalogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratacion</option>${positionOpts}</select></label>
-    <label>${fieldLabel(IC.activity, "Tipo contrato")}
-      <select name="contractType" id="emp-contract-type" required>
-        <option value="Termino indefinido">Termino indefinido</option>
-        <option value="Termino fijo">Termino fijo</option>
-        <option value="Obra o labor">Obra o labor</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Departamento")}
-      <select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad")}
-      <select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Direccion")}<input name="address" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
-    <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
-    <label>${fieldLabel(IC.activity, "Tipo de sangre")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-    <label>${fieldLabel(IC.file, "EPS")}<select name="eps" required>${epsOptions}</select></label>
-    <label>${fieldLabel(IC.file, "Fondo de pension")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
-    <label>${fieldLabel(IC.file, "ARL")}<select name="arl" required>${arlOptions}</select></label>
-    <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
-    <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}
-      <select name="contractTemplateKind" required>
-        <option value="oficina">Contrato trabajo personal oficina</option>
-        <option value="fijo">Contrato personal termino fijo</option>
-        <option value="prestacion">Contrato prestacion de servicios conductores</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.calendar, "Duracion contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses" /></label>
-    <label>${fieldLabel(IC.briefcase, "Banco cuenta bancaria")}<input name="bankName" required placeholder="Nombre del banco" /></label>
-    <label>${fieldLabel(IC.file, "Cuenta bancaria")}<input name="bankAccount" required placeholder="Numero de cuenta" /></label>
-    <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
-    <label>${fieldLabel(IC.file, "Licencia (si es conductor)")}<input name="license" placeholder="Ej: 12C34567890" /></label>
-    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
-    <label>${fieldLabel(IC.calendar, "Vence licencia (si es conductor)")}<input type="date" name="licenseExpiry" /></label>
+  const docTypeOptions = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
+  const contractTypeOpts = CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("");
+  const severanceOpts = selectOptionsFromCatalog(CO_CATALOGS.severanceFunds);
+  const compensationOpts = selectOptionsFromCatalog(CO_CATALOGS.compensationFunds);
+  const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
+  const contributorOpts = selectOptionsFromCatalog(CO_CATALOGS.contributorTypes);
+  const banksOpts = selectOptionsFromCatalog(CO_CATALOGS.banks);
+  const accountTypeOpts = selectOptionsFromCatalog(CO_CATALOGS.accountTypes);
+  const educationOpts = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
+  const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
+  const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
+  const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
+  const formEmp = `<form id="form-employee" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.user} Datos personales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" /></label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeOptions}</select></label>
+        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" /></label>
+        <label>${fieldLabel(IC.users, "Género")}<select name="gender">${genderOpts}</select></label>
+        <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
+        <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.mapPin} Contacto y residencia</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
+        <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" /></label>
+        <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required /></label>
+        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.briefcase} Datos laborales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
+        <label>${fieldLabel(IC.calendar, "Duración del contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses, indefinido" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
+        <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
+        <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
+        <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" /></label>
+        <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
+        <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel">${arlRiskOpts}</select></label>
+        <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" required>
+          <option value="oficina">Contrato trabajo personal oficina</option>
+          <option value="fijo">Contrato personal término fijo</option>
+          <option value="prestacion">Contrato prestación de servicios conductores</option>
+        </select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.shield} Seguridad social y parafiscales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.heart, "EPS")}<select name="eps" required>${epsOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de pensión")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "ARL")}<select name="arl" required>${arlOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de cesantías")}<select name="severanceFund">${severanceOpts}</select></label>
+        <label>${fieldLabel(IC.users, "Caja de compensación")}<select name="compensationFund">${compensationOpts}</select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.bank} Datos bancarios</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.bank, "Banco")}<select name="bankName" required>${banksOpts}</select></label>
+        <label>${fieldLabel(IC.card, "Tipo de cuenta")}<select name="bankAccountType">${accountTypeOpts}</select></label>
+        <label>${fieldLabel(IC.hash, "Número de cuenta")}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-rose full hr-conductor-fields" id="hr-conductor-fields">
+      <legend>${IC.truck} Si el cargo es CONDUCTOR (datos adicionales)</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
+        <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
+        <label>${fieldLabel(IC.calendar, "Examen psicosensométrico")}<input type="date" name="psychoTestDate" /></label>
+        <label>${fieldLabel(IC.calendar, "Vence psicosensométrico")}<input type="date" name="psychoTestExpiry" /></label>
+        <label>${fieldLabel(IC.award, "Curso conducción defensiva (Res. 17220)")}<select name="defensiveCourse">
+          <option value="">Seleccione...</option>
+          <option value="vigente">Vigente</option>
+          <option value="vencido">Vencido</option>
+          <option value="no_aplica">No aplica</option>
+        </select></label>
+      </div>
+    </fieldset>
+
     <label class="full">${fieldLabel(IC.upload, "Foto del empleado")}<input type="file" name="avatarFile" accept="image/*" /></label>
-    <p class="muted full">El cargo y salario deben cumplir parametros minimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}). ARL y aportes patronales son obligatorios en relacion real; aqui se gestiona registro y devengos del empleado.</p>
+    <p class="muted full legal-form-note">El cargo y salario deben cumplir parámetros mínimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y auxilio de transporte $${CO_HR_RULES.transportAllowance.toLocaleString("es-CO")}). Aportes patronales (12% pensión, 8.5% salud), parafiscales (SENA 2%, ICBF 3%, Caja 4%) y ARL según nivel de riesgo son obligatorios.</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
   const formPay = `<form id="form-payroll" class="p-form">
@@ -5027,37 +5478,201 @@ function hiringHtml() {
   const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
   const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.contractType || "-"}${c.endDate ? `<br><span class="muted">Fin: ${c.endDate}</span>` : ""}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
-  const fPosition = `<form id="form-position" class="p-form">
-    <label>Nombre del cargo <input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
-    <label>Rol del cargo
-      <select name="workerRole" required>
-        <option value="empleado">Empleado</option>
-        <option value="conductor">Conductor</option>
-      </select>
-    </label>
-    <label>Salario base mensual (COP) <input type="number" name="baseSalary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
-    <label>Tipo de contrato sugerido
-      <select name="contractTypeDefault" required>
-        <option value="Termino indefinido">Termino indefinido</option>
-        <option value="Termino fijo">Termino fijo</option>
-        <option value="Obra o labor">Obra o labor</option>
-      </select>
-    </label>
-    <label class="full">Base legal (referencia) <input name="legalBasis" value="CST art. 45-46 y normatividad laboral vigente" /></label>
-    <p class="muted full">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} horas/semana.</p>
+  const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
+  const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
+  const fPosition = `<form id="form-position" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.briefcase} Definición del cargo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.briefcase, "Nombre del cargo")}<input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
+        <label>${fieldLabel(IC.users, "Rol del cargo")}<select name="workerRole" required>
+          <option value="empleado">Empleado</option>
+          <option value="conductor">Conductor</option>
+        </select></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
+        <label>${fieldLabel(IC.activity, "Tipo de contrato sugerido")}<select name="contractTypeDefault" required>
+          ${CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("")}
+        </select></label>
+        <label>${fieldLabel(IC.clock, "Jornada laboral")}<select name="workSchedule">${workScheduleOpts}</select></label>
+        <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel">${arlRiskOpts}</select></label>
+        <label>${fieldLabel(IC.shield, "Salario integral")}<select name="integralSalary">
+          <option value="false">No (10+ prestaciones)</option>
+          <option value="true">Sí (≥ 13 SMMLV + 30% factor prestacional)</option>
+        </select></label>
+        <label class="full">${fieldLabel(IC.file, "Base legal (referencia)")}<input name="legalBasis" value="CST art. 45-46, Ley 50/1990 y normatividad laboral vigente" /></label>
+      </div>
+    </fieldset>
+    <p class="muted full legal-form-note">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}, jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} h/semana, recargo nocturno 35%, dominical/festivo 75%, hora extra diurna 25%, hora extra nocturna 75%.</p>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
   </form>`;
-  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo publicado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Titulo visible vacante <input name="title" required /></label><label>Departamento vacante <select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad de la vacante <select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label><label>Modalidad <select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Hibrido</option><option value="Remoto">Remoto</option></select></label><label>Jornada <select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label><label>Cupos <input type="number" min="1" name="openings" value="1" required /></label><label>Requisitos <input name="requirements" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
-  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Departamento residencia <select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad <select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label><label>Direccion <input name="address" required /></label><label>Anos experiencia <input type="number" min="0" name="experienceYears" value="0" required /></label><label>Aspiracion salarial (COP) <input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required /></label><label>Disponibilidad ingreso <input type="date" name="availabilityDate" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
-  const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
+  const fVac = `<form id="form-vacancy" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.send} Publicación de la vacante</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.briefcase, "Cargo publicado")}<select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Título visible")}<input name="title" required placeholder="Ej: Conductor C2 Bogotá Sabana" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
+        <label>${fieldLabel(IC.clock, "Jornada")}<select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label>
+        <label>${fieldLabel(IC.users, "Cupos")}<input type="number" min="1" name="openings" value="1" required /></label>
+        <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" required placeholder="Mín. SMMLV" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
+        <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button>
+  </form>`;
+  const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
+  const docTypeCand = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
+  const fCand = `<form id="form-candidate" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.user} Datos personales del candidato</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
+        <label>${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeCand}</select></label>
+        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.briefcase} Perfil profesional</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOptsCand}</select></label>
+        <label>${fieldLabel(IC.star, "Años de experiencia")}<input type="number" min="0" name="experienceYears" value="0" required /></label>
+        <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
+        <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
+        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label>
+        <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" multiple /></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button>
+  </form>`;
+  const fInt = `<form id="form-interview" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.calendar} Programación de entrevista</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Candidato")}<select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha y hora")}<input type="datetime-local" name="when" required /></label>
+        <label>${fieldLabel(IC.user, "Entrevistador")}<input name="interviewer" required placeholder="Nombre del entrevistador" /></label>
+        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="mode">
+          <option value="presencial">Presencial</option>
+          <option value="virtual">Virtual</option>
+          <option value="telefonica">Telefónica</option>
+        </select></label>
+        <label class="full">${fieldLabel(IC.mapPin, "Lugar / Link")}<input name="place" placeholder="Sala 1 / link Google Meet / Teams..." /></label>
+        <label class="full">${fieldLabel(IC.file, "Notas previas")}<textarea name="notes" rows="2"></textarea></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button>
+  </form>`;
   const contractPeopleOptions = [
     ...candidates
       .filter((c) => c.status === "Oferta enviada")
       .map((c) => `<option value="candidate:${c.id}">Candidato · ${c.name}</option>`),
     ...employees.map((e) => `<option value="employee:${e.id}">Empleado · ${e.name}${e.position ? ` (${e.position})` : ""}</option>`)
   ].join("");
-  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <select name="eps" required>${epsOptions}</select></label><label>Fondo pension <select name="pensionFund" required>${pensionFundOptions}</select></label><label>ARL <select name="arl" required>${arlOptions}</select></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="Ej: 12C34567890" /></label><label>Categoria licencia <select name="licenseCategory">${licenseCategoryOptions}</select></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Flujo Colombia sugerido: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. El contrato de candidato solo se habilita desde oferta enviada.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
-  const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
+  const payFreqOptsHr = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
+  const uniformOpts = selectOptionsFromCatalog(CO_CATALOGS.uniformIssuance);
+  const workScheduleOptsHr = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
+  const fCon = `<form id="form-contract" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.user} Persona a contratar</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.user, "Persona")}<select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo asignado")}<select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Empresa contratante")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.file} Tipo y vigencia del contrato</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" required>${CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.file, "Plantilla Word (carpeta documentacion)")}<select name="contractTemplateKind" required>
+          <option value="oficina">CONTRATO_TRABAJO_PERSONAL_OFICINA.docx</option>
+          <option value="fijo">CONTRATO_PERSONAL_TERMINO_FIJO.docx</option>
+          <option value="prestacion">CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx</option>
+        </select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de inicio")}<input type="date" name="startDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de fin (si aplica)")}<input type="date" name="endDate" /></label>
+        <label>${fieldLabel(IC.clock, "Periodo de prueba (meses)")}<input type="number" min="0" max="2" name="probationMonths" value="2" /></label>
+        <label>${fieldLabel(IC.clock, "Jornada / turno")}<select name="workSchedule" required>${workScheduleOptsHr}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Lugar de trabajo")}<input name="workplace" required placeholder="Ej: Bogotá, Sede Norte" /></label>
+        <label>${fieldLabel(IC.alertTriangle, "Causal terminación previsto")}<select name="terminationCause">
+          ${CO_CATALOGS.contractTerminationCauses.map((c) => `<option>${c}</option>`).join("")}
+        </select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.dollar} Compensación y dotación</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.dollar, "Salario pactado (COP)")}<input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
+        <label>${fieldLabel(IC.shield, "Salario integral")}<select name="integralSalary">
+          <option value="false">No (10+ prestaciones)</option>
+          <option value="true">Sí (≥ 13 SMMLV + 30% factor prestacional)</option>
+        </select></label>
+        <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOptsHr}</select></label>
+        <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" /></label>
+        <label>${fieldLabel(IC.package, "Dotación (Ley 11/1984)")}<select name="uniformIssuance">${uniformOpts}</select></label>
+        <label>${fieldLabel(IC.dollar, "Retención en la fuente")}<select name="incomeRetention">
+          <option value="auto">Cálculo automático (UVT)</option>
+          <option value="exento">Exento</option>
+          <option value="manual">Procedimiento 2 (manual)</option>
+        </select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.shield} Seguridad social</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.heart, "EPS")}<select name="eps" required>${epsOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de pensión")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "ARL")}<select name="arl" required>${arlOptions}</select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-rose full">
+      <legend>${IC.truck} Información del conductor (si aplica)</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.file, "N° licencia")}<input name="license" placeholder="Ej: 12C34567890" /></label>
+        <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.download} Prueba de plantillas Word</legend>
+      <p class="muted full">Genera un <strong>.docx</strong> con datos ficticios (no guarda contrato ni persona). Sirve para comprobar que las plantillas en <strong>documentacion/</strong> cargan y sustituyen marcadores.</p>
+      <div class="form-section-grid" style="gap:0.6rem">
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Término fijo</button>
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestación servicios</button>
+      </div>
+    </fieldset>
+
+    <p class="muted full legal-form-note">Flujo Colombia: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. Salario integral aplica para sueldos ≥ 13 SMMLV ($${(13 * CO_HR_RULES.minMonthlySalary).toLocaleString("es-CO")}). Auxilio de transporte solo para salarios &lt; 2 SMMLV.</p>
+    <button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button>
+  </form>`;
+  const fEmpCon = `<form id="form-employee-contract" class="p-form p-form-colored">
+    <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label>
+    <label>${fieldLabel(IC.file, "Plantilla Word (documentacion)")}<select name="contractTemplateKind" required>
+      <option value="oficina">CONTRATO_TRABAJO_PERSONAL_OFICINA.docx</option>
+      <option value="fijo">CONTRATO_PERSONAL_TERMINO_FIJO.docx</option>
+      <option value="prestacion">CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx</option>
+    </select></label>
+    <label>${fieldLabel(IC.dollar, "Salario acordado (COP)")}<input type="number" name="salary" required min="${CO_HR_RULES.minMonthlySalary}" /></label>
+    <label>${fieldLabel(IC.calendar, "Fecha de inicio")}<input type="date" name="startDate" required /></label>
+    <label>${fieldLabel(IC.activity, "Tipo de contrato")}<input name="contractType" required placeholder="Ej: Termino indefinido" /></label>
+    <p class="muted full">Se descarga el .docx rellenado desde la carpeta <strong>documentacion</strong>, con la misma estructura que las plantillas oficiales.</p>
+    <button class="btn btn-primary full" type="submit">${IC.file} Generar contrato Word</button>
+  </form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
@@ -5244,9 +5859,10 @@ function profileHtml(user) {
   const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
-      <div class="profile-avatar profile-avatar-lg ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}">
-        ${user.avatarUrl ? "." : (user.name || "U").charAt(0).toUpperCase()}
-      </div>
+      <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}" title="Cambiar foto de perfil">
+        <span class="profile-avatar-initial">${user.avatarUrl ? "" : (user.name || "U").charAt(0).toUpperCase()}</span>
+        <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
+      </label>
       <div class="profile-hero-info profile-hero-info-centered">
         <p class="profile-hero-kicker">Panel personal</p>
         <h3>${user.name || "Usuario"}</h3>
@@ -5269,19 +5885,44 @@ function profileHtml(user) {
       <article class="profile-key-item"><p>Empresa</p><strong>${companyName}</strong></article>
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
-    <form id="form-profile" class="p-form profile-form profile-form-centered">
-      <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${user.name || ""}" required /></label>
-      <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
-      <label>${fieldLabel(IC.phone, "Teléfono de contacto")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
-      <label>${fieldLabel(IC.badge, "NIT / RUT asociado")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
-      <label class="full">${fieldLabel(IC.briefcase, "Empresa")}
-        <input value="${companyName}" disabled />
-        <input type="hidden" name="companyId" value="${user.companyId || ""}" />
-      </label>
-      <label class="full">${fieldLabel(IC.upload, "Subir foto de perfil")}
-        <input type="file" name="avatarFile" accept="image/*" />
-        <small class="muted">Formatos JPG/PNG/WebP. La imagen se guarda directamente desde tu equipo.</small>
-      </label>
+    <form id="form-profile" class="p-form p-form-colored profile-form profile-form-centered">
+      <input type="file" id="profile-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto de perfil" />
+      <fieldset class="form-section form-section-blue full">
+        <legend>${IC.user} Información personal</legend>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${user.name || ""}" required /></label>
+          <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
+          <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType">
+            <option value="CC" ${user.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
+            <option value="CE" ${user.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
+            <option value="NIT" ${user.documentType === "NIT" ? "selected" : ""}>NIT</option>
+            <option value="PAS" ${user.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
+          </select></label>
+          <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
+          <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${user.birthDate || ""}" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section form-section-cyan full">
+        <legend>${IC.heart} Contacto de emergencia</legend>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${user.emergencyContact || ""}" placeholder="Nombre completo" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${user.emergencyPhone || ""}" placeholder="Ej: 3001234567" /></label>
+          <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${user.emergencyRelation || ""}" placeholder="Cónyuge, padre..." /></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section form-section-emerald full">
+        <legend>${IC.briefcase} Empresa asociada</legend>
+        <label class="full">
+          <input value="${companyName}" disabled />
+          <input type="hidden" name="companyId" value="${user.companyId || ""}" />
+        </label>
+      </fieldset>
+
+      <p class="muted full">La foto se cambia pulsando el icono circular de arriba (JPG, PNG o WebP). Luego usa <strong>Guardar perfil</strong> para aplicar los cambios.</p>
+
       <p class="muted full legal-form-note">Mantén datos de contacto y NIT/RUT actualizados para soporte contractual y trazabilidad administrativa.</p>
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
     </form>
@@ -5499,7 +6140,10 @@ function enforceColombianFormStandards() {
   ensureSelectOptions("#form-contract select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
   ensureSelectOptions("#form-contract select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
   ensureSelectOptions("#form-contract select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
-  appendLegalNote("form-contract", "Contrato laboral exige afiliaciones activas a EPS, pensión y ARL previo al ingreso efectivo.");
+  appendLegalNote(
+    "form-contract",
+    "Contrato laboral exige afiliaciones activas a EPS, pensión y ARL previo al ingreso efectivo. El Word se arma desde las plantillas oficiales en la carpeta documentacion/."
+  );
 
   setAttr("#form-employee-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
   appendLegalNote("form-employee-contract", "Use este flujo para formalizar contrato de empleado activo con evidencia documental.");
@@ -5567,6 +6211,48 @@ function renderPortalView() {
   enforceColombianFormStandards();
   applyFormWizards();
   applyModuleMicroAnimations();
+}
+
+function describeContractDurationForDocx(data) {
+  const ct = String(data.contractType || "");
+  const start = String(data.startDate || "").trim();
+  const end = String(data.endDate || "").trim();
+  if (ct === "Termino fijo" && start && end) return `Término fijo: ${start} a ${end}`;
+  if (ct === "Termino fijo") return "Término fijo (plazo contractual en cláusulas)";
+  if (ct === "Prestacion de servicios") return "Prestación de servicios";
+  return start ? `Vigencia desde ${start} · ${ct || "según anexo"}` : String(ct || "Según cláusulas y normativa aplicable");
+}
+
+async function generateOfficialWordContract(payload) {
+  if (!window.RecruitmentDomain?.generateEmployeeContractDocx) {
+    throw new Error("Módulo de contratos Word no disponible (recarga la página).");
+  }
+  return window.RecruitmentDomain.generateEmployeeContractDocx(payload);
+}
+
+/** Payload de demostración para validar las 3 plantillas .docx sin persistir contrato. */
+function buildContractDocxTestPayload(templateKind) {
+  const kind = String(templateKind || "oficina").toLowerCase();
+  const contractType =
+    kind === "prestacion" ? "Prestacion de servicios" : kind === "fijo" ? "Termino fijo" : "Termino indefinido";
+  const workerRole = kind === "prestacion" ? "conductor" : "empleado";
+  const today = new Date().toISOString().slice(0, 10);
+  const endDate = kind === "fijo" ? "2027-12-31" : "";
+  return {
+    contractTemplateKind: kind,
+    contractType,
+    workerRole,
+    nombre_empleado: "PRUEBA Juan Perez Demo",
+    cedula_empleado: "1234567890",
+    ciudad_empleado: "Bogota D.C.",
+    banco_cuenta_bancaria: "Bancolombia",
+    cuenta_bancaria: "123456789012",
+    salario: CO_HR_RULES.minMonthlySalary,
+    salario_letras: "",
+    duracion_contrato: describeContractDurationForDocx({ contractType, startDate: today, endDate }),
+    cargo_empleado: kind === "prestacion" ? "Conductor de prueba C2" : "Auxiliar administrativo prueba",
+    signDate: today
+  };
 }
 
 function bindDynamicEvents() {
@@ -5735,6 +6421,9 @@ function bindDynamicEvents() {
         city: data.city,
         department: data.department,
         address: data.address,
+        twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
+        systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
+        createdAt: nowIso(),
         permissions:
           data.role === ROLES.ADMIN
             ? [...ALL_PERMISSIONS]
@@ -5889,6 +6578,8 @@ function bindDynamicEvents() {
                 city: String(data.city || "").trim(),
                 department: String(data.department || u.department || "").trim(),
                 address: String(data.address || u.address || "").trim(),
+                twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
+                systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
                 permissions:
                   String(data.role || u.role) === ROLES.ADMIN
                     ? [...ALL_PERMISSIONS]
@@ -6061,7 +6752,7 @@ function bindDynamicEvents() {
       if (deliveryDate) deliveryDate.min = today;
     }
 
-    requestForm.addEventListener("submit", (event) => {
+    requestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const user = currentUser();
       const data = Object.fromEntries(new FormData(requestForm).entries());
@@ -6089,10 +6780,10 @@ function bindDynamicEvents() {
       payload.tripValue = 0;
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
-      const all = read(KEYS.requests, []);
+      const all = reqRead();
       const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
       const requestNumber = makeRequestNumber(usedRequestNumbers);
-      all.unshift({
+      const localRow = {
         id: uid(),
         requestNumber,
         clientUserId: user.id,
@@ -6111,8 +6802,18 @@ function bindDynamicEvents() {
         standbyChargeTotal: 0,
         standbyEvents: [],
         rejectionReason: ""
-      });
-      write(KEYS.requests, all);
+      };
+      let rowToSave = localRow;
+      if (window.AntaresApi?.isConfigured?.() && window.DomainModules?.requests?.createViaApi) {
+        try {
+          rowToSave = await window.DomainModules.requests.createViaApi(localRow, pickupAt);
+        } catch (err) {
+          notify(String(err?.message || err), "error");
+          return;
+        }
+      }
+      all.unshift(rowToSave);
+      reqWrite(all);
 
       const adminUsers = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
       adminUsers.forEach((admin) => {
@@ -6179,6 +6880,26 @@ function bindDynamicEvents() {
     });
   });
 
+  const calendarFiltersForm = document.getElementById("calendar-filters");
+  if (calendarFiltersForm) {
+    calendarFiltersForm.querySelectorAll("select").forEach((select) => {
+      select.addEventListener("change", () => {
+        state.calendarFilters = state.calendarFilters || { driver: "", vehicle: "", status: "" };
+        const key = String(select.name || "");
+        if (!key) return;
+        state.calendarFilters[key] = String(select.value || "");
+        renderPortalView();
+      });
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-clear-filters']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.calendarFilters = { driver: "", vehicle: "", status: "" };
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='cal-nav']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const step = parseInt(btn.dataset.step || "0", 10) || 0;
@@ -6202,7 +6923,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='cal-event']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
-      const req = read(KEYS.requests, []).find((r) => r.id === id);
+      const req = reqRead().find((r) => r.id === id);
       if (!req?.trip) return;
       openInfoModal({
         title: `Viaje ${req.trip.tripNumber || ""}`,
@@ -6221,7 +6942,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='detail']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
+      const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req) return;
       const tripDetail = req.trip
         ? `<div class="dash-grid" style="margin-top:0.6rem">
@@ -6257,7 +6978,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = read(KEYS.requests, []);
+      const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req || req.status !== STATUS.PENDIENTE) return;
       openEditModal({
@@ -6267,7 +6988,7 @@ function bindDynamicEvents() {
         fields: [{ name: "notes", label: "Observaciones", value: req.notes || "", required: false }],
         onSubmit: (form) => {
           const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
-          write(KEYS.requests, updated);
+          reqWrite(updated);
   recalculateResourceAvailability();
           notify("Observaciones actualizadas.", "success");
           renderPortalView();
@@ -6279,11 +7000,11 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='cancel']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = read(KEYS.requests, []);
+      const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req || req.status !== STATUS.PENDIENTE) return;
       const updated = requests.map((r) => (r.id === req.id ? { ...r, status: STATUS.CANCELADA } : r));
-      write(KEYS.requests, updated);
+      reqWrite(updated);
       renderPortalView();
     });
   });
@@ -6292,7 +7013,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const actor = currentUser();
       const requestId = String(btn.dataset.id || "");
-      const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+      const request = reqRead().find((item) => item.id === requestId);
       if (!request) return;
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
@@ -6395,7 +7116,7 @@ function bindDynamicEvents() {
         notify("Selecciona una solicitud pendiente.", "error");
         return;
       }
-      const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+      const request = reqRead().find((item) => item.id === requestId);
       if (!request) {
         notify("Solicitud no encontrada.", "error");
         return;
@@ -6450,7 +7171,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='trip-detail']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
+      const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req || !req.trip) return;
       openInfoModal({
         title: `Viaje ${req.trip.tripNumber}`,
@@ -6532,7 +7253,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = read(KEYS.requests, []);
+      const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req) return;
       const [pickupDate, pickupTime] = String(toInputDate(req.pickupAt) || "").split("T");
@@ -6554,10 +7275,7 @@ function bindDynamicEvents() {
             notify("La entrega debe ser posterior a la recogida.", "error");
             return false;
           }
-          write(
-            KEYS.requests,
-            requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r))
-          );
+          reqWrite(requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r)));
           notify("Solicitud actualizada correctamente.", "success");
           renderPortalView();
           return true;
@@ -6573,10 +7291,7 @@ function bindDynamicEvents() {
         message: "Se eliminara la solicitud seleccionada.",
         confirmText: "Eliminar",
         onConfirm: () => {
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).filter((r) => r.id !== btn.dataset.id)
-          );
+          reqWrite(reqRead().filter((r) => r.id !== btn.dataset.id));
           recalculateResourceAvailability();
           notify("Solicitud eliminada.", "success");
           renderPortalView();
@@ -6594,9 +7309,8 @@ function bindDynamicEvents() {
         message: "La solicitud quedara aprobada pendiente de asignacion manual.",
         confirmText: "Eliminar viaje",
         onConfirm: () => {
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).map((request) =>
+          reqWrite(
+            reqRead().map((request) =>
               request.id === requestId
                 ? {
                   ...request,
@@ -6629,9 +7343,8 @@ function bindDynamicEvents() {
             KEYS.vehicles,
             read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId)
           );
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).map((request) => {
+          reqWrite(
+            reqRead().map((request) => {
               if (!request.trip || String(request.trip.vehicleId || "") !== vehicleId) return request;
               return {
                 ...request,
@@ -6664,9 +7377,8 @@ function bindDynamicEvents() {
             KEYS.drivers,
             read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId)
           );
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).map((request) => {
+          reqWrite(
+            reqRead().map((request) => {
               if (!request.trip || String(request.trip.driverId || "") !== driverId) return request;
               return {
                 ...request,
@@ -6711,11 +7423,28 @@ function bindDynamicEvents() {
         model: String(data.model || "").trim(),
         year: modelYear,
         type: data.type,
+        color: String(data.color || "").trim(),
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
+        bodyType: String(data.bodyType || "").trim(),
+        fuelType: String(data.fuelType || "").trim(),
+        axleConfig: String(data.axleConfig || "").trim(),
+        engineNumber: String(data.engineNumber || "").trim(),
+        vin: String(data.vin || "").trim().toUpperCase(),
+        ownershipCard: String(data.ownershipCard || "").trim(),
         soatExpeditionDate: data.soatExpeditionDate,
+        soatExpiryDate: data.soatExpiryDate,
         techInspectionExpeditionDate: data.techInspectionExpeditionDate,
-        available: true
+        techInspectionExpiryDate: data.techInspectionExpiryDate,
+        rcPolicyContract: String(data.rcPolicyContract || "").trim(),
+        rcPolicyExtra: String(data.rcPolicyExtra || "").trim(),
+        rcPolicyExpiry: data.rcPolicyExpiry || "",
+        hasGps: data.hasGps === "true",
+        gpsProvider: String(data.gpsProvider || "").trim(),
+        ownerName: String(data.ownerName || "").trim(),
+        ownerTaxId: String(data.ownerTaxId || "").trim(),
+        available: true,
+        createdAt: nowIso()
       });
       write(KEYS.vehicles, list);
       notify("Camion registrado correctamente.", "success");
@@ -6804,6 +7533,10 @@ function bindDynamicEvents() {
       const all = read(KEYS.vehicles, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
+      const colorOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.vehicleColors.map((c) => ({ value: c, label: c }))];
+      const bodyOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bodyTypes.map((b) => ({ value: b, label: b }))];
+      const fuelOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.fuelTypes.map((f) => ({ value: f, label: f }))];
+      const axleOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.axleConfig.map((a) => ({ value: a, label: a }))];
       openEditModal({
         title: "Editar camión",
         subtitle: target.plate,
@@ -6811,9 +7544,16 @@ function bindDynamicEvents() {
         fields: [
           { name: "plate", label: "Placa", value: target.plate, required: true },
           { name: "brand", label: "Marca", value: target.brand || "", required: true },
-          { name: "model", label: "Linea/Modelo", value: target.model || "", required: true },
+          { name: "model", label: "Línea/Modelo", value: target.model || "", required: true },
           { name: "year", label: "Año modelo", type: "number", value: target.year || "", required: true },
+          { name: "color", label: "Color", type: "select", value: target.color || "", options: colorOpts },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
+          { name: "bodyType", label: "Carrocería", type: "select", value: target.bodyType || "", options: bodyOpts },
+          { name: "fuelType", label: "Combustible", type: "select", value: target.fuelType || "", options: fuelOpts },
+          { name: "axleConfig", label: "Ejes", type: "select", value: target.axleConfig || "", options: axleOpts },
+          { name: "engineNumber", label: "N° motor", value: target.engineNumber || "" },
+          { name: "vin", label: "Chasis (VIN)", value: target.vin || "" },
+          { name: "ownershipCard", label: "Tarjeta propiedad N°", value: target.ownershipCard || "" },
           {
             name: "refrigerated",
             label: "Termoking (refrigerado)",
@@ -6825,13 +7565,22 @@ function bindDynamicEvents() {
             ]
           },
           { name: "soatExpeditionDate", label: "Expedición SOAT", type: "date", value: target.soatExpeditionDate, required: true },
+          { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: target.soatExpiryDate || "" },
+          { name: "techInspectionExpeditionDate", label: "Expedición tecnomecánica", type: "date", value: target.techInspectionExpeditionDate, required: true },
+          { name: "techInspectionExpiryDate", label: "Vence tecnomecánica", type: "date", value: target.techInspectionExpiryDate || "" },
+          { name: "rcPolicyContract", label: "Póliza RC contractual N°", value: target.rcPolicyContract || "" },
+          { name: "rcPolicyExtra", label: "Póliza RC extracontractual N°", value: target.rcPolicyExtra || "" },
+          { name: "rcPolicyExpiry", label: "Vence pólizas RCP", type: "date", value: target.rcPolicyExpiry || "" },
           {
-            name: "techInspectionExpeditionDate",
-            label: "Expedición tecnomecánica",
-            type: "date",
-            value: target.techInspectionExpeditionDate,
-            required: true
-          }
+            name: "hasGps",
+            label: "GPS satelital",
+            type: "select",
+            value: target.hasGps ? "true" : "false",
+            options: [{ value: "true", label: "Sí" }, { value: "false", label: "No" }]
+          },
+          { name: "gpsProvider", label: "Proveedor GPS", value: target.gpsProvider || "" },
+          { name: "ownerName", label: "Propietario", value: target.ownerName || "" },
+          { name: "ownerTaxId", label: "NIT/Cédula propietario", value: target.ownerTaxId || "" }
         ],
         onSubmit: (form) => {
           write(
@@ -6844,10 +7593,26 @@ function bindDynamicEvents() {
                     brand: String(form.brand || "").trim(),
                     model: String(form.model || "").trim(),
                     year: parseNum(form.year),
+                    color: String(form.color || "").trim(),
                     capacityKg: parseNum(form.capacityKg),
+                    bodyType: String(form.bodyType || "").trim(),
+                    fuelType: String(form.fuelType || "").trim(),
+                    axleConfig: String(form.axleConfig || "").trim(),
+                    engineNumber: String(form.engineNumber || "").trim(),
+                    vin: String(form.vin || "").trim().toUpperCase(),
+                    ownershipCard: String(form.ownershipCard || "").trim(),
                     refrigerated: String(form.refrigerated || "false") === "true",
                     soatExpeditionDate: form.soatExpeditionDate,
-                    techInspectionExpeditionDate: form.techInspectionExpeditionDate
+                    soatExpiryDate: form.soatExpiryDate || "",
+                    techInspectionExpeditionDate: form.techInspectionExpeditionDate,
+                    techInspectionExpiryDate: form.techInspectionExpiryDate || "",
+                    rcPolicyContract: String(form.rcPolicyContract || "").trim(),
+                    rcPolicyExtra: String(form.rcPolicyExtra || "").trim(),
+                    rcPolicyExpiry: form.rcPolicyExpiry || "",
+                    hasGps: String(form.hasGps || "false") === "true",
+                    gpsProvider: String(form.gpsProvider || "").trim(),
+                    ownerName: String(form.ownerName || "").trim(),
+                    ownerTaxId: String(form.ownerTaxId || "").trim()
                   }
                 : v
             )
@@ -6875,22 +7640,42 @@ function bindDynamicEvents() {
       const all = read(KEYS.drivers, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
+      const licenseCatOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))];
+      const bloodOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))];
+      const epsOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))];
+      const arlOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.arl.map((item) => ({ value: item, label: item }))];
       openEditModal({
         title: "Editar conductor",
         subtitle: target.name,
         submitText: "Actualizar conductor",
         fields: [
           { name: "name", label: "Nombre completo", value: target.name, required: true },
-          { name: "phone", label: "Telefono", value: target.phone, required: true },
-          { name: "license", label: "No. licencia", value: target.license || "" },
+          { name: "phone", label: "Teléfono celular", value: target.phone, required: true, placeholder: "Ej: 3001234567" },
+          { name: "emergencyContact", label: "Contacto de emergencia", value: target.emergencyContact || "" },
+          { name: "emergencyPhone", label: "Tel. emergencia", value: target.emergencyPhone || "" },
+          { name: "bloodType", label: "Tipo de sangre (RH)", type: "select", value: target.bloodType || "", options: bloodOpts },
+          { name: "license", label: "N° licencia de conducción", value: target.license || "", placeholder: "Ej: 12345678" },
+          { name: "licenseCategory", label: "Categoría licencia", type: "select", value: target.licenseCategory || "", options: licenseCatOpts },
+          { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" },
+          { name: "psychoTestDate", label: "Examen psicosensométrico (fecha)", type: "date", value: target.psychoTestDate || "" },
+          { name: "psychoTestExpiry", label: "Vence psicosensométrico", type: "date", value: target.psychoTestExpiry || "" },
           {
-            name: "licenseCategory",
-            label: "Categoria licencia",
+            name: "defensiveCourse",
+            label: "Curso conducción defensiva (Res. 17220)",
             type: "select",
-            value: target.licenseCategory || "",
-            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))]
+            value: target.defensiveCourse || "",
+            options: [
+              { value: "", label: "Seleccione..." },
+              { value: "vigente", label: "Vigente" },
+              { value: "vencido", label: "Vencido" },
+              { value: "no_aplica", label: "No aplica" }
+            ]
           },
-          { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" }
+          { name: "defensiveCourseExpiry", label: "Vence curso defensivo", type: "date", value: target.defensiveCourseExpiry || "" },
+          { name: "eps", label: "EPS", type: "select", value: target.eps || "", options: epsOpts },
+          { name: "arl", label: "ARL", type: "select", value: target.arl || "", options: arlOpts },
+          { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
+          { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 }
         ],
         onSubmit: (form) => {
           const expiryValue = String(form.licenseExpiry || "").trim();
@@ -6906,9 +7691,20 @@ function bindDynamicEvents() {
                     ...d,
                     name: String(form.name || "").trim(),
                     phone: String(form.phone || "").trim(),
+                    emergencyContact: String(form.emergencyContact || "").trim(),
+                    emergencyPhone: String(form.emergencyPhone || "").trim(),
+                    bloodType: String(form.bloodType || "").trim(),
                     license: String(form.license || "").trim(),
                     licenseCategory: String(form.licenseCategory || "").trim(),
-                    licenseExpiry: expiryValue
+                    licenseExpiry: expiryValue,
+                    psychoTestDate: form.psychoTestDate || "",
+                    psychoTestExpiry: form.psychoTestExpiry || "",
+                    defensiveCourse: String(form.defensiveCourse || "").trim(),
+                    defensiveCourseExpiry: form.defensiveCourseExpiry || "",
+                    eps: String(form.eps || "").trim(),
+                    arl: String(form.arl || "").trim(),
+                    comparendos: parseNum(form.comparendos),
+                    experienceYears: parseNum(form.experienceYears)
                   }
                 : d
             )
@@ -6926,7 +7722,7 @@ function bindDynamicEvents() {
     historyFilter.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(historyFilter).entries());
-      let items = read(KEYS.requests, []);
+      let items = reqRead();
       if (data.client) items = items.filter((i) => i.clientUserId === data.client);
       if (data.status) items = items.filter((i) => i.status === data.status);
       if (data.from) items = items.filter((i) => new Date(i.createdAt) >= new Date(`${data.from}T00:00`));
@@ -7095,6 +7891,12 @@ function bindDynamicEvents() {
           name: String(raw.name || "").trim(),
           documentType: raw.documentType,
           idDoc: docValidation.normalized,
+          birthDate: String(raw.birthDate || "").trim(),
+          gender: String(raw.gender || "").trim(),
+          maritalStatus: String(raw.maritalStatus || "").trim(),
+          educationLevel: String(raw.educationLevel || "").trim(),
+          personalEmail: String(raw.personalEmail || "").trim(),
+          emergencyRelation: String(raw.emergencyRelation || "").trim(),
           positionId: position.id,
           position: position.name,
           workerRole: position.workerRole || "empleado",
@@ -7110,15 +7912,26 @@ function bindDynamicEvents() {
           eps: String(raw.eps || "").trim(),
           pensionFund: String(raw.pensionFund || "").trim(),
           arl: String(raw.arl || "").trim(),
+          severanceFund: String(raw.severanceFund || "").trim(),
+          compensationFund: String(raw.compensationFund || "").trim(),
+          arlRiskLevel: String(raw.arlRiskLevel || "").trim(),
+          contributorType: String(raw.contributorType || "").trim(),
+          costCenter: String(raw.costCenter || "").trim(),
+          payFrequency: String(raw.payFrequency || "Mensual").trim(),
           baseSalary,
+          transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
           contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
           contractDuration: String(raw.contractDuration || "").trim(),
           bankName: String(raw.bankName || "").trim(),
           bankAccount: String(raw.bankAccount || "").trim(),
+          bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
           startDate: raw.startDate,
           license: String(raw.license || "").trim(),
           licenseCategory: String(raw.licenseCategory || "").trim(),
           licenseExpiry: String(raw.licenseExpiry || "").trim(),
+          psychoTestDate: String(raw.psychoTestDate || "").trim(),
+          psychoTestExpiry: String(raw.psychoTestExpiry || "").trim(),
+          defensiveCourse: String(raw.defensiveCourse || "").trim(),
           avatarUrl
         };
       };
@@ -7159,6 +7972,8 @@ function bindDynamicEvents() {
           try {
             await window.RecruitmentDomain.generateEmployeeContractDocx({
               contractTemplateKind: payload.contractTemplateKind,
+              contractType: payload.contractType,
+              workerRole: payload.workerRole,
               nombre_empleado: payload.name,
               cedula_empleado: payload.idDoc,
               ciudad_empleado: payload.city,
@@ -7765,11 +8580,24 @@ function bindDynamicEvents() {
 
   const contractForm = document.getElementById("form-contract");
   if (contractForm) {
+    contractForm.querySelectorAll("[data-action='contract-test-docx']").forEach((btn) => {
+      btn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const kind = String(btn.dataset.template || "oficina");
+        try {
+          await generateOfficialWordContract(buildContractDocxTestPayload(kind));
+          notify(`Descarga de prueba lista (plantilla ${kind}). Revise su carpeta de descargas.`, "success");
+        } catch (err) {
+          notify(`No se pudo generar el Word: ${err?.message || err}`, "error");
+        }
+      });
+    });
     const personSelect = contractForm.querySelector("select[name='personRef']");
     const positionSelect = contractForm.querySelector("select[name='positionId']");
     const companySelect = contractForm.querySelector("select[name='companyId']");
     const salaryInput = contractForm.querySelector("input[name='salary']");
     const contractTypeSelect = contractForm.querySelector("select[name='contractType']");
+    const templateSelect = contractForm.querySelector("select[name='contractTemplateKind']");
     const syncContractFromSource = () => {
       const sourceRef = String(personSelect?.value || "").trim();
       if (!sourceRef) return;
@@ -7784,6 +8612,12 @@ function bindDynamicEvents() {
         if (contractTypeSelect && employee.contractType) contractTypeSelect.value = String(employee.contractType);
       }
     };
+    const syncTemplateKindFromContract = () => {
+      if (!templateSelect || !positionSelect || !contractTypeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
+      const position = getPositionById(String(positionSelect.value || ""));
+      const ct = String(contractTypeSelect.value || position?.contractTypeDefault || "");
+      templateSelect.value = window.RecruitmentDomain.inferTemplateKind(ct, position?.workerRole);
+    };
     if (positionSelect && salaryInput && contractTypeSelect) {
       const syncContractFromPosition = () => {
         const position = getPositionById(String(positionSelect.value || ""));
@@ -7791,15 +8625,23 @@ function bindDynamicEvents() {
         salaryInput.value = String(parseNum(position.baseSalary));
         contractTypeSelect.value = position.contractTypeDefault || "Termino indefinido";
       };
-      positionSelect.addEventListener("change", syncContractFromPosition);
+      positionSelect.addEventListener("change", () => {
+        syncContractFromPosition();
+        syncTemplateKindFromContract();
+      });
+      contractTypeSelect.addEventListener("change", syncTemplateKindFromContract);
       syncContractFromPosition();
+      syncTemplateKindFromContract();
     }
     if (personSelect) {
-      personSelect.addEventListener("change", syncContractFromSource);
+      personSelect.addEventListener("change", () => {
+        syncContractFromSource();
+        syncTemplateKindFromContract();
+      });
       syncContractFromSource();
     }
 
-    contractForm.addEventListener("submit", (event) => {
+    contractForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const sourceRef = String(data.personRef || data.candidateId || "").trim();
@@ -7869,7 +8711,9 @@ function bindDynamicEvents() {
         return;
       }
       const sourceLabel = sourceType === "employee" ? "Empleado" : "Candidato";
-      const text = `CONTRATO LABORAL\nEmpleado: ${subject.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
+      const templateKind = String(data.contractTemplateKind || "").trim().toLowerCase();
+      const subjectDocRaw = subject.idDoc || subject.docId || subject.document || "";
+      const text = `CONTRATO LABORAL\nEmpleado: ${subject.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPlantilla Word: ${templateKind}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
       const all = read(KEYS.contracts, []);
       all.unshift({
         id: uid(),
@@ -7887,6 +8731,8 @@ function bindDynamicEvents() {
         companyId: company.id,
         companyName: company.name,
         contractType,
+        contractTemplateKind: templateKind,
+        idDocSnapshot: String(subjectDocRaw || "").trim(),
         probationMonths,
         endDate,
         workSchedule: String(data.workSchedule || "Diurna"),
@@ -7898,7 +8744,6 @@ function bindDynamicEvents() {
       });
       write(KEYS.contracts, all);
 
-      const subjectDocRaw = subject.idDoc || subject.docId || subject.document || "";
       const employeeDocValidation = validateColombianDocument("CC", subjectDocRaw);
       const employees = read(KEYS.payrollEmployees, []);
       if (sourceType === "candidate") {
@@ -7992,14 +8837,48 @@ function bindDynamicEvents() {
       if (subject.email) {
         sendEmail({ to: subject.email, subject: "Oferta/Contrato generado", body: text });
       }
-      notify(`Contrato generado para ${sourceLabel.toLowerCase()} y vinculación registrada como ${workerRole}.`, "success");
+      let wordNote = "";
+      try {
+        await generateOfficialWordContract({
+          contractTemplateKind: templateKind,
+          contractType,
+          workerRole,
+          nombre_empleado: subject.name,
+          cedula_empleado: String(subjectDocRaw || "").trim(),
+          ciudad_empleado: String(subject.city || data.workplace || company.name || "").trim(),
+          banco_cuenta_bancaria: String(subject.bankName || "").trim(),
+          cuenta_bancaria: String(subject.bankAccount || "").trim(),
+          salario: agreedSalary,
+          salario_letras: "",
+          duracion_contrato: describeContractDurationForDocx({ contractType, startDate: data.startDate, endDate }),
+          cargo_empleado: position.name,
+          signDate: data.startDate
+        });
+        wordNote = " Documento Word generado desde la carpeta documentacion/.";
+      } catch (wordErr) {
+        wordNote = ` Advertencia: no se descargó el Word (${wordErr?.message || "error"}). El registro interno sí quedó guardado.`;
+      }
+      notify(`Contrato generado para ${sourceLabel.toLowerCase()} y vinculación registrada como ${workerRole}.${wordNote}`, wordNote.startsWith(" Advertencia") ? "warning" : "success");
       renderPortalView();
     });
   }
 
   const employeeContractForm = document.getElementById("form-employee-contract");
   if (employeeContractForm) {
-    employeeContractForm.addEventListener("submit", (event) => {
+    const empContractTemplateSelect = employeeContractForm.querySelector("select[name='contractTemplateKind']");
+    const empContractEmployeeSelect = employeeContractForm.querySelector("select[name='employeeId']");
+    const syncEmpContractTemplate = () => {
+      if (!empContractTemplateSelect || !empContractEmployeeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
+      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(empContractEmployeeSelect.value || ""));
+      if (!employee) return;
+      const wr = employee.workerRole || (String(employee.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
+      empContractTemplateSelect.value = window.RecruitmentDomain.inferTemplateKind(employee.contractType || "Termino indefinido", wr);
+    };
+    if (empContractEmployeeSelect) {
+      empContractEmployeeSelect.addEventListener("change", syncEmpContractTemplate);
+      syncEmpContractTemplate();
+    }
+    employeeContractForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(employeeContractForm).entries());
       const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
@@ -8009,14 +8888,23 @@ function bindDynamicEvents() {
       }
       const employee = read(KEYS.payrollEmployees, []).find((item) => item.id === data.employeeId);
       if (!employee) return;
+      const agreedSalary = parseNum(data.salary);
+      if (agreedSalary < CO_HR_RULES.minMonthlySalary) {
+        notify(`El salario no puede ser inferior al mínimo legal (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        return;
+      }
+      const contractTypeStr = String(data.contractType || employee.contractType || "").trim();
+      const templateKind = String(data.contractTemplateKind || "").trim().toLowerCase();
+      const wr = employee.workerRole || "empleado";
       const contractText =
         `CONTRATO LABORAL\n` +
         `Empresa: Antares\n` +
         `Empleado: ${employee.name}\n` +
         `Cédula: ${employee.idDoc}\n` +
         `Cargo: ${employee.position}\n` +
-        `Tipo de contrato: ${data.contractType}\n` +
-        `Salario: ${data.salary}\n` +
+        `Tipo de contrato: ${contractTypeStr}\n` +
+        `Plantilla Word: ${templateKind}\n` +
+        `Salario: ${agreedSalary}\n` +
         `Fecha de inicio: ${data.startDate}\n` +
         `Fecha de generación: ${new Date().toLocaleDateString("es-CO")}\n`;
 
@@ -8026,28 +8914,38 @@ function bindDynamicEvents() {
         employeeId: employee.id,
         employeeName: employee.name,
         position: employee.position,
-        salary: data.salary,
+        salary: agreedSalary,
         startDate: data.startDate,
+        contractType: contractTypeStr,
+        contractTemplateKind: templateKind,
+        idDocSnapshot: String(employee.idDoc || "").trim(),
+        workerRole: wr,
         source: "Empleado",
         content: contractText,
         createdAt: nowIso()
       });
       write(KEYS.contracts, all);
 
-      const popup = window.open("", "_blank", "width=800,height=900");
-      popup.document.write(`
-        <html>
-          <head><title>Contrato ${employee.name}</title></head>
-          <body style="font-family:Arial;padding:28px">
-            <h1>Contrato laboral</h1>
-            <pre style="white-space:pre-wrap;font-size:15px;line-height:1.6">${contractText}</pre>
-            <p>Firma empresa: ____________________</p>
-            <p>Firma empleado: ___________________</p>
-            <script>window.print();</script>
-          </body>
-        </html>
-      `);
-      popup.document.close();
+      try {
+        await generateOfficialWordContract({
+          contractTemplateKind: templateKind,
+          contractType: contractTypeStr,
+          workerRole: wr,
+          nombre_empleado: employee.name,
+          cedula_empleado: String(employee.idDoc || "").trim(),
+          ciudad_empleado: String(employee.city || "").trim(),
+          banco_cuenta_bancaria: String(employee.bankName || "").trim(),
+          cuenta_bancaria: String(employee.bankAccount || "").trim(),
+          salario: agreedSalary,
+          salario_letras: "",
+          duracion_contrato: describeContractDurationForDocx({ contractType: contractTypeStr, startDate: data.startDate, endDate: "" }),
+          cargo_empleado: String(employee.position || ""),
+          signDate: data.startDate
+        });
+        notify("Contrato registrado y Word oficial descargado (documentacion/).", "success");
+      } catch (wordErr) {
+        notify(`Contrato registrado. No se pudo generar Word: ${wordErr?.message || "error"}`, "warning");
+      }
       renderPortalView();
     });
   }
@@ -8089,6 +8987,23 @@ function bindDynamicEvents() {
 
   const profileForm = document.getElementById("form-profile");
   if (profileForm) {
+    const profileAvatarInput = document.getElementById("profile-avatar-input");
+    const profileAvatarLabel = document.querySelector('label[for="profile-avatar-input"]');
+    if (profileAvatarInput && profileAvatarLabel) {
+      profileAvatarInput.addEventListener("change", () => {
+        const f = profileAvatarInput.files?.[0];
+        if (!f || !String(f.type || "").startsWith("image/")) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const url = String(reader.result || "");
+          profileAvatarLabel.style.backgroundImage = url ? `url(${JSON.stringify(url)})` : "";
+          profileAvatarLabel.classList.toggle("has-image", Boolean(url));
+          const initial = profileAvatarLabel.querySelector(".profile-avatar-initial");
+          if (initial) initial.textContent = "";
+        };
+        reader.readAsDataURL(f);
+      });
+    }
     profileForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -8108,6 +9023,11 @@ function bindDynamicEvents() {
                   name: String(data.name || u.name).trim(),
                   phone: String(data.phone || "").trim(),
                   taxId: String(data.taxId || "").trim(),
+                  documentType: String(data.documentType || u.documentType || "CC"),
+                  birthDate: String(data.birthDate || "").trim(),
+                  emergencyContact: String(data.emergencyContact || "").trim(),
+                  emergencyPhone: String(data.emergencyPhone || "").trim(),
+                  emergencyRelation: String(data.emergencyRelation || "").trim(),
                   companyId: company?.id || u.companyId,
                   company: company?.name || u.company,
                   avatarUrl: avatarUrlValue || u.avatarUrl || ""
@@ -8227,7 +9147,7 @@ function bindDynamicEvents() {
         );
       } else if (approval.type === "approve_trip_request") {
         const requestId = String(approval.payload.requestId || "");
-        const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+        const request = reqRead().find((item) => item.id === requestId);
         if (!request) {
           notify("No se encontro la solicitud asociada a esta autorizacion.", "error");
           return;
@@ -8345,21 +9265,53 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='view-contract']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const c = read(KEYS.contracts, []).find((x) => x.id === btn.dataset.id);
       if (!c) return;
-      const popup = window.open("", "_blank", "width=800,height=900");
-      popup.document.write(`
+      const employee = c.employeeId ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(c.employeeId)) : null;
+      const displayName = c.candidateName || c.employeeName || employee?.name || "Contrato";
+      const docId = String(c.idDocSnapshot || employee?.idDoc || "").trim();
+      const salaryVal = parseNum(c.salary);
+      const templateKind = String(c.contractTemplateKind || "").trim().toLowerCase();
+      const contractType = String(c.contractType || employee?.contractType || "").trim();
+      const workerRole = String(c.workerRole || employee?.workerRole || "empleado");
+
+      try {
+        await generateOfficialWordContract({
+          contractTemplateKind: templateKind,
+          contractType,
+          workerRole,
+          nombre_empleado: displayName,
+          cedula_empleado: docId,
+          ciudad_empleado: String(employee?.city || c.companyName || "").trim(),
+          banco_cuenta_bancaria: String(employee?.bankName || "").trim(),
+          cuenta_bancaria: String(employee?.bankAccount || "").trim(),
+          salario: salaryVal,
+          salario_letras: "",
+          duracion_contrato: describeContractDurationForDocx({
+            contractType: contractType || "Termino indefinido",
+            startDate: c.startDate || "",
+            endDate: c.endDate || ""
+          }),
+          cargo_empleado: String(c.position || employee?.position || ""),
+          signDate: c.startDate
+        });
+        notify("Se descargó de nuevo el Word usando las plantillas de documentacion/.", "success");
+      } catch (err) {
+        const popup = window.open("", "_blank", "width=800,height=900");
+        popup.document.write(`
         <html>
           <head><title>Contrato</title></head>
           <body style="font-family:Arial;padding:28px">
-            <h1>Contrato laboral</h1>
+            <h1>Contrato laboral (resumen interno)</h1>
+            <p class="muted">No se pudo regenerar el Word: ${String(err?.message || err).replace(/</g, "&lt;")}</p>
             <pre style="white-space:pre-wrap;font-size:15px;line-height:1.6">${c.content}</pre>
             <script>window.print();</script>
           </body>
         </html>
       `);
-      popup.document.close();
+        popup.document.close();
+      }
     });
   });
 }

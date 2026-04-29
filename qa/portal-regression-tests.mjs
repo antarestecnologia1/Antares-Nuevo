@@ -33,6 +33,8 @@ function run() {
   includesAll(
     indexHtml,
     [
+      './modules/core/persistence.js',
+      './modules/portal/application.js',
       'id="hero"',
       'id="trusted"',
       'id="about"',
