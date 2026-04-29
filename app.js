@@ -2574,6 +2574,11 @@ function bindAuthForms() {
       const data = Object.fromEntries(new FormData(login).entries());
       const passwordRaw = String(data.password || "");
 
+      /**
+       * Si hay URL de API, la autenticacion es SOLO contra el servidor (PostgreSQL).
+       * No se usa fallback local: en localStorage pueden seguir existiendo usuarios demo
+       * (ensureEnterpriseScaleData / semillas) que ya no existen o difieren de la BD.
+       */
       if (window.AntaresApi?.getBase?.()) {
         try {
           const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
@@ -2582,8 +2587,8 @@ function bindAuthForms() {
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({ email: data.email, password: passwordRaw })
           });
-          const body = res.ok ? await res.json().catch(() => null) : null;
-          if (body?.accessToken && body?.refreshToken) {
+          const body = await res.json().catch(() => null);
+          if (res.ok && body?.accessToken && body?.refreshToken) {
             window.AntaresApi.setAccessToken(body.accessToken);
             await applyPortalBootstrapFromApi();
             const payload = decodeJwtPayload(body.accessToken);
@@ -2618,8 +2623,17 @@ function bindAuthForms() {
             renderPortal();
             return;
           }
+          const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
+          notify(String(apiMsg || "Credenciales invalidas o cuenta no habilitada en el servidor."), "error");
+          state.authSecurity.failedAttempts += 1;
+          if (state.authSecurity.failedAttempts >= 5) {
+            state.authSecurity.lockUntil = Date.now() + 60_000;
+            state.authSecurity.failedAttempts = 0;
+          }
+          return;
         } catch (_e) {
-          /* intentar sesion local */
+          notify("No hay conexion con el servidor de autenticacion. Intente de nuevo.", "error");
+          return;
         }
       }
 

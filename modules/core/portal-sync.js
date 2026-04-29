@@ -3,6 +3,24 @@
  * Tras cada write() en localStorage (excepto sesión).
  */
 (function registerPortalSync() {
+  /**
+   * En producción no escribimos detalles del error en consola (evita filtrar pistas).
+   * Activar depuración: window.__ANTARES_DEBUG_SYNC__ = true o localhost.
+   */
+  function logPortalSyncFailure(entity, err) {
+    try {
+      var debug =
+        window.__ANTARES_DEBUG_SYNC__ === true ||
+        (typeof window.location !== "undefined" &&
+          window.location.hostname &&
+          (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"));
+      if (!debug) return;
+      console.warn("[Antares] portal sync-key", entity, err);
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
   const DEBOUNCE_MS = 450;
   const timers = {};
   const pending = {};
@@ -59,7 +77,7 @@
     try {
       await api.postJson("/portal/sync-key", { key: entity, data });
     } catch (err) {
-      console.warn("[Antares] portal sync-key", entity, err);
+      logPortalSyncFailure(entity, err);
     }
   }
 
