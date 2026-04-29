@@ -769,6 +769,11 @@ const PUBLIC_ES_EN_DICT = {
   "Corto plazo (8-30 dias)": "Short term (8-30 days)",
   "Planificada (31+ dias)": "Planned (31+ days)",
   "Volumen mensual aprox. (kg)": "Approx. monthly volume (kg)",
+  "1. Contacto": "1. Contact",
+  "2. Operacion": "2. Operation",
+  "3. Requerimiento": "3. Requirements",
+  Anterior: "Back",
+  Siguiente: "Next",
   "Portal empresarial Antares": "Antares enterprise portal",
   "Ingreso seguro para clientes y equipos operativos.": "Secure access for clients and operational teams.",
   Ingresar: "Sign in",
@@ -1077,6 +1082,71 @@ function setFieldError(field, message) {
 function initB2BFormExperience() {
   const form = nodes.b2bForm;
   if (!form) return;
+  const panes = [...form.querySelectorAll("[data-step-pane]")];
+  const chips = [...form.querySelectorAll("[data-step-chip]")];
+  const actions = form.querySelector(".contact-step-actions");
+  const prevBtn = form.querySelector("[data-step-prev]");
+  const nextBtn = form.querySelector("[data-step-next]");
+  const submitBtn = form.querySelector("[data-step-submit]");
+  let currentStep = 0;
+
+  const setStep = (index) => {
+    currentStep = Math.max(0, Math.min(index, panes.length - 1));
+    panes.forEach((pane, idx) => pane.classList.toggle("active", idx === currentStep));
+    chips.forEach((chip, idx) => chip.classList.toggle("active", idx === currentStep));
+    if (actions) {
+      actions.classList.toggle("is-first", currentStep === 0);
+      actions.classList.toggle("is-last", currentStep === panes.length - 1);
+    }
+    form.setAttribute("data-step-current", String(currentStep));
+  };
+  form.__setB2BStep = setStep;
+
+  const validateStep = (index) => {
+    const pane = panes[index];
+    if (!pane) return true;
+    const requiredFields = [...pane.querySelectorAll("input[required], select[required], textarea[required]")];
+    let firstInvalid = null;
+    requiredFields.forEach((field) => {
+      const value = String(field.value || "").trim();
+      if (!value) {
+        setFieldError(field, "Este campo es obligatorio.");
+        if (!firstInvalid) firstInvalid = field;
+      }
+    });
+    if (firstInvalid) {
+      firstInvalid.focus();
+      return false;
+    }
+    return true;
+  };
+
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => setStep(currentStep - 1));
+  }
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      if (!validateStep(currentStep)) return;
+      setStep(currentStep + 1);
+    });
+  }
+  if (submitBtn) {
+    submitBtn.addEventListener("click", () => {
+      if (!validateStep(currentStep)) return;
+    });
+  }
+
+  form.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    if (event.target instanceof HTMLTextAreaElement) return;
+    if (currentStep >= panes.length - 1) return;
+    event.preventDefault();
+    if (!validateStep(currentStep)) return;
+    setStep(currentStep + 1);
+  });
+
+  setStep(0);
+
   const phoneInput = form.querySelector("input[name='phone']");
   const emailInput = form.querySelector("input[name='email']");
   const messageInput = form.querySelector("textarea[name='message']");
@@ -7137,6 +7207,14 @@ function initGlobalEvents() {
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
 
     const errors = [];
+    const jumpToStepForField = (selector) => {
+      const field = nodes.b2bForm.querySelector(selector);
+      const pane = field?.closest("[data-step-pane]");
+      const paneIndex = pane ? Number(pane.getAttribute("data-step-pane")) : 0;
+      if (typeof nodes.b2bForm.__setB2BStep === "function" && Number.isFinite(paneIndex)) {
+        nodes.b2bForm.__setB2BStep(paneIndex);
+      }
+    };
     if (!emailValid) {
       setFieldError(nodes.b2bForm.querySelector("input[name='email']"), "Ingresa un correo corporativo valido.");
       errors.push("email");
@@ -7154,6 +7232,11 @@ function initGlobalEvents() {
       errors.push("volume");
     }
     if (errors.length) {
+      const firstError = errors[0];
+      if (firstError === "email") jumpToStepForField("input[name='email']");
+      if (firstError === "phone") jumpToStepForField("input[name='phone']");
+      if (firstError === "message") jumpToStepForField("textarea[name='message']");
+      if (firstError === "volume") jumpToStepForField("input[name='monthlyVolumeKg']");
       notify("Revisa los campos marcados para enviar tu solicitud B2B.", "error");
       return;
     }
@@ -7167,6 +7250,7 @@ function initGlobalEvents() {
     write(KEYS.contacts, all);
     sendEmail({ to: "comercial@antarescargo.com", subject: "Nuevo lead B2B", body: JSON.stringify(data) });
     nodes.b2bForm.reset();
+    if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
     notify("Contacto enviado. Gracias por escribirnos.", "success");
   });
 

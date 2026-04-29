@@ -724,82 +724,107 @@
               <span class="contact-trust-pill">Confidencialidad de datos</span>
             </div>
             <form id="b2b-form" class="form-grid contact-form-premium">
-              <label>
-                <span>Nombre</span>
-                <input name="name" placeholder="Ej. Laura Castaneda" required />
-              </label>
-              <label>
-                <span>Empresa</span>
-                <input name="company" placeholder="Ej. FloraExport SAS" required />
-              </label>
-              <label>
-                <span>NIT/RUT</span>
-                <input name="taxId" placeholder="Ej. 900123456-7" required />
-              </label>
-              <label>
-                <span>Cargo</span>
-                <input name="position" placeholder="Ej. Directora de Operaciones" required />
-              </label>
-              <label>
-                <span>Telefono</span>
-                <input name="phone" placeholder="+57 300 000 0000" required />
-              </label>
-              <label>
-                <span>Correo</span>
-                <input name="email" type="email" placeholder="nombre@empresa.com" required />
-              </label>
-              <label class="full">
-                <span>Tipo de servicio</span>
-                <select name="serviceType" required>
-                  <option value="">Seleccione...</option>
-                  <option>Transporte refrigerado</option>
-                  <option>Transporte dedicado</option>
-                  <option>Servicio eventual</option>
-                </select>
-              </label>
-              <label>
-                <span>Tipo de operacion</span>
-                <select name="operationType" required>
-                  <option value="">Seleccione...</option>
-                  <option>Exportacion</option>
-                  <option>Distribucion nacional</option>
-                  <option>Operacion mixta</option>
-                </select>
-              </label>
-              <label>
-                <span>Frecuencia estimada</span>
-                <select name="operationFrequency" required>
-                  <option value="">Seleccione...</option>
-                  <option>Diaria</option>
-                  <option>Semanal</option>
-                  <option>Quincenal</option>
-                  <option>Mensual</option>
-                </select>
-              </label>
-              <label>
-                <span>Ventana de inicio</span>
-                <select name="startWindow" required>
-                  <option value="">Seleccione...</option>
-                  <option>Inmediata (0-7 dias)</option>
-                  <option>Corto plazo (8-30 dias)</option>
-                  <option>Planificada (31+ dias)</option>
-                </select>
-              </label>
-              <label>
-                <span>Volumen mensual aprox. (kg)</span>
-                <input name="monthlyVolumeKg" type="number" min="100" step="100" placeholder="Ej. 12000" required />
-              </label>
-              <label class="full">
-                <span>Mensaje</span>
-                <textarea name="message" rows="5" placeholder="Cuéntanos origen/destino, volumen aproximado, frecuencia y ventana de entrega." required></textarea>
-              </label>
-              <div class="full contact-submit-wrap">
-                <small class="muted">Al enviar, un asesor B2B te contactará para validar requerimientos técnicos y comerciales.</small>
+              <div class="full contact-step-indicator" role="list" aria-label="Progreso formulario">
+                <span class="contact-step-chip active" data-step-chip="0" role="listitem">1. Contacto</span>
+                <span class="contact-step-chip" data-step-chip="1" role="listitem">2. Operacion</span>
+                <span class="contact-step-chip" data-step-chip="2" role="listitem">3. Requerimiento</span>
               </div>
-              <button class="btn btn-primary full contact-submit-btn" type="submit">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Enviar solicitud B2B
-              </button>
+
+              <div class="full contact-step-pane active" data-step-pane="0">
+                <div class="form-grid contact-form-premium">
+                  <label>
+                    <span>Nombre</span>
+                    <input name="name" placeholder="Ej. Laura Castaneda" required />
+                  </label>
+                  <label>
+                    <span>Empresa</span>
+                    <input name="company" placeholder="Ej. FloraExport SAS" required />
+                  </label>
+                  <label>
+                    <span>NIT/RUT</span>
+                    <input name="taxId" placeholder="Ej. 900123456-7" required />
+                  </label>
+                  <label>
+                    <span>Cargo</span>
+                    <input name="position" placeholder="Ej. Directora de Operaciones" required />
+                  </label>
+                  <label>
+                    <span>Telefono</span>
+                    <input name="phone" placeholder="+57 300 000 0000" required />
+                  </label>
+                  <label>
+                    <span>Correo</span>
+                    <input name="email" type="email" placeholder="nombre@empresa.com" required />
+                  </label>
+                </div>
+              </div>
+
+              <div class="full contact-step-pane" data-step-pane="1">
+                <div class="form-grid contact-form-premium">
+                  <label class="full">
+                    <span>Tipo de servicio</span>
+                    <select name="serviceType" required>
+                      <option value="">Seleccione...</option>
+                      <option>Transporte refrigerado</option>
+                      <option>Transporte dedicado</option>
+                      <option>Servicio eventual</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Tipo de operacion</span>
+                    <select name="operationType" required>
+                      <option value="">Seleccione...</option>
+                      <option>Exportacion</option>
+                      <option>Distribucion nacional</option>
+                      <option>Operacion mixta</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Frecuencia estimada</span>
+                    <select name="operationFrequency" required>
+                      <option value="">Seleccione...</option>
+                      <option>Diaria</option>
+                      <option>Semanal</option>
+                      <option>Quincenal</option>
+                      <option>Mensual</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Ventana de inicio</span>
+                    <select name="startWindow" required>
+                      <option value="">Seleccione...</option>
+                      <option>Inmediata (0-7 dias)</option>
+                      <option>Corto plazo (8-30 dias)</option>
+                      <option>Planificada (31+ dias)</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Volumen mensual aprox. (kg)</span>
+                    <input name="monthlyVolumeKg" type="number" min="100" step="100" placeholder="Ej. 12000" required />
+                  </label>
+                </div>
+              </div>
+
+              <div class="full contact-step-pane" data-step-pane="2">
+                <div class="form-grid contact-form-premium">
+                  <label class="full">
+                    <span>Mensaje</span>
+                    <textarea name="message" rows="6" placeholder="Cuéntanos origen/destino, volumen aproximado, frecuencia y ventana de entrega." required></textarea>
+                  </label>
+                  <div class="full contact-submit-wrap">
+                    <small class="muted">Al enviar, un asesor B2B te contactará para validar requerimientos técnicos y comerciales.</small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="full contact-step-actions">
+                <button type="button" class="btn btn-outline" data-step-prev>Anterior</button>
+                <button type="button" class="btn btn-primary" data-step-next>Siguiente</button>
+                <button class="btn btn-primary contact-submit-btn" type="submit" data-step-submit>
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  Enviar solicitud B2B
+                </button>
+              </div>
             </form>
           </article>
           <article class="card lift-card" data-reveal>

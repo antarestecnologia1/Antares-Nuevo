@@ -1121,6 +1121,11 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 0.9rem;
 }
 
+#contact .container.grid-2 {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
+  align-items: start;
+}
+
 #contact .contact-form-subtitle {
   margin: 0.35rem 0 0;
   font-size: 0.9rem;
@@ -1148,6 +1153,7 @@ input:focus, select:focus, textarea:focus {
 
 #contact .form-grid {
   gap: 0.95rem;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
 }
 
 #contact .form-grid label {
@@ -1202,6 +1208,75 @@ input:focus, select:focus, textarea:focus {
 #contact .contact-form-premium label span {
   font-weight: 700;
   letter-spacing: 0.1px;
+}
+
+#contact .contact-step-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+#contact .contact-step-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.58rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #2e5f95;
+  background: rgba(21, 101, 192, 0.08);
+  border: 1px solid rgba(21, 101, 192, 0.18);
+}
+
+#contact .contact-step-chip.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1565c0, #0d47a1);
+  border-color: transparent;
+}
+
+#contact .contact-step-pane {
+  display: none;
+}
+
+#contact .contact-step-pane.active {
+  display: block;
+}
+
+#contact .contact-step-actions {
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+#contact .contact-step-actions [data-step-submit] {
+  display: none;
+}
+
+#contact .contact-step-actions.is-last [data-step-next] {
+  display: none;
+}
+
+#contact .contact-step-actions.is-last [data-step-submit] {
+  display: inline-flex;
+  justify-content: center;
+}
+
+#contact .contact-step-actions.is-first [data-step-prev] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  #contact .container.grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  #contact .form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
 }
 
 body.portal-mode .top-nav,
@@ -2952,6 +3027,12 @@ body[data-theme="dark"] #contact .contact-trust-pill {
   color: #d6e9ff;
   background: rgba(117, 176, 244, 0.16);
   border-color: rgba(133, 188, 247, 0.36);
+}
+
+body[data-theme="dark"] #contact .contact-step-chip {
+  color: #d2e7ff;
+  background: rgba(117, 176, 244, 0.12);
+  border-color: rgba(133, 188, 247, 0.28);
 }
 
 body[data-theme="dark"] #contact .form-grid input,
