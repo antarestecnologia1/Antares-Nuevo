@@ -4085,6 +4085,13 @@ body[data-theme="dark"] .p-form textarea {
   filter: saturate(1.25) contrast(1.14) brightness(1.16);
 }
 
+.news-evidence-gallery {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
+  padding: 0.3rem;
+}
+
 .news-media img.news-img-brand {
   filter: saturate(1.22) contrast(1.12) brightness(1.1);
 }
