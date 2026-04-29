@@ -57,22 +57,59 @@ const IC = {
 };
 
 function pcardWrap(iconKey, title, subtitle, bodyHtml, extraClass = "") {
-  return `<div class="p-card ${extraClass}"><div class="p-card-header"><div class="p-card-header-left"><svg class="p-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[iconKey]?.replace(/<svg[^>]*>|<\/svg>/g, "") || ""}</svg><div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ""}</div></div></div><div class="p-card-body">${bodyHtml}</div></div>`;
+  return `<div class="p-card ${extraClass}"><div class="p-card-header"><div class="p-card-header-left"><svg class="p-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[iconKey]?.replace(/<svg[^>]*>|<\/svg>/g, "") || ""}</svg><div><h2>${escapeHtml(title)}</h2>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}</div></div></div><div class="p-card-body">${bodyHtml}</div></div>`;
 }
 
 function emptyState(text) {
-  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${text}</p></div>`;
+  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${escapeHtml(text)}</p></div>`;
+}
+
+/** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Valores en atributos HTML entre comillas dobles. */
+function escapeAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;");
+}
+
+function isAntaresDebugEnabled() {
+  try {
+    return typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true;
+  } catch {
+    return false;
+  }
+}
+
+function devWarn() {
+  if (!isAntaresDebugEnabled() || typeof console === "undefined" || !console.warn) return;
+  console.warn.apply(console, arguments);
+}
+
+function devError() {
+  if (!isAntaresDebugEnabled() || typeof console === "undefined" || !console.error) return;
+  console.error.apply(console, arguments);
 }
 
 function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
   const expanded = Boolean(state.createPanels?.[panelId]);
   const toggleText = expanded ? "Ocultar formulario" : expandLabel;
   const cardBody = `<div class="toolbar" style="margin-bottom:0.8rem">
-    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${panelId}">
-      ${expanded ? IC.x : IC.plus} ${toggleText}
+    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}">
+      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
     </button>
   </div>
-  <div class="${expanded ? "" : "hidden"}" data-create-panel="${panelId}">
+  <div class="${expanded ? "" : "hidden"}" data-create-panel="${escapeAttr(panelId)}">
     ${bodyHtml}
   </div>`;
   return pcardWrap(iconKey, title, subtitle, cardBody);
@@ -113,34 +150,39 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
     .map((f) => {
       if (f.type === "select") {
         const options = (f.options || [])
-          .map((opt) => `<option value="${opt.value}" ${String(opt.value) === String(f.value ?? "") ? "selected" : ""}>${opt.label}</option>`)
+          .map((opt) => {
+            const v = escapeAttr(String(opt.value ?? ""));
+            const sel = String(opt.value) === String(f.value ?? "") ? "selected" : "";
+            return `<option value="${v}" ${sel}>${escapeHtml(opt.label)}</option>`;
+          })
           .join("");
-        return `<label><span>${f.label}</span><select name="${f.name}" ${f.required ? "required" : ""}>${options}</select></label>`;
+        return `<label><span>${escapeHtml(f.label)}</span><select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
       }
       if (f.type === "hidden") {
-        return `<input type="hidden" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" />`;
+        return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
       }
       if (f.type === "textarea") {
-        return `<label class="full"><span>${f.label}</span><textarea name="${f.name}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${String(f.value ?? "").replace(/</g, "&lt;")}</textarea></label>`;
+        return `<label class="full"><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
       }
       if (f.type === "file") {
-        return `<label class="full"><span>${f.label}</span><input type="file" name="${f.name}" ${f.accept ? `accept="${f.accept}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
+        return `<label class="full"><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
       }
-      return `<label><span>${f.label}</span><input type="${f.type || "text"}" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" ${f.required ? "required" : ""} /></label>`;
+      const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
+      return `<label><span>${escapeHtml(f.label)}</span><input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" ${f.required ? "required" : ""} /></label>`;
     })
     .join("");
 
   content.innerHTML = `
     <div class="modal-head">
-      <h2>${title}</h2>
+      <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    ${subtitle ? `<p class="muted">${subtitle}</p>` : ""}
+    ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
     <form id="crud-form" class="p-form modal-edit-form">
       ${fieldsHtml}
       <div class="modal-edit-actions">
         <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${IC.save} ${submitText}</button>
+        <button type="submit" class="btn btn-primary">${IC.save} ${escapeHtml(submitText)}</button>
       </div>
     </form>
   `;
@@ -188,13 +230,13 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
     <div class="modal-head">
-      <h2>${title}</h2>
+      <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    <p>${message}</p>
+    <p>${escapeHtml(message)}</p>
     <div class="modal-edit-actions" style="margin-top:1rem;">
       <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${confirmText}</button>
+      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>
     </div>
   `;
   const close = () => modal.classList.add("hidden");
@@ -228,10 +270,10 @@ function openInfoModal({ title, subtitle = "", bodyHtml = "" }) {
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
     <div class="modal-head">
-      <h2>${title}</h2>
+      <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    ${subtitle ? `<p class="muted">${subtitle}</p>` : ""}
+    ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
     <div class="modal-info-body">${bodyHtml}</div>
     <div class="modal-edit-actions" style="margin-top:1rem;">
       <button type="button" id="crud-ok" class="btn btn-primary">Cerrar</button>
@@ -307,7 +349,7 @@ function enhanceFormAsWizard(form, config = {}) {
     if (titles[idx]) {
       const head = document.createElement("div");
       head.className = "wizard-step-head";
-      head.innerHTML = `<h4>${titles[idx]}</h4><span>Paso ${idx + 1} de ${groups.length}</span>`;
+      head.innerHTML = `<h4>${escapeHtml(titles[idx])}</h4><span>Paso ${idx + 1} de ${groups.length}</span>`;
       step.appendChild(head);
     }
     group.forEach((node) => step.appendChild(node));
@@ -3352,7 +3394,9 @@ function renderPortal() {
           updateNotificationBadge();
         }
       })
-      .catch((err) => console.warn("Sincronizar solicitudes (API):", err));
+      .catch(() => {
+        devWarn("Sincronizar solicitudes (API): fallo; active window.__ANTARES_DEBUG__ para detalle.");
+      });
   }
   nodes.sideLinks.forEach((link) => {
     const isRoleHidden =
@@ -4368,7 +4412,7 @@ function historyHtml() {
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Vehiculo</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
     : emptyState("Sin registros.");
-  const reportBody = `<div class="dash-grid" style="margin-top:1rem">
+  const reportBody = `<div class="dash-grid history-insights-grid">
     ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
     ${pcardWrap("truck", "Vehiculos mas usados", null, `<p>${topVehicles(requests).join(", ") || "Sin datos"}</p>`)}
     ${pcardWrap("dollar", "Regla actual de viaticos", null, `<p>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje entre departamentos</p>`)}
@@ -4376,7 +4420,7 @@ function historyHtml() {
   return pcardWrap("filter", "Filtros", null, filterBody)
     + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody)
     + pcardWrap("activity", "Reporte mensual por conductor (viaticos)", null, driverReportBody)
-    + `<div class="dash-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
+    + `<div class="dash-grid history-ops-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
     + reportBody;
 }
 
@@ -6245,7 +6289,9 @@ function renderPortalView() {
         resolveContent: getPortalViewContent,
         accessDeniedFactory: accessDeniedModuleCard
       }),
-    onError: ({ view: failedView, error }) => console.error("portal-render-error", { view: failedView, error }),
+    onError: ({ view: failedView, error }) => {
+      devError("portal-render-error", failedView, error && error.message ? String(error.message) : "");
+    },
     fallbackFactory: () =>
       pcardWrap(
         "activity",
@@ -9730,7 +9776,7 @@ initPublicEffects();
 if (window.DomainRegistry?.list) {
   const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
   if (missingDomains.length) {
-    console.warn("Dominios sin inicializar:", missingDomains.join(", "));
+    devWarn("Dominios sin inicializar:", missingDomains.join(", "));
   }
 }
 renderPortal();
