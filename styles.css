@@ -4356,16 +4356,16 @@ body[data-theme="dark"] .p-form textarea {
 }
 
 .news-media .news-evidence-frame img.news-img-truck-side {
-  transform: scale(1.03);
-  transform-origin: center center;
+  object-fit: contain;
+  object-position: center;
+  padding: 0.45rem 0.55rem;
 }
 
 .news-media .news-evidence-frame img.news-img-truck {
   object-fit: contain;
-  object-position: 50% 58%;
+  object-position: center;
   background: linear-gradient(180deg, #e8f1fc, #dbe9f8);
-  transform: scale(1.11);
-  transform-origin: center center;
+  padding: 0.2rem 0.25rem;
 }
 
 @media (max-width: 960px) {
