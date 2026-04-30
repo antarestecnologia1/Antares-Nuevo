@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "prisma:generate": "node -e \"process.exit(0)\"",
-    "build": "nest build",
+    "build": "tsc -p tsconfig.build.json",
     "start:dev": "nest start --watch",
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@nestjs/cli": "^10.4.9",
     "@nestjs/common": "^10.4.17",
     "@nestjs/config": "^3.2.3",
     "@nestjs/core": "^10.4.17",
@@ -23,20 +24,19 @@
     "class-validator": "^0.14.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "@types/node": "^22.15.30",
     "reflect-metadata": "^0.2.2",
     "resend": "^4.5.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.2",
-    "@nestjs/cli": "^10.4.9",
     "@nestjs/schematics": "^10.2.3",
     "@types/bcrypt": "^5.0.2",
-    "@types/node": "^22.15.30",
     "@types/pg": "^8.11.10",
     "@types/passport-jwt": "^4.0.1",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.8.3"
+    "tsconfig-paths": "^4.2.0"
   }
 }
