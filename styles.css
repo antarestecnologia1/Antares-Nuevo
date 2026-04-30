@@ -2722,6 +2722,7 @@ tbody tr:last-child td { border-bottom: none; }
 /* Registro cliente: altura única para inputs/select (teléfono compuesto se alinea al mismo alto) */
 #form-register.auth-register-form {
   --reg-control-h: 2.75rem;
+  align-items: start;
 }
 
 #form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input),
@@ -2742,6 +2743,27 @@ tbody tr:last-child td { border-bottom: none; }
 
 #form-register.auth-register-form .password-field {
   align-items: stretch;
+}
+
+#form-register.auth-register-form > label,
+#form-register.auth-register-form .register-doc-section > label,
+#form-register.auth-register-form #register-doc-persona.register-doc-block--natural > label,
+#form-register.auth-register-form #register-doc-empresa.register-doc-block--empresa > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+#form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]),
+#form-register.auth-register-form select,
+#form-register.auth-register-form .phone-input-professional,
+#form-register.auth-register-form .password-field {
+  width: 100%;
+}
+
+#form-register.auth-register-form .password-field .btn {
+  min-height: var(--reg-control-h);
 }
 
 /* Registro: tipo de persona + documentos misma rejilla y mismo ancho que el resto del formulario */
