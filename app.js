@@ -2293,25 +2293,30 @@ function authView() {
             <option value="Juridica">Jurídica</option>
           </select>
         </label>
-        <label>${fieldLabel(IC.file, "Tipo de documento")}
-          <select name="documentType" required>
-            <option value="CC">Cédula de ciudadanía</option>
-            <option value="CE">Cédula de extranjería</option>
-            <option value="NIT">NIT</option>
-            <option value="PAS">Pasaporte</option>
-          </select>
-        </label>
         <div id="register-doc-persona" class="register-doc-block">
+          <label>${fieldLabel(IC.file, "Tipo de documento")}
+            <select name="documentType" required>
+              <option value="CC">Cédula de ciudadanía</option>
+              <option value="CE">Cédula de extranjería</option>
+              <option value="PAS">Pasaporte</option>
+            </select>
+          </label>
           <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" /></label>
         </div>
         <div id="register-doc-empresa" class="register-doc-block hidden" hidden>
           <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
             <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" />
           </label>
-          <label>${fieldLabel(IC.badge, "Cédula del usuario")}
-            <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Su cédula; debe ser única en el portal" />
+          <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
+            <select name="personalDocumentType">
+              <option value="CC">Cédula de ciudadanía</option>
+              <option value="CE">Cédula de extranjería</option>
+            </select>
           </label>
-          <p class="muted" style="font-size:0.8rem;margin:0">Varios usuarios pueden compartir el NIT de la empresa; la cédula de cada persona no se puede repetir.</p>
+          <label>${fieldLabel(IC.badge, "Número de cédula")}
+            <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" />
+          </label>
+          <p class="muted" style="font-size:0.8rem;margin:0">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
         </div>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
         <label>${fieldLabel(IC.users, "Género")}
@@ -2534,24 +2539,32 @@ function bindAuthForms() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
-    const docTypeSel = register.querySelector("select[name='documentType']");
+    const personTypeSel = register.querySelector("select[name='personType']");
+    const docTypeSel = register.querySelector("#register-doc-persona select[name='documentType']");
     const blockPersona = register.querySelector("#register-doc-persona");
     const blockEmpresa = register.querySelector("#register-doc-empresa");
     const inputTaxPersona = register.querySelector("input[name='taxId']");
     const inputCompanyNit = register.querySelector("input[name='companyNit']");
     const inputPersonalTax = register.querySelector("input[name='personalTaxId']");
     const syncRegisterDocLayout = () => {
-      const isNit = String(docTypeSel?.value || "").toUpperCase() === "NIT";
+      const isJuridica = String(personTypeSel?.value || "") === "Juridica";
       if (blockPersona) {
-        blockPersona.classList.toggle("hidden", isNit);
-        blockPersona.toggleAttribute("hidden", isNit);
+        blockPersona.classList.toggle("hidden", isJuridica);
+        blockPersona.toggleAttribute("hidden", isJuridica);
       }
       if (blockEmpresa) {
-        blockEmpresa.classList.toggle("hidden", !isNit);
-        blockEmpresa.toggleAttribute("hidden", !isNit);
+        blockEmpresa.classList.toggle("hidden", !isJuridica);
+        blockEmpresa.toggleAttribute("hidden", !isJuridica);
+      }
+      if (docTypeSel) {
+        if (isJuridica) {
+          docTypeSel.removeAttribute("required");
+        } else {
+          docTypeSel.setAttribute("required", "required");
+        }
       }
       if (inputTaxPersona) {
-        if (isNit) {
+        if (isJuridica) {
           inputTaxPersona.removeAttribute("required");
           inputTaxPersona.value = "";
         } else {
@@ -2559,21 +2572,21 @@ function bindAuthForms() {
         }
       }
       if (inputCompanyNit) {
-        if (isNit) inputCompanyNit.setAttribute("required", "required");
+        if (isJuridica) inputCompanyNit.setAttribute("required", "required");
         else {
           inputCompanyNit.removeAttribute("required");
           inputCompanyNit.value = "";
         }
       }
       if (inputPersonalTax) {
-        if (isNit) inputPersonalTax.setAttribute("required", "required");
+        if (isJuridica) inputPersonalTax.setAttribute("required", "required");
         else {
           inputPersonalTax.removeAttribute("required");
           inputPersonalTax.value = "";
         }
       }
     };
-    docTypeSel?.addEventListener("change", syncRegisterDocLayout);
+    personTypeSel?.addEventListener("change", syncRegisterDocLayout);
     syncRegisterDocLayout();
 
     const registerPhone = register.querySelector("input[name='phone']");
@@ -2607,23 +2620,28 @@ function bindAuthForms() {
         notify(userMessage("registerNamesInvalid"), "error");
         return;
       }
+      const isJuridica = String(data.personType || "").trim() === "Juridica";
       const docTypeUpper = String(data.documentType || "").toUpperCase();
       let personalDocStored = "";
-      if (docTypeUpper === "NIT") {
+      if (isJuridica) {
+        const personalDocType = String(data.personalDocumentType || "CC").toUpperCase() === "CE" ? "CE" : "CC";
         const nitVal = validateColombianDocument("NIT", data.companyNit || "");
-        const ccVal = validateColombianDocument("CC", data.personalTaxId || "");
+        const personalVal = validateColombianDocument(personalDocType, data.personalTaxId || "");
         if (!nitVal.ok) {
           notify(nitVal.message, "error");
           return;
         }
-        if (!ccVal.ok) {
-          notify(ccVal.message, "error");
+        if (!personalVal.ok) {
+          notify(personalVal.message, "error");
           return;
         }
         data.companyNit = nitVal.normalized;
-        data.personalTaxId = ccVal.normalized;
+        data.personalTaxId = personalVal.normalized;
         data.taxId = nitVal.normalized;
-        personalDocStored = ccVal.normalized.replace(/\D/g, "") || ccVal.normalized;
+        data.documentType = "NIT";
+        personalDocStored = String(personalVal.normalized || "")
+          .replace(/[.\s]/g, "")
+          .replace(/\D/g, "");
       } else {
         const docValidation = validateColombianDocument(data.documentType, data.taxId);
         if (!docValidation.ok) {
@@ -2631,6 +2649,8 @@ function bindAuthForms() {
           return;
         }
         data.taxId = docValidation.normalized;
+        data.companyNit = "";
+        data.personalTaxId = "";
         if (docTypeUpper === "PAS") {
           personalDocStored = String(docValidation.normalized || "").trim().toUpperCase();
         } else {
@@ -2717,7 +2737,8 @@ function bindAuthForms() {
         notify(userMessage("registerPersonalDocExists"), "error");
         return;
       }
-      const { passwordConfirm, acceptTerms, companyNit, personalTaxId, ...profileData } = data;
+      const { passwordConfirm, acceptTerms, companyNit, personalTaxId, personalDocumentType, ...profileData } =
+        data;
       const newUser = {
         id: uid(),
         ...profileData,
@@ -2727,8 +2748,8 @@ function bindAuthForms() {
         secondLastName: normalizeLatinForDb(data.secondLastName || ""),
         personType: normalizeLatinForDb(data.personType),
         documentType: normalizeLatinForDb(data.documentType),
-        companyNit: docTypeUpper === "NIT" ? normalizeLatinForDb(data.companyNit || "") : "",
-        personalTaxId: docTypeUpper === "NIT" ? normalizeLatinForDb(data.personalTaxId || "") : "",
+        companyNit: isJuridica ? normalizeLatinForDb(data.companyNit || "") : "",
+        personalTaxId: isJuridica ? normalizeLatinForDb(data.personalTaxId || "") : "",
         personalDoc: String(personalDocStored || ""),
         gender: normalizeLatinForDb(data.gender),
         position: normalizeLatinForDb(data.position),
