@@ -482,8 +482,8 @@ const KEYS = {
 };
 
 const CO_TIMEZONE = "America/Bogota";
-const REGISTER_TERMS_URL = "#";
-const REGISTER_PRIVACY_URL = "#";
+const REGISTER_TERMS_URL = "./terminos-condiciones.html";
+const REGISTER_PRIVACY_URL = "./politica-privacidad.html";
 
 const ROLES = {
   ADMIN: "admin",
