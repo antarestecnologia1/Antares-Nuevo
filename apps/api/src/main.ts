@@ -9,7 +9,9 @@ function buildCorsOriginHandler(config: ConfigService) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const isProd = config.get<string>("NODE_ENV") === "production";
+  /** Render inyecta RENDER=true; sin esto NODE_ENV a veces no es "production" y CORS queda solo en localhost. */
+  const isProd =
+    config.get<string>("NODE_ENV") === "production" || process.env.RENDER === "true";
 
   /** Solo HTTP localhost típicos para desarrollo cuando no hay lista explícita. */
   const devFallback = [
@@ -26,9 +28,15 @@ function buildCorsOriginHandler(config: ConfigService) {
   const prodFallback = [
     "https://app.transportesantares.co",
     "https://transportesantares.co",
-    "https://www.transportesantares.co"
+    "https://www.transportesantares.co",
+    "*.vercel.app"
   ];
-  const allowed = explicit.length ? explicit : !isProd ? devFallback : prodFallback;
+  /** En producción: dominios por defecto + los de CORS_ORIGINS (no reemplazan el resto). */
+  const allowed = !isProd
+    ? explicit.length
+      ? [...new Set([...devFallback, ...explicit])]
+      : devFallback
+    : [...new Set([...prodFallback, ...explicit])];
   const exactAllowed = allowed.filter((entry) => !entry.startsWith("*."));
   const wildcardAllowed = allowed
     .filter((entry) => entry.startsWith("*."))
