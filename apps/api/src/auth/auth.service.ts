@@ -145,7 +145,7 @@ export class AuthService {
         middleName,
         lastName || null,
         secondLastName,
-        this.normalizeDbText(dto.personType),
+        this.normalizePersonTypeForDb(dto.personType),
         this.normalizeDbText(dto.documentType),
         numeroPersonal,
         nitEmpresa,
@@ -244,6 +244,15 @@ export class AuthService {
       hash,
       userId
     ]);
+  }
+
+  /** tipo_persona solo "Natural" | "Juridica": igualdad en SQL sin LOWER() ni índices funcionales. */
+  private normalizePersonTypeForDb(value: string | undefined | null): string {
+    const t = this.normalizeDbText(value);
+    if (!t) return "Natural";
+    const k = t.toLowerCase();
+    if (k === "juridica") return "Juridica";
+    return "Natural";
   }
 
   /** Texto persistido en BD sin tildes; ñ → n (consistente con el portal). */

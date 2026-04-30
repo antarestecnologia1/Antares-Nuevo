@@ -1557,6 +1557,17 @@ function normalizeLatinForDb(value) {
     .replace(/Ñ/g, "N");
 }
 
+/** tipo_persona siempre "Natural" | "Juridica": una sola forma al persistir; las consultas usan = sin LOWER(). */
+function normalizePersonTypeForDb(value) {
+  const k = normalizeLatinForDb(value).toLowerCase();
+  if (k === "juridica") return "Juridica";
+  return "Natural";
+}
+
+function isPersonTypeJuridica(value) {
+  return normalizePersonTypeForDb(value) === "Juridica";
+}
+
 function validatePasswordPolicy(password) {
   const p = String(password || "");
   if (p.length < 10) return { ok: false, key: "passwordPolicyLength" };
@@ -2289,8 +2300,9 @@ function authView() {
         <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" /></label>
         <label>${fieldLabel(IC.briefcase, "Tipo de persona")}
           <select name="personType" required>
-            <option value="Natural">Natural</option>
-            <option value="Juridica">Jurídica</option>
+            <option value="">Seleccione...</option>
+            <option value="natural">Natural</option>
+            <option value="juridica">Jurídica</option>
           </select>
         </label>
         <div id="register-doc-persona" class="register-doc-block">
@@ -2547,7 +2559,7 @@ function bindAuthForms() {
     const inputCompanyNit = register.querySelector("input[name='companyNit']");
     const inputPersonalTax = register.querySelector("input[name='personalTaxId']");
     const syncRegisterDocLayout = () => {
-      const isJuridica = String(personTypeSel?.value || "") === "Juridica";
+      const isJuridica = isPersonTypeJuridica(personTypeSel?.value);
       if (blockPersona) {
         blockPersona.classList.toggle("hidden", isJuridica);
         blockPersona.toggleAttribute("hidden", isJuridica);
@@ -2620,7 +2632,8 @@ function bindAuthForms() {
         notify(userMessage("registerNamesInvalid"), "error");
         return;
       }
-      const isJuridica = String(data.personType || "").trim() === "Juridica";
+      data.personType = normalizePersonTypeForDb(data.personType);
+      const isJuridica = data.personType === "Juridica";
       const docTypeUpper = String(data.documentType || "").toUpperCase();
       let personalDocStored = "";
       if (isJuridica) {
@@ -2694,7 +2707,7 @@ function bindAuthForms() {
               middleName: normalizeLatinForDb(data.middleName || ""),
               lastName: normalizeLatinForDb(data.lastName),
               secondLastName: normalizeLatinForDb(data.secondLastName || ""),
-              personType: normalizeLatinForDb(data.personType),
+              personType: data.personType,
               documentType: normalizeLatinForDb(data.documentType),
               taxId: data.taxId,
               companyNit: data.companyNit || "",
@@ -2746,7 +2759,7 @@ function bindAuthForms() {
         middleName: normalizeLatinForDb(data.middleName || ""),
         lastName: normalizeLatinForDb(data.lastName),
         secondLastName: normalizeLatinForDb(data.secondLastName || ""),
-        personType: normalizeLatinForDb(data.personType),
+        personType: data.personType,
         documentType: normalizeLatinForDb(data.documentType),
         companyNit: isJuridica ? normalizeLatinForDb(data.companyNit || "") : "",
         personalTaxId: isJuridica ? normalizeLatinForDb(data.personalTaxId || "") : "",
@@ -6936,7 +6949,7 @@ function bindDynamicEvents() {
         role: data.role,
         documentType: data.documentType,
         accountStatus: ACCOUNT_STATUS.APROBADO,
-        personType: data.personType || "Natural",
+        personType: normalizePersonTypeForDb(data.personType),
         documentIssuedAt: data.documentIssuedAt || "",
         company: normalizeLatinForDb(data.company || company.name),
         companyId: company.id,
@@ -7099,7 +7112,7 @@ function bindDynamicEvents() {
                 password: nextPassword,
                 role: String(data.role || u.role),
                 documentType: String(data.documentType || u.documentType || "CC"),
-                personType: String(data.personType || u.personType || "Natural"),
+                personType: normalizePersonTypeForDb(String(data.personType || u.personType || "")),
                 documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
                 companyId: company.id,
                 company: normalizeLatinForDb(String(data.company || company.name).trim()),
@@ -9492,7 +9505,7 @@ function bindDynamicEvents() {
             password: await hashPassword(p.password),
             role: p.role,
             documentType: p.documentType || "CC",
-            personType: p.personType || "Natural",
+            personType: normalizePersonTypeForDb(p.personType),
             documentIssuedAt: p.documentIssuedAt || "",
             accountStatus: ACCOUNT_STATUS.APROBADO,
             company: normalizeLatinForDb(compName),
