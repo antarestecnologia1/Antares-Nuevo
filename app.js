@@ -2716,8 +2716,20 @@ function authView() {
             <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
           </div>
         </label>
-        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}<input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" /></label>
-        <label class="full">${fieldLabel(IC.file, "Términos")}<span class="checkbox-inline"><input type="checkbox" name="acceptTerms" required /> Acepto términos, política de privacidad y tratamiento de datos (Habeas Data).</span></label>
+        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}
+          <input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" />
+          <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
+        </label>
+        <label class="full register-terms-card">
+          <span class="register-terms-title">${fieldLabel(IC.file, "Términos y condiciones")}</span>
+          <span class="register-terms-copy muted">
+            Al crear su cuenta acepta nuestros términos de uso, política de privacidad y tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
+          </span>
+          <span class="checkbox-inline register-terms-check">
+            <input type="checkbox" name="acceptTerms" required />
+            Acepto los términos para continuar con la solicitud.
+          </span>
+        </label>
         <div class="full auth-inline-note">
           <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
         </div>
@@ -2971,6 +2983,20 @@ function bindAuthForms() {
     updateRegisterPhoneFieldForCountry(register);
     syncRegisterPhoneHidden(register);
     const regPass = register.querySelector("input[name='password']");
+    const regPassConfirm = register.querySelector("input[name='passwordConfirm']");
+    const syncRegisterPasswordMatchState = () => {
+      if (!regPass || !regPassConfirm) return;
+      regPass.classList.remove("password-match-ok", "password-match-bad");
+      regPassConfirm.classList.remove("password-match-ok", "password-match-bad");
+      const p1 = String(regPass.value || "");
+      const p2 = String(regPassConfirm.value || "");
+      if (!p1 && !p2) return;
+      const same = p1.length > 0 && p1 === p2;
+      regPass.classList.add(same ? "password-match-ok" : "password-match-bad");
+      regPassConfirm.classList.add(same ? "password-match-ok" : "password-match-bad");
+    };
+    regPass?.addEventListener("input", syncRegisterPasswordMatchState);
+    regPassConfirm?.addEventListener("input", syncRegisterPasswordMatchState);
     bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
     register.addEventListener("submit", async (event) => {
       event.preventDefault();

@@ -3129,6 +3129,50 @@ tbody tr:last-child td { border-bottom: none; }
   display: block;
 }
 
+.auth-register-form input.auth-password-input.password-match-ok {
+  border-color: #2d9d62 !important;
+  box-shadow: 0 0 0 3px rgba(45, 157, 98, 0.16) !important;
+}
+
+.auth-register-form input.auth-password-input.password-match-bad {
+  border-color: #d64545 !important;
+  box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.16) !important;
+}
+
+.register-password-match-hint {
+  font-size: 0.75rem;
+}
+
+.register-terms-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  background: linear-gradient(180deg, #f9fcff 0%, #f3f9ff 100%);
+}
+
+.register-terms-title {
+  display: block;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.register-terms-copy {
+  display: block;
+  font-size: 0.79rem;
+  line-height: 1.45;
+  margin-top: 0.15rem;
+}
+
+.register-terms-check {
+  margin-top: 0.5rem;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.register-terms-check input[type="checkbox"] {
+  margin-top: 0.15rem;
+}
+
 /* Icono + control en ingreso y recuperación */
 .auth-field-stack {
   display: flex;
@@ -6414,6 +6458,11 @@ body[data-theme="dark"] .phone-input-professional .phone-cc-select {
 
 body[data-theme="dark"] .auth-register-form .phone-national-input {
   color: #e8f3ff;
+}
+
+body[data-theme="dark"] .register-terms-card {
+  border-color: #476b93;
+  background: linear-gradient(180deg, #162b42 0%, #1b334f 100%);
 }
 
 body[data-theme="dark"] .auth-header-premium h3 {
