@@ -1499,9 +1499,12 @@ const REGISTER_PHONE_COUNTRIES = [
 ];
 
 function registerPhoneCountryOptionsHtml() {
-  return REGISTER_PHONE_COUNTRIES.map(
-    (c) => `<option value="${c.id}">${c.label} (+${c.dial})</option>`
-  ).join("");
+  return REGISTER_PHONE_COUNTRIES.map((c) => {
+    const escLabel = String(c.label || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;");
+    return `<option value="${c.id}" title="${escLabel}">${c.flag} +${c.dial}</option>`;
+  }).join("");
 }
 
 function getSelectedRegisterPhoneCountry(registerForm) {
@@ -1539,14 +1542,6 @@ function updateRegisterPhoneFieldForCountry(registerForm) {
   const hint = registerForm?.querySelector("#register-phone-hint");
   const nat = registerForm?.querySelector(".js-register-phone-national");
   const wrap = registerForm?.querySelector(".phone-input-professional");
-  const flagEl = registerForm?.querySelector(".js-register-phone-flag");
-  const flagWrap = registerForm?.querySelector(".js-register-phone-flag-wrap");
-  if (flagEl) {
-    flagEl.textContent = meta.flag;
-  }
-  if (flagWrap) {
-    flagWrap.setAttribute("title", `${meta.label} · +${meta.dial} — Clic para elegir otro país`);
-  }
   if (wrap) {
     wrap.setAttribute(
       "aria-label",
@@ -2653,9 +2648,6 @@ function authView() {
         <label class="phone-field-register">
           ${fieldLabel(IC.phone, "Teléfono")}
           <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
-            <div class="js-register-phone-flag-wrap phone-flag-wrap" title="${REGISTER_PHONE_COUNTRIES[0].label} · +${REGISTER_PHONE_COUNTRIES[0].dial} — Clic para elegir otro país">
-              <span class="js-register-phone-flag phone-flag-large" role="img" aria-hidden="true">${REGISTER_PHONE_COUNTRIES[0].flag}</span>
-            </div>
             <select class="js-register-phone-cc phone-cc-select" aria-label="País e indicativo telefónico" required>
               ${registerPhoneCountryOptionsHtml()}
             </select>
@@ -2961,19 +2953,6 @@ function bindAuthForms() {
         clearFieldError(registerPhoneNat);
         updateRegisterPhoneFieldForCountry(register);
         syncRegisterPhoneHidden(register);
-      });
-    }
-    const registerPhoneFlagWrap = register.querySelector(".js-register-phone-flag-wrap");
-    if (registerPhoneFlagWrap && registerPhoneCc) {
-      registerPhoneFlagWrap.addEventListener("click", () => {
-        registerPhoneCc.focus();
-        if (typeof registerPhoneCc.showPicker === "function") {
-          try {
-            registerPhoneCc.showPicker();
-          } catch {
-            /* showPicker puede fallar si no es gesto del usuario; focus basta */
-          }
-        }
       });
     }
     updateRegisterPhoneFieldForCountry(register);
