@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Antares - Logistica Refrigerada B2B</title>
     <meta name="description" content="Operador logístico B2B especializado en transporte refrigerado para floricultura y exportación, con trazabilidad, cumplimiento y monitoreo 24/7 en Colombia." />
+    <link rel="icon" type="image/svg+xml" href="./client-logo-placeholder.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -1084,10 +1085,13 @@
     </a>
 
     <script src="./config/antares.public.js?v=20260430-1"></script>
-    <script src="./config/supabase.public.js"></script>
+    <script>
+      window.__SUPABASE_URL__ = window.__SUPABASE_URL__ || "";
+      window.__SUPABASE_ANON_KEY__ = window.__SUPABASE_ANON_KEY__ || "";
+    </script>
     <script src="./modules/core/persistence.js"></script>
     <script src="./modules/core/supabase-browser.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-xXDvecy63+f7W6FR7fvj7jY3n0zqxd6QbaO5jM90+hCbGyF/F7fs/3Gzdh0dX8GZFODdgNpTi27C3l2qC5xRtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="./modules/core/api-client.js"></script>
     <script src="./modules/core/portal-data-layer.js"></script>
     <script src="./modules/core/portal-sync.js"></script>
