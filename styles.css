@@ -533,6 +533,11 @@ body[data-theme="light"] .lang-option.active {
   position: relative;
 }
 
+/* Light strip behind content (About, Contact, wave-adjacent sections). Dark theme via body[data-theme="dark"] #… */
+.section-soft-alt {
+  background: #F5F9FF;
+}
+
 .section.light {
   background: var(--primary-light);
 }
@@ -2462,7 +2467,26 @@ tbody tr:last-child td { border-bottom: none; }
 
 .modal-card-auth {
   width: min(760px, 94%);
+  max-height: min(92vh, 880px);
   border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-card-auth .modal-head,
+.modal-card-auth .tabs {
+  flex-shrink: 0;
+}
+
+#auth-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 0.35rem;
+  padding-right: 0.2rem;
 }
 
 .auth-modal-title-wrap {
@@ -2594,6 +2618,13 @@ tbody tr:last-child td { border-bottom: none; }
 
 .auth-register-form .full {
   grid-column: 1 / -1;
+}
+
+.auth-register-form input:not([type="checkbox"]),
+.auth-register-form select {
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  line-height: 1.3;
 }
 
 .auth-login-shell {
@@ -3727,6 +3758,23 @@ body[data-theme="dark"] .news-evidence-hook {
   border-color: rgba(130, 188, 248, 0.28);
 }
 
+body[data-theme="dark"] .news-evidence-frame {
+  background: linear-gradient(180deg, #132940, #0f2237);
+}
+
+body[data-theme="dark"] .news-media .news-evidence-gallery--stack .news-evidence-frame img {
+  background: transparent;
+  filter: saturate(1.12) contrast(1.08) brightness(1.04);
+}
+
+body[data-theme="dark"] .news-media .news-evidence-gallery:not(.news-evidence-gallery--stack) .news-evidence-frame img.news-img-truck {
+  background: linear-gradient(180deg, #132940, #0f2237);
+}
+
+body[data-theme="dark"] .news-evidence-frame + .news-evidence-frame {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
 @media (max-width: 900px) {
   .news-proof-grid {
     grid-template-columns: 1fr;
@@ -3991,6 +4039,10 @@ body[data-theme="dark"] .p-form textarea {
 
 /* ─── News ─── */
 .section-news {
+  background: linear-gradient(180deg, #F7FBFF 0%, #EFF6FF 100%);
+}
+
+.section-careers {
   background: linear-gradient(180deg, #F7FBFF 0%, #EFF6FF 100%);
 }
 

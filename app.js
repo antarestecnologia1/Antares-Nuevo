@@ -912,6 +912,32 @@ function escapePublicRegexFragment(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Find [start,end) in haystack such that normalizePublicKey(slice) === normalizePublicKey(needle). */
+function findNormalizedSpan(haystack, needle) {
+  const nNorm = normalizePublicKey(needle);
+  if (!nNorm) return null;
+  for (let i = 0; i < haystack.length; i++) {
+    for (let j = i + 1; j <= haystack.length; j++) {
+      const sub = haystack.slice(i, j);
+      const subNorm = normalizePublicKey(sub);
+      if (subNorm === nNorm) return [i, j];
+      if (subNorm.length > nNorm.length) break;
+    }
+  }
+  return null;
+}
+
+function replaceAllNormalizedSpans(haystack, needle, replacement) {
+  let result = haystack;
+  for (let guard = 0; guard < 500; guard++) {
+    const span = findNormalizedSpan(result, needle);
+    if (!span) break;
+    const [a, b] = span;
+    result = result.slice(0, a) + replacement + result.slice(b);
+  }
+  return result;
+}
+
 /** Spanish → English strings for the public site (source HTML uses plain ASCII in many words). */
 const PUBLIC_ES_EN_DICT = {
   Inicio: "Home",
@@ -1045,6 +1071,51 @@ const PUBLIC_ES_EN_DICT = {
   "Novedades y mejoras": "News and updates",
   "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent changes in operations, technology, and service to keep our clients informed.",
   "Infraestructura y competitividad": "Infrastructure and competitiveness",
+  "COMUNICADO OFICIAL · OPERACIÓN HISTÓRICA": "OFFICIAL STATEMENT · HISTORIC OPERATION",
+  "Antares marca un hito en Puerto Antioquia con la tractomula JZX522": "Antares marks a milestone at Puerto Antioquia with tractor-trailer JZX522",
+  "Abrimos un nuevo precedente logístico: primera operación de ingreso de contenedor de flor al puerto con unidad propia, consolidando capacidad real para rutas de exportación de alto valor.": "We are opening a new logistics precedent: first entry of a flower container into the port with our own unit, consolidating real capacity for high-value export routes.",
+  "Operación documentada en campo": "Field-documented operation",
+  "Corredor estratégico de exportación": "Strategic export corridor",
+  "Evidencia audiovisual y fotográfica": "Audiovisual and photographic evidence",
+  "Hito logístico Antares": "Antares logistics milestone",
+  "Unidad destacada: JZX522": "Featured unit: JZX522",
+  "Primera operación de contenedor de flor en Puerto Antioquia": "First flower container operation at Puerto Antioquia",
+  "Fuimos la": "We were the",
+  "primera empresa de transporte": "first transport company",
+  "en ingresar contenedor de flor a Puerto Antioquia con nuestra tractomula": "entering a flower container into Puerto Antioquia with our tractor-trailer",
+  ", marcando un avance clave para la cadena de exportación.": ", marking a key advance for the export chain.",
+  "Ventaja competitiva": "Competitive edge",
+  "Menor tiempo de conexión portuaria": "Shorter port connection time",
+  "Capacidad operativa": "Operational capacity",
+  "Operación real en corredor de exportación": "Real operation on an export corridor",
+  "Impacto sectorial": "Sector impact",
+  "Más confianza para floricultores y comercializadores": "More confidence for growers and traders",
+  "Unidad destacada JZX522": "Featured unit JZX522",
+  "Registro visual de la tractomula en operación.": "Visual record of the tractor-trailer in operation.",
+  "Activo logístico clave": "Key logistics asset",
+  "Tractomula JZX522": "Tractor-trailer JZX522",
+  "Unidad utilizada en la operación destacada, con soporte fotográfico como respaldo del comunicado institucional.": "Unit used in the highlighted operation, with photographic support backing the institutional announcement.",
+  "Timeline del logro": "Milestone timeline",
+  "Planeación:": "Planning:",
+  "coordinación previa de ventana y documentación.": "prior coordination of loading window and documentation.",
+  "Ejecución:": "Execution:",
+  "ingreso de contenedor de flor con tractomula": "flower container entry with tractor-trailer",
+  "Validación:": "Validation:",
+  "cierre operativo y confirmación de hito en puerto.": "operational closure and milestone confirmation at the port.",
+  "Ruta de impacto": "Impact route",
+  "Mercado internacional": "International market",
+  "Corredor estratégico para exportación de flor con trazabilidad continua.": "Strategic corridor for flower export with continuous traceability.",
+  "Antes": "Before",
+  "Rutas más largas, mayores tiempos y menor control de conexión portuaria.": "Longer routes, longer times, and less control of the port connection.",
+  "Ahora con el hito": "Now with the milestone",
+  "Operación directa más competitiva, mejor respuesta logística y más confiabilidad para clientes.": "A more competitive direct operation, better logistics response, and greater reliability for customers.",
+  "Contexto institucional": "Institutional context",
+  "Mensaje oficial de la Gobernación de Antioquia": "Official message from the Government of Antioquia",
+  "Mensaje institucional sobre competitividad regional e infraestructura": "Institutional message on regional competitiveness and infrastructure",
+  "Fuente oficial: Gobernación de Antioquia (@puerto_antioquia) · Validación operativa interna Antares · Actualizado: Abril 2026": "Official source: Government of Antioquia (@puerto_antioquia) · Antares internal operational validation · Updated: April 2026",
+  "\"Puerto Antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades.\"": "\"Puerto Antioquia in Urabá marks a before-and-after for competitiveness in Antioquia and the country. Every day, ships sail with products from the countryside: 130,000 flower stems grown in La Ceja bound for England, and 23 tons of Hass avocado from the southwest heading to Belgium. In the past, these exports left through Santa Marta, with longer times and higher costs. Today, the world enters and leaves through Urabá, generating logistics savings, jobs, and new opportunities.\"",
+  "GOBERNACIÓN DE ANTIOQUIA": "GOVERNMENT OF ANTIOQUIA",
+  "Este resultado posiciona a Antares como aliado logístico empresarial para operaciones con alta exigencia de cumplimiento y trazabilidad.": "This outcome positions Antares as a business logistics partner for operations with high compliance and traceability requirements.",
   "Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion": "Puerto Antioquia boosts exports: our tractor-trailer in operation",
   "Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.": "Our operation supports a key export route for flowers and avocado from Antioquia to international markets.",
   "Tu navegador no soporta video HTML5.": "Your browser does not support HTML5 video.",
@@ -1195,12 +1266,25 @@ function translatePublicText(text, lang) {
     const phraseThreshold = 14;
     for (const [es, en] of getPublicTranslationSortedEntries()) {
       const src = String(es).replace(/\s+/g, " ").trim();
-      if (!src || !out.includes(src)) continue;
-      if (src.length >= phraseThreshold || /\s/.test(src)) {
-        out = out.split(src).join(en);
+      if (!src) continue;
+      const usePhrase = src.length >= phraseThreshold || /\s/.test(src);
+      if (usePhrase) {
+        if (out.includes(src)) {
+          out = out.split(src).join(en);
+        } else if (normalizePublicKey(out).includes(normalizePublicKey(src))) {
+          out = replaceAllNormalizedSpans(out, src, en);
+        }
       } else {
         const re = new RegExp(`\\b${escapePublicRegexFragment(src)}\\b`, "g");
-        out = out.replace(re, en);
+        let next = out.replace(re, en);
+        if (
+          next === out &&
+          src.length >= 5 &&
+          normalizePublicKey(out).includes(normalizePublicKey(src))
+        ) {
+          next = replaceAllNormalizedSpans(out, src, en);
+        }
+        out = next;
       }
     }
   }
