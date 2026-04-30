@@ -3006,6 +3006,11 @@ function bindAuthForms() {
     bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (register.dataset.submitting === "1") return;
+      register.dataset.submitting = "1";
+      const submitBtn = register.querySelector("button[type='submit']");
+      if (submitBtn) submitBtn.disabled = true;
+      try {
       syncRegisterPhoneHidden(register);
       const data = Object.fromEntries(new FormData(register).entries());
       const fullName = [
@@ -3225,6 +3230,10 @@ function bindAuthForms() {
       notify(userMessage("registerSuccess"), "success");
       state.authTab = "login";
       renderAuthTab();
+      } finally {
+        register.dataset.submitting = "0";
+        if (submitBtn) submitBtn.disabled = false;
+      }
     });
   }
 

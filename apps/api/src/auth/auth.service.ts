@@ -1,7 +1,10 @@
 import {
   BadRequestException,
+  HttpException,
   Inject,
   Injectable,
+  Logger,
+  ServiceUnavailableException,
   UnauthorizedException
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
@@ -33,6 +36,7 @@ type UsuarioRow = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly supabaseAdmin;
   private readonly supabaseEnabled: boolean;
 
@@ -76,76 +80,78 @@ export class AuthService {
   }
 
   async registerPortal(dto: RegisterPortalDto) {
-    if (!this.supabaseEnabled || !this.supabaseAdmin) {
-      throw new BadRequestException(
-        "Registro no disponible: falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en la API."
-      );
-    }
-    if (!dto.acceptTerms) {
-      throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
-    }
-    this.assertStrongPassword(dto.password);
-    const email = dto.email.trim().toLowerCase();
-    const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
-      email
-    ]);
-    if (exists.rowCount && exists.rowCount > 0) {
-      throw new BadRequestException("El correo ya está registrado");
-    }
-
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const firstName = this.normalizeDbTextUpper(dto.firstName) ?? "";
-    const middleName = this.normalizeDbTextUpper(dto.middleName);
-    const lastName = this.normalizeDbTextUpper(dto.lastName) ?? "";
-    const secondLastName = this.normalizeDbTextUpper(dto.secondLastName);
-    const fullName = [firstName, middleName, lastName, secondLastName]
-      .map((s) => String(s || "").trim())
-      .filter(Boolean)
-      .join(" ");
-
-    const checklist = {
-      idVerified: true,
-      acceptedTermsAt: new Date().toISOString(),
-      requiredFieldsCompleted: true
-    };
-
-    const docType = String(dto.documentType || "").trim().toUpperCase();
-    let numeroPersonal: string | null = null;
-    let nitEmpresa: string | null = null;
-    if (docType === "NIT") {
-      nitEmpresa = this.normalizeDbTextUpper(dto.companyNit) || this.normalizeDbTextUpper(dto.taxId);
-      numeroPersonal = this.normalizeDbTextUpper(dto.personalTaxId);
-      if (!nitEmpresa || !numeroPersonal) {
-        throw new BadRequestException("Indique NIT de empresa y cédula del usuario.");
-      }
-    } else {
-      numeroPersonal = this.normalizeDbTextUpper(dto.taxId);
-      if (!numeroPersonal) {
-        throw new BadRequestException("Indique el número de documento.");
-      }
-    }
-
+    let authUserId: string | null = null;
     try {
-      const dupPersonal = await this.pool.query(
-        `SELECT 1 FROM usuarios WHERE lower(trim(numero_identificacion)) = lower(trim($1))`,
-        [numeroPersonal]
-      );
-      if (dupPersonal.rowCount && dupPersonal.rowCount > 0) {
+      if (!this.supabaseEnabled || !this.supabaseAdmin) {
         throw new BadRequestException(
-          "Ya existe un usuario con ese documento personal (cédula o identificación)."
+          "Registro no disponible: falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en la API."
         );
       }
-    } catch (err: any) {
-      const msg = String(err?.message || "").toLowerCase();
-      // Compatibilidad con esquemas antiguos que aún no tengan numero_identificacion.
-      const legacyMissingColumn = String(err?.code || "") === "42703" && msg.includes("numero_identificacion");
-      if (!legacyMissingColumn) throw err;
-    }
+      if (!dto.acceptTerms) {
+        throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
+      }
+      this.assertStrongPassword(dto.password);
+      const email = dto.email.trim().toLowerCase();
+      const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
+        email
+      ]);
+      if (exists.rowCount && exists.rowCount > 0) {
+        throw new BadRequestException("El correo ya está registrado");
+      }
 
-    const authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email);
+      const passwordHash = await bcrypt.hash(dto.password, 10);
+      const firstName = this.normalizeDbTextUpper(dto.firstName) ?? "";
+      const middleName = this.normalizeDbTextUpper(dto.middleName);
+      const lastName = this.normalizeDbTextUpper(dto.lastName) ?? "";
+      const secondLastName = this.normalizeDbTextUpper(dto.secondLastName);
+      const fullName = [firstName, middleName, lastName, secondLastName]
+        .map((s) => String(s || "").trim())
+        .filter(Boolean)
+        .join(" ");
 
-    try {
-      await this.pool.query(
+      const checklist = {
+        idVerified: true,
+        acceptedTermsAt: new Date().toISOString(),
+        requiredFieldsCompleted: true
+      };
+
+      const docType = String(dto.documentType || "").trim().toUpperCase();
+      let numeroPersonal: string | null = null;
+      let nitEmpresa: string | null = null;
+      if (docType === "NIT") {
+        nitEmpresa = this.normalizeDbTextUpper(dto.companyNit) || this.normalizeDbTextUpper(dto.taxId);
+        numeroPersonal = this.normalizeDbTextUpper(dto.personalTaxId);
+        if (!nitEmpresa || !numeroPersonal) {
+          throw new BadRequestException("Indique NIT de empresa y cédula del usuario.");
+        }
+      } else {
+        numeroPersonal = this.normalizeDbTextUpper(dto.taxId);
+        if (!numeroPersonal) {
+          throw new BadRequestException("Indique el número de documento.");
+        }
+      }
+
+      try {
+        const dupPersonal = await this.pool.query(
+          `SELECT 1 FROM usuarios WHERE lower(trim(numero_identificacion)) = lower(trim($1))`,
+          [numeroPersonal]
+        );
+        if (dupPersonal.rowCount && dupPersonal.rowCount > 0) {
+          throw new BadRequestException(
+            "Ya existe un usuario con ese documento personal (cédula o identificación)."
+          );
+        }
+      } catch (err: any) {
+        const msg = String(err?.message || "").toLowerCase();
+        // Compatibilidad con esquemas antiguos que aún no tengan numero_identificacion.
+        const legacyMissingColumn = String(err?.code || "") === "42703" && msg.includes("numero_identificacion");
+        if (!legacyMissingColumn) throw err;
+      }
+
+      authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email);
+
+      try {
+        await this.pool.query(
         `INSERT INTO usuarios (
         id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
@@ -184,14 +190,14 @@ export class AuthService {
           this.normalizeDbTextUpper(dto.address),
           JSON.stringify(checklist)
         ]
-      );
-    } catch (err: any) {
-      const missingColumnError = String(err?.code || "") === "42703";
-      // Compatibilidad con esquemas antiguos: si falta cualquier columna de registro extendido,
-      // hacemos inserción mínima para no romper el flujo de alta.
-      if (missingColumnError) {
-        try {
-          await this.pool.query(
+        );
+      } catch (err: any) {
+        const missingColumnError = String(err?.code || "") === "42703";
+        // Compatibilidad con esquemas antiguos: si falta cualquier columna de registro extendido,
+        // hacemos inserción mínima para no romper el flujo de alta.
+        if (missingColumnError) {
+          try {
+            await this.pool.query(
             `INSERT INTO usuarios (
               id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
               tipo_persona, tipo_documento, numero_identificacion, telefono,
@@ -218,33 +224,54 @@ export class AuthService {
               this.normalizeDbText(dto.city),
               this.normalizeDbTextUpper(dto.address)
             ]
-          );
-          // Intentar persistir checklist si existe la columna.
-          await this.pool
-            .query(`UPDATE usuarios SET checklist_registro_json = $2::jsonb WHERE id = $1::uuid`, [
-              authUserId,
-              JSON.stringify(checklist)
-            ])
-            .catch(() => null);
-        } catch (retryErr: any) {
+            );
+            // Intentar persistir checklist si existe la columna.
+            await this.pool
+              .query(`UPDATE usuarios SET checklist_registro_json = $2::jsonb WHERE id = $1::uuid`, [
+                authUserId,
+                JSON.stringify(checklist)
+              ])
+              .catch(() => null);
+          } catch (retryErr: any) {
+            await this.deleteSupabaseAuthUser(authUserId);
+            throw new BadRequestException(
+              retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
+            );
+          }
+        } else {
           await this.deleteSupabaseAuthUser(authUserId);
           throw new BadRequestException(
-            retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
+            err?.detail || err?.message || "No fue posible completar el registro en base de datos."
           );
         }
-      } else {
+      }
+
+      return {
+        pendingApproval: true,
+        message:
+          "Registro recibido. Tu cuenta está pendiente de aprobación; no podrás iniciar sesión hasta que un administrador la active."
+      };
+    } catch (err: any) {
+      if (authUserId) {
         await this.deleteSupabaseAuthUser(authUserId);
-        throw new BadRequestException(
-          err?.detail || err?.message || "No fue posible completar el registro en base de datos."
+      }
+      if (err instanceof HttpException) throw err;
+      const code = String(err?.code || "");
+      const detail = String(err?.detail || err?.message || "");
+      this.logger.error(`registerPortal unexpected error code=${code} detail=${detail}`);
+      if (code === "23505") {
+        throw new BadRequestException("El correo o documento ya está registrado.");
+      }
+      if (code === "42P01") {
+        throw new ServiceUnavailableException("La base de datos no está inicializada para registro de usuarios.");
+      }
+      if (code === "42703") {
+        throw new ServiceUnavailableException(
+          "La base de datos está desactualizada. Ejecuta los scripts de BD pendientes y reintenta."
         );
       }
+      throw new ServiceUnavailableException("No fue posible procesar el registro en este momento.");
     }
-
-    return {
-      pendingApproval: true,
-      message:
-        "Registro recibido. Tu cuenta está pendiente de aprobación; no podrás iniciar sesión hasta que un administrador la active."
-    };
   }
 
   async login(dto: LoginDto) {
