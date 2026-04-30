@@ -3,7 +3,7 @@
  * - Portal: navegación, permisos, layout (modules/portal/*)
  * - Vistas: AppModules (feature) + AppLegacyViews (transición)
  * - Dominio: DomainRegistry + DomainModules (lógica por contexto acotado)
- * - Persistencia: AntaresPersistence (local) → apps/api en evolución
+ * - Persistencia: AntaresPersistence (caché en navegador); datos de negocio vía apps/api y Supabase
  */
 (function registerApplicationFacade() {
   window.AntaresApp = {

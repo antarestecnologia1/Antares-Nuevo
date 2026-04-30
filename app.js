@@ -2004,7 +2004,8 @@ function ensureVehicleDocs() {
   if (changed) write(KEYS.vehicles, updated);
 }
 
-function seed() {
+/** Estructuras vacías en el navegador y migraciones de esquema local. Los datos de negocio viven en PostgreSQL (Supabase) vía API; esto es caché/sincronización del cliente. */
+function initPortalClientStorage() {
   const PORTAL_DATA_VERSION = "v5-no-demo";
   if (localStorage.getItem("antares_portal_data_ver") !== PORTAL_DATA_VERSION) {
     write(KEYS.companies, []);
@@ -6148,7 +6149,7 @@ function hiringHtml() {
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">
-      <legend>${IC.download} Vista previa de plantilla (datos de ejemplo)</legend>
+      <legend>${IC.download} Vista previa de plantilla</legend>
       <p class="muted full">No utiliza la ficha del empleado; solo comprueba el archivo Word y la descarga.</p>
       <div class="form-section-grid" style="gap:0.6rem">
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
@@ -10369,7 +10370,7 @@ window.AppLegacyViews = {
   notificationsHtml
 };
 
-seed();
+initPortalClientStorage();
 ensureUsersPasswordHashing();
 initGlobalEvents();
 initPublicEffects();

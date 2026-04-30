@@ -1,6 +1,5 @@
 /**
- * Capa de persistencia (adapter pattern).
- * Hoy: localStorage JSON. Mañana: sustituir por cliente HTTP contra apps/api + PostgreSQL.
+ * Capa de persistencia del navegador (adapter). Cache JSON para el portal; la fuente de verdad es PostgreSQL (Supabase) vía API y bootstrap/sync.
  *
  * Defensa frente al crecimiento sin límite: listas “append-only” (notificaciones, correo saliente)
  * se recortan en cada escritura para que el parsing JSON no degrade el hilo con los años de uso.

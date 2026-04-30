@@ -11,7 +11,7 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 5. `postgres/05_rrhh.sql`
 6. `postgres/06_sistema.sql`
 7. `postgres/07_indices.sql`
-8. *(Opcional)* `postgres/08_seed_tarifas_trayecto.sql` — datos demo de tarifas por trayecto
+8. *(Opcional)* `postgres/08_seed_tarifas_trayecto.sql` — tarifas iniciales por trayecto (ajustar a su operación)
 9. `postgres/09_rls_tablas.sql` — RLS (tablas públicas) para roles `anon` / `authenticated` de Supabase
 10. `postgres/10_rls_storage_supabase.sql` — RLS de Storage (tras crear en el panel los buckets indicados en el script)
 11. *(Solo bases ya creadas sin campos de registro)* `postgres/11_alter_usuarios_campos_registro.sql`
@@ -20,6 +20,8 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 **Manual de despliegue (Word):** generar con `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 
 ## Mapa módulo ↔ tablas ↔ `localStorage` (app.js)
+
+En despliegue con Supabase, la base de datos es la fuente de verdad; `localStorage` en el cliente es caché y cola de sincronización cuando aplica el portal a la API.
 
 | Módulo / área | Tabla(s) | Clave(s) `KEYS` |
 |---------------|----------|-----------------|

@@ -8,8 +8,8 @@
  *
  * Depuración sincronización portal (solo desarrollo): window.__ANTARES_DEBUG_SYNC__ = true en consola.
  *
- * Autenticación: si define __ANTARES_API_BASE__ o antares_api_base, el login es solo contra la API/BD.
- * Sin URL de API, el portal puede usar usuarios almacenados en localStorage (no hay datos de demostración precargados).
+ * Autenticación: con __ANTARES_API_BASE__ / antares_api_base el login y los datos van contra la API y PostgreSQL (Supabase).
+ * Las claves en localStorage son caché del cliente y sincronización (portal/sync-key), no sustituyen la base de datos.
  */
 (function () {
   "use strict";
