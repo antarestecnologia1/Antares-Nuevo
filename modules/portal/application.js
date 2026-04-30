@@ -3,7 +3,7 @@
  * - Portal: navegación, permisos, layout (modules/portal/*)
  * - Vistas: AppModules (feature) + AppLegacyViews (transición)
  * - Dominio: DomainRegistry + DomainModules (lógica por contexto acotado)
- * - Persistencia: AntaresPersistence (caché en navegador); datos de negocio vía apps/api y Supabase
+ * - Persistencia: AntaresPersistence (caché); PortalDataLayer (política BD ↔ caché); datos en PostgreSQL vía API
  */
 (function registerApplicationFacade() {
   window.AntaresApp = {
@@ -12,6 +12,7 @@
 
     layers: {
       persistence: () => window.AntaresPersistence,
+      portalDataLayer: () => window.PortalDataLayer,
       portalArchitecture: () => window.PortalArchitecture,
       portalAccess: () => window.PortalCoreAccess,
       portalRouter: () => window.PortalCoreRouter,
@@ -26,6 +27,7 @@
       const L = this.layers;
       return {
         persistence: Boolean(L.persistence()),
+        portalDataLayer: Boolean(L.portalDataLayer?.()?.refreshCacheFromApi),
         portal: Boolean(L.portalArchitecture() && L.portalAccess() && L.portalRouter() && L.portalRenderer()),
         domainWired: Boolean(L.domainRegistry()?.repositories),
         featureModules: Object.keys(L.featureViews() || {}).length,

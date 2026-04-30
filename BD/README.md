@@ -23,6 +23,8 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 
 En despliegue con Supabase, la base de datos es la fuente de verdad; `localStorage` en el cliente es caché y cola de sincronización cuando aplica el portal a la API.
 
+**Arranque del portal:** con sesión JWT y URL de API configuradas, el cliente llama primero a `GET /api/portal/bootstrap` y vuelca ese resultado en las claves locales (sin re-enviar todo al servidor gracias al modo bootstrap del sync). Las escrituras posteriores siguen yendo a BD con `POST /api/portal/sync-key`.
+
 | Módulo / área | Tabla(s) | Clave(s) `KEYS` |
 |---------------|----------|-----------------|
 | Empresas | `empresas` | `companies` |

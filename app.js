@@ -846,9 +846,14 @@ function __applyPortalBootstrapPayloadInner(p) {
 async function applyPortalBootstrapFromApi() {
   const api = window.AntaresApi;
   if (!api?.getBase?.() || !api.getAccessToken?.()) return false;
-  const p = await api.getJson("/portal/bootstrap");
-  applyPortalBootstrapPayload(p);
-  return true;
+  try {
+    const p = await api.getJson("/portal/bootstrap");
+    applyPortalBootstrapPayload(p);
+    return true;
+  } catch (err) {
+    devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+    return false;
+  }
 }
 
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
@@ -2268,7 +2273,9 @@ async function tryApiLoginBridge(user, password) {
         lastActivityAt: Date.now()
       });
     }
-    const bootOk = await applyPortalBootstrapFromApi();
+    const bootOk = window.PortalDataLayer?.refreshCacheFromApi
+      ? await window.PortalDataLayer.refreshCacheFromApi()
+      : await applyPortalBootstrapFromApi();
     if (bootOk && state.session && currentUser()) {
       renderPortalView();
       updateNotificationBadge();
@@ -2288,12 +2295,17 @@ async function ensureUsersPasswordHashing() {
   let changed = false;
   const secured = [];
   for (const user of users) {
-    if (String(user.password || "").startsWith("sha256:")) {
+    const p = String(user.password || "");
+    if (p.startsWith("sha256:")) {
+      secured.push(user);
+      continue;
+    }
+    if (!p) {
       secured.push(user);
       continue;
     }
     changed = true;
-    secured.push({ ...user, password: await hashPassword(user.password) });
+    secured.push({ ...user, password: await hashPassword(p) });
   }
   if (changed) write(KEYS.users, secured);
 }
@@ -2523,7 +2535,11 @@ function bindAuthForms() {
           const body = await res.json().catch(() => null);
           if (res.ok && body?.accessToken && body?.refreshToken) {
             window.AntaresApi.setAccessToken(body.accessToken);
-            await applyPortalBootstrapFromApi();
+            if (window.PortalDataLayer?.refreshCacheFromApi) {
+              await window.PortalDataLayer.refreshCacheFromApi();
+            } else {
+              await applyPortalBootstrapFromApi();
+            }
             const payload = decodeJwtPayload(body.accessToken);
             const uid = payload?.sub;
             const usersAfter = read(KEYS.users, []);
@@ -3587,19 +3603,6 @@ function renderPortal() {
   document.querySelectorAll(".admin-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.ADMIN));
   document.querySelectorAll(".client-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.CLIENT));
   document.querySelectorAll(".rrhh-only").forEach((n) => n.classList.toggle("hidden", !canAccessRRHH(user.role)));
-  if (window.DomainModules?.requests?.hydrateFromApiIfEnabled && window.AntaresApi?.isConfigured?.()) {
-    void window.DomainModules.requests
-      .hydrateFromApiIfEnabled()
-      .then((ok) => {
-        if (ok) {
-          scheduleRenderPortalView();
-          updateNotificationBadge();
-        }
-      })
-      .catch(() => {
-        devWarn("Sincronizar solicitudes (API): fallo; active window.__ANTARES_DEBUG__ para detalle.");
-      });
-  }
   nodes.sideLinks.forEach((link) => {
     const isRoleHidden =
       (link.classList.contains("admin-only") && user.role !== ROLES.ADMIN) ||
@@ -10370,20 +10373,40 @@ window.AppLegacyViews = {
   notificationsHtml
 };
 
+/** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */
+window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi() {
+  if (!getSession()) return;
+  scheduleRenderPortalView();
+  updateNotificationBadge();
+};
+
 initPortalClientStorage();
-ensureUsersPasswordHashing();
 initGlobalEvents();
 initPublicEffects();
-if (window.DomainRegistry?.list) {
-  const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
-  if (missingDomains.length) {
-    devWarn("Dominios sin inicializar:", missingDomains.join(", "));
+
+void (async function bootApplicationFromDatabaseThenUi() {
+  try {
+    if (window.PortalDataLayer?.refreshCacheFromApi) {
+      await window.PortalDataLayer.refreshCacheFromApi();
+    } else {
+      await applyPortalBootstrapFromApi();
+    }
+  } catch (_e) {
+    /* refreshCacheFromApi / applyPortalBootstrapFromApi ya registran fallos */
   }
-}
-renderPortal();
-setInterval(() => {
-  if (!state.session) return;
-  updateAutoApprove();
-  if (hasUnsavedPortalFormData()) return;
-  renderPortalView();
-}, 30000);
+  await ensureUsersPasswordHashing();
+  if (window.DomainRegistry?.list) {
+    const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
+    if (missingDomains.length) {
+      devWarn("Dominios sin inicializar:", missingDomains.join(", "));
+    }
+  }
+  renderPortal();
+  window.PortalDataLayer?.enableVisibilityRefresh?.();
+  setInterval(() => {
+    if (!state.session) return;
+    updateAutoApprove();
+    if (hasUnsavedPortalFormData()) return;
+    renderPortalView();
+  }, 30000);
+})();
