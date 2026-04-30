@@ -3735,11 +3735,25 @@ function setView(view) {
   renderPortalView();
 }
 
+function setPortalDrawerOpen(open) {
+  if (typeof document === "undefined") return;
+  const on = Boolean(open);
+  document.body.classList.toggle("portal-drawer-open", on);
+  const btn = document.getElementById("portal-menu-btn");
+  const bd = document.getElementById("portal-nav-backdrop");
+  if (btn) {
+    btn.setAttribute("aria-expanded", on ? "true" : "false");
+    btn.setAttribute("aria-label", on ? "Cerrar menu de modulos" : "Abrir menu de modulos");
+  }
+  if (bd) bd.setAttribute("aria-hidden", on ? "false" : "true");
+}
+
 function renderPortal() {
   let session = getSession();
   if (!session) {
     stopSessionSecurityWatch();
     stopNotificationsPolling();
+    setPortalDrawerOpen(false);
     document.body.classList.remove("portal-mode");
     document.body.classList.remove("public-nav-open");
     const pubNav = document.getElementById("main-nav");
@@ -3771,6 +3785,7 @@ function renderPortal() {
   const pubHamOpen = document.getElementById("hamburger-btn");
   if (pubHamOpen) pubHamOpen.setAttribute("aria-expanded", "false");
   document.body.classList.add("portal-mode");
+  setPortalDrawerOpen(false);
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
   const user = currentUser();
@@ -10242,6 +10257,24 @@ function initGlobalEvents() {
     });
   }
 
+  const portalMenuBtn = document.getElementById("portal-menu-btn");
+  const portalBackdrop = document.getElementById("portal-nav-backdrop");
+  if (portalMenuBtn && portalBackdrop) {
+    portalMenuBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setPortalDrawerOpen(!document.body.classList.contains("portal-drawer-open"));
+    });
+    portalBackdrop.addEventListener("click", () => setPortalDrawerOpen(false));
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 920) setPortalDrawerOpen(false);
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !document.body.classList.contains("portal-drawer-open")) return;
+    setPortalDrawerOpen(false);
+    document.getElementById("portal-menu-btn")?.focus();
+  });
+
   if (nodes.themeButtonsPublic.length || nodes.themeButtonsPortal.length) {
     [...nodes.themeButtonsPublic, ...nodes.themeButtonsPortal].forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -10358,7 +10391,10 @@ function initGlobalEvents() {
   });
 
   nodes.sideLinks.forEach((link) => {
-    link.addEventListener("click", () => setView(link.dataset.view));
+    link.addEventListener("click", () => {
+      setView(link.dataset.view);
+      setPortalDrawerOpen(false);
+    });
   });
 
   window.addEventListener("hashchange", () => {

@@ -1510,6 +1510,100 @@ body.portal-mode .whatsapp-fab {
   font-weight: 500;
 }
 
+.sidebar-drawer-tagline {
+  display: none;
+  margin: -0.15rem 0 0.5rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(147, 197, 255, 0.85);
+  background: linear-gradient(90deg, rgba(33, 150, 243, 0.2), transparent);
+  border-radius: 8px;
+  border-left: 3px solid rgba(100, 181, 246, 0.85);
+}
+
+/* Barra superior portal (titulo + hamburguesa en movil) */
+.portal-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.portal-header-bar h1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.portal-menu-btn {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  background: linear-gradient(145deg, rgba(33, 150, 243, 0.35) 0%, rgba(21, 101, 192, 0.55) 100%);
+  box-shadow:
+    0 4px 18px rgba(21, 101, 192, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: #fff;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.portal-menu-btn:hover {
+  transform: scale(1.04);
+  box-shadow:
+    0 8px 26px rgba(33, 150, 243, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.portal-menu-bun {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 22px;
+}
+
+.portal-menu-line {
+  display: block;
+  height: 2.5px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+  transform-origin: center;
+}
+
+body.portal-drawer-open .portal-menu-line:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+body.portal-drawer-open .portal-menu-line:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+body.portal-drawer-open .portal-menu-line:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+.portal-nav-backdrop {
+  display: none;
+}
+
+@media (min-width: 921px) {
+  .portal-menu-btn {
+    display: none !important;
+  }
+}
+
 .sidebar-section-label {
   font-size: 0.68rem;
   font-weight: 700;
@@ -3342,9 +3436,28 @@ tbody tr:last-child td { border-bottom: none; }
   }
 }
 
+@keyframes portalNavLinkIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   nav.nav-open {
     animation: none !important;
+  }
+
+  body.portal-drawer-open #portal-sidebar .side-link {
+    animation: none !important;
+  }
+
+  #portal-sidebar.sidebar {
+    transition: transform 0.01s ease !important;
   }
 }
 
@@ -3568,27 +3681,159 @@ tbody tr:last-child td { border-bottom: none; }
 
   .portal-layout { grid-template-columns: 1fr; }
 
-  .sidebar {
-    position: relative;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: 0.8rem;
+  .portal-menu-btn {
+    display: inline-flex;
   }
 
-  .sidebar-brand { padding: 0.3rem 0.5rem 0.5rem; margin-bottom: 0; border-bottom: none; width: 100%; }
-  .sidebar-section-label { display: none; }
-  .sidebar-spacer { display: none; }
-  .sidebar-logout { margin-top: 0; padding-top: 0; border-top: none; }
-  .sidebar-theme-box { margin-top: 0.25rem; padding: 0.4rem; }
-  .sidebar-theme-title { display: none; }
-  .side-link { padding: 0.45rem 0.6rem; font-size: 0.8rem; }
-  .side-icon { width: 16px; height: 16px; min-width: 16px; }
+  .portal-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 190;
+    background: linear-gradient(135deg, rgba(4, 12, 28, 0.72) 0%, rgba(8, 17, 31, 0.55) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.38s ease, visibility 0.38s ease;
+    pointer-events: none;
+  }
+
+  body.portal-drawer-open .portal-nav-backdrop {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  body.portal-drawer-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .sidebar-drawer-tagline {
+    display: block;
+  }
+
+  #portal-sidebar.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: min(318px, 90vw);
+    z-index: 200;
+    transform: translateX(-108%);
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
+    border-radius: 0 22px 22px 0;
+    border-right: 1px solid rgba(120, 180, 255, 0.18);
+    border-bottom: none;
+    box-shadow:
+      16px 0 40px rgba(0, 0, 0, 0.55),
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1.15rem 0.95rem 1.35rem;
+    background:
+      radial-gradient(120% 80% at 0% 0%, rgba(56, 189, 248, 0.14) 0%, transparent 55%),
+      radial-gradient(90% 60% at 100% 100%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+      linear-gradient(180deg, #070f1e 0%, #0b1d33 42%, #0c2744 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.portal-drawer-open #portal-sidebar.sidebar {
+    transform: translateX(0);
+    box-shadow:
+      24px 0 56px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(147, 197, 255, 0.12) inset;
+  }
+
+  .sidebar-brand {
+    padding: 0.35rem 0.45rem 0.85rem;
+    margin-bottom: 0.15rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    width: 100%;
+  }
+
+  .sidebar-section-label {
+    display: block;
+    padding-top: 1rem;
+    color: rgba(186, 220, 255, 0.55);
+  }
+
+  .sidebar-spacer {
+    display: block;
+    flex: 1;
+    min-height: 0.5rem;
+  }
+
+  .sidebar-logout {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .sidebar-theme-box {
+    margin-top: 0.55rem;
+    padding: 0.55rem 0.5rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .sidebar-theme-title {
+    display: block;
+  }
+
+  .side-link {
+    padding: 0.72rem 0.75rem;
+    font-size: 0.88rem;
+    border-radius: 12px;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.03);
+    transition: transform 0.22s ease, background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+  }
+
+  .side-link:hover {
+    transform: translateX(4px);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(147, 197, 255, 0.18);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  .side-link.active {
+    border-color: rgba(147, 213, 255, 0.45);
+    box-shadow:
+      0 8px 22px rgba(33, 150, 243, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  body.portal-drawer-open #portal-sidebar .side-link {
+    animation: portalNavLinkIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  #portal-sidebar.sidebar .side-link:nth-of-type(1) { animation-delay: 0.02s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(2) { animation-delay: 0.05s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(3) { animation-delay: 0.08s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(4) { animation-delay: 0.1s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(5) { animation-delay: 0.12s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(6) { animation-delay: 0.14s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(7) { animation-delay: 0.16s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(8) { animation-delay: 0.18s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(9) { animation-delay: 0.2s; }
+  #portal-sidebar.sidebar .side-link:nth-of-type(10) { animation-delay: 0.22s; }
+
+  .side-icon {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+  }
 
   .portal-main { padding: 1rem; }
-  .portal-header h1 { font-size: 1.3rem; }
+  .portal-header h1 { font-size: 1.22rem; line-height: 1.25; }
   .dash-grid { grid-template-columns: 1fr; }
   .users-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .datetime-group { grid-template-columns: 1fr; }

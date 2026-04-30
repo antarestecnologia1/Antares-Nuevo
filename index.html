@@ -883,11 +883,13 @@
     <!-- ─── PORTAL APP ─── -->
     <section id="portal-app" class="hidden">
       <div class="portal-layout">
-        <aside class="sidebar">
+        <div id="portal-nav-backdrop" class="portal-nav-backdrop" aria-hidden="true"></div>
+        <aside class="sidebar" id="portal-sidebar">
           <div class="sidebar-brand">
             <svg class="sidebar-brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
             <div><h2>Antares</h2><p id="session-meta"></p></div>
           </div>
+          <p class="sidebar-drawer-tagline" aria-hidden="true">Modulos del portal</p>
           <p class="sidebar-section-label">General</p>
           <button data-view="dashboard" class="side-link active">
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -977,7 +979,23 @@
         </aside>
         <main class="portal-main">
           <header class="portal-header">
-            <h1 id="view-title">Dashboard</h1>
+            <div class="portal-header-bar">
+              <button
+                type="button"
+                id="portal-menu-btn"
+                class="portal-menu-btn"
+                aria-label="Abrir menu de modulos"
+                aria-expanded="false"
+                aria-controls="portal-sidebar"
+              >
+                <span class="portal-menu-bun" aria-hidden="true">
+                  <span class="portal-menu-line"></span>
+                  <span class="portal-menu-line"></span>
+                  <span class="portal-menu-line"></span>
+                </span>
+              </button>
+              <h1 id="view-title">Dashboard</h1>
+            </div>
             <div id="kpi-cards" class="kpi-grid"></div>
           </header>
           <section id="view-root"></section>
