@@ -2656,6 +2656,143 @@ tbody tr:last-child td { border-bottom: none; }
   display: block;
 }
 
+/* Icono + control en ingreso y recuperación */
+.auth-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.auth-plain-label .field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.auth-input-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+  min-height: 2.5rem;
+}
+
+.auth-input-row--grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth-input-prefix {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.6rem;
+  color: var(--primary);
+  opacity: 0.88;
+  background: rgba(21, 101, 192, 0.06);
+  border-right: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.auth-input-prefix svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.auth-input-control {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  min-width: 0;
+}
+
+.auth-input-control:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(21, 101, 192, 0.2);
+}
+
+.auth-password-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.auth-password-row .auth-input-row {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.auth-recover-hint {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(21, 101, 192, 0.05);
+  font-size: 0.85rem;
+}
+
+.auth-recover-hint-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.auth-recover-hint-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: block;
+}
+
+/* Medidor de fortaleza de contraseña (registro, creación de usuario) */
+.password-meter {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.1);
+  margin: 0.4rem 0 0.15rem;
+  overflow: hidden;
+}
+
+.password-meter-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.password-meter-fill--weak {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.password-meter-fill--fair {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.password-meter-fill--good {
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.password-meter-fill--strong {
+  background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.password-strength-label {
+  display: block;
+  margin-top: 0.1rem;
+}
+
+.password-policy-hint {
+  font-size: 0.78rem;
+  margin: 0.35rem 0 0;
+  line-height: 1.35;
+}
+
 .tabs {
   display: flex;
   gap: 0.4rem;
@@ -5388,6 +5525,27 @@ body[data-theme="dark"] .modal-card {
 body[data-theme="dark"] .auth-pane,
 body[data-theme="dark"] .modal-card-auth {
   background: #15283f;
+  border-color: #476b93;
+}
+
+body[data-theme="dark"] .auth-input-row {
+  background: #1b3552;
+  border-color: #476b93;
+}
+
+body[data-theme="dark"] .auth-input-control {
+  background: transparent;
+  color: #e8f3ff;
+}
+
+body[data-theme="dark"] .auth-input-prefix {
+  background: rgba(117, 176, 244, 0.12);
+  border-color: #476b93;
+  color: #a9d4ff;
+}
+
+body[data-theme="dark"] .auth-recover-hint {
+  background: rgba(117, 176, 244, 0.08);
   border-color: #476b93;
 }
 

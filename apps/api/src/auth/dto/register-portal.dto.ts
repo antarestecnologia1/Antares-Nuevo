@@ -54,7 +54,7 @@ export class RegisterPortalDto {
   @IsEmail()
   email!: string;
 
-  @MinLength(8)
+  @MinLength(10)
   password!: string;
 
   @Transform(({ value }) => value === true || value === "on" || value === "true")

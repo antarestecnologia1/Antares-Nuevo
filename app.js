@@ -1526,6 +1526,52 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+/** Para persistencia en BD/sincronización: sin tildes; ñ → n (ASCII estable). */
+function normalizeLatinForDb(value) {
+  if (value == null) return "";
+  return String(value)
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/ñ/g, "n")
+    .replace(/Ñ/g, "N");
+}
+
+function validatePasswordPolicy(password) {
+  const p = String(password || "");
+  if (p.length < 10) return { ok: false, key: "passwordPolicyLength" };
+  if (!/[a-z]/.test(p)) return { ok: false, key: "passwordPolicyLower" };
+  if (!/[A-Z]/.test(p)) return { ok: false, key: "passwordPolicyUpper" };
+  if (!/[0-9]/.test(p)) return { ok: false, key: "passwordPolicyDigit" };
+  if (!/[^A-Za-z0-9]/.test(p)) return { ok: false, key: "passwordPolicySpecial" };
+  return { ok: true };
+}
+
+function getPasswordStrengthReport(password) {
+  const p = String(password || "");
+  const rules = [p.length >= 10, /[a-z]/.test(p), /[A-Z]/.test(p), /[0-9]/.test(p), /[^A-Za-z0-9]/.test(p)];
+  const met = rules.filter(Boolean).length;
+  const pct = Math.round((met / 5) * 100);
+  let tier = "weak";
+  if (pct >= 80) tier = "strong";
+  else if (pct >= 60) tier = "good";
+  else if (pct >= 40) tier = "fair";
+  const label = met === 0 ? "Muy baja" : met <= 2 ? "Baja" : met === 3 ? "Media" : met === 4 ? "Buena" : "Fuerte";
+  return { pct, tier, label, met };
+}
+
+function bindPasswordStrengthMeter(passInput, meterFill, labelEl) {
+  if (!passInput || !meterFill || !labelEl) return;
+  const sync = () => {
+    const r = getPasswordStrengthReport(passInput.value);
+    meterFill.style.width = `${r.pct}%`;
+    meterFill.className = `password-meter-fill password-meter-fill--${r.tier}`;
+    labelEl.textContent = `Seguridad: ${r.label}`;
+  };
+  passInput.addEventListener("input", sync);
+  sync();
+}
+
 async function hashPassword(raw) {
   const input = String(raw || "");
   if (!input) return "";
@@ -1542,18 +1588,6 @@ async function verifyPassword(raw, storedHash) {
   }
   const hashed = await hashPassword(raw);
   return hashed === storedHash;
-}
-
-function passwordStrengthLabel(password) {
-  const value = String(password || "");
-  let score = 0;
-  if (value.length >= 8) score += 1;
-  if (/[A-Z]/.test(value)) score += 1;
-  if (/[0-9]/.test(value)) score += 1;
-  if (/[^A-Za-z0-9]/.test(value)) score += 1;
-  if (score <= 1) return "Baja";
-  if (score <= 3) return "Media";
-  return "Alta";
 }
 
 function readCounters() {
@@ -2180,35 +2214,45 @@ function authView() {
     return `
       <div class="auth-header-premium">
         <h3>Ingreso empresarial seguro</h3>
-        <p class="muted">Accede a tu operacion con trazabilidad, control de permisos y registro de actividad.</p>
+        <p class="muted">Acceda a su operación con trazabilidad, control de permisos y registro de actividad.</p>
       </div>
       <div class="auth-login-shell">
         <form id="form-login" class="form-grid auth-form auth-pane">
-          <label class="full"><span>Correo corporativo</span><input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
-          <label class="full"><span>Contrasena</span>
-            <div class="password-field">
-              <input type="password" name="password" autocomplete="current-password" required />
-              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">Mostrar</button>
+          <label class="full auth-field-stack">
+            <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo corporativo")}</span>
+            <div class="auth-input-row">
+              <span class="auth-input-prefix" aria-hidden="true">${IC.mail}</span>
+              <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required />
             </div>
           </label>
-          <button class="btn btn-primary full" type="submit">Ingresar al portal</button>
+          <label class="full auth-field-stack">
+            <span class="auth-plain-label">${fieldLabel(IC.lock, "Contraseña")}</span>
+            <div class="password-field auth-password-row">
+              <div class="auth-input-row auth-input-row--grow">
+                <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+                <input class="auth-input-control" type="password" name="password" autocomplete="current-password" required />
+              </div>
+              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">${IC.eye} Mostrar</button>
+            </div>
+          </label>
+          <button class="btn btn-primary full" type="submit">${IC.check} Ingresar al portal</button>
         </form>
         <div class="auth-login-side auth-pane">
-          <h3>Acceso seguro Antares</h3>
-          <p class="muted">Portal disenado para equipos de operaciones, administracion y recursos humanos.</p>
+          <h3>${IC.shield} Acceso seguro Antares</h3>
+          <p class="muted">Portal diseñado para equipos de operaciones, administración y recursos humanos.</p>
           <ul class="auth-bullets">
             <li>Control por roles y permisos granulares</li>
-            <li>Trazabilidad de aprobaciones y auditoria</li>
-            <li>Operacion alineada a flujos empresariales</li>
+            <li>Trazabilidad de aprobaciones y auditoría</li>
+            <li>Operación alineada a flujos empresariales</li>
           </ul>
           <div class="auth-side-pills">
-            <span>Sesion cifrada</span>
-            <span>Historial de cambios</span>
-            <span>Soporte corporativo</span>
+            <span>${IC.lock} Sesión cifrada</span>
+            <span>${IC.activity} Historial de cambios</span>
+            <span>${IC.bell} Soporte corporativo</span>
           </div>
         </div>
       </div>
-      <p class="muted auth-help">Usa credenciales corporativas. Evita ingresar desde equipos compartidos o redes publicas.</p>
+      <p class="muted auth-help">${IC.alertTriangle} Use credenciales corporativas. Evite ingresar desde equipos compartidos o redes públicas.</p>
     `;
   }
 
@@ -2216,31 +2260,31 @@ function authView() {
     return `
       <div class="auth-header-premium">
         <h3>Registro de cliente empresarial</h3>
-        <p class="muted">Completa tu perfil para habilitar aprobacion de acceso y configuracion de servicios.</p>
+        <p class="muted">Complete su perfil. <strong>Solo un administrador</strong> puede revisar y aprobar el acceso; hasta entonces no podrá iniciar sesión.</p>
       </div>
       <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
-        <label>Primer nombre <input name="firstName" required /></label>
-        <label>Segundo nombre <input name="middleName" /></label>
-        <label>Primer apellido <input name="lastName" required /></label>
-        <label>Segundo apellido <input name="secondLastName" /></label>
-        <label>Tipo de persona
+        <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" /></label>
+        <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" /></label>
+        <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" /></label>
+        <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" /></label>
+        <label>${fieldLabel(IC.briefcase, "Tipo de persona")}
           <select name="personType" required>
             <option value="Natural">Natural</option>
-            <option value="Juridica">Juridica</option>
+            <option value="Juridica">Jurídica</option>
           </select>
         </label>
-        <label>Tipo documento
+        <label>${fieldLabel(IC.file, "Tipo de documento")}
           <select name="documentType" required>
-            <option value="CC">Cedula de ciudadania</option>
-            <option value="CE">Cedula de extranjeria</option>
+            <option value="CC">Cédula de ciudadanía</option>
+            <option value="CE">Cédula de extranjería</option>
             <option value="NIT">NIT</option>
             <option value="PAS">Pasaporte</option>
           </select>
         </label>
-        <label>Numero documento/NIT <input name="taxId" required /></label>
-        <label>Expedicion documento <input type="date" name="documentIssuedAt" required /></label>
-        <label>Fecha de nacimiento <input type="date" name="birthDate" required /></label>
-        <label>Genero
+        <label>${fieldLabel(IC.badge, "Número documento / NIT")}<input name="taxId" required inputmode="numeric" autocomplete="off" /></label>
+        <label>${fieldLabel(IC.calendar, "Expedición documento")}<input type="date" name="documentIssuedAt" required /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
+        <label>${fieldLabel(IC.users, "Género")}
           <select name="gender" required>
             <option value="">Seleccione...</option>
             <option>Femenino</option>
@@ -2249,47 +2293,62 @@ function authView() {
             <option>Prefiero no decirlo</option>
           </select>
         </label>
-        <label>Cargo <input name="position" required /></label>
-        <label>Area <input name="workArea" required placeholder="Ej: Operaciones" /></label>
-        <label>Telefono <input name="phone" placeholder="+57 300 000 0000" required /></label>
-        <label>Departamento
+        <label>${fieldLabel(IC.award, "Cargo")}<input name="position" required /></label>
+        <label>${fieldLabel(IC.grid, "Área")}<input name="workArea" required placeholder="Ej.: Operaciones" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" placeholder="+57 300 000 0000" required autocomplete="tel" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}
           <select name="department" id="register-department" required>
             <option value="">Seleccione...</option>
             ${deptOptions}
           </select>
         </label>
-        <label>Ciudad
+        <label>${fieldLabel(IC.building, "Ciudad")}
           <select name="city" id="register-city" required>
             <option value="">Seleccione un departamento...</option>
           </select>
         </label>
-        <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
-        <label>Correo <input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
-        <label class="full">Contrasena
+        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" autocomplete="street-address" /></label>
+        <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
+        <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field">
-            <input type="password" minlength="8" name="password" autocomplete="new-password" required />
-            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">Mostrar</button>
+            <input type="password" minlength="10" name="password" autocomplete="new-password" required aria-describedby="password-strength password-hint" />
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
           </div>
-          <small id="password-strength" class="muted">Seguridad: Baja</small>
+          <div class="password-meter" role="presentation"><div id="register-password-meter-fill" class="password-meter-fill password-meter-fill--weak"></div></div>
+          <small id="password-strength" class="muted password-strength-label">Seguridad: Muy baja</small>
+          <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres: mayúscula, minúscula, número y símbolo. En base de datos los textos se guardan sin tildes ni ñ.</p>
         </label>
-        <label class="full">Confirmar contrasena <input type="password" minlength="8" name="passwordConfirm" autocomplete="new-password" required /></label>
-        <label class="full"><input type="checkbox" name="acceptTerms" required /> Acepto terminos, politica de privacidad y tratamiento de datos (Habeas Data).</label>
+        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}<input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" required /></label>
+        <label class="full">${fieldLabel(IC.file, "Términos")}<span class="checkbox-inline"><input type="checkbox" name="acceptTerms" required /> Acepto términos, política de privacidad y tratamiento de datos (Habeas Data).</span></label>
         <div class="full auth-inline-note">
-          <small class="muted">Tu solicitud sera revisada por un administrador antes de habilitar acceso al portal.</small>
+          <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
         </div>
-        <button class="btn btn-primary full" type="submit">Crear cuenta cliente</button>
+        <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear cuenta cliente</button>
       </form>
     `;
   }
 
   return `
     <div class="auth-header-premium">
-      <h3>Recuperacion de acceso</h3>
-      <p class="muted">Te ayudamos a restablecer el acceso de forma segura con validacion administrativa.</p>
+      <h3>Recuperación de acceso</h3>
+      <p class="muted">Validación administrativa; no podrá restablecer la contraseña sin la participación de un administrador.</p>
     </div>
-    <form id="form-recover" class="form-grid auth-pane">
-      <label class="full"><span>Correo registrado</span><input type="email" name="email" placeholder="nombre@empresa.com" required /></label>
-      <button class="btn btn-primary full" type="submit">Solicitar recuperacion</button>
+    <form id="form-recover" class="form-grid auth-pane auth-form">
+      <label class="full auth-field-stack">
+        <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo registrado")}</span>
+        <div class="auth-input-row">
+          <span class="auth-input-prefix" aria-hidden="true">${IC.mail}</span>
+          <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required />
+        </div>
+      </label>
+      <div class="auth-recover-hint" role="note">
+        <span class="auth-recover-hint-icon" aria-hidden="true">${IC.shield}</span>
+        <div>
+          <strong>Proceso seguro</strong>
+          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">Un administrador validará su identidad y gestionará el restablecimiento; recibirá instrucciones por correo si su cuenta existe.</p>
+        </div>
+      </div>
+      <button class="btn btn-primary full" type="submit">${IC.send} Solicitar recuperación</button>
     </form>
   `;
 }
@@ -2319,13 +2378,15 @@ function bindAuthForms() {
   togglePassword.forEach((btn) => {
     btn.addEventListener("click", () => {
       const targetForm = String(btn.dataset.target || "");
-      const input = targetForm === "register"
-        ? register?.querySelector("input[name='password']")
-        : login?.querySelector("input[name='password']");
+      let input = null;
+      if (targetForm === "register") input = register?.querySelector("input[name='password']");
+      else if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
+      else input = login?.querySelector("input[name='password']");
       if (!input) return;
       const visible = input.type === "text";
       input.type = visible ? "password" : "text";
-      btn.textContent = visible ? "Mostrar" : "Ocultar";
+      const eye = typeof IC !== "undefined" && IC.eye ? `${IC.eye} ` : "";
+      btn.innerHTML = `${eye}${visible ? "Mostrar" : "Ocultar"}`;
     });
   });
 
@@ -2453,16 +2514,18 @@ function bindAuthForms() {
     }
     const regPass = register.querySelector("input[name='password']");
     const strength = register.querySelector("#password-strength");
-    if (regPass && strength) {
-      regPass.addEventListener("input", () => {
-        strength.textContent = `Seguridad: ${passwordStrengthLabel(regPass.value)}`;
-      });
-    }
+    const meterFill = register.querySelector("#register-password-meter-fill");
+    bindPasswordStrengthMeter(regPass, meterFill, strength);
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
-      const fullName = [data.firstName, data.middleName, data.lastName, data.secondLastName]
-        .map((chunk) => String(chunk || "").trim())
+      const fullName = [
+        normalizeLatinForDb(data.firstName),
+        normalizeLatinForDb(data.middleName),
+        normalizeLatinForDb(data.lastName),
+        normalizeLatinForDb(data.secondLastName)
+      ]
+        .map((s) => String(s || "").trim())
         .filter(Boolean)
         .join(" ");
       if (!fullName) {
@@ -2479,8 +2542,9 @@ function bindAuthForms() {
         notify(userMessage("registerPasswordMismatch"), "error");
         return;
       }
-      if (String(data.password || "").length < 8) {
-        notify(userMessage("registerPasswordShort"), "error");
+      const policy = validatePasswordPolicy(data.password);
+      if (!policy.ok) {
+        notify(userMessage(policy.key), "error");
         return;
       }
       if (!data.acceptTerms) {
@@ -2505,22 +2569,22 @@ function bindAuthForms() {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({
-              firstName: data.firstName,
-              middleName: data.middleName || "",
-              lastName: data.lastName,
-              secondLastName: data.secondLastName || "",
-              personType: data.personType,
-              documentType: data.documentType,
+              firstName: normalizeLatinForDb(data.firstName),
+              middleName: normalizeLatinForDb(data.middleName || ""),
+              lastName: normalizeLatinForDb(data.lastName),
+              secondLastName: normalizeLatinForDb(data.secondLastName || ""),
+              personType: normalizeLatinForDb(data.personType),
+              documentType: normalizeLatinForDb(data.documentType),
               taxId: data.taxId,
               documentIssuedAt: data.documentIssuedAt,
               birthDate: data.birthDate,
-              gender: data.gender,
-              position: data.position,
-              workArea: data.workArea,
-              phone: data.phone,
-              department: data.department,
-              city: data.city,
-              address: data.address,
+              gender: normalizeLatinForDb(data.gender),
+              position: normalizeLatinForDb(data.position),
+              workArea: normalizeLatinForDb(data.workArea),
+              phone: normalizeLatinForDb(data.phone),
+              department: normalizeLatinForDb(data.department),
+              city: normalizeLatinForDb(data.city),
+              address: normalizeLatinForDb(data.address),
               email: data.email,
               password: data.password,
               acceptTerms: Boolean(data.acceptTerms)
@@ -2555,6 +2619,19 @@ function bindAuthForms() {
       const newUser = {
         id: uid(),
         ...profileData,
+        firstName: normalizeLatinForDb(data.firstName),
+        middleName: normalizeLatinForDb(data.middleName || ""),
+        lastName: normalizeLatinForDb(data.lastName),
+        secondLastName: normalizeLatinForDb(data.secondLastName || ""),
+        personType: normalizeLatinForDb(data.personType),
+        documentType: normalizeLatinForDb(data.documentType),
+        gender: normalizeLatinForDb(data.gender),
+        position: normalizeLatinForDb(data.position),
+        workArea: normalizeLatinForDb(data.workArea),
+        phone: normalizeLatinForDb(data.phone),
+        department: normalizeLatinForDb(data.department),
+        city: normalizeLatinForDb(data.city),
+        address: normalizeLatinForDb(data.address),
         name: fullName,
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
@@ -4206,9 +4283,20 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Datos personales</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej: Laura Castañeda" /></label>
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej.: Laura Castañeda" /></label>
         <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" name="email" required placeholder="correo@empresa.com" /></label>
-        <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" minlength="6" required placeholder="Mín. 6 caracteres" /></label>
+        <label class="full">${fieldLabel(IC.lock, "Contraseña")}
+          <div class="password-field auth-password-row">
+            <div class="auth-input-row auth-input-row--grow">
+              <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+              <input type="password" name="password" minlength="10" required placeholder="Mín. 10 caracteres, mayúscula, minúscula, número y símbolo" aria-describedby="admin-create-password-hint admin-create-password-strength" autocomplete="new-password" />
+            </div>
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-create">${IC.eye} Mostrar</button>
+          </div>
+          <div class="password-meter" role="presentation"><div id="admin-create-password-meter-fill" class="password-meter-fill password-meter-fill--weak"></div></div>
+          <small id="admin-create-password-strength" class="muted password-strength-label">Seguridad: —</small>
+          <p id="admin-create-password-hint" class="muted password-policy-hint">La contraseña debe cumplir el mismo estándar que el registro público (10+ caracteres). En base de datos los textos se guardan sin tildes ni ñ.</p>
+        </label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>
           <option value="CC">Cédula de ciudadanía</option>
           <option value="CE">Cédula de extranjería</option>
@@ -6669,6 +6757,11 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    bindPasswordStrengthMeter(
+      adminUserCreate.querySelector("input[name='password']"),
+      adminUserCreate.querySelector("#admin-create-password-meter-fill"),
+      adminUserCreate.querySelector("#admin-create-password-strength")
+    );
     adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -6692,6 +6785,11 @@ function bindDynamicEvents() {
         notify(userMessage("userSelectCompany"), "error");
         return;
       }
+      const passPolicy = validatePasswordPolicy(data.password);
+      if (!passPolicy.ok) {
+        notify(userMessage(passPolicy.key), "error");
+        return;
+      }
       if (actor?.role !== ROLES.ADMIN) {
         queueApproval({
           type: "create_user",
@@ -6706,7 +6804,7 @@ function bindDynamicEvents() {
       }
       users.push({
         id: uid(),
-        name: data.name,
+        name: normalizeLatinForDb(data.name),
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
         role: data.role,
@@ -6714,13 +6812,13 @@ function bindDynamicEvents() {
         accountStatus: ACCOUNT_STATUS.APROBADO,
         personType: data.personType || "Natural",
         documentIssuedAt: data.documentIssuedAt || "",
-        company: data.company || company.name,
+        company: normalizeLatinForDb(data.company || company.name),
         companyId: company.id,
         taxId: data.taxId,
-        phone: data.phone,
-        city: data.city,
-        department: data.department,
-        address: data.address,
+        phone: normalizeLatinForDb(data.phone),
+        city: normalizeLatinForDb(data.city),
+        department: normalizeLatinForDb(data.department),
+        address: normalizeLatinForDb(data.address),
         twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
         systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
         createdAt: nowIso(),
@@ -6855,16 +6953,22 @@ function bindDynamicEvents() {
         return;
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
-      const nextPassword = String(data.password || "").trim()
-        ? await hashPassword(String(data.password || "").trim())
-        : existing.password;
+      let nextPassword = existing.password;
+      if (String(data.password || "").trim()) {
+        const pp = validatePasswordPolicy(data.password);
+        if (!pp.ok) {
+          notify(userMessage(pp.key), "error");
+          return;
+        }
+        nextPassword = await hashPassword(String(data.password || "").trim());
+      }
       write(
         KEYS.users,
         users.map((u) =>
           u.id === userId
             ? {
                 ...u,
-                name: String(data.name || "").trim(),
+                name: normalizeLatinForDb(String(data.name || "").trim()),
                 email: normalizeEmail(data.email),
                 password: nextPassword,
                 role: String(data.role || u.role),
@@ -6872,12 +6976,12 @@ function bindDynamicEvents() {
                 personType: String(data.personType || u.personType || "Natural"),
                 documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
                 companyId: company.id,
-                company: String(data.company || company.name).trim(),
+                company: normalizeLatinForDb(String(data.company || company.name).trim()),
                 taxId: String(data.taxId || "").trim(),
-                phone: String(data.phone || "").trim(),
-                city: String(data.city || "").trim(),
-                department: String(data.department || u.department || "").trim(),
-                address: String(data.address || u.address || "").trim(),
+                phone: normalizeLatinForDb(String(data.phone || "").trim()),
+                city: normalizeLatinForDb(String(data.city || "").trim()),
+                department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
+                address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
                 twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
                 systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
                 permissions:
@@ -6898,6 +7002,10 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='approve-registration']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyApprove"), "error");
+        return;
+      }
       const userId = btn.dataset.id;
       if (!userId) return;
       const users = read(KEYS.users, []);
@@ -6961,6 +7069,10 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='reject-registration']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyApprove"), "error");
+        return;
+      }
       const userId = btn.dataset.id;
       if (!userId) return;
       openEditModal({
@@ -9238,29 +9350,36 @@ function bindDynamicEvents() {
       if (!approval || !actor || actor.role !== ROLES.ADMIN) return;
 
       if (approval.type === "create_user") {
+        const pwPol = validatePasswordPolicy(approval.payload.password || "");
+        if (!pwPol.ok) {
+          notify(userMessage(pwPol.key), "error");
+          return;
+        }
         const users = read(KEYS.users, []);
         if (!users.some((u) => normalizeEmail(u.email) === normalizeEmail(approval.payload.email))) {
+          const p = approval.payload;
+          const compName = p.companyName || getCompanyById(p.companyId)?.name || "";
           users.push({
             id: uid(),
-            name: approval.payload.name,
-            email: normalizeEmail(approval.payload.email),
-            password: await hashPassword(approval.payload.password || "Cambio123!"),
-            role: approval.payload.role,
-            documentType: approval.payload.documentType || "CC",
-            personType: approval.payload.personType || "Natural",
-            documentIssuedAt: approval.payload.documentIssuedAt || "",
+            name: normalizeLatinForDb(p.name),
+            email: normalizeEmail(p.email),
+            password: await hashPassword(p.password),
+            role: p.role,
+            documentType: p.documentType || "CC",
+            personType: p.personType || "Natural",
+            documentIssuedAt: p.documentIssuedAt || "",
             accountStatus: ACCOUNT_STATUS.APROBADO,
-            company: approval.payload.companyName || getCompanyById(approval.payload.companyId)?.name || "",
-            companyId: approval.payload.companyId,
-            taxId: approval.payload.taxId,
-            phone: approval.payload.phone,
-            city: approval.payload.city || "",
-            department: approval.payload.department || "",
-            address: approval.payload.address || "",
+            company: normalizeLatinForDb(compName),
+            companyId: p.companyId,
+            taxId: p.taxId,
+            phone: normalizeLatinForDb(p.phone || ""),
+            city: normalizeLatinForDb(p.city || ""),
+            department: normalizeLatinForDb(p.department || ""),
+            address: normalizeLatinForDb(p.address || ""),
             permissions:
-              approval.payload.role === ROLES.ADMIN
+              p.role === ROLES.ADMIN
                 ? [...ALL_PERMISSIONS]
-                : (approval.payload.permissions || defaultPermissionsForRole(approval.payload.role))
+                : (p.permissions || defaultPermissionsForRole(p.role))
           });
           write(KEYS.users, users);
         }

@@ -70,6 +70,7 @@ export class AuthService {
     if (!dto.acceptTerms) {
       throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
     }
+    this.assertStrongPassword(dto.password);
     const email = dto.email.trim().toLowerCase();
     const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
       email
@@ -79,7 +80,11 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const fullName = [dto.firstName, dto.middleName, dto.lastName, dto.secondLastName]
+    const firstName = this.normalizeDbText(dto.firstName) ?? "";
+    const middleName = this.normalizeDbText(dto.middleName);
+    const lastName = this.normalizeDbText(dto.lastName) ?? "";
+    const secondLastName = this.normalizeDbText(dto.secondLastName);
+    const fullName = [firstName, middleName, lastName, secondLastName]
       .map((s) => String(s || "").trim())
       .filter(Boolean)
       .join(" ");
@@ -110,22 +115,22 @@ export class AuthService {
         email,
         passwordHash,
         fullName || dto.email,
-        dto.firstName?.trim() || null,
-        dto.middleName?.trim() || null,
-        dto.lastName?.trim() || null,
-        dto.secondLastName?.trim() || null,
-        dto.personType || null,
-        dto.documentType || null,
-        dto.taxId?.trim() || null,
+        firstName || null,
+        middleName,
+        lastName || null,
+        secondLastName,
+        this.normalizeDbText(dto.personType),
+        this.normalizeDbText(dto.documentType),
+        this.normalizeDbText(dto.taxId),
         dto.documentIssuedAt || null,
         dto.birthDate || null,
-        dto.gender || null,
-        dto.position?.trim() || null,
-        dto.workArea?.trim() || null,
-        dto.phone?.trim() || null,
-        dto.department || null,
-        dto.city || null,
-        dto.address?.trim() || null,
+        this.normalizeDbText(dto.gender),
+        this.normalizeDbText(dto.position),
+        this.normalizeDbText(dto.workArea),
+        this.normalizeDbText(dto.phone),
+        this.normalizeDbText(dto.department),
+        this.normalizeDbText(dto.city),
+        this.normalizeDbText(dto.address),
         JSON.stringify(checklist)
       ]
     );
@@ -213,5 +218,36 @@ export class AuthService {
       hash,
       userId
     ]);
+  }
+
+  /** Texto persistido en BD sin tildes; ñ → n (consistente con el portal). */
+  private normalizeDbText(value: string | undefined | null): string | null {
+    if (value == null) return null;
+    const t = String(value).trim();
+    if (!t) return null;
+    return t
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .replace(/ñ/g, "n")
+      .replace(/Ñ/g, "N");
+  }
+
+  private assertStrongPassword(password: string) {
+    const p = String(password || "");
+    if (p.length < 10) {
+      throw new BadRequestException("La contraseña debe tener al menos 10 caracteres.");
+    }
+    if (!/[a-z]/.test(p)) {
+      throw new BadRequestException("La contraseña debe incluir al menos una letra minúscula.");
+    }
+    if (!/[A-Z]/.test(p)) {
+      throw new BadRequestException("La contraseña debe incluir al menos una letra mayúscula.");
+    }
+    if (!/[0-9]/.test(p)) {
+      throw new BadRequestException("La contraseña debe incluir al menos un número.");
+    }
+    if (!/[^A-Za-z0-9]/.test(p)) {
+      throw new BadRequestException("La contraseña debe incluir al menos un símbolo (carácter especial).");
+    }
   }
 }
