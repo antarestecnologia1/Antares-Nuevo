@@ -3148,7 +3148,11 @@ function bindAuthForms() {
           renderAuthTab();
           return;
         } catch (err) {
-          notify(String(err?.message || userMessage("genericError")), "error");
+          const rawMsg = String(err?.message || "");
+          const msg = /failed to fetch/i.test(rawMsg)
+            ? "No fue posible conectar con la API. Verifica CORS_ORIGINS en Render y que la API este activa."
+            : rawMsg || userMessage("genericError");
+          notify(msg, "error");
           return;
         }
       }
@@ -4837,6 +4841,7 @@ function adminUsersHtml(current) {
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
       <div class="user-card-actions">
         <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${u.id}">${IC.edit} Editar</button>
+        ${!isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${u.id}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
         ${!isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>` : ""}
       </div>
     </div>`;
@@ -7825,12 +7830,67 @@ function bindDynamicEvents() {
         title: "Eliminar usuario",
         message: "Esta accion eliminara el usuario de forma permanente.",
         confirmText: "Eliminar",
-        onConfirm: () => {
+        onConfirm: async () => {
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.() && typeof api.postJson === "function") {
+            try {
+              await api.postJson("/portal/admin-user-delete", { userId });
+              write(
+                KEYS.users,
+                read(KEYS.users, []).filter((user) => user.id !== userId)
+              );
+              notify(userMessage("userDeleted"), "success");
+              renderPortalView();
+              return;
+            } catch (err) {
+              notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
+              return;
+            }
+          }
           write(
             KEYS.users,
             read(KEYS.users, []).filter((user) => user.id !== userId)
           );
           notify(userMessage("userDeleted"), "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-user-active']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const userId = String(btn.dataset.id || "");
+      if (!userId) return;
+      const users = read(KEYS.users, []);
+      const target = users.find((u) => u.id === userId);
+      if (!target) return;
+      const nextStatus = target.accountStatus === ACCOUNT_STATUS.RECHAZADO
+        ? ACCOUNT_STATUS.APROBADO
+        : ACCOUNT_STATUS.RECHAZADO;
+      const nextLabel = nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivar" : "activar";
+      openConfirmModal({
+        title: `${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "Desactivar" : "Activar"} usuario`,
+        message: `Se va a ${nextLabel} la cuenta de ${target.name}.`,
+        confirmText: nextStatus === ACCOUNT_STATUS.RECHAZADO ? "Desactivar" : "Activar",
+        onConfirm: async () => {
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.() && typeof api.postJson === "function") {
+            try {
+              await api.postJson("/portal/admin-user-status", {
+                userId,
+                status: nextStatus
+              });
+            } catch (err) {
+              notify(String(err?.message || "No fue posible actualizar el estado de la cuenta."), "error");
+              return;
+            }
+          }
+          write(
+            KEYS.users,
+            users.map((u) => (u.id === userId ? { ...u, accountStatus: nextStatus } : u))
+          );
+          notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
           renderPortalView();
         }
       });

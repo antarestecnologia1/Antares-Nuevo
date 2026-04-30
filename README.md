@@ -28,7 +28,10 @@ npm install --workspaces
 
 ## Variables de entorno
 
-Crear `apps/api/.env` a partir de `apps/api/.env.example`.
+Crear y mantener estos archivos locales (no versionados):
+
+- `apps/api/.env` para API Nest.
+- `apps/web/.env.local` para Next.js.
 
 ## Desarrollo
 

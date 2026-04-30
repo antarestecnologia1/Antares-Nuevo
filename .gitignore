@@ -4,7 +4,7 @@ dist
 coverage
 *.log
 
-# Secretos — rutas explícitas (.env.example sigue versionado)
+# Secretos — rutas explícitas
 /.env
 /apps/api/.env
 /apps/web/.env.local

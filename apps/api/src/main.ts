@@ -23,7 +23,16 @@ function buildCorsOriginHandler(config: ConfigService) {
     "http://127.0.0.1:8080"
   ];
 
-  const allowed = explicit.length ? explicit : !isProd ? devFallback : [];
+  const prodFallback = [
+    "https://app.transportesantares.co",
+    "https://transportesantares.co",
+    "https://www.transportesantares.co"
+  ];
+  const allowed = explicit.length ? explicit : !isProd ? devFallback : prodFallback;
+  const exactAllowed = allowed.filter((entry) => !entry.startsWith("*."));
+  const wildcardAllowed = allowed
+    .filter((entry) => entry.startsWith("*."))
+    .map((entry) => entry.slice(1).toLowerCase());
 
   return (
     origin: string | undefined,
@@ -33,7 +42,12 @@ function buildCorsOriginHandler(config: ConfigService) {
       callback(null, true);
       return;
     }
-    if (allowed.includes(origin)) {
+    if (exactAllowed.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    const normalizedOrigin = String(origin || "").toLowerCase();
+    if (wildcardAllowed.some((suffix) => normalizedOrigin.endsWith(suffix))) {
       callback(null, true);
       return;
     }

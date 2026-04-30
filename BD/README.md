@@ -87,7 +87,7 @@ En despliegue con Supabase, la base de datos es la fuente de verdad; `localStora
 ## Configuración con Supabase / Render / Vercel (bases ya creadas)
 
 1. **PostgreSQL**: en el panel de Supabase → *Database* → copiar URI (directa o pooler según el cliente).
-2. **API Nest (`apps/api`)**: crear `apps/api/.env` desde `apps/api/.env.example` y pegar `DATABASE_URL`. No ejecutar `prisma migrate` sobre la base donde ya corrieron los scripts de esta carpeta si pretende conservar solo el esquema español (ver comentario en `apps/api/prisma/schema.prisma`).
+2. **API Nest (`apps/api`)**: crear `apps/api/.env` y pegar `DATABASE_URL`. No ejecutar `prisma migrate` sobre la base donde ya corrieron los scripts de esta carpeta si pretende conservar solo el esquema español (ver comentario en `apps/api/prisma/schema.prisma`).
 3. **Portal estático**: editar `config/antares.public.js` con la URL del backend (`window.__ANTARES_API_BASE__`, sin `/api`).
 4. **Next opcional (`apps/web`)**: `NEXT_PUBLIC_API_URL` apuntando al mismo backend.
 5. **Variables Supabase**: en `apps/api/.env` → `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (solo servidor). En el portal estático, completar `config/supabase.public.js` con URL del proyecto y **anon** (no usar service_role en el navegador). Tras filtrar claves, rotarlas en el panel de Supabase.

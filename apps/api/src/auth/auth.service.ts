@@ -319,10 +319,14 @@ export class AuthService {
     if (!this.supabaseAdmin) {
       throw new BadRequestException("Servicio de autenticación no configurado.");
     }
+    const requireEmailConfirmation = String(this.config.get<string>("SUPABASE_AUTH_REQUIRE_EMAIL_CONFIRMATION") || "")
+      .trim()
+      .toLowerCase();
+    const emailConfirm = requireEmailConfirmation === "true" ? false : true;
     const { data, error } = await this.supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
+      email_confirm: emailConfirm,
       user_metadata: { full_name: fullName }
     });
     if (error || !data?.user?.id) {

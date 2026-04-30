@@ -1,5 +1,7 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import type { Pool, PoolClient } from "pg";
+import { createClient } from "@supabase/supabase-js";
 import { PG_POOL } from "../database/database.module";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 
@@ -55,7 +57,18 @@ const APPROVE_VALID_ROLES = new Set([
 
 @Injectable()
 export class PortalService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  private readonly supabaseAdmin;
+  private readonly supabaseEnabled: boolean;
+
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly config: ConfigService
+  ) {
+    const url = this.config.get<string>("SUPABASE_URL") ?? "";
+    const key = this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    this.supabaseEnabled = Boolean(url && key);
+    this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
+  }
 
   private isAdmin(role: JwtRole) {
     return String(role || "").toLowerCase() === "admin";
@@ -252,6 +265,89 @@ export class PortalService {
       companyName: empresaNombre,
       role: rolDb
     };
+  }
+
+  async adminSetUserStatus(actorUserId: string, actorRole: JwtRole, targetUserId: string, status: string) {
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    const tid = String(targetUserId || "").trim();
+    const accountStatus = String(status || "").trim().toLowerCase();
+    if (!tid) throw new BadRequestException("Usuario objetivo obligatorio");
+    if (!["pendiente", "aprobado", "rechazado"].includes(accountStatus)) {
+      throw new BadRequestException("Estado de cuenta no permitido");
+    }
+    if (tid === actorUserId) throw new BadRequestException("No puedes cambiar tu propio estado de cuenta");
+
+    const targetRes = await this.pool.query<{ rol: string }>(
+      `SELECT rol::text AS rol FROM usuarios WHERE id = $1::uuid`,
+      [tid]
+    );
+    const target = targetRes.rows[0];
+    if (!target) throw new BadRequestException("Usuario no encontrado");
+    if (target.rol === "admin" && accountStatus !== "aprobado") {
+      const adminsActive = await this.pool.query<{ total: string }>(
+        `SELECT count(*)::text AS total
+         FROM usuarios
+         WHERE rol = 'admin'::rol_usuario
+           AND estado_cuenta = 'aprobado'::estado_cuenta_usuario`
+      );
+      const total = Number(adminsActive.rows[0]?.total || 0);
+      if (total <= 1) {
+        throw new BadRequestException("No puedes desactivar al último administrador activo.");
+      }
+    }
+
+    await this.pool.query(
+      `UPDATE usuarios
+       SET estado_cuenta = $2::estado_cuenta_usuario
+       WHERE id = $1::uuid`,
+      [tid, accountStatus]
+    );
+    return { ok: true, userId: tid, status: accountStatus };
+  }
+
+  async adminDeleteUser(actorUserId: string, actorRole: JwtRole, targetUserId: string) {
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    const tid = String(targetUserId || "").trim();
+    if (!tid) throw new BadRequestException("Usuario objetivo obligatorio");
+    if (tid === actorUserId) throw new BadRequestException("No puedes eliminar tu propio usuario");
+
+    const targetRes = await this.pool.query<{ rol: string }>(
+      `SELECT rol::text AS rol FROM usuarios WHERE id = $1::uuid`,
+      [tid]
+    );
+    const target = targetRes.rows[0];
+    if (!target) throw new BadRequestException("Usuario no encontrado");
+    if (target.rol === "admin") {
+      const adminsTotal = await this.pool.query<{ total: string }>(
+        `SELECT count(*)::text AS total FROM usuarios WHERE rol = 'admin'::rol_usuario`
+      );
+      const total = Number(adminsTotal.rows[0]?.total || 0);
+      if (total <= 1) {
+        throw new BadRequestException("No puedes eliminar al último administrador.");
+      }
+    }
+
+    const refReq = await this.pool.query<{ total: string }>(
+      `SELECT count(*)::text AS total
+       FROM solicitudes_transporte
+       WHERE id_usuario_solicitante = $1::uuid`,
+      [tid]
+    );
+    const requestsCount = Number(refReq.rows[0]?.total || 0);
+    if (requestsCount > 0) {
+      throw new BadRequestException(
+        "No se puede eliminar este usuario porque tiene solicitudes asociadas. Desactivalo en su lugar."
+      );
+    }
+
+    await this.pool.query(`DELETE FROM usuarios WHERE id = $1::uuid`, [tid]);
+    await this.deleteSupabaseAuthUser(tid);
+    return { ok: true, userId: tid };
+  }
+
+  private async deleteSupabaseAuthUser(userId: string) {
+    if (!this.supabaseAdmin || !userId) return;
+    await this.supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
   }
 
   private async syncKeyTx(c: PoolClient, key: PortalSyncKey, data: unknown, userId: string, role: JwtRole) {
