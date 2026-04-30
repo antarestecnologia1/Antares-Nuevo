@@ -1085,7 +1085,10 @@
     </a>
 
     <script src="./config/antares.public.js?v=20260430-1"></script>
-    <script src="./config/supabase.public.js" onerror="window.__SUPABASE_URL__='';window.__SUPABASE_ANON_KEY__='';"></script>
+    <script>
+      window.__SUPABASE_URL__ = "";
+      window.__SUPABASE_ANON_KEY__ = "";
+    </script>
     <script src="./modules/core/persistence.js"></script>
     <script src="./modules/core/supabase-browser.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
