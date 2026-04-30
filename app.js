@@ -1490,6 +1490,29 @@ function formatColombianPhone(value) {
   return `+57 ${segs.join(" ")}`.trim();
 }
 
+/** Solo parte nacional (10 dígitos), mismos grupos que formatColombianPhone sin +57. */
+function formatColombianNationalDisplay(value) {
+  let d = String(value || "").replace(/\D/g, "").slice(0, 10);
+  if (!d) return "";
+  const segs = [];
+  segs.push(d.slice(0, Math.min(3, d.length)));
+  if (d.length > 3) segs.push(d.slice(3, Math.min(6, d.length)));
+  if (d.length > 6) segs.push(d.slice(6, Math.min(8, d.length)));
+  if (d.length > 8) segs.push(d.slice(8, 10));
+  return segs.join(" ");
+}
+
+function syncRegisterPhoneHidden(registerForm) {
+  const nat = registerForm?.querySelector(".js-register-phone-national");
+  const hid = registerForm?.querySelector(".js-register-phone-full");
+  if (!nat || !hid) return;
+  let digits = String(nat.value).replace(/\D/g, "");
+  if (digits.startsWith("57")) digits = digits.slice(2);
+  digits = digits.slice(0, 10);
+  nat.value = digits ? formatColombianNationalDisplay(digits) : "";
+  hid.value = digits ? formatColombianPhone("57" + digits) : "";
+}
+
 function clearFieldError(field) {
   if (!field) return;
   field.classList.remove("field-invalid");
@@ -2528,7 +2551,33 @@ function authView() {
         </label>
         <label>${fieldLabel(IC.award, "Cargo")}<input name="position" required /></label>
         <label>${fieldLabel(IC.grid, "Área")}<input name="workArea" required placeholder="Ej.: Operaciones" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" placeholder="+57 300 000 0000" required autocomplete="tel" /></label>
+        <label class="phone-field-register">
+          ${fieldLabel(IC.phone, "Teléfono")}
+          <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
+            <div class="phone-cc-badge" title="Colombia">
+              <span class="phone-flag-co" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16" width="28" height="18" focusable="false">
+                  <rect width="24" height="5.33" fill="#FDD116"/>
+                  <rect y="5.33" width="24" height="5.34" fill="#003893"/>
+                  <rect y="10.67" width="24" height="5.33" fill="#CE1126"/>
+                </svg>
+              </span>
+              <span class="phone-dial-code">+57</span>
+            </div>
+            <input
+              type="tel"
+              class="js-register-phone-national phone-national-input"
+              inputmode="numeric"
+              autocomplete="tel-national"
+              placeholder="300 123 4567"
+              maxlength="14"
+              required
+              aria-describedby="register-phone-hint"
+            />
+            <input type="hidden" name="phone" class="js-register-phone-full" value="" />
+          </div>
+          <small id="register-phone-hint" class="muted phone-field-hint">Celular Colombia: 10 dígitos.</small>
+        </label>
         <label>${fieldLabel(IC.mapPin, "Departamento")}
           <select name="department" id="register-department" required>
             <option value="">Seleccione...</option>
@@ -2807,21 +2856,15 @@ function bindAuthForms() {
     personTypeSel?.addEventListener("change", syncRegisterDocLayout);
     syncRegisterDocLayout();
 
-    const registerPhone = register.querySelector("input[name='phone']");
-    if (registerPhone) {
-      registerPhone.addEventListener("input", () => {
-        const start = registerPhone.selectionStart;
-        const prevLen = registerPhone.value.length;
-        registerPhone.value = formatColombianPhone(registerPhone.value);
-        if (start === prevLen) {
-          registerPhone.setSelectionRange(registerPhone.value.length, registerPhone.value.length);
-        }
-      });
+    const registerPhoneNat = register.querySelector(".js-register-phone-national");
+    if (registerPhoneNat) {
+      registerPhoneNat.addEventListener("input", () => syncRegisterPhoneHidden(register));
     }
     const regPass = register.querySelector("input[name='password']");
     bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
+      syncRegisterPhoneHidden(register);
       const data = Object.fromEntries(new FormData(register).entries());
       const fullName = [
         normalizeLatinUpperForDb(data.firstName),
@@ -2897,6 +2940,11 @@ function bindAuthForms() {
       const ageYears = Math.floor((Date.now() - birthDateValue.getTime()) / 31557600000);
       if (ageYears < 18) {
         notify(userMessage("registerMinor"), "error");
+        return;
+      }
+      const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
+      if (phoneDigitsAll.length !== 12 || !phoneDigitsAll.startsWith("57")) {
+        notify("Ingrese un número celular colombiano válido (10 dígitos después de +57).", "error");
         return;
       }
 
