@@ -2106,68 +2106,34 @@ function ensureVehicleDocs() {
   if (changed) write(KEYS.vehicles, updated);
 }
 
-/** Estructuras vacías en el navegador y migraciones de esquema local. Los datos de negocio viven en PostgreSQL (Supabase) vía API; esto es caché/sincronización del cliente. */
+/** Migraciones de esquema. Datos de negocio: memoria de sesión + PostgreSQL (no localStorage). */
 function initPortalClientStorage() {
-  const PORTAL_DATA_VERSION = "v6-no-contacts-ls";
-  if (localStorage.getItem("antares_portal_data_ver") !== PORTAL_DATA_VERSION) {
-    write(KEYS.companies, []);
-    write(KEYS.vehicles, []);
-    write(KEYS.drivers, []);
-    write(KEYS.positions, []);
-    localStorage.removeItem(KEYS.contacts);
-    localStorage.removeItem("antares_enterprise_seed_v1");
-    localStorage.removeItem("antares_purge_demo_v1");
-    localStorage.setItem("antares_portal_data_ver", PORTAL_DATA_VERSION);
-  }
+  const PS = window.AntaresPortalSync;
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    const PORTAL_DATA_VERSION = "v8-server-backed-memory-only";
+    if (localStorage.getItem("antares_portal_data_ver") !== PORTAL_DATA_VERSION) {
+      if (typeof window.AntaresPersistence?.purgeServerBackedFromDisk === "function") {
+        window.AntaresPersistence.purgeServerBackedFromDisk();
+      }
+      localStorage.removeItem("antares_enterprise_seed_v1");
+      localStorage.removeItem("antares_purge_demo_v1");
+      localStorage.setItem("antares_portal_data_ver", PORTAL_DATA_VERSION);
+    }
 
-  const USERS_STORAGE_VERSION = "v4-db-only";
-  if (localStorage.getItem("antares_users_storage_ver") !== USERS_STORAGE_VERSION) {
-    write(KEYS.users, []);
-    localStorage.setItem("antares_users_storage_ver", USERS_STORAGE_VERSION);
-  }
-  if (!localStorage.getItem(KEYS.users)) {
-    write(KEYS.users, []);
-  }
+    if (localStorage.getItem("antares_users_storage_ver") !== "v5-memory") {
+      localStorage.setItem("antares_users_storage_ver", "v5-memory");
+    }
 
-  if (!localStorage.getItem(KEYS.travelAllowanceRules)) {
-    write(KEYS.travelAllowanceRules, {
-      interDepartmentTripAmount: 85000
-    });
+    ensureCompaniesAndUserMapping();
+    ensureRequestsCompanyMapping();
+    ensureRequestAndTripIdentifiers();
+    ensureUsersPermissions();
+    ensureUsersAccountStatus();
+    ensureVehicleDocs();
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
   }
-  if (!localStorage.getItem(KEYS.tripRouteRates)) {
-    write(KEYS.tripRouteRates, {});
-  }
-
-  [
-    KEYS.companies,
-    KEYS.counters,
-    KEYS.requests,
-    KEYS.notifications,
-    KEYS.emails,
-    KEYS.payrollEmployees,
-    KEYS.payrollRuns,
-    KEYS.fuelLogs,
-    KEYS.vehicleTechnicalLogs,
-    KEYS.vacancies,
-    KEYS.candidates,
-    KEYS.positions,
-    KEYS.interviews,
-    KEYS.contracts,
-    KEYS.hrAbsences,
-    KEYS.sstCompliance,
-    KEYS.approvals,
-    KEYS.vehicles,
-    KEYS.drivers
-  ].forEach((key) => {
-    if (!localStorage.getItem(key)) write(key, []);
-  });
-
-  ensureCompaniesAndUserMapping();
-  ensureRequestsCompanyMapping();
-  ensureRequestAndTripIdentifiers();
-  ensureUsersPermissions();
-  ensureUsersAccountStatus();
-  ensureVehicleDocs();
 }
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -2341,6 +2307,10 @@ function clearSession() {
   __lastSessionActivityPersistAt = 0;
   localStorage.removeItem(KEYS.session);
   state.session = null;
+  state.portalContacts = [];
+  if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
+    window.AntaresPersistence.clearServerBackedMemory();
+  }
   try {
     localStorage.removeItem("antares_api_access_token");
   } catch (_e) {
