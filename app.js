@@ -759,6 +759,14 @@ const UI_PREFS = {
   publicLang: "antares_public_lang_v1"
 };
 
+/** Misma política que modules/core/persistence.js cuando no hay AntaresPersistence. */
+function capStoredArrayRows(key, value) {
+  const caps = { [KEYS.notifications]: 500, [KEYS.emails]: 400 };
+  const max = caps[key];
+  if (!max || !Array.isArray(value) || value.length <= max) return value;
+  return value.slice(0, max);
+}
+
 function read(key, fallback = []) {
   const P = window.AntaresPersistence;
   if (P && typeof P.read === "function") return P.read(key, fallback);
@@ -775,9 +783,10 @@ function write(key, value) {
     P.write(key, value);
     return;
   }
-  localStorage.setItem(key, JSON.stringify(value));
+  const stored = capStoredArrayRows(key, value);
+  localStorage.setItem(key, JSON.stringify(stored));
   if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
-    window.AntaresPortalSync.schedule(key, value);
+    window.AntaresPortalSync.schedule(key, stored);
   }
 }
 
@@ -2060,10 +2069,15 @@ function seed() {
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
+/** Evita JSON.stringify + localStorage en cada bump: solo persistir cada ~2 min (la actividad real sigue en memoria). */
+const SESSION_ACTIVITY_PERSIST_MIN_MS = 2 * 60 * 1000;
 const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
 const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
 
 let __sessionActivityThrottleAt = 0;
+/** Marca de última interacción en RAM; la sesión en disco puede ir rezagada hasta SESSION_ACTIVITY_PERSIST_MIN_MS. */
+let __sessionActivityMemoryAt = 0;
+let __lastSessionActivityPersistAt = 0;
 let __sessionIdleCheckTimer = null;
 let __sessionApiRefreshTimer = null;
 let __sessionActivityHandler = null;
@@ -2075,6 +2089,27 @@ function getSession() {
 function setSession(sessionData) {
   write(KEYS.session, sessionData);
   state.session = sessionData;
+  if (sessionData && typeof sessionData.lastActivityAt === "number") {
+    __sessionActivityMemoryAt = Math.max(__sessionActivityMemoryAt, sessionData.lastActivityAt);
+    __lastSessionActivityPersistAt = Date.now();
+  }
+}
+
+function getEffectiveLastActivityAt() {
+  const s = getSession();
+  const stored = s && typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0;
+  return Math.max(stored, __sessionActivityMemoryAt);
+}
+
+/** Antes de cerrar pestaña: evita que idle use un lastActivityAt viejo solo en disco. */
+function flushSessionActivityToStorage() {
+  const s = getSession();
+  if (!s || !__sessionActivityMemoryAt) return;
+  const merged = Math.max(typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0, __sessionActivityMemoryAt);
+  if (merged <= (typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0)) return;
+  write(KEYS.session, { ...s, lastActivityAt: merged });
+  state.session = { ...s, lastActivityAt: merged };
+  __lastSessionActivityPersistAt = Date.now();
 }
 
 function stopSessionSecurityWatch() {
@@ -2098,7 +2133,13 @@ function bumpSessionActivityTimestamp() {
   const s = getSession();
   if (!s) return;
   const now = Date.now();
-  setSession({ ...s, lastActivityAt: now });
+  __sessionActivityMemoryAt = now;
+  if (state.session) state.session = { ...state.session, lastActivityAt: now };
+  const persistAge = now - __lastSessionActivityPersistAt;
+  if (persistAge >= SESSION_ACTIVITY_PERSIST_MIN_MS) {
+    const cur = getSession();
+    if (cur) setSession({ ...cur, lastActivityAt: now });
+  }
 }
 
 function throttledBumpSessionActivity() {
@@ -2111,7 +2152,7 @@ function throttledBumpSessionActivity() {
 function checkSessionIdleAndLogout() {
   const s = getSession();
   if (!s) return;
-  const last = typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0;
+  const last = getEffectiveLastActivityAt();
   if (!last || Date.now() - last <= SESSION_IDLE_MS) return;
   stopSessionSecurityWatch();
   clearSession();
@@ -2154,7 +2195,7 @@ function refreshClientSessionTokenIfDue() {
   const user = currentUser();
   if (!user) return;
   const now = Date.now();
-  const lastAct = typeof s.lastActivityAt === "number" ? s.lastActivityAt : now;
+  const lastAct = getEffectiveLastActivityAt() || now;
   if (now - lastAct > SESSION_IDLE_MS) return;
   const issued = typeof s.tokenIssuedAt === "number" ? s.tokenIssuedAt : 0;
   if (now - issued < SESSION_CLIENT_TOKEN_ROTATE_MS) return;
@@ -2164,14 +2205,24 @@ function refreshClientSessionTokenIfDue() {
 async function scheduledSessionTokenMaintenance() {
   const s = getSession();
   if (!s || !currentUser()) return;
-  const lastAct = typeof s.lastActivityAt === "number" ? s.lastActivityAt : Date.now();
+  const lastAct = getEffectiveLastActivityAt() || Date.now();
   if (Date.now() - lastAct > SESSION_IDLE_MS) return;
   await tryApiRefreshBridge();
   refreshClientSessionTokenIfDue();
 }
 
+function ensureSessionLifecycleHooks() {
+  if (typeof window === "undefined" || window.__antaresSessionLifecycleOk) return;
+  window.__antaresSessionLifecycleOk = true;
+  window.addEventListener("pagehide", () => flushSessionActivityToStorage(), { capture: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushSessionActivityToStorage();
+  });
+}
+
 function startSessionSecurityWatch() {
   stopSessionSecurityWatch();
+  ensureSessionLifecycleHooks();
   __sessionActivityHandler = throttledBumpSessionActivity;
   ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach((ev) => {
     window.addEventListener(ev, __sessionActivityHandler, { passive: true });
@@ -2182,6 +2233,9 @@ function startSessionSecurityWatch() {
 
 function clearSession() {
   stopSessionSecurityWatch();
+  stopNotificationsPolling();
+  __sessionActivityMemoryAt = 0;
+  __lastSessionActivityPersistAt = 0;
   localStorage.removeItem(KEYS.session);
   state.session = null;
   try {
@@ -3487,6 +3541,7 @@ function renderPortal() {
   let session = getSession();
   if (!session) {
     stopSessionSecurityWatch();
+    stopNotificationsPolling();
     document.body.classList.remove("portal-mode");
     document.body.classList.remove("public-nav-open");
     const pubNav = document.getElementById("main-nav");
@@ -3505,7 +3560,7 @@ function renderPortal() {
       tokenIssuedAt: typeof session.tokenIssuedAt === "number" ? session.tokenIssuedAt : ts
     };
     setSession(session);
-  } else if (ts - session.lastActivityAt > SESSION_IDLE_MS) {
+  } else if (ts - getEffectiveLastActivityAt() > SESSION_IDLE_MS) {
     clearSession();
     notify(userMessage("sessionIdle"), "info");
     renderPortal();
@@ -3536,7 +3591,7 @@ function renderPortal() {
       .hydrateFromApiIfEnabled()
       .then((ok) => {
         if (ok) {
-          renderPortalView();
+          scheduleRenderPortalView();
           updateNotificationBadge();
         }
       })
@@ -3568,6 +3623,49 @@ function renderPortal() {
 let __notificationsPollHandle = null;
 let __lastSeenNotificationIds = null;
 
+function stopNotificationsPolling() {
+  if (typeof document !== "undefined") {
+    document.removeEventListener("visibilitychange", __onNotificationsVisibilityChange);
+  }
+  if (__notificationsPollHandle != null) {
+    clearInterval(__notificationsPollHandle);
+    __notificationsPollHandle = null;
+  }
+  __lastSeenNotificationIds = null;
+}
+
+function __notificationsPollIntervalMs() {
+  return typeof document !== "undefined" && document.hidden ? 50000 : 8000;
+}
+
+function __onNotificationsVisibilityChange() {
+  if (__notificationsPollHandle == null) return;
+  clearInterval(__notificationsPollHandle);
+  __notificationsPollHandle = null;
+  __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
+}
+
+function __tickNotificationsPoll() {
+  const user = currentUser();
+  if (!user) return;
+  const current = getCurrentNotifications();
+  const seen = __lastSeenNotificationIds || new Set();
+  const fresh = current.filter((n) => !seen.has(n.id));
+    if (fresh.length) {
+      fresh.forEach((n) => {
+        if (typeof notify === "function") {
+          const message = `${n.title}${n.body ? " — " + n.body : ""}`;
+          notify(message, "info");
+        }
+      });
+      __lastSeenNotificationIds = new Set(current.map((n) => n.id));
+      updateNotificationBadge();
+      if (state.currentView === "notifications") {
+        scheduleRenderPortalView();
+      }
+    }
+}
+
 function getCurrentNotifications() {
   const user = currentUser();
   if (!user) return [];
@@ -3593,28 +3691,12 @@ function updateNotificationBadge() {
 }
 
 function startNotificationsPolling() {
-  if (__notificationsPollHandle) return;
+  if (__notificationsPollHandle != null) return;
   __lastSeenNotificationIds = new Set(getCurrentNotifications().map((n) => n.id));
-  __notificationsPollHandle = setInterval(() => {
-    const user = currentUser();
-    if (!user) return;
-    const current = getCurrentNotifications();
-    const seen = __lastSeenNotificationIds || new Set();
-    const fresh = current.filter((n) => !seen.has(n.id));
-    if (fresh.length) {
-      fresh.forEach((n) => {
-        if (typeof notify === "function") {
-          const message = `${n.title}${n.body ? " — " + n.body : ""}`;
-          notify(message, "info");
-        }
-      });
-      __lastSeenNotificationIds = new Set(current.map((n) => n.id));
-      updateNotificationBadge();
-      if (state.currentView === "notifications") {
-        renderPortalView();
-      }
-    }
-  }, 5000);
+  __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", __onNotificationsVisibilityChange);
+  }
 }
 
 function buildHeaderKpiCardsForView(view, user) {
@@ -6654,7 +6736,22 @@ function enforceColombianFormStandards() {
   }
 }
 
-function renderPortalView() {
+let __schedulePortalViewMicrotask = null;
+let __schedulePortalViewWanted = false;
+
+/** Evita repintar varias veces en el mismo tick (notificaciones, sync API). El resultado es el mismo que renderPortalView(). */
+function scheduleRenderPortalView() {
+  __schedulePortalViewWanted = true;
+  if (__schedulePortalViewMicrotask != null) return;
+  __schedulePortalViewMicrotask = queueMicrotask(() => {
+    __schedulePortalViewMicrotask = null;
+    if (!__schedulePortalViewWanted) return;
+    __schedulePortalViewWanted = false;
+    renderPortalViewImpl();
+  });
+}
+
+function renderPortalViewImpl() {
   updateAutoApprove();
   closeCompletedTripsAndGenerateInvoices();
   recalculateResourceAvailability();
@@ -6693,6 +6790,10 @@ function renderPortalView() {
   enforceColombianFormStandards();
   applyFormWizards();
   applyModuleMicroAnimations();
+}
+
+function renderPortalView() {
+  renderPortalViewImpl();
 }
 
 function describeContractDurationForDocx(data) {

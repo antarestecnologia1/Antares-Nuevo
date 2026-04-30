@@ -1,8 +1,23 @@
 /**
  * Capa de persistencia (adapter pattern).
  * Hoy: localStorage JSON. Mañana: sustituir por cliente HTTP contra apps/api + PostgreSQL.
+ *
+ * Defensa frente al crecimiento sin límite: listas “append-only” (notificaciones, correo saliente)
+ * se recortan en cada escritura para que el parsing JSON no degrade el hilo con los años de uso.
  */
 (function registerPersistenceLayer() {
+  /** Entradas más recientes primero (unshift); slice conserva el trozo inicial = más nuevos. */
+  var CAP_ARRAY_ROWS_BY_KEY = {
+    antares_notifications_v2: 500,
+    antares_emails_v2: 400
+  };
+
+  function trimArrayRowsIfNeeded(key, value) {
+    var max = CAP_ARRAY_ROWS_BY_KEY[key];
+    if (!max || !Array.isArray(value) || value.length <= max) return value;
+    return value.slice(0, max);
+  }
+
   window.AntaresPersistence = {
     read(key, fallback = []) {
       try {
@@ -15,9 +30,10 @@
     },
 
     write(key, value) {
-      localStorage.setItem(key, JSON.stringify(value));
+      var stored = trimArrayRowsIfNeeded(key, value);
+      localStorage.setItem(key, JSON.stringify(stored));
       if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
-        window.AntaresPortalSync.schedule(key, value);
+        window.AntaresPortalSync.schedule(key, stored);
       }
     },
 
