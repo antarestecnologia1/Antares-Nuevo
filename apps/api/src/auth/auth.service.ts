@@ -233,10 +233,30 @@ export class AuthService {
               ])
               .catch(() => null);
           } catch (retryErr: any) {
-            await this.deleteSupabaseAuthUser(authUserId);
-            throw new BadRequestException(
-              retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
-            );
+            const retryMissingColumn = String(retryErr?.code || "") === "42703";
+            if (retryMissingColumn) {
+              try {
+                // Último fallback: inserción mínima compatible con esquemas muy antiguos.
+                await this.pool.query(
+                  `INSERT INTO usuarios (
+                    id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta
+                  ) VALUES (
+                    $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario
+                  )`,
+                  [authUserId, email, passwordHash, fullName || dto.email]
+                );
+              } catch (minimalErr: any) {
+                await this.deleteSupabaseAuthUser(authUserId);
+                throw new BadRequestException(
+                  minimalErr?.detail || minimalErr?.message || "No fue posible completar el registro en base de datos."
+                );
+              }
+            } else {
+              await this.deleteSupabaseAuthUser(authUserId);
+              throw new BadRequestException(
+                retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
+              );
+            }
           }
         } else {
           await this.deleteSupabaseAuthUser(authUserId);
