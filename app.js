@@ -1696,24 +1696,61 @@ function validatePasswordPolicy(password) {
 
 function getPasswordStrengthReport(password) {
   const p = String(password || "");
-  const rules = [p.length >= 10, /[a-z]/.test(p), /[A-Z]/.test(p), /[0-9]/.test(p), /[^A-Za-z0-9]/.test(p)];
-  const met = rules.filter(Boolean).length;
+  const checks = [
+    { rule: "len", ok: p.length >= 10 },
+    { rule: "lower", ok: /[a-z]/.test(p) },
+    { rule: "upper", ok: /[A-Z]/.test(p) },
+    { rule: "digit", ok: /[0-9]/.test(p) },
+    { rule: "special", ok: /[^A-Za-z0-9]/.test(p) }
+  ];
+  const met = checks.filter((c) => c.ok).length;
   const pct = Math.round((met / 5) * 100);
   let tier = "weak";
   if (pct >= 80) tier = "strong";
   else if (pct >= 60) tier = "good";
   else if (pct >= 40) tier = "fair";
-  const label = met === 0 ? "Muy baja" : met <= 2 ? "Baja" : met === 3 ? "Media" : met === 4 ? "Buena" : "Fuerte";
-  return { pct, tier, label, met };
+  let headline = "Indique una contraseña segura";
+  if (p.length > 0) {
+    if (met === 5) headline = "Excelente: cumple todos los requisitos";
+    else if (met === 4) headline = "Muy buena: falta un detalle";
+    else if (met === 3) headline = "Media: refuerce los puntos pendientes";
+    else if (met >= 1) headline = "Débil: complete más requisitos";
+    else headline = "Muy débil: siga las indicaciones";
+  }
+  return { pct, tier, met, checks, headline };
 }
 
-function bindPasswordStrengthMeter(passInput, meterFill, labelEl) {
-  if (!passInput || !meterFill || !labelEl) return;
+/** Panel de fortaleza (barra, píldora %, checklist). El contenedor incluye .password-strength-bar-fill, .password-strength-pill, .password-strength-headline, .password-rule-grid li[data-rule]. */
+function bindPasswordStrengthSuite(passInput, container) {
+  if (!passInput || !container) return;
+  const fill = container.querySelector(".password-strength-bar-fill");
+  const pill = container.querySelector(".password-strength-pill");
+  const headline = container.querySelector(".password-strength-headline");
+  const bar = container.querySelector(".password-strength-bar");
+  const rules = [...container.querySelectorAll(".password-rule-grid li[data-rule]")];
   const sync = () => {
     const r = getPasswordStrengthReport(passInput.value);
-    meterFill.style.width = `${r.pct}%`;
-    meterFill.className = `password-meter-fill password-meter-fill--${r.tier}`;
-    labelEl.textContent = `Seguridad: ${r.label}`;
+    const active = passInput.value.length > 0;
+    const complete = r.met === 5;
+    if (fill) {
+      fill.style.width = `${r.pct}%`;
+      fill.className = `password-strength-bar-fill password-strength-bar-fill--${r.tier}`;
+    }
+    if (bar) {
+      bar.setAttribute("aria-valuenow", String(r.pct));
+      bar.classList.toggle("password-strength-bar--active", active);
+      bar.classList.toggle("password-strength-bar--complete", complete);
+    }
+    if (pill) {
+      pill.textContent = `${r.pct}%`;
+      pill.className = `password-strength-pill password-strength-pill--${r.tier}`;
+    }
+    if (headline) headline.textContent = r.headline;
+    for (const li of rules) {
+      const key = li.getAttribute("data-rule");
+      const ok = r.checks.find((c) => c.rule === key)?.ok;
+      li.classList.toggle("password-rule-met", Boolean(ok));
+    }
   };
   passInput.addEventListener("input", sync);
   sync();
@@ -2499,14 +2536,30 @@ function authView() {
         <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
         <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field">
-            <input type="password" minlength="10" name="password" autocomplete="new-password" required aria-describedby="password-strength password-hint" />
+            <input type="password" minlength="10" name="password" autocomplete="new-password" required aria-describedby="password-strength password-hint" class="auth-password-input" />
             <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
           </div>
-          <div class="password-meter" role="presentation"><div id="register-password-meter-fill" class="password-meter-fill password-meter-fill--weak"></div></div>
-          <small id="password-strength" class="muted password-strength-label">Seguridad: Muy baja</small>
-          <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres: mayúscula, minúscula, número y símbolo. En base de datos los textos se guardan sin tildes ni ñ.</p>
+          <div id="register-password-strength-suite" class="password-strength-suite">
+            <div class="password-strength-bar-wrap">
+              <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+                <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+              </div>
+              <div class="password-strength-meta">
+                <span class="password-strength-pill password-strength-pill--weak">0%</span>
+                <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
+              </div>
+            </div>
+            <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+              <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+              <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+              <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+              <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+              <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+            </ul>
+            <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
+          </div>
         </label>
-        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}<input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" required /></label>
+        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}<input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" required class="auth-password-input" /></label>
         <label class="full">${fieldLabel(IC.file, "Términos")}<span class="checkbox-inline"><input type="checkbox" name="acceptTerms" required /> Acepto términos, política de privacidad y tratamiento de datos (Habeas Data).</span></label>
         <div class="full auth-inline-note">
           <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
@@ -2758,9 +2811,7 @@ function bindAuthForms() {
       });
     }
     const regPass = register.querySelector("input[name='password']");
-    const strength = register.querySelector("#password-strength");
-    const meterFill = register.querySelector("#register-password-meter-fill");
-    bindPasswordStrengthMeter(regPass, meterFill, strength);
+    bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
@@ -4597,9 +4648,25 @@ function adminUsersHtml(current) {
             </div>
             <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-create">${IC.eye} Mostrar</button>
           </div>
-          <div class="password-meter" role="presentation"><div id="admin-create-password-meter-fill" class="password-meter-fill password-meter-fill--weak"></div></div>
-          <small id="admin-create-password-strength" class="muted password-strength-label">Seguridad: —</small>
-          <p id="admin-create-password-hint" class="muted password-policy-hint">La contraseña debe cumplir el mismo estándar que el registro público (10+ caracteres). En base de datos los textos se guardan sin tildes ni ñ.</p>
+          <div id="admin-password-strength-suite" class="password-strength-suite">
+            <div class="password-strength-bar-wrap">
+              <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+                <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+              </div>
+              <div class="password-strength-meta">
+                <span class="password-strength-pill password-strength-pill--weak">0%</span>
+                <p id="admin-create-password-strength" class="password-strength-headline">Indique una contraseña segura</p>
+              </div>
+            </div>
+            <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+              <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+              <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+              <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+              <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+              <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+            </ul>
+          </div>
+          <p id="admin-create-password-hint" class="muted password-policy-hint">Mismo estándar que el registro público (10+ caracteres, mayúscula, minúscula, número y símbolo). La contraseña se muestra tal cual al escribirla; se guarda con hash seguro.</p>
         </label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>
           <option value="CC">Cédula de ciudadanía</option>
@@ -7124,10 +7191,9 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
-    bindPasswordStrengthMeter(
+    bindPasswordStrengthSuite(
       adminUserCreate.querySelector("input[name='password']"),
-      adminUserCreate.querySelector("#admin-create-password-meter-fill"),
-      adminUserCreate.querySelector("#admin-create-password-strength")
+      adminUserCreate.querySelector("#admin-password-strength-suite")
     );
     adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();

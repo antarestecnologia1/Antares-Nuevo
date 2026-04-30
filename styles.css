@@ -1238,6 +1238,11 @@ input, select, textarea {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+input[type="password"] {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
@@ -2836,48 +2841,203 @@ tbody tr:last-child td { border-bottom: none; }
   display: block;
 }
 
-/* Medidor de fortaleza de contraseña (registro, creación de usuario) */
-.password-meter {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.1);
-  margin: 0.4rem 0 0.15rem;
-  overflow: hidden;
+/* Panel de fortaleza de contraseña (registro, creación de usuario) — barra + píldora + checklist */
+.password-strength-suite {
+  margin-top: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(21, 101, 192, 0.14);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(241, 248, 255, 0.98) 55%, rgba(236, 254, 255, 0.35) 100%);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
-.password-meter-fill {
+.password-strength-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.password-strength-bar {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.password-strength-bar-fill {
   height: 100%;
   width: 0%;
+  border-radius: inherit;
+  transition: width 0.45s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.35s ease, filter 0.35s ease;
+  background-size: 200% 100%;
+}
+
+.password-strength-bar--active:not(.password-strength-bar--complete) .password-strength-bar-fill {
+  animation: password-strength-flow 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .password-strength-bar--active:not(.password-strength-bar--complete) .password-strength-bar-fill {
+    animation: none;
+  }
+
+  .password-strength-pill--strong {
+    animation: none;
+  }
+}
+
+@keyframes password-strength-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.password-strength-bar-fill--weak {
+  background-image: linear-gradient(110deg, #ef4444 0%, #fb7185 40%, #f97316 100%);
+}
+
+.password-strength-bar-fill--fair {
+  background-image: linear-gradient(110deg, #ea580c 0%, #fbbf24 45%, #f59e0b 100%);
+}
+
+.password-strength-bar-fill--good {
+  background-image: linear-gradient(110deg, #2563eb 0%, #38bdf8 50%, #6366f1 100%);
+}
+
+.password-strength-bar-fill--strong {
+  background-image: linear-gradient(110deg, #059669 0%, #34d399 48%, #22d3ee 100%);
+  box-shadow: 0 0 22px rgba(16, 185, 129, 0.35);
+}
+
+.password-strength-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+}
+
+.password-strength-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.1rem;
+  padding: 0.22rem 0.65rem;
   border-radius: 999px;
-  transition: width 0.2s ease, background 0.2s ease;
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.2s ease;
 }
 
-.password-meter-fill--weak {
-  background: linear-gradient(90deg, #ef4444, #f87171);
+.password-strength-pill--weak {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
 }
 
-.password-meter-fill--fair {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+.password-strength-pill--fair {
+  color: #c2410c;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
 }
 
-.password-meter-fill--good {
-  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+.password-strength-pill--good {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.38);
 }
 
-.password-meter-fill--strong {
-  background: linear-gradient(90deg, #16a34a, #4ade80);
+.password-strength-pill--strong {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.28);
+  animation: password-pill-glow 2.2s ease-in-out infinite;
 }
 
-.password-strength-label {
-  display: block;
-  margin-top: 0.1rem;
+@keyframes password-pill-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 26px rgba(52, 211, 153, 0.45);
+  }
+}
+
+.password-strength-headline {
+  margin: 0;
+  flex: 1;
+  min-width: 8rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.35;
+}
+
+.password-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.45rem 0.65rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.password-rule-grid li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: var(--text-soft);
+  transition: color 0.22s ease;
+}
+
+.password-rule-grid li.password-rule-met {
+  color: var(--text-main);
+}
+
+.password-rule-dot {
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  border: 2px solid rgba(15, 23, 42, 0.14);
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
+}
+
+.password-rule-met .password-rule-dot {
+  border-color: #22c55e;
+  background: linear-gradient(145deg, #22c55e, #4ade80);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+
+.password-rule-met .password-rule-dot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 0.28rem;
+  height: 0.48rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .password-policy-hint {
   font-size: 0.78rem;
-  margin: 0.35rem 0 0;
-  line-height: 1.35;
+  margin: 0.55rem 0 0;
+  line-height: 1.45;
 }
 
 .tabs {
@@ -5655,6 +5815,29 @@ body[data-theme="dark"] .auth-input-prefix {
 body[data-theme="dark"] .auth-recover-hint {
   background: rgba(117, 176, 244, 0.08);
   border-color: #476b93;
+}
+
+body[data-theme="dark"] .password-strength-suite {
+  border-color: rgba(133, 188, 247, 0.28);
+  background: linear-gradient(145deg, #15283f 0%, #1a304c 50%, #162a42 100%);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] .password-strength-bar {
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+body[data-theme="dark"] .password-rule-dot {
+  border-color: rgba(230, 242, 255, 0.2);
+}
+
+body[data-theme="dark"] .password-rule-grid li {
+  color: #9bb8d9;
+}
+
+body[data-theme="dark"] .password-rule-grid li.password-rule-met {
+  color: #e8f3ff;
 }
 
 body[data-theme="dark"] .auth-header-premium h3 {
