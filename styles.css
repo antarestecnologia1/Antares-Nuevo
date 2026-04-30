@@ -2789,9 +2789,107 @@ tbody tr:last-child td { border-bottom: none; }
   line-height: 1.4;
 }
 
-/* Registro: teléfono con indicativo y bandera (Colombia +57) */
+/* Registro: teléfono con indicativo (+57 / +1) + número local.
+   Banderas: los mismos gradientes que en el selector de idioma (.lang-option .flag-co / .flag-us);
+   allí solo funcionan porque el CSS está acoplado a .lang-option; aquí repetimos el dibujo en .register-lang-flag--*. */
 .phone-field-register {
   min-width: 0;
+}
+
+.phone-input-professional .phone-reg-flag-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 0.5rem 0 0.65rem;
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(21, 101, 192, 0.08), rgba(21, 101, 192, 0.03));
+}
+
+.phone-input-professional .register-lang-flag {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(10, 46, 92, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.phone-input-professional .register-lang-flag--co {
+  background: linear-gradient(
+    to bottom,
+    #fcd116 0%,
+    #fcd116 50%,
+    #003893 50%,
+    #003893 75%,
+    #ce1126 75%,
+    #ce1126 100%
+  );
+}
+
+.phone-input-professional .register-lang-flag--us {
+  background:
+    linear-gradient(to bottom, #3c3b6e 0 52%, transparent 52% 100%),
+    repeating-linear-gradient(to bottom, #b22234 0 10%, #ffffff 10% 20%);
+  background-size: 55% 55%, 100% 100%;
+  background-position: left top, center;
+  background-repeat: no-repeat;
+}
+
+.phone-input-professional .register-lang-flag--mx {
+  background: linear-gradient(90deg, #006847 0%, #006847 32%, #ffffff 32%, #ffffff 68%, #ce1126 68%, #ce1126 100%);
+}
+
+.phone-input-professional .register-lang-flag--ec {
+  background: linear-gradient(to bottom, #fcd116 0%, #fcd116 33%, #003893 33%, #003893 66%, #ce1126 66%, #ce1126 100%);
+}
+
+.phone-input-professional .register-lang-flag--pe {
+  background: linear-gradient(90deg, #d91023 0%, #d91023 28%, #ffffff 28%, #ffffff 72%, #d91023 72%, #d91023 100%);
+}
+
+.phone-input-professional .register-lang-flag--cl {
+  background:
+    linear-gradient(to bottom, #0039a6 0 45%, transparent 45% 100%),
+    linear-gradient(to bottom, #ffffff 0 50%, #d52b1e 50% 100%);
+  background-size: 42% 42%, 100% 100%;
+  background-position: left top, center;
+  background-repeat: no-repeat;
+}
+
+.phone-input-professional .register-lang-flag--ar {
+  background: linear-gradient(to bottom, #74acdf 0%, #74acdf 33%, #ffffff 33%, #ffffff 66%, #74acdf 66%, #74acdf 100%);
+}
+
+.phone-input-professional .register-lang-flag--br {
+  background:
+    radial-gradient(circle at 50% 58%, #ffdf00 0 22%, transparent 22%),
+    #009c3b;
+}
+
+.phone-input-professional .register-lang-flag--pa {
+  background: conic-gradient(#ffffff 0 25%, #003893 25% 50%, #ffffff 50% 75%, #d91023 75% 100%);
+}
+
+.phone-input-professional .register-lang-flag--cr {
+  background: linear-gradient(to bottom, #0038a8 0%, #0038a8 33%, #ffffff 33%, #ffffff 66%, #ce1126 66%, #ce1126 100%);
+}
+
+.phone-input-professional .register-lang-flag--es {
+  background: linear-gradient(to bottom, #aa151b 0%, #aa151b 22%, #f1bf00 22%, #f1bf00 78%, #aa151b 78%, #aa151b 100%);
+}
+
+.phone-input-professional .register-lang-flag--ve {
+  background: linear-gradient(to bottom, #ffcf00 0%, #ffcf00 33%, #00247d 33%, #00247d 66%, #cf142b 66%, #cf142b 100%);
+}
+
+.phone-input-professional .register-lang-flag--gt {
+  background: linear-gradient(90deg, #4997d0 0%, #4997d0 33%, #ffffff 33%, #ffffff 66%, #4997d0 66%, #4997d0 100%);
+}
+
+.phone-input-professional .register-lang-flag--hn {
+  background: linear-gradient(to bottom, #0073cf 0%, #0073cf 33%, #ffffff 33%, #ffffff 66%, #0073cf 66%, #0073cf 100%);
 }
 
 .phone-input-professional {
@@ -2811,35 +2909,6 @@ tbody tr:last-child td { border-bottom: none; }
 .phone-input-professional:focus-within {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
-}
-
-/* Banderas CO/US: SVG inline (visible en todos los sistemas; sin emoji ni red) */
-.phone-input-professional .phone-reg-flag-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0 0.45rem 0 0.55rem;
-  border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(21, 101, 192, 0.1), rgba(21, 101, 192, 0.035));
-}
-
-.phone-input-professional .phone-reg-flag-root {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-  flex-shrink: 0;
-}
-
-.phone-input-professional .phone-reg-flag-svg {
-  display: block;
-  width: 2rem;
-  height: auto;
-  max-height: 1.55rem;
-  border-radius: 3px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
-  vertical-align: middle;
 }
 
 .phone-cc-badge {
@@ -2869,8 +2938,8 @@ tbody tr:last-child td { border-bottom: none; }
 .phone-input-professional .phone-cc-select {
   flex: 0 1 auto;
   align-self: stretch;
-  min-width: min(100%, 4.75rem);
-  max-width: 5.75rem;
+  min-width: min(100%, 6.25rem);
+  max-width: 8rem;
   min-height: 0;
   height: auto;
   margin: 0;
@@ -6291,13 +6360,14 @@ body[data-theme="dark"] .phone-input-professional:focus-within {
   box-shadow: 0 0 0 3px rgba(117, 176, 244, 0.22);
 }
 
-body[data-theme="dark"] .phone-input-professional .phone-reg-flag-cell {
+body[data-theme="dark"] .phone-input-professional .phone-reg-flag-slot {
   border-right-color: #476b93;
-  background: linear-gradient(180deg, rgba(117, 176, 244, 0.14), rgba(25, 45, 70, 0.45));
+  background: linear-gradient(180deg, rgba(117, 176, 244, 0.12), rgba(25, 45, 70, 0.45));
 }
 
-body[data-theme="dark"] .phone-input-professional .phone-reg-flag-svg {
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+body[data-theme="dark"] .phone-input-professional .register-lang-flag {
+  border-color: rgba(230, 242, 255, 0.22);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 body[data-theme="dark"] .phone-cc-badge {
