@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
 import type { Pool } from "pg";
+import { createClient } from "@supabase/supabase-js";
 import { PG_POOL } from "../database/database.module";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -32,11 +33,19 @@ type UsuarioRow = {
 
 @Injectable()
 export class AuthService {
+  private readonly supabaseAdmin;
+  private readonly supabaseEnabled: boolean;
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly jwt: JwtService,
     private readonly config: ConfigService
-  ) {}
+  ) {
+    const url = this.config.get<string>("SUPABASE_URL") ?? "";
+    const key = this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    this.supabaseEnabled = Boolean(url && key);
+    this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
+  }
 
   async register(dto: RegisterDto) {
     const email = dto.email.trim().toLowerCase();
@@ -67,6 +76,11 @@ export class AuthService {
   }
 
   async registerPortal(dto: RegisterPortalDto) {
+    if (!this.supabaseEnabled || !this.supabaseAdmin) {
+      throw new BadRequestException(
+        "Registro no disponible: falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en la API."
+      );
+    }
     if (!dto.acceptTerms) {
       throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
     }
@@ -121,9 +135,12 @@ export class AuthService {
       );
     }
 
-    await this.pool.query(
-      `INSERT INTO usuarios (
-        correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
+    const authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email);
+
+    try {
+      await this.pool.query(
+        `INSERT INTO usuarios (
+        id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
         tipo_persona, tipo_documento, numero_identificacion, nit_empresa_registro, fecha_expedicion_documento,
         fecha_nacimiento, genero, cargo_registro, area_trabajo, telefono,
@@ -131,35 +148,40 @@ export class AuthService {
         fecha_aceptacion_terminos,
         checklist_registro_json
       ) VALUES (
-        $1, $2, $3, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
-        $4, $5, $6, $7, $8, $9, $10, $11, NULL::date,
-        $12::date, $13, $14, $15, $16, $17, $18, $19,
+        $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
+        $5, $6, $7, $8, $9, $10, $11, $12, NULL::date,
+        $13::date, $14, $15, $16, $17, $18, $19, $20,
         now(),
-        $20::jsonb
+        $21::jsonb
       )`,
-      [
-        email,
-        passwordHash,
-        fullName || dto.email,
-        firstName || null,
-        middleName,
-        lastName || null,
-        secondLastName,
-        this.normalizePersonTypeForDb(dto.personType),
-        this.normalizeDbTextUpper(dto.documentType),
-        numeroPersonal,
-        nitEmpresa,
-        dto.birthDate || null,
-        this.normalizeDbTextUpper(dto.gender),
-        this.normalizeDbTextUpper(dto.position),
-        this.normalizeDbTextUpper(dto.workArea),
-        this.normalizeDbTextUpper(dto.phone),
-        this.normalizeDbText(dto.department),
-        this.normalizeDbText(dto.city),
-        this.normalizeDbTextUpper(dto.address),
-        JSON.stringify(checklist)
-      ]
-    );
+        [
+          authUserId,
+          email,
+          passwordHash,
+          fullName || dto.email,
+          firstName || null,
+          middleName,
+          lastName || null,
+          secondLastName,
+          this.normalizePersonTypeForDb(dto.personType),
+          this.normalizeDbTextUpper(dto.documentType),
+          numeroPersonal,
+          nitEmpresa,
+          dto.birthDate || null,
+          this.normalizeDbTextUpper(dto.gender),
+          this.normalizeDbTextUpper(dto.position),
+          this.normalizeDbTextUpper(dto.workArea),
+          this.normalizeDbTextUpper(dto.phone),
+          this.normalizeDbText(dto.department),
+          this.normalizeDbText(dto.city),
+          this.normalizeDbTextUpper(dto.address),
+          JSON.stringify(checklist)
+        ]
+      );
+    } catch (err) {
+      await this.deleteSupabaseAuthUser(authUserId);
+      throw err;
+    }
 
     return {
       pendingApproval: true,
@@ -291,5 +313,26 @@ export class AuthService {
     if (!/[^A-Za-z0-9]/.test(p)) {
       throw new BadRequestException("La contraseña debe incluir al menos un símbolo (carácter especial).");
     }
+  }
+
+  private async createSupabaseAuthUser(email: string, password: string, fullName: string): Promise<string> {
+    if (!this.supabaseAdmin) {
+      throw new BadRequestException("Servicio de autenticación no configurado.");
+    }
+    const { data, error } = await this.supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName }
+    });
+    if (error || !data?.user?.id) {
+      throw new BadRequestException(error?.message || "No fue posible crear el usuario en Supabase Auth.");
+    }
+    return data.user.id;
+  }
+
+  private async deleteSupabaseAuthUser(userId: string) {
+    if (!this.supabaseAdmin || !userId) return;
+    await this.supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
   }
 }

@@ -13,5 +13,6 @@
  */
 (function () {
   "use strict";
-  // window.__ANTARES_API_BASE__ = "https://su-servicio.onrender.com";
+  // Producción (Render API). Debe ser base sin sufijo /api.
+  window.__ANTARES_API_BASE__ = "https://antares-nuevo.onrender.com";
 })();
