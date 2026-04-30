@@ -218,7 +218,7 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
     },
     { once: true }
   );
-  content.querySelector("#crud-form").addEventListener("submit", (event) => {
+  content.querySelector("#crud-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const formEl = event.currentTarget;
     const payload = Object.fromEntries(new FormData(formEl).entries());
@@ -230,7 +230,15 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
         payload[input.name] = input.files[0].name;
       }
     });
-    const result = onSubmit?.(payload, formEl);
+    let result = onSubmit?.(payload, formEl);
+    if (result && typeof result.then === "function") {
+      try {
+        result = await result;
+      } catch (err) {
+        devWarn("openEditModal onSubmit", err);
+        return;
+      }
+    }
     if (result === false) return;
     close();
   });
@@ -2536,7 +2544,7 @@ function authView() {
         <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
         <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field">
-            <input type="password" minlength="10" name="password" autocomplete="new-password" required aria-describedby="password-strength password-hint" class="auth-password-input" />
+            <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
             <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
           </div>
           <div id="register-password-strength-suite" class="password-strength-suite">
@@ -2559,7 +2567,7 @@ function authView() {
             <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
           </div>
         </label>
-        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}<input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" required class="auth-password-input" /></label>
+        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}<input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" /></label>
         <label class="full">${fieldLabel(IC.file, "Términos")}<span class="checkbox-inline"><input type="checkbox" name="acceptTerms" required /> Acepto términos, política de privacidad y tratamiento de datos (Habeas Data).</span></label>
         <div class="full auth-inline-note">
           <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
@@ -7461,31 +7469,72 @@ function bindDynamicEvents() {
             required: true,
             value: target.companyId || "",
             options: companies.map((c) => ({ value: c.id, label: `${c.name} (${c.taxId || "Sin NIT"})` }))
+          },
+          {
+            name: "role",
+            label: "Rol en el sistema",
+            type: "select",
+            required: true,
+            value: target.role || ROLES.CLIENT,
+            options: [
+              { value: ROLES.CLIENT, label: "Cliente" },
+              { value: ROLES.RRHH, label: "Recursos Humanos" },
+              { value: ROLES.ADMINISTRACION, label: "Administración" },
+              { value: ROLES.AUXILIAR_ADMINISTRATIVO, label: "Auxiliar administrativo" },
+              { value: ROLES.LIDER_ADMINISTRATIVO, label: "Líder administrativo" },
+              { value: ROLES.ADMIN, label: "Administrador" }
+            ]
           }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const selected = getCompanyById(String(form.companyId || ""));
           if (!selected) {
             notify(userMessage("userSelectCompany"), "error");
             return false;
           }
-          write(
-            KEYS.users,
-            users.map((u) =>
-              u.id === userId
-                ? {
-                    ...u,
-                    accountStatus: ACCOUNT_STATUS.APROBADO,
-                    companyId: selected.id,
-                    company: selected.name
-                  }
-                : u
-            )
-          );
+          const chosenRole = String(form.role || ROLES.CLIENT).trim();
+          if (!Object.values(ROLES).includes(chosenRole)) {
+            notify("Seleccione un rol válido.", "error");
+            return false;
+          }
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.()) {
+            try {
+              await api.postJson("/portal/approve-pending-user", {
+                userId: String(target.id),
+                companyId: String(selected.id),
+                role: chosenRole
+              });
+              if (window.PortalDataLayer?.refreshCacheFromApi) {
+                await window.PortalDataLayer.refreshCacheFromApi();
+              } else {
+                await applyPortalBootstrapFromApi();
+              }
+            } catch (err) {
+              notify(String(err?.message || userMessage("registerServerError")), "error");
+              return false;
+            }
+          } else {
+            write(
+              KEYS.users,
+              read(KEYS.users, []).map((u) =>
+                u.id === userId
+                  ? {
+                      ...u,
+                      accountStatus: ACCOUNT_STATUS.APROBADO,
+                      companyId: selected.id,
+                      company: selected.name,
+                      role: chosenRole,
+                      permissions: defaultPermissionsForRole(chosenRole)
+                    }
+                  : u
+              )
+            );
+          }
           saveNotification({
             userId: target.id,
             title: "Cuenta aprobada",
-            body: `Tu cuenta ha sido aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion.`
+            body: `Tu cuenta ha sido aprobada con rol asignado y asociada a ${selected.name}. Ya puedes iniciar sesion.`
           });
           sendEmail({
             to: target.email,

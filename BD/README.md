@@ -16,6 +16,9 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 10. `postgres/10_rls_storage_supabase.sql` — RLS de Storage (tras crear en el panel los buckets indicados en el script)
 11. *(Solo bases ya creadas sin campos de registro)* `postgres/11_alter_usuarios_campos_registro.sql`
 12. `postgres/12_usuarios_refresh_token_api.sql` — columna `refresh_token_hash` para rotación de JWT en la API Nest
+13. `postgres/13_usuarios_nit_empresa.sql` — `nit_empresa_registro` e índice de documento personal
+14. `postgres/14_contacto_web_b2b.sql` — prospectos B2B (si aplica)
+15. `postgres/15_usuario_aprobacion_admin.sql` — `fecha_aprobacion_cuenta`, `cuenta_aprobada_por` (auditoría al aprobar registro; usado por `POST /api/portal/approve-pending-user` con cuerpo `userId`, `companyId`, `role` — el rol persiste en `usuarios.rol` y se regeneran filas en `permisos_usuario` según el rol)
 
 **Manual de despliegue (Word):** generar con `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 

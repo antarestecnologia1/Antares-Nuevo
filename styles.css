@@ -1243,6 +1243,21 @@ input[type="password"] {
   letter-spacing: normal;
 }
 
+/*
+ * Contraseñas: siempre sin forzar mayúsculas en pantalla.
+ * En registro, .auth-register-form aplica uppercase a los input que NO son password;
+ * el botón «Mostrar» cambia el campo a type="text», por eso esa regla aplicaba
+ * mayúsculas también al escribir la contraseña visible.
+ */
+#form-register input[name="password"],
+#form-register input[name="passwordConfirm"],
+#form-register .auth-password-input,
+#form-login input[name="password"],
+#form-admin-user-create input[name="password"] {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
@@ -2664,6 +2679,12 @@ tbody tr:last-child td { border-bottom: none; }
 
 .auth-register-form input[type="email"] {
   text-transform: lowercase;
+}
+
+/* Refuerzo: nombre + clase (válido con type=password o type=text al mostrar) */
+.auth-register-form input.auth-password-input {
+  text-transform: none !important;
+  letter-spacing: normal !important;
 }
 
 .auth-register-form .full {

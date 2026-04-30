@@ -1,9 +1,57 @@
-import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import type { Pool, PoolClient } from "pg";
 import { PG_POOL } from "../database/database.module";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 
 type JwtRole = string;
+
+/** Igual que `defaultPermissionsForRole` / ALL_PERMISSIONS en app.js */
+const ALL_PORTAL_PERMISSIONS: string[] = [
+  "dashboard_view",
+  "client_requests",
+  "transport_requests",
+  "transport_trips",
+  "transport_vehicles",
+  "transport_drivers",
+  "transport_calendar",
+  "transport_history",
+  "payroll_manage",
+  "hiring_manage",
+  "sst_compliance",
+  "users_manage",
+  "authorizations_manage",
+  "profile_view",
+  "notifications_view",
+  "contact_b2b_view"
+];
+
+function defaultPermissionsForApprovedRole(rol: string): string[] {
+  const r = String(rol || "").toLowerCase();
+  if (r === "admin") return [...ALL_PORTAL_PERMISSIONS];
+  if (["rrhh", "administracion", "lider_administrativo"].includes(r)) {
+    return [
+      "dashboard_view",
+      "payroll_manage",
+      "hiring_manage",
+      "sst_compliance",
+      "profile_view",
+      "notifications_view"
+    ];
+  }
+  if (r === "auxiliar_administrativo") {
+    return ["dashboard_view", "payroll_manage", "profile_view", "notifications_view"];
+  }
+  return ["dashboard_view", "client_requests", "profile_view", "notifications_view"];
+}
+
+const APPROVE_VALID_ROLES = new Set([
+  "admin",
+  "client",
+  "rrhh",
+  "administracion",
+  "auxiliar_administrativo",
+  "lider_administrativo"
+]);
 
 @Injectable()
 export class PortalService {
@@ -126,6 +174,84 @@ export class PortalService {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Aprueba un usuario en estado pendiente: empresa, rol (`rol_usuario`) y permisos alineados a app.js.
+   * Auditoría: fecha_aprobacion_cuenta / cuenta_aprobada_por (script 15_usuario_aprobacion_admin.sql).
+   */
+  async approvePendingUser(
+    actorUserId: string,
+    actorRole: JwtRole,
+    targetUserId: string,
+    companyId: string,
+    role: string
+  ) {
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+
+    const cid = String(companyId || "").trim();
+    const tid = String(targetUserId || "").trim();
+    const rolDb = String(role || "client").trim().toLowerCase();
+    if (!cid || !tid) throw new BadRequestException("Usuario y empresa son obligatorios");
+    if (!APPROVE_VALID_ROLES.has(rolDb)) throw new BadRequestException("Rol no permitido para esta operación");
+
+    const empRes = await this.pool.query<{ nombre: string }>(`SELECT nombre FROM empresas WHERE id = $1::uuid`, [cid]);
+    if (!empRes.rowCount) throw new BadRequestException("Empresa no encontrada");
+
+    const userRes = await this.pool.query<{ estado_cuenta: string }>(
+      `SELECT estado_cuenta::text AS estado_cuenta FROM usuarios WHERE id = $1::uuid`,
+      [tid]
+    );
+    const target = userRes.rows[0];
+    if (!target) throw new BadRequestException("Usuario no encontrado");
+    if (target.estado_cuenta !== "pendiente") {
+      throw new BadRequestException("El usuario no está pendiente de aprobación");
+    }
+
+    const empresaNombre = empRes.rows[0].nombre;
+    const perms = defaultPermissionsForApprovedRole(rolDb);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `UPDATE usuarios SET
+          estado_cuenta = 'aprobado'::estado_cuenta_usuario,
+          id_empresa = $2::uuid,
+          nombre_empresa_texto_legacy = $3,
+          rol = $5::rol_usuario,
+          fecha_aprobacion_cuenta = now(),
+          cuenta_aprobada_por = $4::uuid,
+          fecha_ingreso_portal = COALESCE(fecha_ingreso_portal, CURRENT_DATE)
+        WHERE id = $1::uuid`,
+        [tid, cid, empresaNombre, actorUserId, rolDb]
+      );
+
+      await client.query(`DELETE FROM permisos_usuario WHERE id_usuario = $1::uuid`, [tid]);
+      for (const perm of perms) {
+        await client.query(
+          `INSERT INTO permisos_usuario (id_usuario, permiso) VALUES ($1::uuid, $2)
+           ON CONFLICT (id_usuario, permiso) DO NOTHING`,
+          [tid, perm]
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    return {
+      ok: true,
+      userId: tid,
+      companyId: cid,
+      companyName: empresaNombre,
+      role: rolDb
+    };
   }
 
   private async syncKeyTx(c: PoolClient, key: PortalSyncKey, data: unknown, userId: string, role: JwtRole) {
