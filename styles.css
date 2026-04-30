@@ -2787,6 +2787,27 @@ tbody tr:last-child td { border-bottom: none; }
   box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
+/* Registro: bandera PNG fiable (no emoji; en Windows el <select> no pinta bien banderas) */
+.phone-input-professional .phone-reg-flag-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 0.5rem 0 0.65rem;
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(21, 101, 192, 0.1), rgba(21, 101, 192, 0.035));
+}
+
+.phone-input-professional .phone-reg-flag-img {
+  display: block;
+  width: 1.85rem;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
+}
+
 .phone-cc-badge {
   display: inline-flex;
   align-items: center;
@@ -2813,8 +2834,8 @@ tbody tr:last-child td { border-bottom: none; }
 
 .phone-input-professional .phone-cc-select {
   flex: 0 1 auto;
-  min-width: min(100%, 7.5rem);
-  max-width: 10.5rem;
+  min-width: min(100%, 4.85rem);
+  max-width: 6.25rem;
   margin: 0;
   padding: 0.45rem 1.75rem 0.45rem 0.55rem;
   border: none;
@@ -6222,6 +6243,15 @@ body[data-theme="dark"] .phone-input-professional {
 body[data-theme="dark"] .phone-input-professional:focus-within {
   border-color: #78abe8;
   box-shadow: 0 0 0 3px rgba(117, 176, 244, 0.22);
+}
+
+body[data-theme="dark"] .phone-input-professional .phone-reg-flag-cell {
+  border-right-color: #476b93;
+  background: linear-gradient(180deg, rgba(117, 176, 244, 0.14), rgba(25, 45, 70, 0.45));
+}
+
+body[data-theme="dark"] .phone-input-professional .phone-reg-flag-img {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
 body[data-theme="dark"] .phone-cc-badge {

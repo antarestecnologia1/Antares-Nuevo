@@ -1498,12 +1498,19 @@ const REGISTER_PHONE_COUNTRIES = [
   { id: "VE", flag: "\uD83C\uDDFB\uD83C\uDDEA", label: "Venezuela", dial: "58", minNat: 10, maxNat: 10, style: "generic" }
 ];
 
+/** Bandera visible en registro (PNG); los emoji en <select> en Windows suelen verse como "CO" en lugar del dibujo. */
+const REGISTER_PHONE_FLAG_IMG_BASE = "https://flagcdn.com/24x18";
+
+function registerPhoneFlagImgUrl(isoId) {
+  return `${REGISTER_PHONE_FLAG_IMG_BASE}/${String(isoId || "CO").toLowerCase()}.png`;
+}
+
 function registerPhoneCountryOptionsHtml() {
   return REGISTER_PHONE_COUNTRIES.map((c) => {
     const escLabel = String(c.label || "")
       .replace(/&/g, "&amp;")
       .replace(/"/g, "&quot;");
-    return `<option value="${c.id}" title="${escLabel}">${c.flag} +${c.dial}</option>`;
+    return `<option value="${c.id}" title="${escLabel}">+${c.dial}</option>`;
   }).join("");
 }
 
@@ -1542,6 +1549,15 @@ function updateRegisterPhoneFieldForCountry(registerForm) {
   const hint = registerForm?.querySelector("#register-phone-hint");
   const nat = registerForm?.querySelector(".js-register-phone-national");
   const wrap = registerForm?.querySelector(".phone-input-professional");
+  const ccSel = registerForm?.querySelector(".js-register-phone-cc");
+  const flagImg = registerForm?.querySelector(".js-register-flag-img");
+  if (flagImg) {
+    flagImg.src = registerPhoneFlagImgUrl(meta.id);
+    flagImg.alt = "";
+  }
+  if (ccSel) {
+    ccSel.setAttribute("aria-label", `Indicativo +${meta.dial} (${meta.label})`);
+  }
   if (wrap) {
     wrap.setAttribute(
       "aria-label",
@@ -2648,7 +2664,18 @@ function authView() {
         <label class="phone-field-register">
           ${fieldLabel(IC.phone, "Teléfono")}
           <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
-            <select class="js-register-phone-cc phone-cc-select" aria-label="País e indicativo telefónico" required>
+            <div class="phone-reg-flag-cell">
+              <img
+                class="js-register-flag-img phone-reg-flag-img"
+                src="${registerPhoneFlagImgUrl("CO")}"
+                alt=""
+                width="28"
+                height="21"
+                decoding="async"
+                loading="eager"
+              />
+            </div>
+            <select class="js-register-phone-cc phone-cc-select" aria-label="Indicativo +57 (Colombia)" required>
               ${registerPhoneCountryOptionsHtml()}
             </select>
             <input
