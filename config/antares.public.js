@@ -8,9 +8,8 @@
  *
  * Depuración sincronización portal (solo desarrollo): window.__ANTARES_DEBUG_SYNC__ = true en consola.
  *
- * Autenticación: si define __ANTARES_API_BASE__ o antares_api_base, el login es solo contra la API/BD
- * (no se acepta la lista de usuarios demo en el navegador). Sin URL de API, el portal sigue pudiendo
- * usar cuentas locales de demostración (ver ensureEnterpriseScaleData en app.js).
+ * Autenticación: si define __ANTARES_API_BASE__ o antares_api_base, el login es solo contra la API/BD.
+ * Sin URL de API, el portal puede usar usuarios almacenados en localStorage (no hay datos de demostración precargados).
  */
 (function () {
   "use strict";

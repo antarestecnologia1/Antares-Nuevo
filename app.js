@@ -145,6 +145,15 @@ function notify(message, type = "info") {
   }, 3200);
 }
 
+/** Mensajes en {@link window.AntaresFeedback} (modules/core/feedback-messages.js). */
+function userMessage(key, ...args) {
+  const M = window.AntaresFeedback;
+  if (!M) return String(key);
+  const v = M[key];
+  if (typeof v === "function") return v(...args);
+  return v != null ? v : String(key);
+}
+
 function openEditModal({ title, subtitle = "", fields = [], submitText = "Guardar", onSubmit }) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
@@ -391,7 +400,7 @@ function enhanceFormAsWizard(form, config = {}) {
     const requiredInputs = [...currentStep.querySelectorAll("input, select, textarea")].filter((el) => el.required);
     const invalid = requiredInputs.find((el) => !el.value);
     if (invalid) {
-      notify("Completa los campos obligatorios del paso actual.", "error");
+      notify(userMessage("validationStep"), "error");
       invalid.focus();
       return;
     }
@@ -1252,7 +1261,7 @@ function applyPublicLanguage(lang = "es") {
   const placeholderMap = {
     es: {
       "input[name='name']": "Ej. Laura Castaneda",
-      "input[name='company']": "Ej. FloraExport SAS",
+      "input[name='company']": "Ej. Comercializadora S.A.S.",
       "input[name='taxId']": "Ej. 900123456-7",
       "input[name='position']": "Ej. Directora de Operaciones",
       "input[name='phone']": "+57 300 000 0000",
@@ -1262,7 +1271,7 @@ function applyPublicLanguage(lang = "es") {
     },
     en: {
       "input[name='name']": "E.g. Laura Castaneda",
-      "input[name='company']": "E.g. FloraExport SAS",
+      "input[name='company']": "E.g. Trading Company S.A.S.",
       "input[name='taxId']": "E.g. 900123456-7",
       "input[name='position']": "E.g. Director of Operations",
       "input[name='phone']": "+57 300 000 0000",
@@ -1757,25 +1766,6 @@ function ensureCompaniesAndUserMapping() {
   const users = read(KEYS.users, []);
 
   let nextCompanies = [...companies];
-  if (!nextCompanies.length) {
-    nextCompanies = [
-      {
-        id: uid(),
-        name: "Antares",
-        taxId: "900000001-0",
-        phone: "3001111111",
-        createdAt: nowIso()
-      },
-      {
-        id: uid(),
-        name: "Flora Export SAS",
-        taxId: "901000222-1",
-        phone: "3003333333",
-        createdAt: nowIso()
-      }
-    ];
-    write(KEYS.companies, nextCompanies);
-  }
 
   const companyByName = (name) =>
     nextCompanies.find(
@@ -1893,194 +1883,6 @@ function ensureUsersAccountStatus() {
   if (changed) write(KEYS.users, updated);
 }
 
-function ensureEnterpriseScaleData() {
-  const markerKey = "antares_enterprise_seed_v1";
-  if (localStorage.getItem(markerKey)) return;
-
-  const users = read(KEYS.users, []);
-  const employees = read(KEYS.payrollEmployees, []);
-  const companies = read(KEYS.companies, []);
-
-  let nextCompanies = [...companies];
-  if (nextCompanies.length < 16) {
-    const needed = 16 - nextCompanies.length;
-    for (let i = 0; i < needed; i += 1) {
-      const n = i + 1;
-      nextCompanies.push({
-        id: uid(),
-        name: `Cliente Corporativo ${String(n).padStart(2, "0")} SAS`,
-        taxId: `900${String(500000 + n).padStart(6, "0")}-${(n % 9) + 1}`,
-        phone: `3007${String(100000 + n).slice(-6)}`,
-        createdAt: nowIso()
-      });
-    }
-    write(KEYS.companies, nextCompanies);
-  }
-
-  const refreshedCompanies = read(KEYS.companies, []);
-  const antaresCompany = refreshedCompanies[0] || null;
-  const clientCompanies = refreshedCompanies.filter((c, idx) => idx > 0).slice(0, 18);
-
-  let nextUsers = [...users];
-  if (!nextUsers.some((u) => u.role === ROLES.ADMINISTRACION)) {
-    nextUsers.push({
-      id: uid(),
-      name: "Coordinacion Administrativa",
-      email: "administracion@antares.com",
-      password: "AdminAntares123!",
-      role: ROLES.ADMINISTRACION,
-      accountStatus: ACCOUNT_STATUS.APROBADO,
-      permissions: defaultPermissionsForRole(ROLES.ADMINISTRACION),
-      company: antaresCompany?.name || "Antares",
-      companyId: antaresCompany?.id || null,
-      taxId: antaresCompany?.taxId || "",
-      phone: "3006100000",
-      city: "Bogota D.C.",
-      department: "Bogota",
-      address: "Oficina administrativa"
-    });
-  }
-  if (!nextUsers.some((u) => u.role === ROLES.LIDER_ADMINISTRATIVO)) {
-    nextUsers.push({
-      id: uid(),
-      name: "Lider Administrativo",
-      email: "lider.administrativo@antares.com",
-      password: "AdminAntares123!",
-      role: ROLES.LIDER_ADMINISTRATIVO,
-      accountStatus: ACCOUNT_STATUS.APROBADO,
-      permissions: defaultPermissionsForRole(ROLES.LIDER_ADMINISTRATIVO),
-      company: antaresCompany?.name || "Antares",
-      companyId: antaresCompany?.id || null,
-      taxId: antaresCompany?.taxId || "",
-      phone: "3006200000",
-      city: "Bogota D.C.",
-      department: "Bogota",
-      address: "Oficina administrativa"
-    });
-  }
-  if (!nextUsers.some((u) => u.role === ROLES.AUXILIAR_ADMINISTRATIVO)) {
-    nextUsers.push({
-      id: uid(),
-      name: "Auxiliar Administrativo",
-      email: "auxiliar.administrativo@antares.com",
-      password: "AdminAntares123!",
-      role: ROLES.AUXILIAR_ADMINISTRATIVO,
-      accountStatus: ACCOUNT_STATUS.APROBADO,
-      permissions: defaultPermissionsForRole(ROLES.AUXILIAR_ADMINISTRATIVO),
-      company: antaresCompany?.name || "Antares",
-      companyId: antaresCompany?.id || null,
-      taxId: antaresCompany?.taxId || "",
-      phone: "3006300000",
-      city: "Bogota D.C.",
-      department: "Bogota",
-      address: "Oficina administrativa"
-    });
-  }
-
-  const currentClientUsers = nextUsers.filter((u) => u.role === ROLES.CLIENT).length;
-  if (currentClientUsers < 15) {
-    const toCreate = 15 - currentClientUsers;
-    for (let i = 0; i < toCreate; i += 1) {
-      const company = clientCompanies[i % clientCompanies.length];
-      nextUsers.push({
-        id: uid(),
-        name: `Cliente Operativo ${String(i + 1).padStart(2, "0")}`,
-        email: `cliente${String(i + 1).padStart(2, "0")}@antares-demo.com`,
-        password: "Cliente123!",
-        role: ROLES.CLIENT,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.CLIENT),
-        company: company?.name || "Cliente",
-        companyId: company?.id || null,
-        taxId: company?.taxId || "",
-        phone: `3008${String(100000 + i).slice(-6)}`,
-        city: "Bogota D.C.",
-        department: "Bogota",
-        address: "Sede cliente"
-      });
-    }
-  }
-  write(KEYS.users, nextUsers);
-
-  localStorage.setItem(markerKey, nowIso());
-}
-
-function cleanupSeededScaleEmployees() {
-  const markerKey = "antares_cleanup_seed_employees_v1";
-  if (localStorage.getItem(markerKey)) return;
-  const employees = read(KEYS.payrollEmployees, []);
-  const toRemove = employees.filter((employee) => /^Empleado Escala \d+/i.test(String(employee.name || "")));
-  if (toRemove.length) {
-    const removed = deleteEmployeesCascade(toRemove.map((employee) => employee.id));
-    if (removed > 0) notify(`Se eliminaron ${removed} empleados de prueba en cascada.`, "info");
-  }
-  localStorage.setItem(markerKey, nowIso());
-}
-
-function resetWorkforceDataForValidation() {
-  const markerKey = "antares_reset_workforce_v1";
-  if (localStorage.getItem(markerKey)) return;
-  write(KEYS.payrollEmployees, []);
-  write(KEYS.drivers, []);
-  write(KEYS.payrollRuns, []);
-  write(KEYS.hrAbsences, []);
-  write(KEYS.fuelLogs, []);
-  localStorage.setItem(markerKey, nowIso());
-}
-
-function purgeDemoData() {
-  const markerKey = "antares_purge_demo_v1";
-  if (localStorage.getItem(markerKey)) return;
-
-  const currentSession = read(KEYS.session, null);
-  const keepUserId = String(currentSession?.userId || "");
-  const users = read(KEYS.users, []);
-  const demoNameRegex = /^(Cliente Operativo|Cliente Demo|RRHH Antares|Coordinacion Administrativa|Lider Administrativo|Auxiliar Administrativo|Empleado Escala)/i;
-  const filteredUsers = users.filter((user) => {
-    const email = String(user.email || "").toLowerCase().trim();
-    const name = String(user.name || "").trim();
-    if (String(user.id || "") === keepUserId) return true;
-    if (email.endsWith("@antares-demo.com")) return false;
-    if (["cliente@antares.com", "rrhh@antares.com"].includes(email)) return false;
-    if (demoNameRegex.test(name)) return false;
-    return true;
-  });
-  write(KEYS.users, filteredUsers);
-
-  const usedCompanyIds = new Set(filteredUsers.map((u) => String(u.companyId || "")).filter(Boolean));
-  const companies = read(KEYS.companies, []);
-  const filteredCompanies = companies.filter((company) => {
-    const name = String(company.name || "").trim();
-    const isDemoCompany = /^Cliente Corporativo \d+/i.test(name) || name === "Flora Export SAS";
-    if (!isDemoCompany) return true;
-    return usedCompanyIds.has(String(company.id || ""));
-  });
-  write(KEYS.companies, filteredCompanies);
-
-  [
-    KEYS.requests,
-    KEYS.vehicles,
-    KEYS.drivers,
-    KEYS.contacts,
-    KEYS.notifications,
-    KEYS.emails,
-    KEYS.payrollEmployees,
-    KEYS.payrollRuns,
-    KEYS.fuelLogs,
-    KEYS.vehicleTechnicalLogs,
-    KEYS.vacancies,
-    KEYS.candidates,
-    KEYS.interviews,
-    KEYS.contracts,
-    KEYS.hrAbsences,
-    KEYS.sstCompliance,
-    KEYS.approvals
-  ].forEach((key) => write(key, []));
-  write(KEYS.counters, {});
-
-  localStorage.setItem(markerKey, nowIso());
-}
-
 function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
@@ -2124,26 +1926,17 @@ function ensureVehicleDocs() {
 }
 
 function seed() {
-  if (!localStorage.getItem(KEYS.companies)) {
-    write(KEYS.companies, [
-      {
-        id: uid(),
-        name: "Antares",
-        taxId: "900000001-0",
-        phone: "3001111111",
-        createdAt: nowIso()
-      },
-      {
-        id: uid(),
-        name: "Flora Export SAS",
-        taxId: "901000222-1",
-        phone: "3003333333",
-        createdAt: nowIso()
-      }
-    ]);
+  const PORTAL_DATA_VERSION = "v5-no-demo";
+  if (localStorage.getItem("antares_portal_data_ver") !== PORTAL_DATA_VERSION) {
+    write(KEYS.companies, []);
+    write(KEYS.vehicles, []);
+    write(KEYS.drivers, []);
+    write(KEYS.positions, []);
+    localStorage.removeItem("antares_enterprise_seed_v1");
+    localStorage.removeItem("antares_purge_demo_v1");
+    localStorage.setItem("antares_portal_data_ver", PORTAL_DATA_VERSION);
   }
 
-  /* Usuarios solo por BD / API; vaciar caché local de usuarios demo en migración one-shot */
   const USERS_STORAGE_VERSION = "v4-db-only";
   if (localStorage.getItem("antares_users_storage_ver") !== USERS_STORAGE_VERSION) {
     write(KEYS.users, []);
@@ -2151,31 +1944,6 @@ function seed() {
   }
   if (!localStorage.getItem(KEYS.users)) {
     write(KEYS.users, []);
-  }
-
-  if (!localStorage.getItem(KEYS.vehicles)) {
-    write(KEYS.vehicles, [
-      { id: uid(), plate: "TRB123", type: "Turbo", capacityKg: 3500, refrigerated: true, available: true },
-      { id: uid(), plate: "CMN456", type: "Camion", capacityKg: 8000, refrigerated: true, available: true },
-      { id: uid(), plate: "TRC789", type: "Tractocamion", capacityKg: 30000, refrigerated: true, available: true }
-    ]);
-  }
-
-  if (!localStorage.getItem(KEYS.drivers)) {
-    write(KEYS.drivers, [
-      { id: uid(), name: "Juan Perez", phone: "3010000001", license: "C3", available: true },
-      { id: uid(), name: "Maria Gomez", phone: "3010000002", license: "C2", available: true },
-      { id: uid(), name: "Carlos Ruiz", phone: "3010000003", license: "C3", available: true }
-    ]);
-  }
-
-  if (!localStorage.getItem(KEYS.positions)) {
-    write(KEYS.positions, [
-      { id: uid(), name: "Auxiliar Logistico", workerRole: "empleado", baseSalary: 1800000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
-      { id: uid(), name: "Analista de Operaciones", workerRole: "empleado", baseSalary: 2400000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
-      { id: uid(), name: "Conductor Nacional C2", workerRole: "conductor", baseSalary: 2200000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
-      { id: uid(), name: "Conductor Tractocamion C3", workerRole: "conductor", baseSalary: 3000000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() }
-    ]);
   }
 
   if (!localStorage.getItem(KEYS.travelAllowanceRules)) {
@@ -2205,7 +1973,9 @@ function seed() {
     KEYS.contracts,
     KEYS.hrAbsences,
     KEYS.sstCompliance,
-    KEYS.approvals
+    KEYS.approvals,
+    KEYS.vehicles,
+    KEYS.drivers
   ].forEach((key) => {
     if (!localStorage.getItem(key)) write(key, []);
   });
@@ -2216,10 +1986,6 @@ function seed() {
   ensureUsersPermissions();
   ensureUsersAccountStatus();
   ensureVehicleDocs();
-  ensureEnterpriseScaleData();
-  cleanupSeededScaleEmployees();
-  resetWorkforceDataForValidation();
-  purgeDemoData();
 }
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -2281,7 +2047,7 @@ function checkSessionIdleAndLogout() {
   clearSession();
   state.currentView = "dashboard";
   history.replaceState(null, "", window.location.pathname + window.location.search);
-  notify("Sesión cerrada por 30 minutos de inactividad.", "info");
+  notify(userMessage("sessionIdle"), "info");
   renderPortal();
 }
 
@@ -2568,7 +2334,7 @@ function bindAuthForms() {
       event.preventDefault();
       if (Date.now() < state.authSecurity.lockUntil) {
         const secs = Math.ceil((state.authSecurity.lockUntil - Date.now()) / 1000);
-        notify(`Demasiados intentos. Intenta nuevamente en ${secs} segundos.`, "error");
+        notify(userMessage("authLoginLock", secs), "error");
         return;
       }
       const data = Object.fromEntries(new FormData(login).entries());
@@ -2576,8 +2342,7 @@ function bindAuthForms() {
 
       /**
        * Si hay URL de API, la autenticacion es SOLO contra el servidor (PostgreSQL).
-       * No se usa fallback local: en localStorage pueden seguir existiendo usuarios demo
-       * (ensureEnterpriseScaleData / semillas) que ya no existen o difieren de la BD.
+       * No se usa fallback local respecto a credenciales guardadas solo en el navegador.
        */
       if (window.AntaresApi?.getBase?.()) {
         try {
@@ -2596,15 +2361,15 @@ function bindAuthForms() {
             const usersAfter = read(KEYS.users, []);
             const userApi = usersAfter.find((u) => String(u.id) === String(uid));
             if (!userApi) {
-              notify("No se pudo cargar tu perfil desde la base de datos.", "error");
+              notify(userMessage("authProfileLoadFailed"), "error");
               return;
             }
             if (userApi.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
-              notify("Tu cuenta aun esta pendiente de aprobacion por un administrador.", "info");
+              notify(userMessage("authPendingApproval"), "info");
               return;
             }
             if (userApi.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
-              notify("Tu solicitud de registro fue rechazada. Contacta a soporte.", "error");
+              notify(userMessage("authRejected"), "error");
               return;
             }
             state.authSecurity.failedAttempts = 0;
@@ -2624,7 +2389,7 @@ function bindAuthForms() {
             return;
           }
           const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
-          notify(String(apiMsg || "Credenciales invalidas o cuenta no habilitada en el servidor."), "error");
+          notify(String(apiMsg || userMessage("authInvalidServer")), "error");
           state.authSecurity.failedAttempts += 1;
           if (state.authSecurity.failedAttempts >= 5) {
             state.authSecurity.lockUntil = Date.now() + 60_000;
@@ -2632,7 +2397,7 @@ function bindAuthForms() {
           }
           return;
         } catch (_e) {
-          notify("No hay conexion con el servidor de autenticacion. Intente de nuevo.", "error");
+          notify(userMessage("authNoConnection"), "error");
           return;
         }
       }
@@ -2646,17 +2411,17 @@ function bindAuthForms() {
           state.authSecurity.lockUntil = Date.now() + 60_000;
           state.authSecurity.failedAttempts = 0;
         }
-        notify("Credenciales invalidas.", "error");
+        notify(userMessage("authInvalidLocal"), "error");
         return;
       }
       state.authSecurity.failedAttempts = 0;
       state.authSecurity.lockUntil = 0;
       if (user.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
-        notify("Tu cuenta aun esta pendiente de aprobacion por un administrador.", "info");
+        notify(userMessage("authPendingApproval"), "info");
         return;
       }
       if (user.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
-        notify("Tu solicitud de registro fue rechazada. Contacta a soporte.", "error");
+        notify(userMessage("authRejected"), "error");
         return;
       }
       setSession({
@@ -2701,7 +2466,7 @@ function bindAuthForms() {
         .filter(Boolean)
         .join(" ");
       if (!fullName) {
-        notify("Debes ingresar nombres y apellidos validos.", "error");
+        notify(userMessage("registerNamesInvalid"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -2711,25 +2476,25 @@ function bindAuthForms() {
       }
       data.taxId = docValidation.normalized;
       if (String(data.password || "") !== String(data.passwordConfirm || "")) {
-        notify("La confirmacion de contrasena no coincide.", "error");
+        notify(userMessage("registerPasswordMismatch"), "error");
         return;
       }
       if (String(data.password || "").length < 8) {
-        notify("La contrasena debe tener minimo 8 caracteres.", "error");
+        notify(userMessage("registerPasswordShort"), "error");
         return;
       }
       if (!data.acceptTerms) {
-        notify("Debes aceptar terminos y tratamiento de datos para continuar.", "error");
+        notify(userMessage("registerTerms"), "error");
         return;
       }
       const birthDateValue = new Date(String(data.birthDate || ""));
       if (!Number.isFinite(birthDateValue.getTime())) {
-        notify("La fecha de nacimiento no es valida.", "error");
+        notify(userMessage("registerBirthInvalid"), "error");
         return;
       }
       const ageYears = Math.floor((Date.now() - birthDateValue.getTime()) / 31557600000);
       if (ageYears < 18) {
-        notify("El usuario debe ser mayor de edad para registrarse.", "error");
+        notify(userMessage("registerMinor"), "error");
         return;
       }
 
@@ -2764,26 +2529,26 @@ function bindAuthForms() {
           const body = await res.json().catch(() => ({}));
           if (!res.ok) {
             const msg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message || res.statusText;
-            notify(String(msg || "No se pudo registrar en el servidor."), "error");
+            notify(String(msg || userMessage("registerServerError")), "error");
             return;
           }
-          notify(body?.message || "Registro enviado. Tu cuenta sera revisada por un administrador.", "success");
+          notify(body?.message || userMessage("registerSuccess"), "success");
           state.authTab = "login";
           renderAuthTab();
           return;
         } catch (err) {
-          notify(String(err?.message || err), "error");
+          notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
       }
 
       const users = read(KEYS.users, []);
       if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(data.email))) {
-        notify("El correo ya existe.", "error");
+        notify(userMessage("registerEmailExists"), "error");
         return;
       }
       if (users.some((u) => String(u.documentType || "") === String(data.documentType || "") && String(u.taxId || "") === String(data.taxId || ""))) {
-        notify("Ya existe un usuario registrado con este documento.", "error");
+        notify(userMessage("registerDocExists"), "error");
         return;
       }
       const { passwordConfirm, acceptTerms, ...profileData } = data;
@@ -2825,7 +2590,7 @@ function bindAuthForms() {
           body: `Cliente: ${fullName} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
         });
       });
-      notify("Registro enviado. Tu cuenta sera revisada por un administrador.", "success");
+      notify(userMessage("registerSuccess"), "success");
       state.authTab = "login";
       renderAuthTab();
     });
@@ -2838,7 +2603,7 @@ function bindAuthForms() {
       const users = read(KEYS.users, []);
       const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
       if (!user) {
-        notify("No existe usuario con ese correo.", "error");
+        notify(userMessage("recoverNoUser"), "error");
         return;
       }
       sendEmail({
@@ -2846,7 +2611,7 @@ function bindAuthForms() {
         subject: "Recuperacion de contrasena",
         body: `Hola ${user.name}, se solicito recuperacion de acceso. Por seguridad, solicita a un administrador restablecer tu contrasena.`
       });
-      notify("Solicitud enviada. Un administrador debe ayudarte a restablecer el acceso.", "info");
+      notify(userMessage("recoverSent"), "info");
     });
   }
   applyFormWizards();
@@ -2958,7 +2723,7 @@ function closeCompletedTripsAndGenerateInvoices() {
 function openTripInvoicePdf(requestId) {
   const request = reqRead().find((r) => r.id === requestId);
   if (!request?.trip) {
-    notify("No hay viaje disponible para facturar.", "error");
+    notify(userMessage("invoiceNoTrip"), "error");
     return;
   }
   const invoice = request.trip.invoice || buildTripInvoice(request);
@@ -3030,7 +2795,7 @@ function openTripInvoicePdf(requestId) {
   </html>`;
   const win = window.open("", "_blank");
   if (!win) {
-    notify("No se pudo abrir la ventana de factura. Revisa el bloqueador de popups.", "error");
+    notify(userMessage("invoicePopupBlocked"), "error");
     return;
   }
   win.document.open();
@@ -3101,7 +2866,7 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
   if (!target) return false;
 
   if (!canTransitionStatus(target.status, nextStatus)) {
-    notify(`Transicion no permitida: ${target.status} -> ${nextStatus}`, "error");
+    notify(userMessage("tripTransitionDenied", target.status, nextStatus), "error");
     return false;
   }
 
@@ -3313,7 +3078,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     : selectDriver(current.pickupAt, current.etaDelivery || current.pickupAt, requestId);
 
   if (!vehicle || !driver) {
-    notify("No hay conductor o camion compatible/disponible para esta solicitud.", "error");
+    notify(userMessage("noCompatibleResources"), "error");
     return false;
   }
 
@@ -3521,7 +3286,7 @@ function renderPortal() {
     setSession(session);
   } else if (ts - session.lastActivityAt > SESSION_IDLE_MS) {
     clearSession();
-    notify("Sesión cerrada por 30 minutos de inactividad.", "info");
+    notify(userMessage("sessionIdle"), "info");
     renderPortal();
     return;
   }
@@ -4839,7 +4604,7 @@ function openReportPdf(title, columns = [], rows = []) {
     </body></html>`;
   const pop = window.open("", "_blank");
   if (!pop) {
-    notify("No se pudo abrir la ventana de reporte PDF.", "error");
+    notify(userMessage("reportPdfBlocked"), "error");
     return;
   }
   pop.document.open();
@@ -5324,11 +5089,11 @@ function syncDriverFromEmployee(employee, extraDriverData = {}) {
     hiredAt: existing?.hiredAt || nowIso()
   };
   if (!nextDriver.license || !nextDriver.licenseExpiry) {
-    notify("Empleado con cargo conductor requiere licencia, categoria y fecha de vencimiento para sincronizar en Conductores.", "error");
+    notify(userMessage("payrollDriverLicenseSync"), "error");
     return;
   }
   if (new Date(nextDriver.licenseExpiry).getTime() <= Date.now()) {
-    notify("No se puede registrar conductor con licencia vencida.", "error");
+    notify(userMessage("payrollLicenseExpired"), "error");
     return;
   }
   if (existing) {
@@ -6069,8 +5834,8 @@ function hiringHtml() {
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">
-      <legend>${IC.download} Prueba de plantilla (datos demo)</legend>
-      <p class="muted full">No usa la ficha del empleado; solo verifica la plantilla y la descarga.</p>
+      <legend>${IC.download} Vista previa de plantilla (datos de ejemplo)</legend>
+      <p class="muted full">No utiliza la ficha del empleado; solo comprueba el archivo Word y la descarga.</p>
       <div class="form-section-grid" style="gap:0.6rem">
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Termino fijo</button>
@@ -6764,7 +6529,7 @@ async function generateOfficialWordContract(payload) {
   return window.RecruitmentDomain.generateEmployeeContractDocx(payload);
 }
 
-/** Payload de demostración para validar las 3 plantillas .docx sin persistir contrato. */
+/** Valores de ejemplo para generar un Word de prueba sin persistir contrato. */
 function buildContractDocxTestPayload(templateKind) {
   const kind = String(templateKind || "oficina").toLowerCase();
   const contractType =
@@ -6776,15 +6541,15 @@ function buildContractDocxTestPayload(templateKind) {
     contractTemplateKind: kind,
     contractType,
     workerRole,
-    nombre_empleado: "PRUEBA Juan Perez Demo",
-    cedula_empleado: "1234567890",
+    nombre_empleado: "Nombre Apellido Ejemplo",
+    cedula_empleado: "1000000000",
     ciudad_empleado: "Bogota D.C.",
     banco_cuenta_bancaria: "Bancolombia",
-    cuenta_bancaria: "123456789012",
+    cuenta_bancaria: "000000000000",
     salario: CO_HR_RULES.minMonthlySalary,
     salario_letras: "",
     duracion_contrato: describeContractDurationForDocx({ contractType, startDate: today, endDate }),
-    cargo_empleado: kind === "prestacion" ? "Conductor de prueba C2" : "Auxiliar administrativo prueba",
+    cargo_empleado: kind === "prestacion" ? "Conductor nacional (ejemplo C2)" : "Auxiliar administrativo (ejemplo)",
     signDate: today
   };
 }
@@ -6840,7 +6605,7 @@ function bindDynamicEvents() {
         if (!restrictedActions.has(action)) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        notify("Solo el administrador puede editar o eliminar en este modulo.", "error");
+        notify(userMessage("adminOnlyModule"), "error");
       },
       true
     );
@@ -6852,7 +6617,7 @@ function bindDynamicEvents() {
         if (!restrictedActions.has(action)) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        notify("Solo el administrador puede editar o eliminar en este modulo.", "error");
+        notify(userMessage("adminOnlyModule"), "error");
       },
       true
     );
@@ -6913,7 +6678,7 @@ function bindDynamicEvents() {
       );
       const users = read(KEYS.users, []);
       if (users.some((item) => normalizeEmail(item.email) === normalizeEmail(data.email))) {
-        notify("Ya existe un usuario con ese correo.", "error");
+        notify(userMessage("userEmailExists"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -6924,7 +6689,7 @@ function bindDynamicEvents() {
       data.taxId = docValidation.normalized;
       const company = getCompanyById(data.companyId);
       if (!company) {
-        notify("Debes seleccionar una empresa valida.", "error");
+        notify(userMessage("userSelectCompany"), "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -6935,7 +6700,7 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud enviada a autorizaciones para aprobacion del administrador.", "info");
+        notify(userMessage("userApprovalQueued"), "info");
         renderPortalView();
         return;
       }
@@ -6967,7 +6732,7 @@ function bindDynamicEvents() {
               : defaultPermissionsForRole(data.role)
       });
       write(KEYS.users, users);
-      notify("Usuario creado correctamente.", "success");
+      notify(userMessage("userCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -6980,12 +6745,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
-        notify(`NIT invalido: ${nitValidation.message}`, "error");
+        notify(userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
       const companyPhone = String(data.phone || "").trim();
       if (!/^\d{7,15}$/.test(companyPhone)) {
-        notify("Telefono de empresa invalido. Usa solo digitos (7 a 15).", "error");
+        notify(userMessage("companyPhoneInvalid"), "error");
         return;
       }
       const companies = read(KEYS.companies, []);
@@ -6994,7 +6759,7 @@ function bindDynamicEvents() {
           (company) => company.name.toLowerCase() === String(data.name).toLowerCase()
         )
       ) {
-        notify("La empresa ya existe.", "error");
+        notify(userMessage("companyExists"), "error");
         return;
       }
       companies.push({
@@ -7005,7 +6770,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
-      notify("Empresa creada correctamente.", "success");
+      notify(userMessage("companyCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -7018,7 +6783,7 @@ function bindDynamicEvents() {
       const form = new FormData(adminUserPermissions);
       const userId = String(form.get("userId") || "");
       if (!userId) {
-        notify("Selecciona un usuario.", "error");
+        notify(userMessage("userPick"), "error");
         return;
       }
       const permissions = [...adminUserPermissions.querySelectorAll("input[name='permissions']:checked")].map(
@@ -7042,13 +6807,13 @@ function bindDynamicEvents() {
       if (state.session?.userId === userId) {
         const refreshed = read(KEYS.users, []).find((item) => item.id === userId);
         if (refreshed && !hasPermission(refreshed, PERMISSIONS.USERS_MANAGE)) {
-          notify("Tus permisos cambiaron. Se cerrara la sesion por seguridad.", "error");
+          notify(userMessage("permissionsChangedLogout"), "error");
           clearSession();
           renderPortal();
           return;
         }
       }
-      notify("Permisos actualizados.", "success");
+      notify(userMessage("permissionsUpdated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -7070,12 +6835,12 @@ function bindDynamicEvents() {
       const users = read(KEYS.users, []);
       const existing = users.find((u) => u.id === userId);
       if (!existing) {
-        notify("Usuario no encontrado.", "error");
+        notify(userMessage("userNotFound"), "error");
         return;
       }
       const duplicated = users.some((u) => u.id !== userId && normalizeEmail(u.email) === normalizeEmail(data.email));
       if (duplicated) {
-        notify("Ya existe otro usuario con ese correo.", "error");
+        notify(userMessage("userEmailDuplicate"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -7086,7 +6851,7 @@ function bindDynamicEvents() {
       data.taxId = docValidation.normalized;
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
-        notify("Debes seleccionar una empresa valida.", "error");
+        notify(userMessage("userSelectCompany"), "error");
         return;
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
@@ -7125,7 +6890,7 @@ function bindDynamicEvents() {
             : u
         )
       );
-      notify("Usuario actualizado correctamente.", "success");
+      notify(userMessage("userUpdated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -7140,7 +6905,7 @@ function bindDynamicEvents() {
       if (!target) return;
       const companies = read(KEYS.companies, []);
       if (!companies.length) {
-        notify("No hay empresas registradas para asociar al usuario.", "error");
+        notify(userMessage("noCompaniesForUser"), "error");
         return;
       }
       openEditModal({
@@ -7160,7 +6925,7 @@ function bindDynamicEvents() {
         onSubmit: (form) => {
           const selected = getCompanyById(String(form.companyId || ""));
           if (!selected) {
-            notify("Debes seleccionar una empresa valida.", "error");
+            notify(userMessage("userSelectCompany"), "error");
             return false;
           }
           write(
@@ -7186,7 +6951,7 @@ function bindDynamicEvents() {
             subject: "Cuenta aprobada - Antares Portal",
             body: `Hola ${target.name}, tu cuenta fue aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion en el portal.`
           });
-          notify(`Cuenta de ${target.name} aprobada exitosamente.`, "success");
+          notify(userMessage("accountApproved", target.name), "success");
           renderPortalView();
           return true;
         }
@@ -7223,7 +6988,7 @@ function bindDynamicEvents() {
             subject: "Registro rechazado - Antares Portal",
             body: `Hola ${target.name}, tu solicitud de registro fue rechazada. Motivo: ${reason}. Contacta a soporte para mas informacion.`
           });
-          notify(`Registro de ${target.name} rechazado.`, "success");
+          notify(userMessage("accountRejected", target.name), "success");
           renderPortalView();
           return true;
         }
@@ -7236,7 +7001,7 @@ function bindDynamicEvents() {
       const userId = btn.dataset.id;
       if (!userId) return;
       if (state.session?.userId === userId) {
-        notify("No puedes eliminar tu propio usuario.", "error");
+        notify(userMessage("userSelfDelete"), "error");
         return;
       }
       openConfirmModal({
@@ -7248,7 +7013,7 @@ function bindDynamicEvents() {
             KEYS.users,
             read(KEYS.users, []).filter((user) => user.id !== userId)
           );
-          notify("Usuario eliminado.", "success");
+          notify(userMessage("userDeleted"), "success");
           renderPortalView();
         }
       });
@@ -7295,7 +7060,7 @@ function bindDynamicEvents() {
       const deliveryDateValue = String(data.deliveryDate || "");
       const deliveryTimeValue = String(data.deliveryTime || "");
       if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
-        notify("Debes seleccionar fecha y hora de recogida y entrega.", "error");
+        notify(userMessage("requestDatetimeMissing"), "error");
         return;
       }
       const pickupAt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
@@ -7303,11 +7068,11 @@ function bindDynamicEvents() {
       const pickupDateTime = new Date(pickupAt);
       const deliveryDateTime = new Date(etaDelivery);
       if (pickupDateTime.getTime() < Date.now()) {
-        notify("No puedes crear solicitudes para fechas u horas anteriores.", "error");
+        notify(userMessage("requestPastDatetime"), "error");
         return;
       }
       if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
-        notify("La entrega estimada debe ser posterior a la recogida.", "error");
+        notify(userMessage("requestDeliveryAfterPickup"), "error");
         return;
       }
       const { pickupDate, pickupTime, deliveryDate, deliveryTime, ...payload } = data;
@@ -7342,7 +7107,7 @@ function bindDynamicEvents() {
         try {
           rowToSave = await window.DomainModules.requests.createViaApi(localRow, pickupAt);
         } catch (err) {
-          notify(String(err?.message || err), "error");
+          notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
       }
@@ -7363,7 +7128,7 @@ function bindDynamicEvents() {
         });
       });
 
-      notify("Solicitud creada correctamente.", "success");
+      notify(userMessage("requestCreated"), "success");
       renderPortalView();
     });
   }
@@ -7546,7 +7311,7 @@ function bindDynamicEvents() {
           const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
           reqWrite(updated);
   recalculateResourceAvailability();
-          notify("Observaciones actualizadas.", "success");
+          notify(userMessage("observationsUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -7633,15 +7398,15 @@ function bindDynamicEvents() {
           const tripValue = parseNum(form.tripValue);
           const mode = vehicleId && driverId ? "assign_now" : selectedMode;
           if (mode === "assign_now" && (!vehicleId || !driverId)) {
-            notify("Para asignar ahora debes seleccionar camion y conductor.", "error");
+            notify(userMessage("assignSelectResources"), "error");
             return false;
           }
           if (mode === "assign_now" && tripValue <= 0) {
-            notify("Debes definir el precio del viaje para asignar.", "error");
+            notify(userMessage("assignPriceRequired"), "error");
             return false;
           }
           if (mode === "assign_now" && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
-            notify("No puedes asignar recursos ocupados o vencidos para ese horario.", "error");
+            notify(userMessage("assignResourcesBusy"), "error");
             return false;
           }
           const ok = mode === "assign_now"
@@ -7650,8 +7415,8 @@ function bindDynamicEvents() {
           if (!ok) return false;
           notify(
             mode === "assign_now"
-              ? "Solicitud aprobada y viaje asignado correctamente."
-              : "Solicitud aprobada. Quedo pendiente de asignacion manual.",
+              ? userMessage("requestApprovedAssigned")
+              : userMessage("requestApprovedPending"),
             "success"
           );
           renderPortalView();
@@ -7674,7 +7439,7 @@ function bindDynamicEvents() {
           const rates = read(KEYS.tripRouteRates, {});
           delete rates[key];
           write(KEYS.tripRouteRates, rates);
-          notify("Tarifa eliminada.", "success");
+          notify(userMessage("routeRateDeleted"), "success");
           renderPortalView();
         }
       });
@@ -7708,12 +7473,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
       if (!requestId) {
-        notify("Selecciona una solicitud pendiente.", "error");
+        notify(userMessage("bulkSelectPending"), "error");
         return;
       }
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) {
-        notify("Solicitud no encontrada.", "error");
+        notify(userMessage("bulkRequestMissing"), "error");
         return;
       }
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
@@ -7758,12 +7523,12 @@ function bindDynamicEvents() {
         ],
         onSubmit: (form) => {
           if (!compatibleVehicles.length || !compatibleDrivers.length) {
-            notify("No hay camion/conductor compatible para asignar este viaje.", "error");
+            notify(userMessage("tripAssignNoMatch"), "error");
             return false;
           }
           const tripValue = parseNum(form.tripValue);
           if (tripValue <= 0) {
-            notify("Debes definir el precio del viaje para asignar.", "error");
+            notify(userMessage("assignPriceRequired"), "error");
             return false;
           }
           const ok = approveRequest(
@@ -7775,7 +7540,7 @@ function bindDynamicEvents() {
             tripValue
           );
           if (!ok) return false;
-          notify("Viaje creado y asignado correctamente.", "success");
+          notify(userMessage("tripCreatedAssigned"), "success");
           renderPortalView();
           return true;
         }
@@ -7812,17 +7577,17 @@ function bindDynamicEvents() {
       const dc = String(data.destinationCity || "").trim();
       const tripRateCop = parseNum(data.tripRateCop);
       if (!od || !oc || !dd || !dc) {
-        notify("Selecciona departamento y ciudad de origen y destino.", "error");
+        notify(userMessage("routeRateSelectRoute"), "error");
         return;
       }
       if (tripRateCop <= 0) {
-        notify("Indica un valor valido en COP.", "error");
+        notify(userMessage("routeRateInvalidCop"), "error");
         return;
       }
       const key = buildTripRouteRateKey(od, oc, dd, dc);
       const next = { ...read(KEYS.tripRouteRates, {}), [key]: tripRateCop };
       write(KEYS.tripRouteRates, next);
-      notify("Tarifa de trayecto guardada.", "success");
+      notify(userMessage("routeRateSaved"), "success");
       renderPortalView();
     });
   }
@@ -7868,17 +7633,17 @@ function bindDynamicEvents() {
       const format = String(btn.dataset.format || "pdf");
       const actor = currentUser();
       if (!canAccessReport(actor, reportId)) {
-        notify("No tienes permisos para generar este reporte.", "error");
+        notify(userMessage("reportNoPermission"), "error");
         return;
       }
       const report = buildReportDataset(reportId, actor);
       if (format === "excel") {
         downloadCsv(report.fileName || "reporte.csv", report.rows || [], report.columns || []);
-        notify("Reporte exportado en formato Excel (CSV).", "success");
+        notify(userMessage("reportCsvExported"), "success");
         return;
       }
       openReportPdf(report.title || "Reporte", report.columns || [], report.rows || []);
-      notify("Reporte PDF generado correctamente.", "success");
+      notify(userMessage("reportPdfOk"), "success");
     });
   });
 
@@ -7901,7 +7666,7 @@ function bindDynamicEvents() {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           rejectRequest(btn.dataset.id, reason, currentUser().name);
-          notify("Solicitud rechazada.", "success");
+          notify(userMessage("requestRejected"), "success");
           renderPortalView();
           return true;
         }
@@ -7930,11 +7695,11 @@ function bindDynamicEvents() {
           const newPickup = `${form.pickupDate}T${form.pickupTime}`;
           const newDelivery = `${form.deliveryDate}T${form.deliveryTime}`;
           if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
-            notify("La entrega debe ser posterior a la recogida.", "error");
+            notify(userMessage("requestScheduleInvalid"), "error");
             return false;
           }
           reqWrite(requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r)));
-          notify("Solicitud actualizada correctamente.", "success");
+          notify(userMessage("requestUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -7951,7 +7716,7 @@ function bindDynamicEvents() {
         onConfirm: () => {
           reqWrite(reqRead().filter((r) => r.id !== btn.dataset.id));
           recalculateResourceAvailability();
-          notify("Solicitud eliminada.", "success");
+          notify(userMessage("requestDeleted"), "success");
           renderPortalView();
         }
       });
@@ -7981,7 +7746,7 @@ function bindDynamicEvents() {
             )
           );
           recalculateResourceAvailability();
-          notify("Viaje eliminado y solicitud devuelta a pendiente de asignacion.", "success");
+          notify(userMessage("tripRemoved"), "success");
           renderPortalView();
         }
       });
@@ -8015,7 +7780,7 @@ function bindDynamicEvents() {
             })
           );
           recalculateResourceAvailability();
-          notify("Camion eliminado correctamente.", "success");
+          notify(userMessage("vehicleDeleted"), "success");
           renderPortalView();
         }
       });
@@ -8050,7 +7815,7 @@ function bindDynamicEvents() {
             })
           );
           recalculateResourceAvailability();
-          notify("Conductor eliminado correctamente.", "success");
+          notify(userMessage("driverDeleted"), "success");
           renderPortalView();
         }
       });
@@ -8064,13 +7829,13 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
       const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
-        notify("Placa invalida. Usa formato colombiano ABC123.", "error");
+        notify(userMessage("vehiclePlateInvalid"), "error");
         return;
       }
       const modelYear = parseNum(data.year);
       const currentYear = new Date().getFullYear();
       if (modelYear < 1990 || modelYear > currentYear + 1) {
-        notify("Año de modelo invalido para el vehiculo.", "error");
+        notify(userMessage("vehicleYearInvalid"), "error");
         return;
       }
       const list = read(KEYS.vehicles, []);
@@ -8105,7 +7870,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.vehicles, list);
-      notify("Camion registrado correctamente.", "success");
+      notify(userMessage("vehicleRegistered"), "success");
       renderPortalView();
     });
   }
@@ -8121,7 +7886,7 @@ function bindDynamicEvents() {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
       if (!/^\d{10,15}$/.test(String(data.phone || "").trim())) {
-        notify("Telefono del conductor invalido. Usa solo digitos (10 a 15).", "error");
+        notify(userMessage("driverPhoneInvalid"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
@@ -8131,7 +7896,7 @@ function bindDynamicEvents() {
       }
       data.idDoc = docValidation.normalized;
       if (new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
-        notify("La licencia debe tener vigencia futura para registrar conductor.", "error");
+        notify(userMessage("driverLicenseRegister"), "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -8142,7 +7907,7 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud de conductor enviada para aprobacion.", "info");
+        notify(userMessage("driverApprovalQueued"), "info");
         renderPortalView();
         return;
       }
@@ -8171,7 +7936,7 @@ function bindDynamicEvents() {
         });
         write(KEYS.payrollEmployees, employees);
       }
-      notify("Conductor creado correctamente.", "success");
+      notify(userMessage("driverCreated"), "success");
       renderPortalView();
     });
   }
@@ -8275,7 +8040,7 @@ function bindDynamicEvents() {
                 : v
             )
           );
-          notify("Camión actualizado correctamente.", "success");
+          notify(userMessage("vehicleUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -8338,7 +8103,7 @@ function bindDynamicEvents() {
         onSubmit: (form) => {
           const expiryValue = String(form.licenseExpiry || "").trim();
           if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
-            notify("La licencia debe tener vigencia futura.", "error");
+            notify(userMessage("driverLicenseFutureEdit"), "error");
             return false;
           }
           write(
@@ -8367,7 +8132,7 @@ function bindDynamicEvents() {
                 : d
             )
           );
-          notify("Conductor actualizado correctamente.", "success");
+          notify(userMessage("driverUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -8440,13 +8205,13 @@ function bindDynamicEvents() {
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
       if (!vehicle || !driver) {
-        notify("Selecciona camion y conductor validos.", "error");
+        notify(userMessage("fuelSelectBoth"), "error");
         return;
       }
       const liters = parseNum(data.liters);
       const totalCost = parseNum(data.totalCost);
       if (liters <= 0 || totalCost < 0) {
-        notify("Litros y costo de combustible no son validos.", "error");
+        notify(userMessage("fuelInvalidAmounts"), "error");
         return;
       }
       const list = read(KEYS.fuelLogs, []);
@@ -8467,7 +8232,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.fuelLogs, list);
-      notify("Consumo de combustible registrado.", "success");
+      notify(userMessage("fuelLogged"), "success");
       renderPortalView();
     });
   }
@@ -8479,7 +8244,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(technicalLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       if (!vehicle) {
-        notify("Selecciona un camion valido.", "error");
+        notify(userMessage("fuelSelectVehicle"), "error");
         return;
       }
       const list = read(KEYS.vehicleTechnicalLogs, []);
@@ -8496,7 +8261,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.vehicleTechnicalLogs, list);
-      notify("Novedad tecnica registrada correctamente.", "success");
+      notify(userMessage("technicalLogged"), "success");
       renderPortalView();
     });
   }
@@ -8531,12 +8296,15 @@ function bindDynamicEvents() {
       }
       const position = getPositionById(String(raw.positionId || ""));
       if (!position || position.active === false) {
-        notify("Selecciona un cargo activo del catalogo (modulo Contratacion).", "error");
+        notify(userMessage("recruitSelectActivePosition"), "error");
         return;
       }
       const baseSalary = parseNum(raw.baseSalary);
       if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`El salario no puede ser inferior al minimo legal referenciado (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        notify(
+          userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+          "error"
+        );
         return;
       }
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
@@ -8603,18 +8371,18 @@ function bindDynamicEvents() {
             requestedByUserId: actor?.id || "",
             requestedByName: actor?.name || "Usuario"
           });
-          notify("Solicitud de empleado enviada a autorizaciones.", "info");
+          notify(userMessage("employeeRequestQueued"), "info");
           renderPortalView();
           return;
         }
         const payload = buildPayload(avatarUrlValue);
         if (payload.workerRole === "conductor") {
           if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
-            notify("Para cargo conductor debes registrar licencia, categoria y fecha de vencimiento.", "error");
+            notify(userMessage("employeeDriverFieldsRequired"), "error");
             return;
           }
           if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-            notify("No se puede registrar conductor con licencia vencida.", "error");
+            notify(userMessage("payrollLicenseExpired"), "error");
             return;
           }
         }
@@ -8643,12 +8411,12 @@ function bindDynamicEvents() {
               cargo_empleado: payload.position,
               signDate: payload.startDate
             });
-            notify("Empleado creado y contrato Word generado.", "success");
+            notify(userMessage("employeeCreatedWithContract"), "success");
           } catch (error) {
-            notify(`Empleado creado. No se pudo generar Word: ${error?.message || "Error desconocido"}`, "error");
+            notify(userMessage("employeeCreatedWordFail", error?.message || "Error desconocido"), "error");
           }
         } else {
-          notify("Empleado creado correctamente.", "success");
+          notify(userMessage("employeeCreatedOk"), "success");
         }
         renderPortalView();
       };
@@ -8675,7 +8443,7 @@ function bindDynamicEvents() {
       const start = new Date(`${data.startDate}T12:00:00`);
       const end = new Date(`${data.endDate}T12:00:00`);
       if (end.getTime() < start.getTime()) {
-        notify("La fecha final debe ser igual o posterior al inicio.", "error");
+        notify(userMessage("absenceDateOrder"), "error");
         return;
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
@@ -8701,13 +8469,13 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud de ausencia enviada a aprobacion de administrador.", "info");
+        notify(userMessage("absenceApprovalQueued"), "info");
         renderPortalView();
         return;
       }
       list.unshift(absencePayload);
       write(KEYS.hrAbsences, list);
-      notify("Ausencia registrada en expediente digital de RRHH.", "success");
+      notify(userMessage("absenceRecorded"), "success");
       renderPortalView();
     });
   }
@@ -8765,12 +8533,15 @@ function bindDynamicEvents() {
         onSubmit: (form) => {
           const position = getPositionById(String(form.positionId || ""));
           if (!position) {
-            notify("Selecciona un cargo valido.", "error");
+            notify(userMessage("recruitPickPosition"), "error");
             return false;
           }
           const baseSalary = parseNum(form.baseSalary);
           if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-            notify(`Salario inferior al minimo referenciado (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+            notify(
+              userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+              "error"
+            );
             return false;
           }
           write(
@@ -8796,7 +8567,7 @@ function bindDynamicEvents() {
           if (refreshed && refreshed.workerRole === "conductor") {
             syncDriverFromEmployee(refreshed);
           }
-          notify("Empleado actualizado correctamente.", "success");
+          notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
           return true;
         }
@@ -8812,7 +8583,10 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: () => {
           const removed = deleteEmployeesCascade([String(btn.dataset.id || "")]);
-          notify(removed ? "Empleado eliminado en cascada." : "No se encontro el empleado a eliminar.", removed ? "success" : "error");
+          notify(
+            removed ? userMessage("employeeDeletedCascade") : userMessage("employeeDeleteNotFound"),
+            removed ? "success" : "error"
+          );
           renderPortalView();
         }
       });
@@ -8837,7 +8611,7 @@ function bindDynamicEvents() {
       event.preventDefault();
       const selectedIds = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) => String(check.value || ""));
       if (!selectedIds.length) {
-        notify("Selecciona al menos un empleado para eliminar.", "error");
+        notify(userMessage("employeesBulkSelect"), "error");
         return;
       }
       openConfirmModal({
@@ -8846,7 +8620,7 @@ function bindDynamicEvents() {
         confirmText: "Eliminar en cascada",
         onConfirm: () => {
           const removed = deleteEmployeesCascade(selectedIds);
-          notify(`Se eliminaron ${removed} empleado(s) en cascada.`, "success");
+          notify(userMessage("employeesBulkRemoved", removed), "success");
           renderPortalView();
         }
       });
@@ -8861,7 +8635,7 @@ function bindDynamicEvents() {
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) return;
       if (!monthRange(data.month)) {
-        notify("Selecciona un mes valido para liquidar.", "error");
+        notify(userMessage("payrollSelectMonth"), "error");
         return;
       }
       const linkedDriver = employee.workerRole === "conductor" ? resolveDriverForEmployee(employee) : null;
@@ -8983,7 +8757,7 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud de marcacion de pago enviada a aprobacion de administrador.", "info");
+        notify(userMessage("payrollMarkPaidApprovalAdmin"), "info");
         renderPortalView();
         return;
       }
@@ -8996,7 +8770,7 @@ function bindDynamicEvents() {
             KEYS.payrollRuns,
             all.map((item) => (item.id === id ? { ...item, paid: true, paidAt: nowIso() } : item))
           );
-          notify("Liquidacion marcada como pagada.", "success");
+          notify(userMessage("payrollPaidMarked"), "success");
           renderPortalView();
         }
       });
@@ -9043,12 +8817,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
       const deadlineTs = new Date(`${String(data.deadline || "")}T12:00:00`).getTime();
       if (!Number.isFinite(deadlineTs) || deadlineTs < Date.now()) {
-        notify("La fecha límite de la vacante debe ser hoy o posterior.", "error");
+        notify(userMessage("vacancyDeadlineFuture"), "error");
         return;
       }
       const position = getPositionById(String(data.positionId || ""));
       if (!position || position.active === false) {
-        notify("Selecciona un cargo activo para publicar la vacante.", "error");
+        notify(userMessage("vacancySelectPosition"), "error");
         return;
       }
       const all = read(KEYS.vacancies, []);
@@ -9075,7 +8849,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(positionForm).entries());
       const minSalary = CO_HR_RULES.minMonthlySalary;
       if (parseNum(data.baseSalary) < minSalary) {
-        notify(`El salario base no puede ser inferior al minimo legal vigente (${minSalary.toLocaleString("es-CO")}).`, "error");
+        notify(userMessage("positionSalaryBaseMin", minSalary.toLocaleString("es-CO")), "error");
         return;
       }
       const all = read(KEYS.positions, []);
@@ -9090,7 +8864,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.positions, all);
-      notify("Cargo creado correctamente.", "success");
+      notify(userMessage("positionCreatedOk"), "success");
       renderPortalView();
     });
   }
@@ -9101,7 +8875,7 @@ function bindDynamicEvents() {
       const target = all.find((p) => p.id === btn.dataset.id);
       if (!target) return;
       write(KEYS.positions, all.map((p) => (p.id === target.id ? { ...p, active: target.active === false } : p)));
-      notify(target.active === false ? "Cargo activado." : "Cargo inactivado.", "info");
+      notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
       renderPortalView();
     });
   });
@@ -9169,12 +8943,15 @@ function bindDynamicEvents() {
       const files = [...candidateForm.querySelector("input[name='attachments']").files].map((f) => f.name);
       const expectedSalary = parseNum(data.expectedSalary);
       if (expectedSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`La aspiracion salarial no puede ser menor al minimo de referencia (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        notify(
+          userMessage("candidateSalaryAspirationMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+          "error"
+        );
         return;
       }
       const availabilityTs = new Date(`${String(data.availabilityDate || "")}T12:00:00`).getTime();
       if (!Number.isFinite(availabilityTs) || availabilityTs < new Date(new Date().toDateString()).getTime()) {
-        notify("La disponibilidad de ingreso debe ser hoy o posterior.", "error");
+        notify(userMessage("candidateAvailabilityFuture"), "error");
         return;
       }
       const all = read(KEYS.candidates, []);
@@ -9236,13 +9013,13 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(interviewForm).entries());
       const interviewTs = new Date(String(data.when || "")).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
-        notify("La entrevista debe programarse en fecha/hora futura.", "error");
+        notify(userMessage("interviewScheduleFuture"), "error");
         return;
       }
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
       if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {
-        notify("No puedes programar entrevista para candidato descartado o ya contratado.", "error");
+        notify(userMessage("interviewInvalidCandidate"), "error");
         return;
       }
       const all = read(KEYS.interviews, []);
@@ -9276,9 +9053,9 @@ function bindDynamicEvents() {
         const kind = String(btn.dataset.template || "oficina");
         try {
           await generateOfficialWordContract(buildContractDocxTestPayload(kind));
-          notify(`Descarga de prueba lista (plantilla ${kind}). Revise su carpeta de descargas.`, "success");
+          notify(userMessage("contractTestDownloaded", kind), "success");
         } catch (err) {
-          notify(`No se pudo generar el Word: ${err?.message || err}`, "error");
+          notify(userMessage("contractWordError", String(err?.message || err)), "error");
         }
       });
     });
@@ -9301,17 +9078,17 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
       if (!employee) {
-        notify("Seleccione un empleado valido.", "error");
+        notify(userMessage("contractPickEmployee"), "error");
         return;
       }
       const missing = validateEmployeeContractDocFields(employee);
       if (missing.length) {
-        notify(`Complete en la ficha del empleado (Nomina): ${missing.join(", ")}.`, "error");
+        notify(userMessage("contractEmployeeMissingFields", missing.join(", ")), "error");
         return;
       }
       const signDate = String(data.signDate || "").trim();
       if (!signDate) {
-        notify("Indique la fecha de firma.", "error");
+        notify(userMessage("contractSignDateRequired"), "error");
         return;
       }
       const payload = buildEmployeeContractDocxPayload(employee, {
@@ -9346,9 +9123,9 @@ function bindDynamicEvents() {
           createdAt: nowIso()
         });
         write(KEYS.contracts, all);
-        notify("Contrato Word descargado y registro guardado.", "success");
+        notify(userMessage("contractWordSaved"), "success");
       } catch (wordErr) {
-        notify(`No se pudo generar el Word: ${wordErr?.message || "error"}`, "error");
+        notify(userMessage("contractWordError", String(wordErr?.message || "error")), "error");
       }
       renderPortalView();
     });
@@ -9361,12 +9138,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(sstComplianceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
-        notify("Selecciona un empleado valido para el control.", "error");
+        notify(userMessage("sstPickEmployee"), "error");
         return;
       }
       const dueDate = String(data.dueDate || "");
       if (!dueDate) {
-        notify("Debes indicar la fecha de vencimiento/control.", "error");
+        notify(userMessage("sstDueDateRequired"), "error");
         return;
       }
       const list = read(KEYS.sstCompliance, []);
@@ -9384,7 +9161,7 @@ function bindDynamicEvents() {
         createdBy: currentUser()?.name || "Sistema"
       });
       write(KEYS.sstCompliance, list);
-      notify("Control de cumplimiento/SST registrado.", "success");
+      notify(userMessage("sstRecorded"), "success");
       renderPortalView();
     });
   }
@@ -9439,7 +9216,7 @@ function bindDynamicEvents() {
               : u
           )
         );
-        notify("Perfil actualizado correctamente.", "success");
+        notify(userMessage("profileUpdatedOk"), "success");
         renderPortal();
       };
       if (file) {
@@ -9536,13 +9313,13 @@ function bindDynamicEvents() {
       } else if (approval.type === "mark_payroll_paid") {
         const payrollRunId = String(approval.payload?.payrollRunId || "");
         if (!payrollRunId) {
-          notify("Solicitud de pago sin liquidacion asociada.", "error");
+          notify(userMessage("paymentNoSettlement"), "error");
           return;
         }
         const runs = read(KEYS.payrollRuns, []);
         const targetRun = runs.find((r) => r.id === payrollRunId);
         if (!targetRun) {
-          notify("No se encontro la liquidacion solicitada.", "error");
+          notify(userMessage("settlementNotFound"), "error");
           return;
         }
         write(
@@ -9553,7 +9330,7 @@ function bindDynamicEvents() {
         const requestId = String(approval.payload.requestId || "");
         const request = reqRead().find((item) => item.id === requestId);
         if (!request) {
-          notify("No se encontro la solicitud asociada a esta autorizacion.", "error");
+          notify(userMessage("approvalLinkedRequestMissing"), "error");
           return;
         }
 
@@ -9606,15 +9383,15 @@ function bindDynamicEvents() {
             const tripValue = parseNum(form.tripValue);
 
             if ((vehicleId && !driverId) || (!vehicleId && driverId)) {
-              notify("Para asignar automaticamente debes seleccionar camion y conductor.", "error");
+              notify(userMessage("assignAutoPickResources"), "error");
               return false;
             }
             if (vehicleId && driverId && tripValue <= 0) {
-              notify("Debes definir el precio del viaje para asignar.", "error");
+              notify(userMessage("assignPriceRequired"), "error");
               return false;
             }
             if (vehicleId && driverId && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
-              notify("No puedes asignar recursos ocupados o vencidos para ese horario.", "error");
+              notify(userMessage("assignResourcesBusy"), "error");
               return false;
             }
 
@@ -9623,7 +9400,7 @@ function bindDynamicEvents() {
               : approveRequest(requestId, actor.name, true);
 
             if (!ok) {
-              notify("No fue posible aprobar la solicitud con los recursos seleccionados.", "error");
+              notify(userMessage("approvalResourcesFailed"), "error");
               return false;
             }
 
@@ -9636,9 +9413,7 @@ function bindDynamicEvents() {
             );
 
             notify(
-              vehicleId && driverId
-                ? "Autorizacion aprobada y viaje asignado correctamente."
-                : "Autorizacion aprobada. Solicitud pendiente de asignacion manual de viaje.",
+              vehicleId && driverId ? userMessage("authApprovalWithTrip") : userMessage("authApprovalPendingManual"),
               "success"
             );
             renderPortalView();
@@ -9653,7 +9428,7 @@ function bindDynamicEvents() {
           a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
         )
       );
-      notify("Autorizacion aprobada.", "success");
+      notify(userMessage("authApprovalOk"), "success");
       renderPortalView();
     });
   });
@@ -9679,7 +9454,7 @@ function bindDynamicEvents() {
                 : a
             )
           );
-          notify("Autorizacion rechazada.", "success");
+          notify(userMessage("authRejectOk"), "success");
           renderPortalView();
           return true;
         }
@@ -9732,7 +9507,7 @@ function bindDynamicEvents() {
             signDate: c.startDate
           });
         }
-        notify("Se descargó de nuevo el Word usando las plantillas de documentacion/.", "success");
+        notify(userMessage("wordTemplatesRedownloaded"), "success");
       } catch (err) {
         const popup = window.open("", "_blank", "width=800,height=900");
         popup.document.write(`
@@ -9882,7 +9657,7 @@ function initGlobalEvents() {
       if (firstError === "phone") jumpToStepForField("input[name='phone']");
       if (firstError === "message") jumpToStepForField("textarea[name='message']");
       if (firstError === "volume") jumpToStepForField("input[name='monthlyVolumeKg']");
-      notify("Revisa los campos marcados para enviar tu solicitud B2B.", "error");
+      notify(userMessage("b2bFieldsInvalid"), "error");
       return;
     }
 
@@ -9896,7 +9671,7 @@ function initGlobalEvents() {
     sendEmail({ to: "comercial@antarescargo.com", subject: "Nuevo lead B2B", body: JSON.stringify(data) });
     nodes.b2bForm.reset();
     if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
-    notify("Contacto enviado. Gracias por escribirnos.", "success");
+    notify(userMessage("b2bContactSent"), "success");
   });
 
   nodes.sideLinks.forEach((link) => {
@@ -10030,7 +9805,7 @@ function openPublicVacancyApplyModal(vacancy) {
     onSubmit: (form) => {
       const vac = read(KEYS.vacancies, []).find((x) => x.id === form.vacancyId);
       if (!vac || vac.status !== "Publicada") {
-        notify("Esta vacante ya no esta disponible.", "error");
+        notify(userMessage("vacancyPublicClosed"), "error");
         return false;
       }
       const docValidation = validateColombianDocument(form.documentType, form.idDoc);
@@ -10067,7 +9842,7 @@ function openPublicVacancyApplyModal(vacancy) {
         "Nueva postulacion (web)",
         `${form.name} aplico a "${vac.title}". Revise Contratacion · Pipeline de candidatos.`
       );
-      notify("Candidatura enviada. Revisa tu correo para la confirmacion.", "success");
+      notify(userMessage("candidacySentOk"), "success");
       return true;
     }
   });
