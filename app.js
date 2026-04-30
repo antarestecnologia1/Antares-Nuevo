@@ -482,6 +482,8 @@ const KEYS = {
 };
 
 const CO_TIMEZONE = "America/Bogota";
+const REGISTER_TERMS_URL = "#";
+const REGISTER_PRIVACY_URL = "#";
 
 const ROLES = {
   ADMIN: "admin",
@@ -2696,38 +2698,42 @@ function authView() {
             <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
             <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
           </div>
-          <div id="register-password-strength-suite" class="password-strength-suite">
-            <div class="password-strength-bar-wrap">
-              <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
-                <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
-              </div>
-              <div class="password-strength-meta">
-                <span class="password-strength-pill password-strength-pill--weak">0%</span>
-                <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
-              </div>
-            </div>
-            <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
-              <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
-              <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
-              <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
-              <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
-              <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
-            </ul>
-            <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
-          </div>
         </label>
         <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}
           <input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" />
           <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
         </label>
+        <div id="register-password-strength-suite" class="password-strength-suite full">
+          <div class="password-strength-bar-wrap">
+            <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+              <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+            </div>
+            <div class="password-strength-meta">
+              <span class="password-strength-pill password-strength-pill--weak">0%</span>
+              <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
+            </div>
+          </div>
+          <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+            <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+            <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+            <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+            <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+            <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+          </ul>
+          <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
+        </div>
         <label class="full register-terms-card">
           <span class="register-terms-title">${fieldLabel(IC.file, "Términos y condiciones")}</span>
           <span class="register-terms-copy muted">
-            Al crear su cuenta acepta nuestros términos de uso, política de privacidad y tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
+            Al crear su cuenta acepta los
+            <a class="register-terms-link" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">Términos de uso</a>,
+            la
+            <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>
+            y el tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
           </span>
           <span class="checkbox-inline register-terms-check">
             <input type="checkbox" name="acceptTerms" required />
-            Acepto los términos para continuar con la solicitud.
+            Acepto los términos y la política para continuar con la solicitud.
           </span>
         </label>
         <div class="full auth-inline-note">

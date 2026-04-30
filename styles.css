@@ -3163,6 +3163,17 @@ tbody tr:last-child td { border-bottom: none; }
   margin-top: 0.15rem;
 }
 
+.register-terms-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.register-terms-link:hover {
+  color: var(--primary-dark);
+}
+
 .register-terms-check {
   margin-top: 0.5rem;
   align-items: flex-start;
@@ -6463,6 +6474,10 @@ body[data-theme="dark"] .auth-register-form .phone-national-input {
 body[data-theme="dark"] .register-terms-card {
   border-color: #476b93;
   background: linear-gradient(180deg, #162b42 0%, #1b334f 100%);
+}
+
+body[data-theme="dark"] .register-terms-link {
+  color: #9ed0ff;
 }
 
 body[data-theme="dark"] .auth-header-premium h3 {
