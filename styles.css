@@ -2605,6 +2605,51 @@ tbody tr:last-child td { border-bottom: none; }
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+/* Registro: tipo de persona + documentos misma rejilla y mismo ancho que el resto del formulario */
+.auth-register-form .register-doc-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.auth-register-form .register-doc-section > label {
+  min-width: 0;
+}
+
+/* Persona natural: tres columnas alineadas (tipo persona | tipo doc | número) */
+.auth-register-form #register-doc-persona.register-doc-block--natural {
+  display: contents;
+}
+
+.auth-register-form #register-doc-persona.register-doc-block--natural > label {
+  min-width: 0;
+}
+
+.auth-register-form #register-doc-persona.register-doc-block--natural[hidden] {
+  display: none !important;
+}
+
+/* Persona jurídica: panel ancho completo, campos en rejilla coherente */
+.auth-register-form #register-doc-empresa.register-doc-block--empresa {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.auth-register-form #register-doc-empresa.register-doc-block--empresa > label {
+  min-width: 0;
+}
+
+.auth-register-form .register-doc-empresa-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 /* Mayúsculas solo en pantalla; el valor enviado se normaliza en JS. Correo en minúsculas; fecha y contraseña sin forzar. */
 .auth-register-form input:not([type="password"]):not([type="email"]):not([type="date"]):not([type="checkbox"]),
 .auth-register-form select {

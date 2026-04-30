@@ -2437,37 +2437,39 @@ function authView() {
         <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" /></label>
         <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" /></label>
         <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" /></label>
-        <label>${fieldLabel(IC.briefcase, "Tipo de persona")}
-          <select name="personType" required>
-            <option value="">Seleccione...</option>
-            <option value="natural">Natural</option>
-            <option value="juridica">Jurídica</option>
-          </select>
-        </label>
-        <div id="register-doc-persona" class="register-doc-block">
-          <label>${fieldLabel(IC.file, "Tipo de documento")}
-            <select name="documentType" required>
-              <option value="CC">Cédula de ciudadanía</option>
-              <option value="CE">Cédula de extranjería</option>
-              <option value="PAS">Pasaporte</option>
+        <div class="register-doc-section full">
+          <label class="register-field-person-type">${fieldLabel(IC.briefcase, "Tipo de persona")}
+            <select name="personType" required>
+              <option value="">Seleccione...</option>
+              <option value="natural">Natural</option>
+              <option value="juridica">Jurídica</option>
             </select>
           </label>
-          <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" /></label>
-        </div>
-        <div id="register-doc-empresa" class="register-doc-block hidden" hidden>
-          <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
-            <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" />
-          </label>
-          <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
-            <select name="personalDocumentType">
-              <option value="CC">Cédula de ciudadanía</option>
-              <option value="CE">Cédula de extranjería</option>
-            </select>
-          </label>
-          <label>${fieldLabel(IC.badge, "Número de cédula")}
-            <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" />
-          </label>
-          <p class="muted" style="font-size:0.8rem;margin:0">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
+          <div id="register-doc-persona" class="register-doc-block register-doc-block--natural">
+            <label>${fieldLabel(IC.file, "Tipo de documento")}
+              <select name="documentType" required>
+                <option value="CC">Cédula de ciudadanía</option>
+                <option value="CE">Cédula de extranjería</option>
+                <option value="PAS">Pasaporte</option>
+              </select>
+            </label>
+            <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" /></label>
+          </div>
+          <div id="register-doc-empresa" class="register-doc-block register-doc-block--empresa hidden" hidden>
+            <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
+              <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" />
+            </label>
+            <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
+              <select name="personalDocumentType">
+                <option value="CC">Cédula de ciudadanía</option>
+                <option value="CE">Cédula de extranjería</option>
+              </select>
+            </label>
+            <label>${fieldLabel(IC.badge, "Número de cédula")}
+              <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" />
+            </label>
+            <p class="muted register-doc-empresa-note">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
+          </div>
         </div>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
         <label>${fieldLabel(IC.users, "Género")}
