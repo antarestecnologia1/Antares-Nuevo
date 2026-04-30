@@ -1476,6 +1476,93 @@ function uid() {
   return Math.random().toString(36).slice(2, 11);
 }
 
+/** País / indicativo en registro (Colombia primero; banderas UTF-8). */
+const REGISTER_PHONE_COUNTRIES = [
+  { id: "CO", flag: "\uD83C\uDDE8\uD83C\uDDF4", label: "Colombia", dial: "57", minNat: 10, maxNat: 10, style: "co" },
+  { id: "AR", flag: "\uD83C\uDDE6\uD83C\uDDF7", label: "Argentina", dial: "54", minNat: 10, maxNat: 10, style: "generic" },
+  { id: "BO", flag: "\uD83C\uDDE7\uD83C\uDDF4", label: "Bolivia", dial: "591", minNat: 8, maxNat: 8, style: "generic" },
+  { id: "BR", flag: "\uD83C\uDDE7\uD83C\uDDF7", label: "Brasil", dial: "55", minNat: 10, maxNat: 11, style: "generic" },
+  { id: "CL", flag: "\uD83C\uDDE8\uD83C\uDDF1", label: "Chile", dial: "56", minNat: 9, maxNat: 9, style: "generic" },
+  { id: "CR", flag: "\uD83C\uDDE8\uD83C\uDDF7", label: "Costa Rica", dial: "506", minNat: 8, maxNat: 8, style: "generic" },
+  { id: "EC", flag: "\uD83C\uDDEA\uD83C\uDDE8", label: "Ecuador", dial: "593", minNat: 9, maxNat: 9, style: "generic" },
+  { id: "ES", flag: "\uD83C\uDDEA\uD83C\uDDF8", label: "España", dial: "34", minNat: 9, maxNat: 9, style: "generic" },
+  { id: "US", flag: "\uD83C\uDDFA\uD83C\uDDF8", label: "Estados Unidos", dial: "1", minNat: 10, maxNat: 10, style: "generic" },
+  { id: "GT", flag: "\uD83C\uDDEC\uD83C\uDDF9", label: "Guatemala", dial: "502", minNat: 8, maxNat: 8, style: "generic" },
+  { id: "HN", flag: "\uD83C\uDDED\uD83C\uDDF3", label: "Honduras", dial: "504", minNat: 8, maxNat: 8, style: "generic" },
+  { id: "MX", flag: "\uD83C\uDDF2\uD83C\uDDFD", label: "México", dial: "52", minNat: 10, maxNat: 10, style: "generic" },
+  { id: "NI", flag: "\uD83C\uDDF3\uD83C\uDDEE", label: "Nicaragua", dial: "505", minNat: 8, maxNat: 8, style: "generic" },
+  { id: "PA", flag: "\uD83C\uDDF5\uD83C\uDDE6", label: "Panamá", dial: "507", minNat: 8, maxNat: 8, style: "generic" },
+  { id: "PY", flag: "\uD83C\uDDF5\uD83C\uDDFE", label: "Paraguay", dial: "595", minNat: 9, maxNat: 9, style: "generic" },
+  { id: "PE", flag: "\uD83C\uDDF5\uD83C\uDDEA", label: "Perú", dial: "51", minNat: 9, maxNat: 9, style: "generic" },
+  { id: "UY", flag: "\uD83C\uDDFA\uD83C\uDDFE", label: "Uruguay", dial: "598", minNat: 8, maxNat: 9, style: "generic" },
+  { id: "VE", flag: "\uD83C\uDDFB\uD83C\uDDEA", label: "Venezuela", dial: "58", minNat: 10, maxNat: 10, style: "generic" }
+];
+
+function registerPhoneCountryOptionsHtml() {
+  return REGISTER_PHONE_COUNTRIES.map(
+    (c) => `<option value="${c.id}">${c.flag} ${c.label} +${c.dial}</option>`
+  ).join("");
+}
+
+function getSelectedRegisterPhoneCountry(registerForm) {
+  const sel = registerForm?.querySelector(".js-register-phone-cc");
+  const id = sel?.value || "CO";
+  return REGISTER_PHONE_COUNTRIES.find((c) => c.id === id) || REGISTER_PHONE_COUNTRIES[0];
+}
+
+function formatGenericNationalDisplay(value, maxLen) {
+  let d = String(value || "").replace(/\D/g, "").slice(0, maxLen);
+  if (!d) return "";
+  const parts = [];
+  for (let i = 0; i < d.length; i += 3) {
+    parts.push(d.slice(i, i + 3));
+  }
+  return parts.join(" ");
+}
+
+function stripDigitsForRegisterNational(raw, meta) {
+  let d = String(raw || "").replace(/\D/g, "");
+  const dial = meta.dial;
+  if (d.startsWith(dial)) d = d.slice(dial.length);
+  if (meta.style === "co") {
+    if (d.startsWith("57")) d = d.slice(2);
+    return d.slice(0, 10);
+  }
+  while (d.length > meta.maxNat && d.startsWith("0")) {
+    d = d.slice(1);
+  }
+  return d.slice(0, meta.maxNat);
+}
+
+function updateRegisterPhoneFieldForCountry(registerForm) {
+  const meta = getSelectedRegisterPhoneCountry(registerForm);
+  const hint = registerForm?.querySelector("#register-phone-hint");
+  const nat = registerForm?.querySelector(".js-register-phone-national");
+  const wrap = registerForm?.querySelector(".phone-input-professional");
+  if (wrap) {
+    wrap.setAttribute(
+      "aria-label",
+      meta.id === "CO" ? "Teléfono celular Colombia" : `Teléfono ${meta.label}`
+    );
+  }
+  if (hint) {
+    hint.textContent =
+      meta.style === "co"
+        ? "Celular Colombia: 10 dígitos (empieza por 3)."
+        : meta.minNat === meta.maxNat
+          ? `Indicativo +${meta.dial}: ingrese ${meta.maxNat} dígitos del número local.`
+          : `Indicativo +${meta.dial}: entre ${meta.minNat} y ${meta.maxNat} dígitos del número local.`;
+  }
+  if (nat) {
+    nat.placeholder = meta.style === "co" ? "300 123 4567" : "Número local";
+    const maxFormatted =
+      meta.style === "co"
+        ? 14
+        : meta.maxNat + (Math.ceil(meta.maxNat / 3) - 1);
+    nat.setAttribute("maxlength", String(maxFormatted));
+  }
+}
+
 /** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */
 function formatColombianPhone(value) {
   let d = String(value || "").replace(/\D/g, "");
@@ -1506,11 +1593,15 @@ function syncRegisterPhoneHidden(registerForm) {
   const nat = registerForm?.querySelector(".js-register-phone-national");
   const hid = registerForm?.querySelector(".js-register-phone-full");
   if (!nat || !hid) return;
-  let digits = String(nat.value).replace(/\D/g, "");
-  if (digits.startsWith("57")) digits = digits.slice(2);
-  digits = digits.slice(0, 10);
-  nat.value = digits ? formatColombianNationalDisplay(digits) : "";
-  hid.value = digits ? formatColombianPhone("57" + digits) : "";
+  const meta = getSelectedRegisterPhoneCountry(registerForm);
+  let digits = stripDigitsForRegisterNational(nat.value, meta);
+  if (meta.style === "co") {
+    nat.value = digits ? formatColombianNationalDisplay(digits) : "";
+    hid.value = digits ? formatColombianPhone("57" + digits) : "";
+    return;
+  }
+  nat.value = digits ? formatGenericNationalDisplay(digits, meta.maxNat) : "";
+  hid.value = digits ? `+${meta.dial} ${formatGenericNationalDisplay(digits, meta.maxNat)}` : "";
 }
 
 function clearFieldError(field) {
@@ -2554,16 +2645,9 @@ function authView() {
         <label class="phone-field-register">
           ${fieldLabel(IC.phone, "Teléfono")}
           <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
-            <div class="phone-cc-badge" title="Colombia">
-              <span class="phone-flag-co" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16" width="28" height="18" focusable="false">
-                  <rect width="24" height="5.33" fill="#FDD116"/>
-                  <rect y="5.33" width="24" height="5.34" fill="#003893"/>
-                  <rect y="10.67" width="24" height="5.33" fill="#CE1126"/>
-                </svg>
-              </span>
-              <span class="phone-dial-code">+57</span>
-            </div>
+            <select class="js-register-phone-cc phone-cc-select" aria-label="País e indicativo telefónico" required>
+              ${registerPhoneCountryOptionsHtml()}
+            </select>
             <input
               type="tel"
               class="js-register-phone-national phone-national-input"
@@ -2576,7 +2660,7 @@ function authView() {
             />
             <input type="hidden" name="phone" class="js-register-phone-full" value="" />
           </div>
-          <small id="register-phone-hint" class="muted phone-field-hint">Celular Colombia: 10 dígitos.</small>
+          <small id="register-phone-hint" class="muted phone-field-hint">Celular Colombia: 10 dígitos (empieza por 3).</small>
         </label>
         <label>${fieldLabel(IC.mapPin, "Departamento")}
           <select name="department" id="register-department" required>
@@ -2857,9 +2941,19 @@ function bindAuthForms() {
     syncRegisterDocLayout();
 
     const registerPhoneNat = register.querySelector(".js-register-phone-national");
+    const registerPhoneCc = register.querySelector(".js-register-phone-cc");
     if (registerPhoneNat) {
       registerPhoneNat.addEventListener("input", () => syncRegisterPhoneHidden(register));
     }
+    if (registerPhoneCc) {
+      registerPhoneCc.addEventListener("change", () => {
+        clearFieldError(registerPhoneNat);
+        updateRegisterPhoneFieldForCountry(register);
+        syncRegisterPhoneHidden(register);
+      });
+    }
+    updateRegisterPhoneFieldForCountry(register);
+    syncRegisterPhoneHidden(register);
     const regPass = register.querySelector("input[name='password']");
     bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
     register.addEventListener("submit", async (event) => {
@@ -2942,10 +3036,28 @@ function bindAuthForms() {
         notify(userMessage("registerMinor"), "error");
         return;
       }
+      const meta = getSelectedRegisterPhoneCountry(register);
       const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
-      if (phoneDigitsAll.length !== 12 || !phoneDigitsAll.startsWith("57")) {
-        notify("Ingrese un número celular colombiano válido (10 dígitos después de +57).", "error");
+      if (!phoneDigitsAll.startsWith(meta.dial)) {
+        notify("El teléfono no coincide con el país seleccionado.", "error");
         return;
+      }
+      const nationalLen = phoneDigitsAll.length - meta.dial.length;
+      if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
+        notify(
+          meta.style === "co"
+            ? "Ingrese un celular colombiano válido (10 dígitos después de +57)."
+            : `Ingrese entre ${meta.minNat} y ${meta.maxNat} dígitos del número local para ${meta.label}.`,
+          "error"
+        );
+        return;
+      }
+      if (meta.style === "co") {
+        const nat = phoneDigitsAll.slice(meta.dial.length);
+        if (!nat.startsWith("3")) {
+          notify("El celular en Colombia debe ser móvil (empieza por 3).", "error");
+          return;
+        }
       }
 
       if (window.AntaresApi?.getBase?.()) {
