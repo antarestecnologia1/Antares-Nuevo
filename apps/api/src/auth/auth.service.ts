@@ -178,9 +178,60 @@ export class AuthService {
           JSON.stringify(checklist)
         ]
       );
-    } catch (err) {
-      await this.deleteSupabaseAuthUser(authUserId);
-      throw err;
+    } catch (err: any) {
+      const msg = String(err?.message || "").toLowerCase();
+      // Compatibilidad con esquemas antiguos que aún no tienen nit_empresa_registro (script 13).
+      const canRetryLegacyInsert = String(err?.code || "") === "42703" && msg.includes("nit_empresa_registro");
+      if (canRetryLegacyInsert) {
+        try {
+          await this.pool.query(
+            `INSERT INTO usuarios (
+              id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
+              primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
+              tipo_persona, tipo_documento, numero_identificacion, fecha_expedicion_documento,
+              fecha_nacimiento, genero, cargo_registro, area_trabajo, telefono,
+              departamento, ciudad, direccion,
+              fecha_aceptacion_terminos, checklist_registro_json
+            ) VALUES (
+              $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
+              $5, $6, $7, $8, $9, $10, $11, NULL::date,
+              $12::date, $13, $14, $15, $16, $17, $18, $19, now(), $20::jsonb
+            )`,
+            [
+              authUserId,
+              email,
+              passwordHash,
+              fullName || dto.email,
+              firstName || null,
+              middleName,
+              lastName || null,
+              secondLastName,
+              this.normalizePersonTypeForDb(dto.personType),
+              this.normalizeDbTextUpper(dto.documentType),
+              numeroPersonal,
+              dto.birthDate || null,
+              this.normalizeDbTextUpper(dto.gender),
+              this.normalizeDbTextUpper(dto.position),
+              this.normalizeDbTextUpper(dto.workArea),
+              this.normalizeDbTextUpper(dto.phone),
+              this.normalizeDbText(dto.department),
+              this.normalizeDbText(dto.city),
+              this.normalizeDbTextUpper(dto.address),
+              JSON.stringify(checklist)
+            ]
+          );
+        } catch (retryErr: any) {
+          await this.deleteSupabaseAuthUser(authUserId);
+          throw new BadRequestException(
+            retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
+          );
+        }
+      } else {
+        await this.deleteSupabaseAuthUser(authUserId);
+        throw new BadRequestException(
+          err?.detail || err?.message || "No fue posible completar el registro en base de datos."
+        );
+      }
     }
 
     return {
