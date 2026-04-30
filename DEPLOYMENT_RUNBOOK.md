@@ -92,3 +92,4 @@ Opcionales:
 
 - En planes free, Render puede dormir; primer request puede tardar.
 - Si se cambia la URL de Render, actualizar `NEXT_PUBLIC_API_URL` y redeploy en Vercel.
+
