@@ -1476,34 +1476,11 @@ function uid() {
   return Math.random().toString(36).slice(2, 11);
 }
 
-/** País / indicativo en registro (Colombia primero; banderas UTF-8). */
+/** Registro: solo Colombia y Estados Unidos; banderas con CSS (sin imágenes externas). */
 const REGISTER_PHONE_COUNTRIES = [
-  { id: "CO", flag: "\uD83C\uDDE8\uD83C\uDDF4", label: "Colombia", dial: "57", minNat: 10, maxNat: 10, style: "co" },
-  { id: "AR", flag: "\uD83C\uDDE6\uD83C\uDDF7", label: "Argentina", dial: "54", minNat: 10, maxNat: 10, style: "generic" },
-  { id: "BO", flag: "\uD83C\uDDE7\uD83C\uDDF4", label: "Bolivia", dial: "591", minNat: 8, maxNat: 8, style: "generic" },
-  { id: "BR", flag: "\uD83C\uDDE7\uD83C\uDDF7", label: "Brasil", dial: "55", minNat: 10, maxNat: 11, style: "generic" },
-  { id: "CL", flag: "\uD83C\uDDE8\uD83C\uDDF1", label: "Chile", dial: "56", minNat: 9, maxNat: 9, style: "generic" },
-  { id: "CR", flag: "\uD83C\uDDE8\uD83C\uDDF7", label: "Costa Rica", dial: "506", minNat: 8, maxNat: 8, style: "generic" },
-  { id: "EC", flag: "\uD83C\uDDEA\uD83C\uDDE8", label: "Ecuador", dial: "593", minNat: 9, maxNat: 9, style: "generic" },
-  { id: "ES", flag: "\uD83C\uDDEA\uD83C\uDDF8", label: "España", dial: "34", minNat: 9, maxNat: 9, style: "generic" },
-  { id: "US", flag: "\uD83C\uDDFA\uD83C\uDDF8", label: "Estados Unidos", dial: "1", minNat: 10, maxNat: 10, style: "generic" },
-  { id: "GT", flag: "\uD83C\uDDEC\uD83C\uDDF9", label: "Guatemala", dial: "502", minNat: 8, maxNat: 8, style: "generic" },
-  { id: "HN", flag: "\uD83C\uDDED\uD83C\uDDF3", label: "Honduras", dial: "504", minNat: 8, maxNat: 8, style: "generic" },
-  { id: "MX", flag: "\uD83C\uDDF2\uD83C\uDDFD", label: "México", dial: "52", minNat: 10, maxNat: 10, style: "generic" },
-  { id: "NI", flag: "\uD83C\uDDF3\uD83C\uDDEE", label: "Nicaragua", dial: "505", minNat: 8, maxNat: 8, style: "generic" },
-  { id: "PA", flag: "\uD83C\uDDF5\uD83C\uDDE6", label: "Panamá", dial: "507", minNat: 8, maxNat: 8, style: "generic" },
-  { id: "PY", flag: "\uD83C\uDDF5\uD83C\uDDFE", label: "Paraguay", dial: "595", minNat: 9, maxNat: 9, style: "generic" },
-  { id: "PE", flag: "\uD83C\uDDF5\uD83C\uDDEA", label: "Perú", dial: "51", minNat: 9, maxNat: 9, style: "generic" },
-  { id: "UY", flag: "\uD83C\uDDFA\uD83C\uDDFE", label: "Uruguay", dial: "598", minNat: 8, maxNat: 9, style: "generic" },
-  { id: "VE", flag: "\uD83C\uDDFB\uD83C\uDDEA", label: "Venezuela", dial: "58", minNat: 10, maxNat: 10, style: "generic" }
+  { id: "CO", label: "Colombia", dial: "57", minNat: 10, maxNat: 10, style: "co" },
+  { id: "US", label: "Estados Unidos", dial: "1", minNat: 10, maxNat: 10, style: "generic" }
 ];
-
-/** Bandera visible en registro (PNG); los emoji en <select> en Windows suelen verse como "CO" en lugar del dibujo. */
-const REGISTER_PHONE_FLAG_IMG_BASE = "https://flagcdn.com/24x18";
-
-function registerPhoneFlagImgUrl(isoId) {
-  return `${REGISTER_PHONE_FLAG_IMG_BASE}/${String(isoId || "CO").toLowerCase()}.png`;
-}
 
 function registerPhoneCountryOptionsHtml() {
   return REGISTER_PHONE_COUNTRIES.map((c) => {
@@ -1550,10 +1527,10 @@ function updateRegisterPhoneFieldForCountry(registerForm) {
   const nat = registerForm?.querySelector(".js-register-phone-national");
   const wrap = registerForm?.querySelector(".phone-input-professional");
   const ccSel = registerForm?.querySelector(".js-register-phone-cc");
-  const flagImg = registerForm?.querySelector(".js-register-flag-img");
-  if (flagImg) {
-    flagImg.src = registerPhoneFlagImgUrl(meta.id);
-    flagImg.alt = "";
+  const flagBadge = registerForm?.querySelector(".js-register-flag-badge");
+  if (flagBadge) {
+    flagBadge.className = "js-register-flag-badge phone-reg-flag-badge";
+    flagBadge.classList.add(meta.id === "US" ? "phone-reg-flag-badge--us" : "phone-reg-flag-badge--co");
   }
   if (ccSel) {
     ccSel.setAttribute("aria-label", `Indicativo +${meta.dial} (${meta.label})`);
@@ -2665,15 +2642,7 @@ function authView() {
           ${fieldLabel(IC.phone, "Teléfono")}
           <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
             <div class="phone-reg-flag-cell">
-              <img
-                class="js-register-flag-img phone-reg-flag-img"
-                src="${registerPhoneFlagImgUrl("CO")}"
-                alt=""
-                width="28"
-                height="21"
-                decoding="async"
-                loading="eager"
-              />
+              <span class="js-register-flag-badge phone-reg-flag-badge phone-reg-flag-badge--co" aria-hidden="true"></span>
             </div>
             <select class="js-register-phone-cc phone-cc-select" aria-label="Indicativo +57 (Colombia)" required>
               ${registerPhoneCountryOptionsHtml()}

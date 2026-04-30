@@ -2787,7 +2787,7 @@ tbody tr:last-child td { border-bottom: none; }
   box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
-/* Registro: bandera PNG fiable (no emoji; en Windows el <select> no pinta bien banderas) */
+/* Registro: bandera CO / US con CSS (mismo criterio que .lang-option en la barra pública) */
 .phone-input-professional .phone-reg-flag-cell {
   display: flex;
   align-items: center;
@@ -2798,14 +2798,34 @@ tbody tr:last-child td { border-bottom: none; }
   background: linear-gradient(180deg, rgba(21, 101, 192, 0.1), rgba(21, 101, 192, 0.035));
 }
 
-.phone-input-professional .phone-reg-flag-img {
+.phone-input-professional .phone-reg-flag-badge {
   display: block;
-  width: 1.85rem;
-  height: auto;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.14);
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid rgba(10, 46, 92, 0.18);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.phone-input-professional .phone-reg-flag-badge--co {
+  background: linear-gradient(
+    to bottom,
+    #fcd116 0%,
+    #fcd116 50%,
+    #003893 50%,
+    #003893 75%,
+    #ce1126 75%,
+    #ce1126 100%
+  );
+}
+
+.phone-input-professional .phone-reg-flag-badge--us {
+  background: linear-gradient(to bottom, #3c3b6e 0 52%, transparent 52% 100%),
+    repeating-linear-gradient(to bottom, #b22234 0 10%, #ffffff 10% 20%);
+  background-size: 55% 55%, 100% 100%;
+  background-position: left top, center;
+  background-repeat: no-repeat;
 }
 
 .phone-cc-badge {
@@ -6250,7 +6270,8 @@ body[data-theme="dark"] .phone-input-professional .phone-reg-flag-cell {
   background: linear-gradient(180deg, rgba(117, 176, 244, 0.14), rgba(25, 45, 70, 0.45));
 }
 
-body[data-theme="dark"] .phone-input-professional .phone-reg-flag-img {
+body[data-theme="dark"] .phone-input-professional .phone-reg-flag-badge {
+  border-color: rgba(230, 242, 255, 0.22);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
