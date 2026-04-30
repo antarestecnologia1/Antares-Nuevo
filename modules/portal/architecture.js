@@ -101,6 +101,13 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "autorizaciones", exportName: "authorizationsHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
+    "contact-leads": {
+      title: "Solicitudes de contacto (web)",
+      access: "admin",
+      shell: true,
+      renderer: [{ module: "contacto-b2b", exportName: "contactLeadsHtml" }],
+      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+    },
     profile: {
       title: "Mi perfil",
       access: "any",

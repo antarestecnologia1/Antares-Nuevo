@@ -499,7 +499,8 @@ const PERMISSIONS = {
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
   PROFILE_VIEW: "profile_view",
-  NOTIFICATIONS_VIEW: "notifications_view"
+  NOTIFICATIONS_VIEW: "notifications_view",
+  CONTACT_B2B_VIEW: "contact_b2b_view"
 };
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
@@ -553,7 +554,8 @@ const PERMISSION_META = {
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: { title: "Autorizaciones", desc: "Aprobar solicitudes de operaciones y personal." },
   [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
-  [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." }
+  [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." },
+  [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Solicitudes contacto web", desc: "Ver prospectos del formulario B2B en PostgreSQL." }
 };
 
 const VIEW_PERMISSIONS = {
@@ -572,7 +574,8 @@ const VIEW_PERMISSIONS = {
   "admin-users": PERMISSIONS.USERS_MANAGE,
   authorizations: PERMISSIONS.AUTHORIZATIONS_MANAGE,
   profile: PERMISSIONS.PROFILE_VIEW,
-  notifications: PERMISSIONS.NOTIFICATIONS_VIEW
+  notifications: PERMISSIONS.NOTIFICATIONS_VIEW,
+  "contact-leads": PERMISSIONS.CONTACT_B2B_VIEW
 };
 
 const STATUS = {
@@ -701,6 +704,8 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
 let state = {
   session: null,
   currentView: "dashboard",
+  /** Prospectos B2B desde GET /portal/bootstrap (solo RAM; no localStorage). */
+  portalContacts: [],
   theme: "light",
   publicLang: "es",
   authTab: "login",
@@ -728,6 +733,10 @@ let state = {
     vacancyFilter: "open",
     candidateSort: "recent"
   }
+};
+
+window.__getAntaresPortalContacts = function getAntaresPortalContacts() {
+  return Array.isArray(state.portalContacts) ? state.portalContacts : [];
 };
 
 const nodes = {
@@ -813,11 +822,13 @@ function applyPortalBootstrapPayload(p) {
 }
 
 function __applyPortalBootstrapPayloadInner(p) {
+  if (p.contacts !== undefined) {
+    state.portalContacts = Array.isArray(p.contacts) ? p.contacts : [];
+  }
   const map = [
     ["users", KEYS.users],
     ["companies", KEYS.companies],
     ["counters", KEYS.counters],
-    ["contacts", KEYS.contacts],
     ["requests", KEYS.requests],
     ["vehicles", KEYS.vehicles],
     ["drivers", KEYS.drivers],
@@ -1325,7 +1336,8 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage .section-head p": "Rutas principales y corredores frecuentes para el sector floricultor y exportador.",
     "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
     "#careers .muted": "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).",
-    "#contact .container > article:nth-child(2) .muted": "Las solicitudes se guardan en base de datos local del navegador y generan una notificacion simulada de email."
+    "#contact .container > article:nth-child(2) .muted":
+      "Con la API configurada, las solicitudes se guardan en PostgreSQL. Sin URL de API, solo en este navegador (riesgo de perdida)."
   },
   en: {
     "#trusted .section-head p": "Allies across floriculture, trading, and exports who prioritize punctuality and cold-chain integrity.",
@@ -1339,7 +1351,8 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage .section-head p": "Main routes and frequent corridors for the floriculture and export sector.",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
     "#careers .muted": "Vacancies are synchronized with the same team that manages candidates in the portal (same local browser database).",
-    "#contact .container > article:nth-child(2) .muted": "Requests are stored in the browser local database and trigger a simulated email notification."
+    "#contact .container > article:nth-child(2) .muted":
+      "With the API configured, requests are stored in PostgreSQL. Without an API URL, data stays only in this browser (loss risk)."
   }
 };
 
@@ -2095,12 +2108,13 @@ function ensureVehicleDocs() {
 
 /** Estructuras vacías en el navegador y migraciones de esquema local. Los datos de negocio viven en PostgreSQL (Supabase) vía API; esto es caché/sincronización del cliente. */
 function initPortalClientStorage() {
-  const PORTAL_DATA_VERSION = "v5-no-demo";
+  const PORTAL_DATA_VERSION = "v6-no-contacts-ls";
   if (localStorage.getItem("antares_portal_data_ver") !== PORTAL_DATA_VERSION) {
     write(KEYS.companies, []);
     write(KEYS.vehicles, []);
     write(KEYS.drivers, []);
     write(KEYS.positions, []);
+    localStorage.removeItem(KEYS.contacts);
     localStorage.removeItem("antares_enterprise_seed_v1");
     localStorage.removeItem("antares_purge_demo_v1");
     localStorage.setItem("antares_portal_data_ver", PORTAL_DATA_VERSION);
@@ -2127,7 +2141,6 @@ function initPortalClientStorage() {
   [
     KEYS.companies,
     KEYS.counters,
-    KEYS.contacts,
     KEYS.requests,
     KEYS.notifications,
     KEYS.emails,
@@ -3635,6 +3648,11 @@ function setView(view) {
   state.currentView = view;
   syncPortalHash(view);
   PortalRouterCore.activateSideLinks(nodes.sideLinks, view);
+  if (view === "contact-leads" && user.role === ROLES.ADMIN) {
+    void applyPortalBootstrapFromApi().then((ok) => {
+      if (ok) scheduleRenderPortalView();
+    });
+  }
   renderPortalView();
 }
 
@@ -6608,6 +6626,50 @@ function authorizationsHtml() {
   return authHero + pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
 }
 
+function contactLeadsHtml() {
+  const user = currentUser();
+  if (user?.role !== ROLES.ADMIN) {
+    return emptyState("Solo el administrador puede ver las solicitudes de contacto del sitio web.");
+  }
+  const list = (Array.isArray(state.portalContacts) ? state.portalContacts : []).slice().sort((a, b) => {
+    const ta = new Date(b.createdAt || 0).getTime();
+    const tb = new Date(a.createdAt || 0).getTime();
+    return ta - tb;
+  });
+  const hero = moduleFleetHeroStrip([
+    { label: "Registros", value: list.length },
+    { label: "Origen", value: "PostgreSQL" },
+    { label: "Actualizado", value: "al iniciar sesion o al pulsar Actualizar" }
+  ]);
+  const toolbar = `<div class="notif-toolbar" style="margin-bottom:0.6rem">
+    <button type="button" class="btn btn-sm btn-primary" data-action="contact-leads-refresh">
+      ${IC.activity} Actualizar desde servidor
+    </button>
+    <span class="muted" style="font-size:0.85rem">Los datos no se guardan en el disco del navegador; vienen de la API.</span>
+  </div>`;
+  if (!list.length) {
+    return hero + pcardWrap("mail", "Solicitudes de contacto (web B2B)", "0 prospectos", toolbar + emptyState("Aún no hay solicitudes o la API no devolvió datos."));
+  }
+  const rows = list
+    .map((c) => {
+      const msg = String(c.message || "").trim();
+      const msgShort = msg.length > 220 ? `${escapeHtml(msg.slice(0, 220))}…` : escapeHtml(msg);
+      return `<tr>
+        <td>${fmtDate(c.createdAt)}</td>
+        <td><strong>${escapeHtml(String(c.contactName || "").trim() || "—")}</strong><br/><span class="muted">${escapeHtml(String(c.companyName || "").trim() || "—")}</span></td>
+        <td>${escapeHtml(String(c.email || "").trim() || "—")}<br/><span class="muted">${escapeHtml(String(c.phone || "").trim() || "—")}</span></td>
+        <td>${escapeHtml(String(c.serviceType || "").trim() || "—")}</td>
+        <td>${escapeHtml(String(c.operationType || "").trim() || "—")}</td>
+        <td style="max-width:280px;font-size:0.86rem;line-height:1.35">${msgShort}</td>
+      </tr>`;
+    })
+    .join("");
+  const table = `<div class="table-wrap"><table class="table-compact-contact-leads"><thead><tr>
+    <th>Fecha</th><th>Contacto / empresa</th><th>Correo / tel.</th><th>Servicio</th><th>Operacion</th><th>Mensaje</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+  return hero + pcardWrap("mail", "Solicitudes de contacto (web B2B)", `${list.length} en base de datos`, toolbar + table);
+}
+
 function renderFromModule(moduleName, exportName, ...args) {
   const moduleFn = window.AppModules?.[moduleName]?.[exportName];
   if (typeof moduleFn === "function") return moduleFn(...args);
@@ -7643,6 +7705,19 @@ function bindDynamicEvents() {
       );
       renderPortalView();
       updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='contact-leads-refresh']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      void applyPortalBootstrapFromApi().then((ok) => {
+        if (ok) {
+          notify("Lista actualizada desde el servidor.", "success");
+          scheduleRenderPortalView();
+        } else {
+          notify("No se pudo actualizar. Revise conexion y sesion con la API.", "error");
+        }
+      });
     });
   });
 
@@ -10068,7 +10143,7 @@ function initGlobalEvents() {
     if (event.target === nodes.authModal) hideAuth();
   });
 
-  nodes.b2bForm.addEventListener("submit", (event) => {
+  nodes.b2bForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
@@ -10117,13 +10192,34 @@ function initGlobalEvents() {
     data.phone = formatColombianPhone(data.phone);
     data.message = messageValue;
     data.monthlyVolumeKg = monthlyVolume;
-    const all = read(KEYS.contacts, []);
-    all.unshift({ id: uid(), ...data, createdAt: nowIso() });
-    write(KEYS.contacts, all);
-    sendEmail({ to: "comercial@antarescargo.com", subject: "Nuevo lead B2B", body: JSON.stringify(data) });
-    nodes.b2bForm.reset();
-    if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
-    notify(userMessage("b2bContactSent"), "success");
+
+    const api = window.AntaresApi;
+    const apiBase = typeof api?.getBase === "function" ? api.getBase() : "";
+    if (!apiBase || typeof api?.postJsonPublic !== "function") {
+      notify(userMessage("b2bApiMissing"), "error");
+      return;
+    }
+    try {
+      await api.postJsonPublic("/public/b2b-prospect", {
+        name: data.name,
+        company: data.company,
+        taxId: data.taxId,
+        position: data.position,
+        phone: data.phone,
+        email: data.email,
+        serviceType: data.serviceType,
+        operationType: data.operationType,
+        operationFrequency: data.operationFrequency,
+        startWindow: data.startWindow,
+        monthlyVolumeKg: monthlyVolume,
+        message: messageValue
+      });
+      nodes.b2bForm.reset();
+      if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
+      notify(userMessage("b2bContactSent"), "success");
+    } catch (err) {
+      notify(String(err?.message || userMessage("b2bServerError")), "error");
+    }
   });
 
   nodes.sideLinks.forEach((link) => {
@@ -10454,7 +10550,8 @@ window.AppLegacyViews = {
   adminUsersHtml,
   authorizationsHtml,
   profileHtml,
-  notificationsHtml
+  notificationsHtml,
+  contactLeadsHtml
 };
 
 /** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */

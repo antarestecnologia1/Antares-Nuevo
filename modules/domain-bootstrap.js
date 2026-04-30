@@ -51,7 +51,12 @@
       users: list(KEYS.users),
       companies: list(KEYS.companies),
       counters: objectDoc(KEYS.counters, {}),
-      contacts: list(KEYS.contacts),
+      contacts: {
+        storageKey: KEYS.contacts,
+        read: () =>
+          typeof window.__getAntaresPortalContacts === "function" ? window.__getAntaresPortalContacts() : [],
+        write: () => {}
+      },
       requests: requestsRepo,
       vehicles: list(KEYS.vehicles),
       drivers: list(KEYS.drivers),

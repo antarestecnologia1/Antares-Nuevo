@@ -32,7 +32,6 @@
     antares_users_v2: "users",
     antares_companies_v2: "companies",
     antares_counters_v2: "counters",
-    antares_contacts_v2: "contacts",
     antares_requests_v2: "requests",
     antares_vehicles_v2: "vehicles",
     antares_drivers_v2: "drivers",
