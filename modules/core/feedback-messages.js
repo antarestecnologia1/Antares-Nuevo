@@ -30,6 +30,8 @@
     registerSuccess: "Registro enviado. Un administrador revisará su cuenta.",
     registerEmailExists: "Ya existe un usuario con ese correo.",
     registerDocExists: "Ya hay un registro con ese tipo y número de documento.",
+    registerPersonalDocExists:
+      "Ya existe un usuario con ese documento personal (cédula). Cada persona solo puede registrarse una vez.",
     recoverNoUser: "No hay ningún usuario registrado con ese correo.",
     recoverSent:
       "Si el correo existe, recibirá instrucciones. De lo contrario, contacte a un administrador.",

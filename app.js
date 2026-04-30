@@ -336,6 +336,24 @@ function validateColombianDocument(docType, rawValue) {
   return { ok: compact.length >= 5, message: "Tipo de documento no valido.", normalized: compact };
 }
 
+/** Clave estable para validar que la cédula/documento personal no se repita (incluye registros previos). */
+function getPersonalRegistrationKey(user) {
+  if (!user) return "";
+  const raw =
+    (user.personalDoc != null && String(user.personalDoc).trim() !== "" && String(user.personalDoc)) ||
+    (user.personalTaxId != null && String(user.personalTaxId).trim() !== "" && String(user.personalTaxId)) ||
+    "";
+  if (raw) {
+    const onlyDig = raw.replace(/\D/g, "");
+    if (onlyDig.length >= 5) return onlyDig;
+    return String(raw).trim().toUpperCase();
+  }
+  const dt = String(user.documentType || "").toUpperCase();
+  if (dt === "PAS") return String(user.taxId || "").replace(/\s/g, "").toUpperCase();
+  if (dt === "NIT") return "";
+  return String(user.taxId || "").replace(/\D/g, "");
+}
+
 function chunkBySizes(items, sizes = []) {
   const result = [];
   let cursor = 0;
@@ -1339,16 +1357,18 @@ function uid() {
   return Math.random().toString(36).slice(2, 11);
 }
 
+/** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */
 function formatColombianPhone(value) {
-  const digits = String(value || "").replace(/\D/g, "").slice(-10);
-  if (!digits) return "";
-  const parts = [
-    digits.slice(0, 3),
-    digits.slice(3, 6),
-    digits.slice(6, 8),
-    digits.slice(8, 10)
-  ].filter(Boolean);
-  return `+57 ${parts.join(" ")}`.trim();
+  let d = String(value || "").replace(/\D/g, "");
+  if (d.startsWith("57")) d = d.slice(2);
+  d = d.slice(0, 10);
+  if (!d) return "";
+  const segs = [];
+  segs.push(d.slice(0, Math.min(3, d.length)));
+  if (d.length > 3) segs.push(d.slice(3, Math.min(6, d.length)));
+  if (d.length > 6) segs.push(d.slice(6, Math.min(8, d.length)));
+  if (d.length > 8) segs.push(d.slice(8, 10));
+  return `+57 ${segs.join(" ")}`.trim();
 }
 
 function clearFieldError(field) {
@@ -2281,8 +2301,18 @@ function authView() {
             <option value="PAS">Pasaporte</option>
           </select>
         </label>
-        <label>${fieldLabel(IC.badge, "Número documento / NIT")}<input name="taxId" required inputmode="numeric" autocomplete="off" /></label>
-        <label>${fieldLabel(IC.calendar, "Expedición documento")}<input type="date" name="documentIssuedAt" required /></label>
+        <div id="register-doc-persona" class="register-doc-block">
+          <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" /></label>
+        </div>
+        <div id="register-doc-empresa" class="register-doc-block hidden" hidden>
+          <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
+            <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" />
+          </label>
+          <label>${fieldLabel(IC.badge, "Cédula del usuario")}
+            <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Su cédula; debe ser única en el portal" />
+          </label>
+          <p class="muted" style="font-size:0.8rem;margin:0">Varios usuarios pueden compartir el NIT de la empresa; la cédula de cada persona no se puede repetir.</p>
+        </div>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
         <label>${fieldLabel(IC.users, "Género")}
           <select name="gender" required>
@@ -2504,12 +2534,57 @@ function bindAuthForms() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    const docTypeSel = register.querySelector("select[name='documentType']");
+    const blockPersona = register.querySelector("#register-doc-persona");
+    const blockEmpresa = register.querySelector("#register-doc-empresa");
+    const inputTaxPersona = register.querySelector("input[name='taxId']");
+    const inputCompanyNit = register.querySelector("input[name='companyNit']");
+    const inputPersonalTax = register.querySelector("input[name='personalTaxId']");
+    const syncRegisterDocLayout = () => {
+      const isNit = String(docTypeSel?.value || "").toUpperCase() === "NIT";
+      if (blockPersona) {
+        blockPersona.classList.toggle("hidden", isNit);
+        blockPersona.toggleAttribute("hidden", isNit);
+      }
+      if (blockEmpresa) {
+        blockEmpresa.classList.toggle("hidden", !isNit);
+        blockEmpresa.toggleAttribute("hidden", !isNit);
+      }
+      if (inputTaxPersona) {
+        if (isNit) {
+          inputTaxPersona.removeAttribute("required");
+          inputTaxPersona.value = "";
+        } else {
+          inputTaxPersona.setAttribute("required", "required");
+        }
+      }
+      if (inputCompanyNit) {
+        if (isNit) inputCompanyNit.setAttribute("required", "required");
+        else {
+          inputCompanyNit.removeAttribute("required");
+          inputCompanyNit.value = "";
+        }
+      }
+      if (inputPersonalTax) {
+        if (isNit) inputPersonalTax.setAttribute("required", "required");
+        else {
+          inputPersonalTax.removeAttribute("required");
+          inputPersonalTax.value = "";
+        }
+      }
+    };
+    docTypeSel?.addEventListener("change", syncRegisterDocLayout);
+    syncRegisterDocLayout();
+
     const registerPhone = register.querySelector("input[name='phone']");
     if (registerPhone) {
       registerPhone.addEventListener("input", () => {
-        const cursorAtEnd = registerPhone.selectionStart === registerPhone.value.length;
+        const start = registerPhone.selectionStart;
+        const prevLen = registerPhone.value.length;
         registerPhone.value = formatColombianPhone(registerPhone.value);
-        if (cursorAtEnd) registerPhone.setSelectionRange(registerPhone.value.length, registerPhone.value.length);
+        if (start === prevLen) {
+          registerPhone.setSelectionRange(registerPhone.value.length, registerPhone.value.length);
+        }
       });
     }
     const regPass = register.querySelector("input[name='password']");
@@ -2532,12 +2607,38 @@ function bindAuthForms() {
         notify(userMessage("registerNamesInvalid"), "error");
         return;
       }
-      const docValidation = validateColombianDocument(data.documentType, data.taxId);
-      if (!docValidation.ok) {
-        notify(docValidation.message, "error");
-        return;
+      const docTypeUpper = String(data.documentType || "").toUpperCase();
+      let personalDocStored = "";
+      if (docTypeUpper === "NIT") {
+        const nitVal = validateColombianDocument("NIT", data.companyNit || "");
+        const ccVal = validateColombianDocument("CC", data.personalTaxId || "");
+        if (!nitVal.ok) {
+          notify(nitVal.message, "error");
+          return;
+        }
+        if (!ccVal.ok) {
+          notify(ccVal.message, "error");
+          return;
+        }
+        data.companyNit = nitVal.normalized;
+        data.personalTaxId = ccVal.normalized;
+        data.taxId = nitVal.normalized;
+        personalDocStored = ccVal.normalized.replace(/\D/g, "") || ccVal.normalized;
+      } else {
+        const docValidation = validateColombianDocument(data.documentType, data.taxId);
+        if (!docValidation.ok) {
+          notify(docValidation.message, "error");
+          return;
+        }
+        data.taxId = docValidation.normalized;
+        if (docTypeUpper === "PAS") {
+          personalDocStored = String(docValidation.normalized || "").trim().toUpperCase();
+        } else {
+          personalDocStored = String(docValidation.normalized || "")
+            .replace(/[.\s]/g, "")
+            .replace(/\D/g, "");
+        }
       }
-      data.taxId = docValidation.normalized;
       if (String(data.password || "") !== String(data.passwordConfirm || "")) {
         notify(userMessage("registerPasswordMismatch"), "error");
         return;
@@ -2576,7 +2677,8 @@ function bindAuthForms() {
               personType: normalizeLatinForDb(data.personType),
               documentType: normalizeLatinForDb(data.documentType),
               taxId: data.taxId,
-              documentIssuedAt: data.documentIssuedAt,
+              companyNit: data.companyNit || "",
+              personalTaxId: data.personalTaxId || "",
               birthDate: data.birthDate,
               gender: normalizeLatinForDb(data.gender),
               position: normalizeLatinForDb(data.position),
@@ -2611,11 +2713,11 @@ function bindAuthForms() {
         notify(userMessage("registerEmailExists"), "error");
         return;
       }
-      if (users.some((u) => String(u.documentType || "") === String(data.documentType || "") && String(u.taxId || "") === String(data.taxId || ""))) {
-        notify(userMessage("registerDocExists"), "error");
+      if (personalDocStored && users.some((u) => getPersonalRegistrationKey(u) === personalDocStored)) {
+        notify(userMessage("registerPersonalDocExists"), "error");
         return;
       }
-      const { passwordConfirm, acceptTerms, ...profileData } = data;
+      const { passwordConfirm, acceptTerms, companyNit, personalTaxId, ...profileData } = data;
       const newUser = {
         id: uid(),
         ...profileData,
@@ -2625,6 +2727,9 @@ function bindAuthForms() {
         secondLastName: normalizeLatinForDb(data.secondLastName || ""),
         personType: normalizeLatinForDb(data.personType),
         documentType: normalizeLatinForDb(data.documentType),
+        companyNit: docTypeUpper === "NIT" ? normalizeLatinForDb(data.companyNit || "") : "",
+        personalTaxId: docTypeUpper === "NIT" ? normalizeLatinForDb(data.personalTaxId || "") : "",
+        personalDoc: String(personalDocStored || ""),
         gender: normalizeLatinForDb(data.gender),
         position: normalizeLatinForDb(data.position),
         workArea: normalizeLatinForDb(data.workArea),
@@ -4268,7 +4373,7 @@ function adminUsersHtml(current) {
     </div>
     <div class="user-card-meta">
       <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "-"}</span>
-      <span>${IC.file} ${(u.documentType || "Doc") + " " + (u.taxId || "-")}</span>
+      <span>${IC.file} ${String(u.documentType || "Doc")} ${u.taxId || "-"}${u.personalTaxId || u.personalDoc ? ` · pers. ${u.personalTaxId || u.personalDoc}` : ""}</span>
       ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
       ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
     </div>

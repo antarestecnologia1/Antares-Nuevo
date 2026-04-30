@@ -24,8 +24,11 @@ export class RegisterPortalDto {
   @IsNotEmpty()
   taxId!: string;
 
-  @IsNotEmpty()
-  documentIssuedAt!: string;
+  @IsOptional()
+  companyNit?: string;
+
+  @IsOptional()
+  personalTaxId?: string;
 
   @IsNotEmpty()
   birthDate!: string;

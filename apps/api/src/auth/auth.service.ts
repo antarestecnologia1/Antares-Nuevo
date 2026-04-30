@@ -95,18 +95,44 @@ export class AuthService {
       requiredFieldsCompleted: true
     };
 
+    const docType = String(dto.documentType || "").trim().toUpperCase();
+    let numeroPersonal: string | null = null;
+    let nitEmpresa: string | null = null;
+    if (docType === "NIT") {
+      nitEmpresa = this.normalizeDbText(dto.companyNit) || this.normalizeDbText(dto.taxId);
+      numeroPersonal = this.normalizeDbText(dto.personalTaxId);
+      if (!nitEmpresa || !numeroPersonal) {
+        throw new BadRequestException("Indique NIT de empresa y cédula del usuario.");
+      }
+    } else {
+      numeroPersonal = this.normalizeDbText(dto.taxId);
+      if (!numeroPersonal) {
+        throw new BadRequestException("Indique el número de documento.");
+      }
+    }
+
+    const dupPersonal = await this.pool.query(
+      `SELECT 1 FROM usuarios WHERE lower(trim(numero_identificacion)) = lower(trim($1))`,
+      [numeroPersonal]
+    );
+    if (dupPersonal.rowCount && dupPersonal.rowCount > 0) {
+      throw new BadRequestException(
+        "Ya existe un usuario con ese documento personal (cédula o identificación)."
+      );
+    }
+
     await this.pool.query(
       `INSERT INTO usuarios (
         correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-        tipo_persona, tipo_documento, numero_identificacion, fecha_expedicion_documento,
+        tipo_persona, tipo_documento, numero_identificacion, nit_empresa_registro, fecha_expedicion_documento,
         fecha_nacimiento, genero, cargo_registro, area_trabajo, telefono,
         departamento, ciudad, direccion,
         fecha_aceptacion_terminos,
         checklist_registro_json
       ) VALUES (
         $1, $2, $3, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
-        $4, $5, $6, $7, $8, $9, $10, $11::date,
+        $4, $5, $6, $7, $8, $9, $10, $11, NULL::date,
         $12::date, $13, $14, $15, $16, $17, $18, $19,
         now(),
         $20::jsonb
@@ -121,8 +147,8 @@ export class AuthService {
         secondLastName,
         this.normalizeDbText(dto.personType),
         this.normalizeDbText(dto.documentType),
-        this.normalizeDbText(dto.taxId),
-        dto.documentIssuedAt || null,
+        numeroPersonal,
+        nitEmpresa,
         dto.birthDate || null,
         this.normalizeDbText(dto.gender),
         this.normalizeDbText(dto.position),
