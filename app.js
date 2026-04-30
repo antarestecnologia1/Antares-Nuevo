@@ -10419,9 +10419,6 @@ function initGlobalEvents() {
       renderAuthTab();
     })
   );
-  nodes.authModal.addEventListener("click", (event) => {
-    if (event.target === nodes.authModal) hideAuth();
-  });
 
   nodes.b2bForm.addEventListener("submit", async (event) => {
     event.preventDefault();
