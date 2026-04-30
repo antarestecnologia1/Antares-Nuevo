@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260430-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260429-3" />
   </head>
   <body>
     <!-- ─── NAVIGATION ─── -->
@@ -1085,10 +1085,7 @@
     </a>
 
     <script src="./config/antares.public.js?v=20260430-1"></script>
-    <script>
-      window.__SUPABASE_URL__ = window.__SUPABASE_URL__ || "";
-      window.__SUPABASE_ANON_KEY__ = window.__SUPABASE_ANON_KEY__ || "";
-    </script>
+    <script src="./config/supabase.public.js" onerror="window.__SUPABASE_URL__='';window.__SUPABASE_ANON_KEY__='';"></script>
     <script src="./modules/core/persistence.js"></script>
     <script src="./modules/core/supabase-browser.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -1123,6 +1120,6 @@
     <script src="./modules/core/feedback-messages.js"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
-    <script src="./app.js?v=20260430-2"></script>
+    <script src="./app.js?v=20260429-3"></script>
   </body>
 </html>
