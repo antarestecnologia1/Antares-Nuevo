@@ -28,25 +28,99 @@ const IC = {
   save: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
   userPlus: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
   printer: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  chevronLeft: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  chevronRight: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  building: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><line x1="9" y1="15" x2="9.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/></svg>',
+  badge: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5l1 7L12 18l-4.5 2.5 1-7"/></svg>',
+  lock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  mail: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+  upload: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+  fuel: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2v0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>',
+  satellite: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  package: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+  layers: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+  card: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',
+  hash: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+  award: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>',
+  heart: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+  graduation: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>',
+  palette: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+  globe: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  bank: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"/><path d="M3 10l9-7 9 7"/><path d="M5 21V10"/><path d="M19 21V10"/><path d="M9 21V14h6v7"/></svg>',
+  flag: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+  star: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  cake: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3"/><path d="M12 8v3"/><path d="M17 8v3"/><path d="M7 4h0"/><path d="M12 4h0"/><path d="M17 4h0"/></svg>',
+  users: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  alertTriangle: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  search: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
 };
 
 function pcardWrap(iconKey, title, subtitle, bodyHtml, extraClass = "") {
-  return `<div class="p-card ${extraClass}"><div class="p-card-header"><div class="p-card-header-left"><svg class="p-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[iconKey]?.replace(/<svg[^>]*>|<\/svg>/g, "") || ""}</svg><div><h2>${title}</h2>${subtitle ? `<p>${subtitle}</p>` : ""}</div></div></div><div class="p-card-body">${bodyHtml}</div></div>`;
+  return `<div class="p-card ${extraClass}"><div class="p-card-header"><div class="p-card-header-left"><svg class="p-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[iconKey]?.replace(/<svg[^>]*>|<\/svg>/g, "") || ""}</svg><div><h2>${escapeHtml(title)}</h2>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}</div></div></div><div class="p-card-body">${bodyHtml}</div></div>`;
 }
 
 function emptyState(text) {
-  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${text}</p></div>`;
+  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${escapeHtml(text)}</p></div>`;
+}
+
+/** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Valores en atributos HTML entre comillas dobles. */
+function escapeAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;");
+}
+
+/** Hero de métricas con el mismo estilo visual que Transporte · Camiones (franja azul + tarjetas). */
+function moduleFleetHeroStrip(metrics) {
+  const inner = (metrics || [])
+    .map(({ label, value, tone }) => {
+      const extra =
+        tone === "warn" ? " fleet-hero-metric-warn" : tone === "alert" ? " fleet-hero-metric-alert" : "";
+      return `<div class="fleet-hero-metric${extra}"><span>${escapeHtml(String(label))}</span><strong>${escapeHtml(String(value))}</strong></div>`;
+    })
+    .join("");
+  return `<div class="fleet-hero-strip fleet-hero-strip--solo"><div class="fleet-hero-metrics">${inner}</div></div>`;
+}
+
+function isAntaresDebugEnabled() {
+  try {
+    return typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true;
+  } catch {
+    return false;
+  }
+}
+
+function devWarn() {
+  if (!isAntaresDebugEnabled() || typeof console === "undefined" || !console.warn) return;
+  console.warn.apply(console, arguments);
+}
+
+function devError() {
+  if (!isAntaresDebugEnabled() || typeof console === "undefined" || !console.error) return;
+  console.error.apply(console, arguments);
 }
 
 function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
   const expanded = Boolean(state.createPanels?.[panelId]);
   const toggleText = expanded ? "Ocultar formulario" : expandLabel;
   const cardBody = `<div class="toolbar" style="margin-bottom:0.8rem">
-    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${panelId}">
-      ${expanded ? IC.x : IC.plus} ${toggleText}
+    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}">
+      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
     </button>
   </div>
-  <div class="${expanded ? "" : "hidden"}" data-create-panel="${panelId}">
+  <div class="${expanded ? "" : "hidden"}" data-create-panel="${escapeAttr(panelId)}">
     ${bodyHtml}
   </div>`;
   return pcardWrap(iconKey, title, subtitle, cardBody);
@@ -71,6 +145,15 @@ function notify(message, type = "info") {
   }, 3200);
 }
 
+/** Mensajes en {@link window.AntaresFeedback} (modules/core/feedback-messages.js). */
+function userMessage(key, ...args) {
+  const M = window.AntaresFeedback;
+  if (!M) return String(key);
+  const v = M[key];
+  if (typeof v === "function") return v(...args);
+  return v != null ? v : String(key);
+}
+
 function openEditModal({ title, subtitle = "", fields = [], submitText = "Guardar", onSubmit }) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
@@ -87,34 +170,39 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
     .map((f) => {
       if (f.type === "select") {
         const options = (f.options || [])
-          .map((opt) => `<option value="${opt.value}" ${String(opt.value) === String(f.value ?? "") ? "selected" : ""}>${opt.label}</option>`)
+          .map((opt) => {
+            const v = escapeAttr(String(opt.value ?? ""));
+            const sel = String(opt.value) === String(f.value ?? "") ? "selected" : "";
+            return `<option value="${v}" ${sel}>${escapeHtml(opt.label)}</option>`;
+          })
           .join("");
-        return `<label><span>${f.label}</span><select name="${f.name}" ${f.required ? "required" : ""}>${options}</select></label>`;
+        return `<label><span>${escapeHtml(f.label)}</span><select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
       }
       if (f.type === "hidden") {
-        return `<input type="hidden" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" />`;
+        return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
       }
       if (f.type === "textarea") {
-        return `<label class="full"><span>${f.label}</span><textarea name="${f.name}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${String(f.value ?? "").replace(/</g, "&lt;")}</textarea></label>`;
+        return `<label class="full"><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
       }
       if (f.type === "file") {
-        return `<label class="full"><span>${f.label}</span><input type="file" name="${f.name}" ${f.accept ? `accept="${f.accept}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
+        return `<label class="full"><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
       }
-      return `<label><span>${f.label}</span><input type="${f.type || "text"}" name="${f.name}" value="${String(f.value ?? "").replace(/"/g, "&quot;")}" ${f.required ? "required" : ""} /></label>`;
+      const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
+      return `<label><span>${escapeHtml(f.label)}</span><input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" ${f.required ? "required" : ""} /></label>`;
     })
     .join("");
 
   content.innerHTML = `
     <div class="modal-head">
-      <h2>${title}</h2>
+      <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    ${subtitle ? `<p class="muted">${subtitle}</p>` : ""}
+    ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
     <form id="crud-form" class="p-form modal-edit-form">
       ${fieldsHtml}
       <div class="modal-edit-actions">
         <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${IC.save} ${submitText}</button>
+        <button type="submit" class="btn btn-primary">${IC.save} ${escapeHtml(submitText)}</button>
       </div>
     </form>
   `;
@@ -130,7 +218,7 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
     },
     { once: true }
   );
-  content.querySelector("#crud-form").addEventListener("submit", (event) => {
+  content.querySelector("#crud-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const formEl = event.currentTarget;
     const payload = Object.fromEntries(new FormData(formEl).entries());
@@ -142,7 +230,15 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
         payload[input.name] = input.files[0].name;
       }
     });
-    const result = onSubmit?.(payload, formEl);
+    let result = onSubmit?.(payload, formEl);
+    if (result && typeof result.then === "function") {
+      try {
+        result = await result;
+      } catch (err) {
+        devWarn("openEditModal onSubmit", err);
+        return;
+      }
+    }
     if (result === false) return;
     close();
   });
@@ -162,13 +258,13 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
     <div class="modal-head">
-      <h2>${title}</h2>
+      <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    <p>${message}</p>
+    <p>${escapeHtml(message)}</p>
     <div class="modal-edit-actions" style="margin-top:1rem;">
       <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${confirmText}</button>
+      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>
     </div>
   `;
   const close = () => modal.classList.add("hidden");
@@ -202,10 +298,10 @@ function openInfoModal({ title, subtitle = "", bodyHtml = "" }) {
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
     <div class="modal-head">
-      <h2>${title}</h2>
+      <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    ${subtitle ? `<p class="muted">${subtitle}</p>` : ""}
+    ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
     <div class="modal-info-body">${bodyHtml}</div>
     <div class="modal-edit-actions" style="margin-top:1rem;">
       <button type="button" id="crud-ok" class="btn btn-primary">Cerrar</button>
@@ -248,6 +344,24 @@ function validateColombianDocument(docType, rawValue) {
   return { ok: compact.length >= 5, message: "Tipo de documento no valido.", normalized: compact };
 }
 
+/** Clave estable para validar que la cédula/documento personal no se repita (incluye registros previos). */
+function getPersonalRegistrationKey(user) {
+  if (!user) return "";
+  const raw =
+    (user.personalDoc != null && String(user.personalDoc).trim() !== "" && String(user.personalDoc)) ||
+    (user.personalTaxId != null && String(user.personalTaxId).trim() !== "" && String(user.personalTaxId)) ||
+    "";
+  if (raw) {
+    const onlyDig = raw.replace(/\D/g, "");
+    if (onlyDig.length >= 5) return onlyDig;
+    return String(raw).trim().toUpperCase();
+  }
+  const dt = String(user.documentType || "").toUpperCase();
+  if (dt === "PAS") return String(user.taxId || "").replace(/\s/g, "").toUpperCase();
+  if (dt === "NIT") return "";
+  return String(user.taxId || "").replace(/\D/g, "");
+}
+
 function chunkBySizes(items, sizes = []) {
   const result = [];
   let cursor = 0;
@@ -281,7 +395,7 @@ function enhanceFormAsWizard(form, config = {}) {
     if (titles[idx]) {
       const head = document.createElement("div");
       head.className = "wizard-step-head";
-      head.innerHTML = `<h4>${titles[idx]}</h4><span>Paso ${idx + 1} de ${groups.length}</span>`;
+      head.innerHTML = `<h4>${escapeHtml(titles[idx])}</h4><span>Paso ${idx + 1} de ${groups.length}</span>`;
       step.appendChild(head);
     }
     group.forEach((node) => step.appendChild(node));
@@ -312,7 +426,7 @@ function enhanceFormAsWizard(form, config = {}) {
     const requiredInputs = [...currentStep.querySelectorAll("input, select, textarea")].filter((el) => el.required);
     const invalid = requiredInputs.find((el) => !el.value);
     if (invalid) {
-      notify("Completa los campos obligatorios del paso actual.", "error");
+      notify(userMessage("validationStep"), "error");
       invalid.focus();
       return;
     }
@@ -362,9 +476,14 @@ const KEYS = {
   contracts: "antares_contracts_v2",
   hrAbsences: "antares_hr_absences_v2",
   sstCompliance: "antares_sst_compliance_v2",
+  tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
   session: "antares_session_v2"
 };
+
+const CO_TIMEZONE = "America/Bogota";
+const REGISTER_TERMS_URL = "./terminos-condiciones.html";
+const REGISTER_PRIVACY_URL = "./politica-privacidad.html";
 
 const ROLES = {
   ADMIN: "admin",
@@ -390,7 +509,8 @@ const PERMISSIONS = {
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
   PROFILE_VIEW: "profile_view",
-  NOTIFICATIONS_VIEW: "notifications_view"
+  NOTIFICATIONS_VIEW: "notifications_view",
+  CONTACT_B2B_VIEW: "contact_b2b_view"
 };
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
@@ -444,7 +564,8 @@ const PERMISSION_META = {
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: { title: "Autorizaciones", desc: "Aprobar solicitudes de operaciones y personal." },
   [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
-  [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." }
+  [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." },
+  [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Solicitudes contacto web", desc: "Ver prospectos del formulario B2B en PostgreSQL." }
 };
 
 const VIEW_PERMISSIONS = {
@@ -463,7 +584,8 @@ const VIEW_PERMISSIONS = {
   "admin-users": PERMISSIONS.USERS_MANAGE,
   authorizations: PERMISSIONS.AUTHORIZATIONS_MANAGE,
   profile: PERMISSIONS.PROFILE_VIEW,
-  notifications: PERMISSIONS.NOTIFICATIONS_VIEW
+  notifications: PERMISSIONS.NOTIFICATIONS_VIEW,
+  "contact-leads": PERMISSIONS.CONTACT_B2B_VIEW
 };
 
 const STATUS = {
@@ -521,9 +643,28 @@ const CO_HR_RULES = {
 const CO_CATALOGS = {
   licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
   eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
-  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa"],
+  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa", "Equidad", "Mapfre"],
   bloodTypes: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
-  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"]
+  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"],
+  severanceFunds: ["Porvenir", "Proteccion", "Colfondos", "Skandia", "FNA"],
+  compensationFunds: ["Colsubsidio", "Cafam", "Compensar", "Comfama", "Comfandi", "Cafaba", "Comfenalco Antioquia", "Comfenalco Valle", "Cajacopi"],
+  arlRiskLevels: ["I", "II", "III", "IV", "V"],
+  bodyTypes: ["Furgon seco", "Furgon refrigerado (Termoking)", "Estacas", "Plancha", "Cisterna", "Granelero", "Volqueta"],
+  fuelTypes: ["Diesel ACPM", "Gas Natural Vehicular (GNV)", "Gasolina corriente", "Hibrido"],
+  axleConfig: ["2 ejes (4 llantas)", "3 ejes (6 llantas)", "4 ejes (8 llantas)", "5 ejes (10 llantas)", "6 ejes (12 llantas)"],
+  documentTypes: ["CC", "CE", "PAS", "PEP", "TI"],
+  contractTypes: ["Termino indefinido", "Termino fijo", "Obra o labor", "Prestacion de servicios", "Aprendizaje SENA"],
+  workSchedule: ["Diurna", "Nocturna", "Mixta", "Por turnos"],
+  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"],
+  contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
+  banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
+  accountTypes: ["Ahorros", "Corriente"],
+  educationLevel: ["Primaria", "Bachiller", "Tecnico", "Tecnologo", "Profesional", "Posgrado"],
+  maritalStatus: ["Soltero(a)", "Casado(a)", "Union libre", "Separado(a)", "Divorciado(a)", "Viudo(a)"],
+  genders: ["Masculino", "Femenino", "Otro", "Prefiero no decirlo"],
+  vehicleColors: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo", "Verde", "Amarillo", "Naranja"],
+  contractTerminationCauses: ["Vencimiento de termino", "Mutuo acuerdo", "Justa causa", "Sin justa causa", "Renuncia voluntaria", "Termino de obra", "Pension"],
+  uniformIssuance: ["Enero/Mayo/Septiembre", "Abril/Agosto/Diciembre", "No aplica"]
 };
 
 function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Seleccione...") {
@@ -550,9 +691,21 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
     }
   }
   if (targetStatus === "Contratado") {
-    const hasContract = read(KEYS.contracts, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
-    if (!hasContract) {
-      return { ok: false, message: "Para marcar como contratado primero debes generar el contrato laboral." };
+    const byCandidate = read(KEYS.contracts, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
+    const candDoc = String(candidate.idDoc || "").trim();
+    const byEmployeeDoc =
+      Boolean(candDoc) &&
+      read(KEYS.contracts, []).some((item) => {
+        if (!item.employeeId) return false;
+        const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(item.employeeId));
+        return emp && String(emp.idDoc || "").trim() === candDoc;
+      });
+    if (!byCandidate && !byEmployeeDoc) {
+      return {
+        ok: false,
+        message:
+          "Para marcar como contratado debe existir un contrato generado (desde nomina, misma cedula) o el registro historico por candidato."
+      };
     }
   }
   return { ok: true };
@@ -561,6 +714,8 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
 let state = {
   session: null,
   currentView: "dashboard",
+  /** Prospectos B2B desde GET /portal/bootstrap (solo RAM; no localStorage). */
+  portalContacts: [],
   theme: "light",
   publicLang: "es",
   authTab: "login",
@@ -573,13 +728,25 @@ let state = {
     editUserId: ""
   },
   createPanels: {},
-  transportCalendarMonth: "",
-  transportCalendarSelectedDate: "",
+  calendarFocus: null,
+  calendarFilters: { driver: "", vehicle: "", status: "" },
   payrollFilters: {
-    employeeId: "",
-    month: "",
-    paidStatus: "all"
+    period: "all",
+    employee: "",
+    status: "all"
+  },
+  payrollUi: {
+    runSort: "recent"
+  },
+  hiringUi: {
+    candidateFilter: "active",
+    vacancyFilter: "open",
+    candidateSort: "recent"
   }
+};
+
+window.__getAntaresPortalContacts = function getAntaresPortalContacts() {
+  return Array.isArray(state.portalContacts) ? state.portalContacts : [];
 };
 
 const nodes = {
@@ -591,7 +758,7 @@ const nodes = {
   b2bForm: document.getElementById("b2b-form"),
   publicApp: document.getElementById("public-app"),
   portalApp: document.getElementById("portal-app"),
-  sideLinks: [...document.querySelectorAll(".side-link")],
+  sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
   logout: document.getElementById("logout"),
   viewTitle: document.getElementById("view-title"),
   viewRoot: document.getElementById("view-root"),
@@ -611,7 +778,17 @@ const UI_PREFS = {
   publicLang: "antares_public_lang_v1"
 };
 
+/** Misma política que modules/core/persistence.js cuando no hay AntaresPersistence. */
+function capStoredArrayRows(key, value) {
+  const caps = { [KEYS.notifications]: 500, [KEYS.emails]: 400 };
+  const max = caps[key];
+  if (!max || !Array.isArray(value) || value.length <= max) return value;
+  return value.slice(0, max);
+}
+
 function read(key, fallback = []) {
+  const P = window.AntaresPersistence;
+  if (P && typeof P.read === "function") return P.read(key, fallback);
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
   } catch (_error) {
@@ -620,7 +797,107 @@ function read(key, fallback = []) {
 }
 
 function write(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  const P = window.AntaresPersistence;
+  if (P && typeof P.write === "function") {
+    P.write(key, value);
+    return;
+  }
+  const stored = capStoredArrayRows(key, value);
+  localStorage.setItem(key, JSON.stringify(stored));
+  if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+    window.AntaresPortalSync.schedule(key, stored);
+  }
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const part = String(token || "").split(".")[1];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json);
+  } catch (_e) {
+    return null;
+  }
+}
+
+function applyPortalBootstrapPayload(p) {
+  if (!p || typeof p !== "object") return;
+  const PS = window.AntaresPortalSync;
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    __applyPortalBootstrapPayloadInner(p);
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
+  }
+}
+
+function __applyPortalBootstrapPayloadInner(p) {
+  if (p.contacts !== undefined) {
+    state.portalContacts = Array.isArray(p.contacts) ? p.contacts : [];
+  }
+  const map = [
+    ["users", KEYS.users],
+    ["companies", KEYS.companies],
+    ["counters", KEYS.counters],
+    ["requests", KEYS.requests],
+    ["vehicles", KEYS.vehicles],
+    ["drivers", KEYS.drivers],
+    ["notifications", KEYS.notifications],
+    ["emails", KEYS.emails],
+    ["payrollEmployees", KEYS.payrollEmployees],
+    ["payrollRuns", KEYS.payrollRuns],
+    ["fuelLogs", KEYS.fuelLogs],
+    ["vehicleTechnicalLogs", KEYS.vehicleTechnicalLogs],
+    ["travelAllowanceRules", KEYS.travelAllowanceRules],
+    ["vacancies", KEYS.vacancies],
+    ["candidates", KEYS.candidates],
+    ["positions", KEYS.positions],
+    ["interviews", KEYS.interviews],
+    ["contracts", KEYS.contracts],
+    ["hrAbsences", KEYS.hrAbsences],
+    ["sstCompliance", KEYS.sstCompliance],
+    ["tripRouteRates", KEYS.tripRouteRates],
+    ["approvals", KEYS.approvals]
+  ];
+  for (const [prop, key] of map) {
+    if (p[prop] !== undefined) write(key, p[prop]);
+  }
+}
+
+async function applyPortalBootstrapFromApi() {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || !api.getAccessToken?.()) return false;
+  try {
+    const p = await api.getJson("/portal/bootstrap");
+    applyPortalBootstrapPayload(p);
+    return true;
+  } catch (err) {
+    devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+    return false;
+  }
+}
+
+window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
+
+function reqRead() {
+  return typeof DomainModules?.requests?.readAllSync === "function"
+    ? DomainModules.requests.readAllSync()
+    : read(KEYS.requests, []);
+}
+
+function reqWrite(next) {
+  if (typeof DomainModules?.requests?.writeAllSync === "function") {
+    DomainModules.requests.writeAllSync(next);
+  } else {
+    write(KEYS.requests, next);
+  }
+}
+
+if (typeof window.DomainModules?.requests?.attachStorage === "function") {
+  window.DomainModules.requests.attachStorage({ KEYS, read, write });
+}
+if (typeof window.DomainRegistry?.wireFromAntares === "function") {
+  window.DomainRegistry.wireFromAntares({ KEYS, read, write });
 }
 
 const publicTextStore = [];
@@ -656,6 +933,32 @@ function escapePublicRegexFragment(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Find [start,end) in haystack such that normalizePublicKey(slice) === normalizePublicKey(needle). */
+function findNormalizedSpan(haystack, needle) {
+  const nNorm = normalizePublicKey(needle);
+  if (!nNorm) return null;
+  for (let i = 0; i < haystack.length; i++) {
+    for (let j = i + 1; j <= haystack.length; j++) {
+      const sub = haystack.slice(i, j);
+      const subNorm = normalizePublicKey(sub);
+      if (subNorm === nNorm) return [i, j];
+      if (subNorm.length > nNorm.length) break;
+    }
+  }
+  return null;
+}
+
+function replaceAllNormalizedSpans(haystack, needle, replacement) {
+  let result = haystack;
+  for (let guard = 0; guard < 500; guard++) {
+    const span = findNormalizedSpan(result, needle);
+    if (!span) break;
+    const [a, b] = span;
+    result = result.slice(0, a) + replacement + result.slice(b);
+  }
+  return result;
+}
+
 /** Spanish → English strings for the public site (source HTML uses plain ASCII in many words). */
 const PUBLIC_ES_EN_DICT = {
   Inicio: "Home",
@@ -663,6 +966,12 @@ const PUBLIC_ES_EN_DICT = {
   Equipo: "Team",
   Empresas: "Companies",
   Testimonios: "Testimonials",
+  Aliados: "Partners",
+  Actualidad: "News",
+  Experiencias: "Client stories",
+  Liderazgo: "Leadership",
+  Carreras: "Careers",
+  "Abrir menu de navegacion": "Open navigation menu",
   Flota: "Fleet",
   Servicios: "Services",
   Cobertura: "Coverage",
@@ -783,6 +1092,51 @@ const PUBLIC_ES_EN_DICT = {
   "Novedades y mejoras": "News and updates",
   "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent changes in operations, technology, and service to keep our clients informed.",
   "Infraestructura y competitividad": "Infrastructure and competitiveness",
+  "COMUNICADO OFICIAL · OPERACIÓN HISTÓRICA": "OFFICIAL STATEMENT · HISTORIC OPERATION",
+  "Antares marca un hito en Puerto Antioquia con la tractomula JZX522": "Antares marks a milestone at Puerto Antioquia with tractor-trailer JZX522",
+  "Abrimos un nuevo precedente logístico: primera operación de ingreso de contenedor de flor al puerto con unidad propia, consolidando capacidad real para rutas de exportación de alto valor.": "We are opening a new logistics precedent: first entry of a flower container into the port with our own unit, consolidating real capacity for high-value export routes.",
+  "Operación documentada en campo": "Field-documented operation",
+  "Corredor estratégico de exportación": "Strategic export corridor",
+  "Evidencia audiovisual y fotográfica": "Audiovisual and photographic evidence",
+  "Hito logístico Antares": "Antares logistics milestone",
+  "Unidad destacada: JZX522": "Featured unit: JZX522",
+  "Primera operación de contenedor de flor en Puerto Antioquia": "First flower container operation at Puerto Antioquia",
+  "Fuimos la": "We were the",
+  "primera empresa de transporte": "first transport company",
+  "en ingresar contenedor de flor a Puerto Antioquia con nuestra tractomula": "entering a flower container into Puerto Antioquia with our tractor-trailer",
+  ", marcando un avance clave para la cadena de exportación.": ", marking a key advance for the export chain.",
+  "Ventaja competitiva": "Competitive edge",
+  "Menor tiempo de conexión portuaria": "Shorter port connection time",
+  "Capacidad operativa": "Operational capacity",
+  "Operación real en corredor de exportación": "Real operation on an export corridor",
+  "Impacto sectorial": "Sector impact",
+  "Más confianza para floricultores y comercializadores": "More confidence for growers and traders",
+  "Unidad destacada JZX522": "Featured unit JZX522",
+  "Registro visual de la tractomula en operación.": "Visual record of the tractor-trailer in operation.",
+  "Activo logístico clave": "Key logistics asset",
+  "Tractomula JZX522": "Tractor-trailer JZX522",
+  "Unidad utilizada en la operación destacada, con soporte fotográfico como respaldo del comunicado institucional.": "Unit used in the highlighted operation, with photographic support backing the institutional announcement.",
+  "Timeline del logro": "Milestone timeline",
+  "Planeación:": "Planning:",
+  "coordinación previa de ventana y documentación.": "prior coordination of loading window and documentation.",
+  "Ejecución:": "Execution:",
+  "ingreso de contenedor de flor con tractomula": "flower container entry with tractor-trailer",
+  "Validación:": "Validation:",
+  "cierre operativo y confirmación de hito en puerto.": "operational closure and milestone confirmation at the port.",
+  "Ruta de impacto": "Impact route",
+  "Mercado internacional": "International market",
+  "Corredor estratégico para exportación de flor con trazabilidad continua.": "Strategic corridor for flower export with continuous traceability.",
+  "Antes": "Before",
+  "Rutas más largas, mayores tiempos y menor control de conexión portuaria.": "Longer routes, longer times, and less control of the port connection.",
+  "Ahora con el hito": "Now with the milestone",
+  "Operación directa más competitiva, mejor respuesta logística y más confiabilidad para clientes.": "A more competitive direct operation, better logistics response, and greater reliability for customers.",
+  "Contexto institucional": "Institutional context",
+  "Mensaje oficial de la Gobernación de Antioquia": "Official message from the Government of Antioquia",
+  "Mensaje institucional sobre competitividad regional e infraestructura": "Institutional message on regional competitiveness and infrastructure",
+  "Fuente oficial: Gobernación de Antioquia (@puerto_antioquia) · Validación operativa interna Antares · Actualizado: Abril 2026": "Official source: Government of Antioquia (@puerto_antioquia) · Antares internal operational validation · Updated: April 2026",
+  "\"Puerto Antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades.\"": "\"Puerto Antioquia in Urabá marks a before-and-after for competitiveness in Antioquia and the country. Every day, ships sail with products from the countryside: 130,000 flower stems grown in La Ceja bound for England, and 23 tons of Hass avocado from the southwest heading to Belgium. In the past, these exports left through Santa Marta, with longer times and higher costs. Today, the world enters and leaves through Urabá, generating logistics savings, jobs, and new opportunities.\"",
+  "GOBERNACIÓN DE ANTIOQUIA": "GOVERNMENT OF ANTIOQUIA",
+  "Este resultado posiciona a Antares como aliado logístico empresarial para operaciones con alta exigencia de cumplimiento y trazabilidad.": "This outcome positions Antares as a business logistics partner for operations with high compliance and traceability requirements.",
   "Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion": "Puerto Antioquia boosts exports: our tractor-trailer in operation",
   "Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.": "Our operation supports a key export route for flowers and avocado from Antioquia to international markets.",
   "Tu navegador no soporta video HTML5.": "Your browser does not support HTML5 video.",
@@ -933,12 +1287,25 @@ function translatePublicText(text, lang) {
     const phraseThreshold = 14;
     for (const [es, en] of getPublicTranslationSortedEntries()) {
       const src = String(es).replace(/\s+/g, " ").trim();
-      if (!src || !out.includes(src)) continue;
-      if (src.length >= phraseThreshold || /\s/.test(src)) {
-        out = out.split(src).join(en);
+      if (!src) continue;
+      const usePhrase = src.length >= phraseThreshold || /\s/.test(src);
+      if (usePhrase) {
+        if (out.includes(src)) {
+          out = out.split(src).join(en);
+        } else if (normalizePublicKey(out).includes(normalizePublicKey(src))) {
+          out = replaceAllNormalizedSpans(out, src, en);
+        }
       } else {
         const re = new RegExp(`\\b${escapePublicRegexFragment(src)}\\b`, "g");
-        out = out.replace(re, en);
+        let next = out.replace(re, en);
+        if (
+          next === out &&
+          src.length >= 5 &&
+          normalizePublicKey(out).includes(normalizePublicKey(src))
+        ) {
+          next = replaceAllNormalizedSpans(out, src, en);
+        }
+        out = next;
       }
     }
   }
@@ -979,7 +1346,8 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage .section-head p": "Rutas principales y corredores frecuentes para el sector floricultor y exportador.",
     "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
     "#careers .muted": "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).",
-    "#contact .container > article:nth-child(2) .muted": "Las solicitudes se guardan en base de datos local del navegador y generan una notificacion simulada de email."
+    "#contact .container > article:nth-child(2) .muted":
+      "Con la API configurada, las solicitudes se guardan en PostgreSQL. Sin URL de API, solo en este navegador (riesgo de perdida)."
   },
   en: {
     "#trusted .section-head p": "Allies across floriculture, trading, and exports who prioritize punctuality and cold-chain integrity.",
@@ -993,7 +1361,8 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage .section-head p": "Main routes and frequent corridors for the floriculture and export sector.",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
     "#careers .muted": "Vacancies are synchronized with the same team that manages candidates in the portal (same local browser database).",
-    "#contact .container > article:nth-child(2) .muted": "Requests are stored in the browser local database and trigger a simulated email notification."
+    "#contact .container > article:nth-child(2) .muted":
+      "With the API configured, requests are stored in PostgreSQL. Without an API URL, data stays only in this browser (loss risk)."
   }
 };
 
@@ -1031,7 +1400,7 @@ function applyPublicLanguage(lang = "es") {
   const placeholderMap = {
     es: {
       "input[name='name']": "Ej. Laura Castaneda",
-      "input[name='company']": "Ej. FloraExport SAS",
+      "input[name='company']": "Ej. Comercializadora S.A.S.",
       "input[name='taxId']": "Ej. 900123456-7",
       "input[name='position']": "Ej. Directora de Operaciones",
       "input[name='phone']": "+57 300 000 0000",
@@ -1041,7 +1410,7 @@ function applyPublicLanguage(lang = "es") {
     },
     en: {
       "input[name='name']": "E.g. Laura Castaneda",
-      "input[name='company']": "E.g. FloraExport SAS",
+      "input[name='company']": "E.g. Trading Company S.A.S.",
       "input[name='taxId']": "E.g. 900123456-7",
       "input[name='position']": "E.g. Director of Operations",
       "input[name='phone']": "+57 300 000 0000",
@@ -1088,7 +1457,10 @@ function applyPublicLanguage(lang = "es") {
 
   const hamburgerBtn = document.getElementById("hamburger-btn");
   if (hamburgerBtn) {
-    hamburgerBtn.setAttribute("aria-label", lang === "en" ? "Open navigation menu" : "Menu de navegacion");
+    hamburgerBtn.setAttribute(
+      "aria-label",
+      lang === "en" ? "Open navigation menu" : "Abrir menu de navegacion"
+    );
   }
 }
 
@@ -1106,16 +1478,145 @@ function uid() {
   return Math.random().toString(36).slice(2, 11);
 }
 
+/**
+ * Registro teléfono: países principales (Colombia siempre primero = opción por defecto).
+ * `flag`: sufijo CSS `.register-lang-flag--*` (gradientes locales, sin red).
+ */
+const REGISTER_PHONE_COUNTRIES = [
+  { id: "CO", label: "Colombia", dial: "57", minNat: 10, maxNat: 10, style: "co", flag: "co" },
+  { id: "MX", label: "México", dial: "52", minNat: 10, maxNat: 10, style: "generic", flag: "mx" },
+  { id: "US", label: "Estados Unidos", dial: "1", minNat: 10, maxNat: 10, style: "generic", flag: "us" },
+  { id: "EC", label: "Ecuador", dial: "593", minNat: 9, maxNat: 9, style: "generic", flag: "ec" },
+  { id: "PE", label: "Perú", dial: "51", minNat: 9, maxNat: 9, style: "generic", flag: "pe" },
+  { id: "CL", label: "Chile", dial: "56", minNat: 9, maxNat: 9, style: "generic", flag: "cl" },
+  { id: "AR", label: "Argentina", dial: "54", minNat: 10, maxNat: 10, style: "generic", flag: "ar" },
+  { id: "BR", label: "Brasil", dial: "55", minNat: 10, maxNat: 11, style: "generic", flag: "br" },
+  { id: "PA", label: "Panamá", dial: "507", minNat: 8, maxNat: 8, style: "generic", flag: "pa" },
+  { id: "CR", label: "Costa Rica", dial: "506", minNat: 8, maxNat: 8, style: "generic", flag: "cr" },
+  { id: "ES", label: "España", dial: "34", minNat: 9, maxNat: 9, style: "generic", flag: "es" },
+  { id: "VE", label: "Venezuela", dial: "58", minNat: 10, maxNat: 10, style: "generic", flag: "ve" },
+  { id: "GT", label: "Guatemala", dial: "502", minNat: 8, maxNat: 8, style: "generic", flag: "gt" },
+  { id: "HN", label: "Honduras", dial: "504", minNat: 8, maxNat: 8, style: "generic", flag: "hn" }
+];
+
+function registerPhoneCountryOptionsHtml() {
+  return REGISTER_PHONE_COUNTRIES.map((c, index) => {
+    const escLabel = String(c.label || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;");
+    const selected = index === 0 ? " selected" : "";
+    return `<option value="${c.id}" title="${escLabel}"${selected}>+${c.dial}</option>`;
+  }).join("");
+}
+
+function getSelectedRegisterPhoneCountry(registerForm) {
+  const sel = registerForm?.querySelector(".js-register-phone-cc");
+  const id = sel?.value || "CO";
+  return REGISTER_PHONE_COUNTRIES.find((c) => c.id === id) || REGISTER_PHONE_COUNTRIES[0];
+}
+
+function formatGenericNationalDisplay(value, maxLen) {
+  let d = String(value || "").replace(/\D/g, "").slice(0, maxLen);
+  if (!d) return "";
+  const parts = [];
+  for (let i = 0; i < d.length; i += 3) {
+    parts.push(d.slice(i, i + 3));
+  }
+  return parts.join(" ");
+}
+
+function stripDigitsForRegisterNational(raw, meta) {
+  let d = String(raw || "").replace(/\D/g, "");
+  const dial = meta.dial;
+  if (d.startsWith(dial)) d = d.slice(dial.length);
+  if (meta.style === "co") {
+    if (d.startsWith("57")) d = d.slice(2);
+    return d.slice(0, 10);
+  }
+  while (d.length > meta.maxNat && d.startsWith("0")) {
+    d = d.slice(1);
+  }
+  return d.slice(0, meta.maxNat);
+}
+
+function updateRegisterPhoneFieldForCountry(registerForm) {
+  const meta = getSelectedRegisterPhoneCountry(registerForm);
+  const hint = registerForm?.querySelector("#register-phone-hint");
+  const nat = registerForm?.querySelector(".js-register-phone-national");
+  const wrap = registerForm?.querySelector(".phone-input-professional");
+  const ccSel = registerForm?.querySelector(".js-register-phone-cc");
+  const langFlag = registerForm?.querySelector(".js-register-lang-flag");
+  if (langFlag) {
+    const sfx = meta.flag || "co";
+    langFlag.className = `js-register-lang-flag register-lang-flag register-lang-flag--${sfx}`;
+    langFlag.setAttribute("title", meta.label);
+  }
+  if (ccSel) {
+    ccSel.setAttribute("aria-label", `Indicativo +${meta.dial} (${meta.label})`);
+  }
+  if (wrap) {
+    wrap.setAttribute(
+      "aria-label",
+      meta.id === "CO" ? "Teléfono celular Colombia" : `Teléfono ${meta.label}`
+    );
+  }
+  if (hint) {
+    hint.textContent =
+      meta.style === "co"
+        ? "Celular Colombia: 10 dígitos (empieza por 3)."
+        : meta.minNat === meta.maxNat
+          ? `Indicativo +${meta.dial}: ingrese ${meta.maxNat} dígitos del número local.`
+          : `Indicativo +${meta.dial}: entre ${meta.minNat} y ${meta.maxNat} dígitos del número local.`;
+  }
+  if (nat) {
+    nat.placeholder = meta.style === "co" ? "300 123 4567" : "Número local";
+    const maxFormatted =
+      meta.style === "co"
+        ? 14
+        : meta.maxNat + (Math.ceil(meta.maxNat / 3) - 1);
+    nat.setAttribute("maxlength", String(maxFormatted));
+  }
+}
+
+/** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */
 function formatColombianPhone(value) {
-  const digits = String(value || "").replace(/\D/g, "").slice(-10);
-  if (!digits) return "";
-  const parts = [
-    digits.slice(0, 3),
-    digits.slice(3, 6),
-    digits.slice(6, 8),
-    digits.slice(8, 10)
-  ].filter(Boolean);
-  return `+57 ${parts.join(" ")}`.trim();
+  let d = String(value || "").replace(/\D/g, "");
+  if (d.startsWith("57")) d = d.slice(2);
+  d = d.slice(0, 10);
+  if (!d) return "";
+  const segs = [];
+  segs.push(d.slice(0, Math.min(3, d.length)));
+  if (d.length > 3) segs.push(d.slice(3, Math.min(6, d.length)));
+  if (d.length > 6) segs.push(d.slice(6, Math.min(8, d.length)));
+  if (d.length > 8) segs.push(d.slice(8, 10));
+  return `+57 ${segs.join(" ")}`.trim();
+}
+
+/** Solo parte nacional (10 dígitos), mismos grupos que formatColombianPhone sin +57. */
+function formatColombianNationalDisplay(value) {
+  let d = String(value || "").replace(/\D/g, "").slice(0, 10);
+  if (!d) return "";
+  const segs = [];
+  segs.push(d.slice(0, Math.min(3, d.length)));
+  if (d.length > 3) segs.push(d.slice(3, Math.min(6, d.length)));
+  if (d.length > 6) segs.push(d.slice(6, Math.min(8, d.length)));
+  if (d.length > 8) segs.push(d.slice(8, 10));
+  return segs.join(" ");
+}
+
+function syncRegisterPhoneHidden(registerForm) {
+  const nat = registerForm?.querySelector(".js-register-phone-national");
+  const hid = registerForm?.querySelector(".js-register-phone-full");
+  if (!nat || !hid) return;
+  const meta = getSelectedRegisterPhoneCountry(registerForm);
+  let digits = stripDigitsForRegisterNational(nat.value, meta);
+  if (meta.style === "co") {
+    nat.value = digits ? formatColombianNationalDisplay(digits) : "";
+    hid.value = digits ? formatColombianPhone("57" + digits) : "";
+    return;
+  }
+  nat.value = digits ? formatGenericNationalDisplay(digits, meta.maxNat) : "";
+  hid.value = digits ? `+${meta.dial} ${formatGenericNationalDisplay(digits, meta.maxNat)}` : "";
 }
 
 function clearFieldError(field) {
@@ -1236,17 +1737,160 @@ function initB2BFormExperience() {
 }
 
 function nowIso() {
-  return new Date().toISOString();
+  return colombiaNowIso();
 }
 
 function nowLocalIso() {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 19);
+  return colombiaNowIso().slice(0, 19);
+}
+
+function getColombiaDateParts(dateValue = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: CO_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+  const parts = formatter.formatToParts(dateValue);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || "00";
+  return {
+    year: pick("year"),
+    month: pick("month"),
+    day: pick("day"),
+    hour: pick("hour"),
+    minute: pick("minute"),
+    second: pick("second")
+  };
+}
+
+function colombiaNowIso() {
+  const p = getColombiaDateParts(new Date());
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}-05:00`;
+}
+
+function colombiaTodayIsoDate() {
+  const p = getColombiaDateParts(new Date());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */
+function colombiaDatetimeLocalString(dateValue = new Date()) {
+  const p = getColombiaDateParts(dateValue);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+function buildColombiaOffsetDateTime(datePart, timePart) {
+  const date = String(datePart || "").trim();
+  const time = String(timePart || "").trim();
+  if (!date || !time) return "";
+  return `${date}T${time}:00-05:00`;
 }
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+/** Para persistencia en BD/sincronización: sin tildes; ñ → n (ASCII estable). */
+function normalizeLatinForDb(value) {
+  if (value == null) return "";
+  return String(value)
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/ñ/g, "n")
+    .replace(/Ñ/g, "N");
+}
+
+/** Nombres, cargo, dirección, etc.: mayúsculas + sin tildes (uniforme en BD y listados). No usar en correo/contraseña ni en valores de catálogo (departamento/ciudad). */
+function normalizeLatinUpperForDb(value) {
+  return normalizeLatinForDb(value).toUpperCase();
+}
+
+/** tipo_persona siempre "Natural" | "Juridica": una sola forma al persistir; las consultas usan = sin LOWER(). */
+function normalizePersonTypeForDb(value) {
+  const k = normalizeLatinForDb(value).toLowerCase();
+  if (k === "juridica") return "Juridica";
+  return "Natural";
+}
+
+function isPersonTypeJuridica(value) {
+  return normalizePersonTypeForDb(value) === "Juridica";
+}
+
+function validatePasswordPolicy(password) {
+  const p = String(password || "");
+  if (p.length < 10) return { ok: false, key: "passwordPolicyLength" };
+  if (!/[a-z]/.test(p)) return { ok: false, key: "passwordPolicyLower" };
+  if (!/[A-Z]/.test(p)) return { ok: false, key: "passwordPolicyUpper" };
+  if (!/[0-9]/.test(p)) return { ok: false, key: "passwordPolicyDigit" };
+  if (!/[^A-Za-z0-9]/.test(p)) return { ok: false, key: "passwordPolicySpecial" };
+  return { ok: true };
+}
+
+function getPasswordStrengthReport(password) {
+  const p = String(password || "");
+  const checks = [
+    { rule: "len", ok: p.length >= 10 },
+    { rule: "lower", ok: /[a-z]/.test(p) },
+    { rule: "upper", ok: /[A-Z]/.test(p) },
+    { rule: "digit", ok: /[0-9]/.test(p) },
+    { rule: "special", ok: /[^A-Za-z0-9]/.test(p) }
+  ];
+  const met = checks.filter((c) => c.ok).length;
+  const pct = Math.round((met / 5) * 100);
+  let tier = "weak";
+  if (pct >= 80) tier = "strong";
+  else if (pct >= 60) tier = "good";
+  else if (pct >= 40) tier = "fair";
+  let headline = "Indique una contraseña segura";
+  if (p.length > 0) {
+    if (met === 5) headline = "Excelente: cumple todos los requisitos";
+    else if (met === 4) headline = "Muy buena: falta un detalle";
+    else if (met === 3) headline = "Media: refuerce los puntos pendientes";
+    else if (met >= 1) headline = "Débil: complete más requisitos";
+    else headline = "Muy débil: siga las indicaciones";
+  }
+  return { pct, tier, met, checks, headline };
+}
+
+/** Panel de fortaleza (barra, píldora %, checklist). El contenedor incluye .password-strength-bar-fill, .password-strength-pill, .password-strength-headline, .password-rule-grid li[data-rule]. */
+function bindPasswordStrengthSuite(passInput, container) {
+  if (!passInput || !container) return;
+  const fill = container.querySelector(".password-strength-bar-fill");
+  const pill = container.querySelector(".password-strength-pill");
+  const headline = container.querySelector(".password-strength-headline");
+  const bar = container.querySelector(".password-strength-bar");
+  const rules = [...container.querySelectorAll(".password-rule-grid li[data-rule]")];
+  const sync = () => {
+    const r = getPasswordStrengthReport(passInput.value);
+    const active = passInput.value.length > 0;
+    const complete = r.met === 5;
+    if (fill) {
+      fill.style.width = `${r.pct}%`;
+      fill.className = `password-strength-bar-fill password-strength-bar-fill--${r.tier}`;
+    }
+    if (bar) {
+      bar.setAttribute("aria-valuenow", String(r.pct));
+      bar.classList.toggle("password-strength-bar--active", active);
+      bar.classList.toggle("password-strength-bar--complete", complete);
+    }
+    if (pill) {
+      pill.textContent = `${r.pct}%`;
+      pill.className = `password-strength-pill password-strength-pill--${r.tier}`;
+    }
+    if (headline) headline.textContent = r.headline;
+    for (const li of rules) {
+      const key = li.getAttribute("data-rule");
+      const ok = r.checks.find((c) => c.rule === key)?.ok;
+      li.classList.toggle("password-rule-met", Boolean(ok));
+    }
+  };
+  passInput.addEventListener("input", sync);
+  sync();
 }
 
 async function hashPassword(raw) {
@@ -1265,18 +1909,6 @@ async function verifyPassword(raw, storedHash) {
   }
   const hashed = await hashPassword(raw);
   return hashed === storedHash;
-}
-
-function passwordStrengthLabel(password) {
-  const value = String(password || "");
-  let score = 0;
-  if (value.length >= 8) score += 1;
-  if (/[A-Z]/.test(value)) score += 1;
-  if (/[0-9]/.test(value)) score += 1;
-  if (/[^A-Za-z0-9]/.test(value)) score += 1;
-  if (score <= 1) return "Baja";
-  if (score <= 3) return "Media";
-  return "Alta";
 }
 
 function readCounters() {
@@ -1301,10 +1933,7 @@ function makeRequestNumber(existingNumbers = new Set()) {
 
 function fmtDate(value) {
   if (!value) return "-";
-  const normalized = /\dT\d/.test(String(value || "")) && !String(value || "").endsWith("Z")
-    ? `${value}Z`
-    : value;
-  return new Date(normalized).toLocaleString("es-CO");
+  return new Date(value).toLocaleString("es-CO", { timeZone: CO_TIMEZONE });
 }
 
 function addYears(dateValue, years) {
@@ -1336,9 +1965,26 @@ function formatRoute(request) {
 
 function toInputDate(isoDate) {
   if (!isoDate) return "";
-  const d = new Date(isoDate);
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 16);
+  const p = getColombiaDateParts(new Date(isoDate));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+function routeRateKeyFromRequest(request) {
+  const origin = `${String(request?.originDepartment || "").trim()}|${String(request?.originCity || "").trim()}`.toLowerCase();
+  const destination = `${String(request?.destinationDepartment || "").trim()}|${String(request?.destinationCity || "").trim()}`.toLowerCase();
+  return `${origin}->${destination}`;
+}
+
+function getConfiguredTripValue(request) {
+  const rates = read(KEYS.tripRouteRates, {});
+  const configured = parseNum(rates[routeRateKeyFromRequest(request)]);
+  return configured > 0 ? configured : 0;
+}
+
+function buildTripRouteRateKey(originDepartment, originCity, destinationDepartment, destinationCity) {
+  const origin = `${String(originDepartment || "").trim()}|${String(originCity || "").trim()}`.toLowerCase();
+  const destination = `${String(destinationDepartment || "").trim()}|${String(destinationCity || "").trim()}`.toLowerCase();
+  return `${origin}->${destination}`;
 }
 
 function slugStatus(value) {
@@ -1475,25 +2121,6 @@ function ensureCompaniesAndUserMapping() {
   const users = read(KEYS.users, []);
 
   let nextCompanies = [...companies];
-  if (!nextCompanies.length) {
-    nextCompanies = [
-      {
-        id: uid(),
-        name: "Antares",
-        taxId: "900000001-0",
-        phone: "3001111111",
-        createdAt: nowIso()
-      },
-      {
-        id: uid(),
-        name: "Flora Export SAS",
-        taxId: "901000222-1",
-        phone: "3003333333",
-        createdAt: nowIso()
-      }
-    ];
-    write(KEYS.companies, nextCompanies);
-  }
 
   const companyByName = (name) =>
     nextCompanies.find(
@@ -1521,7 +2148,7 @@ function ensureCompaniesAndUserMapping() {
 
 function ensureRequestsCompanyMapping() {
   const users = read(KEYS.users, []);
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const mapped = requests.map((request) => {
     if (request.clientCompanyId) return request;
     const owner = users.find((user) => user.id === request.clientUserId);
@@ -1531,11 +2158,11 @@ function ensureRequestsCompanyMapping() {
       requestedByName: request.requestedByName || owner?.name || request.clientName
     };
   });
-  write(KEYS.requests, mapped);
+  reqWrite(mapped);
 }
 
 function ensureRequestAndTripIdentifiers() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   let changed = false;
   const usedRequestNumbers = new Set(requests.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
   const usedTripNumbers = new Set(
@@ -1556,7 +2183,7 @@ function ensureRequestAndTripIdentifiers() {
     }
     return next;
   });
-  if (changed) write(KEYS.requests, mapped);
+  if (changed) reqWrite(mapped);
 }
 
 function defaultPermissionsForRole(role) {
@@ -1611,194 +2238,6 @@ function ensureUsersAccountStatus() {
   if (changed) write(KEYS.users, updated);
 }
 
-function ensureEnterpriseScaleData() {
-  const markerKey = "antares_enterprise_seed_v1";
-  if (localStorage.getItem(markerKey)) return;
-
-  const users = read(KEYS.users, []);
-  const employees = read(KEYS.payrollEmployees, []);
-  const companies = read(KEYS.companies, []);
-
-  let nextCompanies = [...companies];
-  if (nextCompanies.length < 16) {
-    const needed = 16 - nextCompanies.length;
-    for (let i = 0; i < needed; i += 1) {
-      const n = i + 1;
-      nextCompanies.push({
-        id: uid(),
-        name: `Cliente Corporativo ${String(n).padStart(2, "0")} SAS`,
-        taxId: `900${String(500000 + n).padStart(6, "0")}-${(n % 9) + 1}`,
-        phone: `3007${String(100000 + n).slice(-6)}`,
-        createdAt: nowIso()
-      });
-    }
-    write(KEYS.companies, nextCompanies);
-  }
-
-  const refreshedCompanies = read(KEYS.companies, []);
-  const antaresCompany = refreshedCompanies[0] || null;
-  const clientCompanies = refreshedCompanies.filter((c, idx) => idx > 0).slice(0, 18);
-
-  let nextUsers = [...users];
-  if (!nextUsers.some((u) => u.role === ROLES.ADMINISTRACION)) {
-    nextUsers.push({
-      id: uid(),
-      name: "Coordinacion Administrativa",
-      email: "administracion@antares.com",
-      password: "AdminAntares123!",
-      role: ROLES.ADMINISTRACION,
-      accountStatus: ACCOUNT_STATUS.APROBADO,
-      permissions: defaultPermissionsForRole(ROLES.ADMINISTRACION),
-      company: antaresCompany?.name || "Antares",
-      companyId: antaresCompany?.id || null,
-      taxId: antaresCompany?.taxId || "",
-      phone: "3006100000",
-      city: "Bogota D.C.",
-      department: "Bogota",
-      address: "Oficina administrativa"
-    });
-  }
-  if (!nextUsers.some((u) => u.role === ROLES.LIDER_ADMINISTRATIVO)) {
-    nextUsers.push({
-      id: uid(),
-      name: "Lider Administrativo",
-      email: "lider.administrativo@antares.com",
-      password: "AdminAntares123!",
-      role: ROLES.LIDER_ADMINISTRATIVO,
-      accountStatus: ACCOUNT_STATUS.APROBADO,
-      permissions: defaultPermissionsForRole(ROLES.LIDER_ADMINISTRATIVO),
-      company: antaresCompany?.name || "Antares",
-      companyId: antaresCompany?.id || null,
-      taxId: antaresCompany?.taxId || "",
-      phone: "3006200000",
-      city: "Bogota D.C.",
-      department: "Bogota",
-      address: "Oficina administrativa"
-    });
-  }
-  if (!nextUsers.some((u) => u.role === ROLES.AUXILIAR_ADMINISTRATIVO)) {
-    nextUsers.push({
-      id: uid(),
-      name: "Auxiliar Administrativo",
-      email: "auxiliar.administrativo@antares.com",
-      password: "AdminAntares123!",
-      role: ROLES.AUXILIAR_ADMINISTRATIVO,
-      accountStatus: ACCOUNT_STATUS.APROBADO,
-      permissions: defaultPermissionsForRole(ROLES.AUXILIAR_ADMINISTRATIVO),
-      company: antaresCompany?.name || "Antares",
-      companyId: antaresCompany?.id || null,
-      taxId: antaresCompany?.taxId || "",
-      phone: "3006300000",
-      city: "Bogota D.C.",
-      department: "Bogota",
-      address: "Oficina administrativa"
-    });
-  }
-
-  const currentClientUsers = nextUsers.filter((u) => u.role === ROLES.CLIENT).length;
-  if (currentClientUsers < 15) {
-    const toCreate = 15 - currentClientUsers;
-    for (let i = 0; i < toCreate; i += 1) {
-      const company = clientCompanies[i % clientCompanies.length];
-      nextUsers.push({
-        id: uid(),
-        name: `Cliente Operativo ${String(i + 1).padStart(2, "0")}`,
-        email: `cliente${String(i + 1).padStart(2, "0")}@antares-demo.com`,
-        password: "Cliente123!",
-        role: ROLES.CLIENT,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.CLIENT),
-        company: company?.name || "Cliente",
-        companyId: company?.id || null,
-        taxId: company?.taxId || "",
-        phone: `3008${String(100000 + i).slice(-6)}`,
-        city: "Bogota D.C.",
-        department: "Bogota",
-        address: "Sede cliente"
-      });
-    }
-  }
-  write(KEYS.users, nextUsers);
-
-  localStorage.setItem(markerKey, nowIso());
-}
-
-function cleanupSeededScaleEmployees() {
-  const markerKey = "antares_cleanup_seed_employees_v1";
-  if (localStorage.getItem(markerKey)) return;
-  const employees = read(KEYS.payrollEmployees, []);
-  const toRemove = employees.filter((employee) => /^Empleado Escala \d+/i.test(String(employee.name || "")));
-  if (toRemove.length) {
-    const removed = deleteEmployeesCascade(toRemove.map((employee) => employee.id));
-    if (removed > 0) notify(`Se eliminaron ${removed} empleados de prueba en cascada.`, "info");
-  }
-  localStorage.setItem(markerKey, nowIso());
-}
-
-function resetWorkforceDataForValidation() {
-  const markerKey = "antares_reset_workforce_v1";
-  if (localStorage.getItem(markerKey)) return;
-  write(KEYS.payrollEmployees, []);
-  write(KEYS.drivers, []);
-  write(KEYS.payrollRuns, []);
-  write(KEYS.hrAbsences, []);
-  write(KEYS.fuelLogs, []);
-  localStorage.setItem(markerKey, nowIso());
-}
-
-function purgeDemoData() {
-  const markerKey = "antares_purge_demo_v1";
-  if (localStorage.getItem(markerKey)) return;
-
-  const currentSession = read(KEYS.session, null);
-  const keepUserId = String(currentSession?.userId || "");
-  const users = read(KEYS.users, []);
-  const demoNameRegex = /^(Cliente Operativo|Cliente Demo|RRHH Antares|Coordinacion Administrativa|Lider Administrativo|Auxiliar Administrativo|Empleado Escala)/i;
-  const filteredUsers = users.filter((user) => {
-    const email = String(user.email || "").toLowerCase().trim();
-    const name = String(user.name || "").trim();
-    if (String(user.id || "") === keepUserId) return true;
-    if (email.endsWith("@antares-demo.com")) return false;
-    if (["cliente@antares.com", "rrhh@antares.com"].includes(email)) return false;
-    if (demoNameRegex.test(name)) return false;
-    return true;
-  });
-  write(KEYS.users, filteredUsers);
-
-  const usedCompanyIds = new Set(filteredUsers.map((u) => String(u.companyId || "")).filter(Boolean));
-  const companies = read(KEYS.companies, []);
-  const filteredCompanies = companies.filter((company) => {
-    const name = String(company.name || "").trim();
-    const isDemoCompany = /^Cliente Corporativo \d+/i.test(name) || name === "Flora Export SAS";
-    if (!isDemoCompany) return true;
-    return usedCompanyIds.has(String(company.id || ""));
-  });
-  write(KEYS.companies, filteredCompanies);
-
-  [
-    KEYS.requests,
-    KEYS.vehicles,
-    KEYS.drivers,
-    KEYS.contacts,
-    KEYS.notifications,
-    KEYS.emails,
-    KEYS.payrollEmployees,
-    KEYS.payrollRuns,
-    KEYS.fuelLogs,
-    KEYS.vehicleTechnicalLogs,
-    KEYS.vacancies,
-    KEYS.candidates,
-    KEYS.interviews,
-    KEYS.contracts,
-    KEYS.hrAbsences,
-    KEYS.sstCompliance,
-    KEYS.approvals
-  ].forEach((key) => write(key, []));
-  write(KEYS.counters, {});
-
-  localStorage.setItem(markerKey, nowIso());
-}
-
 function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
@@ -1828,7 +2267,7 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
 function ensureVehicleDocs() {
   const vehicles = read(KEYS.vehicles, []);
   let changed = false;
-  const nowDate = new Date().toISOString().slice(0, 10);
+  const nowDate = colombiaTodayIsoDate();
   const updated = vehicles.map((v) => {
     if (v.soatExpeditionDate && v.techInspectionExpeditionDate) return v;
     changed = true;
@@ -1841,139 +2280,50 @@ function ensureVehicleDocs() {
   if (changed) write(KEYS.vehicles, updated);
 }
 
-function seed() {
-  if (!localStorage.getItem(KEYS.companies)) {
-    write(KEYS.companies, [
-      {
-        id: uid(),
-        name: "Antares",
-        taxId: "900000001-0",
-        phone: "3001111111",
-        createdAt: nowIso()
-      },
-      {
-        id: uid(),
-        name: "Flora Export SAS",
-        taxId: "901000222-1",
-        phone: "3003333333",
-        createdAt: nowIso()
+/** Migraciones de esquema. Datos de negocio: memoria de sesión + PostgreSQL (no localStorage). */
+function initPortalClientStorage() {
+  const PS = window.AntaresPortalSync;
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    const PORTAL_DATA_VERSION = "v8-server-backed-memory-only";
+    if (localStorage.getItem("antares_portal_data_ver") !== PORTAL_DATA_VERSION) {
+      if (typeof window.AntaresPersistence?.purgeServerBackedFromDisk === "function") {
+        window.AntaresPersistence.purgeServerBackedFromDisk();
       }
-    ]);
+      localStorage.removeItem("antares_enterprise_seed_v1");
+      localStorage.removeItem("antares_purge_demo_v1");
+      localStorage.setItem("antares_portal_data_ver", PORTAL_DATA_VERSION);
+    }
+
+    if (localStorage.getItem("antares_users_storage_ver") !== "v5-memory") {
+      localStorage.setItem("antares_users_storage_ver", "v5-memory");
+    }
+
+    ensureCompaniesAndUserMapping();
+    ensureRequestsCompanyMapping();
+    ensureRequestAndTripIdentifiers();
+    ensureUsersPermissions();
+    ensureUsersAccountStatus();
+    ensureVehicleDocs();
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
   }
-
-  const seededCompanies = read(KEYS.companies, []);
-  const antaresCompany = seededCompanies.find((c) => c.name === "Antares");
-  const floraCompany = seededCompanies.find((c) => c.name === "Flora Export SAS");
-
-  if (!localStorage.getItem(KEYS.users)) {
-    write(KEYS.users, [
-      {
-        id: uid(),
-        name: "Admin Antares",
-        email: "admin@antares.com",
-        password: "admin123",
-        role: ROLES.ADMIN,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.ADMIN),
-        company: "Antares",
-        companyId: antaresCompany?.id || null,
-        taxId: "900000001-0",
-        phone: "3001111111"
-      },
-      {
-        id: uid(),
-        name: "RRHH Antares",
-        email: "rrhh@antares.com",
-        password: "rrhh123",
-        role: ROLES.RRHH,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.RRHH),
-        company: "Antares",
-        companyId: antaresCompany?.id || null,
-        taxId: "900000001-0",
-        phone: "3002222222"
-      },
-      {
-        id: uid(),
-        name: "Cliente Demo",
-        email: "cliente@antares.com",
-        password: "cliente123",
-        role: ROLES.CLIENT,
-        accountStatus: ACCOUNT_STATUS.APROBADO,
-        permissions: defaultPermissionsForRole(ROLES.CLIENT),
-        company: "Flora Export SAS",
-        companyId: floraCompany?.id || null,
-        taxId: "901000222-1",
-        phone: "3003333333"
-      }
-    ]);
-  }
-
-  if (!localStorage.getItem(KEYS.vehicles)) {
-    write(KEYS.vehicles, [
-      { id: uid(), plate: "TRB123", type: "Turbo", capacityKg: 3500, refrigerated: true, available: true },
-      { id: uid(), plate: "CMN456", type: "Camion", capacityKg: 8000, refrigerated: true, available: true },
-      { id: uid(), plate: "TRC789", type: "Tractocamion", capacityKg: 30000, refrigerated: true, available: true }
-    ]);
-  }
-
-  if (!localStorage.getItem(KEYS.drivers)) {
-    write(KEYS.drivers, [
-      { id: uid(), name: "Juan Perez", phone: "3010000001", license: "C3", available: true },
-      { id: uid(), name: "Maria Gomez", phone: "3010000002", license: "C2", available: true },
-      { id: uid(), name: "Carlos Ruiz", phone: "3010000003", license: "C3", available: true }
-    ]);
-  }
-
-  if (!localStorage.getItem(KEYS.positions)) {
-    write(KEYS.positions, [
-      { id: uid(), name: "Auxiliar Logistico", workerRole: "empleado", baseSalary: 1800000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
-      { id: uid(), name: "Analista de Operaciones", workerRole: "empleado", baseSalary: 2400000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
-      { id: uid(), name: "Conductor Nacional C2", workerRole: "conductor", baseSalary: 2200000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() },
-      { id: uid(), name: "Conductor Tractocamion C3", workerRole: "conductor", baseSalary: 3000000, contractTypeDefault: "Termino indefinido", legalBasis: "CST art. 45-46", active: true, createdAt: nowIso() }
-    ]);
-  }
-
-  if (!localStorage.getItem(KEYS.travelAllowanceRules)) {
-    write(KEYS.travelAllowanceRules, {
-      interDepartmentTripAmount: 85000
-    });
-  }
-
-  [
-    KEYS.companies,
-    KEYS.counters,
-    KEYS.contacts,
-    KEYS.requests,
-    KEYS.notifications,
-    KEYS.emails,
-    KEYS.payrollEmployees,
-    KEYS.payrollRuns,
-    KEYS.fuelLogs,
-    KEYS.vehicleTechnicalLogs,
-    KEYS.vacancies,
-    KEYS.candidates,
-    KEYS.positions,
-    KEYS.interviews,
-    KEYS.contracts,
-    KEYS.hrAbsences,
-    KEYS.sstCompliance,
-    KEYS.approvals
-  ].forEach((key) => {
-    if (!localStorage.getItem(key)) write(key, []);
-  });
-
-  ensureCompaniesAndUserMapping();
-  ensureRequestsCompanyMapping();
-  ensureRequestAndTripIdentifiers();
-  ensureUsersPermissions();
-  ensureUsersAccountStatus();
-  ensureVehicleDocs();
-  ensureEnterpriseScaleData();
-  cleanupSeededScaleEmployees();
-  resetWorkforceDataForValidation();
-  purgeDemoData();
 }
+
+const SESSION_IDLE_MS = 30 * 60 * 1000;
+const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
+/** Evita JSON.stringify + localStorage en cada bump: solo persistir cada ~2 min (la actividad real sigue en memoria). */
+const SESSION_ACTIVITY_PERSIST_MIN_MS = 2 * 60 * 1000;
+const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
+const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
+
+let __sessionActivityThrottleAt = 0;
+/** Marca de última interacción en RAM; la sesión en disco puede ir rezagada hasta SESSION_ACTIVITY_PERSIST_MIN_MS. */
+let __sessionActivityMemoryAt = 0;
+let __lastSessionActivityPersistAt = 0;
+let __sessionIdleCheckTimer = null;
+let __sessionApiRefreshTimer = null;
+let __sessionActivityHandler = null;
 
 function getSession() {
   return read(KEYS.session, null);
@@ -1982,11 +2332,198 @@ function getSession() {
 function setSession(sessionData) {
   write(KEYS.session, sessionData);
   state.session = sessionData;
+  if (sessionData && typeof sessionData.lastActivityAt === "number") {
+    __sessionActivityMemoryAt = Math.max(__sessionActivityMemoryAt, sessionData.lastActivityAt);
+    __lastSessionActivityPersistAt = Date.now();
+  }
+}
+
+function getEffectiveLastActivityAt() {
+  const s = getSession();
+  const stored = s && typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0;
+  return Math.max(stored, __sessionActivityMemoryAt);
+}
+
+/** Antes de cerrar pestaña: evita que idle use un lastActivityAt viejo solo en disco. */
+function flushSessionActivityToStorage() {
+  const s = getSession();
+  if (!s || !__sessionActivityMemoryAt) return;
+  const merged = Math.max(typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0, __sessionActivityMemoryAt);
+  if (merged <= (typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0)) return;
+  write(KEYS.session, { ...s, lastActivityAt: merged });
+  state.session = { ...s, lastActivityAt: merged };
+  __lastSessionActivityPersistAt = Date.now();
+}
+
+function stopSessionSecurityWatch() {
+  if (__sessionActivityHandler) {
+    ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach((ev) => {
+      window.removeEventListener(ev, __sessionActivityHandler);
+    });
+    __sessionActivityHandler = null;
+  }
+  if (__sessionIdleCheckTimer) {
+    clearInterval(__sessionIdleCheckTimer);
+    __sessionIdleCheckTimer = null;
+  }
+  if (__sessionApiRefreshTimer) {
+    clearInterval(__sessionApiRefreshTimer);
+    __sessionApiRefreshTimer = null;
+  }
+}
+
+function bumpSessionActivityTimestamp() {
+  const s = getSession();
+  if (!s) return;
+  const now = Date.now();
+  __sessionActivityMemoryAt = now;
+  if (state.session) state.session = { ...state.session, lastActivityAt: now };
+  const persistAge = now - __lastSessionActivityPersistAt;
+  if (persistAge >= SESSION_ACTIVITY_PERSIST_MIN_MS) {
+    const cur = getSession();
+    if (cur) setSession({ ...cur, lastActivityAt: now });
+  }
+}
+
+function throttledBumpSessionActivity() {
+  const now = Date.now();
+  if (now - __sessionActivityThrottleAt < SESSION_ACTIVITY_THROTTLE_MS) return;
+  __sessionActivityThrottleAt = now;
+  bumpSessionActivityTimestamp();
+}
+
+function checkSessionIdleAndLogout() {
+  const s = getSession();
+  if (!s) return;
+  const last = getEffectiveLastActivityAt();
+  if (!last || Date.now() - last <= SESSION_IDLE_MS) return;
+  stopSessionSecurityWatch();
+  clearSession();
+  state.currentView = "dashboard";
+  history.replaceState(null, "", window.location.pathname + window.location.search);
+  notify(userMessage("sessionIdle"), "info");
+  renderPortal();
+}
+
+async function tryApiRefreshBridge() {
+  const api = window.AntaresApi;
+  const session = getSession();
+  if (!api?.getBase?.() || !session?.userId || !session?.refreshToken) return;
+  const base = String(api.getBase()).replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${base}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ userId: session.userId, refreshToken: session.refreshToken })
+    });
+    if (!res.ok) return;
+    const body = await res.json();
+    if (!body?.accessToken) return;
+    api.setAccessToken(body.accessToken);
+    const now = Date.now();
+    setSession({
+      ...session,
+      accessToken: body.accessToken,
+      refreshToken: body.refreshToken || session.refreshToken,
+      lastActivityAt: now
+    });
+  } catch (_e) {
+    /* API opcional */
+  }
+}
+
+function refreshClientSessionTokenIfDue() {
+  const s = getSession();
+  if (!s) return;
+  const user = currentUser();
+  if (!user) return;
+  const now = Date.now();
+  const lastAct = getEffectiveLastActivityAt() || now;
+  if (now - lastAct > SESSION_IDLE_MS) return;
+  const issued = typeof s.tokenIssuedAt === "number" ? s.tokenIssuedAt : 0;
+  if (now - issued < SESSION_CLIENT_TOKEN_ROTATE_MS) return;
+  setSession({ ...getSession(), token: buildToken(user), tokenIssuedAt: now });
+}
+
+async function scheduledSessionTokenMaintenance() {
+  const s = getSession();
+  if (!s || !currentUser()) return;
+  const lastAct = getEffectiveLastActivityAt() || Date.now();
+  if (Date.now() - lastAct > SESSION_IDLE_MS) return;
+  await tryApiRefreshBridge();
+  refreshClientSessionTokenIfDue();
+}
+
+function ensureSessionLifecycleHooks() {
+  if (typeof window === "undefined" || window.__antaresSessionLifecycleOk) return;
+  window.__antaresSessionLifecycleOk = true;
+  window.addEventListener("pagehide", () => flushSessionActivityToStorage(), { capture: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushSessionActivityToStorage();
+  });
+}
+
+function startSessionSecurityWatch() {
+  stopSessionSecurityWatch();
+  ensureSessionLifecycleHooks();
+  __sessionActivityHandler = throttledBumpSessionActivity;
+  ["mousemove", "keydown", "click", "scroll", "touchstart"].forEach((ev) => {
+    window.addEventListener(ev, __sessionActivityHandler, { passive: true });
+  });
+  __sessionIdleCheckTimer = setInterval(checkSessionIdleAndLogout, 60 * 1000);
+  __sessionApiRefreshTimer = setInterval(() => void scheduledSessionTokenMaintenance(), SESSION_API_REFRESH_MS);
 }
 
 function clearSession() {
+  stopSessionSecurityWatch();
+  stopNotificationsPolling();
+  __sessionActivityMemoryAt = 0;
+  __lastSessionActivityPersistAt = 0;
   localStorage.removeItem(KEYS.session);
   state.session = null;
+  state.portalContacts = [];
+  if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
+    window.AntaresPersistence.clearServerBackedMemory();
+  }
+  try {
+    localStorage.removeItem("antares_api_access_token");
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+async function tryApiLoginBridge(user, password) {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || !user?.email) return;
+  try {
+    const url = `${api.getBase()}/api/auth/login`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email: user.email, password })
+    });
+    const body = res.ok ? await res.json() : null;
+    if (!body?.accessToken) return;
+    api.setAccessToken(body.accessToken);
+    const session = getSession();
+    if (session) {
+      setSession({
+        ...session,
+        accessToken: body.accessToken,
+        refreshToken: body.refreshToken || "",
+        lastActivityAt: Date.now()
+      });
+    }
+    const bootOk = window.PortalDataLayer?.refreshCacheFromApi
+      ? await window.PortalDataLayer.refreshCacheFromApi()
+      : await applyPortalBootstrapFromApi();
+    if (bootOk && state.session && currentUser()) {
+      renderPortalView();
+      updateNotificationBadge();
+    }
+  } catch (_e) {
+    /* API opcional: sesion local sigue valida */
+  }
 }
 
 function buildToken(user) {
@@ -1999,12 +2536,17 @@ async function ensureUsersPasswordHashing() {
   let changed = false;
   const secured = [];
   for (const user of users) {
-    if (String(user.password || "").startsWith("sha256:")) {
+    const p = String(user.password || "");
+    if (p.startsWith("sha256:")) {
+      secured.push(user);
+      continue;
+    }
+    if (!p) {
       secured.push(user);
       continue;
     }
     changed = true;
-    secured.push({ ...user, password: await hashPassword(user.password) });
+    secured.push({ ...user, password: await hashPassword(p) });
   }
   if (changed) write(KEYS.users, secured);
 }
@@ -2016,35 +2558,45 @@ function authView() {
     return `
       <div class="auth-header-premium">
         <h3>Ingreso empresarial seguro</h3>
-        <p class="muted">Accede a tu operacion con trazabilidad, control de permisos y registro de actividad.</p>
+        <p class="muted">Acceda a su operación con trazabilidad, control de permisos y registro de actividad.</p>
       </div>
       <div class="auth-login-shell">
         <form id="form-login" class="form-grid auth-form auth-pane">
-          <label class="full"><span>Correo corporativo</span><input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
-          <label class="full"><span>Contrasena</span>
-            <div class="password-field">
-              <input type="password" name="password" autocomplete="current-password" required />
-              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">Mostrar</button>
+          <label class="full auth-field-stack">
+            <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo corporativo")}</span>
+            <div class="auth-input-row">
+              <span class="auth-input-prefix" aria-hidden="true">${IC.mail}</span>
+              <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required />
             </div>
           </label>
-          <button class="btn btn-primary full" type="submit">Ingresar al portal</button>
+          <label class="full auth-field-stack">
+            <span class="auth-plain-label">${fieldLabel(IC.lock, "Contraseña")}</span>
+            <div class="password-field auth-password-row">
+              <div class="auth-input-row auth-input-row--grow">
+                <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+                <input class="auth-input-control" type="password" name="password" autocomplete="current-password" required />
+              </div>
+              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">${IC.eye} Mostrar</button>
+            </div>
+          </label>
+          <button class="btn btn-primary full" type="submit">${IC.check} Ingresar al portal</button>
         </form>
         <div class="auth-login-side auth-pane">
-          <h3>Acceso seguro Antares</h3>
-          <p class="muted">Portal disenado para equipos de operaciones, administracion y recursos humanos.</p>
+          <h3>${IC.shield} Acceso seguro Antares</h3>
+          <p class="muted">Portal diseñado para equipos de operaciones, administración y recursos humanos.</p>
           <ul class="auth-bullets">
             <li>Control por roles y permisos granulares</li>
-            <li>Trazabilidad de aprobaciones y auditoria</li>
-            <li>Operacion alineada a flujos empresariales</li>
+            <li>Trazabilidad de aprobaciones y auditoría</li>
+            <li>Operación alineada a flujos empresariales</li>
           </ul>
           <div class="auth-side-pills">
-            <span>Sesion cifrada</span>
-            <span>Historial de cambios</span>
-            <span>Soporte corporativo</span>
+            <span>${IC.lock} Sesión cifrada</span>
+            <span>${IC.activity} Historial de cambios</span>
+            <span>${IC.bell} Soporte corporativo</span>
           </div>
         </div>
       </div>
-      <p class="muted auth-help">Usa credenciales corporativas. Evita ingresar desde equipos compartidos o redes publicas.</p>
+      <p class="muted auth-help">${IC.alertTriangle} Use credenciales corporativas. Evite ingresar desde equipos compartidos o redes públicas.</p>
     `;
   }
 
@@ -2052,31 +2604,49 @@ function authView() {
     return `
       <div class="auth-header-premium">
         <h3>Registro de cliente empresarial</h3>
-        <p class="muted">Completa tu perfil para habilitar aprobacion de acceso y configuracion de servicios.</p>
+        <p class="muted">Complete su perfil. <strong>Solo un administrador</strong> puede revisar y aprobar el acceso; hasta entonces no podrá iniciar sesión.</p>
       </div>
       <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
-        <label>Primer nombre <input name="firstName" required /></label>
-        <label>Segundo nombre <input name="middleName" /></label>
-        <label>Primer apellido <input name="lastName" required /></label>
-        <label>Segundo apellido <input name="secondLastName" /></label>
-        <label>Tipo de persona
-          <select name="personType" required>
-            <option value="Natural">Natural</option>
-            <option value="Juridica">Juridica</option>
-          </select>
-        </label>
-        <label>Tipo documento
-          <select name="documentType" required>
-            <option value="CC">Cedula de ciudadania</option>
-            <option value="CE">Cedula de extranjeria</option>
-            <option value="NIT">NIT</option>
-            <option value="PAS">Pasaporte</option>
-          </select>
-        </label>
-        <label>Numero documento/NIT <input name="taxId" required /></label>
-        <label>Expedicion documento <input type="date" name="documentIssuedAt" required /></label>
-        <label>Fecha de nacimiento <input type="date" name="birthDate" required /></label>
-        <label>Genero
+        <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" /></label>
+        <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" /></label>
+        <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" /></label>
+        <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" /></label>
+        <div class="register-doc-section full">
+          <label class="register-field-person-type">${fieldLabel(IC.briefcase, "Tipo de persona")}
+            <select name="personType" required>
+              <option value="">Seleccione...</option>
+              <option value="natural">Natural</option>
+              <option value="juridica">Jurídica</option>
+            </select>
+          </label>
+          <div id="register-doc-persona" class="register-doc-block register-doc-block--natural">
+            <label>${fieldLabel(IC.file, "Tipo de documento")}
+              <select name="documentType" required>
+                <option value="CC">Cédula de ciudadanía</option>
+                <option value="CE">Cédula de extranjería</option>
+                <option value="PAS">Pasaporte</option>
+              </select>
+            </label>
+            <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" /></label>
+          </div>
+          <div id="register-doc-empresa" class="register-doc-block register-doc-block--empresa hidden" hidden>
+            <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
+              <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" />
+            </label>
+            <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
+              <select name="personalDocumentType">
+                <option value="CC">Cédula de ciudadanía</option>
+                <option value="CE">Cédula de extranjería</option>
+              </select>
+            </label>
+            <label>${fieldLabel(IC.badge, "Número de cédula")}
+              <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" />
+            </label>
+            <p class="muted register-doc-empresa-note">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
+          </div>
+        </div>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
+        <label>${fieldLabel(IC.users, "Género")}
           <select name="gender" required>
             <option value="">Seleccione...</option>
             <option>Femenino</option>
@@ -2085,47 +2655,116 @@ function authView() {
             <option>Prefiero no decirlo</option>
           </select>
         </label>
-        <label>Cargo <input name="position" required /></label>
-        <label>Area <input name="workArea" required placeholder="Ej: Operaciones" /></label>
-        <label>Telefono <input name="phone" placeholder="+57 300 000 0000" required /></label>
-        <label>Departamento
+        <label>${fieldLabel(IC.award, "Cargo")}<input name="position" required /></label>
+        <label>${fieldLabel(IC.grid, "Área")}<input name="workArea" required placeholder="Ej.: Operaciones" /></label>
+        <label class="phone-field-register">
+          ${fieldLabel(IC.phone, "Teléfono")}
+          <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
+            <div class="phone-reg-flag-slot">
+              <span class="js-register-lang-flag register-lang-flag register-lang-flag--co" aria-hidden="true" title="Colombia"></span>
+            </div>
+            <select class="js-register-phone-cc phone-cc-select" aria-label="Indicativo +57 (Colombia)" required>
+              ${registerPhoneCountryOptionsHtml()}
+            </select>
+            <input
+              type="tel"
+              class="js-register-phone-national phone-national-input"
+              inputmode="numeric"
+              autocomplete="tel-national"
+              placeholder="300 123 4567"
+              maxlength="14"
+              required
+              aria-describedby="register-phone-hint"
+            />
+            <input type="hidden" name="phone" class="js-register-phone-full" value="" />
+          </div>
+          <small id="register-phone-hint" class="muted phone-field-hint">Celular Colombia: 10 dígitos (empieza por 3).</small>
+        </label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}
           <select name="department" id="register-department" required>
             <option value="">Seleccione...</option>
             ${deptOptions}
           </select>
         </label>
-        <label>Ciudad
+        <label>${fieldLabel(IC.building, "Ciudad")}
           <select name="city" id="register-city" required>
             <option value="">Seleccione un departamento...</option>
           </select>
         </label>
-        <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
-        <label>Correo <input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
-        <label class="full">Contrasena
+        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" autocomplete="street-address" /></label>
+        <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
+        <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field">
-            <input type="password" minlength="8" name="password" autocomplete="new-password" required />
-            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">Mostrar</button>
+            <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
           </div>
-          <small id="password-strength" class="muted">Seguridad: Baja</small>
         </label>
-        <label class="full">Confirmar contrasena <input type="password" minlength="8" name="passwordConfirm" autocomplete="new-password" required /></label>
-        <label class="full"><input type="checkbox" name="acceptTerms" required /> Acepto terminos, politica de privacidad y tratamiento de datos (Habeas Data).</label>
-        <div class="full auth-inline-note">
-          <small class="muted">Tu solicitud sera revisada por un administrador antes de habilitar acceso al portal.</small>
+        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}
+          <input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" />
+          <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
+        </label>
+        <div id="register-password-strength-suite" class="password-strength-suite full">
+          <div class="password-strength-bar-wrap">
+            <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+              <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+            </div>
+            <div class="password-strength-meta">
+              <span class="password-strength-pill password-strength-pill--weak">0%</span>
+              <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
+            </div>
+          </div>
+          <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+            <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+            <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+            <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+            <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+            <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+          </ul>
+          <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
         </div>
-        <button class="btn btn-primary full" type="submit">Crear cuenta cliente</button>
+        <label class="full register-terms-card">
+          <span class="register-terms-title">${fieldLabel(IC.file, "Términos y condiciones")}</span>
+          <span class="register-terms-copy muted">
+            Al crear su cuenta acepta los
+            <a class="register-terms-link" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">Términos de uso</a>,
+            la
+            <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>
+            y el tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
+          </span>
+          <span class="checkbox-inline register-terms-check">
+            <input type="checkbox" name="acceptTerms" required />
+            Acepto los términos y la política para continuar con la solicitud.
+          </span>
+        </label>
+        <div class="full auth-inline-note">
+          <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
+        </div>
+        <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear cuenta cliente</button>
       </form>
     `;
   }
 
   return `
     <div class="auth-header-premium">
-      <h3>Recuperacion de acceso</h3>
-      <p class="muted">Te ayudamos a restablecer el acceso de forma segura con validacion administrativa.</p>
+      <h3>Recuperación de acceso</h3>
+      <p class="muted">Validación administrativa; no podrá restablecer la contraseña sin la participación de un administrador.</p>
     </div>
-    <form id="form-recover" class="form-grid auth-pane">
-      <label class="full"><span>Correo registrado</span><input type="email" name="email" placeholder="nombre@empresa.com" required /></label>
-      <button class="btn btn-primary full" type="submit">Solicitar recuperacion</button>
+    <form id="form-recover" class="form-grid auth-pane auth-form">
+      <label class="full auth-field-stack">
+        <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo registrado")}</span>
+        <div class="auth-input-row">
+          <span class="auth-input-prefix" aria-hidden="true">${IC.mail}</span>
+          <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required />
+        </div>
+      </label>
+      <div class="auth-recover-hint" role="note">
+        <span class="auth-recover-hint-icon" aria-hidden="true">${IC.shield}</span>
+        <div>
+          <strong>Proceso seguro</strong>
+          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">Un administrador validará su identidad y gestionará el restablecimiento; recibirá instrucciones por correo si su cuenta existe.</p>
+        </div>
+      </div>
+      <button class="btn btn-primary full" type="submit">${IC.send} Solicitar recuperación</button>
     </form>
   `;
 }
@@ -2155,13 +2794,15 @@ function bindAuthForms() {
   togglePassword.forEach((btn) => {
     btn.addEventListener("click", () => {
       const targetForm = String(btn.dataset.target || "");
-      const input = targetForm === "register"
-        ? register?.querySelector("input[name='password']")
-        : login?.querySelector("input[name='password']");
+      let input = null;
+      if (targetForm === "register") input = register?.querySelector("input[name='password']");
+      else if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
+      else input = login?.querySelector("input[name='password']");
       if (!input) return;
       const visible = input.type === "text";
       input.type = visible ? "password" : "text";
-      btn.textContent = visible ? "Mostrar" : "Ocultar";
+      const eye = typeof IC !== "undefined" && IC.eye ? `${IC.eye} ` : "";
+      btn.innerHTML = `${eye}${visible ? "Mostrar" : "Ocultar"}`;
     });
   });
 
@@ -2170,34 +2811,110 @@ function bindAuthForms() {
       event.preventDefault();
       if (Date.now() < state.authSecurity.lockUntil) {
         const secs = Math.ceil((state.authSecurity.lockUntil - Date.now()) / 1000);
-        notify(`Demasiados intentos. Intenta nuevamente en ${secs} segundos.`, "error");
+        notify(userMessage("authLoginLock", secs), "error");
         return;
       }
       const data = Object.fromEntries(new FormData(login).entries());
+      const passwordRaw = String(data.password || "");
+
+      /**
+       * Si hay URL de API, la autenticacion es SOLO contra el servidor (PostgreSQL).
+       * No se usa fallback local respecto a credenciales guardadas solo en el navegador.
+       */
+      if (window.AntaresApi?.getBase?.()) {
+        try {
+          const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
+          const res = await fetch(`${base}/api/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ email: data.email, password: passwordRaw })
+          });
+          const body = await res.json().catch(() => null);
+          if (res.ok && body?.accessToken && body?.refreshToken) {
+            window.AntaresApi.setAccessToken(body.accessToken);
+            if (window.PortalDataLayer?.refreshCacheFromApi) {
+              await window.PortalDataLayer.refreshCacheFromApi();
+            } else {
+              await applyPortalBootstrapFromApi();
+            }
+            const payload = decodeJwtPayload(body.accessToken);
+            const uid = payload?.sub;
+            const usersAfter = read(KEYS.users, []);
+            const userApi = usersAfter.find((u) => String(u.id) === String(uid));
+            if (!userApi) {
+              notify(userMessage("authProfileLoadFailed"), "error");
+              return;
+            }
+            if (userApi.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
+              notify(userMessage("authPendingApproval"), "info");
+              return;
+            }
+            if (userApi.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
+              notify(userMessage("authRejected"), "error");
+              return;
+            }
+            state.authSecurity.failedAttempts = 0;
+            state.authSecurity.lockUntil = 0;
+            setSession({
+              userId: userApi.id,
+              role: userApi.role,
+              token: buildToken(userApi),
+              accessToken: body.accessToken,
+              refreshToken: body.refreshToken,
+              lastActivityAt: Date.now(),
+              tokenIssuedAt: Date.now()
+            });
+            hideAuth();
+            startSessionSecurityWatch();
+            renderPortal();
+            return;
+          }
+          const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
+          notify(String(apiMsg || userMessage("authInvalidServer")), "error");
+          state.authSecurity.failedAttempts += 1;
+          if (state.authSecurity.failedAttempts >= 5) {
+            state.authSecurity.lockUntil = Date.now() + 60_000;
+            state.authSecurity.failedAttempts = 0;
+          }
+          return;
+        } catch (_e) {
+          notify(userMessage("authNoConnection"), "error");
+          return;
+        }
+      }
+
       const users = read(KEYS.users, []);
       const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
-      const valid = user ? await verifyPassword(String(data.password || ""), user.password) : false;
+      const valid = user ? await verifyPassword(passwordRaw, user.password) : false;
       if (!valid || !user) {
         state.authSecurity.failedAttempts += 1;
         if (state.authSecurity.failedAttempts >= 5) {
           state.authSecurity.lockUntil = Date.now() + 60_000;
           state.authSecurity.failedAttempts = 0;
         }
-        notify("Credenciales invalidas.", "error");
+        notify(userMessage("authInvalidLocal"), "error");
         return;
       }
       state.authSecurity.failedAttempts = 0;
       state.authSecurity.lockUntil = 0;
       if (user.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
-        notify("Tu cuenta aun esta pendiente de aprobacion por un administrador.", "info");
+        notify(userMessage("authPendingApproval"), "info");
         return;
       }
       if (user.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
-        notify("Tu solicitud de registro fue rechazada. Contacta a soporte.", "error");
+        notify(userMessage("authRejected"), "error");
         return;
       }
-      setSession({ userId: user.id, role: user.role, token: buildToken(user) });
+      setSession({
+        userId: user.id,
+        role: user.role,
+        token: buildToken(user),
+        lastActivityAt: Date.now(),
+        tokenIssuedAt: Date.now()
+      });
+      void tryApiLoginBridge(user, passwordRaw);
       hideAuth();
+      startSessionSecurityWatch();
       renderPortal();
     });
   }
@@ -2207,73 +2924,269 @@ function bindAuthForms() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
-    const registerPhone = register.querySelector("input[name='phone']");
-    if (registerPhone) {
-      registerPhone.addEventListener("input", () => {
-        const cursorAtEnd = registerPhone.selectionStart === registerPhone.value.length;
-        registerPhone.value = formatColombianPhone(registerPhone.value);
-        if (cursorAtEnd) registerPhone.setSelectionRange(registerPhone.value.length, registerPhone.value.length);
+    const personTypeSel = register.querySelector("select[name='personType']");
+    const docTypeSel = register.querySelector("#register-doc-persona select[name='documentType']");
+    const blockPersona = register.querySelector("#register-doc-persona");
+    const blockEmpresa = register.querySelector("#register-doc-empresa");
+    const inputTaxPersona = register.querySelector("input[name='taxId']");
+    const inputCompanyNit = register.querySelector("input[name='companyNit']");
+    const inputPersonalTax = register.querySelector("input[name='personalTaxId']");
+    const syncRegisterDocLayout = () => {
+      const isJuridica = isPersonTypeJuridica(personTypeSel?.value);
+      if (blockPersona) {
+        blockPersona.classList.toggle("hidden", isJuridica);
+        blockPersona.toggleAttribute("hidden", isJuridica);
+      }
+      if (blockEmpresa) {
+        blockEmpresa.classList.toggle("hidden", !isJuridica);
+        blockEmpresa.toggleAttribute("hidden", !isJuridica);
+      }
+      if (docTypeSel) {
+        if (isJuridica) {
+          docTypeSel.removeAttribute("required");
+        } else {
+          docTypeSel.setAttribute("required", "required");
+        }
+      }
+      if (inputTaxPersona) {
+        if (isJuridica) {
+          inputTaxPersona.removeAttribute("required");
+          inputTaxPersona.value = "";
+        } else {
+          inputTaxPersona.setAttribute("required", "required");
+        }
+      }
+      if (inputCompanyNit) {
+        if (isJuridica) inputCompanyNit.setAttribute("required", "required");
+        else {
+          inputCompanyNit.removeAttribute("required");
+          inputCompanyNit.value = "";
+        }
+      }
+      if (inputPersonalTax) {
+        if (isJuridica) inputPersonalTax.setAttribute("required", "required");
+        else {
+          inputPersonalTax.removeAttribute("required");
+          inputPersonalTax.value = "";
+        }
+      }
+    };
+    personTypeSel?.addEventListener("change", syncRegisterDocLayout);
+    syncRegisterDocLayout();
+
+    const registerPhoneNat = register.querySelector(".js-register-phone-national");
+    const registerPhoneCc = register.querySelector(".js-register-phone-cc");
+    if (registerPhoneNat) {
+      registerPhoneNat.addEventListener("input", () => syncRegisterPhoneHidden(register));
+    }
+    if (registerPhoneCc) {
+      registerPhoneCc.addEventListener("change", () => {
+        clearFieldError(registerPhoneNat);
+        updateRegisterPhoneFieldForCountry(register);
+        syncRegisterPhoneHidden(register);
       });
     }
+    updateRegisterPhoneFieldForCountry(register);
+    syncRegisterPhoneHidden(register);
     const regPass = register.querySelector("input[name='password']");
-    const strength = register.querySelector("#password-strength");
-    if (regPass && strength) {
-      regPass.addEventListener("input", () => {
-        strength.textContent = `Seguridad: ${passwordStrengthLabel(regPass.value)}`;
-      });
-    }
+    const regPassConfirm = register.querySelector("input[name='passwordConfirm']");
+    const syncRegisterPasswordMatchState = () => {
+      if (!regPass || !regPassConfirm) return;
+      regPass.classList.remove("password-match-ok", "password-match-bad");
+      regPassConfirm.classList.remove("password-match-ok", "password-match-bad");
+      const p1 = String(regPass.value || "");
+      const p2 = String(regPassConfirm.value || "");
+      if (!p1 && !p2) return;
+      const same = p1.length > 0 && p1 === p2;
+      regPass.classList.add(same ? "password-match-ok" : "password-match-bad");
+      regPassConfirm.classList.add(same ? "password-match-ok" : "password-match-bad");
+    };
+    regPass?.addEventListener("input", syncRegisterPasswordMatchState);
+    regPassConfirm?.addEventListener("input", syncRegisterPasswordMatchState);
+    bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
     register.addEventListener("submit", async (event) => {
       event.preventDefault();
+      syncRegisterPhoneHidden(register);
       const data = Object.fromEntries(new FormData(register).entries());
-      const fullName = [data.firstName, data.middleName, data.lastName, data.secondLastName]
-        .map((chunk) => String(chunk || "").trim())
+      const fullName = [
+        normalizeLatinUpperForDb(data.firstName),
+        normalizeLatinUpperForDb(data.middleName),
+        normalizeLatinUpperForDb(data.lastName),
+        normalizeLatinUpperForDb(data.secondLastName)
+      ]
+        .map((s) => String(s || "").trim())
         .filter(Boolean)
         .join(" ");
       if (!fullName) {
-        notify("Debes ingresar nombres y apellidos validos.", "error");
+        notify(userMessage("registerNamesInvalid"), "error");
         return;
       }
-      const docValidation = validateColombianDocument(data.documentType, data.taxId);
-      if (!docValidation.ok) {
-        notify(docValidation.message, "error");
-        return;
+      data.personType = normalizePersonTypeForDb(data.personType);
+      const isJuridica = data.personType === "Juridica";
+      const docTypeUpper = String(data.documentType || "").toUpperCase();
+      let personalDocStored = "";
+      if (isJuridica) {
+        const personalDocType = String(data.personalDocumentType || "CC").toUpperCase() === "CE" ? "CE" : "CC";
+        const nitVal = validateColombianDocument("NIT", data.companyNit || "");
+        const personalVal = validateColombianDocument(personalDocType, data.personalTaxId || "");
+        if (!nitVal.ok) {
+          notify(nitVal.message, "error");
+          return;
+        }
+        if (!personalVal.ok) {
+          notify(personalVal.message, "error");
+          return;
+        }
+        data.companyNit = nitVal.normalized;
+        data.personalTaxId = personalVal.normalized;
+        data.taxId = nitVal.normalized;
+        data.documentType = "NIT";
+        personalDocStored = String(personalVal.normalized || "")
+          .replace(/[.\s]/g, "")
+          .replace(/\D/g, "");
+      } else {
+        const docValidation = validateColombianDocument(data.documentType, data.taxId);
+        if (!docValidation.ok) {
+          notify(docValidation.message, "error");
+          return;
+        }
+        data.taxId = docValidation.normalized;
+        data.companyNit = "";
+        data.personalTaxId = "";
+        if (docTypeUpper === "PAS") {
+          personalDocStored = String(docValidation.normalized || "").trim().toUpperCase();
+        } else {
+          personalDocStored = String(docValidation.normalized || "")
+            .replace(/[.\s]/g, "")
+            .replace(/\D/g, "");
+        }
       }
-      data.taxId = docValidation.normalized;
       if (String(data.password || "") !== String(data.passwordConfirm || "")) {
-        notify("La confirmacion de contrasena no coincide.", "error");
+        notify(userMessage("registerPasswordMismatch"), "error");
         return;
       }
-      if (String(data.password || "").length < 8) {
-        notify("La contrasena debe tener minimo 8 caracteres.", "error");
+      const policy = validatePasswordPolicy(data.password);
+      if (!policy.ok) {
+        notify(userMessage(policy.key), "error");
         return;
       }
       if (!data.acceptTerms) {
-        notify("Debes aceptar terminos y tratamiento de datos para continuar.", "error");
+        notify(userMessage("registerTerms"), "error");
         return;
       }
       const birthDateValue = new Date(String(data.birthDate || ""));
       if (!Number.isFinite(birthDateValue.getTime())) {
-        notify("La fecha de nacimiento no es valida.", "error");
+        notify(userMessage("registerBirthInvalid"), "error");
         return;
       }
       const ageYears = Math.floor((Date.now() - birthDateValue.getTime()) / 31557600000);
       if (ageYears < 18) {
-        notify("El usuario debe ser mayor de edad para registrarse.", "error");
+        notify(userMessage("registerMinor"), "error");
         return;
       }
+      const meta = getSelectedRegisterPhoneCountry(register);
+      const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
+      if (!phoneDigitsAll.startsWith(meta.dial)) {
+        notify("El teléfono no coincide con el país seleccionado.", "error");
+        return;
+      }
+      const nationalLen = phoneDigitsAll.length - meta.dial.length;
+      if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
+        notify(
+          meta.style === "co"
+            ? "Ingrese un celular colombiano válido (10 dígitos después de +57)."
+            : `Ingrese entre ${meta.minNat} y ${meta.maxNat} dígitos del número local para ${meta.label}.`,
+          "error"
+        );
+        return;
+      }
+      if (meta.style === "co") {
+        const nat = phoneDigitsAll.slice(meta.dial.length);
+        if (!nat.startsWith("3")) {
+          notify("El celular en Colombia debe ser móvil (empieza por 3).", "error");
+          return;
+        }
+      }
+
+      if (window.AntaresApi?.getBase?.()) {
+        try {
+          const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
+          const res = await fetch(`${base}/api/auth/register-portal`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              firstName: normalizeLatinUpperForDb(data.firstName),
+              middleName: normalizeLatinUpperForDb(data.middleName || ""),
+              lastName: normalizeLatinUpperForDb(data.lastName),
+              secondLastName: normalizeLatinUpperForDb(data.secondLastName || ""),
+              personType: data.personType,
+              documentType: normalizeLatinUpperForDb(data.documentType),
+              taxId: data.taxId,
+              companyNit: data.companyNit || "",
+              personalTaxId: data.personalTaxId || "",
+              birthDate: data.birthDate,
+              gender: normalizeLatinUpperForDb(data.gender),
+              position: normalizeLatinUpperForDb(data.position),
+              workArea: normalizeLatinUpperForDb(data.workArea),
+              phone: normalizeLatinUpperForDb(data.phone),
+              department: normalizeLatinForDb(data.department),
+              city: normalizeLatinForDb(data.city),
+              address: normalizeLatinUpperForDb(data.address),
+              email: data.email,
+              password: data.password,
+              acceptTerms: Boolean(data.acceptTerms)
+            })
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message || res.statusText;
+            notify(String(msg || userMessage("registerServerError")), "error");
+            return;
+          }
+          notify(body?.message || userMessage("registerSuccess"), "success");
+          state.authTab = "login";
+          renderAuthTab();
+          return;
+        } catch (err) {
+          const rawMsg = String(err?.message || "");
+          const msg = /failed to fetch/i.test(rawMsg)
+            ? "No fue posible conectar con la API. Verifica CORS_ORIGINS en Render y que la API este activa."
+            : rawMsg || userMessage("genericError");
+          notify(msg, "error");
+          return;
+        }
+      }
+
       const users = read(KEYS.users, []);
       if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(data.email))) {
-        notify("El correo ya existe.", "error");
+        notify(userMessage("registerEmailExists"), "error");
         return;
       }
-      if (users.some((u) => String(u.documentType || "") === String(data.documentType || "") && String(u.taxId || "") === String(data.taxId || ""))) {
-        notify("Ya existe un usuario registrado con este documento.", "error");
+      if (personalDocStored && users.some((u) => getPersonalRegistrationKey(u) === personalDocStored)) {
+        notify(userMessage("registerPersonalDocExists"), "error");
         return;
       }
-      const { passwordConfirm, acceptTerms, ...profileData } = data;
+      const { passwordConfirm, acceptTerms, companyNit, personalTaxId, personalDocumentType, ...profileData } =
+        data;
       const newUser = {
         id: uid(),
         ...profileData,
+        firstName: normalizeLatinUpperForDb(data.firstName),
+        middleName: normalizeLatinUpperForDb(data.middleName || ""),
+        lastName: normalizeLatinUpperForDb(data.lastName),
+        secondLastName: normalizeLatinUpperForDb(data.secondLastName || ""),
+        personType: data.personType,
+        documentType: normalizeLatinUpperForDb(data.documentType),
+        companyNit: isJuridica ? normalizeLatinUpperForDb(data.companyNit || "") : "",
+        personalTaxId: isJuridica ? normalizeLatinUpperForDb(data.personalTaxId || "") : "",
+        personalDoc: String(personalDocStored || ""),
+        gender: normalizeLatinUpperForDb(data.gender),
+        position: normalizeLatinUpperForDb(data.position),
+        workArea: normalizeLatinUpperForDb(data.workArea),
+        phone: normalizeLatinUpperForDb(data.phone),
+        department: normalizeLatinForDb(data.department),
+        city: normalizeLatinForDb(data.city),
+        address: normalizeLatinUpperForDb(data.address),
         name: fullName,
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
@@ -2301,15 +3214,15 @@ function bindAuthForms() {
         saveNotification({
           userId: admin.id,
           title: "Nuevo registro de cliente pendiente",
-          body: `${data.name} solicita acceso al portal. Falta asociar empresa en aprobacion.`
+          body: `${fullName} solicita acceso al portal. Falta asociar empresa en aprobacion.`
         });
         sendEmail({
           to: admin.email,
           subject: "Nuevo registro de cliente pendiente de aprobacion",
-          body: `Cliente: ${data.name} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
+          body: `Cliente: ${fullName} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
         });
       });
-      notify("Registro enviado. Tu cuenta sera revisada por un administrador.", "success");
+      notify(userMessage("registerSuccess"), "success");
       state.authTab = "login";
       renderAuthTab();
     });
@@ -2322,7 +3235,7 @@ function bindAuthForms() {
       const users = read(KEYS.users, []);
       const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
       if (!user) {
-        notify("No existe usuario con ese correo.", "error");
+        notify(userMessage("recoverNoUser"), "error");
         return;
       }
       sendEmail({
@@ -2330,7 +3243,7 @@ function bindAuthForms() {
         subject: "Recuperacion de contrasena",
         body: `Hola ${user.name}, se solicito recuperacion de acceso. Por seguridad, solicita a un administrador restablecer tu contrasena.`
       });
-      notify("Solicitud enviada. Un administrador debe ayudarte a restablecer el acceso.", "info");
+      notify(userMessage("recoverSent"), "info");
     });
   }
   applyFormWizards();
@@ -2359,7 +3272,7 @@ function activeTripStatuses() {
 }
 
 function getActiveTrips() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   return requests.filter((r) => r.trip && activeTripStatuses().includes(r.status));
 }
 
@@ -2413,7 +3326,7 @@ function buildTripInvoice(request) {
 }
 
 function closeCompletedTripsAndGenerateInvoices() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   let changed = false;
   const oneHourMs = 60 * 60 * 1000;
   const now = Date.now();
@@ -2434,23 +3347,20 @@ function closeCompletedTripsAndGenerateInvoices() {
     };
   });
   if (changed) {
-    write(KEYS.requests, next);
+    reqWrite(next);
     recalculateResourceAvailability();
   }
 }
 
 function openTripInvoicePdf(requestId) {
-  const request = read(KEYS.requests, []).find((r) => r.id === requestId);
+  const request = reqRead().find((r) => r.id === requestId);
   if (!request?.trip) {
-    notify("No hay viaje disponible para facturar.", "error");
+    notify(userMessage("invoiceNoTrip"), "error");
     return;
   }
   const invoice = request.trip.invoice || buildTripInvoice(request);
-  const requests = read(KEYS.requests, []);
-  write(
-    KEYS.requests,
-    requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r))
-  );
+  const requests = reqRead();
+  reqWrite(requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r)));
 
   const html = `<!doctype html>
   <html lang="es">
@@ -2517,7 +3427,7 @@ function openTripInvoicePdf(requestId) {
   </html>`;
   const win = window.open("", "_blank");
   if (!win) {
-    notify("No se pudo abrir la ventana de factura. Revisa el bloqueador de popups.", "error");
+    notify(userMessage("invoicePopupBlocked"), "error");
     return;
   }
   win.document.open();
@@ -2583,12 +3493,12 @@ function applyStandbyCharge(request, actorName) {
 }
 
 function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const target = requests.find((request) => request.id === requestId);
   if (!target) return false;
 
   if (!canTransitionStatus(target.status, nextStatus)) {
-    notify(`Transicion no permitida: ${target.status} -> ${nextStatus}`, "error");
+    notify(userMessage("tripTransitionDenied", target.status, nextStatus), "error");
     return false;
   }
 
@@ -2617,7 +3527,7 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
         }
       : request
   );
-  write(KEYS.requests, updated);
+  reqWrite(updated);
   recalculateResourceAvailability();
   return true;
 }
@@ -2695,6 +3605,39 @@ function getCompatibleDriversForRequest(request, currentRequestId = null) {
   );
 }
 
+function getVehicleCandidatesForRequest(request, currentRequestId = null) {
+  const requiresRefrigeration = String(request?.serviceType || "").toLowerCase().includes("refrigerada");
+  return read(KEYS.vehicles, [])
+    .filter((vehicle) => {
+      if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
+      if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
+      if (requiresRefrigeration && !vehicle.refrigerated) return false;
+      return true;
+    })
+    .map((vehicle) => {
+      const soatDays = docExpiryStatus(vehicle.soatExpeditionDate).days;
+      const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate).days;
+      const busy = isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
+      return {
+        ...vehicle,
+        isBusy: busy || !vehicle.available,
+        hasExpiredDocs: soatDays < 0 || techDays < 0
+      };
+    });
+}
+
+function getDriverCandidatesForRequest(request, currentRequestId = null) {
+  return read(KEYS.drivers, []).map((driver) => {
+    const expiredLicense = daysUntil(driver.licenseExpiry) < 0;
+    const busy = isDriverBusyAtHour(driver, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
+    return {
+      ...driver,
+      isBusy: busy || !driver.available,
+      hasExpiredDocs: expiredLicense
+    };
+  });
+}
+
 function makeTripNumber(existingNumbers = new Set()) {
   let code = `VIA-${String(nextCounter("trip")).padStart(6, "0")}`;
   while (existingNumbers.has(code)) {
@@ -2715,15 +3658,14 @@ function setDriverAvailability(driverId, available) {
   write(KEYS.drivers, next);
 }
 
-function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "") {
-  const requests = read(KEYS.requests, []);
+function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "", selectedTripValue = null) {
+  const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   const canAssignTrip = current && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(current.status);
   if (!current || !canAssignTrip) return false;
 
   if (auto) {
-    write(
-      KEYS.requests,
+    reqWrite(
       requests.map((r) =>
         r.id === requestId
           ? {
@@ -2737,6 +3679,9 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
           : r
       )
     );
+    if (current.apiSynced && window.DomainModules?.requests?.approveViaApi) {
+      void window.DomainModules.requests.approveViaApi(requestId).catch(() => {});
+    }
     const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
     if (targetUser) {
       saveNotification({
@@ -2765,7 +3710,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     : selectDriver(current.pickupAt, current.etaDelivery || current.pickupAt, requestId);
 
   if (!vehicle || !driver) {
-    notify("No hay conductor o camion compatible/disponible para esta solicitud.", "error");
+    notify(userMessage("noCompatibleResources"), "error");
     return false;
   }
 
@@ -2793,6 +3738,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     r.id === requestId
       ? {
           ...r,
+          tripValue: parseNum(selectedTripValue ?? r.tripValue),
           status: STATUS.VIAJE_ASIGNADO,
           approvedAt: nowLocalIso(),
           approvedBy: actorName,
@@ -2802,7 +3748,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
         }
       : r
   );
-  write(KEYS.requests, next);
+  reqWrite(next);
 
   const users = read(KEYS.users, []);
   const target = users.find((u) => u.id === current.clientUserId);
@@ -2822,7 +3768,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
 }
 
 function rejectRequest(requestId, reason, actorName) {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   if (!current) return;
   const next = requests.map((r) =>
@@ -2830,7 +3776,7 @@ function rejectRequest(requestId, reason, actorName) {
       ? { ...r, status: STATUS.RECHAZADA, approvedAt: nowIso(), approvedBy: actorName, rejectionReason: reason }
       : r
   );
-  write(KEYS.requests, next);
+  reqWrite(next);
 
   const user = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
   if (user) {
@@ -2840,7 +3786,7 @@ function rejectRequest(requestId, reason, actorName) {
 }
 
 function updateAutoApprove() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   requests
     .filter((r) => r.status === STATUS.PENDIENTE)
     .forEach((r) => {
@@ -2861,7 +3807,7 @@ function currentUser() {
 }
 
 function getVisibleRequestsForUser(user) {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   if (!user) return [];
   if (user.role === ROLES.ADMIN) return requests;
   return requests.filter((request) => request.clientCompanyId === user.companyId);
@@ -2945,19 +3891,65 @@ function setView(view) {
   state.currentView = view;
   syncPortalHash(view);
   PortalRouterCore.activateSideLinks(nodes.sideLinks, view);
+  if (view === "contact-leads" && user.role === ROLES.ADMIN) {
+    void applyPortalBootstrapFromApi().then((ok) => {
+      if (ok) scheduleRenderPortalView();
+    });
+  }
   renderPortalView();
 }
 
+function setPortalDrawerOpen(open) {
+  if (typeof document === "undefined") return;
+  const on = Boolean(open);
+  document.body.classList.toggle("portal-drawer-open", on);
+  const btn = document.getElementById("portal-menu-btn");
+  const bd = document.getElementById("portal-nav-backdrop");
+  if (btn) {
+    btn.setAttribute("aria-expanded", on ? "true" : "false");
+    btn.setAttribute("aria-label", on ? "Cerrar menu de modulos" : "Abrir menu de modulos");
+  }
+  if (bd) bd.setAttribute("aria-hidden", on ? "false" : "true");
+}
+
 function renderPortal() {
-  const session = getSession();
+  let session = getSession();
   if (!session) {
+    stopSessionSecurityWatch();
+    stopNotificationsPolling();
+    setPortalDrawerOpen(false);
     document.body.classList.remove("portal-mode");
+    document.body.classList.remove("public-nav-open");
+    const pubNav = document.getElementById("main-nav");
+    if (pubNav) pubNav.classList.remove("nav-open");
+    const pubHam = document.getElementById("hamburger-btn");
+    if (pubHam) pubHam.setAttribute("aria-expanded", "false");
     nodes.publicApp.classList.remove("hidden");
     nodes.portalApp.classList.add("hidden");
     return;
   }
+  const ts = Date.now();
+  if (typeof session.lastActivityAt !== "number") {
+    session = {
+      ...session,
+      lastActivityAt: ts,
+      tokenIssuedAt: typeof session.tokenIssuedAt === "number" ? session.tokenIssuedAt : ts
+    };
+    setSession(session);
+  } else if (ts - getEffectiveLastActivityAt() > SESSION_IDLE_MS) {
+    clearSession();
+    notify(userMessage("sessionIdle"), "info");
+    renderPortal();
+    return;
+  }
   state.session = session;
+  document.body.classList.remove("public-nav-open");
+  const pubNavOpen = document.getElementById("main-nav");
+  if (pubNavOpen) pubNavOpen.classList.remove("nav-open");
+  const pubHamOpen = document.getElementById("hamburger-btn");
+  if (pubHamOpen) pubHamOpen.setAttribute("aria-expanded", "false");
   document.body.classList.add("portal-mode");
+  setPortalDrawerOpen(false);
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
   const user = currentUser();
@@ -2987,21 +3979,107 @@ function renderPortal() {
     syncPortalHash("dashboard");
   }
   renderPortalView();
+  updateNotificationBadge();
+  startNotificationsPolling();
+  startSessionSecurityWatch();
+}
+
+let __notificationsPollHandle = null;
+let __lastSeenNotificationIds = null;
+
+function stopNotificationsPolling() {
+  if (typeof document !== "undefined") {
+    document.removeEventListener("visibilitychange", __onNotificationsVisibilityChange);
+  }
+  if (__notificationsPollHandle != null) {
+    clearInterval(__notificationsPollHandle);
+    __notificationsPollHandle = null;
+  }
+  __lastSeenNotificationIds = null;
+}
+
+function __notificationsPollIntervalMs() {
+  return typeof document !== "undefined" && document.hidden ? 50000 : 8000;
+}
+
+function __onNotificationsVisibilityChange() {
+  if (__notificationsPollHandle == null) return;
+  clearInterval(__notificationsPollHandle);
+  __notificationsPollHandle = null;
+  __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
+}
+
+function __tickNotificationsPoll() {
+  const user = currentUser();
+  if (!user) return;
+  const current = getCurrentNotifications();
+  const seen = __lastSeenNotificationIds || new Set();
+  const fresh = current.filter((n) => !seen.has(n.id));
+    if (fresh.length) {
+      fresh.forEach((n) => {
+        if (typeof notify === "function") {
+          const message = `${n.title}${n.body ? " — " + n.body : ""}`;
+          notify(message, "info");
+        }
+      });
+      __lastSeenNotificationIds = new Set(current.map((n) => n.id));
+      updateNotificationBadge();
+      if (state.currentView === "notifications") {
+        scheduleRenderPortalView();
+      }
+    }
+}
+
+function getCurrentNotifications() {
+  const user = currentUser();
+  if (!user) return [];
+  return read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
+}
+
+function updateNotificationBadge() {
+  const link = document.querySelector('.side-link[data-view="notifications"]');
+  if (!link) return;
+  const list = getCurrentNotifications();
+  const unread = list.filter((n) => !n.readAt).length;
+  let badge = link.querySelector(".side-link-badge");
+  if (unread > 0) {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "side-link-badge";
+      link.appendChild(badge);
+    }
+    badge.textContent = unread > 99 ? "99+" : String(unread);
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+function startNotificationsPolling() {
+  if (__notificationsPollHandle != null) return;
+  __lastSeenNotificationIds = new Set(getCurrentNotifications().map((n) => n.id));
+  __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", __onNotificationsVisibilityChange);
+  }
+}
+
+function buildHeaderKpiCardsForView(view, user) {
+  return [];
 }
 
 function renderKpis() {
+  if (!nodes.kpiCards) return;
   const user = currentUser();
-  const visible = getVisibleRequestsForUser(user);
-  const cards = [
-    { label: "Pendientes", value: visible.filter((r) => r.status === STATUS.PENDIENTE || r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length, icon: IC.clock, color: "kpi-icon-warning" },
-    { label: "Viaje asignado", value: visible.filter((r) => r.status === STATUS.VIAJE_ASIGNADO).length, icon: IC.check, color: "kpi-icon-success" },
-    { label: "En transito", value: visible.filter((r) => r.status === STATUS.EN_TRANSITO).length, icon: IC.truck, color: "kpi-icon-primary" },
-    { label: "Completadas", value: visible.filter((r) => r.status === STATUS.COMPLETADA).length, icon: IC.shield, color: "kpi-icon-teal" }
-  ];
+  if (!user) {
+    nodes.kpiCards.innerHTML = "";
+    return;
+  }
+  const view = String(state.currentView || "dashboard");
+  const cards = buildHeaderKpiCardsForView(view, user);
   nodes.kpiCards.innerHTML = cards.map((c) => `
     <article class="kpi">
       <div class="kpi-icon ${c.color}">${c.icon}</div>
-      <div class="kpi-data"><span>${c.label}</span><b>${c.value}</b></div>
+      <div class="kpi-data"><span>${c.label}</span><b class="kpi-value">${c.value}</b></div>
     </article>
   `).join("");
 }
@@ -3069,7 +4147,19 @@ function viewDashboard() {
     ? ""
     : pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody);
 
-  return `<div class="dash-grid">
+  const pendientes = list.filter((r) =>
+    [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
+  ).length;
+  const conViaje = list.filter((r) => r.trip).length;
+  const enOperacion = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const dashHero = moduleFleetHeroStrip([
+    { label: "Solicitudes visibles", value: list.length },
+    { label: "Con viaje", value: conViaje },
+    { label: "En operacion", value: enOperacion },
+    { label: "Pendientes / asignacion", value: pendientes, tone: pendientes ? "warn" : undefined }
+  ]);
+
+  return `${dashHero}<div class="dash-grid">
     ${pcardWrap("truck", "Por tipo de vehiculo", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos de vehiculos aun"))}
     ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
     ${qualityCard}
@@ -3081,39 +4171,68 @@ function requestFormHtml() {
     return window.AppModules.solicitudes.requestFormHtml();
   }
   const user = currentUser();
+  const list = getVisibleRequestsForUser(user);
+  const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
+  const conViaje = list.filter((r) => r.trip).length;
+  const enOp = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const clientHero = moduleFleetHeroStrip([
+    { label: "Mis solicitudes", value: list.length },
+    { label: "Con viaje", value: conViaje },
+    { label: "En operacion", value: enOp },
+    { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
+  ]);
   const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
   const departments = Object.keys(COLOMBIA_LOCATIONS)
     .map((dept) => `<option value="${dept}">${dept}</option>`)
     .join("");
-  const body = `<form id="form-request" class="p-form">
-    <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
-      <input value="${companyName}" disabled />
-      <input type="hidden" name="companyId" value="${user?.companyId || ""}" />
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
-    <label>${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
-    <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
-    <label>${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
-    <div class="full datetime-group">
-      <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
-      <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-      <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
-      <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
-    </div>
-    <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
-    <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
-    <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
-    <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
+  const body = `<form id="form-request" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.briefcase} Empresa y ruta</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
+          <input value="${escapeHtml(companyName)}" disabled />
+          <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
+        </label>
+        <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.calendar} Ventanas de servicio</legend>
+      <div class="form-section-grid datetime-group">
+        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
+        <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
+        <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.truck} Carga y vehiculo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
+        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
+        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
+        <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
+        <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.user} Contacto en sitio</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
+        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
+      </div>
+    </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
+    <p class="muted full legal-form-note">La solicitud queda sujeta a aprobacion operativa y disponibilidad de flota.</p>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-  return createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
+  return clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
 }
 
 function requestListClientHtml(user) {
@@ -3148,7 +4267,16 @@ function requestListClientHtml(user) {
 }
 
 function adminQueueHtml() {
-  const requests = read(KEYS.requests, []).filter((r) => r.status === STATUS.PENDIENTE);
+  const allReq = reqRead();
+  const requests = allReq.filter((r) => r.status === STATUS.PENDIENTE);
+  const pendingAssign = allReq.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length;
+  const activeOps = allReq.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const queueHero = moduleFleetHeroStrip([
+    { label: "Bandeja pendiente", value: requests.length, tone: requests.length ? "warn" : undefined },
+    { label: "Total solicitudes", value: allReq.length },
+    { label: "Aprob. sin asignar", value: pendingAssign, tone: pendingAssign ? "warn" : undefined },
+    { label: "Viajes en operacion", value: activeOps }
+  ]);
   const rows = requests
     .map((r) => `<tr>
       <td><strong>${r.requestNumber || r.id}</strong></td>
@@ -3167,129 +4295,198 @@ function adminQueueHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Vehiculo</th><th>Timer</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay solicitudes pendientes.");
-  return pcardWrap("inbox", "Bandeja de pendientes", requests.length + " solicitudes por revisar", body, requests.length > 0 ? "p-card-alert" : "");
+  return `${queueHero}${pcardWrap("inbox", "Bandeja de pendientes", requests.length + " solicitudes por revisar", body, requests.length > 0 ? "p-card-alert" : "")}`;
 }
 
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
+  const totalCount = vehicles.length;
+  const availableCount = vehicles.filter((v) => v.available).length;
+  const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
+  const documentRiskCount = vehicles.filter((v) => {
+    const soat = docExpiryStatus(v.soatExpeditionDate);
+    const tec = docExpiryStatus(v.techInspectionExpeditionDate);
+    return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
+      ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
+  }).length;
   const rows = vehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate);
+      const refrigeratedTag = v.refrigerated
+        ? '<span class="status status-viaje_asignado">Termoking</span>'
+        : '<span class="status status-espera_standby">Carga seca</span>';
+      const availabilityTag = v.available
+        ? '<span class="status status-viaje_asignado">Disponible</span>'
+        : '<span class="status status-rechazada">Ocupado</span>';
       return `<tr>
-      <td><strong>${v.plate}</strong></td>
-      <td>${v.type}<br><span class="muted">${v.brand || "-"} · ${v.model || "-"} · ${v.year || "-"}</span></td>
-      <td>${v.capacityKg.toLocaleString("es-CO")} kg</td>
-      <td>${v.refrigerated ? '<span class="status status-viaje_asignado">Si</span>' : '<span class="status status-espera_standby">No</span>'}</td>
-      <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
-      <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
-      <td>${v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
-        <button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}">${IC.trash} Eliminar</button>
-      </div></td>
-    </tr>`;
+        <td>
+          <div class="vehicle-cell">
+            <span class="vehicle-plate">${v.plate}</span>
+            <span class="muted">${v.brand || "-"} · ${v.model || "-"} · ${v.year || "-"}</span>
+          </div>
+        </td>
+        <td>${v.type}</td>
+        <td><strong>${parseNum(v.capacityKg).toLocaleString("es-CO")}</strong> <span class="muted">kg</span></td>
+        <td>${refrigeratedTag}</td>
+        <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
+        <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
+        <td>${availabilityTag}</td>
+        <td><div class="toolbar">
+          <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
+          <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
+          <button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}">${IC.trash} Eliminar</button>
+        </div></td>
+      </tr>`;
     })
     .join("");
-  const formBody = `<form id="form-vehicle" class="p-form">
-    <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required /></label>
-    <label>${fieldLabel(IC.grid, "Linea/Modelo")}<input name="model" required /></label>
-    <label>${fieldLabel(IC.calendar, "Ano modelo")}<input type="number" min="1990" max="2100" name="year" required /></label>
-    <label>${fieldLabel(IC.grid, "Tipo")}<select name="type" required><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
-    <label>${fieldLabel(IC.dollar, "Capacidad kg")}<input type="number" min="1" name="capacityKg" required /></label>
-    <label>${fieldLabel(IC.activity, "Termoking")}<select name="refrigerated"><option value="true">Si</option><option value="false">No</option></select></label>
-    <label>${fieldLabel(IC.calendar, "Expedicion SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
-    <label>${fieldLabel(IC.calendar, "Expedicion tecnomecanica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
-    <p class="muted full">Para flota refrigerada, marca Termoking en "Si". El kilometraje se gestiona en mantenimiento e historial técnico.</p>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Agregar vehiculo</button>
+  const bodyTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bodyTypes);
+  const fuelTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.fuelTypes);
+  const axleOptions = selectOptionsFromCatalog(CO_CATALOGS.axleConfig);
+  const colorOptions = selectOptionsFromCatalog(CO_CATALOGS.vehicleColors);
+  const formBody = `<form id="form-vehicle" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.truck} Identificación del vehículo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" /></label>
+        <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required placeholder="Ej: Kenworth, Chevrolet, Hino" /></label>
+        <label>${fieldLabel(IC.grid, "Línea / Modelo")}<input name="model" required placeholder="Ej: T800, NPR" /></label>
+        <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej: ${new Date().getFullYear()}" /></label>
+        <label>${fieldLabel(IC.palette, "Color")}<select name="color" required>${colorOptions}</select></label>
+        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Camión</option><option>Tractocamión</option></select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.layers} Especificaciones técnicas</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.package, "Tipo de carrocería")}<select name="bodyType" required>${bodyTypeOptions}</select></label>
+        <label>${fieldLabel(IC.activity, "Termoking (refrigerado)")}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
+        <label>${fieldLabel(IC.scale, "Capacidad (kg)")}<input type="number" min="1" name="capacityKg" required placeholder="Ej: 18000" /></label>
+        <label>${fieldLabel(IC.fuel, "Tipo de combustible")}<select name="fuelType" required>${fuelTypeOptions}</select></label>
+        <label>${fieldLabel(IC.layers, "Configuración de ejes")}<select name="axleConfig" required>${axleOptions}</select></label>
+        <label>${fieldLabel(IC.hash, "Número de motor")}<input name="engineNumber" required placeholder="Ej: 6BT5.9" /></label>
+        <label>${fieldLabel(IC.hash, "Número de chasis (VIN)")}<input name="vin" required maxlength="17" minlength="11" placeholder="17 caracteres" style="text-transform:uppercase" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.shield} Documentación legal vigente (Colombia)</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.card, "Tarjeta de propiedad N°")}<input name="ownershipCard" required placeholder="Ej: 12345678" /></label>
+        <label>${fieldLabel(IC.calendar, "Expedición SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Vence SOAT")}<input type="date" name="soatExpiryDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Expedición tecnomecánica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Vence tecnomecánica")}<input type="date" name="techInspectionExpiryDate" required /></label>
+        <label>${fieldLabel(IC.shield, "Póliza RC contractual N°")}<input name="rcPolicyContract" placeholder="Ej: 0123456" /></label>
+        <label>${fieldLabel(IC.shield, "Póliza RC extracontractual N°")}<input name="rcPolicyExtra" placeholder="Ej: 0654321" /></label>
+        <label>${fieldLabel(IC.calendar, "Vence pólizas RCP")}<input type="date" name="rcPolicyExpiry" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.satellite} Equipos y trazabilidad</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="true">Sí, GPS activo</option><option value="false">Sin GPS</option></select></label>
+        <label>${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej: Detektor, Skyangel, Geolocator" /></label>
+        <label>${fieldLabel(IC.user, "Propietario / Empresa")}<input name="ownerName" placeholder="Persona o razón social del titular" /></label>
+        <label>${fieldLabel(IC.badge, "NIT / Cédula propietario")}<input name="ownerTaxId" placeholder="Ej: 900123456-7" /></label>
+      </div>
+    </fieldset>
+
+    <p class="muted full legal-form-note">Documentación obligatoria en Colombia: tarjeta de propiedad, SOAT, tecnomecánica, RC contractual y extracontractual. Para transporte refrigerado se exige certificación de cadena de frío y registro INVIMA cuando aplique.</p>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Termoking</th><th>SOAT</th><th>Tecnomecanica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("No hay vehiculos registrados.");
-  return createCollapsibleCard("create-vehicle", "plus", "Registrar vehiculo", null, formBody, "Registrar vehiculo")
-    + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehiculos", tableBody);
+    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay vehículos registrados.");
+  const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
+      <div class="fleet-hero-metrics">
+        <div class="fleet-hero-metric"><span>Total flota</span><strong>${totalCount}</strong></div>
+        <div class="fleet-hero-metric"><span>Disponibles</span><strong>${availableCount}</strong></div>
+        <div class="fleet-hero-metric"><span>Termoking</span><strong>${thermokingCount}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Docs. en riesgo</span><strong>${documentRiskCount}</strong></div>
+      </div>
+    </div>`;
+  return heroStrip
+    + createCollapsibleCard("create-vehicle", "plus", "Registrar vehículo", "Datos legales, capacidad y equipo de frío", formBody, "Registrar vehículo")
+    + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody);
 }
 
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
-  const companies = read(KEYS.companies, []);
-  const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  const totalDrivers = drivers.length;
   const availableDrivers = drivers.filter((d) => d.available).length;
   const expiringSoon = drivers.filter((d) => {
     if (!d.licenseExpiry) return false;
-    const due = new Date(d.licenseExpiry);
-    const today = new Date();
-    const delta = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return delta >= 0 && delta <= 45;
+    const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
+    return days >= 0 && days <= 60;
   }).length;
-  const rows = drivers
-    .map((d) => `<tr>
-      <td><strong>${d.name}</strong></td>
-      <td>${d.phone}</td>
-      <td>${d.license}<br><span class="muted">${d.licenseCategory || "-"} · vence ${d.licenseExpiry || "-"}</span></td>
-      <td>${getCompanyById(d.companyId)?.name || "-"}</td>
-      <td>${d.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
-        <button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}">${IC.trash} Eliminar</button>
-      </div></td>
-    </tr>`)
+  const expired = drivers.filter((d) => {
+    if (!d.licenseExpiry) return false;
+    return new Date(`${d.licenseExpiry}T12:00:00`).getTime() < Date.now();
+  }).length;
+  const cards = drivers
+    .map((d) => {
+      const initials = String(d.name || "C")
+        .split(/\s+/)
+        .map((p) => p.charAt(0).toUpperCase())
+        .slice(0, 2)
+        .join("");
+      const statusTag = d.available
+        ? '<span class="status status-viaje_asignado">Disponible</span>'
+        : '<span class="status status-rechazada">Ocupado</span>';
+      const licStatus = (() => {
+        if (!d.licenseExpiry) return '<span class="status status-pendiente">Sin fecha</span>';
+        const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
+        if (days < 0) return '<span class="status status-rechazada">Vencida</span>';
+        if (days <= 60) return `<span class="status status-pendiente">Vence en ${days}d</span>`;
+        return '<span class="status status-viaje_asignado">Vigente</span>';
+      })();
+      return `<article class="driver-card">
+        <header class="driver-card-head">
+          <div class="driver-avatar">${initials}</div>
+          <div class="driver-card-title">
+            <h4>${d.name || "Conductor"}</h4>
+            <p class="muted">${getCompanyById(d.companyId)?.name || "-"}</p>
+          </div>
+          <div class="driver-card-status">${statusTag}</div>
+        </header>
+        <div class="driver-card-body">
+          <div class="driver-info-row"><span>${IC.phone}</span><span>${d.phone || "-"}</span></div>
+          <div class="driver-info-row"><span>${IC.file}</span><span>${d.license || "-"} · ${d.licenseCategory || "-"}</span></div>
+          <div class="driver-info-row"><span>${IC.calendar}</span><span>Vence: ${d.licenseExpiry || "-"} ${licStatus}</span></div>
+        </div>
+        <footer class="driver-card-actions">
+          <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
+          <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
+          <button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}">${IC.trash} Eliminar</button>
+        </footer>
+      </article>`;
+    })
     .join("");
-  const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Telefono</th><th>Licencia</th><th>Empresa</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+  const heroStrip = moduleFleetHeroStrip([
+    { label: "Total", value: totalDrivers },
+    { label: "Disponibles", value: availableDrivers },
+    { label: "Lic. 60 d", value: expiringSoon, tone: expiringSoon ? "warn" : undefined },
+    { label: "Vencidas", value: expired, tone: expired ? "alert" : undefined }
+  ]);
+  const grid = cards
+    ? `<div class="drivers-grid">${cards}</div>`
     : emptyState("No hay conductores registrados.");
-  const kpis = `<div class="users-hero users-hero-compact">
-    <div class="users-hero-item"><span>Total conductores</span><strong>${drivers.length}</strong></div>
-    <div class="users-hero-item"><span>Disponibles</span><strong>${availableDrivers}</strong></div>
-    <div class="users-hero-item"><span>Licencias por vencer (45 dias)</span><strong>${expiringSoon}</strong></div>
-  </div>`;
-  const formBody = `<form id="form-driver" class="p-form">
-    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required placeholder="3001234567" /></label>
-    <label>${fieldLabel(IC.file, "Tipo documento")}
-      <select name="documentType" required>
-        <option value="CC">Cedula de ciudadania</option>
-        <option value="CE">Cedula de extranjeria</option>
-        <option value="NIT">NIT</option>
-        <option value="PAS">Pasaporte</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.file, "Documento")}<input name="idDoc" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}
-      <select name="companyId" required><option value="">Seleccione...</option>${companyOptions}</select>
-    </label>
-    <label>${fieldLabel(IC.file, "No. licencia")}<input name="license" required /></label>
-    <label>${fieldLabel(IC.file, "Categoria licencia")}
-      <select name="licenseCategory" required>${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, "", "Seleccione categoria...")}</select>
-    </label>
-    <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" required /></label>
-    <label>${fieldLabel(IC.activity, "Tipo de sangre")}
-      <select name="bloodType" required>${selectOptionsFromCatalog(CO_CATALOGS.bloodTypes, "", "Seleccione tipo de sangre...")}</select>
-    </label>
-    <label>${fieldLabel(IC.shield, "EPS")}
-      <select name="eps" required>${selectOptionsFromCatalog(CO_CATALOGS.eps, "", "Seleccione EPS...")}</select>
-    </label>
-    <label>${fieldLabel(IC.shield, "ARL")}
-      <select name="arl" required>${selectOptionsFromCatalog(CO_CATALOGS.arl, "", "Seleccione ARL...")}</select>
-    </label>
-    <label>${fieldLabel(IC.dollar, "Salario base")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="baseSalary" value="${CO_HR_RULES.minMonthlySalary}" required /></label>
-    <label>${fieldLabel(IC.calendar, "Fecha de ingreso")}<input type="date" name="startDate" required /></label>
-    <label>${fieldLabel(IC.mapPin, "Direccion")}<input name="address" /></label>
-    <button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar conductor</button>
-  </form>`;
-  return kpis
-    + createCollapsibleCard("create-driver", "plus", "Registrar conductor", "Datos operativos y legales del conductor", formBody, "Registrar conductor")
-    + pcardWrap("user", "Conductores", drivers.length + " registrados", tableBody);
+  const info = `<p class="muted" style="margin:0 0 0.6rem">Los conductores se crean automáticamente desde <strong>Contratación</strong> o desde <strong>Empleados</strong> cuando el cargo es de conductor.</p>`;
+  return heroStrip + pcardWrap("user", "Conductores", drivers.length + " registrados", info + grid);
 }
 
 function transportTripsHtml() {
-  const pendingForTrip = read(KEYS.requests, []).filter(
+  const rates = read(KEYS.tripRouteRates, {});
+  const rateEntries = Object.entries(rates).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const pendingForTrip = reqRead().filter(
     (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
   );
-  const trips = read(KEYS.requests, []).filter((r) => r.trip);
+  const trips = reqRead().filter((r) => r.trip);
+  const activeOps = trips.filter((r) => activeTripStatuses().includes(r.status)).length;
+  const departmentsOpts = departmentOptions();
   const rows = trips
     .map((r) => {
       const currentStatus = r.status;
@@ -3312,104 +4509,265 @@ function transportTripsHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
-  const createTripForm = `<form id="form-create-trip" class="p-form">
-    <label class="full">Solicitud pendiente
-      <select name="requestId" required>
-        <option value="">Seleccione...</option>
-        ${pendingForTrip.map((r) => `<option value="${r.id}" data-createdby="${r.requestedByName || "-"}" data-route="${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}" data-company="${r.clientName || "-"}">${r.requestNumber || r.id} · ${r.clientName} · ${r.originCity} → ${r.destinationCity}</option>`).join("")}
-      </select>
-    </label>
-    <div id="trip-request-preview" class="trip-preview full">
-      <p><strong>Solicitante:</strong> <span data-preview="createdBy">-</span></p>
-      <p><strong>Cliente:</strong> <span data-preview="company">-</span></p>
-      <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
-    </div>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Crear viaje desde solicitud</button>
+
+  const formatRateRowLabel = (key) => {
+    const [orig, dest] = String(key).split("->");
+    const [od, oc] = String(orig || "").split("|");
+    const [dd, dc] = String(dest || "").split("|");
+    return `${escapeHtml(od || "-")} · ${escapeHtml(oc || "-")} → ${escapeHtml(dd || "-")} · ${escapeHtml(dc || "-")}`;
+  };
+  const ratesRows = rateEntries.length
+    ? rateEntries
+        .map(([key, val]) => {
+          const safeKey = encodeURIComponent(key);
+          return `<tr>
+          <td><strong>${formatRateRowLabel(key)}</strong></td>
+          <td><strong>$${parseNum(val).toLocaleString("es-CO")}</strong></td>
+          <td><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}">${IC.trash} Quitar</button></td>
+        </tr>`;
+        })
+        .join("")
+    : "";
+  const ratesTable = ratesRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Trayecto</th><th>Tarifa (COP)</th><th></th></tr></thead><tbody>${ratesRows}</tbody></table></div>`
+    : emptyState("No hay tarifas por trayecto. Define rutas para autocompletar precios al asignar.");
+
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.mapPin} Origen del trayecto</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione...</option>${departmentsOpts}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="originCity" id="route-rate-origin-city" required><option value="">Seleccione departamento...</option></select></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.mapPin} Destino</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione...</option>${departmentsOpts}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Seleccione departamento...</option></select></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.dollar} Tarifa sugerida</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ej: 4200000" /></label>
+      </div>
+    </fieldset>
+    <p class="muted full legal-form-note">Misma combinacion origen/destino que en solicitudes de cliente. Si ya existe, se actualiza el valor.</p>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
   </form>`;
-  return (pendingForTrip.length ? createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona manualmente camion y conductor segun la carga", createTripForm, "Crear viaje") : "")
-    + pcardWrap("compass", "Viajes operativos", trips.length + " viajes", body);
+
+  const pendingSelectOpts = pendingForTrip
+    .map(
+      (r) =>
+        `<option value="${escapeAttr(r.id)}" data-createdby="${escapeAttr(r.requestedByName || "-")}" data-route="${escapeAttr(`${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}`)}" data-company="${escapeAttr(r.clientName || "-")}">${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${escapeHtml(r.originCity || "")} → ${escapeHtml(r.destinationCity || "")}</option>`
+    )
+    .join("");
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.compass} Solicitud</legend>
+      <label class="full">${fieldLabel(IC.compass, "Solicitud pendiente de asignacion")}
+        <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
+          <option value="">${pendingForTrip.length ? "Seleccione..." : "No hay solicitudes pendientes"}</option>
+          ${pendingSelectOpts}
+        </select>
+      </label>
+      <div id="trip-request-preview" class="trip-preview full">
+        <p><strong>Solicitante:</strong> <span data-preview="createdBy">-</span></p>
+        <p><strong>Cliente:</strong> <span data-preview="company">-</span></p>
+        <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
+      </div>
+    </fieldset>
+    <p class="muted full">${pendingForTrip.length ? "Al enviar se abrira el selector de camion, conductor y precio del viaje." : "Aprobá solicitudes desde Transporte · Solicitudes o esperá la ventana de autoaprobacion."}</p>
+    <button class="btn btn-primary full" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje desde solicitud</button>
+  </form>`;
+
+  const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
+      <div class="fleet-hero-metrics">
+        <div class="fleet-hero-metric"><span>Viajes</span><strong>${trips.length}</strong></div>
+        <div class="fleet-hero-metric"><span>En operacion</span><strong>${activeOps}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Sin asignar</span><strong>${pendingForTrip.length}</strong></div>
+        <div class="fleet-hero-metric"><span>Tarifas trayecto</span><strong>${rateEntries.length}</strong></div>
+      </div>
+    </div>`;
+
+  const actionGrid = `<div class="dash-grid trips-actions-row--two">
+    ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
+    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Asigna camion y conductor a una solicitud aprobada", createTripForm, "Asignar viaje")}
+  </div>`;
+
+  return `${heroStrip}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}`;
 }
 
 function transportCalendarHtml() {
-  const requests = read(KEYS.requests, [])
-    .filter((r) => r.trip)
+  const filters = state.calendarFilters || { driver: "", vehicle: "", status: "" };
+  const allTrips = reqRead().filter((r) => r.trip);
+  const requests = allTrips
+    .filter((r) => {
+      if (filters.driver && String(r.trip.driverId || "") !== filters.driver) return false;
+      if (filters.vehicle && String(r.trip.vehicleId || "") !== filters.vehicle) return false;
+      if (filters.status && String(r.status || "") !== filters.status) return false;
+      return true;
+    })
     .sort((a, b) => new Date(a.trip.etaPickup).getTime() - new Date(b.trip.etaPickup).getTime());
+
+  const driversList = read(KEYS.drivers, []);
+  const vehiclesList = read(KEYS.vehicles, []);
+  const statusList = [...new Set(allTrips.map((r) => r.status))];
+
+  const focus = state.calendarFocus instanceof Date && !Number.isNaN(state.calendarFocus.getTime())
+    ? new Date(state.calendarFocus)
+    : new Date();
+  focus.setHours(12, 0, 0, 0);
   const today = new Date();
-  const fallbackMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-  const selectedMonth = state.transportCalendarMonth || fallbackMonth;
-  const selectedDate = state.transportCalendarSelectedDate || `${fallbackMonth}-${String(today.getDate()).padStart(2, "0")}`;
+  today.setHours(0, 0, 0, 0);
 
-  const monthTrips = requests.filter((r) => String(r.trip.etaPickup || "").startsWith(selectedMonth));
-  const byDate = monthTrips.reduce((acc, r) => {
-    const key = String(r.trip.etaPickup || "").slice(0, 10);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(r);
-    return acc;
-  }, {});
+  const year = focus.getFullYear();
+  const month = focus.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1);
+  const startWeekday = firstDayOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-  const year = Number(selectedMonth.split("-")[0]);
-  const monthIndex = Number(selectedMonth.split("-")[1]) - 1;
-  const firstDayIndex = new Date(year, monthIndex, 1).getDay();
-  const monthDays = new Date(year, monthIndex + 1, 0).getDate();
-  const startOffset = (firstDayIndex + 6) % 7;
+  const eventsByDay = new Map();
+  requests.forEach((r) => {
+    const d = new Date(r.trip.etaPickup);
+    if (Number.isNaN(d.getTime())) return;
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+    eventsByDay.get(key).push(r);
+  });
 
-  const dayCells = [];
-  for (let i = 0; i < startOffset; i += 1) {
-    dayCells.push(`<div class="calendar-day is-empty"></div>`);
+  const monthLabel = focus.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+
+  const buildCell = (day, monthOffset) => {
+    const cellDate = new Date(year, month + monthOffset, day);
+    cellDate.setHours(0, 0, 0, 0);
+    const key = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
+    const dayEvents = eventsByDay.get(key) || [];
+    const isOther = monthOffset !== 0;
+    const isToday = cellDate.getTime() === today.getTime();
+    const dotPalette = ["dot-blue", "dot-teal", "dot-violet", "dot-orange"];
+    const eventList = dayEvents
+      .slice(0, 3)
+      .map((r, idx) => {
+        const time = new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+        const dot = dotPalette[idx % dotPalette.length];
+        return `<button type="button" class="cal-event ${dot}" data-action="cal-event" data-id="${r.id}">
+          <span class="cal-event-time">${time}</span>
+          <span class="cal-event-title">${r.trip.tripNumber || "-"} · ${r.clientName || ""}</span>
+        </button>`;
+      })
+      .join("");
+    const more = dayEvents.length > 3 ? `<span class="cal-more">+${dayEvents.length - 3} más</span>` : "";
+    return `<div class="cal-cell ${isOther ? "cal-cell-other" : ""} ${isToday ? "cal-cell-today" : ""} ${dayEvents.length ? "cal-cell-has-events" : ""}">
+      <div class="cal-day">${day}${isToday ? '<span class="cal-today-pill">Hoy</span>' : ""}</div>
+      <div class="cal-events">${eventList}${more}</div>
+    </div>`;
+  };
+
+  const cells = [];
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    cells.push(buildCell(daysInPrevMonth - i, -1));
   }
-  for (let day = 1; day <= monthDays; day += 1) {
-    const iso = `${selectedMonth}-${String(day).padStart(2, "0")}`;
-    const dayTrips = byDate[iso] || [];
-    const classes = [
-      "calendar-day",
-      dayTrips.length ? "has-events" : "",
-      iso === selectedDate ? "is-selected" : ""
-    ].filter(Boolean).join(" ");
-    dayCells.push(`<button type="button" class="${classes}" data-action="calendar-day" data-date="${iso}">
-      <span class="calendar-day-number">${day}</span>
-      <span class="calendar-day-events">${dayTrips.length ? `${dayTrips.length} viaje${dayTrips.length > 1 ? "s" : ""}` : "Sin viajes"}</span>
-    </button>`);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(buildCell(d, 0));
+  }
+  while (cells.length % 7 !== 0) {
+    const nextDay = cells.length - (startWeekday + daysInMonth) + 1;
+    cells.push(buildCell(nextDay, 1));
   }
 
-  const dayAgenda = byDate[selectedDate] || [];
-  const agendaHtml = dayAgenda.length
-    ? dayAgenda.map((r) => `<article class="calendar-event-item">
-        <div>
-          <strong>${new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })}</strong>
-          <p>${r.trip.route}</p>
-        </div>
-        <div class="calendar-event-meta">
-          <span>${IC.user} ${r.trip.driverName}</span>
-          <span>${IC.truck} ${r.trip.vehiclePlate}</span>
-          <span>${prettyStatus(r.status, "trip")}</span>
-        </div>
-      </article>`).join("")
-    : `<p class="muted">No hay programaciones para este dia.</p>`;
+  const weekDays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const weekdayHeaders = weekDays.map((d) => `<div class="cal-weekday">${d}</div>`).join("");
 
-  const body = requests.length
-    ? `<div class="calendar-shell">
-      <div class="calendar-toolbar">
-        <label>${fieldLabel(IC.calendar, "Mes de programacion")}
-          <input id="calendar-month" type="month" value="${selectedMonth}" />
-        </label>
-        <p class="muted">Un conductor y un camion no se pueden asignar a dos viajes en la misma hora.</p>
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  const todayEvents = eventsByDay.get(todayKey) || [];
+  const upcoming = requests
+    .filter((r) => new Date(r.trip.etaPickup).getTime() >= today.getTime())
+    .slice(0, 8);
+
+  const todayList = todayEvents.length
+    ? todayEvents
+        .map((r) => {
+          const time = new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="cal-day-event">
+            <div class="cal-day-event-time">${time}</div>
+            <div class="cal-day-event-info">
+              <strong>${r.trip.tripNumber || "-"}</strong>
+              <span class="muted">${r.trip.driverName || "-"} · ${r.trip.vehiclePlate || "-"}</span>
+              <span class="muted">${r.trip.route || formatRoute(r)}</span>
+            </div>
+            <div class="cal-day-event-status">${prettyStatus(r.status, "trip")}</div>
+          </div>`;
+        })
+        .join("")
+    : `<p class="muted">Sin viajes para hoy.</p>`;
+
+  const upcomingList = upcoming.length
+    ? upcoming
+        .map((r) => {
+          const date = new Date(r.trip.etaPickup);
+          const dateLabel = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+          const time = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="cal-upcoming-item">
+            <div class="cal-upcoming-date">
+              <strong>${dateLabel}</strong>
+              <span class="muted">${time}</span>
+            </div>
+            <div class="cal-upcoming-info">
+              <strong>${r.trip.tripNumber || "-"}</strong>
+              <span class="muted">${r.clientName || "-"}</span>
+              <span class="muted">${r.trip.driverName || "-"} · ${r.trip.vehiclePlate || "-"}</span>
+            </div>
+            <div>${prettyStatus(r.status, "trip")}</div>
+          </div>`;
+        })
+        .join("")
+    : `<p class="muted">No hay programación próxima.</p>`;
+
+  const calendarShell = `<section class="calendar-shell">
+    <div class="calendar-toolbar">
+      <div class="calendar-title-block">
+        <h2>${monthLabelCap}</h2>
       </div>
-      <div class="calendar-layout">
-        <section class="calendar-grid-wrap">
-          <div class="calendar-weekdays">
-            <span>Lun</span><span>Mar</span><span>Mie</span><span>Jue</span><span>Vie</span><span>Sab</span><span>Dom</span>
-          </div>
-          <div class="calendar-grid">${dayCells.join("")}</div>
-        </section>
-        <aside class="calendar-agenda">
-          <h3>Agenda diaria</h3>
-          <p class="calendar-agenda-date">${new Date(`${selectedDate}T00:00:00`).toLocaleDateString("es-CO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
-          <div class="calendar-events">${agendaHtml}</div>
-        </aside>
+      <div class="calendar-controls">
+        <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="-1">${IC.chevronLeft || ""} Anterior</button>
+        <button type="button" class="btn btn-action btn-sm" data-action="cal-today">Hoy</button>
+        <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="1">Siguiente ${IC.chevronRight || ""}</button>
       </div>
-    </div>`
-    : emptyState("No hay programacion registrada.");
-  return pcardWrap("calendar", "Calendario de programacion", requests.length + " viajes programados", body);
+    </div>
+    <form id="calendar-filters" class="calendar-filters-bar">
+      <label>${fieldLabel(IC.user, "Conductor")}<select name="driver"><option value="">Todos</option>${driversList.map((d) => `<option value="${d.id}" ${filters.driver === d.id ? "selected" : ""}>${d.name}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicle"><option value="">Todos</option>${vehiclesList.map((v) => `<option value="${v.id}" ${filters.vehicle === v.id ? "selected" : ""}>${v.plate} · ${v.type}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${statusList.map((s) => `<option value="${s}" ${filters.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+      <button type="button" class="btn btn-sm btn-action" data-action="cal-clear-filters">${IC.x} Limpiar</button>
+    </form>
+    <div class="calendar-legend">
+      <span class="cal-legend-item"><span class="cal-dot dot-blue"></span>En curso</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-teal"></span>Programado</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-violet"></span>Asignado</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-orange"></span>Otros</span>
+    </div>
+    <div class="calendar-grid">
+      <div class="cal-weekdays">${weekdayHeaders}</div>
+      <div class="cal-days">${cells.join("")}</div>
+    </div>
+    <div class="calendar-side-grid">
+      ${pcardWrap("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
+      ${pcardWrap("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
+    </div>
+  </section>`;
+
+  const calHero = moduleFleetHeroStrip([
+    { label: "Viajes en sistema", value: allTrips.length },
+    { label: "Tras filtros", value: requests.length },
+    { label: "Hoy", value: todayEvents.length },
+    { label: "Proximos", value: upcoming.length }
+  ]);
+
+  return calHero + calendarShell;
 }
 
 function adminUsersHtml(current) {
@@ -3483,6 +4841,7 @@ function adminUsersHtml(current) {
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
       <div class="user-card-actions">
         <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${u.id}">${IC.edit} Editar</button>
+        ${!isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${u.id}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
         ${!isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>` : ""}
       </div>
     </div>`;
@@ -3500,7 +4859,7 @@ function adminUsersHtml(current) {
     </div>
     <div class="user-card-meta">
       <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "-"}</span>
-      <span>${IC.file} ${(u.documentType || "Doc") + " " + (u.taxId || "-")}</span>
+      <span>${IC.file} ${String(u.documentType || "Doc")} ${u.taxId || "-"}${u.personalTaxId || u.personalDoc ? ` · pers. ${u.personalTaxId || u.personalDoc}` : ""}</span>
       ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
       ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
     </div>
@@ -3511,60 +4870,105 @@ function adminUsersHtml(current) {
   </div>`).join("");
 
   // --- Formularios ---
-  const fUser = `<form id="form-admin-user-create" class="p-form">
-    <label>Nombre <input name="name" required placeholder="Nombre completo" /></label>
-    <label>Correo <input type="email" name="email" required placeholder="correo@empresa.com" /></label>
-    <label>Contraseña <input type="password" name="password" minlength="6" required placeholder="Min. 6 caracteres" /></label>
-    <label>Tipo documento
-      <select name="documentType" required>
-        <option value="CC">Cedula de ciudadania</option>
-        <option value="CE">Cedula de extranjeria</option>
-        <option value="NIT">NIT</option>
-        <option value="PAS">Pasaporte</option>
-      </select>
-    </label>
-    <label>Documento/NIT <input name="taxId" value="900000001-0" required /></label>
-    <label>Rol
-      <select name="role" required>
-        <option value="${ROLES.ADMIN}">Administrador</option>
-        <option value="${ROLES.RRHH}">Recursos Humanos</option>
-        <option value="${ROLES.ADMINISTRACION}">Administracion</option>
-        <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
-        <option value="${ROLES.LIDER_ADMINISTRATIVO}">Lider administrativo</option>
-        <option value="${ROLES.CLIENT}">Cliente</option>
-      </select>
-    </label>
-    <label>Empresa
-      <select name="companyId" required>
-        <option value="">Seleccione...</option>
-        ${companyOptions}
-      </select>
-    </label>
-    <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
-    <label>Departamento
-      <select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
-    </label>
-    <label>Ciudad
-      <select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select>
-    </label>
-    <label>Direccion <input name="address" required placeholder="Direccion principal" /></label>
-    <label>Nombre comercial <input name="company" value="Antares" /></label>
+  const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.user} Datos personales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej.: Laura Castañeda" /></label>
+        <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" name="email" required placeholder="correo@empresa.com" /></label>
+        <label class="full">${fieldLabel(IC.lock, "Contraseña")}
+          <div class="password-field auth-password-row">
+            <div class="auth-input-row auth-input-row--grow">
+              <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+              <input type="password" name="password" minlength="10" required placeholder="Mín. 10 caracteres, mayúscula, minúscula, número y símbolo" aria-describedby="admin-create-password-hint admin-create-password-strength" autocomplete="new-password" />
+            </div>
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-create">${IC.eye} Mostrar</button>
+          </div>
+          <div id="admin-password-strength-suite" class="password-strength-suite">
+            <div class="password-strength-bar-wrap">
+              <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+                <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+              </div>
+              <div class="password-strength-meta">
+                <span class="password-strength-pill password-strength-pill--weak">0%</span>
+                <p id="admin-create-password-strength" class="password-strength-headline">Indique una contraseña segura</p>
+              </div>
+            </div>
+            <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+              <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+              <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+              <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+              <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+              <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+            </ul>
+          </div>
+          <p id="admin-create-password-hint" class="muted password-policy-hint">Mismo estándar que el registro público (10+ caracteres, mayúscula, minúscula, número y símbolo). La contraseña se muestra tal cual al escribirla; se guarda con hash seguro.</p>
+        </label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>
+          <option value="CC">Cédula de ciudadanía</option>
+          <option value="CE">Cédula de extranjería</option>
+          <option value="NIT">NIT</option>
+          <option value="PAS">Pasaporte</option>
+        </select></label>
+        <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="900000001-0" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.shield} Acceso y rol</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.shield, "Rol")}<select name="role" required>
+          <option value="${ROLES.ADMIN}">Administrador</option>
+          <option value="${ROLES.RRHH}">Recursos Humanos</option>
+          <option value="${ROLES.ADMINISTRACION}">Administración</option>
+          <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
+          <option value="${ROLES.LIDER_ADMINISTRATIVO}">Líder administrativo</option>
+          <option value="${ROLES.CLIENT}">Cliente</option>
+        </select></label>
+        <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
+          <option value="">Seleccione...</option>
+          ${companyOptions}
+        </select></label>
+        <label>${fieldLabel(IC.lock, "Autenticación 2FA")}<select name="twoFactorEnabled">
+          <option value="false">Deshabilitada</option>
+          <option value="true">Habilitada (recomendado)</option>
+        </select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${colombiaTodayIsoDate()}" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.mapPin} Ubicación</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" /></label>
+        <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="Antares" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.upload} Avatar (opcional)</legend>
+      <label class="full">${fieldLabel(IC.upload, "Foto del usuario")}<input type="file" name="avatarFile" accept="image/*" /></label>
+    </fieldset>
+
     <fieldset class="full perm-fieldset">
-      <legend>Permisos del usuario</legend>
+      <legend>${IC.shield} Permisos del usuario</legend>
       <div class="perm-grid">${permissionChecks([...ALL_PERMISSIONS])}</div>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
   </form>`;
 
   const fComp = `<form id="form-admin-company-create" class="p-form">
-    <label>Nombre empresa <input name="name" required placeholder="Nombre de la empresa" /></label>
-    <label>NIT/RUT <input name="taxId" required placeholder="000.000.000-0" /></label>
-    <label>Telefono <input name="phone" required placeholder="+57 300 000 0000" /></label>
+    <label>${fieldLabel(IC.briefcase, "Nombre empresa")}<input name="name" required placeholder="Nombre de la empresa" /></label>
+    <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" required placeholder="900.000.000-0" /></label>
+    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
   </form>`;
 
   const fPerm = `<form id="form-admin-user-permissions" class="p-form">
-    <label class="full">Seleccionar usuario
+    <label class="full">${fieldLabel(IC.user, "Seleccionar usuario")}
       <select name="userId" required>
         <option value="">Seleccione un usuario...</option>
         ${userOptions}
@@ -3579,41 +4983,47 @@ function adminUsersHtml(current) {
 
   const fEdit = editingUser ? `<form id="form-admin-user-edit" class="p-form">
     <input type="hidden" name="id" value="${editingUser.id}" />
-    <label>Nombre <input name="name" value="${editingUser.name || ""}" required /></label>
-    <label>Correo <input type="email" name="email" value="${editingUser.email || ""}" required /></label>
-    <label>Contraseña <input type="password" name="password" placeholder="Dejar vacio para conservar" /></label>
-    <label>Tipo documento
+    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${editingUser.name || ""}" required /></label>
+    <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" value="${editingUser.email || ""}" required /></label>
+    <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" placeholder="Dejar vacío para conservar" /></label>
+    <label>${fieldLabel(IC.file, "Tipo documento")}
       <select name="documentType" required>
-        <option value="CC" ${editingUser.documentType === "CC" ? "selected" : ""}>Cedula de ciudadania</option>
-        <option value="CE" ${editingUser.documentType === "CE" ? "selected" : ""}>Cedula de extranjeria</option>
+        <option value="CC" ${editingUser.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
+        <option value="CE" ${editingUser.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
         <option value="NIT" ${editingUser.documentType === "NIT" ? "selected" : ""}>NIT</option>
         <option value="PAS" ${editingUser.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
       </select>
     </label>
-    <label>Rol
+    <label>${fieldLabel(IC.shield, "Rol")}
       <select name="role" required>
         <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
         <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
-        <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administracion</option>
+        <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administración</option>
         <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
-        <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Lider administrativo</option>
+        <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
         <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
       </select>
     </label>
-    <label>Empresa
+    <label>${fieldLabel(IC.briefcase, "Empresa")}
       <input value="${getCompanyById(editingUser.companyId)?.name || editingUser.company || "-"}" disabled />
       <input type="hidden" name="companyId" value="${editingUser.companyId || ""}" />
     </label>
-    <label>Telefono <input name="phone" value="${editingUser.phone || ""}" /></label>
-    <label>Departamento
+    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${editingUser.phone || ""}" /></label>
+    <label>${fieldLabel(IC.mapPin, "Departamento")}
       <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
     </label>
-    <label>Ciudad
+    <label>${fieldLabel(IC.mapPin, "Ciudad")}
       <select name="city" id="admin-edit-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingUser.department || "", editingUser.city || "")}</select>
     </label>
-    <label>Direccion <input name="address" value="${editingUser.address || ""}" /></label>
-    <label>Nombre comercial <input name="company" value="${editingUser.company || ""}" /></label>
-    <label>NIT/RUT <input name="taxId" value="${editingUser.taxId || ""}" /></label>
+    <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" value="${editingUser.address || ""}" /></label>
+    <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="${editingUser.company || ""}" /></label>
+    <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" value="${editingUser.taxId || ""}" /></label>
+    <label>${fieldLabel(IC.lock, "Autenticación 2FA")}<select name="twoFactorEnabled">
+      <option value="false" ${!editingUser.twoFactorEnabled ? "selected" : ""}>Deshabilitada</option>
+      <option value="true" ${editingUser.twoFactorEnabled ? "selected" : ""}>Habilitada (recomendado)</option>
+    </select></label>
+    <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${editingUser.systemJoinDate || (editingUser.createdAt ? String(editingUser.createdAt).slice(0,10) : "")}" /></label>
+    <label class="full">${fieldLabel(IC.upload, "Cambiar avatar")}<input type="file" name="avatarFile" accept="image/*" /></label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
       <div class="perm-grid">${permissionChecks(editingUser.permissions || [])}</div>
@@ -3632,50 +5042,33 @@ function adminUsersHtml(current) {
 
   // --- Render ---
   let html = "";
-  const adminCount = users.filter((u) => u.role === ROLES.ADMIN).length;
-  const rrhhCount = users.filter((u) => u.role === ROLES.RRHH).length;
-  const adminOfficeCount = users.filter((u) =>
-    [ROLES.ADMINISTRACION, ROLES.AUXILIAR_ADMINISTRATIVO, ROLES.LIDER_ADMINISTRATIVO].includes(u.role)
-  ).length;
-  const clientCount = users.filter((u) => u.role === ROLES.CLIENT).length;
   const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
 
-  html += `<div class="users-hero">
-    <div class="users-hero-item">
-      <span>Total usuarios</span><strong>${users.length}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Admins</span><strong>${adminCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>RRHH</span><strong>${rrhhCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Administrativos</span><strong>${adminOfficeCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Clientes</span><strong>${clientCount}</strong>
-    </div>
-    <div class="users-hero-item">
-      <span>Aprobados</span><strong>${approvedCount}</strong>
+  html += moduleFleetHeroStrip([
+    { label: "Usuarios", value: users.length },
+    { label: "Aprobados", value: approvedCount },
+    { label: "Registro pendiente", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
+    { label: "Empresas", value: companies.length }
+  ]);
+
+  html += `<div class="users-hero-strip users-hero-strip--solo">
+    <div class="users-hero-actions">
+      <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
+      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
+      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
     </div>
   </div>`;
 
   if (pendingUsers.length > 0) {
-    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobacion para acceder", `<div class="user-grid user-grid-pending">${pendingCards}</div>`, "p-card-alert");
+    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobación para acceder", `<div class="user-grid user-grid-pending">${pendingCards}</div>`, "p-card-alert");
   }
-
-  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
-  html += `<div class="toolbar users-actions">
-    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
-    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="create-company">${IC.plus} Nueva empresa</button>
-    <button class="btn btn-action users-action-btn" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.save} Asignar permisos</button>
-  </div>`;
 
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
   if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
   if (ui.panel === "set-permissions") html += pcardWrap("save", "Asignar permisos", "Selecciona usuario y permisos", fPerm);
   if (editingUser) html += pcardWrap("edit", "Editar usuario", `Actualiza los datos de ${editingUser.name}`, fEdit);
+
+  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
 
   if (companies.length > 0) {
     html += pcardWrap("briefcase", "Empresas registradas", companies.length + " empresas", `<div class="company-grid">${companyRows}</div>`);
@@ -3685,7 +5078,25 @@ function adminUsersHtml(current) {
 }
 
 function historyHtml() {
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
+  const histHero = moduleFleetHeroStrip([
+    { label: "Registros", value: requests.length },
+    {
+      label: "Finalizadas",
+      value: requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length
+    },
+    {
+      label: "En curso",
+      value: requests.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length
+    },
+    {
+      label: "Sin viaje",
+      value: requests.filter((r) => !r.trip).length,
+      tone: requests.some((r) => !r.trip && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status))
+        ? "warn"
+        : undefined
+    }
+  ]);
   const users = read(KEYS.users, []);
   const drivers = read(KEYS.drivers, []);
   const vehicles = read(KEYS.vehicles, []);
@@ -3707,70 +5118,96 @@ function historyHtml() {
     </tr>`)
     .join("");
 
-  const filterBody = `<form id="history-filter" class="p-form">
-    <label>Desde <input type="date" name="from" /></label>
-    <label>Hasta <input type="date" name="to" /></label>
-    <label>Cliente <select name="client"><option value="">Todos</option>${options}</select></label>
-    <label>Estado <select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
+  const filterBody = `<form id="history-filter" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.filter} Periodo y criterios</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+        <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+        <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${options}</select></label>
+        <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.filter} Aplicar filtro</button>
   </form>`;
-  const driverReportBody = `<form id="driver-month-report-form" class="p-form">
-    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
-    <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
+  const driverReportBody = `<form id="driver-month-report-form" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.activity} Reporte conductor</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.activity} Generar reporte mensual</button>
   </form>
   <div id="driver-month-report-output" class="muted" style="margin-top:0.75rem">Selecciona conductor y mes para ver viaticos, combustible y viajes realizados.</div>`;
-  const fuelForm = `<form id="form-fuel-log" class="p-form">
-    <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
-    <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
-    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
-    <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" /></label>
-    <label>${fieldLabel(IC.activity, "Litros")}<input type="number" step="0.01" min="0.01" name="liters" required /></label>
-    <label>${fieldLabel(IC.dollar, "Valor total")}<input type="number" min="0" name="totalCost" required /></label>
-    <label>${fieldLabel(IC.clock, "Odometro km")}<input type="number" min="0" name="odometerKm" /></label>
-    <label>${fieldLabel(IC.mapPin, "Estacion")}<input name="station" placeholder="EDS..." /></label>
-    <label>${fieldLabel(IC.briefcase, "Pagado por")}
-      <select name="paidBy">
-        <option value="empresa">Empresa</option>
-        <option value="conductor">Conductor (reembolso nomina)</option>
-      </select>
-    </label>
+  const fuelForm = `<form id="form-fuel-log" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.calendar} Carga de combustible</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
+        <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.dollar} Montos y trazabilidad</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.activity, "Litros")}<input type="number" step="0.01" min="0.01" name="liters" required /></label>
+        <label>${fieldLabel(IC.dollar, "Valor total")}<input type="number" min="0" name="totalCost" required /></label>
+        <label>${fieldLabel(IC.clock, "Odometro km")}<input type="number" min="0" name="odometerKm" /></label>
+        <label>${fieldLabel(IC.mapPin, "Estacion")}<input name="station" placeholder="EDS..." /></label>
+        <label>${fieldLabel(IC.briefcase, "Pagado por")}
+          <select name="paidBy">
+            <option value="empresa">Empresa</option>
+            <option value="conductor">Conductor (reembolso nomina)</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
   </form>`;
-  const technicalForm = `<form id="form-technical-log" class="p-form">
-    <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
-    <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
-    <label>${fieldLabel(IC.activity, "Tipo")}
-      <select name="type">
-        <option value="preventivo">Mantenimiento preventivo</option>
-        <option value="correctivo">Mantenimiento correctivo</option>
-        <option value="falla">Falla tecnica</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.file, "Descripcion")}<input name="description" required /></label>
-    <label>${fieldLabel(IC.dollar, "Costo")}<input type="number" min="0" name="cost" required /></label>
-    <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
-    <label>${fieldLabel(IC.check, "Estado")}
-      <select name="status">
-        <option>Pendiente</option>
-        <option>En proceso</option>
-        <option>Resuelto</option>
-      </select>
-    </label>
+  const technicalForm = `<form id="form-technical-log" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.truck} Novedad de taller</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
+        <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo")}
+          <select name="type">
+            <option value="preventivo">Mantenimiento preventivo</option>
+            <option value="correctivo">Mantenimiento correctivo</option>
+            <option value="falla">Falla tecnica</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.file, "Descripcion")}<input name="description" required /></label>
+        <label>${fieldLabel(IC.dollar, "Costo")}<input type="number" min="0" name="cost" required /></label>
+        <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
+        <label>${fieldLabel(IC.check, "Estado")}
+          <select name="status">
+            <option>Pendiente</option>
+            <option>En proceso</option>
+            <option>Resuelto</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
   </form>`;
   const tableBody = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Vehiculo</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
     : emptyState("Sin registros.");
-  const reportBody = `<div class="dash-grid" style="margin-top:1rem">
+  const reportBody = `<div class="dash-grid history-insights-grid">
     ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
     ${pcardWrap("truck", "Vehiculos mas usados", null, `<p>${topVehicles(requests).join(", ") || "Sin datos"}</p>`)}
     ${pcardWrap("dollar", "Regla actual de viaticos", null, `<p>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje entre departamentos</p>`)}
   </div>`;
-  return pcardWrap("filter", "Filtros", null, filterBody)
+  return histHero
+    + pcardWrap("filter", "Filtros", null, filterBody)
     + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody)
     + pcardWrap("activity", "Reporte mensual por conductor (viaticos)", null, driverReportBody)
-    + `<div class="dash-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
+    + `<div class="dash-grid history-ops-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
     + reportBody;
 }
 
@@ -3862,7 +5299,7 @@ function openReportPdf(title, columns = [], rows = []) {
     </body></html>`;
   const pop = window.open("", "_blank");
   if (!pop) {
-    notify("No se pudo abrir la ventana de reporte PDF.", "error");
+    notify(userMessage("reportPdfBlocked"), "error");
     return;
   }
   pop.document.open();
@@ -3907,7 +5344,7 @@ function buildReportDataset(reportId, actor = currentUser()) {
       fileName: "reporte_restringido.csv"
     };
   }
-  const requests = read(KEYS.requests, []);
+  const requests = reqRead();
   if (reportId === "executive_control_tower") {
     const trips = requests.filter((request) => request.trip);
     const closedTrips = requests.filter((request) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status));
@@ -4255,26 +5692,32 @@ function buildReportDataset(reportId, actor = currentUser()) {
 function reportsHtml() {
   const user = currentUser();
   const cards = [
-    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", desc: "Consolida operación, finanzas, RRHH y cumplimiento en un tablero único." },
-    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", desc: "Mide cumplimiento de entregas, tiempos de aprobación y ciclo operativo." },
-    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", desc: "Estado de flota, viajes por vehículo y cumplimiento documental." },
-    { id: "trips_operations", icon: "compass", title: "Viajes operativos", desc: "Trazabilidad end-to-end de viajes, tiempos y estados." },
-    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", desc: "Ciclo de vida de solicitudes por cliente, estado y valor." },
-    { id: "drivers_performance", icon: "user", title: "Conductores", desc: "Productividad, viajes finalizados y estado de licencias." },
-    { id: "payroll_summary", icon: "dollar", title: "Nomina consolidada", desc: "Devengos, viaticos, reembolsos, deducciones y neto." },
-    { id: "hiring_pipeline", icon: "briefcase", title: "Contratacion y pipeline", desc: "Seguimiento de vacantes y candidatos por etapa." },
-    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", desc: "Estado de seguridad social, vencimientos y soportes auditables." },
-    { id: "users_access", icon: "shield", title: "Usuarios y accesos", desc: "Roles, permisos, empresas y estado de cuentas." },
-    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", desc: "Trazabilidad completa de aprobaciones y decisiones." }
+    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo" },
+    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)" },
+    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización" },
+    { id: "trips_operations", icon: "compass", title: "Viajes operativos" },
+    { id: "requests_lifecycle", icon: "file", title: "Solicitudes" },
+    { id: "drivers_performance", icon: "user", title: "Conductores" },
+    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada" },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline" },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST" },
+    { id: "users_access", icon: "shield", title: "Usuarios y accesos" },
+    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones" }
   ];
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
+  const reportsHero = moduleFleetHeroStrip([
+    { label: "Disponibles para ti", value: visibleCards.length },
+    { label: "Catalogo total", value: cards.length },
+    { label: "Sin acceso", value: cards.length - visibleCards.length, tone: cards.length - visibleCards.length ? "warn" : undefined },
+    { label: "Formatos", value: "PDF + XLSX" }
+  ]);
   const body = visibleCards.length
     ? `<div class="dash-grid">
     ${visibleCards
       .map((card) => `
       <article class="p-card">
         <div class="p-card-header">
-          <div class="p-card-header-left"><div class="p-card-icon">${IC[card.icon] || IC.activity}</div><div><h2>${card.title}</h2><p>${card.desc}</p></div></div>
+          <div class="p-card-header-left"><div class="p-card-icon">${IC[card.icon] || IC.activity}</div><div><h2>${card.title}</h2></div></div>
         </div>
         <div class="p-card-body">
           <div class="toolbar">
@@ -4286,7 +5729,7 @@ function reportsHtml() {
       .join("")}
   </div>`
     : `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
-  return pcardWrap("activity", "Centro de reportería", "Reportes ejecutivos y operativos en PDF/Excel para decisiones empresariales", body);
+  return reportsHero + pcardWrap("activity", "Reportería", null, body);
 }
 
 function monthRange(month) {
@@ -4341,11 +5784,11 @@ function syncDriverFromEmployee(employee, extraDriverData = {}) {
     hiredAt: existing?.hiredAt || nowIso()
   };
   if (!nextDriver.license || !nextDriver.licenseExpiry) {
-    notify("Empleado con cargo conductor requiere licencia, categoria y fecha de vencimiento para sincronizar en Conductores.", "error");
+    notify(userMessage("payrollDriverLicenseSync"), "error");
     return;
   }
   if (new Date(nextDriver.licenseExpiry).getTime() <= Date.now()) {
-    notify("No se puede registrar conductor con licencia vencida.", "error");
+    notify(userMessage("payrollLicenseExpired"), "error");
     return;
   }
   if (existing) {
@@ -4573,7 +6016,7 @@ function mountUniversalModuleFilters() {
 function tripsForDriverMonth(driver, month) {
   const range = monthRange(month);
   if (!range || !driver) return [];
-  return read(KEYS.requests, []).filter((request) => {
+  return reqRead().filter((request) => {
     if (!request?.trip || ![STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status)) return false;
     if (String(request.trip.driverId || "") !== String(driver.id || "")) return false;
     const refDate = request.closedAt || request.deliveredAt || request.trip.etaDelivery || request.trip.etaPickup || request.createdAt;
@@ -4610,35 +6053,44 @@ function payrollHtml() {
   const positions = getActivePositions();
   const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
-  const runs = read(KEYS.payrollRuns, []);
+  const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
-  const filters = state.payrollFilters || { employeeId: "", month: "", paidStatus: "all" };
-  const filteredRuns = runs.filter((run) => {
-    const matchEmployee = !filters.employeeId || String(run.employeeId || "") === String(filters.employeeId);
-    const matchMonth = !filters.month || String(run.month || "") === String(filters.month);
-    const matchStatus = filters.paidStatus === "all"
-      || (filters.paidStatus === "paid" && Boolean(run.paid))
-      || (filters.paidStatus === "pending" && !run.paid);
-    return matchEmployee && matchMonth && matchStatus;
+  const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+  const payrollUi = state.payrollUi || { runSort: "recent" };
+  const runSort = String(payrollUi.runSort || "recent");
+  const filterPeriod = String(filters.period || "all");
+  const filterEmployee = String(filters.employee || "");
+  const filterStatus = String(filters.status || "all");
+  const now = new Date();
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastYm = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, "0")}`;
+  const runs = allRuns.filter((r) => {
+    const matchPeriod =
+      filterPeriod === "all" ||
+      (filterPeriod === "current" && String(r.month || "") === currentYm) ||
+      (filterPeriod === "previous" && String(r.month || "") === lastYm);
+    const matchEmployee = !filterEmployee || String(r.employeeId || "") === filterEmployee;
+    const matchStatus =
+      filterStatus === "all" ||
+      (filterStatus === "paid" && r.paid) ||
+      (filterStatus === "pending" && !r.paid);
+    return matchPeriod && matchEmployee && matchStatus;
   });
-  const filteredAbsences = absences.filter((absence) => {
-    if (!filters.employeeId) return true;
-    return String(absence.employeeId || "") === String(filters.employeeId);
+  const sortedRuns = [...runs].sort((a, b) => {
+    if (runSort === "pending_first") {
+      if (Boolean(a.paid) !== Boolean(b.paid)) return a.paid ? 1 : -1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    }
+    if (runSort === "net_desc") return parseNum(b.net) - parseNum(a.net);
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
-  const filteredEmployees = employees.filter((employee) => {
-    if (!filters.employeeId) return true;
-    return String(employee.id || "") === String(filters.employeeId);
-  });
-  const pending = runs.filter((r) => !r.paid).length;
-  const totalPayrollMonth = runs
-    .filter((r) => {
-      const now = new Date();
-      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      return String(r.month || "") === ym;
-    })
+  const pending = allRuns.filter((r) => !r.paid).length;
+  const totalPayrollMonth = allRuns
+    .filter((r) => String(r.month || "") === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
-  const employeeRows = filteredEmployees
+  const employeeRows = employees
     .map((e) => {
       const av = String(e.avatarUrl || "");
       const avatar =
@@ -4655,7 +6107,7 @@ function payrollHtml() {
     </tr>`;
     })
     .join("");
-  const runRows = filteredRuns
+  const runRows = sortedRuns
     .map((r) => `<tr>
       <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
       <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
@@ -4671,57 +6123,108 @@ function payrollHtml() {
   const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
   const bloodTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bloodTypes);
   const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
-  const formEmp = `<form id="form-employee" class="p-form">
-    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
-    <label>${fieldLabel(IC.file, "Tipo documento")}
-      <select name="documentType" required>
-        <option value="CC">Cedula de ciudadania</option>
-        <option value="CE">Cedula de extranjeria</option>
-        <option value="PAS">Pasaporte</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.file, "No. documento")}<input name="idDoc" required /></label>
-    <label>${fieldLabel(IC.briefcase, "Cargo (catalogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratacion</option>${positionOpts}</select></label>
-    <label>${fieldLabel(IC.activity, "Tipo contrato")}
-      <select name="contractType" id="emp-contract-type" required>
-        <option value="Termino indefinido">Termino indefinido</option>
-        <option value="Termino fijo">Termino fijo</option>
-        <option value="Obra o labor">Obra o labor</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Departamento")}
-      <select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad")}
-      <select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Direccion")}<input name="address" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono")}<input name="phone" required /></label>
-    <label>${fieldLabel(IC.user, "Contacto emergencia")}<input name="emergencyContact" required /></label>
-    <label>${fieldLabel(IC.phone, "Telefono emergencia")}<input name="emergencyPhone" required /></label>
-    <label>${fieldLabel(IC.activity, "Tipo de sangre")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-    <label>${fieldLabel(IC.file, "EPS")}<select name="eps" required>${epsOptions}</select></label>
-    <label>${fieldLabel(IC.file, "Fondo de pension")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
-    <label>${fieldLabel(IC.file, "ARL")}<select name="arl" required>${arlOptions}</select></label>
-    <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
-    <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}
-      <select name="contractTemplateKind" required>
-        <option value="oficina">Contrato trabajo personal oficina</option>
-        <option value="fijo">Contrato personal termino fijo</option>
-        <option value="prestacion">Contrato prestacion de servicios conductores</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.calendar, "Duracion contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses" /></label>
-    <label>${fieldLabel(IC.briefcase, "Banco cuenta bancaria")}<input name="bankName" required placeholder="Nombre del banco" /></label>
-    <label>${fieldLabel(IC.file, "Cuenta bancaria")}<input name="bankAccount" required placeholder="Numero de cuenta" /></label>
-    <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
-    <label>${fieldLabel(IC.file, "Licencia (si es conductor)")}<input name="license" placeholder="Ej: 12C34567890" /></label>
-    <label>${fieldLabel(IC.activity, "Categoria licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
-    <label>${fieldLabel(IC.calendar, "Vence licencia (si es conductor)")}<input type="date" name="licenseExpiry" /></label>
-    <label class="full">${fieldLabel(IC.user, "Foto (URL opcional)")}<input name="avatarUrl" placeholder="https://..." /></label>
-    <label class="full">${fieldLabel(IC.file, "O subir foto")}<input type="file" name="avatarFile" accept="image/*" /></label>
-    <p class="muted full">El cargo y salario deben cumplir parametros minimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}). ARL y aportes patronales son obligatorios en relacion real; aqui se gestiona registro y devengos del empleado.</p>
+  const docTypeOptions = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
+  const contractTypeOpts = CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("");
+  const severanceOpts = selectOptionsFromCatalog(CO_CATALOGS.severanceFunds);
+  const compensationOpts = selectOptionsFromCatalog(CO_CATALOGS.compensationFunds);
+  const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
+  const contributorOpts = selectOptionsFromCatalog(CO_CATALOGS.contributorTypes);
+  const banksOpts = selectOptionsFromCatalog(CO_CATALOGS.banks);
+  const accountTypeOpts = selectOptionsFromCatalog(CO_CATALOGS.accountTypes);
+  const educationOpts = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
+  const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
+  const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
+  const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
+  const formEmp = `<form id="form-employee" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.user} Datos personales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" /></label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeOptions}</select></label>
+        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" /></label>
+        <label>${fieldLabel(IC.users, "Género")}<select name="gender">${genderOpts}</select></label>
+        <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
+        <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.mapPin} Contacto y residencia</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
+        <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" /></label>
+        <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required /></label>
+        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.briefcase} Datos laborales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
+        <label>${fieldLabel(IC.calendar, "Duración del contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses, indefinido" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
+        <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
+        <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
+        <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" /></label>
+        <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
+        <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel">${arlRiskOpts}</select></label>
+        <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" required>
+          <option value="oficina">Contrato trabajo personal oficina</option>
+          <option value="fijo">Contrato personal término fijo</option>
+          <option value="prestacion">Contrato prestación de servicios conductores</option>
+        </select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.shield} Seguridad social y parafiscales</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.heart, "EPS")}<select name="eps" required>${epsOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de pensión")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "ARL")}<select name="arl" required>${arlOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de cesantías")}<select name="severanceFund">${severanceOpts}</select></label>
+        <label>${fieldLabel(IC.users, "Caja de compensación")}<select name="compensationFund">${compensationOpts}</select></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.bank} Datos bancarios</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.bank, "Banco")}<select name="bankName" required>${banksOpts}</select></label>
+        <label>${fieldLabel(IC.card, "Tipo de cuenta")}<select name="bankAccountType">${accountTypeOpts}</select></label>
+        <label>${fieldLabel(IC.hash, "Número de cuenta")}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section form-section-rose full hr-conductor-fields" id="hr-conductor-fields">
+      <legend>${IC.truck} Si el cargo es CONDUCTOR (datos adicionales)</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
+        <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
+        <label>${fieldLabel(IC.calendar, "Examen psicosensométrico")}<input type="date" name="psychoTestDate" /></label>
+        <label>${fieldLabel(IC.calendar, "Vence psicosensométrico")}<input type="date" name="psychoTestExpiry" /></label>
+        <label>${fieldLabel(IC.award, "Curso conducción defensiva (Res. 17220)")}<select name="defensiveCourse">
+          <option value="">Seleccione...</option>
+          <option value="vigente">Vigente</option>
+          <option value="vencido">Vencido</option>
+          <option value="no_aplica">No aplica</option>
+        </select></label>
+      </div>
+    </fieldset>
+
+    <label class="full">${fieldLabel(IC.upload, "Foto del empleado")}<input type="file" name="avatarFile" accept="image/*" /></label>
+    <p class="muted full legal-form-note">El cargo y salario deben cumplir parámetros mínimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y auxilio de transporte $${CO_HR_RULES.transportAllowance.toLocaleString("es-CO")}). Aportes patronales (12% pensión, 8.5% salud), parafiscales (SENA 2%, ICBF 3%, Caja 4%) y ARL según nivel de riesgo son obligatorios.</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
   const formPay = `<form id="form-payroll" class="p-form">
@@ -4754,7 +6257,7 @@ function payrollHtml() {
     <p class="muted full">Registro interno para control de nomina y ausencias. Pagos de incapacidad y causacion de vacaciones en sistema real requieren parametrizacion contable y validacion con normativa vigente (CST, Ley 1562 de 2012, Decreto 2649, entre otros).</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
   </form>`;
-  const absenceRows = filteredAbsences
+  const absenceRows = absences
     .map(
       (a) => `<tr>
       <td>${fmtDate(a.createdAt)}</td>
@@ -4766,28 +6269,6 @@ function payrollHtml() {
     </tr>`
     )
     .join("");
-  const payrollFiltersForm = `<form id="form-payroll-filters" class="p-form payroll-filters-form">
-    <label>${fieldLabel(IC.user, "Empleado")}
-      <select name="employeeId">
-        <option value="">Todos</option>
-        ${employees.map((e) => `<option value="${e.id}" ${String(filters.employeeId) === String(e.id) ? "selected" : ""}>${e.name}</option>`).join("")}
-      </select>
-    </label>
-    <label>${fieldLabel(IC.calendar, "Mes")}
-      <input type="month" name="month" value="${filters.month || ""}" />
-    </label>
-    <label>${fieldLabel(IC.activity, "Estado de pago")}
-      <select name="paidStatus">
-        <option value="all" ${filters.paidStatus === "all" ? "selected" : ""}>Todos</option>
-        <option value="pending" ${filters.paidStatus === "pending" ? "selected" : ""}>Pendientes</option>
-        <option value="paid" ${filters.paidStatus === "paid" ? "selected" : ""}>Pagados</option>
-      </select>
-    </label>
-    <div class="toolbar full">
-      <button class="btn btn-sm btn-action" type="submit">${IC.filter} Aplicar filtros</button>
-      <button class="btn btn-sm btn-reject" type="button" id="payroll-filter-clear">${IC.x} Limpiar</button>
-    </div>
-  </form>`;
   const absenceTable = absenceRows
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Dias</th><th>Soporte</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin incapacidades ni vacaciones registradas.");
@@ -4797,32 +6278,85 @@ function payrollHtml() {
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
-  const payrollStrip = `<div class="payroll-executive-strip">
-      <div>
-        <p class="payroll-strip-kicker">Gestión humana</p>
-        <h2>Centro de nómina y personal</h2>
-        <p class="muted">Opera registro de empleados, liquidación mensual y ausencias desde un flujo claro y auditable.</p>
+  const employeeOpts = employees
+    .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
+    .join("");
+  const filtersHtml = `<form id="payroll-filters" class="payroll-filters-bar">
+      <label>${fieldLabel(IC.calendar, "Periodo")}<select name="period">
+        <option value="all" ${filterPeriod === "all" ? "selected" : ""}>Todos los periodos</option>
+        <option value="current" ${filterPeriod === "current" ? "selected" : ""}>Mes actual</option>
+        <option value="previous" ${filterPeriod === "previous" ? "selected" : ""}>Mes anterior</option>
+      </select></label>
+      <label>${fieldLabel(IC.user, "Empleado")}<select name="employee">
+        <option value="">Todos</option>${employeeOpts}
+      </select></label>
+      <label>${fieldLabel(IC.activity, "Estado")}<select name="status">
+        <option value="all" ${filterStatus === "all" ? "selected" : ""}>Todos</option>
+        <option value="paid" ${filterStatus === "paid" ? "selected" : ""}>Pagado</option>
+        <option value="pending" ${filterStatus === "pending" ? "selected" : ""}>Pendiente</option>
+      </select></label>
+      <button type="button" class="btn btn-action btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
+    </form>`;
+  const payrollHead = `<div class="ops-module-head">
+      <div class="ops-module-title">
+        <span class="ops-module-kicker">Recursos humanos</span>
+        <h2>Nómina y gestión de personal</h2>
       </div>
-      <div class="payroll-strip-metrics">
-        <span><strong>${employees.length}</strong> empleados activos</span>
-        <span><strong>${pending}</strong> pagos pendientes</span>
-        <span><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
+      <div class="ops-module-chips">
+        <span class="ops-chip"><strong>${employees.length}</strong> empleados</span>
+        <span class="ops-chip"><strong>${pending}</strong> pendientes</span>
+        <span class="ops-chip"><strong>${pendingAbsenceApprovals}</strong> por revisar</span>
       </div>
     </div>`;
-  return `<section class="payroll-shell">${payrollStrip}
-      <div class="dash-grid payroll-kpi-grid">
-        <div class="payroll-kpi-card"><span>Empleados activos</span><strong>${employees.length}</strong></div>
-        <div class="payroll-kpi-card"><span>Liquidaciones pendientes</span><strong>${pending}</strong></div>
-        <div class="payroll-kpi-card"><span>Neto liquidado mes actual</span><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></div>
-        <div class="payroll-kpi-card"><span>Ausencias por aprobar</span><strong>${pendingAbsenceApprovals}</strong></div>
+  const payrollActions = `<div class="ops-command-bar">
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-employee">${IC.userPlus} Nuevo empleado</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll">${IC.dollar} Nueva liquidación</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Nueva ausencia</button>
       </div>
-      ${pcardWrap("filter", "Filtros de nómina", `${filteredRuns.length} liquidaciones y ${filteredAbsences.length} ausencias visibles`, payrollFiltersForm)}
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro empleado", "Ficha laboral con cargo del catalogo y foto", formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidacion mensual", "Calcula devengos, deducciones y neto del periodo", formPay, "Generar liquidacion")}${createCollapsibleCard("create-hr-absence", "calendar", "Incapacidades y vacaciones", "Registro para archivo de personal y seguimiento", formAbsence, "Registrar ausencia")}</div>
-      <div class="dash-grid payroll-data-grid">
-        ${pcardWrap("user", "Empleados", `${filteredEmployees.length} visibles de ${employees.length}` + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
-        ${pcardWrap("activity", "Ausencias e incapacidades", `${filteredAbsences.length} visibles de ${absences.length}`, absenceTable)}
-        ${pcardWrap("clock", "Historial de pagos", `${filteredRuns.length} visibles de ${runs.length}`, runTable)}
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-outline ${filterStatus === "pending" ? "is-active" : ""}" type="button" data-action="payroll-focus-pending">${IC.alertTriangle} Solo pendientes</button>
+        <button class="btn btn-sm btn-outline ${filterStatus === "all" ? "is-active" : ""}" type="button" data-action="payroll-focus-all">${IC.layers} Ver todo</button>
+        <button class="btn btn-sm btn-outline ${runSort === "pending_first" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="pending_first">${IC.activity} Pendientes primero</button>
+        <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Neto mayor</button>
       </div>
+    </div>`;
+  const payrollExecutionBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Ejecución de nómina</h3>
+      </header>
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
+    </section>`;
+  const payrollDataBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Control y trazabilidad</h3>
+      </header>
+      <div class="payroll-data-grid">
+        ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
+        ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
+        ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
+      </div>
+    </section>`;
+  const payrollFleetHero = moduleFleetHeroStrip([
+    { label: "Empleados", value: employees.length },
+    { label: "Pagos pendientes", value: pending, tone: pending ? "warn" : undefined },
+    { label: "Neto liquidado (mes)", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}` },
+    {
+      label: "Ausencias por revisar",
+      value: pendingAbsenceApprovals,
+      tone: pendingAbsenceApprovals ? "warn" : undefined
+    }
+  ]);
+  return `<section class="payroll-shell">${payrollFleetHero}${payrollHead}
+      ${payrollActions}
+      <section class="ops-block">
+        <header class="ops-block-head">
+          <h3>Filtro operativo</h3>
+        </header>
+        ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
+      </section>
+      ${payrollExecutionBlock}
+      ${payrollDataBlock}
     </section>`;
 }
 
@@ -4834,16 +6368,14 @@ function hiringHtml() {
   const interviews = read(KEYS.interviews, []);
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
-  const companies = read(KEYS.companies, []);
-  const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
-  const licenseCategoryOptions = selectOptionsFromCatalog(CO_CATALOGS.licenseCategories);
-  const epsOptions = selectOptionsFromCatalog(CO_CATALOGS.eps);
-  const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
-  const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
   const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
   const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
+  const hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+  const candidateFilter = String(hiringUi.candidateFilter || "active");
+  const vacancyFilter = String(hiringUi.vacancyFilter || "open");
+  const candidateSort = String(hiringUi.candidateSort || "recent");
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
     return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -4871,42 +6403,143 @@ function hiringHtml() {
     </tr>`)
     .join("");
 
-  const vacRows = vacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>${v.city || "-"} · ${v.modality || "-"}</td><td>${v.openings || 1}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
-  const candRows = candidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
+  const filteredVacancies = vacancies.filter((v) => (vacancyFilter === "open" ? v.status === "Publicada" : true));
+  const filteredCandidates = candidates.filter((c) => {
+    if (candidateFilter === "active") return !["Contratado", "Descartado"].includes(String(c.status || ""));
+    if (candidateFilter === "finalized") return ["Contratado", "Descartado"].includes(String(c.status || ""));
+    return true;
+  });
+  const sortedCandidates = [...filteredCandidates].sort((a, b) => {
+    if (candidateSort === "pipeline") return PIPELINE.indexOf(String(a.status || PIPELINE[0])) - PIPELINE.indexOf(String(b.status || PIPELINE[0]));
+    if (candidateSort === "experience") return parseNum(b.experienceYears || 0) - parseNum(a.experienceYears || 0);
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
+  const vacRows = filteredVacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>${v.city || "-"} · ${v.modality || "-"}</td><td>${v.openings || 1}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
+  const candRows = sortedCandidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
   const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
   const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.contractType || "-"}${c.endDate ? `<br><span class="muted">Fin: ${c.endDate}</span>` : ""}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
 
-  const fPosition = `<form id="form-position" class="p-form">
-    <label>Nombre del cargo <input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
-    <label>Rol del cargo
-      <select name="workerRole" required>
-        <option value="empleado">Empleado</option>
-        <option value="conductor">Conductor</option>
-      </select>
-    </label>
-    <label>Salario base mensual (COP) <input type="number" name="baseSalary" min="${CO_HR_RULES.minMonthlySalary}" required /></label>
-    <label>Tipo de contrato sugerido
-      <select name="contractTypeDefault" required>
-        <option value="Termino indefinido">Termino indefinido</option>
-        <option value="Termino fijo">Termino fijo</option>
-        <option value="Obra o labor">Obra o labor</option>
-      </select>
-    </label>
-    <label class="full">Base legal (referencia) <input name="legalBasis" value="CST art. 45-46 y normatividad laboral vigente" /></label>
-    <p class="muted full">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} horas/semana.</p>
+  const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
+  const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
+  const fPosition = `<form id="form-position" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.briefcase} Definición del cargo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.briefcase, "Nombre del cargo")}<input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
+        <label>${fieldLabel(IC.users, "Rol del cargo")}<select name="workerRole" required>
+          <option value="empleado">Empleado</option>
+          <option value="conductor">Conductor</option>
+        </select></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
+        <label>${fieldLabel(IC.activity, "Tipo de contrato sugerido")}<select name="contractTypeDefault" required>
+          ${CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("")}
+        </select></label>
+        <label>${fieldLabel(IC.clock, "Jornada laboral")}<select name="workSchedule">${workScheduleOpts}</select></label>
+        <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel">${arlRiskOpts}</select></label>
+        <label>${fieldLabel(IC.shield, "Salario integral")}<select name="integralSalary">
+          <option value="false">No (10+ prestaciones)</option>
+          <option value="true">Sí (≥ 13 SMMLV + 30% factor prestacional)</option>
+        </select></label>
+        <label class="full">${fieldLabel(IC.file, "Base legal (referencia)")}<input name="legalBasis" value="CST art. 45-46, Ley 50/1990 y normatividad laboral vigente" /></label>
+      </div>
+    </fieldset>
+    <p class="muted full legal-form-note">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}, jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} h/semana, recargo nocturno 35%, dominical/festivo 75%, hora extra diurna 25%, hora extra nocturna 75%.</p>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
   </form>`;
-  const fVac = `<form id="form-vacancy" class="p-form"><label>Cargo publicado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Titulo visible vacante <input name="title" required /></label><label>Departamento vacante <select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad de la vacante <select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label><label>Modalidad <select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Hibrido</option><option value="Remoto">Remoto</option></select></label><label>Jornada <select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label><label>Cupos <input type="number" min="1" name="openings" value="1" required /></label><label>Requisitos <input name="requirements" required /></label><label>Fecha limite <input type="date" name="deadline" required /></label><button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button></form>`;
-  const fCand = `<form id="form-candidate" class="p-form"><label>Nombre <input name="name" required /></label><label>Correo <input type="email" name="email" required /></label><label>Telefono <input name="phone" required /></label><label>Tipo documento <select name="documentType" required><option value="CC">CC</option><option value="CE">CE</option><option value="PAS">PAS</option></select></label><label>No. documento <input name="idDoc" required /></label><label>Departamento residencia <select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label><label>Ciudad <select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label><label>Direccion <input name="address" required /></label><label>Anos experiencia <input type="number" min="0" name="experienceYears" value="0" required /></label><label>Aspiracion salarial (COP) <input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required /></label><label>Disponibilidad ingreso <input type="date" name="availabilityDate" required /></label><label>Vacante <select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label><label class="full">Adjunto hoja vida <input type="file" name="attachments" multiple /></label><button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button></form>`;
-  const fInt = `<form id="form-interview" class="p-form"><label>Candidato <select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label><label>Fecha y hora <input type="datetime-local" name="when" required /></label><label>Entrevistador <input name="interviewer" required /></label><button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button></form>`;
-  const contractPeopleOptions = [
-    ...candidates
-      .filter((c) => c.status === "Oferta enviada")
-      .map((c) => `<option value="candidate:${c.id}">Candidato · ${c.name}</option>`),
-    ...employees.map((e) => `<option value="employee:${e.id}">Empleado · ${e.name}${e.position ? ` (${e.position})` : ""}</option>`)
-  ].join("");
-  const fCon = `<form id="form-contract" class="p-form"><label>Persona a contratar <select name="personRef" required><option value="">Seleccione candidato con oferta o empleado</option>${contractPeopleOptions}</select></label><label>Cargo asignado <select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label><label>Empresa <select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label><label>Salario pactado (COP) <input type="number" name="salary" min="${CO_HR_RULES.minMonthlySalary}" required /></label><label>Tipo contrato <select name="contractType" required><option value="Termino indefinido">Termino indefinido</option><option value="Termino fijo">Termino fijo</option><option value="Obra o labor">Obra o labor</option></select></label><label>Fecha de fin (si aplica) <input type="date" name="endDate" /></label><label>Periodo de prueba (meses) <input type="number" min="0" max="2" name="probationMonths" value="2" /></label><label>Jornada/turno <select name="workSchedule" required><option value="Diurna">Diurna</option><option value="Mixta">Mixta</option><option value="Turnos">Turnos</option></select></label><label>EPS afiliacion <select name="eps" required>${epsOptions}</select></label><label>Fondo pension <select name="pensionFund" required>${pensionFundOptions}</select></label><label>ARL <select name="arl" required>${arlOptions}</select></label><label>Inicio <input type="date" name="startDate" required /></label><label>Licencia (si rol conductor) <input name="license" placeholder="Ej: 12C34567890" /></label><label>Categoria licencia <select name="licenseCategory">${licenseCategoryOptions}</select></label><label>Vence licencia <input type="date" name="licenseExpiry" /></label><p class="muted full">Flujo Colombia sugerido: Recibido → Preseleccionado → Entrevistado → Oferta enviada → Contrato → Contratado. El contrato de candidato solo se habilita desde oferta enviada.</p><button class="btn btn-primary full" type="submit">${IC.file} Generar contrato</button></form>`;
-  const fEmpCon = `<form id="form-employee-contract" class="p-form"><label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} - ${e.position}</option>`).join("")}</select></label><label>Salario acordado <input type="number" name="salary" required /></label><label>Fecha de inicio <input type="date" name="startDate" required /></label><label>Tipo de contrato <input name="contractType" required /></label><button class="btn btn-primary full" type="submit">${IC.printer} Crear contrato PDF</button></form>`;
+  const fVac = `<form id="form-vacancy" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.send} Publicación de la vacante</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.briefcase, "Cargo publicado")}<select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Título visible")}<input name="title" required placeholder="Ej: Conductor C2 Bogotá Sabana" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
+        <label>${fieldLabel(IC.clock, "Jornada")}<select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label>
+        <label>${fieldLabel(IC.users, "Cupos")}<input type="number" min="1" name="openings" value="1" required /></label>
+        <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" required placeholder="Mín. SMMLV" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
+        <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button>
+  </form>`;
+  const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
+  const docTypeCand = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
+  const fCand = `<form id="form-candidate" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.user} Datos personales del candidato</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
+        <label>${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeCand}</select></label>
+        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.briefcase} Perfil profesional</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOptsCand}</select></label>
+        <label>${fieldLabel(IC.star, "Años de experiencia")}<input type="number" min="0" name="experienceYears" value="0" required /></label>
+        <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
+        <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
+        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label>
+        <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" multiple /></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button>
+  </form>`;
+  const fInt = `<form id="form-interview" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.calendar} Programación de entrevista</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Candidato")}<select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha y hora")}<input type="datetime-local" name="when" required /></label>
+        <label>${fieldLabel(IC.user, "Entrevistador")}<input name="interviewer" required placeholder="Nombre del entrevistador" /></label>
+        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="mode">
+          <option value="presencial">Presencial</option>
+          <option value="virtual">Virtual</option>
+          <option value="telefonica">Telefónica</option>
+        </select></label>
+        <label class="full">${fieldLabel(IC.mapPin, "Lugar / Link")}<input name="place" placeholder="Sala 1 / link Google Meet / Teams..." /></label>
+        <label class="full">${fieldLabel(IC.file, "Notas previas")}<textarea name="notes" rows="2"></textarea></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button>
+  </form>`;
+  const signDateDefault = colombiaTodayIsoDate();
+  const fCon = `<form id="form-contract" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.file} Descargar contrato Word</legend>
+      <p class="muted full">Registre antes el empleado en <strong>Nómina</strong> con nombre, documento, ciudad, banco, cuenta, salario, duración y tipo de contrato. Aquí solo elige la persona, la plantilla (o automática) y la <strong>fecha de firma</strong> del párrafo de constancia.</p>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.position || "-"} · CC ${e.idDoc || "-"}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.file, "Plantilla Word")}<select name="contractTemplateKind">
+          <option value="">Automatica segun tipo de contrato y rol</option>
+          <option value="oficina">CONTRATO_TRABAJO_PERSONAL_OFICINA.docx</option>
+          <option value="fijo">CONTRATO_PERSONAL_TERMINO_FIJO.docx</option>
+          <option value="prestacion">CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx</option>
+        </select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de firma (constancia)")}<input type="date" name="signDate" required value="${signDateDefault}" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.download} Vista previa de plantilla</legend>
+      <p class="muted full">No utiliza la ficha del empleado; solo comprueba el archivo Word y la descarga.</p>
+      <div class="form-section-grid" style="gap:0.6rem">
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Termino fijo</button>
+        <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestacion servicios</button>
+      </div>
+    </fieldset>
+    <p class="muted full legal-form-note">Plantillas en <strong>documentacion/*.docx</strong>: se sustituyen los textos <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong>, <strong>salario_letras</strong> (o se genera en letras + pesos colombianos), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong> con los datos del empleado en Nomina. El parrafo &quot;Para constancia se firma… en la ciudad de… a los… dias del mes de… de…&quot; se completa con la ciudad del empleado y la fecha de firma. En la ultima hoja, la linea <strong>Cc.</strong> recibe la <strong>cedula_empleado</strong>.</p>
+    <button class="btn btn-primary full" type="submit">${IC.file} Generar y descargar contrato Word</button>
+  </form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
@@ -4922,42 +6555,72 @@ function hiringHtml() {
     </div>`;
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
-  const executiveStrip = `<div class="hiring-executive-strip">
-      <div>
-        <p class="hiring-strip-kicker">Gestion de talento</p>
-        <h2>Centro de contratación empresarial</h2>
-        <p class="muted">Operacion unificada para cargos, vacantes, pipeline, entrevistas y contratos con trazabilidad laboral.</p>
+  const hiringFleetHero = moduleFleetHeroStrip([
+    { label: "Vacantes abiertas", value: openVacancies.length },
+    { label: "Candidatos activos", value: activeCandidates.length },
+    { label: "Contratos del mes", value: contractsThisMonth.length },
+    {
+      label: "Alertas / conversion",
+      value: `${urgentItems} · ${candidateConversion}%`,
+      tone: urgentItems ? "warn" : undefined
+    }
+  ]);
+
+  const hiringHead = `<div class="ops-module-head ops-module-head-hiring">
+      <div class="ops-module-title">
+        <span class="ops-module-kicker">Recursos humanos</span>
+        <h2>Contratación y selección</h2>
       </div>
-      <div class="hiring-strip-metrics">
-        <span><strong>${candidateConversion}%</strong> conversion contractual</span>
-        <span><strong>${urgentItems}</strong> alertas prioritarias</span>
-        <span><strong>${employees.length}</strong> empleados en base</span>
+      <div class="ops-module-chips">
+        <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes</span>
+        <span class="ops-chip"><strong>${activeCandidates.length}</strong> candidatos</span>
+        <span class="ops-chip"><strong>${contractsThisMonth.length}</strong> contratos mes</span>
       </div>
     </div>`;
-
-  return `<section class="hiring-shell">${executiveStrip}
-    <div class="dash-grid hr-kpi-grid hiring-kpi-grid">
-      <div class="hr-kpi-card"><span>Vacantes abiertas</span><strong>${openVacancies.length}</strong></div>
-      <div class="hr-kpi-card"><span>Candidatos activos</span><strong>${activeCandidates.length}</strong></div>
-      <div class="hr-kpi-card"><span>Contratos del mes</span><strong>${contractsThisMonth.length}</strong></div>
-      <div class="hr-kpi-card"><span>Cargos activos</span><strong>${activePositions.length}</strong></div>
-    </div>
-    <div class="hr-flow-block">
-      <h3>Fase 1 · Atracción y selección</h3>
-      <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-position", "briefcase", "Estructura de cargos", "Define perfil, salario y tipo contractual del cargo", fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Nueva vacante", "Publica vacantes con perfil y SLA de cierre", fVac, "Crear vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Registrar candidato", "Consolidado de hoja de vida y trazabilidad", fCand, "Registrar candidato")}</div>
-    </div>
-    <div class="hr-flow-block">
-      <h3>Fase 2 · Entrevista y formalización</h3>
-      <div class="dash-grid hiring-actions-grid">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", "Agenda y seguimiento por candidato", fInt, "Programar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato", "Contrato desde candidato o empleado existente", fCon, "Generar contrato")}${createCollapsibleCard("create-contract-from-payroll", "printer", "Contrato desde nomina", "Ruta rapida para formalizar colaboradores activos", fEmpCon, "Crear contrato desde nomina")}</div>
-    </div>
-    <div class="dash-grid hiring-data-grid">
-      ${pcardWrap("activity", "Alertas RRHH", "Seguimiento preventivo para cumplimiento operativo", alertsBody)}
-      ${pcardWrap("activity", "Pipeline de candidatos", candidates.length + " candidatos", tCand)}
-      ${pcardWrap("briefcase", "Vacantes", vacancies.length + " registradas", tVac)}
-      ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
-      ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
-      ${pcardWrap("briefcase", "Catalogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
-    </div>
+  const hiringActions = `<div class="ops-command-bar">
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-position">${IC.briefcase} Nuevo cargo</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-vacancy">${IC.plus} Nueva vacante</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Nuevo candidato</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-contract">${IC.file} Generar contrato</button>
+      </div>
+      <div class="ops-command-group">
+        <button class="btn btn-sm btn-outline ${candidateFilter === "active" ? "is-active" : ""}" type="button" data-action="hiring-candidates-active">${IC.activity} Candidatos activos</button>
+        <button class="btn btn-sm btn-outline ${candidateFilter === "all" ? "is-active" : ""}" type="button" data-action="hiring-candidates-all">${IC.layers} Todos candidatos</button>
+        <button class="btn btn-sm btn-outline ${vacancyFilter === "open" ? "is-active" : ""}" type="button" data-action="hiring-vacancies-open">${IC.briefcase} Vacantes abiertas</button>
+        <button class="btn btn-sm btn-outline ${candidateSort === "pipeline" ? "is-active" : ""}" type="button" data-action="hiring-sort-candidates" data-sort="pipeline">${IC.filter} Orden pipeline</button>
+      </div>
+    </div>`;
+  const hiringExecutionBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Operación de contratación</h3>
+      </header>
+      <div class="hr-flow-block">
+        <h3>Cargos, vacantes y candidatos</h3>
+        <div class="hiring-actions-grid hiring-actions-row--three">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
+      </div>
+      <div class="hr-flow-block">
+        <h3>Entrevistas y contratos</h3>
+        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
+      </div>
+    </section>`;
+  const hiringDataBlock = `<section class="ops-block">
+      <header class="ops-block-head">
+        <h3>Seguimiento y resultados</h3>
+      </header>
+      <div class="hiring-data-grid hiring-results-grid">
+        ${pcardWrap("activity", "Alertas", null, alertsBody)}
+        ${pcardWrap("activity", "Pipeline de candidatos", sortedCandidates.length + " visibles", tCand)}
+        ${pcardWrap("briefcase", "Vacantes", filteredVacancies.length + " visibles", tVac)}
+        ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
+        ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
+        ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+      </div>
+    </section>`;
+  return `<section class="hiring-shell">${hiringHead}${hiringFleetHero}
+    ${hiringActions}
+    ${hiringExecutionBlock}
+    ${hiringDataBlock}
   </section>`;
 }
 
@@ -5000,81 +6663,154 @@ function laborComplianceHtml() {
       <div class="hr-alert-item"><strong>Licencias por vencer (30 dias):</strong> ${expiringLicenses.length}</div>
       <div class="hr-alert-item"><strong>Registros documentales en auditoria:</strong> ${records.length}</div>
     </div>`;
-  const complianceForm = `<form id="form-sst-compliance" class="p-form">
-      <label>Empleado <select name="employeeId" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
-      <label>Tipo de control
-        <select name="recordType" required>
-          <option value="">Seleccione...</option>
-          <option value="Afiliacion EPS">Afiliacion EPS</option>
-          <option value="Afiliacion pension">Afiliacion pension</option>
-          <option value="Afiliacion ARL">Afiliacion ARL</option>
-          <option value="Examen medico ocupacional">Examen medico ocupacional</option>
-          <option value="Capacitacion SST">Capacitacion SST</option>
-          <option value="Inspeccion documental">Inspeccion documental</option>
-        </select>
-      </label>
-      <label>Entidad / proveedor <input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
-      <label>Fecha de vencimiento / control <input type="date" name="dueDate" required /></label>
-      <label>Estado
-        <select name="status" required>
-          <option value="Pendiente">Pendiente</option>
-          <option value="En gestion">En gestion</option>
-          <option value="Cumplido">Cumplido</option>
-        </select>
-      </label>
-      <label>Codigo documental <input name="documentCode" required placeholder="Ej: SST-2026-001" /></label>
-      <label class="full">Evidencia / observaciones <textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
-      <p class="muted full">Cumplimiento Colombia: valida afiliacion activa a EPS, pension y ARL, soportes SST y trazabilidad de controles por empleado.</p>
+  const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored">
+      <fieldset class="form-section form-section-blue full">
+        <legend>${IC.user} Empleado y tipo</legend>
+        <div class="form-section-grid">
+          <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
+          <label class="full">${fieldLabel(IC.file, "Tipo de control")}
+            <select name="recordType" required>
+              <option value="">Seleccione...</option>
+              <option value="Afiliacion EPS">Afiliacion EPS</option>
+              <option value="Afiliacion pension">Afiliacion pension</option>
+              <option value="Afiliacion ARL">Afiliacion ARL</option>
+              <option value="Examen medico ocupacional">Examen medico ocupacional</option>
+              <option value="Capacitacion SST">Capacitacion SST</option>
+              <option value="Inspeccion documental">Inspeccion documental</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section form-section-emerald full">
+        <legend>${IC.shield} Seguimiento</legend>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.briefcase, "Entidad / proveedor")}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
+          <label>${fieldLabel(IC.calendar, "Vencimiento / control")}<input type="date" name="dueDate" required /></label>
+          <label>${fieldLabel(IC.activity, "Estado")}
+            <select name="status" required>
+              <option value="Pendiente">Pendiente</option>
+              <option value="En gestion">En gestion</option>
+              <option value="Cumplido">Cumplido</option>
+            </select>
+          </label>
+          <label>${fieldLabel(IC.hash, "Codigo documental")}<input name="documentCode" required placeholder="Ej: SST-2026-001" /></label>
+        </div>
+      </fieldset>
+      <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
+      <p class="muted full legal-form-note">Cumplimiento Colombia: valida afiliacion activa a EPS, pension y ARL, soportes SST y trazabilidad de controles por empleado.</p>
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar control legal/SST</button>
     </form>`;
   const recordsTable = recordRows
     ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
     : emptyState("No hay controles de cumplimiento registrados.");
-  return `<div class="dash-grid hr-kpi-grid">
-      <div class="hr-kpi-card"><span>Controles activos</span><strong>${records.length}</strong></div>
-      <div class="hr-kpi-card"><span>Contratos por vencer</span><strong>${expiringContracts.length}</strong></div>
-      <div class="hr-kpi-card"><span>Seguridad social incompleta</span><strong>${missingSocialSecurity.length}</strong></div>
-      <div class="hr-kpi-card"><span>Licencias por vencer</span><strong>${expiringLicenses.length}</strong></div>
-    </div>`
-    + pcardWrap("activity", "Alertas legales y SST", "Vigencias y cumplimiento crítico", alertsBody)
-    + createCollapsibleCard("create-sst-control", "shield", "Registrar control legal/SST", "Expediente laboral, seguridad social y auditoria", complianceForm, "Registrar control")
+  const laborHero = moduleFleetHeroStrip([
+    { label: "Controles", value: records.length },
+    {
+      label: "Contratos por vencer",
+      value: expiringContracts.length,
+      tone: expiringContracts.length ? "warn" : undefined
+    },
+    {
+      label: "SS incompleta",
+      value: missingSocialSecurity.length,
+      tone: missingSocialSecurity.length ? "warn" : undefined
+    },
+    {
+      label: "Licencias prox.",
+      value: expiringLicenses.length,
+      tone: expiringLicenses.length ? "warn" : undefined
+    }
+  ]);
+  return laborHero
+    + pcardWrap("activity", "Alertas", null, alertsBody)
+    + createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar")
     + pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable);
 }
 
 function notificationsHtml() {
   const user = currentUser();
-  const list = read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
-  const incomingRequests = list.filter((n) => /solicitud/i.test(String(n.title || "")));
-  const unreadCount = list.filter((n) => !n.readAt).length;
-  const rows = list
-    .map((n) => `<tr>
-      <td>${fmtDate(n.createdAt)}</td>
-      <td><strong>${n.title}</strong></td>
-      <td>${n.body}</td>
-      <td>${n.readAt ? '<span class="status status-completada">Leida</span>' : '<span class="status status-pendiente">Nueva</span>'}</td>
-    </tr>`)
+  const list = read(KEYS.notifications, [])
+    .filter((n) => n.userId === user.id || user.role === ROLES.ADMIN)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const unread = list.filter((n) => !n.readAt).length;
+  const items = list
+    .map((n) => {
+      const tag = String(n.title || "").toLowerCase().includes("solicitud")
+        ? '<span class="notif-tag notif-tag-blue">Solicitud</span>'
+        : String(n.title || "").toLowerCase().includes("autoriza")
+          ? '<span class="notif-tag notif-tag-violet">Autorización</span>'
+          : '<span class="notif-tag notif-tag-slate">Sistema</span>';
+      const dot = n.readAt ? "" : '<span class="notif-dot"></span>';
+      return `<article class="notif-card ${n.readAt ? "" : "notif-card-unread"}">
+        <div class="notif-leading">${dot}<span class="notif-icon">${IC.bell}</span></div>
+        <div class="notif-content">
+          <div class="notif-head">${tag}<span class="muted notif-time">${fmtDate(n.createdAt)}</span></div>
+          <h4>${n.title || "Notificación"}</h4>
+          <p>${n.body || ""}</p>
+        </div>
+        <div class="notif-actions">
+          ${n.readAt ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${n.id}">${IC.check} Marcar leída</button>`}
+        </div>
+      </article>`;
+    })
     .join("");
-  const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Titulo</th><th>Mensaje</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+  const readCount = list.length - unread;
+  const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
+  const body = list.length
+    ? `<div class="notif-toolbar">
+        <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
+      </div>
+      <div class="notif-list">${items}</div>`
     : emptyState("No tienes notificaciones.");
-  const kpis = `<div class="users-hero users-hero-compact">
-    <div class="users-hero-item"><span>Total notificaciones</span><strong>${list.length}</strong></div>
-    <div class="users-hero-item"><span>Sin leer</span><strong>${unreadCount}</strong></div>
-    <div class="users-hero-item"><span>Solicitudes entrantes</span><strong>${incomingRequests.length}</strong></div>
-  </div>`;
-  return `${kpis}${pcardWrap("bell", "Notificaciones", list.length + " notificaciones", body)}`;
+  const heroStrip = moduleFleetHeroStrip([
+    { label: "Total", value: list.length },
+    { label: "Sin leer", value: unread, tone: unread ? "warn" : undefined },
+    { label: "Leidas", value: readCount },
+    { label: "% leidas", value: `${readPct}%` }
+  ]);
+  return heroStrip + pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body);
 }
 
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
   const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
+  const profileFields = [
+    "name",
+    "phone",
+    "taxId",
+    "documentType",
+    "birthDate",
+    "emergencyContact",
+    "emergencyPhone",
+    "city",
+    "department"
+  ];
+  const filled = profileFields.filter((f) => String(user[f] ?? "").trim()).length;
+  const profilePct = Math.round((filled / profileFields.length) * 100);
+  const daysInPortal = user.createdAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000))
+    : 0;
+  const profileHero = moduleFleetHeroStrip([
+    {
+      label: "Perfil completo",
+      value: `${profilePct}%`,
+      tone: profilePct < 70 ? "warn" : undefined
+    },
+    { label: "Dias en portal", value: daysInPortal },
+    {
+      label: "Cuenta",
+      value: user.accountStatus === ACCOUNT_STATUS.APROBADO ? "Activa" : "Revision",
+      tone: user.accountStatus !== ACCOUNT_STATUS.APROBADO ? "warn" : undefined
+    },
+    { label: "Permisos", value: (user.permissions || []).length }
+  ]);
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
-      <div class="profile-avatar profile-avatar-lg ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}">
-        ${user.avatarUrl ? "." : (user.name || "U").charAt(0).toUpperCase()}
-      </div>
+      <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}" title="Cambiar foto de perfil">
+        <span class="profile-avatar-initial">${user.avatarUrl ? "" : (user.name || "U").charAt(0).toUpperCase()}</span>
+        <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
+      </label>
       <div class="profile-hero-info profile-hero-info-centered">
-        <p class="profile-hero-kicker">Panel personal</p>
         <h3>${user.name || "Usuario"}</h3>
         <p>${user.email || "-"}</p>
         <div class="profile-hero-chips">
@@ -5095,28 +6831,60 @@ function profileHtml(user) {
       <article class="profile-key-item"><p>Empresa</p><strong>${companyName}</strong></article>
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
-    <form id="form-profile" class="p-form profile-form profile-form-centered">
-      <label>Nombre completo <input name="name" value="${user.name || ""}" required /></label>
-      <label>Correo corporativo <input type="email" value="${user.email || ""}" disabled /></label>
-      <label>Telefono de contacto <input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
-      <label>NIT/RUT asociado <input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
-      <label class="full">Empresa
-        <input value="${companyName}" disabled />
-        <input type="hidden" name="companyId" value="${user.companyId || ""}" />
-      </label>
-      <label class="full">Subir foto
-        <input type="file" name="avatarFile" accept="image/*" />
-      </label>
+    <form id="form-profile" class="p-form p-form-colored profile-form profile-form-centered">
+      <input type="file" id="profile-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto de perfil" />
+      <fieldset class="form-section form-section-blue full">
+        <legend>${IC.user} Información personal</legend>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${user.name || ""}" required /></label>
+          <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
+          <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType">
+            <option value="CC" ${user.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
+            <option value="CE" ${user.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
+            <option value="NIT" ${user.documentType === "NIT" ? "selected" : ""}>NIT</option>
+            <option value="PAS" ${user.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
+          </select></label>
+          <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
+          <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${user.birthDate || ""}" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section form-section-cyan full">
+        <legend>${IC.heart} Contacto de emergencia</legend>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${user.emergencyContact || ""}" placeholder="Nombre completo" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${user.emergencyPhone || ""}" placeholder="Ej: 3001234567" /></label>
+          <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${user.emergencyRelation || ""}" placeholder="Cónyuge, padre..." /></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section form-section-emerald full">
+        <legend>${IC.briefcase} Empresa asociada</legend>
+        <label class="full">
+          <input value="${companyName}" disabled />
+          <input type="hidden" name="companyId" value="${user.companyId || ""}" />
+        </label>
+      </fieldset>
+
+      <p class="muted full">La foto se cambia pulsando el icono circular de arriba (JPG, PNG o WebP). Luego usa <strong>Guardar perfil</strong> para aplicar los cambios.</p>
+
       <p class="muted full legal-form-note">Mantén datos de contacto y NIT/RUT actualizados para soporte contractual y trazabilidad administrativa.</p>
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
     </form>
   </section>`;
-  return pcardWrap("user", "Mi perfil", "Información profesional y datos de cuenta", body, "p-card-profile");
+  return profileHero + pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
 }
 
 function authorizationsHtml() {
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
+  const authHero = moduleFleetHeroStrip([
+    { label: "Total registros", value: approvals.length },
+    { label: "Pendientes", value: pending.length, tone: pending.length ? "warn" : undefined },
+    { label: "Aprobadas", value: approvals.filter((a) => a.status === "aprobado").length },
+    { label: "Rechazadas", value: approvals.filter((a) => a.status === "rechazado").length }
+  ]);
   const rows = pending.map((a) => `<tr>
     <td><strong>${a.title}</strong></td>
     <td>${a.type}</td>
@@ -5130,7 +6898,51 @@ function authorizationsHtml() {
   const body = rows
     ? `<div class="table-wrap"><table><thead><tr><th>Titulo</th><th>Tipo</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay autorizaciones pendientes.");
-  return pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
+  return authHero + pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
+}
+
+function contactLeadsHtml() {
+  const user = currentUser();
+  if (user?.role !== ROLES.ADMIN) {
+    return emptyState("Solo el administrador puede ver las solicitudes de contacto del sitio web.");
+  }
+  const list = (Array.isArray(state.portalContacts) ? state.portalContacts : []).slice().sort((a, b) => {
+    const ta = new Date(b.createdAt || 0).getTime();
+    const tb = new Date(a.createdAt || 0).getTime();
+    return ta - tb;
+  });
+  const hero = moduleFleetHeroStrip([
+    { label: "Registros", value: list.length },
+    { label: "Origen", value: "PostgreSQL" },
+    { label: "Actualizado", value: "al iniciar sesion o al pulsar Actualizar" }
+  ]);
+  const toolbar = `<div class="notif-toolbar" style="margin-bottom:0.6rem">
+    <button type="button" class="btn btn-sm btn-primary" data-action="contact-leads-refresh">
+      ${IC.activity} Actualizar desde servidor
+    </button>
+    <span class="muted" style="font-size:0.85rem">Los datos no se guardan en el disco del navegador; vienen de la API.</span>
+  </div>`;
+  if (!list.length) {
+    return hero + pcardWrap("mail", "Solicitudes de contacto (web B2B)", "0 prospectos", toolbar + emptyState("Aún no hay solicitudes o la API no devolvió datos."));
+  }
+  const rows = list
+    .map((c) => {
+      const msg = String(c.message || "").trim();
+      const msgShort = msg.length > 220 ? `${escapeHtml(msg.slice(0, 220))}…` : escapeHtml(msg);
+      return `<tr>
+        <td>${fmtDate(c.createdAt)}</td>
+        <td><strong>${escapeHtml(String(c.contactName || "").trim() || "—")}</strong><br/><span class="muted">${escapeHtml(String(c.companyName || "").trim() || "—")}</span></td>
+        <td>${escapeHtml(String(c.email || "").trim() || "—")}<br/><span class="muted">${escapeHtml(String(c.phone || "").trim() || "—")}</span></td>
+        <td>${escapeHtml(String(c.serviceType || "").trim() || "—")}</td>
+        <td>${escapeHtml(String(c.operationType || "").trim() || "—")}</td>
+        <td style="max-width:280px;font-size:0.86rem;line-height:1.35">${msgShort}</td>
+      </tr>`;
+    })
+    .join("");
+  const table = `<div class="table-wrap"><table class="table-compact-contact-leads"><thead><tr>
+    <th>Fecha</th><th>Contacto / empresa</th><th>Correo / tel.</th><th>Servicio</th><th>Operacion</th><th>Mensaje</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+  return hero + pcardWrap("mail", "Solicitudes de contacto (web B2B)", `${list.length} en base de datos`, toolbar + table);
 }
 
 function renderFromModule(moduleName, exportName, ...args) {
@@ -5315,19 +7127,13 @@ function enforceColombianFormStandards() {
   setAttr("#form-candidate input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
   appendLegalNote("form-candidate", "Para contratación formal en Colombia debe existir identificación válida y soportes verificables.");
 
-  setAttr("#form-interview input[name='when']", { min: new Date().toISOString().slice(0, 16) });
+  setAttr("#form-interview input[name='when']", { min: colombiaDatetimeLocalString() });
   appendLegalNote("form-interview", "Registre entrevistador y fecha para trazabilidad del proceso de contratación.");
 
-  setAttr("#form-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
-  setAttr("#form-contract input[name='probationMonths']", { min: "0", max: "2" });
-  ensureSelectOptions("#form-contract select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
-  ensureSelectOptions("#form-contract select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
-  ensureSelectOptions("#form-contract select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
-  ensureSelectOptions("#form-contract select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
-  appendLegalNote("form-contract", "Contrato laboral exige afiliaciones activas a EPS, pensión y ARL previo al ingreso efectivo.");
-
-  setAttr("#form-employee-contract input[name='salary']", { min: String(CO_HR_RULES.minMonthlySalary) });
-  appendLegalNote("form-employee-contract", "Use este flujo para formalizar contrato de empleado activo con evidencia documental.");
+  appendLegalNote(
+    "form-contract",
+    "El Word se genera con datos del empleado en nómina y plantillas en documentacion/. Si falla la descarga, compruebe conexion (JSZip) y que el empleado tenga ciudad, banco y cuenta completos."
+  );
 
   setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
   ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "Otra"], "Seleccione EPS/entidad...");
@@ -5355,7 +7161,22 @@ function enforceColombianFormStandards() {
   }
 }
 
-function renderPortalView() {
+let __schedulePortalViewMicrotask = null;
+let __schedulePortalViewWanted = false;
+
+/** Evita repintar varias veces en el mismo tick (notificaciones, sync API). El resultado es el mismo que renderPortalView(). */
+function scheduleRenderPortalView() {
+  __schedulePortalViewWanted = true;
+  if (__schedulePortalViewMicrotask != null) return;
+  __schedulePortalViewMicrotask = queueMicrotask(() => {
+    __schedulePortalViewMicrotask = null;
+    if (!__schedulePortalViewWanted) return;
+    __schedulePortalViewWanted = false;
+    renderPortalViewImpl();
+  });
+}
+
+function renderPortalViewImpl() {
   updateAutoApprove();
   closeCompletedTripsAndGenerateInvoices();
   recalculateResourceAvailability();
@@ -5375,7 +7196,9 @@ function renderPortalView() {
         resolveContent: getPortalViewContent,
         accessDeniedFactory: accessDeniedModuleCard
       }),
-    onError: ({ view: failedView, error }) => console.error("portal-render-error", { view: failedView, error }),
+    onError: ({ view: failedView, error }) => {
+      devError("portal-render-error", failedView, error && error.message ? String(error.message) : "");
+    },
     fallbackFactory: () =>
       pcardWrap(
         "activity",
@@ -5392,6 +7215,101 @@ function renderPortalView() {
   enforceColombianFormStandards();
   applyFormWizards();
   applyModuleMicroAnimations();
+}
+
+function renderPortalView() {
+  renderPortalViewImpl();
+}
+
+function describeContractDurationForDocx(data) {
+  const ct = String(data.contractType || "");
+  const start = String(data.startDate || "").trim();
+  const end = String(data.endDate || "").trim();
+  if (ct === "Termino fijo" && start && end) return `Término fijo: ${start} a ${end}`;
+  if (ct === "Termino fijo") return "Término fijo (plazo contractual en cláusulas)";
+  if (ct === "Prestacion de servicios") return "Prestación de servicios";
+  return start ? `Vigencia desde ${start} · ${ct || "según anexo"}` : String(ct || "Según cláusulas y normativa aplicable");
+}
+
+function validateEmployeeContractDocFields(emp) {
+  const miss = [];
+  if (!String(emp.name || "").trim()) miss.push("nombre completo");
+  if (!String(emp.idDoc || "").trim()) miss.push("numero de documento");
+  if (!String(emp.city || "").trim()) miss.push("ciudad de residencia");
+  if (!String(emp.bankName || "").trim()) miss.push("banco");
+  if (!String(emp.bankAccount || "").trim()) miss.push("numero de cuenta");
+  if (parseNum(emp.baseSalary) < CO_HR_RULES.minMonthlySalary) miss.push("salario base (minimo legal)");
+  if (!String(emp.contractDuration || "").trim()) miss.push("duracion del contrato");
+  if (!String(emp.contractType || "").trim()) miss.push("tipo de contrato");
+  const pos = getPositionById(String(emp.positionId || ""));
+  if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
+  return miss;
+}
+
+function buildEmployeeContractDocxPayload(employee, opts = {}) {
+  let kind = String(opts.contractTemplateKind || "").trim().toLowerCase();
+  const signDate = String(opts.signDate || employee.startDate || colombiaTodayIsoDate()).trim();
+  const positionName = getPositionById(String(employee.positionId || ""))?.name || String(employee.position || "").trim();
+  const wr = String(employee.workerRole || (String(positionName).toLowerCase().includes("conductor") ? "conductor" : "empleado"));
+  const ct = String(employee.contractType || "Termino indefinido");
+  const templates = window.RecruitmentDomain?.TEMPLATE_BY_KIND || {};
+  if (!kind || !templates[kind]) {
+    kind = window.RecruitmentDomain?.inferTemplateKind ? window.RecruitmentDomain.inferTemplateKind(ct, wr) : "oficina";
+  }
+  const base = parseNum(employee.baseSalary);
+  const wordsSalary =
+    window.RecruitmentDomain?.formatSalarioLetrasPesos
+      ? window.RecruitmentDomain.formatSalarioLetrasPesos(base)
+      : "";
+  return {
+    contractTemplateKind: kind,
+    contractType: ct,
+    workerRole: wr,
+    nombre_empleado: String(employee.name || "").trim(),
+    cedula_empleado: String(employee.idDoc || "").trim(),
+    ciudad_empleado: String(employee.city || "").trim(),
+    banco_cuenta_bancaria: String(employee.bankName || "").trim(),
+    cuenta_bancaria: String(employee.bankAccount || "").trim(),
+    salario: base,
+    salario_letras: wordsSalary,
+    duracion_contrato:
+      String(employee.contractDuration || "").trim() ||
+      describeContractDurationForDocx({ contractType: ct, startDate: signDate, endDate: employee.endDate || "" }),
+    cargo_empleado: positionName,
+    signDate
+  };
+}
+
+async function generateOfficialWordContract(payload) {
+  if (!window.RecruitmentDomain?.generateEmployeeContractDocx) {
+    throw new Error("Módulo de contratos Word no disponible (recarga la página).");
+  }
+  return window.RecruitmentDomain.generateEmployeeContractDocx(payload);
+}
+
+/** Valores de ejemplo para generar un Word de prueba sin persistir contrato. */
+function buildContractDocxTestPayload(templateKind) {
+  const kind = String(templateKind || "oficina").toLowerCase();
+  const contractType =
+    kind === "prestacion" ? "Prestacion de servicios" : kind === "fijo" ? "Termino fijo" : "Termino indefinido";
+  const workerRole = kind === "prestacion" ? "conductor" : "empleado";
+  const today = colombiaTodayIsoDate();
+  const endDate = kind === "fijo" ? "2027-12-31" : "";
+  return {
+    contractTemplateKind: kind,
+    contractType,
+    workerRole,
+    nombre_empleado: "Nombre Apellido Ejemplo",
+    cedula_empleado: "1000000000",
+    ciudad_empleado: "Bogota D.C.",
+    banco_cuenta_bancaria: "Bancolombia",
+    cuenta_bancaria: "000000000000",
+    salario: CO_HR_RULES.minMonthlySalary,
+    salario_letras: "",
+    duracion_contrato: describeContractDurationForDocx({ contractType, startDate: today, endDate }),
+    cargo_empleado: kind === "prestacion" ? "Conductor nacional (ejemplo C2)" : "Auxiliar administrativo (ejemplo)",
+    signDate: today
+  };
 }
 
 function bindDynamicEvents() {
@@ -5412,6 +7330,7 @@ function bindDynamicEvents() {
     "edit-driver",
     "toggle-driver",
     "delete-driver",
+    "delete-route-rate",
     "edit-employee",
     "delete-employee",
     "close-vacancy",
@@ -5444,7 +7363,7 @@ function bindDynamicEvents() {
         if (!restrictedActions.has(action)) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        notify("Solo el administrador puede editar o eliminar en este modulo.", "error");
+        notify(userMessage("adminOnlyModule"), "error");
       },
       true
     );
@@ -5456,7 +7375,7 @@ function bindDynamicEvents() {
         if (!restrictedActions.has(action)) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        notify("Solo el administrador puede editar o eliminar en este modulo.", "error");
+        notify(userMessage("adminOnlyModule"), "error");
       },
       true
     );
@@ -5486,44 +7405,6 @@ function bindDynamicEvents() {
     });
   });
 
-  const calendarMonthInput = document.getElementById("calendar-month");
-  if (calendarMonthInput) {
-    calendarMonthInput.addEventListener("change", () => {
-      const value = String(calendarMonthInput.value || "");
-      if (!value) return;
-      state.transportCalendarMonth = value;
-      state.transportCalendarSelectedDate = `${value}-01`;
-      renderPortalView();
-    });
-  }
-  nodes.viewRoot.querySelectorAll("[data-action='calendar-day']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const value = String(btn.getAttribute("data-date") || "");
-      if (!value) return;
-      state.transportCalendarSelectedDate = value;
-      renderPortalView();
-    });
-  });
-
-  const payrollFiltersForm = document.getElementById("form-payroll-filters");
-  if (payrollFiltersForm) {
-    payrollFiltersForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = Object.fromEntries(new FormData(payrollFiltersForm).entries());
-      state.payrollFilters = {
-        employeeId: String(data.employeeId || ""),
-        month: String(data.month || ""),
-        paidStatus: ["all", "paid", "pending"].includes(String(data.paidStatus || "")) ? String(data.paidStatus) : "all"
-      };
-      renderPortalView();
-    });
-    const clearPayrollFilters = document.getElementById("payroll-filter-clear");
-    clearPayrollFilters?.addEventListener("click", () => {
-      state.payrollFilters = { employeeId: "", month: "", paidStatus: "all" };
-      renderPortalView();
-    });
-  }
-
   nodes.viewRoot.querySelectorAll("[data-action='open-edit-user']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
@@ -5546,6 +7427,10 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    bindPasswordStrengthSuite(
+      adminUserCreate.querySelector("input[name='password']"),
+      adminUserCreate.querySelector("#admin-password-strength-suite")
+    );
     adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -5555,7 +7440,7 @@ function bindDynamicEvents() {
       );
       const users = read(KEYS.users, []);
       if (users.some((item) => normalizeEmail(item.email) === normalizeEmail(data.email))) {
-        notify("Ya existe un usuario con ese correo.", "error");
+        notify(userMessage("userEmailExists"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -5566,7 +7451,12 @@ function bindDynamicEvents() {
       data.taxId = docValidation.normalized;
       const company = getCompanyById(data.companyId);
       if (!company) {
-        notify("Debes seleccionar una empresa valida.", "error");
+        notify(userMessage("userSelectCompany"), "error");
+        return;
+      }
+      const passPolicy = validatePasswordPolicy(data.password);
+      if (!passPolicy.ok) {
+        notify(userMessage(passPolicy.key), "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -5577,27 +7467,30 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud enviada a autorizaciones para aprobacion del administrador.", "info");
+        notify(userMessage("userApprovalQueued"), "info");
         renderPortalView();
         return;
       }
       users.push({
         id: uid(),
-        name: data.name,
+        name: normalizeLatinForDb(data.name),
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
         role: data.role,
         documentType: data.documentType,
         accountStatus: ACCOUNT_STATUS.APROBADO,
-        personType: data.personType || "Natural",
+        personType: normalizePersonTypeForDb(data.personType),
         documentIssuedAt: data.documentIssuedAt || "",
-        company: data.company || company.name,
+        company: normalizeLatinForDb(data.company || company.name),
         companyId: company.id,
         taxId: data.taxId,
-        phone: data.phone,
-        city: data.city,
-        department: data.department,
-        address: data.address,
+        phone: normalizeLatinForDb(data.phone),
+        city: normalizeLatinForDb(data.city),
+        department: normalizeLatinForDb(data.department),
+        address: normalizeLatinForDb(data.address),
+        twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
+        systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
+        createdAt: nowIso(),
         permissions:
           data.role === ROLES.ADMIN
             ? [...ALL_PERMISSIONS]
@@ -5606,7 +7499,7 @@ function bindDynamicEvents() {
               : defaultPermissionsForRole(data.role)
       });
       write(KEYS.users, users);
-      notify("Usuario creado correctamente.", "success");
+      notify(userMessage("userCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -5619,12 +7512,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
-        notify(`NIT invalido: ${nitValidation.message}`, "error");
+        notify(userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
       const companyPhone = String(data.phone || "").trim();
       if (!/^\d{7,15}$/.test(companyPhone)) {
-        notify("Telefono de empresa invalido. Usa solo digitos (7 a 15).", "error");
+        notify(userMessage("companyPhoneInvalid"), "error");
         return;
       }
       const companies = read(KEYS.companies, []);
@@ -5633,7 +7526,7 @@ function bindDynamicEvents() {
           (company) => company.name.toLowerCase() === String(data.name).toLowerCase()
         )
       ) {
-        notify("La empresa ya existe.", "error");
+        notify(userMessage("companyExists"), "error");
         return;
       }
       companies.push({
@@ -5644,7 +7537,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
-      notify("Empresa creada correctamente.", "success");
+      notify(userMessage("companyCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -5657,7 +7550,7 @@ function bindDynamicEvents() {
       const form = new FormData(adminUserPermissions);
       const userId = String(form.get("userId") || "");
       if (!userId) {
-        notify("Selecciona un usuario.", "error");
+        notify(userMessage("userPick"), "error");
         return;
       }
       const permissions = [...adminUserPermissions.querySelectorAll("input[name='permissions']:checked")].map(
@@ -5681,13 +7574,13 @@ function bindDynamicEvents() {
       if (state.session?.userId === userId) {
         const refreshed = read(KEYS.users, []).find((item) => item.id === userId);
         if (refreshed && !hasPermission(refreshed, PERMISSIONS.USERS_MANAGE)) {
-          notify("Tus permisos cambiaron. Se cerrara la sesion por seguridad.", "error");
+          notify(userMessage("permissionsChangedLogout"), "error");
           clearSession();
           renderPortal();
           return;
         }
       }
-      notify("Permisos actualizados.", "success");
+      notify(userMessage("permissionsUpdated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -5709,12 +7602,12 @@ function bindDynamicEvents() {
       const users = read(KEYS.users, []);
       const existing = users.find((u) => u.id === userId);
       if (!existing) {
-        notify("Usuario no encontrado.", "error");
+        notify(userMessage("userNotFound"), "error");
         return;
       }
       const duplicated = users.some((u) => u.id !== userId && normalizeEmail(u.email) === normalizeEmail(data.email));
       if (duplicated) {
-        notify("Ya existe otro usuario con ese correo.", "error");
+        notify(userMessage("userEmailDuplicate"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
@@ -5725,33 +7618,41 @@ function bindDynamicEvents() {
       data.taxId = docValidation.normalized;
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
-        notify("Debes seleccionar una empresa valida.", "error");
+        notify(userMessage("userSelectCompany"), "error");
         return;
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
-      const nextPassword = String(data.password || "").trim()
-        ? await hashPassword(String(data.password || "").trim())
-        : existing.password;
+      let nextPassword = existing.password;
+      if (String(data.password || "").trim()) {
+        const pp = validatePasswordPolicy(data.password);
+        if (!pp.ok) {
+          notify(userMessage(pp.key), "error");
+          return;
+        }
+        nextPassword = await hashPassword(String(data.password || "").trim());
+      }
       write(
         KEYS.users,
         users.map((u) =>
           u.id === userId
             ? {
                 ...u,
-                name: String(data.name || "").trim(),
+                name: normalizeLatinForDb(String(data.name || "").trim()),
                 email: normalizeEmail(data.email),
                 password: nextPassword,
                 role: String(data.role || u.role),
                 documentType: String(data.documentType || u.documentType || "CC"),
-                personType: String(data.personType || u.personType || "Natural"),
+                personType: normalizePersonTypeForDb(String(data.personType || u.personType || "")),
                 documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
                 companyId: company.id,
-                company: String(data.company || company.name).trim(),
+                company: normalizeLatinForDb(String(data.company || company.name).trim()),
                 taxId: String(data.taxId || "").trim(),
-                phone: String(data.phone || "").trim(),
-                city: String(data.city || "").trim(),
-                department: String(data.department || u.department || "").trim(),
-                address: String(data.address || u.address || "").trim(),
+                phone: normalizeLatinForDb(String(data.phone || "").trim()),
+                city: normalizeLatinForDb(String(data.city || "").trim()),
+                department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
+                address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
+                twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
+                systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
                 permissions:
                   String(data.role || u.role) === ROLES.ADMIN
                     ? [...ALL_PERMISSIONS]
@@ -5762,7 +7663,7 @@ function bindDynamicEvents() {
             : u
         )
       );
-      notify("Usuario actualizado correctamente.", "success");
+      notify(userMessage("userUpdated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
     });
@@ -5770,6 +7671,10 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='approve-registration']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyApprove"), "error");
+        return;
+      }
       const userId = btn.dataset.id;
       if (!userId) return;
       const users = read(KEYS.users, []);
@@ -5777,7 +7682,7 @@ function bindDynamicEvents() {
       if (!target) return;
       const companies = read(KEYS.companies, []);
       if (!companies.length) {
-        notify("No hay empresas registradas para asociar al usuario.", "error");
+        notify(userMessage("noCompaniesForUser"), "error");
         return;
       }
       openEditModal({
@@ -5792,38 +7697,79 @@ function bindDynamicEvents() {
             required: true,
             value: target.companyId || "",
             options: companies.map((c) => ({ value: c.id, label: `${c.name} (${c.taxId || "Sin NIT"})` }))
+          },
+          {
+            name: "role",
+            label: "Rol en el sistema",
+            type: "select",
+            required: true,
+            value: target.role || ROLES.CLIENT,
+            options: [
+              { value: ROLES.CLIENT, label: "Cliente" },
+              { value: ROLES.RRHH, label: "Recursos Humanos" },
+              { value: ROLES.ADMINISTRACION, label: "Administración" },
+              { value: ROLES.AUXILIAR_ADMINISTRATIVO, label: "Auxiliar administrativo" },
+              { value: ROLES.LIDER_ADMINISTRATIVO, label: "Líder administrativo" },
+              { value: ROLES.ADMIN, label: "Administrador" }
+            ]
           }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const selected = getCompanyById(String(form.companyId || ""));
           if (!selected) {
-            notify("Debes seleccionar una empresa valida.", "error");
+            notify(userMessage("userSelectCompany"), "error");
             return false;
           }
-          write(
-            KEYS.users,
-            users.map((u) =>
-              u.id === userId
-                ? {
-                    ...u,
-                    accountStatus: ACCOUNT_STATUS.APROBADO,
-                    companyId: selected.id,
-                    company: selected.name
-                  }
-                : u
-            )
-          );
+          const chosenRole = String(form.role || ROLES.CLIENT).trim();
+          if (!Object.values(ROLES).includes(chosenRole)) {
+            notify("Seleccione un rol válido.", "error");
+            return false;
+          }
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.()) {
+            try {
+              await api.postJson("/portal/approve-pending-user", {
+                userId: String(target.id),
+                companyId: String(selected.id),
+                role: chosenRole
+              });
+              if (window.PortalDataLayer?.refreshCacheFromApi) {
+                await window.PortalDataLayer.refreshCacheFromApi();
+              } else {
+                await applyPortalBootstrapFromApi();
+              }
+            } catch (err) {
+              notify(String(err?.message || userMessage("registerServerError")), "error");
+              return false;
+            }
+          } else {
+            write(
+              KEYS.users,
+              read(KEYS.users, []).map((u) =>
+                u.id === userId
+                  ? {
+                      ...u,
+                      accountStatus: ACCOUNT_STATUS.APROBADO,
+                      companyId: selected.id,
+                      company: selected.name,
+                      role: chosenRole,
+                      permissions: defaultPermissionsForRole(chosenRole)
+                    }
+                  : u
+              )
+            );
+          }
           saveNotification({
             userId: target.id,
             title: "Cuenta aprobada",
-            body: `Tu cuenta ha sido aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion.`
+            body: `Tu cuenta ha sido aprobada con rol asignado y asociada a ${selected.name}. Ya puedes iniciar sesion.`
           });
           sendEmail({
             to: target.email,
             subject: "Cuenta aprobada - Antares Portal",
             body: `Hola ${target.name}, tu cuenta fue aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion en el portal.`
           });
-          notify(`Cuenta de ${target.name} aprobada exitosamente.`, "success");
+          notify(userMessage("accountApproved", target.name), "success");
           renderPortalView();
           return true;
         }
@@ -5833,6 +7779,10 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='reject-registration']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyApprove"), "error");
+        return;
+      }
       const userId = btn.dataset.id;
       if (!userId) return;
       openEditModal({
@@ -5860,7 +7810,7 @@ function bindDynamicEvents() {
             subject: "Registro rechazado - Antares Portal",
             body: `Hola ${target.name}, tu solicitud de registro fue rechazada. Motivo: ${reason}. Contacta a soporte para mas informacion.`
           });
-          notify(`Registro de ${target.name} rechazado.`, "success");
+          notify(userMessage("accountRejected", target.name), "success");
           renderPortalView();
           return true;
         }
@@ -5873,19 +7823,74 @@ function bindDynamicEvents() {
       const userId = btn.dataset.id;
       if (!userId) return;
       if (state.session?.userId === userId) {
-        notify("No puedes eliminar tu propio usuario.", "error");
+        notify(userMessage("userSelfDelete"), "error");
         return;
       }
       openConfirmModal({
         title: "Eliminar usuario",
         message: "Esta accion eliminara el usuario de forma permanente.",
         confirmText: "Eliminar",
-        onConfirm: () => {
+        onConfirm: async () => {
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.() && typeof api.postJson === "function") {
+            try {
+              await api.postJson("/portal/admin-user-delete", { userId });
+              write(
+                KEYS.users,
+                read(KEYS.users, []).filter((user) => user.id !== userId)
+              );
+              notify(userMessage("userDeleted"), "success");
+              renderPortalView();
+              return;
+            } catch (err) {
+              notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
+              return;
+            }
+          }
           write(
             KEYS.users,
             read(KEYS.users, []).filter((user) => user.id !== userId)
           );
-          notify("Usuario eliminado.", "success");
+          notify(userMessage("userDeleted"), "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-user-active']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const userId = String(btn.dataset.id || "");
+      if (!userId) return;
+      const users = read(KEYS.users, []);
+      const target = users.find((u) => u.id === userId);
+      if (!target) return;
+      const nextStatus = target.accountStatus === ACCOUNT_STATUS.RECHAZADO
+        ? ACCOUNT_STATUS.APROBADO
+        : ACCOUNT_STATUS.RECHAZADO;
+      const nextLabel = nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivar" : "activar";
+      openConfirmModal({
+        title: `${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "Desactivar" : "Activar"} usuario`,
+        message: `Se va a ${nextLabel} la cuenta de ${target.name}.`,
+        confirmText: nextStatus === ACCOUNT_STATUS.RECHAZADO ? "Desactivar" : "Activar",
+        onConfirm: async () => {
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.() && typeof api.postJson === "function") {
+            try {
+              await api.postJson("/portal/admin-user-status", {
+                userId,
+                status: nextStatus
+              });
+            } catch (err) {
+              notify(String(err?.message || "No fue posible actualizar el estado de la cuenta."), "error");
+              return;
+            }
+          }
+          write(
+            KEYS.users,
+            users.map((u) => (u.id === userId ? { ...u, accountStatus: nextStatus } : u))
+          );
+          notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
           renderPortalView();
         }
       });
@@ -5918,13 +7923,12 @@ function bindDynamicEvents() {
       destinationDepartment.addEventListener("change", () => fillCityOptions(destinationDepartment, destinationCity));
     }
     if (pickupDate) {
-      const now = new Date();
-      const today = now.toISOString().split("T")[0];
+      const today = colombiaTodayIsoDate();
       pickupDate.min = today;
       if (deliveryDate) deliveryDate.min = today;
     }
 
-    requestForm.addEventListener("submit", (event) => {
+    requestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const user = currentUser();
       const data = Object.fromEntries(new FormData(requestForm).entries());
@@ -5933,29 +7937,29 @@ function bindDynamicEvents() {
       const deliveryDateValue = String(data.deliveryDate || "");
       const deliveryTimeValue = String(data.deliveryTime || "");
       if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
-        notify("Debes seleccionar fecha y hora de recogida y entrega.", "error");
+        notify(userMessage("requestDatetimeMissing"), "error");
         return;
       }
-      const pickupAt = `${pickupDateValue}T${pickupTimeValue}`;
-      const etaDelivery = `${deliveryDateValue}T${deliveryTimeValue}`;
+      const pickupAt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
+      const etaDelivery = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
       const pickupDateTime = new Date(pickupAt);
       const deliveryDateTime = new Date(etaDelivery);
       if (pickupDateTime.getTime() < Date.now()) {
-        notify("No puedes crear solicitudes para fechas u horas anteriores.", "error");
+        notify(userMessage("requestPastDatetime"), "error");
         return;
       }
       if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
-        notify("La entrega estimada debe ser posterior a la recogida.", "error");
+        notify(userMessage("requestDeliveryAfterPickup"), "error");
         return;
       }
       const { pickupDate, pickupTime, deliveryDate, deliveryTime, ...payload } = data;
       payload.tripValue = 0;
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
-      const all = read(KEYS.requests, []);
+      const all = reqRead();
       const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
       const requestNumber = makeRequestNumber(usedRequestNumbers);
-      all.unshift({
+      const localRow = {
         id: uid(),
         requestNumber,
         clientUserId: user.id,
@@ -5974,13 +7978,21 @@ function bindDynamicEvents() {
         standbyChargeTotal: 0,
         standbyEvents: [],
         rejectionReason: ""
-      });
-      write(KEYS.requests, all);
+      };
+      let rowToSave = localRow;
+      if (window.AntaresApi?.isConfigured?.() && window.DomainModules?.requests?.createViaApi) {
+        try {
+          rowToSave = await window.DomainModules.requests.createViaApi(localRow, pickupAt);
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+          return;
+        }
+      }
+      all.unshift(rowToSave);
+      reqWrite(all);
 
-      const incomingRecipients = read(KEYS.users, []).filter((u) =>
-        [ROLES.ADMIN, ROLES.RRHH, ROLES.ADMINISTRACION, ROLES.AUXILIAR_ADMINISTRATIVO, ROLES.LIDER_ADMINISTRATIVO].includes(u.role)
-      );
-      incomingRecipients.forEach((admin) => {
+      const adminUsers = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
+      adminUsers.forEach((admin) => {
         saveNotification({
           userId: admin.id,
           title: "Nueva solicitud pendiente",
@@ -5993,14 +8005,155 @@ function bindDynamicEvents() {
         });
       });
 
-      notify("Solicitud creada correctamente.", "success");
+      notify(userMessage("requestCreated"), "success");
       renderPortalView();
     });
   }
 
+  const payrollFiltersForm = document.getElementById("payroll-filters");
+  if (payrollFiltersForm) {
+    payrollFiltersForm.querySelectorAll("select").forEach((select) => {
+      select.addEventListener("change", () => {
+        state.payrollFilters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+        const key = String(select.name || "");
+        if (!key) return;
+        state.payrollFilters[key] = String(select.value || "");
+        renderPortalView();
+      });
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-clear-filters']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { period: "all", employee: "", status: "all" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-pending']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { ...(state.payrollFilters || {}), status: "pending" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { ...(state.payrollFilters || {}), status: "all" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-sort-runs']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollUi = state.payrollUi || { runSort: "recent" };
+      state.payrollUi.runSort = String(btn.dataset.sort || "recent");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      const list = read(KEYS.notifications, []);
+      write(
+        KEYS.notifications,
+        list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
+      );
+      renderPortalView();
+      updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const list = read(KEYS.notifications, []);
+      const ts = nowIso();
+      write(
+        KEYS.notifications,
+        list.map((n) => (n.readAt ? n : { ...n, readAt: ts }))
+      );
+      renderPortalView();
+      updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='contact-leads-refresh']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      void applyPortalBootstrapFromApi().then((ok) => {
+        if (ok) {
+          notify("Lista actualizada desde el servidor.", "success");
+          scheduleRenderPortalView();
+        } else {
+          notify("No se pudo actualizar. Revise conexion y sesion con la API.", "error");
+        }
+      });
+    });
+  });
+
+  const calendarFiltersForm = document.getElementById("calendar-filters");
+  if (calendarFiltersForm) {
+    calendarFiltersForm.querySelectorAll("select").forEach((select) => {
+      select.addEventListener("change", () => {
+        state.calendarFilters = state.calendarFilters || { driver: "", vehicle: "", status: "" };
+        const key = String(select.name || "");
+        if (!key) return;
+        state.calendarFilters[key] = String(select.value || "");
+        renderPortalView();
+      });
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-clear-filters']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.calendarFilters = { driver: "", vehicle: "", status: "" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-nav']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const step = parseInt(btn.dataset.step || "0", 10) || 0;
+      const base = state.calendarFocus instanceof Date && !Number.isNaN(state.calendarFocus.getTime())
+        ? new Date(state.calendarFocus)
+        : new Date();
+      base.setHours(12, 0, 0, 0);
+      base.setMonth(base.getMonth() + step);
+      state.calendarFocus = base;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-today']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.calendarFocus = new Date();
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-event']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      const req = reqRead().find((r) => r.id === id);
+      if (!req?.trip) return;
+      openInfoModal({
+        title: `Viaje ${req.trip.tripNumber || ""}`,
+        subtitle: `${req.clientName || ""} · ${prettyStatus(req.status, "trip")}`,
+        bodyHtml: `<div class="dash-grid">
+          <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
+          <div><strong>Ruta:</strong> ${req.trip.route || formatRoute(req)}</div>
+          <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+          <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+          <div><strong>Camión:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
+          <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+        </div>`
+      });
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='detail']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
+      const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req) return;
       const tripDetail = req.trip
         ? `<div class="dash-grid" style="margin-top:0.6rem">
@@ -6036,7 +8189,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = read(KEYS.requests, []);
+      const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req || req.status !== STATUS.PENDIENTE) return;
       openEditModal({
@@ -6046,9 +8199,9 @@ function bindDynamicEvents() {
         fields: [{ name: "notes", label: "Observaciones", value: req.notes || "", required: false }],
         onSubmit: (form) => {
           const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
-          write(KEYS.requests, updated);
+          reqWrite(updated);
   recalculateResourceAvailability();
-          notify("Observaciones actualizadas.", "success");
+          notify(userMessage("observationsUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -6058,11 +8211,11 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='cancel']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = read(KEYS.requests, []);
+      const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req || req.status !== STATUS.PENDIENTE) return;
       const updated = requests.map((r) => (r.id === req.id ? { ...r, status: STATUS.CANCELADA } : r));
-      write(KEYS.requests, updated);
+      reqWrite(updated);
       renderPortalView();
     });
   });
@@ -6071,10 +8224,13 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const actor = currentUser();
       const requestId = String(btn.dataset.id || "");
-      const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+      const request = reqRead().find((item) => item.id === requestId);
       if (!request) return;
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+      const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
+      const driverCandidates = getDriverCandidatesForRequest(request, requestId);
+      const configuredTripValue = getConfiguredTripValue(request);
       openEditModal({
         title: "Aprobar solicitud",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
@@ -6097,10 +8253,10 @@ function bindDynamicEvents() {
             type: "select",
             required: false,
             options: [
-              { value: "", label: compatibleVehicles.length ? "Sin asignar por ahora" : "No hay camiones compatibles disponibles" },
-              ...compatibleVehicles.map((vehicle) => ({
+              { value: "", label: vehicleCandidates.length ? "Sin asignar por ahora" : "No hay camiones compatibles para el tipo/peso" },
+              ...vehicleCandidates.map((vehicle) => ({
               value: vehicle.id,
-              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
+              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
               }))
             ]
           },
@@ -6110,35 +8266,71 @@ function bindDynamicEvents() {
             type: "select",
             required: false,
             options: [
-              { value: "", label: compatibleDrivers.length ? "Sin asignar por ahora" : "No hay conductores compatibles disponibles" },
-              ...compatibleDrivers.map((driver) => ({
+              { value: "", label: driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores registrados" },
+              ...driverCandidates.map((driver) => ({
               value: driver.id,
-              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}`
+              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
               }))
             ]
+          },
+          {
+            name: "tripValue",
+            label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
+            type: "number",
+            required: false,
+            value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
           }
         ],
         onSubmit: (form) => {
           const selectedMode = String(form.mode || "pending");
           const vehicleId = String(form.vehicleId || "").trim();
           const driverId = String(form.driverId || "").trim();
+          const tripValue = parseNum(form.tripValue);
           const mode = vehicleId && driverId ? "assign_now" : selectedMode;
           if (mode === "assign_now" && (!vehicleId || !driverId)) {
-            notify("Para asignar ahora debes seleccionar camion y conductor.", "error");
+            notify(userMessage("assignSelectResources"), "error");
+            return false;
+          }
+          if (mode === "assign_now" && tripValue <= 0) {
+            notify(userMessage("assignPriceRequired"), "error");
+            return false;
+          }
+          if (mode === "assign_now" && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
+            notify(userMessage("assignResourcesBusy"), "error");
             return false;
           }
           const ok = mode === "assign_now"
-            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId)
+            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue)
             : approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
           notify(
             mode === "assign_now"
-              ? "Solicitud aprobada y viaje asignado correctamente."
-              : "Solicitud aprobada. Quedo pendiente de asignacion manual.",
+              ? userMessage("requestApprovedAssigned")
+              : userMessage("requestApprovedPending"),
             "success"
           );
           renderPortalView();
           return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-route-rate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const encoded = String(btn.dataset.rateKey || "");
+      const key = decodeURIComponent(encoded);
+      if (!key) return;
+      openConfirmModal({
+        title: "Quitar tarifa de trayecto",
+        message: "Esta ruta dejara de sugerir precio al asignar viajes.",
+        confirmText: "Quitar tarifa",
+        onConfirm: () => {
+          const rates = read(KEYS.tripRouteRates, {});
+          delete rates[key];
+          write(KEYS.tripRouteRates, rates);
+          notify(userMessage("routeRateDeleted"), "success");
+          renderPortalView();
         }
       });
     });
@@ -6171,16 +8363,17 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
       if (!requestId) {
-        notify("Selecciona una solicitud pendiente.", "error");
+        notify(userMessage("bulkSelectPending"), "error");
         return;
       }
-      const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+      const request = reqRead().find((item) => item.id === requestId);
       if (!request) {
-        notify("Solicitud no encontrada.", "error");
+        notify(userMessage("bulkRequestMissing"), "error");
         return;
       }
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+      const configuredTripValue = getConfiguredTripValue(request);
       openEditModal({
         title: "Asignar viaje",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType}`,
@@ -6209,16 +8402,35 @@ function bindDynamicEvents() {
                 label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
               }))
               : [{ value: "", label: "No hay conductores compatibles disponibles" }]
+          },
+          {
+            name: "tripValue",
+            label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
+            type: "number",
+            required: true,
+            value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
           }
         ],
         onSubmit: (form) => {
           if (!compatibleVehicles.length || !compatibleDrivers.length) {
-            notify("No hay camion/conductor compatible para asignar este viaje.", "error");
+            notify(userMessage("tripAssignNoMatch"), "error");
             return false;
           }
-          const ok = approveRequest(requestId, currentUser()?.name || "Administrador", false, String(form.vehicleId || ""), String(form.driverId || ""));
+          const tripValue = parseNum(form.tripValue);
+          if (tripValue <= 0) {
+            notify(userMessage("assignPriceRequired"), "error");
+            return false;
+          }
+          const ok = approveRequest(
+            requestId,
+            currentUser()?.name || "Administrador",
+            false,
+            String(form.vehicleId || ""),
+            String(form.driverId || ""),
+            tripValue
+          );
           if (!ok) return false;
-          notify("Viaje creado y asignado correctamente.", "success");
+          notify(userMessage("tripCreatedAssigned"), "success");
           renderPortalView();
           return true;
         }
@@ -6227,9 +8439,52 @@ function bindDynamicEvents() {
     });
   }
 
+  const routeRateFormEl = document.getElementById("form-route-rate");
+  if (routeRateFormEl) {
+    const originDept = routeRateFormEl.querySelector("#route-rate-origin-dept");
+    const originCity = routeRateFormEl.querySelector("#route-rate-origin-city");
+    const destDept = routeRateFormEl.querySelector("#route-rate-dest-dept");
+    const destCity = routeRateFormEl.querySelector("#route-rate-dest-city");
+    const fillRouteRateCities = (departmentSelect, citySelect) => {
+      const department = String(departmentSelect?.value || "");
+      const cities = COLOMBIA_LOCATIONS[department] || [];
+      citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
+        .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
+        .join("")}`;
+    };
+    if (originDept && originCity) {
+      originDept.addEventListener("change", () => fillRouteRateCities(originDept, originCity));
+    }
+    if (destDept && destCity) {
+      destDept.addEventListener("change", () => fillRouteRateCities(destDept, destCity));
+    }
+    routeRateFormEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(routeRateFormEl).entries());
+      const od = String(data.originDepartment || "").trim();
+      const oc = String(data.originCity || "").trim();
+      const dd = String(data.destinationDepartment || "").trim();
+      const dc = String(data.destinationCity || "").trim();
+      const tripRateCop = parseNum(data.tripRateCop);
+      if (!od || !oc || !dd || !dc) {
+        notify(userMessage("routeRateSelectRoute"), "error");
+        return;
+      }
+      if (tripRateCop <= 0) {
+        notify(userMessage("routeRateInvalidCop"), "error");
+        return;
+      }
+      const key = buildTripRouteRateKey(od, oc, dd, dc);
+      const next = { ...read(KEYS.tripRouteRates, {}), [key]: tripRateCop };
+      write(KEYS.tripRouteRates, next);
+      notify(userMessage("routeRateSaved"), "success");
+      renderPortalView();
+    });
+  }
+
   nodes.viewRoot.querySelectorAll("[data-action='trip-detail']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const req = read(KEYS.requests, []).find((r) => r.id === btn.dataset.id);
+      const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req || !req.trip) return;
       openInfoModal({
         title: `Viaje ${req.trip.tripNumber}`,
@@ -6268,17 +8523,17 @@ function bindDynamicEvents() {
       const format = String(btn.dataset.format || "pdf");
       const actor = currentUser();
       if (!canAccessReport(actor, reportId)) {
-        notify("No tienes permisos para generar este reporte.", "error");
+        notify(userMessage("reportNoPermission"), "error");
         return;
       }
       const report = buildReportDataset(reportId, actor);
       if (format === "excel") {
         downloadCsv(report.fileName || "reporte.csv", report.rows || [], report.columns || []);
-        notify("Reporte exportado en formato Excel (CSV).", "success");
+        notify(userMessage("reportCsvExported"), "success");
         return;
       }
       openReportPdf(report.title || "Reporte", report.columns || [], report.rows || []);
-      notify("Reporte PDF generado correctamente.", "success");
+      notify(userMessage("reportPdfOk"), "success");
     });
   });
 
@@ -6301,7 +8556,7 @@ function bindDynamicEvents() {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           rejectRequest(btn.dataset.id, reason, currentUser().name);
-          notify("Solicitud rechazada.", "success");
+          notify(userMessage("requestRejected"), "success");
           renderPortalView();
           return true;
         }
@@ -6311,7 +8566,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = read(KEYS.requests, []);
+      const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req) return;
       const [pickupDate, pickupTime] = String(toInputDate(req.pickupAt) || "").split("T");
@@ -6330,14 +8585,11 @@ function bindDynamicEvents() {
           const newPickup = `${form.pickupDate}T${form.pickupTime}`;
           const newDelivery = `${form.deliveryDate}T${form.deliveryTime}`;
           if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
-            notify("La entrega debe ser posterior a la recogida.", "error");
+            notify(userMessage("requestScheduleInvalid"), "error");
             return false;
           }
-          write(
-            KEYS.requests,
-            requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r))
-          );
-          notify("Solicitud actualizada correctamente.", "success");
+          reqWrite(requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r)));
+          notify(userMessage("requestUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -6352,12 +8604,9 @@ function bindDynamicEvents() {
         message: "Se eliminara la solicitud seleccionada.",
         confirmText: "Eliminar",
         onConfirm: () => {
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).filter((r) => r.id !== btn.dataset.id)
-          );
+          reqWrite(reqRead().filter((r) => r.id !== btn.dataset.id));
           recalculateResourceAvailability();
-          notify("Solicitud eliminada.", "success");
+          notify(userMessage("requestDeleted"), "success");
           renderPortalView();
         }
       });
@@ -6373,9 +8622,8 @@ function bindDynamicEvents() {
         message: "La solicitud quedara aprobada pendiente de asignacion manual.",
         confirmText: "Eliminar viaje",
         onConfirm: () => {
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).map((request) =>
+          reqWrite(
+            reqRead().map((request) =>
               request.id === requestId
                 ? {
                   ...request,
@@ -6388,7 +8636,7 @@ function bindDynamicEvents() {
             )
           );
           recalculateResourceAvailability();
-          notify("Viaje eliminado y solicitud devuelta a pendiente de asignacion.", "success");
+          notify(userMessage("tripRemoved"), "success");
           renderPortalView();
         }
       });
@@ -6408,9 +8656,8 @@ function bindDynamicEvents() {
             KEYS.vehicles,
             read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId)
           );
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).map((request) => {
+          reqWrite(
+            reqRead().map((request) => {
               if (!request.trip || String(request.trip.vehicleId || "") !== vehicleId) return request;
               return {
                 ...request,
@@ -6423,7 +8670,7 @@ function bindDynamicEvents() {
             })
           );
           recalculateResourceAvailability();
-          notify("Camion eliminado correctamente.", "success");
+          notify(userMessage("vehicleDeleted"), "success");
           renderPortalView();
         }
       });
@@ -6443,9 +8690,8 @@ function bindDynamicEvents() {
             KEYS.drivers,
             read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId)
           );
-          write(
-            KEYS.requests,
-            read(KEYS.requests, []).map((request) => {
+          reqWrite(
+            reqRead().map((request) => {
               if (!request.trip || String(request.trip.driverId || "") !== driverId) return request;
               return {
                 ...request,
@@ -6459,7 +8705,7 @@ function bindDynamicEvents() {
             })
           );
           recalculateResourceAvailability();
-          notify("Conductor eliminado correctamente.", "success");
+          notify(userMessage("driverDeleted"), "success");
           renderPortalView();
         }
       });
@@ -6473,13 +8719,13 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
       const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
-        notify("Placa invalida. Usa formato colombiano ABC123.", "error");
+        notify(userMessage("vehiclePlateInvalid"), "error");
         return;
       }
       const modelYear = parseNum(data.year);
       const currentYear = new Date().getFullYear();
       if (modelYear < 1990 || modelYear > currentYear + 1) {
-        notify("Año de modelo invalido para el vehiculo.", "error");
+        notify(userMessage("vehicleYearInvalid"), "error");
         return;
       }
       const list = read(KEYS.vehicles, []);
@@ -6490,15 +8736,31 @@ function bindDynamicEvents() {
         model: String(data.model || "").trim(),
         year: modelYear,
         type: data.type,
+        color: String(data.color || "").trim(),
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
-        mileageKm: parseNum(data.mileageKm || 0),
+        bodyType: String(data.bodyType || "").trim(),
+        fuelType: String(data.fuelType || "").trim(),
+        axleConfig: String(data.axleConfig || "").trim(),
+        engineNumber: String(data.engineNumber || "").trim(),
+        vin: String(data.vin || "").trim().toUpperCase(),
+        ownershipCard: String(data.ownershipCard || "").trim(),
         soatExpeditionDate: data.soatExpeditionDate,
+        soatExpiryDate: data.soatExpiryDate,
         techInspectionExpeditionDate: data.techInspectionExpeditionDate,
-        available: true
+        techInspectionExpiryDate: data.techInspectionExpiryDate,
+        rcPolicyContract: String(data.rcPolicyContract || "").trim(),
+        rcPolicyExtra: String(data.rcPolicyExtra || "").trim(),
+        rcPolicyExpiry: data.rcPolicyExpiry || "",
+        hasGps: data.hasGps === "true",
+        gpsProvider: String(data.gpsProvider || "").trim(),
+        ownerName: String(data.ownerName || "").trim(),
+        ownerTaxId: String(data.ownerTaxId || "").trim(),
+        available: true,
+        createdAt: nowIso()
       });
       write(KEYS.vehicles, list);
-      notify("Camion registrado correctamente.", "success");
+      notify(userMessage("vehicleRegistered"), "success");
       renderPortalView();
     });
   }
@@ -6514,7 +8776,7 @@ function bindDynamicEvents() {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
       if (!/^\d{10,15}$/.test(String(data.phone || "").trim())) {
-        notify("Telefono del conductor invalido. Usa solo digitos (10 a 15).", "error");
+        notify(userMessage("driverPhoneInvalid"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
@@ -6524,7 +8786,7 @@ function bindDynamicEvents() {
       }
       data.idDoc = docValidation.normalized;
       if (new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
-        notify("La licencia debe tener vigencia futura para registrar conductor.", "error");
+        notify(userMessage("driverLicenseRegister"), "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -6535,7 +8797,7 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud de conductor enviada para aprobacion.", "info");
+        notify(userMessage("driverApprovalQueued"), "info");
         renderPortalView();
         return;
       }
@@ -6564,7 +8826,7 @@ function bindDynamicEvents() {
         });
         write(KEYS.payrollEmployees, employees);
       }
-      notify("Conductor creado correctamente.", "success");
+      notify(userMessage("driverCreated"), "success");
       renderPortalView();
     });
   }
@@ -6584,35 +8846,54 @@ function bindDynamicEvents() {
       const all = read(KEYS.vehicles, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
+      const colorOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.vehicleColors.map((c) => ({ value: c, label: c }))];
+      const bodyOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bodyTypes.map((b) => ({ value: b, label: b }))];
+      const fuelOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.fuelTypes.map((f) => ({ value: f, label: f }))];
+      const axleOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.axleConfig.map((a) => ({ value: a, label: a }))];
       openEditModal({
-        title: "Editar camion",
+        title: "Editar camión",
         subtitle: target.plate,
         submitText: "Guardar cambios",
         fields: [
           { name: "plate", label: "Placa", value: target.plate, required: true },
           { name: "brand", label: "Marca", value: target.brand || "", required: true },
-          { name: "model", label: "Linea/Modelo", value: target.model || "", required: true },
-          { name: "year", label: "Ano modelo", type: "number", value: target.year || "", required: true },
+          { name: "model", label: "Línea/Modelo", value: target.model || "", required: true },
+          { name: "year", label: "Año modelo", type: "number", value: target.year || "", required: true },
+          { name: "color", label: "Color", type: "select", value: target.color || "", options: colorOpts },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
+          { name: "bodyType", label: "Carrocería", type: "select", value: target.bodyType || "", options: bodyOpts },
+          { name: "fuelType", label: "Combustible", type: "select", value: target.fuelType || "", options: fuelOpts },
+          { name: "axleConfig", label: "Ejes", type: "select", value: target.axleConfig || "", options: axleOpts },
+          { name: "engineNumber", label: "N° motor", value: target.engineNumber || "" },
+          { name: "vin", label: "Chasis (VIN)", value: target.vin || "" },
+          { name: "ownershipCard", label: "Tarjeta propiedad N°", value: target.ownershipCard || "" },
           {
             name: "refrigerated",
-            label: "Termoking",
+            label: "Termoking (refrigerado)",
             type: "select",
             value: target.refrigerated ? "true" : "false",
             options: [
-              { value: "true", label: "Si" },
-              { value: "false", label: "No" }
-            ],
-            required: true
+              { value: "true", label: "Sí, equipo Termoking" },
+              { value: "false", label: "No, carga seca" }
+            ]
           },
-          { name: "soatExpeditionDate", label: "Expedicion SOAT", type: "date", value: target.soatExpeditionDate, required: true },
+          { name: "soatExpeditionDate", label: "Expedición SOAT", type: "date", value: target.soatExpeditionDate, required: true },
+          { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: target.soatExpiryDate || "" },
+          { name: "techInspectionExpeditionDate", label: "Expedición tecnomecánica", type: "date", value: target.techInspectionExpeditionDate, required: true },
+          { name: "techInspectionExpiryDate", label: "Vence tecnomecánica", type: "date", value: target.techInspectionExpiryDate || "" },
+          { name: "rcPolicyContract", label: "Póliza RC contractual N°", value: target.rcPolicyContract || "" },
+          { name: "rcPolicyExtra", label: "Póliza RC extracontractual N°", value: target.rcPolicyExtra || "" },
+          { name: "rcPolicyExpiry", label: "Vence pólizas RCP", type: "date", value: target.rcPolicyExpiry || "" },
           {
-            name: "techInspectionExpeditionDate",
-            label: "Expedicion tecnomecanica",
-            type: "date",
-            value: target.techInspectionExpeditionDate,
-            required: true
-          }
+            name: "hasGps",
+            label: "GPS satelital",
+            type: "select",
+            value: target.hasGps ? "true" : "false",
+            options: [{ value: "true", label: "Sí" }, { value: "false", label: "No" }]
+          },
+          { name: "gpsProvider", label: "Proveedor GPS", value: target.gpsProvider || "" },
+          { name: "ownerName", label: "Propietario", value: target.ownerName || "" },
+          { name: "ownerTaxId", label: "NIT/Cédula propietario", value: target.ownerTaxId || "" }
         ],
         onSubmit: (form) => {
           write(
@@ -6625,15 +8906,31 @@ function bindDynamicEvents() {
                     brand: String(form.brand || "").trim(),
                     model: String(form.model || "").trim(),
                     year: parseNum(form.year),
+                    color: String(form.color || "").trim(),
                     capacityKg: parseNum(form.capacityKg),
+                    bodyType: String(form.bodyType || "").trim(),
+                    fuelType: String(form.fuelType || "").trim(),
+                    axleConfig: String(form.axleConfig || "").trim(),
+                    engineNumber: String(form.engineNumber || "").trim(),
+                    vin: String(form.vin || "").trim().toUpperCase(),
+                    ownershipCard: String(form.ownershipCard || "").trim(),
                     refrigerated: String(form.refrigerated || "false") === "true",
                     soatExpeditionDate: form.soatExpeditionDate,
-                    techInspectionExpeditionDate: form.techInspectionExpeditionDate
+                    soatExpiryDate: form.soatExpiryDate || "",
+                    techInspectionExpeditionDate: form.techInspectionExpeditionDate,
+                    techInspectionExpiryDate: form.techInspectionExpiryDate || "",
+                    rcPolicyContract: String(form.rcPolicyContract || "").trim(),
+                    rcPolicyExtra: String(form.rcPolicyExtra || "").trim(),
+                    rcPolicyExpiry: form.rcPolicyExpiry || "",
+                    hasGps: String(form.hasGps || "false") === "true",
+                    gpsProvider: String(form.gpsProvider || "").trim(),
+                    ownerName: String(form.ownerName || "").trim(),
+                    ownerTaxId: String(form.ownerTaxId || "").trim()
                   }
                 : v
             )
           );
-          notify("Camion actualizado correctamente.", "success");
+          notify(userMessage("vehicleUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -6656,27 +8953,47 @@ function bindDynamicEvents() {
       const all = read(KEYS.drivers, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
+      const licenseCatOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))];
+      const bloodOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))];
+      const epsOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))];
+      const arlOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.arl.map((item) => ({ value: item, label: item }))];
       openEditModal({
         title: "Editar conductor",
         subtitle: target.name,
         submitText: "Actualizar conductor",
         fields: [
           { name: "name", label: "Nombre completo", value: target.name, required: true },
-          { name: "phone", label: "Telefono", value: target.phone, required: true },
-          { name: "license", label: "No. licencia", value: target.license || "" },
+          { name: "phone", label: "Teléfono celular", value: target.phone, required: true, placeholder: "Ej: 3001234567" },
+          { name: "emergencyContact", label: "Contacto de emergencia", value: target.emergencyContact || "" },
+          { name: "emergencyPhone", label: "Tel. emergencia", value: target.emergencyPhone || "" },
+          { name: "bloodType", label: "Tipo de sangre (RH)", type: "select", value: target.bloodType || "", options: bloodOpts },
+          { name: "license", label: "N° licencia de conducción", value: target.license || "", placeholder: "Ej: 12345678" },
+          { name: "licenseCategory", label: "Categoría licencia", type: "select", value: target.licenseCategory || "", options: licenseCatOpts },
+          { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" },
+          { name: "psychoTestDate", label: "Examen psicosensométrico (fecha)", type: "date", value: target.psychoTestDate || "" },
+          { name: "psychoTestExpiry", label: "Vence psicosensométrico", type: "date", value: target.psychoTestExpiry || "" },
           {
-            name: "licenseCategory",
-            label: "Categoria licencia",
+            name: "defensiveCourse",
+            label: "Curso conducción defensiva (Res. 17220)",
             type: "select",
-            value: target.licenseCategory || "",
-            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))]
+            value: target.defensiveCourse || "",
+            options: [
+              { value: "", label: "Seleccione..." },
+              { value: "vigente", label: "Vigente" },
+              { value: "vencido", label: "Vencido" },
+              { value: "no_aplica", label: "No aplica" }
+            ]
           },
-          { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" }
+          { name: "defensiveCourseExpiry", label: "Vence curso defensivo", type: "date", value: target.defensiveCourseExpiry || "" },
+          { name: "eps", label: "EPS", type: "select", value: target.eps || "", options: epsOpts },
+          { name: "arl", label: "ARL", type: "select", value: target.arl || "", options: arlOpts },
+          { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
+          { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 }
         ],
         onSubmit: (form) => {
           const expiryValue = String(form.licenseExpiry || "").trim();
           if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
-            notify("La licencia debe tener vigencia futura.", "error");
+            notify(userMessage("driverLicenseFutureEdit"), "error");
             return false;
           }
           write(
@@ -6687,14 +9004,25 @@ function bindDynamicEvents() {
                     ...d,
                     name: String(form.name || "").trim(),
                     phone: String(form.phone || "").trim(),
+                    emergencyContact: String(form.emergencyContact || "").trim(),
+                    emergencyPhone: String(form.emergencyPhone || "").trim(),
+                    bloodType: String(form.bloodType || "").trim(),
                     license: String(form.license || "").trim(),
                     licenseCategory: String(form.licenseCategory || "").trim(),
-                    licenseExpiry: expiryValue
+                    licenseExpiry: expiryValue,
+                    psychoTestDate: form.psychoTestDate || "",
+                    psychoTestExpiry: form.psychoTestExpiry || "",
+                    defensiveCourse: String(form.defensiveCourse || "").trim(),
+                    defensiveCourseExpiry: form.defensiveCourseExpiry || "",
+                    eps: String(form.eps || "").trim(),
+                    arl: String(form.arl || "").trim(),
+                    comparendos: parseNum(form.comparendos),
+                    experienceYears: parseNum(form.experienceYears)
                   }
                 : d
             )
           );
-          notify("Conductor actualizado correctamente.", "success");
+          notify(userMessage("driverUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -6707,7 +9035,7 @@ function bindDynamicEvents() {
     historyFilter.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(historyFilter).entries());
-      let items = read(KEYS.requests, []);
+      let items = reqRead();
       if (data.client) items = items.filter((i) => i.clientUserId === data.client);
       if (data.status) items = items.filter((i) => i.status === data.status);
       if (data.from) items = items.filter((i) => new Date(i.createdAt) >= new Date(`${data.from}T00:00`));
@@ -6767,13 +9095,13 @@ function bindDynamicEvents() {
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
       if (!vehicle || !driver) {
-        notify("Selecciona camion y conductor validos.", "error");
+        notify(userMessage("fuelSelectBoth"), "error");
         return;
       }
       const liters = parseNum(data.liters);
       const totalCost = parseNum(data.totalCost);
       if (liters <= 0 || totalCost < 0) {
-        notify("Litros y costo de combustible no son validos.", "error");
+        notify(userMessage("fuelInvalidAmounts"), "error");
         return;
       }
       const list = read(KEYS.fuelLogs, []);
@@ -6794,7 +9122,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.fuelLogs, list);
-      notify("Consumo de combustible registrado.", "success");
+      notify(userMessage("fuelLogged"), "success");
       renderPortalView();
     });
   }
@@ -6806,7 +9134,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(technicalLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       if (!vehicle) {
-        notify("Selecciona un camion valido.", "error");
+        notify(userMessage("fuelSelectVehicle"), "error");
         return;
       }
       const list = read(KEYS.vehicleTechnicalLogs, []);
@@ -6823,7 +9151,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.vehicleTechnicalLogs, list);
-      notify("Novedad tecnica registrada correctamente.", "success");
+      notify(userMessage("technicalLogged"), "success");
       renderPortalView();
     });
   }
@@ -6858,12 +9186,15 @@ function bindDynamicEvents() {
       }
       const position = getPositionById(String(raw.positionId || ""));
       if (!position || position.active === false) {
-        notify("Selecciona un cargo activo del catalogo (modulo Contratacion).", "error");
+        notify(userMessage("recruitSelectActivePosition"), "error");
         return;
       }
       const baseSalary = parseNum(raw.baseSalary);
       if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`El salario no puede ser inferior al minimo legal referenciado (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        notify(
+          userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+          "error"
+        );
         return;
       }
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
@@ -6876,6 +9207,12 @@ function bindDynamicEvents() {
           name: String(raw.name || "").trim(),
           documentType: raw.documentType,
           idDoc: docValidation.normalized,
+          birthDate: String(raw.birthDate || "").trim(),
+          gender: String(raw.gender || "").trim(),
+          maritalStatus: String(raw.maritalStatus || "").trim(),
+          educationLevel: String(raw.educationLevel || "").trim(),
+          personalEmail: String(raw.personalEmail || "").trim(),
+          emergencyRelation: String(raw.emergencyRelation || "").trim(),
           positionId: position.id,
           position: position.name,
           workerRole: position.workerRole || "empleado",
@@ -6891,15 +9228,26 @@ function bindDynamicEvents() {
           eps: String(raw.eps || "").trim(),
           pensionFund: String(raw.pensionFund || "").trim(),
           arl: String(raw.arl || "").trim(),
+          severanceFund: String(raw.severanceFund || "").trim(),
+          compensationFund: String(raw.compensationFund || "").trim(),
+          arlRiskLevel: String(raw.arlRiskLevel || "").trim(),
+          contributorType: String(raw.contributorType || "").trim(),
+          costCenter: String(raw.costCenter || "").trim(),
+          payFrequency: String(raw.payFrequency || "Mensual").trim(),
           baseSalary,
+          transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
           contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
           contractDuration: String(raw.contractDuration || "").trim(),
           bankName: String(raw.bankName || "").trim(),
           bankAccount: String(raw.bankAccount || "").trim(),
+          bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
           startDate: raw.startDate,
           license: String(raw.license || "").trim(),
           licenseCategory: String(raw.licenseCategory || "").trim(),
           licenseExpiry: String(raw.licenseExpiry || "").trim(),
+          psychoTestDate: String(raw.psychoTestDate || "").trim(),
+          psychoTestExpiry: String(raw.psychoTestExpiry || "").trim(),
+          defensiveCourse: String(raw.defensiveCourse || "").trim(),
           avatarUrl
         };
       };
@@ -6913,18 +9261,18 @@ function bindDynamicEvents() {
             requestedByUserId: actor?.id || "",
             requestedByName: actor?.name || "Usuario"
           });
-          notify("Solicitud de empleado enviada a autorizaciones.", "info");
+          notify(userMessage("employeeRequestQueued"), "info");
           renderPortalView();
           return;
         }
         const payload = buildPayload(avatarUrlValue);
         if (payload.workerRole === "conductor") {
           if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
-            notify("Para cargo conductor debes registrar licencia, categoria y fecha de vencimiento.", "error");
+            notify(userMessage("employeeDriverFieldsRequired"), "error");
             return;
           }
           if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-            notify("No se puede registrar conductor con licencia vencida.", "error");
+            notify(userMessage("payrollLicenseExpired"), "error");
             return;
           }
         }
@@ -6940,6 +9288,8 @@ function bindDynamicEvents() {
           try {
             await window.RecruitmentDomain.generateEmployeeContractDocx({
               contractTemplateKind: payload.contractTemplateKind,
+              contractType: payload.contractType,
+              workerRole: payload.workerRole,
               nombre_empleado: payload.name,
               cedula_empleado: payload.idDoc,
               ciudad_empleado: payload.city,
@@ -6951,12 +9301,12 @@ function bindDynamicEvents() {
               cargo_empleado: payload.position,
               signDate: payload.startDate
             });
-            notify("Empleado creado y contrato Word generado.", "success");
+            notify(userMessage("employeeCreatedWithContract"), "success");
           } catch (error) {
-            notify(`Empleado creado. No se pudo generar Word: ${error?.message || "Error desconocido"}`, "error");
+            notify(userMessage("employeeCreatedWordFail", error?.message || "Error desconocido"), "error");
           }
         } else {
-          notify("Empleado creado correctamente.", "success");
+          notify(userMessage("employeeCreatedOk"), "success");
         }
         renderPortalView();
       };
@@ -6983,7 +9333,7 @@ function bindDynamicEvents() {
       const start = new Date(`${data.startDate}T12:00:00`);
       const end = new Date(`${data.endDate}T12:00:00`);
       if (end.getTime() < start.getTime()) {
-        notify("La fecha final debe ser igual o posterior al inicio.", "error");
+        notify(userMessage("absenceDateOrder"), "error");
         return;
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
@@ -7009,13 +9359,13 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud de ausencia enviada a aprobacion de administrador.", "info");
+        notify(userMessage("absenceApprovalQueued"), "info");
         renderPortalView();
         return;
       }
       list.unshift(absencePayload);
       write(KEYS.hrAbsences, list);
-      notify("Ausencia registrada en expediente digital de RRHH.", "success");
+      notify(userMessage("absenceRecorded"), "success");
       renderPortalView();
     });
   }
@@ -7073,12 +9423,15 @@ function bindDynamicEvents() {
         onSubmit: (form) => {
           const position = getPositionById(String(form.positionId || ""));
           if (!position) {
-            notify("Selecciona un cargo valido.", "error");
+            notify(userMessage("recruitPickPosition"), "error");
             return false;
           }
           const baseSalary = parseNum(form.baseSalary);
           if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-            notify(`Salario inferior al minimo referenciado (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+            notify(
+              userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+              "error"
+            );
             return false;
           }
           write(
@@ -7104,7 +9457,7 @@ function bindDynamicEvents() {
           if (refreshed && refreshed.workerRole === "conductor") {
             syncDriverFromEmployee(refreshed);
           }
-          notify("Empleado actualizado correctamente.", "success");
+          notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
           return true;
         }
@@ -7120,7 +9473,10 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: () => {
           const removed = deleteEmployeesCascade([String(btn.dataset.id || "")]);
-          notify(removed ? "Empleado eliminado en cascada." : "No se encontro el empleado a eliminar.", removed ? "success" : "error");
+          notify(
+            removed ? userMessage("employeeDeletedCascade") : userMessage("employeeDeleteNotFound"),
+            removed ? "success" : "error"
+          );
           renderPortalView();
         }
       });
@@ -7145,7 +9501,7 @@ function bindDynamicEvents() {
       event.preventDefault();
       const selectedIds = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) => String(check.value || ""));
       if (!selectedIds.length) {
-        notify("Selecciona al menos un empleado para eliminar.", "error");
+        notify(userMessage("employeesBulkSelect"), "error");
         return;
       }
       openConfirmModal({
@@ -7154,7 +9510,7 @@ function bindDynamicEvents() {
         confirmText: "Eliminar en cascada",
         onConfirm: () => {
           const removed = deleteEmployeesCascade(selectedIds);
-          notify(`Se eliminaron ${removed} empleado(s) en cascada.`, "success");
+          notify(userMessage("employeesBulkRemoved", removed), "success");
           renderPortalView();
         }
       });
@@ -7169,7 +9525,7 @@ function bindDynamicEvents() {
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) return;
       if (!monthRange(data.month)) {
-        notify("Selecciona un mes valido para liquidar.", "error");
+        notify(userMessage("payrollSelectMonth"), "error");
         return;
       }
       const linkedDriver = employee.workerRole === "conductor" ? resolveDriverForEmployee(employee) : null;
@@ -7291,7 +9647,7 @@ function bindDynamicEvents() {
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify("Solicitud de marcacion de pago enviada a aprobacion de administrador.", "info");
+        notify(userMessage("payrollMarkPaidApprovalAdmin"), "info");
         renderPortalView();
         return;
       }
@@ -7304,7 +9660,7 @@ function bindDynamicEvents() {
             KEYS.payrollRuns,
             all.map((item) => (item.id === id ? { ...item, paid: true, paidAt: nowIso() } : item))
           );
-          notify("Liquidacion marcada como pagada.", "success");
+          notify(userMessage("payrollPaidMarked"), "success");
           renderPortalView();
         }
       });
@@ -7351,12 +9707,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
       const deadlineTs = new Date(`${String(data.deadline || "")}T12:00:00`).getTime();
       if (!Number.isFinite(deadlineTs) || deadlineTs < Date.now()) {
-        notify("La fecha límite de la vacante debe ser hoy o posterior.", "error");
+        notify(userMessage("vacancyDeadlineFuture"), "error");
         return;
       }
       const position = getPositionById(String(data.positionId || ""));
       if (!position || position.active === false) {
-        notify("Selecciona un cargo activo para publicar la vacante.", "error");
+        notify(userMessage("vacancySelectPosition"), "error");
         return;
       }
       const all = read(KEYS.vacancies, []);
@@ -7383,7 +9739,7 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(positionForm).entries());
       const minSalary = CO_HR_RULES.minMonthlySalary;
       if (parseNum(data.baseSalary) < minSalary) {
-        notify(`El salario base no puede ser inferior al minimo legal vigente (${minSalary.toLocaleString("es-CO")}).`, "error");
+        notify(userMessage("positionSalaryBaseMin", minSalary.toLocaleString("es-CO")), "error");
         return;
       }
       const all = read(KEYS.positions, []);
@@ -7398,7 +9754,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.positions, all);
-      notify("Cargo creado correctamente.", "success");
+      notify(userMessage("positionCreatedOk"), "success");
       renderPortalView();
     });
   }
@@ -7409,7 +9765,7 @@ function bindDynamicEvents() {
       const target = all.find((p) => p.id === btn.dataset.id);
       if (!target) return;
       write(KEYS.positions, all.map((p) => (p.id === target.id ? { ...p, active: target.active === false } : p)));
-      notify(target.active === false ? "Cargo activado." : "Cargo inactivado.", "info");
+      notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
       renderPortalView();
     });
   });
@@ -7421,6 +9777,38 @@ function bindDynamicEvents() {
         KEYS.vacancies,
         all.map((v) => (v.id === btn.dataset.id ? { ...v, status: "Cerrada" } : v))
       );
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-active']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.candidateFilter = "active";
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.candidateFilter = "all";
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-open']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-sort-candidates']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
       renderPortalView();
     });
   });
@@ -7445,12 +9833,15 @@ function bindDynamicEvents() {
       const files = [...candidateForm.querySelector("input[name='attachments']").files].map((f) => f.name);
       const expectedSalary = parseNum(data.expectedSalary);
       if (expectedSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`La aspiracion salarial no puede ser menor al minimo de referencia (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
+        notify(
+          userMessage("candidateSalaryAspirationMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+          "error"
+        );
         return;
       }
       const availabilityTs = new Date(`${String(data.availabilityDate || "")}T12:00:00`).getTime();
       if (!Number.isFinite(availabilityTs) || availabilityTs < new Date(new Date().toDateString()).getTime()) {
-        notify("La disponibilidad de ingreso debe ser hoy o posterior.", "error");
+        notify(userMessage("candidateAvailabilityFuture"), "error");
         return;
       }
       const all = read(KEYS.candidates, []);
@@ -7512,13 +9903,13 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(interviewForm).entries());
       const interviewTs = new Date(String(data.when || "")).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
-        notify("La entrevista debe programarse en fecha/hora futura.", "error");
+        notify(userMessage("interviewScheduleFuture"), "error");
         return;
       }
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
       if (!candidate) return;
       if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {
-        notify("No puedes programar entrevista para candidato descartado o ya contratado.", "error");
+        notify(userMessage("interviewInvalidCandidate"), "error");
         return;
       }
       const all = read(KEYS.interviews, []);
@@ -7546,289 +9937,86 @@ function bindDynamicEvents() {
 
   const contractForm = document.getElementById("form-contract");
   if (contractForm) {
-    const personSelect = contractForm.querySelector("select[name='personRef']");
-    const positionSelect = contractForm.querySelector("select[name='positionId']");
-    const companySelect = contractForm.querySelector("select[name='companyId']");
-    const salaryInput = contractForm.querySelector("input[name='salary']");
-    const contractTypeSelect = contractForm.querySelector("select[name='contractType']");
-    const syncContractFromSource = () => {
-      const sourceRef = String(personSelect?.value || "").trim();
-      if (!sourceRef) return;
-      const [sourceType, sourceId] = sourceRef.includes(":") ? sourceRef.split(":") : ["candidate", sourceRef];
-      if (sourceType === "employee") {
-        const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(sourceId || ""));
-        if (!employee) return;
-        const employeePosition = employee.positionId ? getPositionById(String(employee.positionId || "")) : null;
-        if (positionSelect && employeePosition?.active !== false) positionSelect.value = String(employeePosition.id);
-        if (companySelect && employee.companyId) companySelect.value = String(employee.companyId);
-        if (salaryInput && parseNum(employee.baseSalary) > 0) salaryInput.value = String(parseNum(employee.baseSalary));
-        if (contractTypeSelect && employee.contractType) contractTypeSelect.value = String(employee.contractType);
-      }
+    contractForm.querySelectorAll("[data-action='contract-test-docx']").forEach((btn) => {
+      btn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const kind = String(btn.dataset.template || "oficina");
+        try {
+          await generateOfficialWordContract(buildContractDocxTestPayload(kind));
+          notify(userMessage("contractTestDownloaded", kind), "success");
+        } catch (err) {
+          notify(userMessage("contractWordError", String(err?.message || err)), "error");
+        }
+      });
+    });
+    const templateSelect = contractForm.querySelector("select[name='contractTemplateKind']");
+    const employeeSelect = contractForm.querySelector("select[name='employeeId']");
+    const syncTemplateFromEmployee = () => {
+      if (!templateSelect || !employeeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
+      if (String(templateSelect.value || "").trim()) return;
+      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(employeeSelect.value || ""));
+      if (!employee) return;
+      const wr = employee.workerRole || (String(employee.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
+      templateSelect.value = window.RecruitmentDomain.inferTemplateKind(employee.contractType || "Termino indefinido", wr);
     };
-    if (positionSelect && salaryInput && contractTypeSelect) {
-      const syncContractFromPosition = () => {
-        const position = getPositionById(String(positionSelect.value || ""));
-        if (!position) return;
-        salaryInput.value = String(parseNum(position.baseSalary));
-        contractTypeSelect.value = position.contractTypeDefault || "Termino indefinido";
-      };
-      positionSelect.addEventListener("change", syncContractFromPosition);
-      syncContractFromPosition();
-    }
-    if (personSelect) {
-      personSelect.addEventListener("change", syncContractFromSource);
-      syncContractFromSource();
+    if (employeeSelect) {
+      employeeSelect.addEventListener("change", syncTemplateFromEmployee);
     }
 
-    contractForm.addEventListener("submit", (event) => {
+    contractForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(contractForm).entries());
-      const sourceRef = String(data.personRef || data.candidateId || "").trim();
-      if (!sourceRef) {
-        notify("Selecciona una persona para generar el contrato.", "error");
+      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
+      if (!employee) {
+        notify(userMessage("contractPickEmployee"), "error");
         return;
       }
-      const [sourceTypeRaw, sourceIdRaw] = sourceRef.includes(":") ? sourceRef.split(":") : ["candidate", sourceRef];
-      const sourceType = String(sourceTypeRaw || "candidate");
-      const sourceId = String(sourceIdRaw || "");
-      const candidate = sourceType === "candidate" ? read(KEYS.candidates, []).find((c) => String(c.id) === sourceId) : null;
-      const employeeSource = sourceType === "employee" ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === sourceId) : null;
-      const subject = candidate || employeeSource;
-      if (!subject) {
-        notify("No se encontro la persona seleccionada para contratar.", "error");
+      const missing = validateEmployeeContractDocFields(employee);
+      if (missing.length) {
+        notify(userMessage("contractEmployeeMissingFields", missing.join(", ")), "error");
         return;
       }
-      if (sourceType === "candidate" && String(candidate?.status || "") !== "Oferta enviada") {
-        notify("Para candidatos, primero debes pasar por entrevista y dejar estado en 'Oferta enviada'.", "error");
+      const signDate = String(data.signDate || "").trim();
+      if (!signDate) {
+        notify(userMessage("contractSignDateRequired"), "error");
         return;
       }
-      const position = getPositionById(String(data.positionId || ""));
-      if (!position || position.active === false) {
-        notify("Debes seleccionar un cargo activo para contratar.", "error");
-        return;
-      }
-      const company = getCompanyById(String(data.companyId || ""));
-      if (!company) {
-        notify("Selecciona una empresa valida para el contrato.", "error");
-        return;
-      }
-      const workerRole = String(position.workerRole || "empleado");
-      const contractType = String(data.contractType || position.contractTypeDefault || "Termino indefinido");
-      const probationMonths = Math.min(2, Math.max(0, parseNum(data.probationMonths || 0)));
-      const endDate = String(data.endDate || "").trim();
-      const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
-      if (!Number.isFinite(startDateTs) || startDateTs < new Date(new Date().toDateString()).getTime()) {
-        notify("La fecha de inicio contractual debe ser hoy o posterior.", "error");
-        return;
-      }
-      if (contractType === "Termino fijo" && !endDate) {
-        notify("Para contrato a termino fijo debes indicar fecha de finalizacion.", "error");
-        return;
-      }
-      if (endDate && new Date(`${endDate}T12:00:00`).getTime() <= new Date(`${data.startDate}T12:00:00`).getTime()) {
-        notify("La fecha final del contrato debe ser posterior al inicio.", "error");
-        return;
-      }
-      if (!String(data.eps || "").trim() || !String(data.pensionFund || "").trim() || !String(data.arl || "").trim()) {
-        notify("Debes registrar EPS, fondo de pension y ARL para cerrar contrato.", "error");
-        return;
-      }
-      const resolvedLicense = String(data.license || subject.license || "").trim();
-      const resolvedLicenseCategory = String(data.licenseCategory || subject.licenseCategory || resolvedLicense || "").trim();
-      const resolvedLicenseExpiry = String(data.licenseExpiry || subject.licenseExpiry || "").trim();
-      if (workerRole === "conductor" && (!resolvedLicense || !resolvedLicenseExpiry)) {
-        notify("Para rol conductor debes completar licencia y fecha de vencimiento.", "error");
-        return;
-      }
-      if (workerRole === "conductor" && new Date(`${resolvedLicenseExpiry}T12:00:00`).getTime() <= Date.now()) {
-        notify("No se puede contratar conductor con licencia vencida.", "error");
-        return;
-      }
-      const agreedSalary = parseNum(data.salary);
-      if (agreedSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(`El salario pactado no puede ser inferior al minimo legal vigente (${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}).`, "error");
-        return;
-      }
-      const sourceLabel = sourceType === "employee" ? "Empleado" : "Candidato";
-      const text = `CONTRATO LABORAL\nEmpleado: ${subject.name}\nCargo: ${position.name}\nSalario: ${agreedSalary}\nFecha inicio: ${data.startDate}\nFecha fin: ${endDate || "No aplica"}\nTipo contrato: ${contractType}\nPeriodo prueba (meses): ${probationMonths}\nJornada: ${data.workSchedule}\nEPS: ${data.eps}\nFondo pension: ${data.pensionFund}\nARL: ${data.arl}\nEmpresa: ${company.name}`;
-      const all = read(KEYS.contracts, []);
-      all.unshift({
-        id: uid(),
-        source: sourceLabel,
-        sourceType,
-        candidateId: sourceType === "candidate" ? subject.id : "",
-        candidateName: sourceType === "candidate" ? subject.name : "",
-        employeeId: sourceType === "employee" ? subject.id : "",
-        employeeName: sourceType === "employee" ? subject.name : "",
-        workerRole,
-        positionId: position.id,
-        position: position.name,
-        salary: agreedSalary,
-        startDate: data.startDate,
-        companyId: company.id,
-        companyName: company.name,
-        contractType,
-        probationMonths,
-        endDate,
-        workSchedule: String(data.workSchedule || "Diurna"),
-        eps: String(data.eps || "").trim(),
-        pensionFund: String(data.pensionFund || "").trim(),
-        arl: String(data.arl || "").trim(),
-        content: text,
-        createdAt: nowIso()
+      const payload = buildEmployeeContractDocxPayload(employee, {
+        contractTemplateKind: data.contractTemplateKind,
+        signDate
       });
-      write(KEYS.contracts, all);
-
-      const subjectDocRaw = subject.idDoc || subject.docId || subject.document || "";
-      const employeeDocValidation = validateColombianDocument("CC", subjectDocRaw);
-      const employees = read(KEYS.payrollEmployees, []);
-      if (sourceType === "candidate") {
-        const existingEmployee = employees.find((e) => String(e.email || "").toLowerCase() === String(subject.email || "").toLowerCase());
-        if (!existingEmployee) {
-          employees.push({
-            id: uid(),
-            name: subject.name,
-            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (subject.idDoc || subject.document || uid()),
-            documentType: subject.documentType || "CC",
-            position: position.name,
-            positionId: position.id,
-            contractType,
-            probationMonths,
-            endDate,
-            workSchedule: String(data.workSchedule || "Diurna"),
-            eps: String(data.eps || "").trim(),
-            pensionFund: String(data.pensionFund || "").trim(),
-            arl: String(data.arl || "").trim(),
-            workerRole,
-            city: subject.city || "",
-            address: subject.address || "",
-            phone: subject.phone || "",
-            emergencyContact: subject.emergencyContact || "",
-            emergencyPhone: subject.emergencyPhone || "",
-            companyId: company.id,
-            baseSalary: agreedSalary,
-            startDate: data.startDate
-          });
-          write(KEYS.payrollEmployees, employees);
-        }
-        const updatedCandidates = read(KEYS.candidates, []).map((item) =>
-          String(item.id) === String(subject.id)
-            ? { ...item, status: "Contratado", hiredAt: nowIso(), hiredByContractAt: nowIso() }
-            : item
-        );
-        write(KEYS.candidates, updatedCandidates);
-      } else {
-        write(
-          KEYS.payrollEmployees,
-          employees.map((item) =>
-            String(item.id) === String(subject.id)
-              ? {
-                  ...item,
-                  position: position.name,
-                  positionId: position.id,
-                  contractType,
-                  probationMonths,
-                  endDate,
-                  workSchedule: String(data.workSchedule || "Diurna"),
-                  eps: String(data.eps || "").trim(),
-                  pensionFund: String(data.pensionFund || "").trim(),
-                  arl: String(data.arl || "").trim(),
-                  workerRole,
-                  companyId: company.id,
-                  baseSalary: agreedSalary,
-                  startDate: data.startDate,
-                  license: resolvedLicense || item.license || "",
-                  licenseCategory: resolvedLicenseCategory || item.licenseCategory || "",
-                  licenseExpiry: resolvedLicenseExpiry || item.licenseExpiry || ""
-                }
-              : item
-          )
-        );
-      }
-
-      if (workerRole === "conductor") {
-        const drivers = read(KEYS.drivers, []);
-        const existsDriver = drivers.some((d) => String(d.idDoc || "") === String(employeeDocValidation.normalized || ""));
-        if (!existsDriver) {
-          drivers.push({
-            id: uid(),
-            name: subject.name,
-            documentType: subject.documentType || "CC",
-            idDoc: employeeDocValidation.ok ? employeeDocValidation.normalized : (subject.idDoc || uid()),
-            phone: subject.phone || "",
-            license: resolvedLicense,
-            licenseCategory: resolvedLicenseCategory || "C2",
-            licenseExpiry: resolvedLicenseExpiry,
-            city: subject.city || "",
-            emergencyContact: subject.emergencyContact || "",
-            emergencyPhone: subject.emergencyPhone || "",
-            companyId: company.id,
-            available: true,
-            hiredAt: nowIso()
-          });
-          write(KEYS.drivers, drivers);
-        }
-      }
-
-      if (subject.email) {
-        sendEmail({ to: subject.email, subject: "Oferta/Contrato generado", body: text });
-      }
-      notify(`Contrato generado para ${sourceLabel.toLowerCase()} y vinculación registrada como ${workerRole}.`, "success");
-      renderPortalView();
-    });
-  }
-
-  const employeeContractForm = document.getElementById("form-employee-contract");
-  if (employeeContractForm) {
-    employeeContractForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const data = Object.fromEntries(new FormData(employeeContractForm).entries());
-      const startDateTs = new Date(`${String(data.startDate || "")}T12:00:00`).getTime();
-      if (!Number.isFinite(startDateTs) || startDateTs < new Date(new Date().toDateString()).getTime()) {
-        notify("La fecha de inicio contractual debe ser hoy o posterior.", "error");
-        return;
-      }
-      const employee = read(KEYS.payrollEmployees, []).find((item) => item.id === data.employeeId);
-      if (!employee) return;
       const contractText =
         `CONTRATO LABORAL\n` +
-        `Empresa: Antares\n` +
         `Empleado: ${employee.name}\n` +
-        `Cédula: ${employee.idDoc}\n` +
-        `Cargo: ${employee.position}\n` +
-        `Tipo de contrato: ${data.contractType}\n` +
-        `Salario: ${data.salary}\n` +
-        `Fecha de inicio: ${data.startDate}\n` +
-        `Fecha de generación: ${new Date().toLocaleDateString("es-CO")}\n`;
-
-      const all = read(KEYS.contracts, []);
-      all.unshift({
-        id: uid(),
-        employeeId: employee.id,
-        employeeName: employee.name,
-        position: employee.position,
-        salary: data.salary,
-        startDate: data.startDate,
-        source: "Empleado",
-        content: contractText,
-        createdAt: nowIso()
-      });
-      write(KEYS.contracts, all);
-
-      const popup = window.open("", "_blank", "width=800,height=900");
-      popup.document.write(`
-        <html>
-          <head><title>Contrato ${employee.name}</title></head>
-          <body style="font-family:Arial;padding:28px">
-            <h1>Contrato laboral</h1>
-            <pre style="white-space:pre-wrap;font-size:15px;line-height:1.6">${contractText}</pre>
-            <p>Firma empresa: ____________________</p>
-            <p>Firma empleado: ___________________</p>
-            <script>window.print();</script>
-          </body>
-        </html>
-      `);
-      popup.document.close();
+        `Cedula: ${employee.idDoc}\n` +
+        `Cargo: ${payload.cargo_empleado}\n` +
+        `Tipo: ${payload.contractType}\n` +
+        `Plantilla: ${payload.contractTemplateKind}\n` +
+        `Salario: ${payload.salario}\n` +
+        `Firma constancia: ${signDate}\n`;
+      try {
+        await generateOfficialWordContract(payload);
+        const all = read(KEYS.contracts, []);
+        all.unshift({
+          id: uid(),
+          employeeId: employee.id,
+          employeeName: employee.name,
+          position: payload.cargo_empleado,
+          salary: payload.salario,
+          startDate: signDate,
+          contractType: payload.contractType,
+          contractTemplateKind: payload.contractTemplateKind,
+          idDocSnapshot: String(employee.idDoc || "").trim(),
+          workerRole: payload.workerRole,
+          source: "Empleado",
+          content: contractText,
+          createdAt: nowIso()
+        });
+        write(KEYS.contracts, all);
+        notify(userMessage("contractWordSaved"), "success");
+      } catch (wordErr) {
+        notify(userMessage("contractWordError", String(wordErr?.message || "error")), "error");
+      }
       renderPortalView();
     });
   }
@@ -7840,12 +10028,12 @@ function bindDynamicEvents() {
       const data = Object.fromEntries(new FormData(sstComplianceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
-        notify("Selecciona un empleado valido para el control.", "error");
+        notify(userMessage("sstPickEmployee"), "error");
         return;
       }
       const dueDate = String(data.dueDate || "");
       if (!dueDate) {
-        notify("Debes indicar la fecha de vencimiento/control.", "error");
+        notify(userMessage("sstDueDateRequired"), "error");
         return;
       }
       const list = read(KEYS.sstCompliance, []);
@@ -7863,13 +10051,30 @@ function bindDynamicEvents() {
         createdBy: currentUser()?.name || "Sistema"
       });
       write(KEYS.sstCompliance, list);
-      notify("Control de cumplimiento/SST registrado.", "success");
+      notify(userMessage("sstRecorded"), "success");
       renderPortalView();
     });
   }
 
   const profileForm = document.getElementById("form-profile");
   if (profileForm) {
+    const profileAvatarInput = document.getElementById("profile-avatar-input");
+    const profileAvatarLabel = document.querySelector('label[for="profile-avatar-input"]');
+    if (profileAvatarInput && profileAvatarLabel) {
+      profileAvatarInput.addEventListener("change", () => {
+        const f = profileAvatarInput.files?.[0];
+        if (!f || !String(f.type || "").startsWith("image/")) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const url = String(reader.result || "");
+          profileAvatarLabel.style.backgroundImage = url ? `url(${JSON.stringify(url)})` : "";
+          profileAvatarLabel.classList.toggle("has-image", Boolean(url));
+          const initial = profileAvatarLabel.querySelector(".profile-avatar-initial");
+          if (initial) initial.textContent = "";
+        };
+        reader.readAsDataURL(f);
+      });
+    }
     profileForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -7889,6 +10094,11 @@ function bindDynamicEvents() {
                   name: String(data.name || u.name).trim(),
                   phone: String(data.phone || "").trim(),
                   taxId: String(data.taxId || "").trim(),
+                  documentType: String(data.documentType || u.documentType || "CC"),
+                  birthDate: String(data.birthDate || "").trim(),
+                  emergencyContact: String(data.emergencyContact || "").trim(),
+                  emergencyPhone: String(data.emergencyPhone || "").trim(),
+                  emergencyRelation: String(data.emergencyRelation || "").trim(),
                   companyId: company?.id || u.companyId,
                   company: company?.name || u.company,
                   avatarUrl: avatarUrlValue || u.avatarUrl || ""
@@ -7896,7 +10106,7 @@ function bindDynamicEvents() {
               : u
           )
         );
-        notify("Perfil actualizado correctamente.", "success");
+        notify(userMessage("profileUpdatedOk"), "success");
         renderPortal();
       };
       if (file) {
@@ -7918,29 +10128,36 @@ function bindDynamicEvents() {
       if (!approval || !actor || actor.role !== ROLES.ADMIN) return;
 
       if (approval.type === "create_user") {
+        const pwPol = validatePasswordPolicy(approval.payload.password || "");
+        if (!pwPol.ok) {
+          notify(userMessage(pwPol.key), "error");
+          return;
+        }
         const users = read(KEYS.users, []);
         if (!users.some((u) => normalizeEmail(u.email) === normalizeEmail(approval.payload.email))) {
+          const p = approval.payload;
+          const compName = p.companyName || getCompanyById(p.companyId)?.name || "";
           users.push({
             id: uid(),
-            name: approval.payload.name,
-            email: normalizeEmail(approval.payload.email),
-            password: await hashPassword(approval.payload.password || "Cambio123!"),
-            role: approval.payload.role,
-            documentType: approval.payload.documentType || "CC",
-            personType: approval.payload.personType || "Natural",
-            documentIssuedAt: approval.payload.documentIssuedAt || "",
+            name: normalizeLatinForDb(p.name),
+            email: normalizeEmail(p.email),
+            password: await hashPassword(p.password),
+            role: p.role,
+            documentType: p.documentType || "CC",
+            personType: normalizePersonTypeForDb(p.personType),
+            documentIssuedAt: p.documentIssuedAt || "",
             accountStatus: ACCOUNT_STATUS.APROBADO,
-            company: approval.payload.companyName || getCompanyById(approval.payload.companyId)?.name || "",
-            companyId: approval.payload.companyId,
-            taxId: approval.payload.taxId,
-            phone: approval.payload.phone,
-            city: approval.payload.city || "",
-            department: approval.payload.department || "",
-            address: approval.payload.address || "",
+            company: normalizeLatinForDb(compName),
+            companyId: p.companyId,
+            taxId: p.taxId,
+            phone: normalizeLatinForDb(p.phone || ""),
+            city: normalizeLatinForDb(p.city || ""),
+            department: normalizeLatinForDb(p.department || ""),
+            address: normalizeLatinForDb(p.address || ""),
             permissions:
-              approval.payload.role === ROLES.ADMIN
+              p.role === ROLES.ADMIN
                 ? [...ALL_PERMISSIONS]
-                : (approval.payload.permissions || defaultPermissionsForRole(approval.payload.role))
+                : (p.permissions || defaultPermissionsForRole(p.role))
           });
           write(KEYS.users, users);
         }
@@ -7993,13 +10210,13 @@ function bindDynamicEvents() {
       } else if (approval.type === "mark_payroll_paid") {
         const payrollRunId = String(approval.payload?.payrollRunId || "");
         if (!payrollRunId) {
-          notify("Solicitud de pago sin liquidacion asociada.", "error");
+          notify(userMessage("paymentNoSettlement"), "error");
           return;
         }
         const runs = read(KEYS.payrollRuns, []);
         const targetRun = runs.find((r) => r.id === payrollRunId);
         if (!targetRun) {
-          notify("No se encontro la liquidacion solicitada.", "error");
+          notify(userMessage("settlementNotFound"), "error");
           return;
         }
         write(
@@ -8008,14 +10225,17 @@ function bindDynamicEvents() {
         );
       } else if (approval.type === "approve_trip_request") {
         const requestId = String(approval.payload.requestId || "");
-        const request = read(KEYS.requests, []).find((item) => item.id === requestId);
+        const request = reqRead().find((item) => item.id === requestId);
         if (!request) {
-          notify("No se encontro la solicitud asociada a esta autorizacion.", "error");
+          notify(userMessage("approvalLinkedRequestMissing"), "error");
           return;
         }
 
         const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
+        const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
+        const driverCandidates = getDriverCandidatesForRequest(request, requestId);
+        const configuredTripValue = getConfiguredTripValue(request);
 
         openEditModal({
           title: "Aprobar solicitud de viaje",
@@ -8028,9 +10248,9 @@ function bindDynamicEvents() {
               type: "select",
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
-                ...compatibleVehicles.map((vehicle) => ({
+                ...vehicleCandidates.map((vehicle) => ({
                   value: vehicle.id,
-                  label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}`
+                  label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
                 }))
               ]
             },
@@ -8040,28 +10260,44 @@ function bindDynamicEvents() {
               type: "select",
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
-                ...compatibleDrivers.map((driver) => ({
+                ...driverCandidates.map((driver) => ({
                   value: driver.id,
-                  label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
+                  label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
                 }))
               ]
+            },
+            {
+              name: "tripValue",
+              label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
+              type: "number",
+              required: false,
+              value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
             }
           ],
           onSubmit: (form) => {
             const vehicleId = String(form.vehicleId || "").trim();
             const driverId = String(form.driverId || "").trim();
+            const tripValue = parseNum(form.tripValue);
 
             if ((vehicleId && !driverId) || (!vehicleId && driverId)) {
-              notify("Para asignar automaticamente debes seleccionar camion y conductor.", "error");
+              notify(userMessage("assignAutoPickResources"), "error");
+              return false;
+            }
+            if (vehicleId && driverId && tripValue <= 0) {
+              notify(userMessage("assignPriceRequired"), "error");
+              return false;
+            }
+            if (vehicleId && driverId && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
+              notify(userMessage("assignResourcesBusy"), "error");
               return false;
             }
 
             const ok = vehicleId && driverId
-              ? approveRequest(requestId, actor.name, false, vehicleId, driverId)
+              ? approveRequest(requestId, actor.name, false, vehicleId, driverId, tripValue)
               : approveRequest(requestId, actor.name, true);
 
             if (!ok) {
-              notify("No fue posible aprobar la solicitud con los recursos seleccionados.", "error");
+              notify(userMessage("approvalResourcesFailed"), "error");
               return false;
             }
 
@@ -8074,9 +10310,7 @@ function bindDynamicEvents() {
             );
 
             notify(
-              vehicleId && driverId
-                ? "Autorizacion aprobada y viaje asignado correctamente."
-                : "Autorizacion aprobada. Solicitud pendiente de asignacion manual de viaje.",
+              vehicleId && driverId ? userMessage("authApprovalWithTrip") : userMessage("authApprovalPendingManual"),
               "success"
             );
             renderPortalView();
@@ -8091,7 +10325,7 @@ function bindDynamicEvents() {
           a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
         )
       );
-      notify("Autorizacion aprobada.", "success");
+      notify(userMessage("authApprovalOk"), "success");
       renderPortalView();
     });
   });
@@ -8117,7 +10351,7 @@ function bindDynamicEvents() {
                 : a
             )
           );
-          notify("Autorizacion rechazada.", "success");
+          notify(userMessage("authRejectOk"), "success");
           renderPortalView();
           return true;
         }
@@ -8126,21 +10360,66 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='view-contract']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const c = read(KEYS.contracts, []).find((x) => x.id === btn.dataset.id);
       if (!c) return;
-      const popup = window.open("", "_blank", "width=800,height=900");
-      popup.document.write(`
+      const employee = c.employeeId ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(c.employeeId)) : null;
+      const displayName = c.candidateName || c.employeeName || employee?.name || "Contrato";
+      const docId = String(c.idDocSnapshot || employee?.idDoc || "").trim();
+      const salaryVal = parseNum(c.salary);
+      const templateKind = String(c.contractTemplateKind || "").trim().toLowerCase();
+      const contractType = String(c.contractType || employee?.contractType || "").trim();
+      const workerRole = String(c.workerRole || employee?.workerRole || "empleado");
+
+      try {
+        if (employee && validateEmployeeContractDocFields(employee).length === 0) {
+          await generateOfficialWordContract(
+            buildEmployeeContractDocxPayload(employee, {
+              contractTemplateKind: templateKind,
+              signDate: c.startDate || employee.startDate
+            })
+          );
+        } else {
+          const salLet =
+            salaryVal > 0 && window.RecruitmentDomain?.formatSalarioLetrasPesos
+              ? window.RecruitmentDomain.formatSalarioLetrasPesos(salaryVal)
+              : "";
+          await generateOfficialWordContract({
+            contractTemplateKind: templateKind,
+            contractType,
+            workerRole,
+            nombre_empleado: displayName,
+            cedula_empleado: docId,
+            ciudad_empleado: String(employee?.city || c.companyName || "").trim(),
+            banco_cuenta_bancaria: String(employee?.bankName || "").trim(),
+            cuenta_bancaria: String(employee?.bankAccount || "").trim(),
+            salario: salaryVal,
+            salario_letras: salLet || "",
+            duracion_contrato: describeContractDurationForDocx({
+              contractType: contractType || "Termino indefinido",
+              startDate: c.startDate || "",
+              endDate: c.endDate || ""
+            }),
+            cargo_empleado: String(c.position || employee?.position || ""),
+            signDate: c.startDate
+          });
+        }
+        notify(userMessage("wordTemplatesRedownloaded"), "success");
+      } catch (err) {
+        const popup = window.open("", "_blank", "width=800,height=900");
+        popup.document.write(`
         <html>
           <head><title>Contrato</title></head>
           <body style="font-family:Arial;padding:28px">
-            <h1>Contrato laboral</h1>
+            <h1>Contrato laboral (resumen interno)</h1>
+            <p class="muted">No se pudo regenerar el Word: ${String(err?.message || err).replace(/</g, "&lt;")}</p>
             <pre style="white-space:pre-wrap;font-size:15px;line-height:1.6">${c.content}</pre>
             <script>window.print();</script>
           </body>
         </html>
       `);
-      popup.document.close();
+        popup.document.close();
+      }
     });
   });
 }
@@ -8161,13 +10440,60 @@ function initGlobalEvents() {
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const mainNav = document.getElementById("main-nav");
   if (hamburgerBtn && mainNav) {
-    hamburgerBtn.addEventListener("click", () => {
+    const syncPublicNavDrawer = () => {
+      const open = mainNav.classList.contains("nav-open");
+      document.body.classList.toggle("public-nav-open", open);
+      hamburgerBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+    hamburgerBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
       mainNav.classList.toggle("nav-open");
+      syncPublicNavDrawer();
     });
     mainNav.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => mainNav.classList.remove("nav-open"));
+      link.addEventListener("click", () => {
+        mainNav.classList.remove("nav-open");
+        syncPublicNavDrawer();
+      });
+    });
+    document.addEventListener("click", (event) => {
+      if (!mainNav.classList.contains("nav-open")) return;
+      const t = event.target;
+      if (mainNav.contains(t) || hamburgerBtn.contains(t)) return;
+      mainNav.classList.remove("nav-open");
+      syncPublicNavDrawer();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !mainNav.classList.contains("nav-open")) return;
+      mainNav.classList.remove("nav-open");
+      syncPublicNavDrawer();
+      hamburgerBtn.focus();
+    });
+    window.addEventListener("resize", () => {
+      if (!window.matchMedia("(min-width: 921px)").matches) return;
+      if (!mainNav.classList.contains("nav-open")) return;
+      mainNav.classList.remove("nav-open");
+      syncPublicNavDrawer();
     });
   }
+
+  const portalMenuBtn = document.getElementById("portal-menu-btn");
+  const portalBackdrop = document.getElementById("portal-nav-backdrop");
+  if (portalMenuBtn && portalBackdrop) {
+    portalMenuBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setPortalDrawerOpen(!document.body.classList.contains("portal-drawer-open"));
+    });
+    portalBackdrop.addEventListener("click", () => setPortalDrawerOpen(false));
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 920) setPortalDrawerOpen(false);
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !document.body.classList.contains("portal-drawer-open")) return;
+    setPortalDrawerOpen(false);
+    document.getElementById("portal-menu-btn")?.focus();
+  });
 
   if (nodes.themeButtonsPublic.length || nodes.themeButtonsPortal.length) {
     [...nodes.themeButtonsPublic, ...nodes.themeButtonsPortal].forEach((btn) => {
@@ -8201,11 +10527,8 @@ function initGlobalEvents() {
       renderAuthTab();
     })
   );
-  nodes.authModal.addEventListener("click", (event) => {
-    if (event.target === nodes.authModal) hideAuth();
-  });
 
-  nodes.b2bForm.addEventListener("submit", (event) => {
+  nodes.b2bForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
@@ -8246,7 +10569,7 @@ function initGlobalEvents() {
       if (firstError === "phone") jumpToStepForField("input[name='phone']");
       if (firstError === "message") jumpToStepForField("textarea[name='message']");
       if (firstError === "volume") jumpToStepForField("input[name='monthlyVolumeKg']");
-      notify("Revisa los campos marcados para enviar tu solicitud B2B.", "error");
+      notify(userMessage("b2bFieldsInvalid"), "error");
       return;
     }
 
@@ -8254,17 +10577,41 @@ function initGlobalEvents() {
     data.phone = formatColombianPhone(data.phone);
     data.message = messageValue;
     data.monthlyVolumeKg = monthlyVolume;
-    const all = read(KEYS.contacts, []);
-    all.unshift({ id: uid(), ...data, createdAt: nowIso() });
-    write(KEYS.contacts, all);
-    sendEmail({ to: "comercial@antarescargo.com", subject: "Nuevo lead B2B", body: JSON.stringify(data) });
-    nodes.b2bForm.reset();
-    if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
-    notify("Contacto enviado. Gracias por escribirnos.", "success");
+
+    const api = window.AntaresApi;
+    const apiBase = typeof api?.getBase === "function" ? api.getBase() : "";
+    if (!apiBase || typeof api?.postJsonPublic !== "function") {
+      notify(userMessage("b2bApiMissing"), "error");
+      return;
+    }
+    try {
+      await api.postJsonPublic("/public/b2b-prospect", {
+        name: data.name,
+        company: data.company,
+        taxId: data.taxId,
+        position: data.position,
+        phone: data.phone,
+        email: data.email,
+        serviceType: data.serviceType,
+        operationType: data.operationType,
+        operationFrequency: data.operationFrequency,
+        startWindow: data.startWindow,
+        monthlyVolumeKg: monthlyVolume,
+        message: messageValue
+      });
+      nodes.b2bForm.reset();
+      if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
+      notify(userMessage("b2bContactSent"), "success");
+    } catch (err) {
+      notify(String(err?.message || userMessage("b2bServerError")), "error");
+    }
   });
 
   nodes.sideLinks.forEach((link) => {
-    link.addEventListener("click", () => setView(link.dataset.view));
+    link.addEventListener("click", () => {
+      setView(link.dataset.view);
+      setPortalDrawerOpen(false);
+    });
   });
 
   window.addEventListener("hashchange", () => {
@@ -8394,7 +10741,7 @@ function openPublicVacancyApplyModal(vacancy) {
     onSubmit: (form) => {
       const vac = read(KEYS.vacancies, []).find((x) => x.id === form.vacancyId);
       if (!vac || vac.status !== "Publicada") {
-        notify("Esta vacante ya no esta disponible.", "error");
+        notify(userMessage("vacancyPublicClosed"), "error");
         return false;
       }
       const docValidation = validateColombianDocument(form.documentType, form.idDoc);
@@ -8431,7 +10778,7 @@ function openPublicVacancyApplyModal(vacancy) {
         "Nueva postulacion (web)",
         `${form.name} aplico a "${vac.title}". Revise Contratacion · Pipeline de candidatos.`
       );
-      notify("Candidatura enviada. Revisa tu correo para la confirmacion.", "success");
+      notify(userMessage("candidacySentOk"), "success");
       return true;
     }
   });
@@ -8591,23 +10938,44 @@ window.AppLegacyViews = {
   adminUsersHtml,
   authorizationsHtml,
   profileHtml,
-  notificationsHtml
+  notificationsHtml,
+  contactLeadsHtml
 };
 
-seed();
-ensureUsersPasswordHashing();
+/** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */
+window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi() {
+  if (!getSession()) return;
+  scheduleRenderPortalView();
+  updateNotificationBadge();
+};
+
+initPortalClientStorage();
 initGlobalEvents();
 initPublicEffects();
-if (window.DomainRegistry?.list) {
-  const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
-  if (missingDomains.length) {
-    console.warn("Dominios sin inicializar:", missingDomains.join(", "));
+
+void (async function bootApplicationFromDatabaseThenUi() {
+  try {
+    if (window.PortalDataLayer?.refreshCacheFromApi) {
+      await window.PortalDataLayer.refreshCacheFromApi();
+    } else {
+      await applyPortalBootstrapFromApi();
+    }
+  } catch (_e) {
+    /* refreshCacheFromApi / applyPortalBootstrapFromApi ya registran fallos */
   }
-}
-renderPortal();
-setInterval(() => {
-  if (!state.session) return;
-  updateAutoApprove();
-  if (hasUnsavedPortalFormData()) return;
-  renderPortalView();
-}, 30000);
+  await ensureUsersPasswordHashing();
+  if (window.DomainRegistry?.list) {
+    const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
+    if (missingDomains.length) {
+      devWarn("Dominios sin inicializar:", missingDomains.join(", "));
+    }
+  }
+  renderPortal();
+  window.PortalDataLayer?.enableVisibilityRefresh?.();
+  setInterval(() => {
+    if (!state.session) return;
+    updateAutoApprove();
+    if (hasUnsavedPortalFormData()) return;
+    renderPortalView();
+  }, 30000);
+})();
