@@ -80,10 +80,10 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const firstName = this.normalizeDbText(dto.firstName) ?? "";
-    const middleName = this.normalizeDbText(dto.middleName);
-    const lastName = this.normalizeDbText(dto.lastName) ?? "";
-    const secondLastName = this.normalizeDbText(dto.secondLastName);
+    const firstName = this.normalizeDbTextUpper(dto.firstName) ?? "";
+    const middleName = this.normalizeDbTextUpper(dto.middleName);
+    const lastName = this.normalizeDbTextUpper(dto.lastName) ?? "";
+    const secondLastName = this.normalizeDbTextUpper(dto.secondLastName);
     const fullName = [firstName, middleName, lastName, secondLastName]
       .map((s) => String(s || "").trim())
       .filter(Boolean)
@@ -99,13 +99,13 @@ export class AuthService {
     let numeroPersonal: string | null = null;
     let nitEmpresa: string | null = null;
     if (docType === "NIT") {
-      nitEmpresa = this.normalizeDbText(dto.companyNit) || this.normalizeDbText(dto.taxId);
-      numeroPersonal = this.normalizeDbText(dto.personalTaxId);
+      nitEmpresa = this.normalizeDbTextUpper(dto.companyNit) || this.normalizeDbTextUpper(dto.taxId);
+      numeroPersonal = this.normalizeDbTextUpper(dto.personalTaxId);
       if (!nitEmpresa || !numeroPersonal) {
         throw new BadRequestException("Indique NIT de empresa y cédula del usuario.");
       }
     } else {
-      numeroPersonal = this.normalizeDbText(dto.taxId);
+      numeroPersonal = this.normalizeDbTextUpper(dto.taxId);
       if (!numeroPersonal) {
         throw new BadRequestException("Indique el número de documento.");
       }
@@ -146,17 +146,17 @@ export class AuthService {
         lastName || null,
         secondLastName,
         this.normalizePersonTypeForDb(dto.personType),
-        this.normalizeDbText(dto.documentType),
+        this.normalizeDbTextUpper(dto.documentType),
         numeroPersonal,
         nitEmpresa,
         dto.birthDate || null,
-        this.normalizeDbText(dto.gender),
-        this.normalizeDbText(dto.position),
-        this.normalizeDbText(dto.workArea),
-        this.normalizeDbText(dto.phone),
+        this.normalizeDbTextUpper(dto.gender),
+        this.normalizeDbTextUpper(dto.position),
+        this.normalizeDbTextUpper(dto.workArea),
+        this.normalizeDbTextUpper(dto.phone),
         this.normalizeDbText(dto.department),
         this.normalizeDbText(dto.city),
-        this.normalizeDbText(dto.address),
+        this.normalizeDbTextUpper(dto.address),
         JSON.stringify(checklist)
       ]
     );
@@ -244,6 +244,13 @@ export class AuthService {
       hash,
       userId
     ]);
+  }
+
+  /** Texto libre (nombres, dirección, etc.): mayúsculas + sin tildes. No usar en departamento/ciudad (catálogo). */
+  private normalizeDbTextUpper(value: string | undefined | null): string | null {
+    const t = this.normalizeDbText(value);
+    if (!t) return null;
+    return t.toUpperCase();
   }
 
   /** tipo_persona solo "Natural" | "Juridica": igualdad en SQL sin LOWER() ni índices funcionales. */

@@ -1557,6 +1557,11 @@ function normalizeLatinForDb(value) {
     .replace(/Ñ/g, "N");
 }
 
+/** Nombres, cargo, dirección, etc.: mayúsculas + sin tildes (uniforme en BD y listados). No usar en correo/contraseña ni en valores de catálogo (departamento/ciudad). */
+function normalizeLatinUpperForDb(value) {
+  return normalizeLatinForDb(value).toUpperCase();
+}
+
 /** tipo_persona siempre "Natural" | "Juridica": una sola forma al persistir; las consultas usan = sin LOWER(). */
 function normalizePersonTypeForDb(value) {
   const k = normalizeLatinForDb(value).toLowerCase();
@@ -2620,10 +2625,10 @@ function bindAuthForms() {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(register).entries());
       const fullName = [
-        normalizeLatinForDb(data.firstName),
-        normalizeLatinForDb(data.middleName),
-        normalizeLatinForDb(data.lastName),
-        normalizeLatinForDb(data.secondLastName)
+        normalizeLatinUpperForDb(data.firstName),
+        normalizeLatinUpperForDb(data.middleName),
+        normalizeLatinUpperForDb(data.lastName),
+        normalizeLatinUpperForDb(data.secondLastName)
       ]
         .map((s) => String(s || "").trim())
         .filter(Boolean)
@@ -2703,23 +2708,23 @@ function bindAuthForms() {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({
-              firstName: normalizeLatinForDb(data.firstName),
-              middleName: normalizeLatinForDb(data.middleName || ""),
-              lastName: normalizeLatinForDb(data.lastName),
-              secondLastName: normalizeLatinForDb(data.secondLastName || ""),
+              firstName: normalizeLatinUpperForDb(data.firstName),
+              middleName: normalizeLatinUpperForDb(data.middleName || ""),
+              lastName: normalizeLatinUpperForDb(data.lastName),
+              secondLastName: normalizeLatinUpperForDb(data.secondLastName || ""),
               personType: data.personType,
-              documentType: normalizeLatinForDb(data.documentType),
+              documentType: normalizeLatinUpperForDb(data.documentType),
               taxId: data.taxId,
               companyNit: data.companyNit || "",
               personalTaxId: data.personalTaxId || "",
               birthDate: data.birthDate,
-              gender: normalizeLatinForDb(data.gender),
-              position: normalizeLatinForDb(data.position),
-              workArea: normalizeLatinForDb(data.workArea),
-              phone: normalizeLatinForDb(data.phone),
+              gender: normalizeLatinUpperForDb(data.gender),
+              position: normalizeLatinUpperForDb(data.position),
+              workArea: normalizeLatinUpperForDb(data.workArea),
+              phone: normalizeLatinUpperForDb(data.phone),
               department: normalizeLatinForDb(data.department),
               city: normalizeLatinForDb(data.city),
-              address: normalizeLatinForDb(data.address),
+              address: normalizeLatinUpperForDb(data.address),
               email: data.email,
               password: data.password,
               acceptTerms: Boolean(data.acceptTerms)
@@ -2755,22 +2760,22 @@ function bindAuthForms() {
       const newUser = {
         id: uid(),
         ...profileData,
-        firstName: normalizeLatinForDb(data.firstName),
-        middleName: normalizeLatinForDb(data.middleName || ""),
-        lastName: normalizeLatinForDb(data.lastName),
-        secondLastName: normalizeLatinForDb(data.secondLastName || ""),
+        firstName: normalizeLatinUpperForDb(data.firstName),
+        middleName: normalizeLatinUpperForDb(data.middleName || ""),
+        lastName: normalizeLatinUpperForDb(data.lastName),
+        secondLastName: normalizeLatinUpperForDb(data.secondLastName || ""),
         personType: data.personType,
-        documentType: normalizeLatinForDb(data.documentType),
-        companyNit: isJuridica ? normalizeLatinForDb(data.companyNit || "") : "",
-        personalTaxId: isJuridica ? normalizeLatinForDb(data.personalTaxId || "") : "",
+        documentType: normalizeLatinUpperForDb(data.documentType),
+        companyNit: isJuridica ? normalizeLatinUpperForDb(data.companyNit || "") : "",
+        personalTaxId: isJuridica ? normalizeLatinUpperForDb(data.personalTaxId || "") : "",
         personalDoc: String(personalDocStored || ""),
-        gender: normalizeLatinForDb(data.gender),
-        position: normalizeLatinForDb(data.position),
-        workArea: normalizeLatinForDb(data.workArea),
-        phone: normalizeLatinForDb(data.phone),
+        gender: normalizeLatinUpperForDb(data.gender),
+        position: normalizeLatinUpperForDb(data.position),
+        workArea: normalizeLatinUpperForDb(data.workArea),
+        phone: normalizeLatinUpperForDb(data.phone),
         department: normalizeLatinForDb(data.department),
         city: normalizeLatinForDb(data.city),
-        address: normalizeLatinForDb(data.address),
+        address: normalizeLatinUpperForDb(data.address),
         name: fullName,
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),

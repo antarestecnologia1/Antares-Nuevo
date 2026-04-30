@@ -2581,6 +2581,17 @@ tbody tr:last-child td { border-bottom: none; }
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+/* Mayúsculas solo en pantalla; el valor enviado se normaliza en JS. Correo en minúsculas; fecha y contraseña sin forzar. */
+.auth-register-form input:not([type="password"]):not([type="email"]):not([type="date"]):not([type="checkbox"]),
+.auth-register-form select {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.auth-register-form input[type="email"] {
+  text-transform: lowercase;
+}
+
 .auth-register-form .full {
   grid-column: 1 / -1;
 }
