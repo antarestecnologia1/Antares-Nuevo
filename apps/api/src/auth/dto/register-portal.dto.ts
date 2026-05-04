@@ -1,5 +1,5 @@
 import { Transform } from "class-transformer";
-import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, MaxLength, MinLength } from "class-validator";
 
 /** Cadenas vacías del JSON → undefined (class-validator trata "" como valor presente). */
 function emptyToUndefined({ value }: { value: unknown }) {
@@ -44,6 +44,12 @@ export class RegisterPortalDto {
   @Transform(emptyToUndefined)
   @IsOptional()
   personalTaxId?: string;
+
+  /** CC | CE del representante cuando personType es jurídica (formulario `personalDocumentType`). */
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @MaxLength(8)
+  personalDocumentType?: string;
 
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
   @IsNotEmpty()

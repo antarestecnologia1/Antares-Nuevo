@@ -56,6 +56,23 @@ const APPROVE_VALID_ROLES = new Set([
   "lider_administrativo"
 ]);
 
+/** Formulario vs bootstrap pueden usar distinto nombre de propiedad para el mismo dato. */
+function pickPortalField(obj: Record<string, unknown>, ...keys: string[]): unknown {
+  for (const k of keys) {
+    if (!(k in obj)) continue;
+    const v = obj[k];
+    if (v === undefined || v === null) continue;
+    if (typeof v === "string" && v.trim() === "") continue;
+    return v;
+  }
+  return undefined;
+}
+
+function portalDateOrNull(v: unknown): string | null {
+  if (v === undefined || v === null || v === "") return null;
+  return String(v);
+}
+
 @Injectable()
 export class PortalService {
   private readonly supabaseAdmin;
@@ -1065,9 +1082,11 @@ export class PortalService {
       employeeId: row.id_empleado,
       employeeName: row.nombre_empleado,
       type: row.tipo_ausencia,
+      absenceType: row.tipo_ausencia,
       startDate: row.fecha_inicio,
       endDate: row.fecha_fin,
       calendarDays: row.dias_calendario,
+      days: row.dias_calendario,
       supportNumber: row.numero_soporte,
       epsEntity: row.entidad_eps,
       notes: row.observaciones,
@@ -1424,20 +1443,46 @@ export class PortalService {
 
   private async syncDrivers(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    for (const d of data) {
+    for (const raw of data) {
+      const d = raw as Record<string, unknown>;
       if (!d?.id) continue;
+      const p = pickPortalField;
+      const hiredRaw = p(d, "hiredAt");
+      const hiredTs =
+        hiredRaw != null && String(hiredRaw).trim() !== ""
+          ? new Date(String(hiredRaw))
+          : null;
+      const hiredOk = hiredTs && !Number.isNaN(hiredTs.getTime()) ? hiredTs : null;
       await c.query(
         `INSERT INTO conductores (
           id, id_empresa, nombre_completo, tipo_documento, numero_documento, telefono, departamento, ciudad, direccion,
-          numero_licencia, categoria_licencia, fecha_vencimiento_licencia, disponible, ocupado_por_sistema,
-          tipo_contrato, salario_base, fecha_inicio
+          numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
+          fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          contacto_emergencia, telefono_emergencia,
+          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date, $13, $14, $15, $16, $17::date
+          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
+          $13::date, $14::date, $15, $16, $17, $18, $19, $20, $21, $22::date, $23::timestamptz
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
           telefono = EXCLUDED.telefono,
-          disponible = EXCLUDED.disponible`,
+          departamento = EXCLUDED.departamento,
+          ciudad = EXCLUDED.ciudad,
+          direccion = EXCLUDED.direccion,
+          numero_licencia = EXCLUDED.numero_licencia,
+          categoria_licencia = EXCLUDED.categoria_licencia,
+          fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
+          fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
+          fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
+          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          contacto_emergencia = EXCLUDED.contacto_emergencia,
+          telefono_emergencia = EXCLUDED.telefono_emergencia,
+          disponible = EXCLUDED.disponible,
+          tipo_contrato = EXCLUDED.tipo_contrato,
+          salario_base = EXCLUDED.salario_base,
+          fecha_inicio = EXCLUDED.fecha_inicio,
+          fecha_contratacion = EXCLUDED.fecha_contratacion`,
         [
           d.id,
           d.companyId || null,
@@ -1451,11 +1496,17 @@ export class PortalService {
           d.license || "N",
           d.licenseCategory || "C2",
           d.licenseExpiry || new Date().toISOString().slice(0, 10),
+          portalDateOrNull(p(d, "psychometricExamDate")),
+          portalDateOrNull(p(d, "psychometricExpiry")),
+          (p(d, "defensiveDrivingCourse") as string) || null,
+          (p(d, "emergencyContact") as string) || null,
+          (p(d, "emergencyPhone") as string) || null,
           d.available !== false,
           Boolean(d.autoBusy),
           d.contractType || null,
           d.baseSalary != null ? Number(d.baseSalary) : null,
-          d.startDate || null
+          portalDateOrNull(d.startDate),
+          hiredOk
         ]
       );
     }
@@ -1491,40 +1542,153 @@ export class PortalService {
 
   private async syncPayrollEmployees(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    for (const e of data) {
+    for (const raw of data) {
+      const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
+      const p = pickPortalField;
+      const name = String(e.name ?? "").trim() || "Empleado";
+      const docType = String(e.documentType || "CC");
+      const idDoc = String(e.idDoc || "0");
+      const city = String(p(e, "city") ?? "Bogota");
+      const address = String(p(e, "address") ?? "N/D");
+      const phone = String(p(e, "phone") ?? "3000000000");
+      const emContact = String(p(e, "emergencyContact") ?? "N/D");
+      const emPhone = String(p(e, "emergencyPhone") ?? "3000000000");
+      const emRel = String(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar");
+      const posText = String(p(e, "position") ?? "Empleado");
+      const contract = String(p(e, "contractType") ?? "Indefinido");
+      const start = String(p(e, "startDate") ?? new Date().toISOString().slice(0, 10));
+      const base = Number(p(e, "baseSalary")) || 0;
+      const bank = String(p(e, "bankName", "bank") ?? "Bancolombia");
+      const acctNum = String(p(e, "bankAccount", "accountNumber") ?? "0");
+      const acctType = String(p(e, "bankAccountType", "accountType") ?? "Ahorros");
+      const eps = String(p(e, "eps") ?? "Sura");
+      const pension = String(p(e, "pensionFund") ?? "Porvenir");
+      const arl = String(p(e, "arl") ?? "Sura");
+      const role = String(e.workerRole || "empleado").toLowerCase();
       await c.query(
         `INSERT INTO empleados_nomina (
-          id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento, ciudad, direccion, telefono,
-          contacto_emergencia, telefono_emergencia, parentesco_emergencia, nombre_cargo_texto, tipo_contrato,
-          fecha_ingreso, salario_base, banco, numero_cuenta_bancaria, eps, fondo_pension, arl, rol_trabajador
+          id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
+          fecha_nacimiento, genero, estado_civil, tipo_sangre, nivel_educativo,
+          departamento, ciudad, direccion, telefono, correo_personal,
+          contacto_emergencia, telefono_emergencia, parentesco_emergencia,
+          nombre_cargo_texto, tipo_contrato, duracion_contrato_texto,
+          fecha_ingreso, salario_base, auxilio_transporte,
+          periodicidad_pago, centro_costos, tipo_cotizante, nivel_riesgo_arl, tipo_plantilla_contrato,
+          eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
+          banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
+          numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
+          fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo
         ) VALUES (
-          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::date, $16, $17, $18, $19, $20, $21, $22
+          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
+          $7::date, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16,
+          $17, $18, $19,
+          $20, $21, $22,
+          $23::date, $24, $25,
+          $26, $27, $28, $29, $30,
+          $31, $32, $33, $34, $35,
+          $36, $37, $38, $39,
+          $40, $41, $42,
+          $43::date, $44::date, $45,
+          $46, $47, $48, $49, $50
         )
-        ON CONFLICT (id) DO UPDATE SET nombre_completo = EXCLUDED.nombre_completo, salario_base = EXCLUDED.salario_base`,
+        ON CONFLICT (id) DO UPDATE SET
+          nombre_completo = EXCLUDED.nombre_completo,
+          tipo_documento = EXCLUDED.tipo_documento,
+          numero_documento = EXCLUDED.numero_documento,
+          fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+          genero = EXCLUDED.genero,
+          estado_civil = EXCLUDED.estado_civil,
+          tipo_sangre = EXCLUDED.tipo_sangre,
+          nivel_educativo = EXCLUDED.nivel_educativo,
+          departamento = EXCLUDED.departamento,
+          ciudad = EXCLUDED.ciudad,
+          direccion = EXCLUDED.direccion,
+          telefono = EXCLUDED.telefono,
+          correo_personal = EXCLUDED.correo_personal,
+          contacto_emergencia = EXCLUDED.contacto_emergencia,
+          telefono_emergencia = EXCLUDED.telefono_emergencia,
+          parentesco_emergencia = EXCLUDED.parentesco_emergencia,
+          nombre_cargo_texto = EXCLUDED.nombre_cargo_texto,
+          tipo_contrato = EXCLUDED.tipo_contrato,
+          duracion_contrato_texto = EXCLUDED.duracion_contrato_texto,
+          fecha_ingreso = EXCLUDED.fecha_ingreso,
+          salario_base = EXCLUDED.salario_base,
+          auxilio_transporte = EXCLUDED.auxilio_transporte,
+          periodicidad_pago = EXCLUDED.periodicidad_pago,
+          centro_costos = EXCLUDED.centro_costos,
+          tipo_cotizante = EXCLUDED.tipo_cotizante,
+          nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
+          tipo_plantilla_contrato = EXCLUDED.tipo_plantilla_contrato,
+          eps = EXCLUDED.eps,
+          fondo_pension = EXCLUDED.fondo_pension,
+          arl = EXCLUDED.arl,
+          fondo_cesantias = EXCLUDED.fondo_cesantias,
+          caja_compensacion = EXCLUDED.caja_compensacion,
+          banco = EXCLUDED.banco,
+          tipo_cuenta_bancaria = EXCLUDED.tipo_cuenta_bancaria,
+          numero_cuenta_bancaria = EXCLUDED.numero_cuenta_bancaria,
+          rol_trabajador = EXCLUDED.rol_trabajador,
+          numero_licencia = EXCLUDED.numero_licencia,
+          categoria_licencia = EXCLUDED.categoria_licencia,
+          fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
+          fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
+          fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
+          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          url_avatar = EXCLUDED.url_avatar`,
         [
           e.id,
           e.companyId,
           e.positionId || null,
-          e.name,
-          e.documentType || "CC",
-          e.idDoc || "0",
-          e.city || "Bogota",
-          e.address || "N/D",
-          e.phone || "3000000000",
-          e.emergencyContact || "N/D",
-          e.emergencyPhone || "3000000000",
-          e.emergencyRelationship || "familiar",
-          e.position || "Empleado",
-          e.contractType || "Indefinido",
-          e.startDate || new Date().toISOString().slice(0, 10),
-          Number(e.baseSalary) || 0,
-          e.bank || "Bancolombia",
-          e.accountNumber || "0",
-          e.eps || "Sura",
-          e.pensionFund || "Porvenir",
-          e.arl || "Sura",
-          String(e.workerRole || "empleado").toLowerCase()
+          name,
+          docType,
+          idDoc,
+          portalDateOrNull(p(e, "birthDate")),
+          (p(e, "gender") as string) || null,
+          (p(e, "maritalStatus") as string) || null,
+          (p(e, "bloodType") as string) || null,
+          (p(e, "educationLevel") as string) || null,
+          (p(e, "department") as string) || null,
+          city,
+          address,
+          phone,
+          (p(e, "personalEmail") as string) || null,
+          emContact,
+          emPhone,
+          emRel,
+          posText,
+          contract,
+          (p(e, "contractDuration") as string) || null,
+          start,
+          base,
+          p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
+          (p(e, "payFrequency") as string) || null,
+          (p(e, "costCenter") as string) || null,
+          (p(e, "contributorType") as string) || null,
+          (p(e, "arlRiskLevel") as string) || null,
+          (p(e, "contractTemplateKind", "contractTemplate") as string) || null,
+          eps,
+          pension,
+          arl,
+          (p(e, "severanceFund") as string) || null,
+          (p(e, "compensationFund") as string) || null,
+          bank,
+          acctType,
+          acctNum,
+          role,
+          (p(e, "license", "licenseNumber") as string) || null,
+          (p(e, "licenseCategory") as string) || null,
+          portalDateOrNull(p(e, "licenseExpiry")),
+          portalDateOrNull(p(e, "psychoTestDate", "psychometricExamDate")),
+          portalDateOrNull(p(e, "psychoTestExpiry", "psychometricExpiry")),
+          (p(e, "defensiveCourse", "defensiveDrivingCourse") as string) || null,
+          p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
+          portalDateOrNull(p(e, "contractEndDate")),
+          (p(e, "workSchedule") as string) || null,
+          (p(e, "avatarUrl") as string) || null,
+          (p(e, "corporateEmail") as string) || null
         ]
       );
     }
@@ -1640,12 +1804,23 @@ export class PortalService {
   private async syncHrKeys(c: PoolClient, key: PortalSyncKey, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     if (key === "positions") {
-      for (const p of data) {
+      for (const raw of data) {
+        const p = raw as Record<string, unknown>;
         if (!p?.id) continue;
+        const integralRaw = pickPortalField(p, "integralSalary");
+        const integral =
+          integralRaw === true ||
+          integralRaw === "true" ||
+          (typeof integralRaw === "string" && integralRaw.toLowerCase() === "true");
         await c.query(
-          `INSERT INTO cargos (id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal, activo)
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, salario_base_mensual = EXCLUDED.salario_base_mensual`,
+          `INSERT INTO cargos (id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal, activo, jornada_referencia, nivel_riesgo_arl, salario_integral)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO UPDATE SET
+             nombre = EXCLUDED.nombre,
+             salario_base_mensual = EXCLUDED.salario_base_mensual,
+             jornada_referencia = EXCLUDED.jornada_referencia,
+             nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
+             salario_integral = EXCLUDED.salario_integral`,
           [
             p.id,
             p.name,
@@ -1653,28 +1828,58 @@ export class PortalService {
             Number(p.baseSalary) || 0,
             p.contractTypeDefault || "Indefinido",
             p.legalBasis || "",
-            p.active !== false
+            p.active !== false,
+            (pickPortalField(p, "workSchedule") as string) || null,
+            (pickPortalField(p, "arlRiskLevel") as string) || null,
+            integral ? true : integralRaw === false || integralRaw === "false" ? false : null
           ]
         );
       }
       return;
     }
     if (key === "vacancies") {
-      for (const v of data) {
+      for (const raw of data) {
+        const v = raw as Record<string, unknown>;
         if (!v?.id || !v.positionId) continue;
+        const cupos = Math.max(
+          1,
+          Math.floor(Number(pickPortalField(v, "slots", "openings") ?? v.slots ?? v.openings) || 1)
+        );
         await c.query(
           `INSERT INTO vacantes (
-            id, id_cargo, titulo, ciudad, fecha_limite_postulacion, cupos, salario_oferta, estado
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6, $7, $8::estado_vacante)
-          ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, estado = EXCLUDED.estado`,
+            id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
+            fecha_limite_postulacion, cupos, salario_oferta,
+            nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, estado
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::estado_vacante)
+          ON CONFLICT (id) DO UPDATE SET
+            titulo = EXCLUDED.titulo,
+            departamento = EXCLUDED.departamento,
+            ciudad = EXCLUDED.ciudad,
+            modalidad = EXCLUDED.modalidad,
+            jornada_vacante = EXCLUDED.jornada_vacante,
+            fecha_limite_postulacion = EXCLUDED.fecha_limite_postulacion,
+            cupos = EXCLUDED.cupos,
+            salario_oferta = EXCLUDED.salario_oferta,
+            nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
+            rol_trabajador = EXCLUDED.rol_trabajador,
+            tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
+            requisitos = EXCLUDED.requisitos,
+            estado = EXCLUDED.estado`,
           [
             v.id,
             v.positionId,
             v.title,
+            (pickPortalField(v, "department") as string) || null,
             v.city || "Bogota",
+            (pickPortalField(v, "modality") as string) || null,
+            (pickPortalField(v, "workday") as string) || null,
             v.deadline || new Date().toISOString().slice(0, 10),
-            Number(v.slots) || 1,
+            cupos,
             Number(v.salaryOffer) || 0,
+            (pickPortalField(v, "positionName") as string) || null,
+            (pickPortalField(v, "workerRole") as string) || "empleado",
+            (pickPortalField(v, "contractTypeDefault") as string) || null,
+            (pickPortalField(v, "requirements") as string) || null,
             v.status || "Publicada"
           ]
         );
@@ -1682,14 +1887,25 @@ export class PortalService {
       return;
     }
     if (key === "candidates") {
-      for (const x of data) {
+      for (const raw of data) {
+        const x = raw as Record<string, unknown>;
         if (!x?.id || !x.vacancyId) continue;
+        const salaryAsp = Number(
+          pickPortalField(x, "salaryExpectation", "expectedSalary") ?? x.salaryExpectation
+        );
+        const avail = portalDateOrNull(
+          pickPortalField(x, "availableFrom", "availabilityDate") ?? x.availableFrom
+        );
+        const stage = String(pickPortalField(x, "pipelineStage", "status") ?? "Recibido");
         await c.query(
           `INSERT INTO candidatos (
             id, id_vacante, nombre_completo, correo_electronico, telefono, tipo_documento, numero_documento,
-            ciudad, anios_experiencia, aspiracion_salarial, fecha_disponible_ingreso, etapa_proceso, adjuntos_json
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11::date, $12, $13::jsonb)
-          ON CONFLICT (id) DO UPDATE SET etapa_proceso = EXCLUDED.etapa_proceso`,
+            fecha_nacimiento, nivel_educativo, departamento, ciudad, direccion,
+            anios_experiencia, aspiracion_salarial, fecha_disponible_ingreso, etapa_proceso, adjuntos_json
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::date, $16, $17::jsonb)
+          ON CONFLICT (id) DO UPDATE SET
+            etapa_proceso = EXCLUDED.etapa_proceso,
+            aspiracion_salarial = EXCLUDED.aspiracion_salarial`,
           [
             x.id,
             x.vacancyId,
@@ -1698,11 +1914,15 @@ export class PortalService {
             x.phone,
             x.documentType,
             x.idDoc,
+            portalDateOrNull(pickPortalField(x, "birthDate")),
+            (pickPortalField(x, "educationLevel") as string) || null,
+            (pickPortalField(x, "department") as string) || null,
             x.city || "Bogota",
+            (pickPortalField(x, "address") as string) || null,
             Number(x.experienceYears) || 0,
-            Number(x.salaryExpectation) || 0,
-            x.availableFrom || new Date().toISOString().slice(0, 10),
-            x.pipelineStage || "Recibido",
+            Number.isFinite(salaryAsp) ? salaryAsp : 0,
+            avail || new Date().toISOString().slice(0, 10),
+            stage,
             JSON.stringify(x.attachments || [])
           ]
         );
@@ -1710,7 +1930,8 @@ export class PortalService {
       return;
     }
     if (key === "interviews") {
-      for (const i of data) {
+      for (const raw of data) {
+        const i = raw as Record<string, unknown>;
         if (!i?.id || !i.candidateId) continue;
         await c.query(
           `INSERT INTO entrevistas (id, id_candidato, nombre_candidato_denorm, fecha_hora, entrevistador, modalidad, lugar_o_enlace, notas)
@@ -1722,9 +1943,9 @@ export class PortalService {
             i.candidateName || "",
             i.when || new Date().toISOString(),
             i.interviewer || "RH",
-            i.modality || null,
-            i.locationOrLink || null,
-            i.notes || null
+            (pickPortalField(i, "modality", "mode") as string) || null,
+            (pickPortalField(i, "locationOrLink", "place") as string) || null,
+            (i.notes as string) || null
           ]
         );
       }
@@ -1768,22 +1989,35 @@ export class PortalService {
 
   private async syncHrAbsences(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    for (const row of data) {
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
       if (!row?.id || !row.employeeId) continue;
+      const tipo = String(
+        pickPortalField(row, "type", "absenceType") ?? "incapacidad"
+      );
+      const dias = Math.max(
+        1,
+        Math.floor(
+          Number(pickPortalField(row, "calendarDays", "days") ?? row.calendarDays ?? row.days) || 1
+        )
+      );
       await c.query(
         `INSERT INTO ausencias_laborales (
-          id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario, observaciones
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8)
+          id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
+          numero_soporte, entidad_eps, observaciones
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10)
         ON CONFLICT (id) DO NOTHING`,
         [
           row.id,
           row.employeeId,
           row.employeeName,
-          row.type,
+          tipo,
           row.startDate,
           row.endDate,
-          Number(row.calendarDays) || 1,
-          row.notes || null
+          dias,
+          (pickPortalField(row, "supportNumber") as string) || null,
+          (pickPortalField(row, "epsEntity") as string) || null,
+          (row.notes as string) || null
         ]
       );
     }

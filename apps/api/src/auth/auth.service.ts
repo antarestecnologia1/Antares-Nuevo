@@ -180,12 +180,6 @@ export class AuthService {
         .filter(Boolean)
         .join(" ");
 
-      const checklist = {
-        idVerified: true,
-        acceptedTermsAt: new Date().toISOString(),
-        requiredFieldsCompleted: true
-      };
-
       const docType = String(dto.documentType || "").trim().toUpperCase();
       let numeroPersonal: string | null = null;
       let nitEmpresa: string | null = null;
@@ -200,6 +194,19 @@ export class AuthService {
         if (!numeroPersonal) {
           throw new BadRequestException("Indique el número de documento.");
         }
+      }
+
+      /** Auditoría alineada al copy legal del formulario (#form-register): términos, privacidad y Habeas en un solo checkbox. */
+      const checklist: Record<string, unknown> = {
+        idVerified: true,
+        acceptedTermsAt: new Date().toISOString(),
+        requiredFieldsCompleted: true,
+        termsOfUseAccepted: true,
+        privacyPolicyAccepted: true,
+        habeasDataAcknowledged: true
+      };
+      if (docType === "NIT" && dto.personalDocumentType) {
+        checklist.representativeDocumentType = String(dto.personalDocumentType).trim().toUpperCase();
       }
 
       try {

@@ -3118,6 +3118,9 @@ function bindAuthForms() {
             taxId: data.taxId,
             companyNit: data.companyNit || "",
             personalTaxId: data.personalTaxId || "",
+            personalDocumentType: isJuridica
+              ? String(data.personalDocumentType || "CC").trim().toUpperCase()
+              : undefined,
             birthDate: data.birthDate,
             gender: normalizeLatinUpperForDb(data.gender),
             position: normalizeLatinUpperForDb(data.position),
@@ -3185,7 +3188,17 @@ function bindAuthForms() {
         profileQualityChecklist: {
           idVerified: true,
           acceptedTermsAt: nowIso(),
-          requiredFieldsCompleted: true
+          requiredFieldsCompleted: true,
+          termsOfUseAccepted: true,
+          privacyPolicyAccepted: true,
+          habeasDataAcknowledged: true,
+          ...(isJuridica
+            ? {
+                representativeDocumentType: String(data.personalDocumentType || "CC")
+                  .trim()
+                  .toUpperCase()
+              }
+            : {})
         },
         registeredAt: nowIso()
       };
@@ -9909,7 +9922,10 @@ function bindDynamicEvents() {
         candidateId: candidate.id,
         candidateName: candidate.name,
         when: data.when,
-        interviewer: data.interviewer
+        interviewer: data.interviewer,
+        modality: data.mode || "",
+        locationOrLink: data.place || "",
+        notes: data.notes || ""
       });
       write(KEYS.interviews, all);
       const candidateList = read(KEYS.candidates, []);
