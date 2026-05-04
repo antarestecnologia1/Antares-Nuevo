@@ -4469,7 +4469,12 @@ function renderPortal() {
   setPortalDrawerOpen(false);
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
-  const user = currentUser();
+  let user = currentUser();
+  /** Sin fila en RAM tras recarga: reconstruir mínimo desde el JWT antes de dar por sesión inválida (bootstrap puede fallar en red). */
+  if (!user && session?.accessToken) {
+    upsertPortalUserStubFromJwtPayload(decodeJwtPayload(String(session.accessToken)));
+    user = currentUser();
+  }
   if (!user) {
     clearSession();
     renderPortal();
@@ -11678,6 +11683,15 @@ initGlobalEvents();
 initPublicEffects();
 
 void (async function bootApplicationFromDatabaseThenUi() {
+  /** Tras F5 el access JWT puede estar vencido; sin refresh /portal/bootstrap devuelve 401 y se vacía la proyección en RAM. */
+  try {
+    const s0 = getSession();
+    if (s0?.refreshToken && window.AntaresApi?.getBase?.()) {
+      await tryApiRefreshBridge();
+    }
+  } catch (_e) {
+    /* tryApiRefreshBridge ya tolera fallos */
+  }
   try {
     await startPortalBootstrapForInteractiveSession();
   } catch (_e) {
