@@ -724,6 +724,8 @@ let state = {
   theme: "light",
   publicLang: "es",
   authTab: "login",
+  /** Tras abrir enlace de Supabase (recuperación): formulario de nueva contraseña en el modal de auth. */
+  authSupabaseRecovery: false,
   authSecurity: {
     failedAttempts: 0,
     lockUntil: 0
@@ -2183,6 +2185,59 @@ function sendEmail({ to, subject, body }) {
   write(KEYS.emails, outbox);
 }
 
+/** URL sin hash ni query: debe estar en Redirect URLs de Supabase (Authentication). */
+function buildSupabasePasswordRecoveryRedirectUrl() {
+  const u = new URL(window.location.href);
+  u.hash = "";
+  u.search = "";
+  return u.toString();
+}
+
+function stripSupabaseAuthHashFromUrl() {
+  const u = new URL(window.location.href);
+  if (!u.hash || u.hash.length < 2) return;
+  u.hash = "";
+  history.replaceState(null, "", u.toString());
+}
+
+async function waitForAntaresSupabaseClient(timeoutMs) {
+  const cap = typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : 15000;
+  if (window.antaresSupabase) return window.antaresSupabase;
+  const ready = window.antaresSupabaseReady;
+  if (!ready || typeof ready.then !== "function") return null;
+  return await Promise.race([
+    ready.then(() => window.antaresSupabase || null),
+    new Promise((resolve) => {
+      setTimeout(() => resolve(window.antaresSupabase || null), cap);
+    })
+  ]);
+}
+
+/** Escucha enlace de recuperación Supabase y abre el modal con el formulario de nueva contraseña. */
+function wireSupabasePasswordRecoveryUi() {
+  if (window.__antaresSupabaseRecoveryWired) return;
+  window.__antaresSupabaseRecoveryWired = true;
+  window.addEventListener("antares:supabase-password-recovery", () => {
+    state.authSupabaseRecovery = true;
+    showAuth();
+    renderAuthTab();
+    stripSupabaseAuthHashFromUrl();
+  });
+  void waitForAntaresSupabaseClient(20000).then((client) => {
+    if (!client) return;
+    void client.auth.getSession().then(({ data }) => {
+      const session = data?.session;
+      const hash = String(window.location.hash || "");
+      if (session && /type=recovery/i.test(hash)) {
+        state.authSupabaseRecovery = true;
+        showAuth();
+        renderAuthTab();
+        stripSupabaseAuthHashFromUrl();
+      }
+    });
+  });
+}
+
 function findOrCreateCompanyIdByName(name) {
   const companyName = String(name || "").trim();
   if (!companyName) return null;
@@ -2824,6 +2879,36 @@ async function ensureUsersPasswordHashing() {
 }
 
 function authView() {
+  if (state.authSupabaseRecovery) {
+    return `
+    <div class="auth-header-premium">
+      <h3>Nueva contraseña</h3>
+      <p class="muted">Elija una contraseña segura. Se actualizará en el portal (inicio de sesión actual) y en el acceso gestionado por Supabase.</p>
+    </div>
+    <form id="form-recover-complete" class="form-grid auth-pane auth-form" autocomplete="off">
+      <label class="full auth-field-stack">
+        <span class="auth-plain-label">${fieldLabel(IC.lock, "Nueva contraseña", { required: true })}</span>
+        <div class="password-field auth-password-row">
+          <div class="auth-input-row auth-input-row--grow">
+            <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+            <input class="auth-input-control" type="password" name="password" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete">${IC.eye} Mostrar</button>
+        </div>
+      </label>
+      <label class="full auth-field-stack">
+        <span class="auth-plain-label">${fieldLabel(IC.shield, "Confirmar contraseña", { required: true })}</span>
+        <div class="password-field auth-password-row">
+          <div class="auth-input-row auth-input-row--grow">
+            <span class="auth-input-prefix" aria-hidden="true">${IC.shield}</span>
+            <input class="auth-input-control" type="password" name="passwordConfirm" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete-c">${IC.eye} Mostrar</button>
+        </div>
+      </label>
+      <button class="btn btn-primary full" type="submit">${IC.check} Guardar contraseña e iniciar sesión después</button>
+    </form>`;
+  }
   const tab = state.authTab;
   const deptOptions = departmentOptions();
   if (tab === "login") {
@@ -3035,7 +3120,7 @@ function authView() {
   return `
     <div class="auth-header-premium">
       <h3>Recuperación de acceso</h3>
-      <p class="muted">Validación administrativa; no podrá restablecer la contraseña sin la participación de un administrador.</p>
+      <p class="muted">Recibirá un <strong>correo electrónico de Supabase</strong> con un enlace para definir una nueva contraseña. Revise también spam o correo no deseado.</p>
     </div>
     <form id="form-recover" class="form-grid auth-pane auth-form">
       <label class="full auth-field-stack">
@@ -3048,11 +3133,11 @@ function authView() {
       <div class="auth-recover-hint" role="note">
         <span class="auth-recover-hint-icon" aria-hidden="true">${IC.shield}</span>
         <div>
-          <strong>Proceso seguro</strong>
-          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">Un administrador validará su identidad y gestionará el restablecimiento; recibirá instrucciones por correo si su cuenta existe.</p>
+          <strong>Correo enviado por Supabase</strong>
+          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">El enlace caduca al poco tiempo. Tras guardar la nueva contraseña podrá ingresar con el mismo correo. Si no recibe el mensaje, confirme la dirección o contacte a soporte.</p>
         </div>
       </div>
-      <button class="btn btn-primary full" type="submit">${IC.send} Solicitar recuperación</button>
+      <button class="btn btn-primary full" type="submit">${IC.send} Enviar enlace al correo</button>
     </form>
   `;
 }
@@ -3071,6 +3156,8 @@ function hideAuth() {
 }
 
 function renderAuthTab() {
+  const tabsWrap = document.querySelector("#auth-modal .tabs");
+  if (tabsWrap) tabsWrap.classList.toggle("hidden", Boolean(state.authSupabaseRecovery));
   const tabs = nodes.authTabs.length ? nodes.authTabs : [...document.querySelectorAll("#auth-modal .tab")];
   const content = nodes.authContent || document.getElementById("auth-content");
   tabs.forEach((tabBtn) => {
@@ -3096,6 +3183,10 @@ function bindAuthForms() {
       let input = null;
       if (targetForm === "register") input = register?.querySelector("input[name='password']");
       else if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
+      else if (targetForm === "recover-complete")
+        input = document.querySelector("#form-recover-complete input[name='password']");
+      else if (targetForm === "recover-complete-c")
+        input = document.querySelector("#form-recover-complete input[name='passwordConfirm']");
       else input = login?.querySelector("input[name='password']");
       if (!input) return;
       const visible = input.type === "text";
@@ -3557,11 +3648,38 @@ function bindAuthForms() {
   }
 
   if (recover) {
-    recover.addEventListener("submit", (event) => {
+    recover.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(recover).entries());
+      const email = normalizeEmail(String(data.email || ""));
+      if (!email) {
+        notify(userMessage("validationStep"), "error");
+        return;
+      }
+
+      const supabase = await waitForAntaresSupabaseClient(15000);
+      if (supabase) {
+        try {
+          const redirectTo = buildSupabasePasswordRecoveryRedirectUrl();
+          const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+          if (error) {
+            notify(String(error.message || userMessage("recoverSupabaseError")), "error");
+            return;
+          }
+          notify(userMessage("recoverSentSupabase"), "info");
+        } catch (err) {
+          notify(String(err?.message || userMessage("recoverSupabaseError")), "error");
+        }
+        return;
+      }
+
+      if (window.AntaresApi?.getBase?.()) {
+        notify(userMessage("recoverSupabaseUnavailable"), "error");
+        return;
+      }
+
       const users = read(KEYS.users, []);
-      const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
+      const user = users.find((u) => normalizeEmail(u.email) === email);
       if (!user) {
         notify(userMessage("recoverNoUser"), "error");
         return;
@@ -3572,6 +3690,66 @@ function bindAuthForms() {
         body: `Hola ${user.name}, se solicito recuperacion de acceso. Por seguridad, solicita a un administrador restablecer tu contrasena.`
       });
       notify(userMessage("recoverSent"), "info");
+    });
+  }
+
+  const recoverComplete = document.getElementById("form-recover-complete");
+  if (recoverComplete) {
+    recoverComplete.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const apiBase = window.AntaresApi?.getBase?.();
+      if (!apiBase) {
+        notify(userMessage("recoverCompleteNeedsApi"), "error");
+        return;
+      }
+      const fd = new FormData(recoverComplete);
+      const p1 = String(fd.get("password") || "");
+      const p2 = String(fd.get("passwordConfirm") || "");
+      if (p1 !== p2) {
+        notify(userMessage("registerPasswordMismatch"), "error");
+        return;
+      }
+      const policy = validatePasswordPolicy(p1);
+      if (!policy.ok) {
+        notify(userMessage(policy.key), "error");
+        return;
+      }
+      const supabase = window.antaresSupabase || (await waitForAntaresSupabaseClient(5000));
+      if (!supabase) {
+        notify(userMessage("recoverSupabaseUnavailable"), "error");
+        return;
+      }
+      const { data: sessWrap } = await supabase.auth.getSession();
+      const token = sessWrap?.session?.access_token;
+      if (!token) {
+        notify(userMessage("recoverSessionMissing"), "error");
+        return;
+      }
+      try {
+        const base = String(apiBase).replace(/\/+$/, "");
+        const res = await fetch(`${base}/api/auth/password-recovery/complete`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ password: p1 })
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok) {
+          const msg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
+          notify(String(msg || userMessage("recoverCompleteError")), "error");
+          return;
+        }
+        await supabase.auth.signOut();
+        state.authSupabaseRecovery = false;
+        state.authTab = "login";
+        notify(String(body?.message || userMessage("recoverCompleteSuccess")), "success", 8000);
+        renderAuthTab();
+      } catch (_e) {
+        notify(userMessage("authNoConnection"), "error");
+      }
     });
   }
   applyFormWizards();
@@ -10985,10 +11163,13 @@ function initGlobalEvents() {
   }
   nodes.authTabs.forEach((tabBtn) =>
     tabBtn.addEventListener("click", () => {
+      if (state.authSupabaseRecovery) return;
       state.authTab = tabBtn.dataset.tab;
       renderAuthTab();
     })
   );
+
+  wireSupabasePasswordRecoveryUi();
 
   nodes.b2bForm?.addEventListener("submit", async (event) => {
     event.preventDefault();

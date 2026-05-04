@@ -597,6 +597,56 @@ export class AuthService {
     return tokens;
   }
 
+  /**
+   * Confirma recuperación iniciada por correo de Supabase Auth: valida el JWT de recuperación,
+   * actualiza la contraseña en Auth (service role) y el hash en `usuarios` (sesiones API previas invalidadas).
+   */
+  async completePasswordRecoveryFromSupabase(supabaseAccessToken: string, newPassword: string) {
+    this.assertDatabaseConfigured();
+    if (!this.supabaseAdmin) {
+      throw new ServiceUnavailableException(
+        "Recuperación por correo no está disponible: falta SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY en el servidor."
+      );
+    }
+    this.assertStrongPassword(newPassword);
+
+    const { data, error } = await this.supabaseAdmin.auth.getUser(supabaseAccessToken);
+    const user = data?.user;
+    if (error || !user?.id || !user.email) {
+      this.logger.warn(`completePasswordRecoveryFromSupabase: getUser falló: ${error?.message || "sin usuario"}`);
+      throw new UnauthorizedException("Enlace de recuperación inválido o expirado. Solicite un correo nuevo.");
+    }
+
+    const email = user.email.trim().toLowerCase();
+    const { error: updAuthErr } = await this.supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: newPassword
+    });
+    if (updAuthErr) {
+      this.logger.error(`Supabase admin.updateUserById (recovery): ${updAuthErr.message}`);
+      throw new BadRequestException(
+        updAuthErr.message || "No fue posible actualizar la contraseña en el servicio de autenticación."
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const r = await this.pool.query(
+      `UPDATE usuarios
+       SET hash_contrasena = $1, refresh_token_hash = NULL
+       WHERE lower(correo_electronico) = lower($2)`,
+      [passwordHash, email]
+    );
+    if (!r.rowCount) {
+      throw new BadRequestException(
+        "No hay una cuenta de portal asociada a este correo. Si es un usuario antiguo sin Supabase Auth, contacte al administrador."
+      );
+    }
+
+    return {
+      message:
+        "Contraseña actualizada correctamente. Cierre cualquier sesión anterior e inicie sesión con la nueva contraseña."
+    };
+  }
+
   private async generateTokens(userId: string, email: string, role: string) {
     const accessToken = await this.jwt.signAsync({
       sub: userId,

@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, Post } from "@nestjs/common";
+import { Body, Controller, Headers, HttpCode, Post, UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "./auth.service";
+import { CompletePasswordRecoveryDto } from "./dto/complete-password-recovery.dto";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { RegisterPortalDto } from "./dto/register-portal.dto";
@@ -28,5 +29,24 @@ export class AuthController {
   @Post("refresh")
   refresh(@Body() payload: { userId: string; refreshToken: string }) {
     return this.auth.refresh(payload.userId, payload.refreshToken);
+  }
+
+  /**
+   * Tras abrir el enlace del correo de Supabase (recuperación), el cliente envía el access_token
+   * de esa sesión y la nueva contraseña. Se alinea Supabase Auth y hash_contrasena en public.usuarios.
+   */
+  @HttpCode(200)
+  @Post("password-recovery/complete")
+  completePasswordRecovery(
+    @Headers("authorization") authorization: string | undefined,
+    @Body() dto: CompletePasswordRecoveryDto
+  ) {
+    const raw = String(authorization ?? "").trim();
+    const m = /^Bearer\s+(\S+)/i.exec(raw);
+    const token = m ? m[1].trim() : "";
+    if (!token) {
+      throw new UnauthorizedException("Sesión de recuperación no válida. Abra de nuevo el enlace del correo.");
+    }
+    return this.auth.completePasswordRecoveryFromSupabase(token, dto.password);
   }
 }

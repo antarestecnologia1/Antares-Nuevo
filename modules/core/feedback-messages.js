@@ -36,6 +36,17 @@
     recoverNoUser: "No hay ningún usuario registrado con ese correo.",
     recoverSent:
       "Si el correo existe, recibirá instrucciones. De lo contrario, contacte a un administrador.",
+    recoverSentSupabase:
+      "Si el correo está registrado en Supabase, recibirá un mensaje con el enlace para restablecer la contraseña. Revise la bandeja de entrada y el spam.",
+    recoverSupabaseError: "No se pudo enviar el correo de recuperación. Intente de nuevo o contacte a soporte.",
+    recoverSupabaseUnavailable:
+      "No se pudo cargar el cliente de Supabase en el navegador. Actualice la página, revise la red o que supabase.public.js esté publicado.",
+    recoverCompleteSuccess: "Contraseña actualizada. Ya puede iniciar sesión con su correo y la nueva contraseña.",
+    recoverCompleteError: "No se pudo guardar la nueva contraseña.",
+    recoverCompleteNeedsApi:
+      "Falta la URL de la API del portal en este sitio. Sin ella no se puede sincronizar la contraseña con el servidor.",
+    recoverSessionMissing:
+      "No hay sesión de recuperación activa. Abra de nuevo el enlace enviado a su correo.",
     sessionIdle: "Sesión cerrada por 30 minutos de inactividad.",
     invoiceNoTrip: "No hay un viaje disponible para facturar.",
     invoicePopupBlocked: "No se abrió la ventana. Permita ventanas emergentes para este sitio.",

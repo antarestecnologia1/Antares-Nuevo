@@ -87,7 +87,13 @@ El registro por API dispara un correo HTML (`MailService.sendPortalRegistrationW
 
 **Opcionales (otros)**
 
-- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — si quiere crear usuarios también en Supabase Auth. **Sin ellos, registro y login siguen funcionando** solo con Postgres y JWT de la API.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — necesarios para crear usuarios en Supabase Auth al registrarse por el portal **y** para que el correo de “olvidé mi contraseña” funcione (Supabase envía el enlace; la API sincroniza la nueva clave en `usuarios.hash_contrasena`). **Sin ellos, registro/login con solo Postgres siguen operando**, pero no habrá recuperación por correo vía Supabase ni usuario en Auth.
+
+**Supabase → recuperación de contraseña (portal estático)**
+
+1. En Authentication → URL configuration del proyecto, configure **Site URL** con la URL del portal (ej. `https://www.transportesantares.co`).
+2. En **Redirect URLs**, incluya las URLs exactas a las que Supabase puede redirigir tras el enlace del correo (la misma página de entrada del portal), por ejemplo: `https://www.transportesantares.co/`, `https://transportesantares.co/`, y las de entornos de prueba (`http://localhost:5500/`, etc.). El cliente usa la URL actual del navegador sin fragmento `#`; si falta la entrada permitida, el flujo de recuperación fallará.
+3. Revise Authentication → Providers → Email (plantillas y entrega); compruebe la carpeta de spam si no llega el mensaje.
 
 **Puerto**
 
