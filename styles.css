@@ -1666,6 +1666,21 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
 .side-link.active .side-icon { opacity: 1; }
 .side-link:hover .side-icon { opacity: 1; }
 
+.side-link.sidebar-logout-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.side-link.sidebar-logout-btn:hover {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.side-link.sidebar-logout-btn:hover .side-icon {
+  opacity: 1;
+  color: #fca5a5;
+}
+
 .sidebar-spacer { flex: 1; }
 
 .sidebar-logout {
@@ -4180,6 +4195,13 @@ body[data-theme="dark"] .users-pending-redirect {
     background: rgba(255, 255, 255, 0.09);
     border-color: rgba(147, 197, 255, 0.18);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  }
+
+  .side-link.sidebar-logout-btn:hover {
+    background: rgba(220, 38, 38, 0.24);
+    color: #fecaca;
+    border-color: rgba(248, 113, 113, 0.48);
+    box-shadow: 0 6px 18px rgba(220, 38, 38, 0.22);
   }
 
   .side-link.active {
@@ -6909,10 +6931,14 @@ body[data-theme="dark"] .profile-form-centered {
   --module-accent-end: #4a8ee8;
 }
 
-.module-shell[data-module-view="admin-users"],
-.module-shell[data-module-view="authorizations"] {
+.module-shell[data-module-view="admin-users"] {
   --module-accent-start: #5a73d4;
   --module-accent-end: #4a8cc9;
+}
+
+.module-shell[data-module-view="authorizations"] {
+  --module-accent-start: #0f766e;
+  --module-accent-end: #14b8a6;
 }
 
 .auth-queue-section {
@@ -6930,6 +6956,54 @@ body[data-theme="dark"] .profile-form-centered {
 
 .auth-queue-section--misc {
   border-color: color-mix(in srgb, #c46c1a 35%, var(--module-border-strong, #c5d8ec) 65%);
+}
+
+/* Autorizaciones: franja izquierda por tipo de trámite (semántica) */
+.module-shell[data-module-view="authorizations"] .auth-queue-section {
+  --auth-strip-color: #64748b;
+  border-left: 4px solid var(--auth-strip-color);
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section--portal {
+  --auth-strip-color: #059669;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section[data-auth-section="portal_access"] {
+  --auth-strip-color: #2563eb;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section[data-auth-section="transport_fleet"] {
+  --auth-strip-color: #d97706;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section[data-auth-section="workforce"] {
+  --auth-strip-color: #7c3aed;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section[data-auth-section="hr_absences"] {
+  --auth-strip-color: #db2777;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section[data-auth-section="payroll_pay"] {
+  --auth-strip-color: #0891b2;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section--misc {
+  --auth-strip-color: #c2410c;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-queue-section--info {
+  --auth-strip-color: #475569;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-flow-catalog {
+  border-left: 4px solid #64748b;
+}
+
+.module-shell[data-module-view="authorizations"] .auth-section-count {
+  background: color-mix(in srgb, #f59e0b 24%, #ffffff 76%);
+  color: #92400e;
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, transparent);
 }
 
 .auth-queue-section-title-row {
@@ -7033,6 +7107,12 @@ body[data-theme="dark"] .auth-queue-section {
 
 body[data-theme="dark"] .auth-queue-section--info {
   background: color-mix(in srgb, var(--module-accent-start, #5a73d4) 12%, #0f1f34 88%);
+}
+
+body[data-theme="dark"] .module-shell[data-module-view="authorizations"] .auth-section-count {
+  background: color-mix(in srgb, #f59e0b 28%, #0f1f34 72%);
+  color: #fcd34d;
+  border-color: color-mix(in srgb, #f59e0b 40%, transparent);
 }
 
 body[data-theme="dark"] .auth-flow-catalog {

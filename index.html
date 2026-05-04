@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260506-company-star" />
+    <link rel="stylesheet" href="./styles.css?v=20260506-auth-logout" />
   </head>
   <body>
     <!-- ─── NAVIGATION ─── -->
@@ -966,7 +966,7 @@
           </button>
           <div class="sidebar-spacer"></div>
           <div class="sidebar-logout">
-            <button id="logout" class="side-link" style="color:rgba(255,255,255,0.50)">
+            <button id="logout" class="side-link sidebar-logout-btn" type="button">
               <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               Cerrar sesion
             </button>
@@ -1120,6 +1120,6 @@
     <script src="./modules/core/feedback-messages.js?v=20260505-1"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
-    <script src="./app.js?v=20260505-3"></script>
+    <script src="./app.js?v=20260506-auth"></script>
   </body>
 </html>
