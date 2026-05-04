@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
+import { normalizeDatabaseUrl } from "../database/normalize-database-url";
 import { PG_POOL } from "../database/database.module";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -93,6 +94,12 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
     );
   }
 
+  if (/econnrefused|etimedout|enotfound|eai_again|getaddrinfo|socket hang up|connect timed out|connection refused/i.test(lower)) {
+    return new ServiceUnavailableException(
+      "No se pudo establecer conexión TCP con Postgres. Revise DATABASE_URL en Render (host/puerto), firewall de Supabase (Allow all), pruebe Direct connection (5432) o Session pooler en Supabase."
+    );
+  }
+
   return null;
 }
 
@@ -115,7 +122,7 @@ export class AuthService {
 
   /** Sin Postgres no hay registro ni sesión (solo JWT es insuficiente). */
   private assertDatabaseConfigured(): void {
-    const dbUrl = (this.config.get<string>("DATABASE_URL") ?? "").trim();
+    const dbUrl = normalizeDatabaseUrl(this.config.get<string>("DATABASE_URL") ?? "");
     if (!dbUrl) {
       throw new ServiceUnavailableException(
         "DATABASE_URL no configurada en el servidor (cadena Postgres desde Supabase → Database → URI, en Render o apps/api/.env)."
@@ -441,6 +448,41 @@ export class AuthService {
       }
       if (code === "53300") {
         throw new ServiceUnavailableException("Demasiadas conexiones a PostgreSQL; reduzca el pool o actualice el plan.");
+      }
+
+      const sqlStateMatch = pgMsg.match(/\b([0-9A-Z]{5})\b/);
+      const sqlState =
+        code && /^[0-9A-Z]{5}$/.test(code) ? code : sqlStateMatch?.[1] && /^[0-9A-Z]{5}$/.test(sqlStateMatch[1]) ? sqlStateMatch[1] : "";
+      const alreadyHandled = new Set([
+        "23505",
+        "28P01",
+        "3D000",
+        "42P01",
+        "42703",
+        "08006",
+        "08001",
+        "57P03",
+        "53300"
+      ]);
+      if (sqlState && !alreadyHandled.has(sqlState)) {
+        if (["23502", "23514", "23P01"].includes(sqlState)) {
+          throw new ServiceUnavailableException(
+            `Datos incumplen restricciones en la base (${sqlState}). Revise longitudes de campos y scripts BD/postgres. ${detail ? String(detail).slice(0, 220) : ""}`
+          );
+        }
+        if (sqlState === "22P02" || sqlState === "22001") {
+          throw new ServiceUnavailableException(
+            `Formato inválido para PostgreSQL (${sqlState}). Revise fechas y textos. ${detail ? String(detail).slice(0, 180) : ""}`
+          );
+        }
+        if (sqlState === "42501") {
+          throw new ServiceUnavailableException(
+            "Permiso denegado en PostgreSQL. Use la URI con usuario postgres y contraseña de Database en Supabase."
+          );
+        }
+        throw new ServiceUnavailableException(
+          `Error PostgreSQL ${sqlState}. Ejecute los scripts BD/postgres sobre la base y revise logs de Render. ${detail ? String(detail).slice(0, 140) : pgMsg.slice(0, 100)}`
+        );
       }
 
       const mapped = mapSupabaseOrNetworkDbError(err);

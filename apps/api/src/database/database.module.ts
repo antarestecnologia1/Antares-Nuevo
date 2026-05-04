@@ -1,6 +1,7 @@
 import { Global, Logger, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
+import { databaseUrlLikelyHasUnencodedPasswordAt, normalizeDatabaseUrl } from "./normalize-database-url";
 
 export const PG_POOL = "PG_POOL";
 
@@ -39,21 +40,29 @@ function sslForDatabaseUrl(url: string | undefined): boolean | { rejectUnauthori
       provide: PG_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const connectionString = (config.get<string>("DATABASE_URL") ?? "").trim();
+        const connectionString = normalizeDatabaseUrl(config.get<string>("DATABASE_URL") ?? "");
         if (!connectionString) {
           dbLogger.error("DATABASE_URL está vacío: la API arrancará pero auth y portal fallarán hasta configurarla.");
-        } else if (/pooler\.supabase\.com/i.test(connectionString) && /:6543\b/.test(connectionString)) {
-          dbLogger.warn(
-            "DATABASE_URL apunta al pooler transaccional (6543). Si ve errores al registrar/iniciar sesión, use en Supabase la cadena Session pool o Direct connection."
-          );
+        } else {
+          if (databaseUrlLikelyHasUnencodedPasswordAt(connectionString)) {
+            dbLogger.warn(
+              "DATABASE_URL tiene varios '@' tras el protocolo: si la contraseña contiene @, codifíquela como %40 o use el parámetro [YOUR-PASSWORD] del panel Supabase al copiar la URI."
+            );
+          }
+          if (/pooler\.supabase\.com/i.test(connectionString) && /:6543\b/.test(connectionString)) {
+            dbLogger.warn(
+              "DATABASE_URL apunta al pooler transaccional (6543). Si ve errores al registrar/iniciar sesión, use en Supabase la cadena Session pool o Direct connection."
+            );
+          }
         }
         return new Pool({
           connectionString,
           max: 10,
           application_name: "antares-api",
           ssl: sslForDatabaseUrl(connectionString),
-          connectionTimeoutMillis: 20_000,
-          idleTimeoutMillis: 30_000
+          connectionTimeoutMillis: 25_000,
+          idleTimeoutMillis: 30_000,
+          allowExitOnIdle: false
         });
       }
     }
