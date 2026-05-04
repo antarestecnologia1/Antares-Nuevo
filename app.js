@@ -5073,11 +5073,11 @@ function transportTripsHtml() {
     </div>`;
 
   const actionGrid = `<div class="dash-grid trips-actions-row--two">
+    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Asigna camión y conductor a una solicitud aprobada", createTripForm, "Asignar viaje")}
     ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
-    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Asigna camion y conductor a una solicitud aprobada", createTripForm, "Asignar viaje")}
   </div>`;
 
-  return `${heroStrip}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}`;
+  return `${heroStrip}${actionGrid}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}`;
 }
 
 function transportCalendarHtml() {

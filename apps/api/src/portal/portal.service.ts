@@ -1301,6 +1301,14 @@ export class PortalService {
           nombre_contacto = EXCLUDED.nombre_contacto,
           nombre_empresa = EXCLUDED.nombre_empresa,
           nit = EXCLUDED.nit,
+          cargo_contacto = EXCLUDED.cargo_contacto,
+          telefono = EXCLUDED.telefono,
+          correo_electronico = EXCLUDED.correo_electronico,
+          tipo_servicio = EXCLUDED.tipo_servicio,
+          tipo_operacion = EXCLUDED.tipo_operacion,
+          frecuencia_operacion = EXCLUDED.frecuencia_operacion,
+          ventana_inicio_servicio = EXCLUDED.ventana_inicio_servicio,
+          volumen_mensual_aprox_kg = EXCLUDED.volumen_mensual_aprox_kg,
           mensaje = EXCLUDED.mensaje`,
         [
           row.id,
@@ -1349,6 +1357,11 @@ export class PortalService {
           $28, $29::timestamptz, $30, $31::timestamptz, $32::timestamptz
         )
         ON CONFLICT (id) DO UPDATE SET
+          numero_solicitud = EXCLUDED.numero_solicitud,
+          id_usuario_solicitante = EXCLUDED.id_usuario_solicitante,
+          id_empresa_cliente = EXCLUDED.id_empresa_cliente,
+          nombre_cliente = EXCLUDED.nombre_cliente,
+          nombre_quien_solicita = EXCLUDED.nombre_quien_solicita,
           departamento_origen = EXCLUDED.departamento_origen,
           ciudad_origen = EXCLUDED.ciudad_origen,
           direccion_origen = EXCLUDED.direccion_origen,
@@ -1357,6 +1370,15 @@ export class PortalService {
           direccion_destino = EXCLUDED.direccion_destino,
           fecha_hora_recogida = EXCLUDED.fecha_hora_recogida,
           fecha_hora_entrega_estimada = EXCLUDED.fecha_hora_entrega_estimada,
+          tipo_vehiculo_solicitado = EXCLUDED.tipo_vehiculo_solicitado,
+          descripcion_carga = EXCLUDED.descripcion_carga,
+          tipo_servicio = EXCLUDED.tipo_servicio,
+          numero_cajas = EXCLUDED.numero_cajas,
+          peso_kg = EXCLUDED.peso_kg,
+          nombre_contacto_en_sitio = EXCLUDED.nombre_contacto_en_sitio,
+          telefono_contacto_en_sitio = EXCLUDED.telefono_contacto_en_sitio,
+          observaciones = EXCLUDED.observaciones,
+          adjuntos_nombres_json = EXCLUDED.adjuntos_nombres_json,
           estado = EXCLUDED.estado,
           valor_tarifa_viaje = EXCLUDED.valor_tarifa_viaje,
           total_cargos_standby = EXCLUDED.total_cargos_standby,
@@ -1418,6 +1440,14 @@ export class PortalService {
             id_vehiculo = EXCLUDED.id_vehiculo,
             id_conductor = EXCLUDED.id_conductor,
             placa_vehiculo = EXCLUDED.placa_vehiculo,
+            tipo_vehiculo_asignado = EXCLUDED.tipo_vehiculo_asignado,
+            nombre_conductor = EXCLUDED.nombre_conductor,
+            telefono_conductor = EXCLUDED.telefono_conductor,
+            descripcion_ruta = EXCLUDED.descripcion_ruta,
+            fecha_hora_recogida_programada = EXCLUDED.fecha_hora_recogida_programada,
+            fecha_hora_entrega_programada = EXCLUDED.fecha_hora_entrega_programada,
+            asignado_por = EXCLUDED.asignado_por,
+            fecha_hora_asignacion = EXCLUDED.fecha_hora_asignacion,
             estado_operativo_en_vivo = EXCLUDED.estado_operativo_en_vivo,
             datos_factura_json = EXCLUDED.datos_factura_json`,
           [
@@ -1461,7 +1491,31 @@ export class PortalService {
         ON CONFLICT (id) DO UPDATE SET
           placa = EXCLUDED.placa,
           marca = EXCLUDED.marca,
-          disponible = EXCLUDED.disponible`,
+          linea_modelo = EXCLUDED.linea_modelo,
+          anio_modelo = EXCLUDED.anio_modelo,
+          color = EXCLUDED.color,
+          tipo_vehiculo = EXCLUDED.tipo_vehiculo,
+          capacidad_kg = EXCLUDED.capacidad_kg,
+          refrigerado_termoking = EXCLUDED.refrigerado_termoking,
+          tipo_carroceria = EXCLUDED.tipo_carroceria,
+          tipo_combustible = EXCLUDED.tipo_combustible,
+          configuracion_ejes = EXCLUDED.configuracion_ejes,
+          numero_motor = EXCLUDED.numero_motor,
+          numero_chasis_vin = EXCLUDED.numero_chasis_vin,
+          numero_tarjeta_propiedad = EXCLUDED.numero_tarjeta_propiedad,
+          fecha_expedicion_soat = EXCLUDED.fecha_expedicion_soat,
+          fecha_vencimiento_soat = EXCLUDED.fecha_vencimiento_soat,
+          fecha_expedicion_tecnomecanica = EXCLUDED.fecha_expedicion_tecnomecanica,
+          fecha_vencimiento_tecnomecanica = EXCLUDED.fecha_vencimiento_tecnomecanica,
+          numero_poliza_rc_contractual = EXCLUDED.numero_poliza_rc_contractual,
+          numero_poliza_rc_extracontractual = EXCLUDED.numero_poliza_rc_extracontractual,
+          fecha_vencimiento_polizas_rc = EXCLUDED.fecha_vencimiento_polizas_rc,
+          tiene_gps = EXCLUDED.tiene_gps,
+          proveedor_gps = EXCLUDED.proveedor_gps,
+          nombre_propietario = EXCLUDED.nombre_propietario,
+          nit_cedula_propietario = EXCLUDED.nit_cedula_propietario,
+          disponible = EXCLUDED.disponible,
+          ocupado_por_sistema = EXCLUDED.ocupado_por_sistema`,
         [
           v.id,
           String(v.plate).toUpperCase(),
@@ -1520,7 +1574,10 @@ export class PortalService {
           $13::date, $14::date, $15, $16, $17, $18, $19, $20, $21, $22::date, $23::timestamptz
         )
         ON CONFLICT (id) DO UPDATE SET
+          id_empresa = EXCLUDED.id_empresa,
           nombre_completo = EXCLUDED.nombre_completo,
+          tipo_documento = EXCLUDED.tipo_documento,
+          numero_documento = EXCLUDED.numero_documento,
           telefono = EXCLUDED.telefono,
           departamento = EXCLUDED.departamento,
           ciudad = EXCLUDED.ciudad,
@@ -1534,6 +1591,7 @@ export class PortalService {
           contacto_emergencia = EXCLUDED.contacto_emergencia,
           telefono_emergencia = EXCLUDED.telefono_emergencia,
           disponible = EXCLUDED.disponible,
+          ocupado_por_sistema = EXCLUDED.ocupado_por_sistema,
           tipo_contrato = EXCLUDED.tipo_contrato,
           salario_base = EXCLUDED.salario_base,
           fecha_inicio = EXCLUDED.fecha_inicio,
@@ -1692,6 +1750,12 @@ export class PortalService {
           fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
           fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
           curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          id_empresa = EXCLUDED.id_empresa,
+          id_cargo = EXCLUDED.id_cargo,
+          meses_prueba = EXCLUDED.meses_prueba,
+          fecha_fin_contrato = EXCLUDED.fecha_fin_contrato,
+          jornada_laboral = EXCLUDED.jornada_laboral,
+          correo_corporativo = EXCLUDED.correo_corporativo,
           url_avatar = EXCLUDED.url_avatar`,
         [
           e.id,
@@ -1764,8 +1828,30 @@ export class PortalService {
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25
         )
         ON CONFLICT (id) DO UPDATE SET
+          id_empleado = EXCLUDED.id_empleado,
+          nombre_empleado = EXCLUDED.nombre_empleado,
+          periodo_mes = EXCLUDED.periodo_mes,
+          devengado_total = EXCLUDED.devengado_total,
+          base_cotizacion_ibc = EXCLUDED.base_cotizacion_ibc,
+          viaticos_periodo = EXCLUDED.viaticos_periodo,
+          reembolso_combustible = EXCLUDED.reembolso_combustible,
+          viaticos_automaticos = EXCLUDED.viaticos_automaticos,
+          reembolso_combustible_automatico = EXCLUDED.reembolso_combustible_automatico,
+          viaticos_manuales = EXCLUDED.viaticos_manuales,
+          reembolso_combustible_manual = EXCLUDED.reembolso_combustible_manual,
+          horas_extras_cop = EXCLUDED.horas_extras_cop,
+          auxilios_nomina_formulario = EXCLUDED.auxilios_nomina_formulario,
+          bonificaciones_cop = EXCLUDED.bonificaciones_cop,
+          cantidad_viajes_conductor = EXCLUDED.cantidad_viajes_conductor,
+          viajes_interdepartamentales = EXCLUDED.viajes_interdepartamentales,
+          deduccion_salud = EXCLUDED.deduccion_salud,
+          deduccion_pension = EXCLUDED.deduccion_pension,
+          fondo_solidaridad_pensional = EXCLUDED.fondo_solidaridad_pensional,
+          total_deducciones = EXCLUDED.total_deducciones,
+          neto_a_pagar = EXCLUDED.neto_a_pagar,
           liquidacion_pagada = EXCLUDED.liquidacion_pagada,
-          neto_a_pagar = EXCLUDED.neto_a_pagar`,
+          fecha_pago = EXCLUDED.fecha_pago,
+          pago_aprobado_por = EXCLUDED.pago_aprobado_por`,
         [
           run.id,
           run.employeeId,
@@ -1806,7 +1892,19 @@ export class PortalService {
           id, fecha, id_vehiculo, placa_vehiculo, id_conductor, nombre_conductor, numero_viaje, litros, costo_total,
           costo_por_litro, kilometraje_odometro, estacion, pagado_por
         ) VALUES ($1::uuid, $2::date, $3::uuid, $4, $5::uuid, $6, $7, $8, $9, $10, $11, $12, $13)
-        ON CONFLICT (id) DO NOTHING`,
+        ON CONFLICT (id) DO UPDATE SET
+          fecha = EXCLUDED.fecha,
+          id_vehiculo = EXCLUDED.id_vehiculo,
+          placa_vehiculo = EXCLUDED.placa_vehiculo,
+          id_conductor = EXCLUDED.id_conductor,
+          nombre_conductor = EXCLUDED.nombre_conductor,
+          numero_viaje = EXCLUDED.numero_viaje,
+          litros = EXCLUDED.litros,
+          costo_total = EXCLUDED.costo_total,
+          costo_por_litro = EXCLUDED.costo_por_litro,
+          kilometraje_odometro = EXCLUDED.kilometraje_odometro,
+          estacion = EXCLUDED.estacion,
+          pagado_por = EXCLUDED.pagado_por`,
         [
           row.id,
           row.date,
@@ -1834,7 +1932,15 @@ export class PortalService {
         `INSERT INTO registros_mantenimiento_vehiculo (
           id, fecha, id_vehiculo, placa_vehiculo, tipo_intervencion, descripcion, costo, horas_inactividad, estado_seguimiento
         ) VALUES ($1::uuid, $2::date, $3::uuid, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (id) DO NOTHING`,
+        ON CONFLICT (id) DO UPDATE SET
+          fecha = EXCLUDED.fecha,
+          id_vehiculo = EXCLUDED.id_vehiculo,
+          placa_vehiculo = EXCLUDED.placa_vehiculo,
+          tipo_intervencion = EXCLUDED.tipo_intervencion,
+          descripcion = EXCLUDED.descripcion,
+          costo = EXCLUDED.costo,
+          horas_inactividad = EXCLUDED.horas_inactividad,
+          estado_seguimiento = EXCLUDED.estado_seguimiento`,
         [
           row.id,
           row.date,
@@ -1872,7 +1978,11 @@ export class PortalService {
            VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            ON CONFLICT (id) DO UPDATE SET
              nombre = EXCLUDED.nombre,
+             rol_trabajador = EXCLUDED.rol_trabajador,
              salario_base_mensual = EXCLUDED.salario_base_mensual,
+             tipo_contrato_sugerido = EXCLUDED.tipo_contrato_sugerido,
+             fundamento_legal = EXCLUDED.fundamento_legal,
+             activo = EXCLUDED.activo,
              jornada_referencia = EXCLUDED.jornada_referencia,
              nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
              salario_integral = EXCLUDED.salario_integral`,
@@ -1907,6 +2017,7 @@ export class PortalService {
             nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, estado
           ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::estado_vacante)
           ON CONFLICT (id) DO UPDATE SET
+            id_cargo = EXCLUDED.id_cargo,
             titulo = EXCLUDED.titulo,
             departamento = EXCLUDED.departamento,
             ciudad = EXCLUDED.ciudad,
@@ -1959,8 +2070,22 @@ export class PortalService {
             anios_experiencia, aspiracion_salarial, fecha_disponible_ingreso, etapa_proceso, adjuntos_json
           ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::date, $16, $17::jsonb)
           ON CONFLICT (id) DO UPDATE SET
+            id_vacante = EXCLUDED.id_vacante,
+            nombre_completo = EXCLUDED.nombre_completo,
+            correo_electronico = EXCLUDED.correo_electronico,
+            telefono = EXCLUDED.telefono,
+            tipo_documento = EXCLUDED.tipo_documento,
+            numero_documento = EXCLUDED.numero_documento,
+            fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+            nivel_educativo = EXCLUDED.nivel_educativo,
+            departamento = EXCLUDED.departamento,
+            ciudad = EXCLUDED.ciudad,
+            direccion = EXCLUDED.direccion,
+            anios_experiencia = EXCLUDED.anios_experiencia,
+            aspiracion_salarial = EXCLUDED.aspiracion_salarial,
+            fecha_disponible_ingreso = EXCLUDED.fecha_disponible_ingreso,
             etapa_proceso = EXCLUDED.etapa_proceso,
-            aspiracion_salarial = EXCLUDED.aspiracion_salarial`,
+            adjuntos_json = EXCLUDED.adjuntos_json`,
           [
             x.id,
             x.vacancyId,
@@ -1991,7 +2116,14 @@ export class PortalService {
         await c.query(
           `INSERT INTO entrevistas (id, id_candidato, nombre_candidato_denorm, fecha_hora, entrevistador, modalidad, lugar_o_enlace, notas)
            VALUES ($1::uuid, $2::uuid, $3, $4::timestamptz, $5, $6, $7, $8)
-           ON CONFLICT (id) DO NOTHING`,
+           ON CONFLICT (id) DO UPDATE SET
+             id_candidato = EXCLUDED.id_candidato,
+             nombre_candidato_denorm = EXCLUDED.nombre_candidato_denorm,
+             fecha_hora = EXCLUDED.fecha_hora,
+             entrevistador = EXCLUDED.entrevistador,
+             modalidad = EXCLUDED.modalidad,
+             lugar_o_enlace = EXCLUDED.lugar_o_enlace,
+             notas = EXCLUDED.notas`,
           [
             i.id,
             i.candidateId,
@@ -2017,7 +2149,23 @@ export class PortalService {
           ) VALUES (
             $1::uuid, $2, $3::uuid, $4, $5, $6::uuid, $7, $8, $9::date, $10::uuid, $11, $12, $13, $14, $15, $16, $17
           )
-          ON CONFLICT (id) DO NOTHING`,
+          ON CONFLICT (id) DO UPDATE SET
+            tipo_persona_origen = EXCLUDED.tipo_persona_origen,
+            id_candidato = EXCLUDED.id_candidato,
+            nombre_candidato_denorm = EXCLUDED.nombre_candidato_denorm,
+            rol_trabajador = EXCLUDED.rol_trabajador,
+            id_cargo = EXCLUDED.id_cargo,
+            nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
+            salario_pactado = EXCLUDED.salario_pactado,
+            fecha_inicio = EXCLUDED.fecha_inicio,
+            id_empresa = EXCLUDED.id_empresa,
+            nombre_empresa_denorm = EXCLUDED.nombre_empresa_denorm,
+            tipo_contrato = EXCLUDED.tipo_contrato,
+            tipo_plantilla_word = EXCLUDED.tipo_plantilla_word,
+            eps = EXCLUDED.eps,
+            fondo_pension = EXCLUDED.fondo_pension,
+            arl = EXCLUDED.arl,
+            jornada_turno = EXCLUDED.jornada_turno`,
           [
             x.id,
             x.personType || "Natural",
@@ -2061,7 +2209,16 @@ export class PortalService {
           id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
           numero_soporte, entidad_eps, observaciones
         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10)
-        ON CONFLICT (id) DO NOTHING`,
+        ON CONFLICT (id) DO UPDATE SET
+          id_empleado = EXCLUDED.id_empleado,
+          nombre_empleado = EXCLUDED.nombre_empleado,
+          tipo_ausencia = EXCLUDED.tipo_ausencia,
+          fecha_inicio = EXCLUDED.fecha_inicio,
+          fecha_fin = EXCLUDED.fecha_fin,
+          dias_calendario = EXCLUDED.dias_calendario,
+          numero_soporte = EXCLUDED.numero_soporte,
+          entidad_eps = EXCLUDED.entidad_eps,
+          observaciones = EXCLUDED.observaciones`,
         [
           row.id,
           row.employeeId,
@@ -2086,7 +2243,16 @@ export class PortalService {
         `INSERT INTO registros_cumplimiento_sst (
           id, id_empleado, nombre_empleado, tipo_registro, proveedor_entidad, fecha_vencimiento_control, estado, codigo_documento, observaciones, creado_por
         ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7, $8, $9, $10)
-        ON CONFLICT (id) DO NOTHING`,
+        ON CONFLICT (id) DO UPDATE SET
+          id_empleado = EXCLUDED.id_empleado,
+          nombre_empleado = EXCLUDED.nombre_empleado,
+          tipo_registro = EXCLUDED.tipo_registro,
+          proveedor_entidad = EXCLUDED.proveedor_entidad,
+          fecha_vencimiento_control = EXCLUDED.fecha_vencimiento_control,
+          estado = EXCLUDED.estado,
+          codigo_documento = EXCLUDED.codigo_documento,
+          observaciones = EXCLUDED.observaciones,
+          creado_por = EXCLUDED.creado_por`,
         [
           row.id,
           row.employeeId,
