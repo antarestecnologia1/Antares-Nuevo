@@ -18,7 +18,7 @@ window.PortalArchitecture = (() => {
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-requests": {
-      title: "Transporte · Solicitudes",
+      title: "Transporte · Acceso a bandeja",
       access: "admin",
       shell: true,
       renderer: [{ module: "transporte", exportName: "adminQueueHtml" }],

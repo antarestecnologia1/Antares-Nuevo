@@ -481,6 +481,7 @@ export class PortalService {
       id: row.id,
       name: row.name,
       nit: row.nit,
+      taxId: row.nit,
       phone: row.phone || "",
       createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
     }));
@@ -1256,11 +1257,20 @@ export class PortalService {
       if (!row?.id) continue;
       const id = String(row.id).trim();
       if (!PG_UUID_V4_RE.test(id)) continue;
+      const rec = row as Record<string, unknown>;
+      const nombre = pickPortalField(rec, "name", "nombre");
+      const nit = pickPortalField(rec, "nit", "taxId");
+      if (nombre === undefined || nit === undefined) continue;
+      const phoneVal = pickPortalField(rec, "phone", "telefono");
+      const telefono =
+        phoneVal === undefined || phoneVal === null || String(phoneVal).trim() === ""
+          ? null
+          : String(phoneVal).trim();
       await c.query(
         `INSERT INTO empresas (id, nombre, nit, telefono)
          VALUES ($1::uuid, $2, $3, $4)
          ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, nit = EXCLUDED.nit, telefono = EXCLUDED.telefono`,
-        [id, row.name, row.nit, row.phone || null]
+        [id, String(nombre).trim(), String(nit).trim(), telefono]
       );
     }
   }

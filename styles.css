@@ -2781,6 +2781,50 @@ body[data-theme="dark"] .auth-register-success-dismiss {
   color: #e8fdf3;
 }
 
+.users-pending-redirect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 0.75rem 0 1.1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, #1565c0 45%, var(--line));
+  background: color-mix(in srgb, #1565c0 6%, var(--module-soft-bg, #f5f9ff));
+}
+
+.users-pending-redirect-text {
+  margin: 0;
+  flex: 1 1 200px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.auth-embedded-pending-users {
+  margin-top: 0.25rem;
+}
+
+.auth-transport-assign-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.auth-transport-assign-note a {
+  font-weight: 600;
+}
+
+.admin-queue-redirect .auth-central-redirect-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+body[data-theme="dark"] .users-pending-redirect {
+  background: color-mix(in srgb, #1565c0 14%, #0f1f34);
+  border-color: color-mix(in srgb, #5a73d4 50%, #334155);
+}
+
 .auth-pane {
   border: 1px solid var(--line);
   border-radius: 14px;

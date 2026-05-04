@@ -2396,14 +2396,6 @@ const APPROVAL_UI_BLOCKS = [
     origin: "Conductores → nuevo registro (no administrador)"
   },
   {
-    key: "transport_solicitudes",
-    kind: "info",
-    title: "Solicitudes de viaje (transporte comercial)",
-    description:
-      "Las solicitudes de servicio en estado pendiente no entran en esta cola: se revisan y aprueban en el módulo «Solicitudes», con asignación opcional de vehículo, conductor y valor del viaje. Quien tenga permiso de gestión de solicitudes puede aprobar allí sin paso intermedio por Autorizaciones.",
-    origin: "Transporte → Solicitudes (listado de solicitudes pendientes)"
-  },
-  {
     key: "workforce",
     kind: "queue",
     title: "Talento, contratación y nómina",
@@ -4551,34 +4543,28 @@ function requestListClientHtml(user) {
 
 function adminQueueHtml() {
   const allReq = reqRead();
-  const requests = allReq.filter((r) => r.status === STATUS.PENDIENTE);
-  const pendingAssign = allReq.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION).length;
-  const activeOps = allReq.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const pendingSvc = allReq.filter((r) => r.status === STATUS.PENDIENTE);
+  const pendingAssign = allReq.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION);
+  const pendingUsers = read(KEYS.users, []).filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
+  const approvalsPending = read(KEYS.approvals, []).filter((a) => a.status === "pendiente").length;
+  const totalCentral = pendingSvc.length + pendingUsers.length + approvalsPending;
   const queueHero = moduleFleetHeroStrip([
-    { label: "Bandeja pendiente", value: requests.length, tone: requests.length ? "warn" : undefined },
-    { label: "Total solicitudes", value: allReq.length },
-    { label: "Aprob. sin asignar", value: pendingAssign, tone: pendingAssign ? "warn" : undefined },
-    { label: "Viajes en operacion", value: activeOps }
+    { label: "Pendientes (central)", value: totalCentral, tone: totalCentral ? "warn" : undefined },
+    { label: "Solicitudes servicio", value: pendingSvc.length, tone: pendingSvc.length ? "warn" : undefined },
+    { label: "Registros portal", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
+    { label: "Cola interna", value: approvalsPending, tone: approvalsPending ? "warn" : undefined },
+    { label: "Sin asignar viaje", value: pendingAssign.length, tone: pendingAssign.length ? "warn" : undefined }
   ]);
-  const rows = requests
-    .map((r) => `<tr>
-      <td><strong>${r.requestNumber || r.id}</strong></td>
-      <td>${r.clientName}</td>
-      <td>${formatRoute(r)}</td>
-      <td>${r.vehicleType}</td>
-      <td><span class="timer-badge">${IC.clock} ${minutesRemaining(r.createdAt)} min</span></td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-approve" data-action="approve" data-id="${r.id}">${IC.check} Aprobar</button>
-        <button class="btn btn-sm btn-reject" data-action="reject" data-id="${r.id}">${IC.x} Rechazar</button>
-        <button class="btn btn-sm btn-action" data-action="edit-admin" data-id="${r.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-action" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>
-      </div></td>
-    </tr>`)
-    .join("");
-  const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Vehiculo</th><th>Timer</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("No hay solicitudes pendientes.");
-  return `${queueHero}${pcardWrap("inbox", "Bandeja de pendientes", requests.length + " solicitudes por revisar", body, requests.length > 0 ? "p-card-alert" : "")}`;
+  const body = `<div class="auth-queue-section auth-queue-section--info admin-queue-redirect">
+    <p class="auth-central-redirect-lead">La <strong>aprobación de solicitudes de transporte</strong>, los <strong>registros de cliente pendientes</strong> y la <strong>cola de autorizaciones internas</strong> están unificadas en <strong>Autorizaciones</strong>.</p>
+    <p><a class="btn btn-primary" href="#portal/authorizations">${IC.shield} Abrir Autorizaciones</a></p>
+    ${
+      pendingAssign.length
+        ? `<p class="muted">Hay <strong>${pendingAssign.length}</strong> solicitud(es) ya aprobadas y pendientes de <strong>asignación de viaje</strong>: use <a href="#portal/transport-trips">Transporte · Viajes</a>.</p>`
+        : ""
+    }
+  </div>`;
+  return `${queueHero}${pcardWrap("inbox", "Bandeja operativa", "Vista centralizada", body)}`;
 }
 
 function vehiclesHtml() {
@@ -5130,27 +5116,8 @@ function adminUsersHtml(current) {
     </div>`;
   }).join("");
 
-  // --- Pendientes ---
+  // --- Pendientes de registro (portal): bandeja unificada en Autorizaciones ---
   const pendingUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
-  const pendingCards = pendingUsers.map((u) => `<div class="user-card pending-card">
-    <div class="user-card-top">
-      <div class="user-avatar pending-avatar">${u.name.charAt(0).toUpperCase()}</div>
-      <div class="user-card-info">
-        <h4>${u.name}</h4>
-        <p>${u.email}</p>
-      </div>
-    </div>
-    <div class="user-card-meta">
-      <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "-"}</span>
-      <span>${IC.file} ${String(u.documentType || "Doc")} ${u.taxId || "-"}${u.personalTaxId || u.personalDoc ? ` · pers. ${u.personalTaxId || u.personalDoc}` : ""}</span>
-      ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
-      ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
-    </div>
-    <div class="user-card-actions">
-      <button class="btn btn-sm btn-approve" data-action="approve-registration" data-id="${u.id}">${IC.check} Aprobar</button>
-      <button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${u.id}">${IC.x} Rechazar</button>
-    </div>
-  </div>`).join("");
 
   // --- Formularios ---
   const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
@@ -5343,7 +5310,10 @@ function adminUsersHtml(current) {
   </div>`;
 
   if (pendingUsers.length > 0) {
-    html += pcardWrap("bell", "Solicitudes pendientes (" + pendingUsers.length + ")", "Estos clientes necesitan aprobación para acceder", `<div class="user-grid user-grid-pending">${pendingCards}</div>`, "p-card-alert");
+    html += `<div class="users-pending-redirect" role="note">
+      <p class="users-pending-redirect-text"><strong>${pendingUsers.length}</strong> registro(s) de cliente pendiente(s) de aprobación. La bandeja está unificada en Autorizaciones.</p>
+      <a class="btn btn-sm btn-primary" href="#portal/authorizations">${IC.shield} Ir a Autorizaciones</a>
+    </div>`;
   }
 
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
@@ -6123,7 +6093,7 @@ function mountUniversalModuleFilters() {
   const headers = firstTable ? [...firstTable.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
   const moduleLabels = {
     requests: "Solicitudes",
-    "transport-requests": "Solicitudes transporte",
+    "transport-requests": "Bandeja unificada",
     "transport-trips": "Viajes",
     "transport-vehicles": "Flota",
     "transport-drivers": "Conductores",
@@ -7166,11 +7136,103 @@ function profileHtml(user) {
   return profileHero + pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
 }
 
+/** Tarjetas de usuarios con registro en portal pendiente de aprobación (mismo contrato que aprobar en Autorizaciones). */
+function buildPendingUserRegistrationCardsHtml(pendingUsers) {
+  return pendingUsers
+    .map(
+      (u) => `<div class="user-card pending-card">
+    <div class="user-card-top">
+      <div class="user-avatar pending-avatar">${(u.name || "?").charAt(0).toUpperCase()}</div>
+      <div class="user-card-info">
+        <h4>${escapeHtml(u.name)}</h4>
+        <p>${escapeHtml(u.email)}</p>
+      </div>
+    </div>
+    <div class="user-card-meta">
+      <span>${IC.briefcase} ${escapeHtml(getCompanyById(u.companyId)?.name || u.company || "—")}</span>
+      <span>${IC.file} ${escapeHtml(String(u.documentType || "Doc"))} ${escapeHtml(u.taxId || "-")}${u.personalTaxId || u.personalDoc ? ` · pers. ${escapeHtml(u.personalTaxId || u.personalDoc)}` : ""}</span>
+      ${u.phone ? `<span>${IC.user} ${escapeHtml(u.phone)}</span>` : ""}
+      ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
+    </div>
+    <div class="user-card-actions">
+      <button type="button" class="btn btn-sm btn-approve" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>
+      <button type="button" class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>
+    </div>
+  </div>`
+    )
+    .join("");
+}
+
+function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
+  const n = pendingUsers.length;
+  const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
+  const body = n
+    ? `<div class="user-grid user-grid-pending auth-embedded-pending-users">${buildPendingUserRegistrationCardsHtml(pendingUsers)}</div>`
+    : emptyState("No hay registros de cliente pendientes de aprobación.");
+  return `<section class="auth-queue-section" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
+      <header class="auth-queue-section-head">
+        <div class="auth-queue-section-title-row">
+          <h3 class="auth-queue-section-title">Registro de clientes (portal público)</h3>
+          ${countBadge}
+        </div>
+        <p class="muted auth-queue-section-desc">Personas que completaron el formulario de alta en el sitio y esperan asignación de empresa, rol y activación de cuenta por un administrador.</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen:</span> Sitio web → Registro de cliente</p>
+      </header>
+      <div class="auth-queue-section-body">${body}</div>
+    </section>`;
+}
+
+function buildAuthorizationsTransportRequestsSection() {
+  const allReq = reqRead();
+  const pending = allReq.filter((r) => r.status === STATUS.PENDIENTE);
+  const pendingAssign = allReq.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION);
+  const n = pending.length;
+  const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
+  const rows = pending
+    .map(
+      (r) => `<tr>
+      <td><strong>${escapeHtml(String(r.requestNumber || r.id))}</strong></td>
+      <td>${escapeHtml(String(r.clientName || ""))}</td>
+      <td>${escapeHtml(formatRoute(r))}</td>
+      <td>${escapeHtml(String(r.vehicleType || ""))}</td>
+      <td><span class="timer-badge">${IC.clock} ${minutesRemaining(r.createdAt)} min</span></td>
+      <td><div class="toolbar">
+        <button type="button" class="btn btn-sm btn-approve" data-action="approve" data-id="${escapeAttr(String(r.id))}">${IC.check} Aprobar</button>
+        <button type="button" class="btn btn-sm btn-reject" data-action="reject" data-id="${escapeAttr(String(r.id))}">${IC.x} Rechazar</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="edit-admin" data-id="${escapeAttr(String(r.id))}">${IC.edit} Editar</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="delete-admin" data-id="${escapeAttr(String(r.id))}">${IC.trash} Eliminar</button>
+      </div></td>
+    </tr>`
+    )
+    .join("");
+  const assignNote =
+    pendingAssign.length > 0
+      ? `<p class="muted auth-transport-assign-note">Hay <strong>${pendingAssign.length}</strong> solicitud(es) ya aprobadas y pendientes de <strong>asignación de viaje</strong>. Gestiónelas en <a href="#portal/transport-trips">Transporte · Viajes</a> o en la creación de viaje desde el módulo de solicitudes.</p>`
+      : "";
+  const tableOrEmpty = n
+    ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Vehículo</th><th>Antigüedad</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("No hay solicitudes de transporte en espera de aprobación.");
+  return `<section class="auth-queue-section" data-auth-section="transport_service_requests" aria-label="Solicitudes de servicio de transporte">
+      <header class="auth-queue-section-head">
+        <div class="auth-queue-section-title-row">
+          <h3 class="auth-queue-section-title">Solicitudes de transporte (aprobación operativa)</h3>
+          ${countBadge}
+        </div>
+        <p class="muted auth-queue-section-desc">Pedidos en estado pendiente: al aprobar puede asignar vehículo y conductor o dejar la asignación para más tarde (igual comportamiento que la antigua bandeja de Transporte · Solicitudes).</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen:</span> Portal clientes / equipo → módulo Solicitudes</p>
+      </header>
+      <div class="auth-queue-section-body">${assignNote}${tableOrEmpty}</div>
+    </section>`;
+}
+
 function authorizationsHtml() {
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
   const rejectedCt = approvals.filter((a) => a.status === "rechazado").length;
+  const pendingUsers = read(KEYS.users, []).filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
+  const transportPending = reqRead().filter((r) => r.status === STATUS.PENDIENTE);
+  const totalOpen = pending.length + pendingUsers.length + transportPending.length;
 
   const groups = new Map();
   APPROVAL_UI_BLOCKS.forEach((b) => {
@@ -7185,11 +7247,14 @@ function authorizationsHtml() {
   });
 
   const authHero = moduleFleetHeroStrip([
-    { label: "Total registros", value: approvals.length },
-    { label: "Pendientes", value: pending.length, tone: pending.length ? "warn" : undefined },
-    { label: "Aprobadas", value: approvedCt },
-    { label: "Rechazadas", value: rejectedCt }
+    { label: "Pendientes (total)", value: totalOpen, tone: totalOpen ? "warn" : undefined },
+    { label: "Cola flujos internos", value: pending.length, tone: pending.length ? "warn" : undefined },
+    { label: "Registros portal", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
+    { label: "Solicitudes transp.", value: transportPending.length, tone: transportPending.length ? "warn" : undefined }
   ]);
+
+  const portalRegHtml = buildAuthorizationsPortalRegistrationsSection(pendingUsers);
+  const transportSectionHtml = buildAuthorizationsTransportRequestsSection();
 
   const mainSectionsHtml = APPROVAL_UI_BLOCKS.map((section) => {
     if (section.kind === "info") {
@@ -7235,25 +7300,26 @@ function authorizationsHtml() {
       : "";
 
   const catalogItems = [
-    "<strong>Usuarios y permisos</strong>: alta de usuario cuando quien guarda no es administrador (cola: alta de usuario del portal).",
+    "<strong>Registro de clientes (este módulo)</strong>: aprobación de cuentas creadas desde el sitio web; asignación de empresa y rol.",
+    "<strong>Solicitudes de transporte (este módulo)</strong>: aprobación operativa de pedidos de servicio en estado pendiente.",
+    "<strong>Usuarios y permisos</strong>: alta de usuario interno cuando quien guarda no es administrador (cola en «Acceso y usuarios del portal»).",
     "<strong>Conductores</strong>: alta de conductor cuando quien guarda no es administrador.",
     "<strong>Nómina / nuevo empleado</strong>: ficha de colaborador cuando quien guarda no es administrador.",
-    "<strong>Cumplimiento laboral y SST</strong>: registro de ausencia cuando el rol es RRHH, Administración, Auxiliar administrativo o Líder administrativo.",
-    "<strong>Nómina / liquidaciones</strong>: marcar pago de liquidación con los mismos roles administrativos anteriores (doble control respecto al administrador de sistema).",
-    "<strong>Solicitudes (transporte)</strong>: aprobación de pedidos de servicio en el listado de solicitudes; no usa esta cola.",
-    "<strong>Nota técnica</strong>: el código conserva un tipo de autorización «solicitud de viaje» por compatibilidad, pero en la práctica no se encola; use siempre el módulo «Solicitudes»."
+    "<strong>Cumplimiento laboral y SST</strong>: registro de ausencia cuando el rol es RRHH o administrativo.",
+    "<strong>Nómina / liquidaciones</strong>: marcar pago de liquidación con roles administrativos (doble control).",
+    "<strong>Nota</strong>: la cola interna (<code>antares_approvals_v2</code>) es distinta del registro en PostgreSQL para clientes nuevos; ambas se atienden aquí por secciones."
   ]
     .map((li) => `<li>${li}</li>`)
     .join("");
 
   const catalogHtml = `<details class="auth-flow-catalog">
     <summary class="auth-flow-catalog-summary">Inventario de flujos que requieren validación administrativa</summary>
-    <p class="muted auth-flow-catalog-lead">Lista exhaustiva según la lógica actual de la aplicación. Las aprobaciones en cola se almacenan en este navegador (<code>antares_approvals_v2</code>) hasta que un administrador decide.</p>
+    <p class="muted auth-flow-catalog-lead">Vista unificada: registros de portal, solicitudes de transporte y cola de autorizaciones internas. El inventario detalla el origen de cada tipo de decisión.</p>
     <ul class="auth-flow-catalog-list">${catalogItems}</ul>
   </details>`;
 
-  const bodyInner = `${mainSectionsHtml}${miscSectionHtml}${catalogHtml}`;
-  return authHero + pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes en total`, bodyInner);
+  const bodyInner = `${portalRegHtml}${transportSectionHtml}${mainSectionsHtml}${miscSectionHtml}${catalogHtml}`;
+  return authHero + pcardWrap("shield", "Autorizaciones", `${totalOpen} pendiente(s) · Cola interna: ${approvedCt} aprob. / ${rejectedCt} rech. histórico`, bodyInner);
 }
 
 function contactLeadsHtml() {
