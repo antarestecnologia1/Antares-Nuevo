@@ -57,6 +57,36 @@ const sharedPoolOptions: Pick<
   allowExitOnIdle: false
 };
 
+function isLiteralIpv4Host(host: string): boolean {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+}
+
+/** Hostnames de Supabase (directo, pooler session/transaction) donde Render suele fallar por IPv6. */
+function hostLooksLikeSupabase(host: string): boolean {
+  const h = host.toLowerCase();
+  return h.includes("supabase.co") || h.includes("supabase.com") || h.includes("pooler.supabase");
+}
+
+/**
+ * Solo registros A (IPv4). `lookup` con getaddrinfo a veces devuelve orden dual-stack poco útil aquí.
+ */
+async function resolveHostToIpv4(host: string): Promise<string | null> {
+  if (isLiteralIpv4Host(host)) return host;
+  try {
+    const records = await dns.promises.resolve4(host);
+    if (records.length > 0) return records[0];
+  } catch {
+    /* continuar con lookup */
+  }
+  try {
+    const { address } = await dns.promises.lookup(host, { family: 4 });
+    if (address && isLiteralIpv4Host(address)) return address;
+  } catch {
+    /* */
+  }
+  return null;
+}
+
 /**
  * En Render, la ruta IPv6 a Supabase a veces devuelve ENETUNREACH; conectar al IPv4 explícito + SNI resuelve el caso.
  */
@@ -66,8 +96,7 @@ export async function createPgPoolFromEnv(connectionString: string): Promise<Poo
   }
 
   const parsed = parsePostgresConnectionUrl(connectionString);
-  /** Solo Supabase: Render ↔ ENETUNREACH IPv6; otros hosts siguen con URI tal cual. */
-  const hostNeedsIpv4 = parsed && /supabase/i.test(parsed.host);
+  const hostNeedsIpv4 = parsed && hostLooksLikeSupabase(parsed.host);
 
   if (!parsed || !hostNeedsIpv4) {
     return new Pool({
@@ -77,31 +106,31 @@ export async function createPgPoolFromEnv(connectionString: string): Promise<Poo
     });
   }
 
-  try {
-    const { address } = await dns.promises.lookup(parsed.host, { family: 4 });
-    const baseSsl = sslForDatabaseUrl(connectionString);
-    const ssl =
-      baseSsl && typeof baseSsl === "object"
-        ? { ...baseSsl, servername: parsed.host }
-        : baseSsl;
-
-    log.log(`Postgres: resuelto ${parsed.host} -> IPv4 ${address} (TLS SNI ${parsed.host})`);
-
-    return new Pool({
-      host: address,
-      port: parsed.port,
-      user: parsed.user,
-      password: parsed.password,
-      database: parsed.database,
-      ssl,
-      ...sharedPoolOptions
-    });
-  } catch (e) {
-    log.warn(`Postgres: lookup IPv4 falló para ${parsed.host}, usando URI original: ${String(e)}`);
+  const address = await resolveHostToIpv4(parsed.host);
+  if (!address) {
+    log.warn(`Postgres: sin IPv4 (registro A) para ${parsed.host}, usando URI original`);
     return new Pool({
       connectionString,
       ssl: sslForDatabaseUrl(connectionString),
       ...sharedPoolOptions
     });
   }
+
+  const baseSsl = sslForDatabaseUrl(connectionString);
+  const ssl =
+    baseSsl && typeof baseSsl === "object"
+      ? { ...baseSsl, servername: parsed.host }
+      : baseSsl;
+
+  log.log(`Postgres: resuelto ${parsed.host} -> IPv4 ${address} (TLS SNI ${parsed.host})`);
+
+  return new Pool({
+    host: address,
+    port: parsed.port,
+    user: parsed.user,
+    password: parsed.password,
+    database: parsed.database,
+    ssl,
+    ...sharedPoolOptions
+  });
 }

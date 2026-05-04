@@ -6,7 +6,7 @@
     "prisma:generate": "node -e \"process.exit(0)\"",
     "build": "tsc -p tsconfig.build.json",
     "start:dev": "nest start --watch",
-    "start": "node dist/main.js"
+    "start": "node --dns-result-order=ipv4first dist/main.js"
   },
   "dependencies": {
     "@nestjs/cli": "^10.4.9",

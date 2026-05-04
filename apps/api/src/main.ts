@@ -1,17 +1,8 @@
+import "./bootstrap-dns";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
-import * as dns from "node:dns";
 import { AppModule } from "./app.module";
-
-/**
- * Render (y otros hosts) a veces no enrutan IPv6 hasta Supabase; Node por defecto puede elegir AAAA primero → ENETUNREACH.
- * Forzar IPv4 primero al resolver db.*.supabase.co evita el fallo sin cambiar DATABASE_URL.
- * (Usar `import * as dns`: `node:dns` no tiene default export en CJS.)
- */
-if (typeof dns.setDefaultResultOrder === "function") {
-  dns.setDefaultResultOrder("ipv4first");
-}
 
 function buildCorsOriginHandler(config: ConfigService) {
   const raw = config.get<string>("CORS_ORIGINS") ?? "";
