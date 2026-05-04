@@ -25,6 +25,7 @@ Fecha: 2026-04-29.
   - Build Command:
     `npm install --workspaces && npm run build -w api`
     *(El workspace ya incluye `api`; no hay migraciones Prisma activas — esquema en `BD/postgres`.)*
+    *Si Render sigue usando `npm run prisma:generate -w api` en el build, está bien: el script es un no-op.*
   - Start Command:
     `npm run start -w api`
 
