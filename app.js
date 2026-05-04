@@ -929,6 +929,37 @@ async function applyPortalBootstrapFromApi() {
 
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 
+/**
+ * Tiempo máximo que la UI espera al bootstrap remoto antes de mostrar el portal.
+ * El GET sigue en segundo plano; al terminar se llama __portalRefreshAfterBootstrap.
+ */
+const PORTAL_BOOTSTRAP_UI_BUDGET_MS = 650;
+
+async function startPortalBootstrapForInteractiveSession() {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || !api.getAccessToken?.()) return;
+  const p = window.PortalDataLayer?.refreshCacheFromApi
+    ? window.PortalDataLayer.refreshCacheFromApi()
+    : applyPortalBootstrapFromApi();
+  try {
+    await Promise.race([
+      p,
+      new Promise((resolve) => setTimeout(resolve, PORTAL_BOOTSTRAP_UI_BUDGET_MS))
+    ]);
+  } catch (_e) {
+    /* fallo de red o 401: la vista usa caché o stub hasta el próximo intento */
+  }
+  void p
+    .then((ok) => {
+      if (ok && typeof window.__portalRefreshAfterBootstrap === "function") {
+        try {
+          window.__portalRefreshAfterBootstrap();
+        } catch (_e2) {}
+      }
+    })
+    .catch(() => {});
+}
+
 function reqRead() {
   return typeof DomainModules?.requests?.readAllSync === "function"
     ? DomainModules.requests.readAllSync()
@@ -2564,11 +2595,9 @@ async function tryApiLoginBridge(user, password) {
         lastActivityAt: Date.now()
       });
     }
-    const bootOk = window.PortalDataLayer?.refreshCacheFromApi
-      ? await window.PortalDataLayer.refreshCacheFromApi()
-      : await applyPortalBootstrapFromApi();
-    if (bootOk && state.session && currentUser()) {
-      renderPortalView();
+    await startPortalBootstrapForInteractiveSession();
+    if (state.session && currentUser()) {
+      scheduleRenderPortalView();
       updateNotificationBadge();
     }
   } catch (_e) {
@@ -2583,6 +2612,17 @@ function buildToken(user) {
 
 async function ensureUsersPasswordHashing() {
   const users = read(KEYS.users, []);
+  if (window.AntaresApi?.getBase?.()) {
+    let anyPlain = false;
+    for (const user of users) {
+      const p = String(user.password || "");
+      if (p && !p.startsWith("sha256:")) {
+        anyPlain = true;
+        break;
+      }
+    }
+    if (!anyPlain) return;
+  }
   let changed = false;
   const secured = [];
   for (const user of users) {
@@ -2890,11 +2930,7 @@ function bindAuthForms() {
           if (res.ok && body?.accessToken) {
             const refreshTok = String(body.refreshToken || "").trim();
             window.AntaresApi.setAccessToken(body.accessToken);
-            if (window.PortalDataLayer?.refreshCacheFromApi) {
-              await window.PortalDataLayer.refreshCacheFromApi();
-            } else {
-              await applyPortalBootstrapFromApi();
-            }
+            await startPortalBootstrapForInteractiveSession();
             const payload = decodeJwtPayload(body.accessToken);
             const uid = payload?.sub;
             const usersAfter = read(KEYS.users, []);
@@ -7807,11 +7843,7 @@ function bindDynamicEvents() {
                 companyId: String(selected.id),
                 role: chosenRole
               });
-              if (window.PortalDataLayer?.refreshCacheFromApi) {
-                await window.PortalDataLayer.refreshCacheFromApi();
-              } else {
-                await applyPortalBootstrapFromApi();
-              }
+              await startPortalBootstrapForInteractiveSession();
             } catch (err) {
               notify(String(err?.message || userMessage("registerServerError")), "error");
               return false;
@@ -11040,13 +11072,9 @@ initPublicEffects();
 
 void (async function bootApplicationFromDatabaseThenUi() {
   try {
-    if (window.PortalDataLayer?.refreshCacheFromApi) {
-      await window.PortalDataLayer.refreshCacheFromApi();
-    } else {
-      await applyPortalBootstrapFromApi();
-    }
+    await startPortalBootstrapForInteractiveSession();
   } catch (_e) {
-    /* refreshCacheFromApi / applyPortalBootstrapFromApi ya registran fallos */
+    /* startPortalBootstrapForInteractiveSession ya tolera fallos */
   }
   await ensureUsersPasswordHashing();
   if (window.DomainRegistry?.list) {

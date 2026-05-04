@@ -111,42 +111,16 @@ export class PortalService {
   }
 
   async bootstrap(userId: string, role: JwtRole) {
-    const empresaId = await this.getUserCompany(userId);
     const admin = this.isAdmin(role);
     const transport = this.isTransportOps(role) || admin;
     const rrhh = this.isRrhh(role);
 
-    const [
-      companies,
-      users,
-      counters,
-      travelAllowanceRules,
-      tripRouteRates,
-      requests,
-      vehicles,
-      drivers,
-      notifications,
-      emails,
-      contacts,
-      positions,
-      vacancies,
-      candidates,
-      interviews,
-      contracts,
-      payrollEmployees,
-      payrollRuns,
-      fuelLogs,
-      vehicleTechnicalLogs,
-      hrAbsences,
-      sstCompliance,
-      approvals
-    ] = await Promise.all([
+    const empresaPromise = this.getUserCompany(userId);
+    const independentPromise = Promise.all([
       this.loadCompanies(),
-      this.loadUsers(admin, userId, empresaId),
       this.loadCounters(),
       this.loadTravelAllowanceRules(),
       this.loadTripRouteRates(),
-      this.loadRequests(admin, userId, empresaId, transport),
       transport ? this.loadVehicles() : Promise.resolve([]),
       transport ? this.loadDrivers() : Promise.resolve([]),
       this.loadNotifications(userId, admin),
@@ -157,14 +131,46 @@ export class PortalService {
       rrhh || admin ? this.loadCandidates() : Promise.resolve([]),
       rrhh || admin ? this.loadInterviews() : Promise.resolve([]),
       rrhh || admin ? this.loadContracts() : Promise.resolve([]),
-      rrhh || admin ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
       rrhh || admin ? this.loadPayrollRuns() : Promise.resolve([]),
       transport || admin ? this.loadFuelLogs() : Promise.resolve([]),
       transport || admin ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
       rrhh || admin ? this.loadHrAbsences() : Promise.resolve([]),
-      rrhh || admin ? this.loadSstCompliance() : Promise.resolve([]),
+      rrhh || admin ? this.loadSstCompliance() : Promise.resolve([])
+    ]);
+
+    const empresaId = await empresaPromise;
+    const dependentPromise = Promise.all([
+      this.loadUsers(admin, userId, empresaId),
+      this.loadRequests(admin, userId, empresaId, transport),
+      rrhh || admin ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId)
     ]);
+
+    const [independent, dependent] = await Promise.all([independentPromise, dependentPromise]);
+
+    const [
+      companies,
+      counters,
+      travelAllowanceRules,
+      tripRouteRates,
+      vehicles,
+      drivers,
+      notifications,
+      emails,
+      contacts,
+      positions,
+      vacancies,
+      candidates,
+      interviews,
+      contracts,
+      payrollRuns,
+      fuelLogs,
+      vehicleTechnicalLogs,
+      hrAbsences,
+      sstCompliance
+    ] = independent;
+
+    const [users, requests, payrollEmployees, approvals] = dependent;
 
     return {
       users,
