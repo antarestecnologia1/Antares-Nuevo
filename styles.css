@@ -417,6 +417,7 @@ body[data-theme="light"] .lang-option.active {
 
 .hero-content {
   position: relative;
+  z-index: 1;
   color: var(--white);
   padding: 3rem 0;
 }
@@ -2567,7 +2568,7 @@ tbody tr:last-child td { border-bottom: none; }
   backdrop-filter: blur(8px);
   display: grid;
   place-items: center;
-  z-index: 60;
+  z-index: 400;
 }
 
 .modal-card {

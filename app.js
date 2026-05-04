@@ -2770,19 +2770,26 @@ function authView() {
 }
 
 function showAuth() {
-  nodes.authModal.classList.remove("hidden");
+  const modal = nodes.authModal || document.getElementById("auth-modal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
   renderAuthTab();
 }
 
 function hideAuth() {
-  nodes.authModal.classList.add("hidden");
+  const modal = nodes.authModal || document.getElementById("auth-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
 }
 
 function renderAuthTab() {
-  nodes.authTabs.forEach((tabBtn) => {
+  const tabs = nodes.authTabs.length ? nodes.authTabs : [...document.querySelectorAll("#auth-modal .tab")];
+  const content = nodes.authContent || document.getElementById("auth-content");
+  tabs.forEach((tabBtn) => {
     tabBtn.classList.toggle("active", tabBtn.dataset.tab === state.authTab);
   });
-  nodes.authContent.innerHTML = authView();
+  if (!content) return;
+  content.innerHTML = authView();
   bindAuthForms();
 }
 
@@ -10442,17 +10449,22 @@ function bindDynamicEvents() {
 }
 
 function initGlobalEvents() {
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const opener = target.closest("#open-auth, #open-auth-hero");
+    if (!opener) return;
+    event.preventDefault();
+    showAuth();
+  });
+
   const savedTheme = String(localStorage.getItem(UI_PREFS.theme) || "light");
   const savedLang = String(localStorage.getItem(UI_PREFS.publicLang) || "es");
   applyTheme(savedTheme);
   state.publicLang = savedLang === "en" ? "en" : "es";
   applyPublicLanguage(state.publicLang);
 
-  nodes.openAuth.addEventListener("click", showAuth);
-  if (nodes.openAuthHero) {
-    nodes.openAuthHero.addEventListener("click", showAuth);
-  }
-  nodes.closeAuth.addEventListener("click", hideAuth);
+  nodes.closeAuth?.addEventListener("click", hideAuth);
 
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const mainNav = document.getElementById("main-nav");
