@@ -54,7 +54,9 @@
       contacts: {
         storageKey: KEYS.contacts,
         read: () =>
-          typeof window.__getAntaresPortalContacts === "function" ? window.__getAntaresPortalContacts() : [],
+          typeof window.AntaresDataAccess?.getPortalContacts === "function"
+            ? window.AntaresDataAccess.getPortalContacts()
+            : [],
         write: () => {}
       },
       requests: requestsRepo,

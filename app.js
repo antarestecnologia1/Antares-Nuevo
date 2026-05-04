@@ -96,10 +96,12 @@ function moduleFleetHeroStrip(metrics) {
 
 function isAntaresDebugEnabled() {
   try {
-    return typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true;
+    if (typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true) return true;
+    if (typeof window !== "undefined" && window.__ANTARES_ALLOW_DEV_CONSOLE__ === true) return true;
   } catch {
     return false;
   }
+  return false;
 }
 
 function devWarn() {
@@ -137,7 +139,6 @@ function notify(message, type = "info", durationMs = 3200) {
   }
   box.style.position = "fixed";
   box.style.zIndex = "2147483647";
-  document.body.appendChild(box);
   const item = document.createElement("div");
   item.className = `toast toast-${type}`;
   item.textContent = message;
@@ -366,89 +367,6 @@ function getPersonalRegistrationKey(user) {
   if (dt === "PAS") return String(user.taxId || "").replace(/\s/g, "").toUpperCase();
   if (dt === "NIT") return "";
   return String(user.taxId || "").replace(/\D/g, "");
-}
-
-function chunkBySizes(items, sizes = []) {
-  const result = [];
-  let cursor = 0;
-  sizes.forEach((size) => {
-    if (size > 0 && cursor < items.length) {
-      result.push(items.slice(cursor, cursor + size));
-      cursor += size;
-    }
-  });
-  if (cursor < items.length) result.push(items.slice(cursor));
-  return result.filter((group) => group.length);
-}
-
-function enhanceFormAsWizard(form, config = {}) {
-  if (!form || form.dataset.wizardReady === "true") return;
-  const children = [...form.children];
-  const submitButtons = children.filter((node) => node.matches?.("button[type='submit']"));
-  const baseFields = children.filter((node) => !submitButtons.includes(node));
-  if (baseFields.length < 6) return;
-
-  const groups = chunkBySizes(baseFields, config.sizes || []);
-  if (!groups.length) return;
-  form.innerHTML = "";
-  form.classList.add("form-wizard");
-  const titles = config.titles || [];
-
-  groups.forEach((group, idx) => {
-    const step = document.createElement("section");
-    step.className = `wizard-step ${idx === 0 ? "active" : ""}`;
-    step.dataset.step = String(idx);
-    if (titles[idx]) {
-      const head = document.createElement("div");
-      head.className = "wizard-step-head";
-      head.innerHTML = `<h4>${escapeHtml(titles[idx])}</h4><span>Paso ${idx + 1} de ${groups.length}</span>`;
-      step.appendChild(head);
-    }
-    group.forEach((node) => step.appendChild(node));
-    if (idx === groups.length - 1) submitButtons.forEach((btn) => step.appendChild(btn));
-    form.appendChild(step);
-  });
-
-  const nav = document.createElement("div");
-  nav.className = "wizard-nav";
-  nav.innerHTML = `<button type="button" class="btn btn-outline" data-wizard-prev>Anterior</button><button type="button" class="btn btn-primary" data-wizard-next>Siguiente</button>`;
-  form.appendChild(nav);
-
-  let current = 0;
-  const steps = [...form.querySelectorAll(".wizard-step")];
-  const prevBtn = nav.querySelector("[data-wizard-prev]");
-  const nextBtn = nav.querySelector("[data-wizard-next]");
-
-  const update = () => {
-    steps.forEach((step, idx) => step.classList.toggle("active", idx === current));
-    prevBtn.disabled = current === 0;
-    nextBtn.classList.toggle("hidden", current === steps.length - 1);
-    nextBtn.textContent = "Siguiente";
-  };
-  update();
-
-  nextBtn.addEventListener("click", () => {
-    const currentStep = steps[current];
-    const requiredInputs = [...currentStep.querySelectorAll("input, select, textarea")].filter((el) => el.required);
-    const invalid = requiredInputs.find((el) => !el.value);
-    if (invalid) {
-      notify(userMessage("validationStep"), "error");
-      invalid.focus();
-      return;
-    }
-    if (current < steps.length - 1) current += 1;
-    update();
-  });
-  prevBtn.addEventListener("click", () => {
-    if (current > 0) current -= 1;
-    update();
-  });
-
-  form.dataset.wizardReady = "true";
-}
-
-function applyFormWizards() {
-  return;
 }
 
 function applyModuleMicroAnimations() {
@@ -754,9 +672,11 @@ let state = {
   registrationSuccessBanner: null
 };
 
-window.__getAntaresPortalContacts = function getAntaresPortalContacts() {
-  return Array.isArray(state.portalContacts) ? state.portalContacts : [];
-};
+window.AntaresDataAccess = Object.freeze({
+  getPortalContacts() {
+    return Array.isArray(state.portalContacts) ? state.portalContacts : [];
+  }
+});
 
 const nodes = {
   openAuth: document.getElementById("open-auth"),
@@ -3750,7 +3670,6 @@ function bindAuthForms() {
       }
     });
   }
-  applyFormWizards();
 }
 
 function parseNum(v) {
@@ -7803,7 +7722,6 @@ function renderPortalViewImpl() {
   mountUniversalModuleFilters();
   bindDynamicEvents();
   enforceColombianFormStandards();
-  applyFormWizards();
   applyModuleMicroAnimations();
 }
 

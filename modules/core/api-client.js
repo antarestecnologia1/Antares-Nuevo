@@ -78,7 +78,6 @@
       }
       const err = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
-      err.body = data;
       throw err;
     }
     return data;
@@ -116,7 +115,6 @@
       }
       const err = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
-      err.body = data;
       throw err;
     }
     return data;
@@ -146,7 +144,6 @@
       }
       const err = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;
-      err.body = data;
       throw err;
     }
     return data;

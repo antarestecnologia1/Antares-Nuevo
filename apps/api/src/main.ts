@@ -2,6 +2,7 @@ import "./bootstrap-dns";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import type { NextFunction, Request, Response } from "express";
 import { AppModule } from "./app.module";
 
 function buildCorsOriginHandler(config: ConfigService) {
@@ -68,6 +69,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
   app.setGlobalPrefix("api");
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    next();
+  });
   app.enableCors({
     origin: buildCorsOriginHandler(config),
     credentials: true,

@@ -9,12 +9,7 @@
    */
   function logPortalSyncFailure(entity, err) {
     try {
-      var debug =
-        window.__ANTARES_DEBUG_SYNC__ === true ||
-        (typeof window.location !== "undefined" &&
-          window.location.hostname &&
-          (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"));
-      if (!debug) return;
+      if (window.__ANTARES_DEBUG_SYNC__ !== true && window.__ANTARES_ALLOW_DEV_CONSOLE__ !== true) return;
       console.warn("[Antares] portal sync-key", entity, err);
     } catch (_e) {
       /* noop */

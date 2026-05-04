@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="base-uri 'self'; object-src 'none'; frame-ancestors 'none'" />
     <title>Antares - Logistica Refrigerada B2B</title>
     <meta name="description" content="Operador logístico B2B especializado en transporte refrigerado para floricultura y exportación, con trazabilidad, cumplimiento y monitoreo 24/7 en Colombia." />
     <link rel="icon" type="image/svg+xml" href="./client-logo-placeholder.svg" />
@@ -10,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260506-auth-unify" />
+    <link rel="stylesheet" href="./styles.css?v=20260503-styles-cleanup" />
   </head>
   <body>
     <!-- ─── NAVIGATION ─── -->
@@ -1082,6 +1083,7 @@
 
     <script src="./config/antares.public.js?v=20260430-1"></script>
     <script src="./config/supabase.public.js?v=20260503-1"></script>
+    <script src="./modules/core/runtime-security.js?v=20260503-runtime-sec"></script>
     <script src="./modules/core/persistence.js"></script>
     <script src="./modules/core/supabase-browser.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -1116,6 +1118,6 @@
     <script src="./modules/core/feedback-messages.js?v=20260505-1"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
-    <script src="./app.js?v=20260508-password-recovery-api"></script>
+    <script src="./app.js?v=20260503-runtime-sec"></script>
   </body>
 </html>

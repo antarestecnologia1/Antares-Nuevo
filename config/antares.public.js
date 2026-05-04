@@ -12,7 +12,11 @@
  * - El dominio del sitio donde corre esta página debe estar en CORS_ORIGINS del servidor (apps/api .env).
  * - La clave anon de Supabase en supabase.public.js es pública por diseño; no ponga service_role ni DATABASE_URL aquí.
  *
- * Depuración sincronización portal (solo desarrollo): window.__ANTARES_DEBUG_SYNC__ = true en consola.
+ * Depuración sincronización portal: solo con window.__ANTARES_DEBUG_SYNC__ === true y consola permitida (localhost).
+ *
+ * Consola del navegador: en producción (no localhost) los métodos de console.* quedan neutralizados por
+ * modules/core/runtime-security.js para reducir fugas por DevTools; la validación y autorización reales
+ * siguen en el servidor (Nest + PostgreSQL).
  *
  * Autenticación: con __ANTARES_API_BASE__ / antares_api_base el login y los datos van contra la API y PostgreSQL (Supabase).
  * Las claves en localStorage son caché del cliente y sincronización (portal/sync-key), no sustituyen la base de datos.
