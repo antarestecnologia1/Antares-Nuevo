@@ -20,6 +20,7 @@ import {
   SUPABASE_POOLER_TENANT_ERROR_HELP
 } from "../database/normalize-database-url";
 import { PG_POOL } from "../database/database.module";
+import { MailService } from "../mail/mail.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { RegisterPortalDto } from "./dto/register-portal.dto";
@@ -119,7 +120,8 @@ export class AuthService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly jwt: JwtService,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    private readonly mail: MailService
   ) {
     const url = normalizeSupabaseProjectUrl(this.config.get<string>("SUPABASE_URL"));
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
@@ -150,14 +152,18 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const rolDb = ROLE_REGISTER_TO_DB[dto.role] ?? "client";
 
-    await this.pool.query(
+    const inserted = await this.pool.query<{ id: string }>(
       `INSERT INTO usuarios (
         correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta
       ) VALUES (
         $1, $2, $3, $4::rol_usuario, 'pendiente'::estado_cuenta_usuario
-      )`,
+      ) RETURNING id::text AS id`,
       [email, passwordHash, dto.name.trim(), rolDb]
     );
+    const newId = inserted.rows[0]?.id;
+    if (newId) {
+      void this.sendRegistrationWelcomeEmail(email, dto.name.trim(), newId);
+    }
 
     return {
       pendingApproval: true,
@@ -425,6 +431,10 @@ export class AuthService {
         }
       }
 
+      if (authUserId) {
+        void this.sendRegistrationWelcomeEmail(email, fullName || dto.email, authUserId);
+      }
+
       return {
         pendingApproval: true,
         message:
@@ -610,6 +620,30 @@ export class AuthService {
       hash,
       userId
     ]);
+  }
+
+  /** Correo de bienvenida según `estado_cuenta` en BD (pendiente vs aprobado). No debe hacer fallar el registro. */
+  private async sendRegistrationWelcomeEmail(email: string, displayName: string, userId: string): Promise<void> {
+    try {
+      const r = await this.pool.query<{ s: string }>(
+        `SELECT estado_cuenta::text AS s FROM usuarios WHERE id = $1::uuid`,
+        [userId]
+      );
+      const approved = r.rows[0]?.s === "aprobado";
+      const portalUrl = (
+        this.config.get<string>("PORTAL_PUBLIC_URL") ??
+        this.config.get<string>("PUBLIC_PORTAL_URL") ??
+        "https://app.transportesantares.co"
+      ).trim();
+      await this.mail.sendPortalRegistrationWelcome({
+        to: email,
+        recipientName: displayName,
+        portalUrl,
+        accountApproved: approved
+      });
+    } catch (e) {
+      this.logger.warn(`Correo bienvenida no enviado (${email}): ${e}`);
+    }
   }
 
   /** Texto libre (nombres, dirección, etc.): mayúsculas + sin tildes. No usar en departamento/ciudad (catálogo). */
