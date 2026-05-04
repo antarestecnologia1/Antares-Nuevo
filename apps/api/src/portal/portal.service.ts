@@ -880,6 +880,7 @@ export class PortalService {
       slots: v.cupos,
       salaryOffer: Number(v.salario_oferta),
       positionTitle: v.nombre_cargo_denorm,
+      positionName: v.nombre_cargo_denorm,
       workerRole: v.rol_trabajador,
       contractType: v.tipo_contrato_predeterminado,
       requirements: v.requisitos,

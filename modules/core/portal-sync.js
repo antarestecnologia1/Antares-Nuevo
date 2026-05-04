@@ -1,6 +1,6 @@
 /**
  * Sincronización debounced hacia apps/api: POST /api/portal/sync-key
- * Tras cada write() en localStorage (excepto sesión).
+ * Tras cada write() en la proyección de datos del portal (p. ej. al persistir en local).
  */
 (function registerPortalSync() {
   /**
@@ -71,14 +71,54 @@
     }, DEBOUNCE_MS);
   }
 
+  var syncFailureNotifyTimer = null;
+  var lastSyncFailureWallMs = 0;
+
+  function notifySyncFailureDebounced() {
+    try {
+      var now = Date.now();
+      if (now - lastSyncFailureWallMs < 12000) return;
+      lastSyncFailureWallMs = now;
+      clearTimeout(syncFailureNotifyTimer);
+      syncFailureNotifyTimer = setTimeout(function () {
+        if (typeof window.notify === "function") {
+          window.notify(
+            "No se pudo guardar en el servidor. Verifique la conexion o vuelva a iniciar sesion.",
+            "error"
+          );
+        }
+      }, 400);
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
   async function flush(entity, data) {
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return;
-    try {
-      await api.postJson("/portal/sync-key", { key: entity, data });
-    } catch (err) {
-      logPortalSyncFailure(entity, err);
+    var lastErr = null;
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise(function (r) {
+          setTimeout(r, 320 * attempt);
+        });
+      }
+      try {
+        await api.postJson("/portal/sync-key", { key: entity, data });
+        return;
+      } catch (err) {
+        lastErr = err;
+      }
     }
+    logPortalSyncFailure(entity, lastErr);
+    try {
+      window.dispatchEvent(
+        new CustomEvent("antares-portal-sync-failed", { detail: { entity: entity } })
+      );
+    } catch (_e2) {
+      /* noop */
+    }
+    notifySyncFailureDebounced();
   }
 
   window.AntaresPortalSync = {

@@ -938,35 +938,23 @@ async function applyPortalBootstrapFromApi() {
 
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 
-/**
- * Tiempo máximo que la UI espera al bootstrap remoto antes de mostrar el portal.
- * El GET sigue en segundo plano; al terminar se llama __portalRefreshAfterBootstrap.
- */
-const PORTAL_BOOTSTRAP_UI_BUDGET_MS = 650;
-
 async function startPortalBootstrapForInteractiveSession() {
   const api = window.AntaresApi;
   if (!api?.getBase?.() || !api.getAccessToken?.()) return;
   const p = window.PortalDataLayer?.refreshCacheFromApi
     ? window.PortalDataLayer.refreshCacheFromApi()
     : applyPortalBootstrapFromApi();
+  let ok = false;
   try {
-    await Promise.race([
-      p,
-      new Promise((resolve) => setTimeout(resolve, PORTAL_BOOTSTRAP_UI_BUDGET_MS))
-    ]);
+    ok = await p;
   } catch (_e) {
-    /* fallo de red o 401: la vista usa caché o stub hasta el próximo intento */
+    /* fallo de red o 401: la vista usa proyección local hasta el próximo intento */
   }
-  void p
-    .then((ok) => {
-      if (ok && typeof window.__portalRefreshAfterBootstrap === "function") {
-        try {
-          window.__portalRefreshAfterBootstrap();
-        } catch (_e2) {}
-      }
-    })
-    .catch(() => {});
+  if (ok && typeof window.__portalRefreshAfterBootstrap === "function") {
+    try {
+      window.__portalRefreshAfterBootstrap();
+    } catch (_e2) {}
+  }
 }
 
 function reqRead() {
@@ -1435,7 +1423,8 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#services .section-head p": "Soluciones logisticas integrales para el sector floricultor y de exportacion.",
     "#coverage .section-head p": "Rutas principales y corredores frecuentes para el sector floricultor y exportador.",
     "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
-    "#careers .muted": "Las vacantes se sincronizan con el mismo equipo que gestiona candidatos en el portal (misma base local del navegador).",
+    "#careers .muted":
+      "Con la API configurada, las vacantes y postulaciones se guardan en PostgreSQL; sin URL de API solo se usan datos demo en este navegador.",
     "#contact .container > article:nth-child(2) .muted":
       "Con la API configurada, las solicitudes se guardan en PostgreSQL. Sin URL de API, solo en este navegador (riesgo de perdida)."
   },
@@ -1450,7 +1439,8 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#services .section-head p": "End-to-end logistics solutions for floriculture and export operations.",
     "#coverage .section-head p": "Main routes and frequent corridors for the floriculture and export sector.",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
-    "#careers .muted": "Vacancies are synchronized with the same team that manages candidates in the portal (same local browser database).",
+    "#careers .muted":
+      "With the API configured, openings and applications are stored in PostgreSQL; without an API URL only demo data in this browser is used.",
     "#contact .container > article:nth-child(2) .muted":
       "With the API configured, requests are stored in PostgreSQL. Without an API URL, data stays only in this browser (loss risk)."
   }
@@ -11339,10 +11329,20 @@ function initRequiredFieldIndicators() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
+/** Carreras públicas: si hay API base, lista viene de GET /api/public/vacancies; si no, de KEYS.vacancies en local. */
+let publicCareersVacanciesSource = "local";
+let publicCareersVacanciesFromApi = null;
+
 function getPublicPublishedVacancies() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return read(KEYS.vacancies, []).filter((v) => {
+  const list =
+    publicCareersVacanciesSource === "api"
+      ? publicCareersVacanciesFromApi !== null
+        ? publicCareersVacanciesFromApi
+        : []
+      : read(KEYS.vacancies, []);
+  return list.filter((v) => {
     if (v.status !== "Publicada") return false;
     if (!v.deadline) return true;
     return new Date(`${v.deadline}T12:00:00`).getTime() >= today.getTime();
@@ -11389,8 +11389,8 @@ function openPublicVacancyApplyModal(vacancy) {
         required: true
       }
     ],
-    onSubmit: (form) => {
-      const vac = read(KEYS.vacancies, []).find((x) => x.id === form.vacancyId);
+    onSubmit: async (form) => {
+      const vac = vacancy;
       if (!vac || vac.status !== "Publicada") {
         notify(userMessage("vacancyPublicClosed"), "error");
         return false;
@@ -11401,6 +11401,33 @@ function openPublicVacancyApplyModal(vacancy) {
         return false;
       }
       const fileLabel = String(form.attachments || "").trim();
+      const apiPub = window.AntaresApi;
+      if (apiPub?.hasBase?.()) {
+        try {
+          await apiPub.postJsonPublic("/public/job-application", {
+            vacancyId: String(form.vacancyId || ""),
+            name: String(form.name || "").trim(),
+            email: normalizeEmail(form.email),
+            phone: String(form.phone || "").trim(),
+            documentType: form.documentType,
+            idDoc: docValidation.normalized,
+            city: String(form.city || "").trim(),
+            address: String(form.address || "").trim(),
+            experience: String(form.experience || "").trim(),
+            attachmentFileName: fileLabel || undefined
+          });
+          notify(userMessage("candidacySentOk"), "success");
+          return true;
+        } catch (err) {
+          notify(String(err?.message || err), "error");
+          return false;
+        }
+      }
+      const vacLocal = read(KEYS.vacancies, []).find((x) => x.id === form.vacancyId);
+      if (!vacLocal || vacLocal.status !== "Publicada") {
+        notify(userMessage("vacancyPublicClosed"), "error");
+        return false;
+      }
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: uid(),
@@ -11411,8 +11438,8 @@ function openPublicVacancyApplyModal(vacancy) {
         idDoc: docValidation.normalized,
         city: String(form.city || "").trim(),
         address: String(form.address || "").trim(),
-        vacancyId: vac.id,
-        vacancyTitle: vac.title,
+        vacancyId: vacLocal.id,
+        vacancyTitle: vacLocal.title,
         experienceNotes: String(form.experience || "").trim(),
         status: PIPELINE[0],
         attachments: fileLabel ? [fileLabel] : [],
@@ -11423,11 +11450,11 @@ function openPublicVacancyApplyModal(vacancy) {
       sendEmail({
         to: normalizeEmail(form.email),
         subject: "Postulacion recibida - Antares",
-        body: `Hola ${form.name}, registramos tu postulacion a "${vac.title}". Nuestro equipo de seleccion revisara tu perfil.`
+        body: `Hola ${form.name}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
       });
       notifyHrUsers(
         "Nueva postulacion (web)",
-        `${form.name} aplico a "${vac.title}". Revise Contratacion · Pipeline de candidatos.`
+        `${form.name} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`
       );
       notify(userMessage("candidacySentOk"), "success");
       return true;
@@ -11462,11 +11489,48 @@ function initPublicCareers() {
       .join("");
     grid.querySelectorAll("[data-careers-apply]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const vac = read(KEYS.vacancies, []).find((x) => x.id === btn.dataset.id);
+        const vac = getPublicPublishedVacancies().find((x) => x.id === btn.dataset.id);
         if (vac) openPublicVacancyApplyModal(vac);
       });
     });
   };
+
+  const api = window.AntaresApi;
+  if (api?.hasBase?.()) {
+    publicCareersVacanciesSource = "api";
+    publicCareersVacanciesFromApi = null;
+    grid.innerHTML =
+      `<div class="careers-card"><p class="muted" style="margin:0">${state.publicLang === "en" ? "Loading openings…" : "Cargando vacantes…"}</p></div>`;
+    void api
+      .getJsonPublic("/public/vacancies")
+      .then((rows) => {
+        const mapped = Array.isArray(rows)
+          ? rows.map((row) => ({
+              id: row.id,
+              title: row.title,
+              department: row.department,
+              city: row.city,
+              deadline: row.deadline,
+              salaryOffer: row.salaryOffer,
+              requirements: row.requirements,
+              status: row.status || "Publicada",
+              positionName: row.positionName
+            }))
+          : [];
+        publicCareersVacanciesFromApi = mapped;
+      })
+      .catch((err) => {
+        devWarn("Carreras: error al cargar vacantes desde la API.", err?.message || err);
+        publicCareersVacanciesFromApi = [];
+      })
+      .finally(() => {
+        render();
+      });
+    return;
+  }
+
+  publicCareersVacanciesSource = "local";
+  publicCareersVacanciesFromApi = null;
   render();
 }
 

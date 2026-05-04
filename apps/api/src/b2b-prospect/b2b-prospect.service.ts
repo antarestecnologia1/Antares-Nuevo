@@ -1,7 +1,8 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { Pool } from "pg";
 import { PG_POOL } from "../database/database.module";
 import { CreateB2bProspectDto } from "./dto/create-b2b-prospect.dto";
+import { CreateJobApplicationDto } from "./dto/create-job-application.dto";
 
 @Injectable()
 export class B2bProspectService {
@@ -13,6 +14,145 @@ export class B2bProspectService {
       return { ok: false, formatted: digits };
     }
     return { ok: true, formatted: digits };
+  }
+
+  private normalizePhoneFlexible(raw: string): string {
+    return String(raw || "").replace(/\D/g, "");
+  }
+
+  /** Vacantes publicadas y vigentes (sitio público, sin JWT). */
+  async listPublishedVacancies() {
+    const r = await this.pool.query<{
+      id: string;
+      titulo: string;
+      departamento: string | null;
+      ciudad: string;
+      fecha_limite_postulacion: Date;
+      salario_oferta: string;
+      requisitos: string | null;
+      estado: string;
+      nombre_cargo_denorm: string | null;
+    }>(
+      `SELECT id::text, titulo, departamento, ciudad, fecha_limite_postulacion,
+              salario_oferta::text, requisitos, estado::text AS estado, nombre_cargo_denorm
+       FROM vacantes
+       WHERE estado = 'Publicada'::estado_vacante
+         AND fecha_limite_postulacion >= CURRENT_DATE
+       ORDER BY fecha_creacion DESC`
+    );
+    return r.rows.map((v) => {
+      const d = v.fecha_limite_postulacion;
+      const deadline =
+        d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+      return {
+        id: v.id,
+        title: v.titulo,
+        department: v.departamento,
+        city: v.ciudad,
+        deadline,
+        salaryOffer: Number(v.salario_oferta),
+        requirements: v.requisitos,
+        status: v.estado,
+        positionName: v.nombre_cargo_denorm
+      };
+    });
+  }
+
+  /** Postulación anónima persistida en tabla candidatos. */
+  async createJobApplication(dto: CreateJobApplicationDto) {
+    const phone = this.normalizePhoneFlexible(dto.phone);
+    if (phone.length < 7 || phone.length > 32) {
+      throw new BadRequestException("Telefono invalido.");
+    }
+
+    const email = String(dto.email || "")
+      .trim()
+      .toLowerCase();
+    const idDoc = String(dto.idDoc || "")
+      .trim()
+      .replace(/\s+/g, "");
+
+    const adjuntos = [
+      { kind: "experience_notes", text: String(dto.experience || "").trim() },
+      ...(dto.attachmentFileName
+        ? [{ kind: "cv_filename", name: String(dto.attachmentFileName).trim() }]
+        : [])
+    ];
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const vac = await client.query<{
+        id: string;
+        titulo: string;
+        estado: string;
+        lim: Date;
+      }>(
+        `SELECT id::text, titulo, estado::text, fecha_limite_postulacion AS lim
+         FROM vacantes
+         WHERE id = $1::uuid
+         FOR UPDATE`,
+        [dto.vacancyId]
+      );
+      const row = vac.rows[0];
+      if (!row) {
+        throw new NotFoundException("La vacante no existe.");
+      }
+      if (row.estado !== "Publicada") {
+        throw new BadRequestException("Esta vacante ya no acepta postulaciones.");
+      }
+      const lim = row.lim instanceof Date ? row.lim.toISOString().slice(0, 10) : String(row.lim).slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      if (lim < today) {
+        throw new BadRequestException("La fecha limite de postulacion ya vencio.");
+      }
+
+      const ins = await client.query<{ id: string }>(
+        `INSERT INTO candidatos (
+          id_vacante, nombre_completo, correo_electronico, telefono, tipo_documento, numero_documento,
+          ciudad, direccion, anios_experiencia, aspiracion_salarial, fecha_disponible_ingreso,
+          titulo_vacante_denorm, etapa_proceso, adjuntos_json, origen
+        ) VALUES (
+          $1::uuid, $2, $3, $4, $5, $6, $7, $8, 0, 0, CURRENT_DATE,
+          $9, 'Recibido', $10::jsonb, 'Sitio web'
+        )
+        RETURNING id::text AS id`,
+        [
+          dto.vacancyId,
+          dto.name.trim(),
+          email,
+          phone,
+          dto.documentType,
+          idDoc,
+          dto.city.trim(),
+          dto.address.trim(),
+          row.titulo,
+          JSON.stringify(adjuntos)
+        ]
+      );
+
+      const id = ins.rows[0]?.id;
+      const ack = JSON.stringify({
+        id,
+        vacancyId: dto.vacancyId,
+        applicant: dto.name.trim(),
+        email
+      });
+      await client.query(
+        `INSERT INTO correos_salida (direccion_destino, asunto, cuerpo)
+         VALUES ($1, $2, $3)`,
+        [email, "Postulacion recibida - Antares", ack]
+      );
+
+      await client.query("COMMIT");
+      return { ok: true, id };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   async create(dto: CreateB2bProspectDto) {

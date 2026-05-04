@@ -2,8 +2,8 @@
  * Capa de datos del portal (política única).
  *
  * - Fuente de verdad: PostgreSQL (p. ej. Supabase) expuesta por apps/api.
- * - Proyección en cliente: localStorage (AntaresPersistence), repoblada con GET /api/portal/bootstrap.
- * - Escrituras: POST /api/portal/sync-key (vía AntaresPortalSync tras write).
+ * - Proyección en cliente: memoria + persistencia local (AntaresPersistence), repoblada con GET /api/portal/bootstrap.
+ * - Escrituras: POST /api/portal/sync-key (vía AntaresPortalSync tras write hacia la proyección local).
  *
  * No duplica lógica de negocio: solo orquesta cuándo refrescar la caché desde el servidor.
  */
@@ -63,7 +63,7 @@
 
   window.PortalDataLayer = {
     SOURCE_OF_TRUTH: "postgresql-api",
-    CACHE_PROJECTION: "localStorage",
+    CACHE_PROJECTION: "antares-persistence",
     isServerBacked: isServerBacked,
     refreshCacheFromApi: refreshCacheFromApi,
     enableVisibilityRefresh: enableVisibilityRefresh
