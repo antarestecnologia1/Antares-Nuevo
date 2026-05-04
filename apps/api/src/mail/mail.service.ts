@@ -66,59 +66,93 @@ export class MailService {
     const safeTo = escapeHtml(to);
 
     const subject = accountApproved
-      ? "Bienvenido a Transportes Antares — acceso activo"
-      : "Bienvenido a Transportes Antares — pendiente de autorización";
+      ? "Transportes Antares — Portal empresarial: acceso habilitado"
+      : "Transportes Antares — Registro recibido; validación administrativa en curso";
 
     const statusBlock = accountApproved
-      ? `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.55;color:#166534;">
-          Tu cuenta ya está <strong>autorizada</strong>. Puedes iniciar sesión en el portal con el correo y la contraseña que registraste.
-        </p>`
-      : `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.55;color:#92400e;">
-          Tu registro fue recibido correctamente. Tu cuenta está <strong>pendiente de aprobación</strong> por un administrador.
-          Te notificaremos o podrás intentar ingresar cuando tu acceso esté activo.
-        </p>`;
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;border-radius:10px;background:#E8F6F0;border-left:4px solid #1B8E5F;overflow:hidden;">
+          <tr>
+            <td style="padding:16px 18px;">
+              <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0B1D33;">Estado de su cuenta</p>
+              <p style="margin:0;font-size:15px;line-height:1.55;color:#0B1D33;">
+                Su cuenta se encuentra <strong style="color:#1B8E5F;">autorizada</strong>. Ya puede acceder al <strong>portal empresarial</strong> con el correo registrado y la contraseña que definió en el alta.
+              </p>
+            </td>
+          </tr>
+        </table>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;border-radius:10px;background:#E3EEFA;border-left:4px solid #1565C0;overflow:hidden;">
+          <tr>
+            <td style="padding:16px 18px;">
+              <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0A2E5C;">Estado de su cuenta</p>
+              <p style="margin:0;font-size:15px;line-height:1.55;color:#344F69;">
+                Hemos registrado sus datos correctamente. Su cuenta está <strong style="color:#0A2E5C;">pendiente de aprobación</strong> por parte de un <strong>usuario administrador</strong> de Transportes Antares.
+                Una vez autorizado el acceso, podrá iniciar sesión en el portal. Le invitamos a conservar este correo como comprobante de solicitud.
+              </p>
+            </td>
+          </tr>
+        </table>`;
 
     const html = `<!DOCTYPE html>
 <html lang="es">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 16px;">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Transportes Antares</title>
+</head>
+<body style="margin:0;padding:0;background:#F5F9FF;font-family:'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;">
+  <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">
+    ${accountApproved ? "Acceso al portal empresarial habilitado." : "Registro corporativo recibido; pendiente de validación administrativa."}
+  </span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F9FF;padding:36px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,.08);">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #C5D8EC;box-shadow:0 8px 32px rgba(10,46,92,0.10);">
           <tr>
-            <td style="padding:28px 32px 8px 32px;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);">
-              <p style="margin:0;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;">Transportes Antares</p>
-              <h1 style="margin:8px 0 0 0;font-size:22px;font-weight:700;color:#f8fafc;line-height:1.3;">Bienvenido al portal</h1>
+            <td style="padding:32px 36px 28px 36px;background:linear-gradient(135deg,#071E3D 0%,#0A2E5C 42%,#1565C0 100%);">
+              <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#B8D0EB;">Transportes Antares</p>
+              <p style="margin:10px 0 0 0;font-size:13px;line-height:1.4;color:#E3EEFA;opacity:0.95;">Operador logístico B2B · Trazabilidad y cumplimiento</p>
+              <h1 style="margin:18px 0 0 0;font-size:24px;font-weight:800;color:#ffffff;line-height:1.25;letter-spacing:-0.02em;">
+                Portal empresarial Antares
+              </h1>
+              <p style="margin:10px 0 0 0;font-size:15px;line-height:1.5;color:#E3EEFA;max-width:480px;">
+                Le damos la bienvenida. Este mensaje confirma su registro en nuestra plataforma de relación con clientes y equipos operativos.
+              </p>
             </td>
           </tr>
           <tr>
-            <td style="padding:28px 32px 8px 32px;">
-              <p style="margin:0 0 12px 0;font-size:16px;line-height:1.55;color:#334155;">Hola <strong>${safeName}</strong>,</p>
-              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.55;color:#334155;">
-                Gracias por registrarte. Este es tu correo de confirmación vinculado a la cuenta: <strong>${safeTo}</strong>.
+            <td style="padding:28px 36px 8px 36px;">
+              <p style="margin:0 0 14px 0;font-size:16px;line-height:1.55;color:#0B1D33;">
+                Estimado(a) <strong>${safeName}</strong>,
+              </p>
+              <p style="margin:0 0 18px 0;font-size:15px;line-height:1.6;color:#344F69;">
+                Por políticas de seguridad y trazabilidad, la cuenta queda asociada al siguiente correo corporativo:
+                <strong style="color:#0B1D33;">${safeTo}</strong>. Este será su identificador para futuros ingresos al portal.
               </p>
               ${statusBlock}
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+              <p style="margin:0 0 22px 0;font-size:14px;line-height:1.55;color:#344F69;">
+                Para continuar, utilice el acceso seguro al sitio. Recomendamos no compartir sus credenciales y operar desde equipos de confianza.
+              </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 22px 0;">
                 <tr>
-                  <td style="border-radius:8px;background:#1e40af;">
+                  <td style="border-radius:10px;background:#1565C0;box-shadow:0 6px 20px rgba(21,101,192,0.35);">
                     <a href="${escapeHtml(baseUrl)}" target="_blank" rel="noopener noreferrer"
-                       style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">
-                      Ir al portal
+                       style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                      Acceder al portal empresarial
                     </a>
                   </td>
                 </tr>
               </table>
-              <p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">
-                Si el botón no funciona, copia y pega esta URL en tu navegador:<br/>
-                <span style="word-break:break-all;color:#2563eb;">${escapeHtml(baseUrl)}</span>
+              <p style="margin:0;font-size:12px;line-height:1.55;color:#64748b;">
+                Si el botón no responde, copie y pegue esta dirección en su navegador:<br/>
+                <span style="word-break:break-all;color:#1565C0;font-weight:600;">${escapeHtml(baseUrl)}</span>
               </p>
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 32px 28px 32px;border-top:1px solid #e2e8f0;">
-              <p style="margin:0;font-size:12px;line-height:1.5;color:#94a3b8;">
-                Mensaje automático; no responda a este correo. Si no realizaste este registro, ignora este mensaje.
+            <td style="padding:22px 36px 28px 36px;background:linear-gradient(180deg,#F0F6FD 0%,#FFFFFF 100%);border-top:1px solid #C5D8EC;">
+              <p style="margin:0 0 10px 0;font-size:12px;line-height:1.55;color:#344F69;">
+                <strong style="color:#0A2E5C;">Confidencialidad.</strong> La información contenida es para uso del destinatario. Si recibió este mensaje por error, elimínelo y notifíquelo a su contacto en Transportes Antares.
+              </p>
+              <p style="margin:0;font-size:11px;line-height:1.5;color:#64748b;">
+                Mensaje generado automáticamente — no responda a esta cuenta. Antares · Logística refrigerada y transporte especializado.
               </p>
             </td>
           </tr>
