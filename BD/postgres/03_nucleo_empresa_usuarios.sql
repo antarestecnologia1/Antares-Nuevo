@@ -28,6 +28,7 @@ CREATE TABLE usuarios (
   telefono                        VARCHAR(32),
   tipo_documento                  VARCHAR(8),
   tipo_persona                    VARCHAR(32),
+  nit_empresa_registro           VARCHAR(32),
   fecha_expedicion_documento      DATE,
   genero                          VARCHAR(40),
   cargo_registro                  VARCHAR(255),
@@ -60,6 +61,7 @@ COMMENT ON COLUMN usuarios.segundo_apellido IS 'Formulario registro: secondLastN
 COMMENT ON COLUMN usuarios.genero IS 'Formulario registro: gender.';
 COMMENT ON COLUMN usuarios.cargo_registro IS 'Formulario registro: position (cargo).';
 COMMENT ON COLUMN usuarios.area_trabajo IS 'Formulario registro: workArea.';
+COMMENT ON COLUMN usuarios.nit_empresa_registro IS 'NIT empresa cuando el registro es jurídico; puede repetirse entre usuarios.';
 COMMENT ON COLUMN usuarios.fecha_aceptacion_terminos IS 'Momento de aceptación Habeas Data / términos (acceptTerms).';
 COMMENT ON COLUMN usuarios.checklist_registro_json IS 'Equivalente a profileQualityChecklist en app (idVerified, acceptedTermsAt, etc.).';
 

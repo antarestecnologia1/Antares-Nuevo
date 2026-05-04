@@ -237,11 +237,25 @@ export class AuthService {
         if (!legacyMissingColumn) throw err;
       }
 
-      authUserId = randomUUID();
-
+      const localUserId = randomUUID();
+      authUserId = localUserId;
       if (this.supabaseEnabled && this.supabaseAdmin) {
-        authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email, authUserId);
-        supabaseUserCreated = true;
+        try {
+          authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email, localUserId);
+          supabaseUserCreated = true;
+        } catch (syncErr: unknown) {
+          if (this.isSupabaseAuthEmailConflict(syncErr)) {
+            throw syncErr instanceof HttpException
+              ? syncErr
+              : new BadRequestException(String((syncErr as Error)?.message || syncErr));
+          }
+          const msg = this.extractExceptionMessage(syncErr);
+          this.logger.warn(
+            `registerPortal: Supabase Auth no sincronizado (${msg}). Registro continúa en Postgres con id=${localUserId}.`
+          );
+          authUserId = localUserId;
+          supabaseUserCreated = false;
+        }
       }
 
       try {
@@ -633,6 +647,34 @@ export class AuthService {
    * Crea usuario en Supabase Auth. Intenta usar `preferredUserId` para alinear con `public.usuarios`.
    * Si la API rechaza el id fijo, reintenta sin él y devuelve el UUID asignado por Supabase.
    */
+  /** Mensaje de error legible (Nest HttpException u Error genérico). */
+  private extractExceptionMessage(err: unknown): string {
+    if (err instanceof HttpException) {
+      const r = err.getResponse();
+      if (typeof r === "string") return r;
+      if (r && typeof r === "object" && "message" in r) {
+        const m = (r as { message?: unknown }).message;
+        if (Array.isArray(m)) return m.join(", ");
+        if (typeof m === "string") return m;
+      }
+    }
+    if (err && typeof err === "object" && "message" in err && typeof (err as Error).message === "string") {
+      return (err as Error).message;
+    }
+    return String(err);
+  }
+
+  private isSupabaseAuthEmailConflict(err: unknown): boolean {
+    const msg = this.extractExceptionMessage(err).toLowerCase();
+    return (
+      /already been registered/i.test(msg) ||
+      /user already registered/i.test(msg) ||
+      /user already exists/i.test(msg) ||
+      (msg.includes("email") && msg.includes("already")) ||
+      (/duplicate/i.test(msg) && /(email|user)/i.test(msg))
+    );
+  }
+
   private async createSupabaseAuthUser(
     email: string,
     password: string,
