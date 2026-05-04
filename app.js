@@ -2475,7 +2475,15 @@ function buildAuthStandardActionsHtml(mode, id) {
 function portalRegistrationDetailLine(u) {
   const company = getCompanyById(u.companyId)?.name || u.company || "";
   const doc = [u.documentType, u.taxId].filter(Boolean).join(" ");
-  const parts = [normalizeEmail(u.email || ""), company, doc, u.phone ? String(u.phone).trim() : ""].filter(Boolean);
+  const pers = u.personalTaxId || u.personalDoc;
+  const persBit = pers ? `pers. ${String(pers).trim()}` : "";
+  const parts = [
+    normalizeEmail(u.email || ""),
+    company,
+    doc,
+    persBit,
+    u.phone ? String(u.phone).trim() : ""
+  ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "—";
 }
 
@@ -7211,39 +7219,10 @@ function profileHtml(user) {
   return profileHero + pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
 }
 
-/** Tarjetas de usuarios con registro en portal pendiente de aprobación (mismo contrato que aprobar en Autorizaciones). */
-function buildPendingUserRegistrationCardsHtml(pendingUsers) {
-  return pendingUsers
-    .map(
-      (u) => `<div class="user-card pending-card">
-    <div class="user-card-top">
-      <div class="user-avatar pending-avatar">${(u.name || "?").charAt(0).toUpperCase()}</div>
-      <div class="user-card-info">
-        <h4>${escapeHtml(u.name)}</h4>
-        <p>${escapeHtml(u.email)}</p>
-      </div>
-    </div>
-    <div class="user-card-meta">
-      <span>${IC.briefcase} ${escapeHtml(getCompanyById(u.companyId)?.name || u.company || "—")}</span>
-      <span>${IC.file} ${escapeHtml(String(u.documentType || "Doc"))} ${escapeHtml(u.taxId || "-")}${u.personalTaxId || u.personalDoc ? ` · pers. ${escapeHtml(u.personalTaxId || u.personalDoc)}` : ""}</span>
-      ${u.phone ? `<span>${IC.user} ${escapeHtml(u.phone)}</span>` : ""}
-      ${u.registeredAt ? `<span>${IC.clock} ${fmtDate(u.registeredAt)}</span>` : ""}
-    </div>
-    <div class="user-card-actions">
-      <button type="button" class="btn btn-sm btn-approve" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>
-      <button type="button" class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>
-    </div>
-  </div>`
-    )
-    .join("");
-}
-
 function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const n = pendingUsers.length;
   const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
-  const body = n
-    ? `<div class="user-grid user-grid-pending auth-embedded-pending-users">${buildPendingUserRegistrationCardsHtml(pendingUsers)}</div>`
-    : emptyState("No hay registros de cliente pendientes de aprobación.");
+  const body = n ? buildPortalRegistrationPendingTableHtml(pendingUsers) : emptyState("No hay registros de cliente pendientes de aprobación.");
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
         <div class="auth-queue-section-title-row">
