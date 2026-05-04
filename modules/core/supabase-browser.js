@@ -30,6 +30,9 @@
         try {
           client.auth.onAuthStateChange(function (event, _session) {
             if (event === "PASSWORD_RECOVERY") {
+              try {
+                sessionStorage.setItem("antares_pw_recovery_pending", "1");
+              } catch (_s) {}
               window.dispatchEvent(new CustomEvent("antares:supabase-password-recovery"));
             }
           });

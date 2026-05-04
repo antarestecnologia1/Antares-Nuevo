@@ -2110,6 +2110,14 @@ function stripSupabaseAuthHashFromUrl() {
   history.replaceState(null, "", u.toString());
 }
 
+function scheduleStripSupabaseRecoveryHash(delayMs = 400) {
+  window.setTimeout(() => {
+    try {
+      stripSupabaseAuthHashFromUrl();
+    } catch (_e) {}
+  }, delayMs);
+}
+
 async function waitForAntaresSupabaseClient(timeoutMs) {
   const cap = typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : 15000;
   if (window.antaresSupabase) return window.antaresSupabase;
@@ -2127,23 +2135,59 @@ async function waitForAntaresSupabaseClient(timeoutMs) {
 function wireSupabasePasswordRecoveryUi() {
   if (window.__antaresSupabaseRecoveryWired) return;
   window.__antaresSupabaseRecoveryWired = true;
+
+  function enterRecoveryFlowFromStorage() {
+    try {
+      if (sessionStorage.getItem("antares_pw_recovery_pending") !== "1") return false;
+      sessionStorage.removeItem("antares_pw_recovery_pending");
+      state.authSupabaseRecovery = true;
+      showAuth();
+      renderAuthTab();
+      scheduleStripSupabaseRecoveryHash(300);
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  enterRecoveryFlowFromStorage();
+
   window.addEventListener("antares:supabase-password-recovery", () => {
+    try {
+      sessionStorage.setItem("antares_pw_recovery_pending", "1");
+    } catch (_s) {}
     state.authSupabaseRecovery = true;
     showAuth();
     renderAuthTab();
-    stripSupabaseAuthHashFromUrl();
+    scheduleStripSupabaseRecoveryHash(500);
   });
+
   void waitForAntaresSupabaseClient(20000).then((client) => {
-    if (!client) return;
+    if (!client) {
+      enterRecoveryFlowFromStorage();
+      return;
+    }
     void client.auth.getSession().then(({ data }) => {
       const session = data?.session;
       const hash = String(window.location.hash || "");
-      if (session && /type=recovery/i.test(hash)) {
+      const recoveryUrl = /type=recovery/i.test(hash);
+      let pending = false;
+      try {
+        pending = sessionStorage.getItem("antares_pw_recovery_pending") === "1";
+      } catch (_e) {
+        pending = false;
+      }
+      if (session && (recoveryUrl || pending)) {
         state.authSupabaseRecovery = true;
         showAuth();
         renderAuthTab();
-        stripSupabaseAuthHashFromUrl();
+        try {
+          sessionStorage.removeItem("antares_pw_recovery_pending");
+        } catch (_e2) {}
+        scheduleStripSupabaseRecoveryHash(400);
+        return;
       }
+      enterRecoveryFlowFromStorage();
     });
   });
 }
@@ -3661,6 +3705,9 @@ function bindAuthForms() {
           return;
         }
         await supabase.auth.signOut();
+        try {
+          sessionStorage.removeItem("antares_pw_recovery_pending");
+        } catch (_e0) {}
         state.authSupabaseRecovery = false;
         state.authTab = "login";
         notify(String(body?.message || userMessage("recoverCompleteSuccess")), "success", 8000);

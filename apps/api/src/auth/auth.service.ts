@@ -10,7 +10,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { timestamptzStringColombiaNow } from "../common/colombia-time";
@@ -660,8 +660,8 @@ export class AuthService {
       );
     }
     const email = dto.email.trim().toLowerCase();
-    const st = await this.pool.query<{ s: string }>(
-      `SELECT estado_cuenta::text AS s FROM usuarios WHERE lower(btrim(correo_electronico::text)) = $1 LIMIT 1`,
+    const st = await this.pool.query<{ s: string; id: string }>(
+      `SELECT estado_cuenta::text AS s, id::text AS id FROM usuarios WHERE lower(btrim(correo_electronico::text)) = $1 LIMIT 1`,
       [email]
     );
     const row = st.rows[0];
@@ -676,8 +676,17 @@ export class AuthService {
       );
     }
 
+    const portalUserId = String(row.id || "");
+    if (!portalUserId) {
+      throw new BadRequestException("Cuenta de portal inconsistente. Contacte al administrador.");
+    }
     const redirectTo = this.resolvePasswordRecoveryRedirect(dto.redirectTo);
-    const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo });
+
+    let { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error && this.shouldProvisionSupabaseUserForRecovery(String(error.message || ""))) {
+      await this.provisionSupabaseAuthUserForApprovedPortal(email, portalUserId);
+      ({ error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo }));
+    }
     if (error) {
       const mapped = this.mapSupabaseRecoveryError(String(error.message || ""));
       this.logger.warn(`resetPasswordForEmail(${email}): ${error.message}`);
@@ -690,6 +699,48 @@ export class AuthService {
       message:
         "Hemos solicitado el correo de recuperación. Abra el enlace que envía Supabase (revise spam). Si no llega en unos minutos, verifique Authentication → Users."
     };
+  }
+
+  /** Errores de Supabase que indican que el correo no tiene fila en Auth (p. ej. alta solo en Postgres). */
+  private shouldProvisionSupabaseUserForRecovery(supabaseMessage: string): boolean {
+    const m = String(supabaseMessage || "").toLowerCase();
+    return (
+      /user not found|user_not_found|email not found|no user|does not exist|not registered/i.test(m)
+    );
+  }
+
+  /**
+   * Crea el usuario en Supabase Auth alineado con `public.usuarios`, para poder enviar reset por correo.
+   * Contraseña temporal aleatoria; el usuario la sustituye con el enlace del email.
+   */
+  private async provisionSupabaseAuthUserForApprovedPortal(email: string, portalUserId: string): Promise<void> {
+    if (!this.supabaseAdmin) return;
+    const tempPassword = `${randomBytes(28).toString("base64url")}Aa1!@#`;
+    const existsMsg = (e: { message?: string } | null) => {
+      const em = String(e?.message || "").toLowerCase();
+      return /already|registered|exists|duplicate/i.test(em);
+    };
+    let { error } = await this.supabaseAdmin.auth.admin.createUser({
+      id: portalUserId,
+      email,
+      password: tempPassword,
+      email_confirm: true
+    });
+    if (error && existsMsg(error)) return;
+    if (error) {
+      ({ error } = await this.supabaseAdmin.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true
+      }));
+    }
+    if (error && existsMsg(error)) return;
+    if (error) {
+      this.logger.warn(`provisionSupabaseAuthUserForApprovedPortal(${email}): ${error.message}`);
+      throw new BadRequestException(
+        `No se pudo sincronizar el acceso con Supabase Auth: ${error.message}. Revise en el panel Authentication si el correo ya existe con otro UUID.`
+      );
+    }
   }
 
   private resolvePasswordRecoveryRedirect(requested: string | undefined): string {
