@@ -6786,6 +6786,130 @@ body[data-theme="dark"] .profile-form-centered {
   --module-accent-end: #4a8cc9;
 }
 
+.auth-queue-section {
+  margin: 1.35rem 0 1.75rem;
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--module-border-strong, #c5d8ec) 88%, transparent);
+  background: color-mix(in srgb, var(--module-soft-bg, #f5f9ff) 96%, #ffffff 4%);
+}
+
+.auth-queue-section--info {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--module-accent-start, #5a73d4) 6%, var(--module-soft-bg, #f5f9ff) 94%);
+}
+
+.auth-queue-section--misc {
+  border-color: color-mix(in srgb, #c46c1a 35%, var(--module-border-strong, #c5d8ec) 65%);
+}
+
+.auth-queue-section-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.auth-queue-section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.auth-section-count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--module-accent-end, #4a8cc9) 14%, #ffffff 86%);
+  color: color-mix(in srgb, var(--module-accent-start, #2d4a9c) 85%, #1a1a1a 15%);
+}
+
+.auth-queue-section-desc {
+  margin: 0.35rem 0 0.5rem;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.auth-queue-section-origin {
+  margin: 0 0 0.65rem;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--muted, #5c6b7a);
+}
+
+.auth-origin-label {
+  font-weight: 600;
+  color: var(--text, inherit);
+}
+
+.auth-queue-section-body {
+  margin-top: 0.25rem;
+}
+
+.auth-type-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--module-accent-start, #5a73d4) 12%, transparent);
+  color: inherit;
+  max-width: 14rem;
+}
+
+.auth-detail-cell {
+  font-size: 0.88rem;
+  max-width: 18rem;
+}
+
+.auth-pending-table {
+  margin-top: 0.35rem;
+}
+
+.auth-flow-catalog {
+  margin-top: 1.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--module-border-strong, #c5d8ec) 90%, transparent);
+  background: var(--module-soft-bg, #f5f9ff);
+}
+
+.auth-flow-catalog-summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.auth-flow-catalog-lead {
+  margin: 0.65rem 0 0.5rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.auth-flow-catalog-list {
+  margin: 0.35rem 0 0.15rem;
+  padding-left: 1.25rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+body[data-theme="dark"] .auth-queue-section {
+  background: color-mix(in srgb, var(--module-accent-start, #5a73d4) 8%, #0f1f34 92%);
+}
+
+body[data-theme="dark"] .auth-queue-section--info {
+  background: color-mix(in srgb, var(--module-accent-start, #5a73d4) 12%, #0f1f34 88%);
+}
+
+body[data-theme="dark"] .auth-flow-catalog {
+  background: color-mix(in srgb, var(--module-accent-start, #5a73d4) 10%, #0f1f34 90%);
+}
+
 .module-shell[data-module-view="notifications"] {
   --module-accent-start: #5e82f0;
   --module-accent-end: #3fa7dd;

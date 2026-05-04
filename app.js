@@ -2345,6 +2345,118 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
   });
 }
 
+/** Metadatos UI: cola de autorizaciones agrupada por ambito operativo (ver también queueApproval). */
+const APPROVAL_TYPE_META = {
+  create_user: { sectionKey: "portal_access", label: "Alta de usuario del portal" },
+  create_driver: { sectionKey: "transport_fleet", label: "Alta de conductor" },
+  create_employee: { sectionKey: "workforce", label: "Alta de colaborador (nómina)" },
+  register_hr_absence: { sectionKey: "hr_absences", label: "Registro de ausencia o incapacidad" },
+  mark_payroll_paid: { sectionKey: "payroll_pay", label: "Confirmar pago de liquidación" },
+  approve_trip_request: { sectionKey: "misc", label: "Aprobación de solicitud de viaje (cola histórica)" }
+};
+
+const APPROVAL_UI_BLOCKS = [
+  {
+    key: "portal_access",
+    kind: "queue",
+    title: "Acceso y usuarios del portal",
+    description:
+      "Creación de cuentas que un operador sin rol administrador registra en el módulo de usuarios. Al aprobar, el sistema materializa el usuario, permisos y empresa asociada.",
+    origin: "Usuarios y permisos → nuevo usuario (no administrador)"
+  },
+  {
+    key: "transport_fleet",
+    kind: "queue",
+    title: "Conductores y flota operativa",
+    description:
+      "Alta de conductor solicitada por un perfil que no es administrador. Al aprobar, se crea el conductor disponible para asignación y, si aplica, el registro vinculado en nómina.",
+    origin: "Conductores → nuevo registro (no administrador)"
+  },
+  {
+    key: "transport_solicitudes",
+    kind: "info",
+    title: "Solicitudes de viaje (transporte comercial)",
+    description:
+      "Las solicitudes de servicio en estado pendiente no entran en esta cola: se revisan y aprueban en el módulo «Solicitudes», con asignación opcional de vehículo, conductor y valor del viaje. Quien tenga permiso de gestión de solicitudes puede aprobar allí sin paso intermedio por Autorizaciones.",
+    origin: "Transporte → Solicitudes (listado de solicitudes pendientes)"
+  },
+  {
+    key: "workforce",
+    kind: "queue",
+    title: "Talento, contratación y nómina",
+    description:
+      "Ingreso de colaborador al libro de nómina cuando quien registra no es administrador. Incluye datos contractuales, seguridad social y desempeño del flujo de aprobación previo a la ficha activa.",
+    origin: "Nómina → nuevo empleado (no administrador)"
+  },
+  {
+    key: "hr_absences",
+    kind: "queue",
+    title: "Ausencias, incapacidades y SST",
+    description:
+      "Registro formal de ausencia cuando quien carga el dato tiene rol de Recursos Humanos, Administración, Auxiliar administrativo o Líder administrativo. El administrador valida antes de dejar constancia.",
+    origin: "Cumplimiento laboral y SST → registro de ausencia (roles RRHH / administrativos)"
+  },
+  {
+    key: "payroll_pay",
+    kind: "queue",
+    title: "Liquidación y marcas de pago",
+    description:
+      "Marcar liquidación de nómina como pagada cuando la acción la inicia un perfil RRHH o administrativo (no administrador de sistema). Evita cierres contables sin doble validación.",
+    origin: "Nómina → marcar liquidación pagada (roles RRHH / administrativos)"
+  }
+];
+
+function approvalTypeLabel(type) {
+  return APPROVAL_TYPE_META[type]?.label || type;
+}
+
+function approvalDetailLine(approval) {
+  const p = approval.payload || {};
+  switch (approval.type) {
+    case "create_user":
+      return [normalizeEmail(p.email || ""), p.role].filter(Boolean).join(" · ") || "—";
+    case "create_driver":
+      return [String(p.name || "").trim(), p.idDoc ? `Doc. ${p.idDoc}` : ""].filter(Boolean).join(" · ") || "—";
+    case "create_employee":
+      return [String(p.name || "").trim(), p.idDoc ? `ID ${p.idDoc}` : "", String(p.position || "").trim()]
+        .filter(Boolean)
+        .join(" · ") || "—";
+    case "register_hr_absence":
+      return [String(p.absenceType || "").trim(), p.startDate && p.endDate ? `${p.startDate} → ${p.endDate}` : ""]
+        .filter(Boolean)
+        .join(" · ") || "—";
+    case "mark_payroll_paid":
+      return [String(p.employeeName || "").trim(), String(p.month || "").trim()].filter(Boolean).join(" · ") || "—";
+    case "approve_trip_request":
+      return String(p.requestId || "").trim() ? `Solicitud ${p.requestId}` : "—";
+    default:
+      return "—";
+  }
+}
+
+function buildPendingApprovalsTableHtml(rows) {
+  const body = rows
+    .map((a) => {
+      const detail = approvalDetailLine(a);
+      const detailHtml = escapeHtml(detail);
+      return `<tr>
+    <td><span class="auth-type-badge">${escapeHtml(approvalTypeLabel(a.type))}</span></td>
+    <td><strong>${escapeHtml(String(a.title || "").trim() || "—")}</strong></td>
+    <td class="auth-detail-cell">${detailHtml}</td>
+    <td>${escapeHtml(String(a.requestedByName || "").trim() || "—")}</td>
+    <td>${fmtDate(a.requestedAt)}</td>
+    <td><div class="toolbar">
+      <button type="button" class="btn btn-sm btn-approve" data-action="approval-approve" data-id="${escapeAttr(String(a.id))}">${IC.check} Aprobar</button>
+      <button type="button" class="btn btn-sm btn-reject" data-action="approval-reject" data-id="${escapeAttr(String(a.id))}">${IC.x} Rechazar</button>
+    </div></td>
+  </tr>`;
+    })
+    .join("");
+  return `<div class="table-wrap auth-pending-table"><table><thead><tr>
+    <th>Tipo</th><th>Resumen</th><th>Detalle</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th>
+  </tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
 function ensureVehicleDocs() {
   const vehicles = read(KEYS.vehicles, []);
   let changed = false;
@@ -6989,26 +7101,91 @@ function profileHtml(user) {
 function authorizationsHtml() {
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
+  const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
+  const rejectedCt = approvals.filter((a) => a.status === "rechazado").length;
+
+  const groups = new Map();
+  APPROVAL_UI_BLOCKS.forEach((b) => {
+    if (b.kind === "queue") groups.set(b.key, []);
+  });
+  groups.set("misc", []);
+
+  pending.forEach((a) => {
+    const key = APPROVAL_TYPE_META[a.type]?.sectionKey;
+    const safeKey = key && groups.has(key) ? key : "misc";
+    groups.get(safeKey).push(a);
+  });
+
   const authHero = moduleFleetHeroStrip([
     { label: "Total registros", value: approvals.length },
     { label: "Pendientes", value: pending.length, tone: pending.length ? "warn" : undefined },
-    { label: "Aprobadas", value: approvals.filter((a) => a.status === "aprobado").length },
-    { label: "Rechazadas", value: approvals.filter((a) => a.status === "rechazado").length }
+    { label: "Aprobadas", value: approvedCt },
+    { label: "Rechazadas", value: rejectedCt }
   ]);
-  const rows = pending.map((a) => `<tr>
-    <td><strong>${a.title}</strong></td>
-    <td>${a.type}</td>
-    <td>${a.requestedByName}</td>
-    <td>${fmtDate(a.requestedAt)}</td>
-    <td><div class="toolbar">
-      <button class="btn btn-sm btn-approve" data-action="approval-approve" data-id="${a.id}">${IC.check} Aprobar</button>
-      <button class="btn btn-sm btn-reject" data-action="approval-reject" data-id="${a.id}">${IC.x} Rechazar</button>
-    </div></td>
-  </tr>`).join("");
-  const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Titulo</th><th>Tipo</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("No hay autorizaciones pendientes.");
-  return authHero + pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes`, body);
+
+  const mainSectionsHtml = APPROVAL_UI_BLOCKS.map((section) => {
+    if (section.kind === "info") {
+      return `<section class="auth-queue-section auth-queue-section--info" data-auth-section="${section.key}">
+      <header class="auth-queue-section-head">
+        <h3 class="auth-queue-section-title">${section.title}</h3>
+        <p class="muted auth-queue-section-desc">${section.description}</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
+      </header>
+    </section>`;
+    }
+    const rows = groups.get(section.key) || [];
+    const countBadge = `<span class="auth-section-count">${rows.length} pendiente(s)</span>`;
+    const tableOrEmpty = rows.length
+      ? buildPendingApprovalsTableHtml(rows)
+      : emptyState("No hay autorizaciones pendientes en esta categoría.");
+    return `<section class="auth-queue-section" data-auth-section="${section.key}" aria-label="${escapeAttr(section.title)}">
+      <header class="auth-queue-section-head">
+        <div class="auth-queue-section-title-row">
+          <h3 class="auth-queue-section-title">${section.title}</h3>
+          ${countBadge}
+        </div>
+        <p class="muted auth-queue-section-desc">${section.description}</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
+      </header>
+      <div class="auth-queue-section-body">${tableOrEmpty}</div>
+    </section>`;
+  }).join("");
+
+  const miscRows = groups.get("misc") || [];
+  const miscSectionHtml =
+    miscRows.length > 0
+      ? `<section class="auth-queue-section auth-queue-section--misc" data-auth-section="misc">
+      <header class="auth-queue-section-head">
+        <div class="auth-queue-section-title-row">
+          <h3 class="auth-queue-section-title">Otras solicitudes (tipo no catalogado o histórico)</h3>
+          <span class="auth-section-count">${miscRows.length} pendiente(s)</span>
+        </div>
+        <p class="muted auth-queue-section-desc">Ítems que no coinciden con una categoría definida (por ejemplo datos migrados o tipos reservados). Revise el detalle antes de aprobar.</p>
+      </header>
+      <div class="auth-queue-section-body">${buildPendingApprovalsTableHtml(miscRows)}</div>
+    </section>`
+      : "";
+
+  const catalogItems = [
+    "<strong>Usuarios y permisos</strong>: alta de usuario cuando quien guarda no es administrador (cola: alta de usuario del portal).",
+    "<strong>Conductores</strong>: alta de conductor cuando quien guarda no es administrador.",
+    "<strong>Nómina / nuevo empleado</strong>: ficha de colaborador cuando quien guarda no es administrador.",
+    "<strong>Cumplimiento laboral y SST</strong>: registro de ausencia cuando el rol es RRHH, Administración, Auxiliar administrativo o Líder administrativo.",
+    "<strong>Nómina / liquidaciones</strong>: marcar pago de liquidación con los mismos roles administrativos anteriores (doble control respecto al administrador de sistema).",
+    "<strong>Solicitudes (transporte)</strong>: aprobación de pedidos de servicio en el listado de solicitudes; no usa esta cola.",
+    "<strong>Nota técnica</strong>: el código conserva un tipo de autorización «solicitud de viaje» por compatibilidad, pero en la práctica no se encola; use siempre el módulo «Solicitudes»."
+  ]
+    .map((li) => `<li>${li}</li>`)
+    .join("");
+
+  const catalogHtml = `<details class="auth-flow-catalog">
+    <summary class="auth-flow-catalog-summary">Inventario de flujos que requieren validación administrativa</summary>
+    <p class="muted auth-flow-catalog-lead">Lista exhaustiva según la lógica actual de la aplicación. Las aprobaciones en cola se almacenan en este navegador (<code>antares_approvals_v2</code>) hasta que un administrador decide.</p>
+    <ul class="auth-flow-catalog-list">${catalogItems}</ul>
+  </details>`;
+
+  const bodyInner = `${mainSectionsHtml}${miscSectionHtml}${catalogHtml}`;
+  return authHero + pcardWrap("shield", "Autorizaciones", `${pending.length} pendientes en total`, bodyInner);
 }
 
 function contactLeadsHtml() {
