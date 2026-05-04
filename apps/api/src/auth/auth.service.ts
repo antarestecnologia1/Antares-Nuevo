@@ -33,6 +33,9 @@ const ROLE_REGISTER_TO_DB: Record<string, string> = {
   RRHH: "rrhh"
 };
 
+/** Si `PORTAL_PUBLIC_URL` falta o apunta a localhost, los correos de Supabase usarán este origen. */
+const DEFAULT_PORTAL_PUBLIC_ORIGIN = "https://transportesantares.com";
+
 type UsuarioRow = {
   id: string;
   correo_electronico: string;
@@ -752,15 +755,37 @@ export class AuthService {
     }
   }
 
-  private resolvePasswordRecoveryRedirect(requested: string | undefined): string {
-    const fb = (
+  /** Base pública del portal (sin barra final); nunca devuelve un host local. */
+  private portalPublicBaseUrl(): string {
+    const raw = String(
       this.config.get<string>("PORTAL_PUBLIC_URL") ??
-      this.config.get<string>("PUBLIC_PORTAL_URL") ??
-      "https://www.transportesantares.co"
-    )
-      .trim()
-      .replace(/\/+$/, "");
-    const fallback = fb ? `${fb}/` : "https://www.transportesantares.co/";
+        this.config.get<string>("PUBLIC_PORTAL_URL") ??
+        DEFAULT_PORTAL_PUBLIC_ORIGIN
+    ).trim();
+    if (!raw) return DEFAULT_PORTAL_PUBLIC_ORIGIN;
+    try {
+      const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+      const u = new URL(href);
+      const host = u.hostname.toLowerCase();
+      if (
+        host === "localhost" ||
+        host.endsWith(".localhost") ||
+        host === "127.0.0.1" ||
+        host === "0.0.0.0" ||
+        host === "[::1]" ||
+        host === "::1"
+      ) {
+        return DEFAULT_PORTAL_PUBLIC_ORIGIN;
+      }
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      return DEFAULT_PORTAL_PUBLIC_ORIGIN;
+    }
+  }
+
+  private resolvePasswordRecoveryRedirect(requested: string | undefined): string {
+    const fb = this.portalPublicBaseUrl().replace(/\/+$/, "");
+    const fallback = `${fb}/`;
     const raw = String(requested ?? "").trim();
     if (!raw) return fallback;
     try {
@@ -825,11 +850,7 @@ export class AuthService {
         [userId]
       );
       const approved = r.rows[0]?.s === "aprobado";
-      const portalUrl = (
-        this.config.get<string>("PORTAL_PUBLIC_URL") ??
-        this.config.get<string>("PUBLIC_PORTAL_URL") ??
-        "https://www.transportesantares.co"
-      ).trim();
+      const portalUrl = this.portalPublicBaseUrl();
 
       let sent = false;
       if (this.mail.hasResend()) {

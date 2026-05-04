@@ -2416,6 +2416,15 @@ function buildSupabasePasswordRecoveryRedirectUrl() {
   const u = new URL(window.location.href);
   u.hash = "";
   u.search = "";
+  const host = u.hostname.toLowerCase();
+  if (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host.endsWith(".localhost") ||
+    host === "::1"
+  ) {
+    return "https://transportesantares.com/";
+  }
   return u.toString();
 }
 

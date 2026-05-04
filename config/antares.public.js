@@ -30,5 +30,5 @@
    * y con una URL permitida en el proveedor de autenticación (redirects). Si no se define, el enlace de
    * recuperación de contraseña tomará el host de la página actual (puede ser localhost en desarrollo).
    */
-  window.__PORTAL_PUBLIC_ORIGIN__ = "https://www.transportesantares.co";
+  window.__PORTAL_PUBLIC_ORIGIN__ = "https://transportesantares.com";
 })();
