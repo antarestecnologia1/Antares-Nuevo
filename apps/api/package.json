@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prisma:generate": "node -e \"process.exit(0)\"",
     "build": "tsc -p tsconfig.build.json",
     "start:dev": "nest start --watch",
     "start": "node --dns-result-order=ipv4first dist/main.js"

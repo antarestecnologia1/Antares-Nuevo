@@ -10,5 +10,3 @@ coverage
 /apps/web/.env.local
 /apps/web/.env
 /config/antares.local.js
-
-apps/api/prisma/migrations

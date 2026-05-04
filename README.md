@@ -1,24 +1,18 @@
-# Antares Plataforma - Monorepo fullstack
+# Antares — Monorepo
 
-Base de proyecto alineada al stack solicitado:
+## Contenido
 
-- Frontend: Next.js 14+, TypeScript, TailwindCSS, base shadcn/ui.
-- Backend: NestJS, PostgreSQL, Prisma ORM, JWT + Refresh tokens.
-- Jobs/servicios: Bull + Redis, Resend, Supabase.
-- Seguridad: RBAC por guard, rate limiting, logs de auditoría.
+- **`index.html`**, **`app.js`**, **`styles.css`**, **`modules/`**: portal y sitio público (stack principal operativo).
+- **`apps/api`**: API NestJS, PostgreSQL vía `pg`, JWT, Supabase (Auth/archivos según `.env`).
+- **`apps/web`**: aplicación Next.js (login de demostración / despliegue opcional).
+- **`BD/postgres`**: scripts SQL del esquema.
+- **`docs/`**: notas de despliegue (p. ej. Supabase + Render).
+- **`DEPLOYMENT_RUNBOOK.md`**: checklist de producción.
 
-## Estructura
-
-- `apps/web`: frontend Next.js.
-- `apps/api`: backend NestJS + Prisma.
-- `docs`: plan, arquitectura y wireframes.
-- `index.html`, `styles.css`, `app.js`: MVP web previo (se conserva como referencia funcional).
-
-## Requisitos locales
+## Requisitos
 
 - Node.js 20+
-- PostgreSQL
-- Redis
+- PostgreSQL (local con Docker Compose o gestionado)
 
 ## Instalación
 
@@ -28,43 +22,30 @@ npm install --workspaces
 
 ## Variables de entorno
 
-- **API**: `apps/api/.env` (local, no versionado). Producción: mismas variables en Render. Complete `DATABASE_URL`, `SUPABASE_*` según su proyecto.
-- **Next.js**: `apps/web/.env.production` con `NEXT_PUBLIC_API_URL` apuntando a la API en Render (también configurable en Vercel).
-- **Portal estático**: `config/antares.public.js` (URL API) y `config/supabase.public.js` (URL Supabase + clave anon del panel).
+- **`apps/api/.env`**: `DATABASE_URL`, claves Supabase según el servicio (no versionar).
+- **Portal estático**: `config/antares.public.js` (URL de la API sin `/api`) y `config/supabase.public.js` (URL + anon de Supabase).
+- **`apps/web`**: `NEXT_PUBLIC_API_URL` si se usa el front Next.
 
 ## Desarrollo
 
 ```bash
-npm run dev:web
-npm run dev:api
+npm run dev:api    # http://localhost:4000/api
+npm run dev:web    # http://localhost:3000
 ```
-
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:4000/api`
 
 ## Build
 
 ```bash
-npm run build:web
 npm run build:api
+npm run build:web
 ```
 
-## Endpoints base implementados
-
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/requests` (CLIENT)
-- `GET /api/requests` (CLIENT/ADMIN)
-- `POST /api/requests/:id/approve` (ADMIN)
-- `POST /api/payroll/slip` (ADMIN/RRHH)
-
-## Notas
-
-- La cola Bull programa auto-aprobación a 10 minutos para solicitudes pendientes.
-- Resend y Supabase están preparados por servicio; se activan al definir llaves en `.env`.
-- Para generar cliente Prisma:
+## Base de datos local
 
 ```bash
-npm run prisma:generate -w api
+npm run db:up
+npm run db:ready
+npm run db:init
 ```
+
+Ver **`BD/README.md`** para mapeo de tablas y despliegue.
