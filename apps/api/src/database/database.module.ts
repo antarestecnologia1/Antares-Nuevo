@@ -1,13 +1,20 @@
-import { Global, Module } from "@nestjs/common";
+import { Global, Logger, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Pool } from "pg";
 
 export const PG_POOL = "PG_POOL";
 
+const dbLogger = new Logger("DatabaseModule");
+
 function sslForDatabaseUrl(url: string | undefined): boolean | { rejectUnauthorized: boolean } {
   if (!url) return false;
   const lower = url.toLowerCase();
-  if (lower.includes("supabase.co") || lower.includes("pooler.supabase.com")) {
+  /** Host db.<ref>.supabase.co y poolers de Supabase exigen TLS. */
+  if (
+    lower.includes("supabase.co") ||
+    lower.includes("pooler.supabase.com") ||
+    lower.includes("pooler.supabase.co")
+  ) {
     return { rejectUnauthorized: false };
   }
   /** Render Postgres (*.render.com), Neon, RDS: TLS habitualmente requerido fuera de la red interna del proveedor. */
@@ -32,11 +39,21 @@ function sslForDatabaseUrl(url: string | undefined): boolean | { rejectUnauthori
       provide: PG_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const connectionString = config.get<string>("DATABASE_URL") ?? "";
+        const connectionString = (config.get<string>("DATABASE_URL") ?? "").trim();
+        if (!connectionString) {
+          dbLogger.error("DATABASE_URL está vacío: la API arrancará pero auth y portal fallarán hasta configurarla.");
+        } else if (/pooler\.supabase\.com/i.test(connectionString) && /:6543\b/.test(connectionString)) {
+          dbLogger.warn(
+            "DATABASE_URL apunta al pooler transaccional (6543). Si ve errores al registrar/iniciar sesión, use en Supabase la cadena Session pool o Direct connection."
+          );
+        }
         return new Pool({
           connectionString,
           max: 10,
-          ssl: sslForDatabaseUrl(connectionString)
+          application_name: "antares-api",
+          ssl: sslForDatabaseUrl(connectionString),
+          connectionTimeoutMillis: 20_000,
+          idleTimeoutMillis: 30_000
         });
       }
     }

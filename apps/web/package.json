@@ -19,6 +19,8 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.35",
     "cross-env": "^7.0.3",
     "@types/node": "^22.15.30",
     "@types/react": "^18.3.23",

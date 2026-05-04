@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 
 @Injectable()
 export class FilesService {
@@ -8,8 +9,8 @@ export class FilesService {
   private readonly enabled: boolean;
 
   constructor(config: ConfigService) {
-    const url = config.get<string>("SUPABASE_URL") ?? "";
-    const key = config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const url = normalizeSupabaseProjectUrl(config.get<string>("SUPABASE_URL"));
+    const key = (config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
     this.enabled = Boolean(url && key);
     this.client = this.enabled ? createClient(url, key) : null;
   }

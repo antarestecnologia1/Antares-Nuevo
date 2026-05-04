@@ -9,7 +9,6 @@ coverage
 /apps/api/.env
 /apps/web/.env.local
 /apps/web/.env
-/config/supabase.public.js
 /config/antares.local.js
 
 apps/api/prisma/migrations

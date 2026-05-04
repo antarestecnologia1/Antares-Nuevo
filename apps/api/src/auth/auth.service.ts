@@ -13,6 +13,7 @@ import * as bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import { PG_POOL } from "../database/database.module";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -46,7 +47,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService
   ) {
-    const url = (this.config.get<string>("SUPABASE_URL") ?? "").trim();
+    const url = normalizeSupabaseProjectUrl(this.config.get<string>("SUPABASE_URL"));
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
     this.supabaseEnabled = Boolean(url && key);
     this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
@@ -87,6 +88,12 @@ export class AuthService {
     try {
       if (!dto.acceptTerms) {
         throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
+      }
+      const dbUrl = (this.config.get<string>("DATABASE_URL") ?? "").trim();
+      if (!dbUrl) {
+        throw new ServiceUnavailableException(
+          "El servidor no tiene DATABASE_URL. Configure la cadena Postgres (Supabase → Database → URI) en Render o apps/api/.env."
+        );
       }
       this.assertStrongPassword(dto.password);
       const email = dto.email.trim().toLowerCase();
@@ -321,10 +328,15 @@ export class AuthService {
         await this.deleteSupabaseAuthUser(authUserId);
       }
       if (err instanceof HttpException) throw err;
-      const code = String(err?.code || "");
-      const detail = String(err?.detail || err?.message || "");
-      this.logger.error(`registerPortal unexpected error code=${code} detail=${detail}`);
-      if (code === "23505") {
+
+      const code = String(err?.code ?? "");
+      const pgMsg = String(err?.message ?? "");
+      const detail = String(err?.detail ?? "");
+      this.logger.error(
+        `registerPortal unexpected error code=${code} message=${pgMsg} detail=${detail} stack=${String(err?.stack ?? "").slice(0, 500)}`
+      );
+
+      if (code === "23505" || /duplicate key/i.test(pgMsg)) {
         throw new BadRequestException("El correo o documento ya está registrado.");
       }
       if (code === "42P01") {
@@ -335,7 +347,32 @@ export class AuthService {
           "La base de datos está desactualizada. Ejecuta los scripts de BD pendientes y reintenta."
         );
       }
-      throw new ServiceUnavailableException("No fue posible procesar el registro en este momento.");
+
+      /** Errores de red / Node al conectar a Postgres (Render ↔ Supabase/Postgres). */
+      if (["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "ECONNRESET"].includes(code)) {
+        throw new ServiceUnavailableException(
+          "No hay conexión a la base de datos. Verifique DATABASE_URL en Render (sin espacios), que la BD acepte conexiones externas y SSL; en Supabase use la cadena del panel (pool session/direct si el pool transaccional falla)."
+        );
+      }
+
+      if (code === "28P01") {
+        throw new ServiceUnavailableException(
+          "PostgreSQL rechazó usuario o contraseña (DATABASE_URL incorrecta o contraseña con caracteres que rompen la URL)."
+        );
+      }
+      if (code === "3D000") {
+        throw new ServiceUnavailableException("La base de datos indicada en DATABASE_URL no existe.");
+      }
+      if (code === "08006" || code === "08001" || code === "57P03") {
+        throw new ServiceUnavailableException("PostgreSQL no aceptó la conexión (servicio caído, reinicio o límite de conexiones).");
+      }
+      if (code === "53300") {
+        throw new ServiceUnavailableException("Demasiadas conexiones a PostgreSQL; reduzca el pool o actualice el plan.");
+      }
+
+      throw new ServiceUnavailableException(
+        "No fue posible procesar el registro. Revise DATABASE_URL y los logs del servicio en Render; si usa Supabase Pooler (puerto 6543) y sigue fallando, pruebe la URL de conexión directa o session pool del panel."
+      );
     }
   }
 

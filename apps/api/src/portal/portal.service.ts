@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Inject, Injectable } from "@ne
 import { ConfigService } from "@nestjs/config";
 import type { Pool, PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import { PG_POOL } from "../database/database.module";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 
@@ -64,8 +65,8 @@ export class PortalService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly config: ConfigService
   ) {
-    const url = this.config.get<string>("SUPABASE_URL") ?? "";
-    const key = this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const url = normalizeSupabaseProjectUrl(this.config.get<string>("SUPABASE_URL"));
+    const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
     this.supabaseEnabled = Boolean(url && key);
     this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
   }

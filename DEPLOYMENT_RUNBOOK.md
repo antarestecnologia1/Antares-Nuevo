@@ -23,7 +23,8 @@ Fecha: 2026-04-29.
   - Plataforma: Render (Web Service)
   - Root Directory: `apps/api`
   - Build Command:
-    `npm install --workspaces && npm run prisma:generate -w api && npm run build -w api`
+    `npm install --workspaces && npm run build -w api`
+    *(El workspace ya incluye `api`; no hay migraciones Prisma activas — esquema en `BD/postgres`.)*
   - Start Command:
     `npm run start -w api`
 
@@ -45,7 +46,7 @@ Configurar en modo `DNS only` (nube gris):
 
 ## Variables de entorno API (Render)
 
-Plantilla local: `apps/api/.env.example` (copiar a `apps/api/.env`).
+Variables locales: `npm run setup` crea `apps/api/.env` para Postgres Docker; para dominio producción use las mismas claves que en Render (véase `apps/api/.env` en su máquina, gitignored).
 
 **Mínimas para login y registro**
 
@@ -120,8 +121,8 @@ En la raíz del repo:
 | Comando | Qué hace |
 |---------|-----------|
 | `npm install` | Dependencias del monorepo. |
-| `npm run setup` | Crea `apps/api/.env` desde `.env.example` con JWT aleatorios y `DATABASE_URL` local (Docker). Si ya existe `.env`, no lo toca; usar `node scripts/ensure-dev-env.mjs --force` para regenerar. |
-| `npm run verify` | Setup + build API + build Next.js + tests estáticos del portal (`qa/portal-regression-tests.mjs`). **No requiere Docker.** |
+| `npm run setup` | Crea `apps/api/.env` con JWT aleatorios y Postgres Docker si no existe (`setup:force` para regenerar). |
+| `npm run verify` | Setup + build API + build Next.js + ESLint (`apps/web`) + tests estáticos del portal (`qa/portal-regression-tests.mjs`). **No requiere Docker.** |
 | `npm run verify:stack` | Si **Docker Compose** está en PATH: borra volumen, levanta Postgres, aplica esquema `BD/postgres` (sin scripts 09/10 Supabase), ejecuta `verify` y **smoke** `POST /api/auth/login` → 401. Si Docker no está instalado, ejecuta solo `verify`. |
 
 ### Postgres local (Docker)

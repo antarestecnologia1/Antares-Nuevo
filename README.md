@@ -28,10 +28,9 @@ npm install --workspaces
 
 ## Variables de entorno
 
-Crear y mantener estos archivos locales (no versionados):
-
-- `apps/api/.env` para API Nest.
-- `apps/web/.env.local` para Next.js.
+- **API**: `apps/api/.env` (local, no versionado). Producción: mismas variables en Render. Complete `DATABASE_URL`, `SUPABASE_*` según su proyecto.
+- **Next.js**: `apps/web/.env.production` con `NEXT_PUBLIC_API_URL` apuntando a la API en Render (también configurable en Vercel).
+- **Portal estático**: `config/antares.public.js` (URL API) y `config/supabase.public.js` (URL Supabase + clave anon del panel).
 
 ## Desarrollo
 
