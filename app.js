@@ -799,6 +799,102 @@ function upsertPortalUserStubFromJwtPayload(payload) {
   return stub;
 }
 
+/** Mini-identidad persistida en antares_session_v2 para sobrevivir a F5 (caché de usuarios solo en RAM). */
+function buildProfileSnapshotFromUserRow(u) {
+  if (!u || u.id == null) return null;
+  return {
+    id: String(u.id),
+    email: String(u.email || "").trim(),
+    name: String(u.name || "").trim(),
+    role: u.role,
+    companyId: u.companyId != null ? String(u.companyId) : "",
+    permissions: Array.isArray(u.permissions) ? u.permissions : []
+  };
+}
+
+function syncSessionProfileSnapshotFromCache() {
+  const s = getSession();
+  if (!s?.userId) return;
+  const u = read(KEYS.users, []).find((x) => String(x.id) === String(s.userId));
+  const snap = buildProfileSnapshotFromUserRow(u);
+  if (!snap) return;
+  setSession({ ...s, profileSnapshot: snap });
+}
+
+/**
+ * Tras F5 la tabla users está vacía en RAM hasta el bootstrap; evita clearSession si la sesión en disco sigue siendo válida.
+ */
+function materializePortalUserFromSession(session) {
+  if (!session?.userId) return null;
+  let user = currentUser();
+  if (user && String(user.id) === String(session.userId)) return user;
+
+  const snap = session.profileSnapshot;
+  if (snap && String(snap.id) === String(session.userId)) {
+    const users = read(KEYS.users, []);
+    const row = {
+      id: String(snap.id),
+      email: String(snap.email || "").trim() || "usuario@portal",
+      name: String(snap.name || "").trim() || String(snap.email || "Usuario").trim() || "Usuario",
+      role: snap.role || session.role || ROLES.CLIENT,
+      accountStatus: "aprobado",
+      companyId: snap.companyId != null ? String(snap.companyId) : "",
+      company: "",
+      password: "",
+      permissions: Array.isArray(snap.permissions) ? snap.permissions : [],
+      taxId: "",
+      phone: ""
+    };
+    write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))]);
+    user = currentUser();
+    if (user && String(user.id) === String(session.userId)) return user;
+  }
+
+  const token = String(session.accessToken || "").trim() || String(window.AntaresApi?.getAccessToken?.() || "").trim();
+  if (token) {
+    const payload = decodeJwtPayload(token);
+    if (payload && String(payload.sub || "").trim() === String(session.userId)) {
+      upsertPortalUserStubFromJwtPayload(payload);
+    }
+    user = currentUser();
+    if (user && String(user.id) === String(session.userId)) {
+      if (snap && Array.isArray(snap.permissions) && snap.permissions.length && (!user.permissions || !user.permissions.length)) {
+        const users = read(KEYS.users, []);
+        write(
+          KEYS.users,
+          users.map((u) =>
+            String(u.id) === String(session.userId) ? { ...u, permissions: snap.permissions } : u
+          )
+        );
+        user = currentUser();
+      }
+      return user;
+    }
+  }
+
+  if (session.userId && session.role) {
+    const users = read(KEYS.users, []);
+    const row = {
+      id: String(session.userId),
+      email: String(session.profileSnapshot?.email || "").trim() || "usuario@portal",
+      name: String(session.profileSnapshot?.name || "").trim() || "Usuario",
+      role: session.role,
+      accountStatus: "aprobado",
+      companyId: String(session.profileSnapshot?.companyId || ""),
+      company: "",
+      password: "",
+      permissions: Array.isArray(session.profileSnapshot?.permissions) ? session.profileSnapshot.permissions : [],
+      taxId: "",
+      phone: ""
+    };
+    write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))]);
+    user = currentUser();
+    if (user && String(user.id) === String(session.userId)) return user;
+  }
+
+  return null;
+}
+
 function applyPortalBootstrapPayload(p) {
   if (!p || typeof p !== "object") return;
   const PS = window.AntaresPortalSync;
@@ -849,6 +945,7 @@ async function applyPortalBootstrapFromApi() {
   try {
     const p = await api.getJson("/portal/bootstrap");
     applyPortalBootstrapPayload(p);
+    syncSessionProfileSnapshotFromCache();
     return true;
   } catch (err) {
     devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
@@ -2706,6 +2803,7 @@ async function tryApiRefreshBridge() {
       refreshToken: body.refreshToken || session.refreshToken,
       lastActivityAt: now
     });
+    syncSessionProfileSnapshotFromCache();
   } catch (_e) {
     /* API opcional */
   }
@@ -2794,6 +2892,7 @@ async function tryApiLoginBridge(user, password) {
       });
     }
     await startPortalBootstrapForInteractiveSession();
+    syncSessionProfileSnapshotFromCache();
     if (state.session && currentUser()) {
       scheduleRenderPortalView();
       updateNotificationBadge();
@@ -3207,7 +3306,8 @@ function bindAuthForms() {
               accessToken: body.accessToken,
               refreshToken: refreshTok,
               lastActivityAt: Date.now(),
-              tokenIssuedAt: Date.now()
+              tokenIssuedAt: Date.now(),
+              profileSnapshot: buildProfileSnapshotFromUserRow(userApi)
             });
             hideAuth();
             startSessionSecurityWatch();
@@ -3255,7 +3355,8 @@ function bindAuthForms() {
         role: user.role,
         token: buildToken(user),
         lastActivityAt: Date.now(),
-        tokenIssuedAt: Date.now()
+        tokenIssuedAt: Date.now(),
+        profileSnapshot: buildProfileSnapshotFromUserRow(user)
       });
       void tryApiLoginBridge(user, passwordRaw);
       hideAuth();
@@ -4469,12 +4570,7 @@ function renderPortal() {
   setPortalDrawerOpen(false);
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
-  let user = currentUser();
-  /** Sin fila en RAM tras recarga: reconstruir mínimo desde el JWT antes de dar por sesión inválida (bootstrap puede fallar en red). */
-  if (!user && session?.accessToken) {
-    upsertPortalUserStubFromJwtPayload(decodeJwtPayload(String(session.accessToken)));
-    user = currentUser();
-  }
+  const user = materializePortalUserFromSession(session);
   if (!user) {
     clearSession();
     renderPortal();
@@ -4688,6 +4784,45 @@ function viewDashboard() {
   </div>`;
 }
 
+/** Selector de empresa en nueva solicitud: obligatorio; cliente solo su empresa; admin elige de la lista. */
+function buildRequestCompanySelectHtml(user) {
+  const companies = read(KEYS.companies, []);
+  if (user?.role === ROLES.CLIENT) {
+    const cid = String(user?.companyId || "").trim();
+    if (!cid) {
+      return `<div class="full">
+        <p class="muted" role="alert">Su cuenta no tiene empresa asociada. Solicite al administrador que vincule su usuario a una empresa antes de crear solicitudes.</p>
+        <input type="hidden" name="companyId" value="" />
+      </div>`;
+    }
+    const c = getCompanyById(cid);
+    const label = c?.name || user.company || "Mi empresa";
+    return `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada", { required: true })}
+      <select name="companyId" id="request-company-id" required>
+        <option value="${escapeAttr(cid)}">${escapeHtml(label)}</option>
+      </select>
+    </label>`;
+  }
+  if (!companies.length) {
+    return `<div class="full">
+      <p class="muted" role="alert">No hay empresas registradas. Cree una empresa en <strong>Administración · Usuarios</strong> antes de solicitar viajes.</p>
+      <input type="hidden" name="companyId" value="" />
+    </div>`;
+  }
+  const opts = companies
+    .map((c) => {
+      const id = String(c.id || "");
+      return `<option value="${escapeAttr(id)}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
+    })
+    .join("");
+  return `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada", { required: true })}
+    <select name="companyId" id="request-company-id" required>
+      <option value="">Seleccione empresa...</option>
+      ${opts}
+    </select>
+  </label>`;
+}
+
 function requestFormHtml() {
   if (window.AppModules?.solicitudes?.requestFormHtml) {
     return window.AppModules.solicitudes.requestFormHtml();
@@ -4703,7 +4838,6 @@ function requestFormHtml() {
     { label: "En operacion", value: enOp },
     { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
   ]);
-  const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
   const departments = Object.keys(COLOMBIA_LOCATIONS)
     .map((dept) => `<option value="${dept}">${dept}</option>`)
     .join("");
@@ -4711,10 +4845,7 @@ function requestFormHtml() {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Empresa y ruta</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
-          <input value="${escapeHtml(companyName)}" disabled />
-          <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
-        </label>
+        ${buildRequestCompanySelectHtml(user)}
         <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
@@ -5269,6 +5400,15 @@ function adminUsersHtml(current) {
   const companyOptions = companies
     .map((c) => `<option value="${c.id}">${c.name}</option>`)
     .join("");
+  const companyEditOptions = editingUser
+    ? companies
+        .map((c) => {
+          const id = String(c.id ?? "");
+          const selected = String(editingUser.companyId ?? "") === id ? " selected" : "";
+          return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
+        })
+        .join("")
+    : "";
 
   const userOptions = users
     .map((u) => `<option value="${u.id}">${u.name} (${u.role})${u.id === current.id ? " · tu perfil" : ""}</option>`)
@@ -5502,10 +5642,10 @@ function adminUsersHtml(current) {
         <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
       </select>
     </label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}
-      <input value="${getCompanyById(editingUser.companyId)?.name || editingUser.company || "-"}" disabled />
-      <input type="hidden" name="companyId" value="${editingUser.companyId || ""}" />
-    </label>
+    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
+      <option value="">Seleccione...</option>
+      ${companyEditOptions}
+    </select></label>
     <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${editingUser.phone || ""}" /></label>
     <label>${fieldLabel(IC.mapPin, "Departamento")}
       <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
@@ -8569,6 +8709,24 @@ function bindDynamicEvents() {
       event.preventDefault();
       const user = currentUser();
       const data = Object.fromEntries(new FormData(requestForm).entries());
+      const requestCompanyId = String(data.companyId || "").trim();
+      if (!requestCompanyId) {
+        notify("Debe seleccionar la empresa asociada.", "error");
+        return;
+      }
+      const reqCompany =
+        read(KEYS.companies, []).find((c) => String(c.id) === requestCompanyId) || null;
+      if (!reqCompany) {
+        notify("La empresa seleccionada no es válida.", "error");
+        return;
+      }
+      if (user?.role === ROLES.CLIENT) {
+        const ucid = String(user.companyId || "").trim();
+        if (ucid && ucid !== requestCompanyId) {
+          notify("No puede crear solicitudes para otra empresa.", "error");
+          return;
+        }
+      }
       const pickupDateValue = String(data.pickupDate || "");
       const pickupTimeValue = String(data.pickupTime || "");
       const deliveryDateValue = String(data.deliveryDate || "");
@@ -8600,8 +8758,8 @@ function bindDynamicEvents() {
         id: uid(),
         requestNumber,
         clientUserId: user.id,
-        clientName: user.company,
-        clientCompanyId: user.companyId,
+        clientName: reqCompany.name || user.company || "",
+        clientCompanyId: reqCompany.id,
         requestedByName: user.name,
         ...payload,
         pickupAt,
@@ -8633,7 +8791,7 @@ function bindDynamicEvents() {
         saveNotification({
           userId: admin.id,
           title: "Nueva solicitud pendiente",
-          body: `Solicitud ${requestNumber} de ${user.company}`
+          body: `Solicitud ${requestNumber} de ${rowToSave.clientName || user.name || ""}`
         });
         sendEmail({
           to: admin.email,
@@ -11670,6 +11828,7 @@ window.AppLegacyViews = {
 window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi() {
   if (!getSession()) return;
   try {
+    syncSessionProfileSnapshotFromCache();
     updatePortalSidebarSessionMeta();
   } catch (_e) {
     /* noop */
@@ -11705,6 +11864,9 @@ void (async function bootApplicationFromDatabaseThenUi() {
     }
   }
   renderPortal();
+  try {
+    syncSessionProfileSnapshotFromCache();
+  } catch (_e) {}
   window.PortalDataLayer?.enableVisibilityRefresh?.();
   setInterval(() => {
     if (!state.session) return;

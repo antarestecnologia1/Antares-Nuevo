@@ -18,14 +18,18 @@
     const departments = Object.keys(COLOMBIA_LOCATIONS)
       .map((dept) => `<option value="${dept}">${dept}</option>`)
       .join("");
+    const companyField =
+      typeof buildRequestCompanySelectHtml === "function"
+        ? buildRequestCompanySelectHtml(user)
+        : `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
+          <input value="${escapeHtml(companyName)}" disabled />
+          <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
+        </label>`;
     const body = `<form id="form-request" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Empresa y ruta</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.briefcase, "Empresa asociada")}
-          <input value="${escapeHtml(companyName)}" disabled />
-          <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
-        </label>
+        ${companyField}
         <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
