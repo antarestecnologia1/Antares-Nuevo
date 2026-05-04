@@ -211,18 +211,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ email, password })
       });
 
-      if (!res.ok) {
-        throw new Error("Credenciales inválidas.");
+      const raw = await res.text();
+      let data: { accessToken?: string; refreshToken?: string; message?: string | string[] };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        data = {};
       }
 
-      const data = (await res.json()) as {
-        accessToken: string;
-        refreshToken: string;
-      };
-      const payload = parseJwtPayload(data.accessToken);
+      if (!res.ok) {
+        const msg = Array.isArray(data?.message)
+          ? data.message.join(", ")
+          : String(data?.message || raw || "Credenciales inválidas.");
+        throw new Error(msg);
+      }
+
+      const accessToken = data.accessToken;
+      const refreshToken = data.refreshToken;
+      if (!accessToken || !refreshToken) {
+        throw new Error("Respuesta de login incompleta.");
+      }
+
+      const payload = parseJwtPayload(accessToken);
       const nextSession: AuthState = {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
+        accessToken,
+        refreshToken,
         userId: String(payload?.sub ?? ""),
         email: String(payload?.email ?? email),
         role: String(payload?.role ?? "")

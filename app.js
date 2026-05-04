@@ -2845,14 +2845,7 @@ function bindAuthForms() {
               notify(userMessage("authProfileLoadFailed"), "error");
               return;
             }
-            if (userApi.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
-              notify(userMessage("authPendingApproval"), "info");
-              return;
-            }
-            if (userApi.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
-              notify(userMessage("authRejected"), "error");
-              return;
-            }
+            /** La API solo devuelve tokens si estado_cuenta es aprobado; no bloquear por caché local desactualizado. */
             state.authSecurity.failedAttempts = 0;
             state.authSecurity.lockUntil = 0;
             setSession({

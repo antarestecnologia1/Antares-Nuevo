@@ -53,7 +53,18 @@ export class AuthService {
     this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
   }
 
+  /** Sin Postgres no hay registro ni sesión (solo JWT es insuficiente). */
+  private assertDatabaseConfigured(): void {
+    const dbUrl = (this.config.get<string>("DATABASE_URL") ?? "").trim();
+    if (!dbUrl) {
+      throw new ServiceUnavailableException(
+        "DATABASE_URL no configurada en el servidor (cadena Postgres desde Supabase → Database → URI, en Render o apps/api/.env)."
+      );
+    }
+  }
+
   async register(dto: RegisterDto) {
+    this.assertDatabaseConfigured();
     const email = dto.email.trim().toLowerCase();
     const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
       email
@@ -89,12 +100,7 @@ export class AuthService {
       if (!dto.acceptTerms) {
         throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
       }
-      const dbUrl = (this.config.get<string>("DATABASE_URL") ?? "").trim();
-      if (!dbUrl) {
-        throw new ServiceUnavailableException(
-          "El servidor no tiene DATABASE_URL. Configure la cadena Postgres (Supabase → Database → URI) en Render o apps/api/.env."
-        );
-      }
+      this.assertDatabaseConfigured();
       this.assertStrongPassword(dto.password);
       const email = dto.email.trim().toLowerCase();
       const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
@@ -377,6 +383,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    this.assertDatabaseConfigured();
     const email = dto.email.trim().toLowerCase();
     const res = await this.pool.query<UsuarioRow>(
       `SELECT id::text, correo_electronico, hash_contrasena, nombre_completo,
@@ -408,6 +415,7 @@ export class AuthService {
   }
 
   async refresh(userId: string, refreshToken: string) {
+    this.assertDatabaseConfigured();
     const res = await this.pool.query<UsuarioRow>(
       `SELECT id::text, correo_electronico, rol::text AS rol, refresh_token_hash
        FROM usuarios WHERE id = $1::uuid`,
