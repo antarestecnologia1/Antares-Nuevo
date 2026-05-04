@@ -7,10 +7,21 @@
     "apps/api"
   ],
   "scripts": {
+    "postinstall": "node scripts/ensure-dev-env.mjs",
+    "setup": "node scripts/ensure-dev-env.mjs",
+    "setup:force": "node scripts/ensure-dev-env.mjs --force",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v",
+    "db:ready": "node scripts/wait-for-postgres.mjs",
+    "db:init": "node apps/api/scripts/init-local-schema.mjs",
     "dev:web": "npm run dev -w web",
     "dev:api": "npm run start:dev -w api",
     "build:web": "npm run build -w web",
     "build:api": "npm run build -w api",
-    "test:portal-qa": "node qa/portal-regression-tests.mjs"
+    "test:portal-qa": "node qa/portal-regression-tests.mjs",
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "verify": "npm run setup && npm run build:api && npm run build:web && npm run test:portal-qa",
+    "verify:stack": "node scripts/run-verify-stack.mjs"
   }
 }

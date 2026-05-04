@@ -1,6 +1,12 @@
 /**
  * URL del backend Antares (Nest en Render, etc.). Sin barra final; sin sufijo /api.
  *
+ * El cliente concatena `/api/auth/login`, `/api/auth/register-portal`, etc.
+ * Debe coincidir con el servicio donde está desplegada la API (ej. Render Web Service).
+ *
+ * Sitio estático en otro dominio: cambie esta URL si mueve la API; además agregue ese dominio del sitio
+ * en CORS_ORIGINS en el servidor (o use los dominios ya permitidos en apps/api/src/main.ts).
+ *
  * Seguridad:
  * - Use solo HTTPS en producción (el token Bearer y el refresh no deben viajar por HTTP abierto).
  * - El dominio del sitio donde corre esta página debe estar en CORS_ORIGINS del servidor (apps/api .env).

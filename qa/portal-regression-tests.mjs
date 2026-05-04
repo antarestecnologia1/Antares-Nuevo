@@ -129,18 +129,17 @@ function run() {
     "portal-modules"
   );
 
-  // 5) Contract flow: candidate + employee selection
+  // 5) Contratación Word (RRHH): formulario de contrato enlazado a empleados en nómina
   includesAll(
     appJs,
     [
-      "const contractPeopleOptions",
-      'name="personRef"',
-      'value="candidate:',
-      'value="employee:',
-      'sourceType === "employee"',
-      'sourceType === "candidate"'
+      'id="form-contract"',
+      'name="contractTemplateKind"',
+      'name="employeeId"',
+      'data-action="contract-test-docx"',
+      "Generar y descargar contrato Word"
     ],
-    "contract-source-selection"
+    "contract-word-flow"
   );
 
   console.log("OK portal-regression-tests");

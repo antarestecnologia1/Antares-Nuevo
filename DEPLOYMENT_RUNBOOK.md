@@ -45,51 +45,97 @@ Configurar en modo `DNS only` (nube gris):
 
 ## Variables de entorno API (Render)
 
-Minimas:
+Plantilla local: `apps/api/.env.example` (copiar a `apps/api/.env`).
 
-- `DATABASE_URL` = Internal Database URL de Render Postgres
-- `JWT_ACCESS_SECRET` = secreto largo
-- `JWT_REFRESH_SECRET` = secreto largo distinto
-- `JWT_ACCESS_EXPIRES_IN` = `15m`
-- `JWT_REFRESH_EXPIRES_IN` = `7d`
-- `REDIS_HOST` = host de Render Key Value (solo host, sin `rediss://`)
-- `REDIS_PORT` = `6379` (o puerto entregado)
+**Mínimas para login y registro**
 
-Opcionales:
+- `DATABASE_URL` — Postgres (URL interna de Render Postgres en el mismo región, o Supabase, o local). Aplicar scripts `BD/postgres/*.sql` en orden sobre una base vacía o según `BD/README.md`.
+- `JWT_ACCESS_SECRET` — cadena larga aleatoria (mínimo ~32 caracteres).
+- `JWT_REFRESH_SECRET` — otra cadena larga, distinta de la anterior.
+- `JWT_ACCESS_EXPIRES_IN` = `15m` (recomendado).
+- `JWT_REFRESH_EXPIRES_IN` = `7d` (recomendado).
 
-- `RESEND_API_KEY`
-- `MAIL_FROM`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+**CORS (evita “Failed to fetch” desde el navegador)**
+
+- `CORS_ORIGINS` — lista separada por comas de orígenes exactos desde los que se abre el portal (ej. `https://transportesantares.co,https://www.transportesantares.co`). Si solo usa los dominios ya incluidos en código (`transportesantares.co`, `app.transportesantares.co`, `*.vercel.app`), puede quedar vacío. Para previews Vercel (`*.vercel.app`) ya hay comodín; para dominios nuevos u otros ambientes, añada aquí.
+
+**Opcionales**
+
+- `RESEND_API_KEY`, `MAIL_FROM` — correo transaccional.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — si quiere crear usuarios también en Supabase Auth. **Sin ellos, registro y login siguen funcionando** solo con Postgres y JWT de la API.
+
+**Puerto**
+
+- Render inyecta `PORT`; en local usar `PORT=4000` si hace falta.
 
 ## Variables de entorno Frontend (Vercel apps/web)
 
 - `NEXT_PUBLIC_API_URL=https://antares-nuevo.onrender.com/api`
+
+Debe incluir el sufijo **`/api`** porque el cliente Next (`AuthProvider`) llama a `${NEXT_PUBLIC_API_URL}/auth/login` (ruta final `.../api/auth/login`).
+
+## Login y registro (portal estático + API)
+
+| Pieza | Qué configurar |
+|--------|----------------|
+| **Portal estático** (`index.html`, Live Server, Vercel root `.`) | En `config/antares.public.js`, `window.__ANTARES_API_BASE__` = URL de la API **sin** `/api` (ej. `https://antares-nuevo.onrender.com`). El JS del portal usa `AntaresApi` y rutas `/api/auth/...`. |
+| **Next.js** (`apps/web`) | `NEXT_PUBLIC_API_URL` = misma API **con** `/api` al final. |
+| **API** | `DATABASE_URL`, JWT, y CORS si el dominio del sitio no está en la lista por defecto. |
+| **Usuario nuevo** | Registro crea fila en `usuarios` con `estado_cuenta = pendiente`. El login por API solo permite `estado_cuenta = aprobado`; un administrador debe aprobar en base de datos (o flujo admin) antes de que pueda entrar. |
+
+**Desarrollo local**
+
+1. Postgres local o remoto; `DATABASE_URL` en `apps/api/.env`.
+2. Generar secretos JWT y pegarlos en `.env`.
+3. `npm run start:dev -w api` (o desde `apps/api`: `npm run start:dev`).
+4. Abrir el portal desde un origen permitido por CORS (por defecto `http://localhost:5500`, `3000`, etc.).
 
 ## Cambios tecnicos aplicados para estabilizar deploy
 
 1. API escucha `process.env.PORT` (requerido por Render):
    - Archivo: `apps/api/src/main.ts`
 
-2. Prisma:
-   - Se removio `beforeExit` hook con tipado incompatible.
-   - Archivo: `apps/api/src/prisma/prisma.service.ts`
-
-3. Supabase opcional:
+2. Supabase opcional:
    - `FilesService` ya no rompe arranque si no hay `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`.
    - Archivo: `apps/api/src/files/files.service.ts`
+
+3. Registro portal / Postgres en Render: `apps/api/src/database/database.module.ts` habilita TLS para hostnames habituales (Render, Neon, etc.) para evitar fallos de conexión a Postgres gestionado.
 
 ## Checklist de validacion
 
 1. Render API en estado `Live`.
-2. Endpoint base responde en `https://antares-nuevo.onrender.com`.
-3. Vercel static con dominio principal en verde.
-4. Vercel app (`apps/web`) con env `NEXT_PUBLIC_API_URL` aplicada.
-5. Login ya no muestra `Failed to fetch`.
-6. Cloudflare SSL/TLS en `Full` o `Full (strict)`.
+2. Variables API: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`; `CORS_ORIGINS` si el origen del portal no está en la lista por defecto.
+3. Portal estático: `config/antares.public.js` apunta a la misma API que Render (sin `/api`).
+4. Endpoint base responde (ej. `GET` saludable o `POST /api/auth/login` con 401/400 esperable sin credenciales válidas).
+5. Vercel static con dominio principal en verde.
+6. Vercel app (`apps/web`) con env `NEXT_PUBLIC_API_URL` terminada en `/api`.
+7. Login desde el navegador no muestra `Failed to fetch` (CORS + URL correcta).
+8. Tras registro, usuario `pendiente`: para probar login, pasar `estado_cuenta` a `aprobado` en `usuarios` o usar flujo de aprobación.
+9. Cloudflare SSL/TLS en `Full` o `Full (strict)`.
+
+## Verificación automática (sin pasos manuales)
+
+En la raíz del repo:
+
+| Comando | Qué hace |
+|---------|-----------|
+| `npm install` | Dependencias del monorepo. |
+| `npm run setup` | Crea `apps/api/.env` desde `.env.example` con JWT aleatorios y `DATABASE_URL` local (Docker). Si ya existe `.env`, no lo toca; usar `node scripts/ensure-dev-env.mjs --force` para regenerar. |
+| `npm run verify` | Setup + build API + build Next.js + tests estáticos del portal (`qa/portal-regression-tests.mjs`). **No requiere Docker.** |
+| `npm run verify:stack` | Si **Docker Compose** está en PATH: borra volumen, levanta Postgres, aplica esquema `BD/postgres` (sin scripts 09/10 Supabase), ejecuta `verify` y **smoke** `POST /api/auth/login` → 401. Si Docker no está instalado, ejecuta solo `verify`. |
+
+### Postgres local (Docker)
+
+```bash
+npm run setup
+docker compose up -d
+npm run db:ready
+npm run db:init
+npm run dev:api
+```
 
 ## Notas operativas
 
 - En planes free, Render puede dormir; primer request puede tardar.
-- Si se cambia la URL de Render, actualizar `NEXT_PUBLIC_API_URL` y redeploy en Vercel.
+- Si se cambia la URL de la API en Render, actualizar `NEXT_PUBLIC_API_URL` en Vercel (`apps/web`), `window.__ANTARES_API_BASE__` en `config/antares.public.js` del sitio estático, y redeploy ambos.
 

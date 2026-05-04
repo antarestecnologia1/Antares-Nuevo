@@ -3113,41 +3113,30 @@ function bindAuthForms() {
         }
       }
 
-      if (window.AntaresApi?.getBase?.()) {
+      if (window.AntaresApi?.getBase?.() && typeof window.AntaresApi.postJsonPublic === "function") {
         try {
-          const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
-          const res = await fetch(`${base}/api/auth/register-portal`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({
-              firstName: normalizeLatinUpperForDb(data.firstName),
-              middleName: normalizeLatinUpperForDb(data.middleName || ""),
-              lastName: normalizeLatinUpperForDb(data.lastName),
-              secondLastName: normalizeLatinUpperForDb(data.secondLastName || ""),
-              personType: data.personType,
-              documentType: normalizeLatinUpperForDb(data.documentType),
-              taxId: data.taxId,
-              companyNit: data.companyNit || "",
-              personalTaxId: data.personalTaxId || "",
-              birthDate: data.birthDate,
-              gender: normalizeLatinUpperForDb(data.gender),
-              position: normalizeLatinUpperForDb(data.position),
-              workArea: normalizeLatinUpperForDb(data.workArea),
-              phone: normalizeLatinUpperForDb(data.phone),
-              department: normalizeLatinForDb(data.department),
-              city: normalizeLatinForDb(data.city),
-              address: normalizeLatinUpperForDb(data.address),
-              email: data.email,
-              password: data.password,
-              acceptTerms: Boolean(data.acceptTerms)
-            })
+          const body = await window.AntaresApi.postJsonPublic("/auth/register-portal", {
+            firstName: normalizeLatinUpperForDb(data.firstName),
+            middleName: normalizeLatinUpperForDb(data.middleName || ""),
+            lastName: normalizeLatinUpperForDb(data.lastName),
+            secondLastName: normalizeLatinUpperForDb(data.secondLastName || ""),
+            personType: data.personType,
+            documentType: normalizeLatinUpperForDb(data.documentType),
+            taxId: data.taxId,
+            companyNit: data.companyNit || "",
+            personalTaxId: data.personalTaxId || "",
+            birthDate: data.birthDate,
+            gender: normalizeLatinUpperForDb(data.gender),
+            position: normalizeLatinUpperForDb(data.position),
+            workArea: normalizeLatinUpperForDb(data.workArea),
+            phone: normalizeLatinUpperForDb(data.phone),
+            department: normalizeLatinForDb(data.department),
+            city: normalizeLatinForDb(data.city),
+            address: normalizeLatinUpperForDb(data.address),
+            email: data.email,
+            password: data.password,
+            acceptTerms: Boolean(data.acceptTerms)
           });
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            const msg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message || res.statusText;
-            notify(String(msg || userMessage("registerServerError")), "error");
-            return;
-          }
           notify(body?.message || userMessage("registerSuccess"), "success");
           state.authTab = "login";
           renderAuthTab();

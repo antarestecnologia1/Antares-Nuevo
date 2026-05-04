@@ -6,7 +6,19 @@ export const PG_POOL = "PG_POOL";
 
 function sslForDatabaseUrl(url: string | undefined): boolean | { rejectUnauthorized: boolean } {
   if (!url) return false;
-  if (url.includes("supabase.co") || url.includes("pooler.supabase.com")) {
+  const lower = url.toLowerCase();
+  if (lower.includes("supabase.co") || lower.includes("pooler.supabase.com")) {
+    return { rejectUnauthorized: false };
+  }
+  /** Render Postgres (*.render.com), Neon, RDS: TLS habitualmente requerido fuera de la red interna del proveedor. */
+  if (
+    lower.includes(".render.com") ||
+    lower.includes("neon.tech") ||
+    lower.includes(".amazonaws.com")
+  ) {
+    return { rejectUnauthorized: false };
+  }
+  if (lower.includes("sslmode=require") || lower.includes("sslmode=no-verify")) {
     return { rejectUnauthorized: false };
   }
   return false;

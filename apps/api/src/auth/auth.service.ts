@@ -10,6 +10,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
+import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { PG_POOL } from "../database/database.module";
@@ -81,12 +82,9 @@ export class AuthService {
 
   async registerPortal(dto: RegisterPortalDto) {
     let authUserId: string | null = null;
+    /** Solo limpiar Auth en Supabase si el usuario fue creado allí; con UUID local no hay nada que borrar. */
+    let supabaseUserCreated = false;
     try {
-      if (!this.supabaseEnabled || !this.supabaseAdmin) {
-        throw new BadRequestException(
-          "Registro no disponible: falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en la API."
-        );
-      }
       if (!dto.acceptTerms) {
         throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
       }
@@ -148,7 +146,12 @@ export class AuthService {
         if (!legacyMissingColumn) throw err;
       }
 
-      authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email);
+      if (this.supabaseEnabled && this.supabaseAdmin) {
+        authUserId = await this.createSupabaseAuthUser(email, dto.password, fullName || dto.email);
+        supabaseUserCreated = true;
+      } else {
+        authUserId = randomUUID();
+      }
 
       try {
         await this.pool.query(
@@ -246,20 +249,20 @@ export class AuthService {
                   [authUserId, email, passwordHash, fullName || dto.email]
                 );
               } catch (minimalErr: any) {
-                await this.deleteSupabaseAuthUser(authUserId);
+                if (supabaseUserCreated) await this.deleteSupabaseAuthUser(authUserId);
                 throw new BadRequestException(
                   minimalErr?.detail || minimalErr?.message || "No fue posible completar el registro en base de datos."
                 );
               }
             } else {
-              await this.deleteSupabaseAuthUser(authUserId);
+              if (supabaseUserCreated) await this.deleteSupabaseAuthUser(authUserId);
               throw new BadRequestException(
                 retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
               );
             }
           }
         } else {
-          await this.deleteSupabaseAuthUser(authUserId);
+          if (supabaseUserCreated) await this.deleteSupabaseAuthUser(authUserId);
           throw new BadRequestException(
             err?.detail || err?.message || "No fue posible completar el registro en base de datos."
           );
@@ -272,7 +275,7 @@ export class AuthService {
           "Registro recibido. Tu cuenta está pendiente de aprobación; no podrás iniciar sesión hasta que un administrador la active."
       };
     } catch (err: any) {
-      if (authUserId) {
+      if (supabaseUserCreated && authUserId) {
         await this.deleteSupabaseAuthUser(authUserId);
       }
       if (err instanceof HttpException) throw err;
