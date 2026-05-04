@@ -6873,7 +6873,7 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-amber full">
         <legend>${IC.calendar} Ingreso al portal</legend>
         <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(String((user.portalSince || user.systemJoinDate || "").toString().slice(0, 10))}" /></label>
+          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(String((user.portalSince || user.systemJoinDate || "").toString().slice(0, 10)))}" /></label>
         </div>
       </fieldset>
 
@@ -10557,7 +10557,7 @@ function initGlobalEvents() {
     })
   );
 
-  nodes.b2bForm.addEventListener("submit", async (event) => {
+  nodes.b2bForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
@@ -10658,7 +10658,7 @@ function initGlobalEvents() {
     renderPortalView();
   });
 
-  nodes.logout.addEventListener("click", () => {
+  nodes.logout?.addEventListener("click", () => {
     clearSession();
     state.currentView = "dashboard";
     history.replaceState(null, "", window.location.pathname + window.location.search);
