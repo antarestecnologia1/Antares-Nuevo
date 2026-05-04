@@ -482,7 +482,7 @@ export class PortalService {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
-              u.fecha_ingreso_portal AS "portalSince"
+              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
          ORDER BY u.correo_electronico`
@@ -499,7 +499,7 @@ export class PortalService {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
-              u.fecha_ingreso_portal AS "portalSince"
+              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
          WHERE u.id = $1::uuid OR ($2::uuid IS NOT NULL AND u.id_empresa = $2::uuid)`;
@@ -521,16 +521,27 @@ export class PortalService {
       }
     }
 
-    return r.rows.map((row) => ({
-      ...row,
-      password: "",
-      permissions: permMap.get(row.id) || [],
-      documentIssuedAt: row.documentIssuedAt
-        ? new Date(row.documentIssuedAt).toISOString().slice(0, 10)
-        : "",
-      birthDate: row.birthDate ? new Date(row.birthDate).toISOString().slice(0, 10) : "",
-      company: row.company || ""
-    }));
+    return r.rows.map((row) => {
+      const createdIso = row.createdAt ? new Date(row.createdAt as string).toISOString() : "";
+      const portalSinceStr = row.portalSince
+        ? new Date(row.portalSince as string).toISOString().slice(0, 10)
+        : "";
+      return {
+        ...row,
+        password: "",
+        permissions: permMap.get(row.id) || [],
+        documentIssuedAt: row.documentIssuedAt
+          ? new Date(row.documentIssuedAt).toISOString().slice(0, 10)
+          : "",
+        birthDate: row.birthDate ? new Date(row.birthDate).toISOString().slice(0, 10) : "",
+        company: row.company || "",
+        createdAt: createdIso,
+        registeredAt: createdIso,
+        emergencyRelation: String((row as { emergencyRelationship?: string }).emergencyRelationship ?? ""),
+        systemJoinDate: portalSinceStr,
+        portalSince: portalSinceStr
+      };
+    });
   }
 
   private async loadCounters() {
@@ -1143,6 +1154,17 @@ export class PortalService {
     for (const u of data) {
       if (!u?.id) continue;
       if (!admin && String(u.id) !== userId) throw new ForbiddenException();
+      const parentesco =
+        (u as { emergencyRelationship?: string; emergencyRelation?: string }).emergencyRelationship ??
+        (u as { emergencyRelation?: string }).emergencyRelation ??
+        null;
+      const rawPortal =
+        (u as { portalSince?: string; systemJoinDate?: string }).portalSince ??
+        (u as { systemJoinDate?: string }).systemJoinDate ??
+        null;
+      const fechaIngresoPortal =
+        rawPortal != null && String(rawPortal).trim() !== "" ? String(rawPortal).trim().slice(0, 10) : null;
+
       await c.query(
         `UPDATE usuarios SET
           nombre_completo = COALESCE($2, nombre_completo),
@@ -1160,7 +1182,8 @@ export class PortalService {
           url_avatar = COALESCE($14, url_avatar),
           cargo_registro = COALESCE($15, cargo_registro),
           area_trabajo = COALESCE($16, area_trabajo),
-          checklist_registro_json = COALESCE($17::jsonb, checklist_registro_json)
+          checklist_registro_json = COALESCE($17::jsonb, checklist_registro_json),
+          fecha_ingreso_portal = COALESCE($18::date, fecha_ingreso_portal)
         WHERE id = $1::uuid`,
         [
           u.id,
@@ -1175,11 +1198,12 @@ export class PortalService {
           u.address ?? null,
           u.emergencyContact ?? null,
           u.emergencyPhone ?? null,
-          u.emergencyRelationship ?? null,
+          parentesco,
           u.avatarUrl ?? null,
           u.position ?? null,
           u.workArea ?? null,
-          u.profileQualityChecklist ? JSON.stringify(u.profileQualityChecklist) : null
+          u.profileQualityChecklist ? JSON.stringify(u.profileQualityChecklist) : null,
+          fechaIngresoPortal
         ]
       );
       if (admin && Array.isArray(u.permissions)) {

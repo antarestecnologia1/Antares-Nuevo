@@ -6859,7 +6859,14 @@ function profileHtml(user) {
         <div class="form-section-grid">
           <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${user.emergencyContact || ""}" placeholder="Nombre completo" /></label>
           <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${user.emergencyPhone || ""}" placeholder="Ej: 3001234567" /></label>
-          <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${user.emergencyRelation || ""}" placeholder="Cónyuge, padre..." /></label>
+          <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${escapeAttr(user.emergencyRelationship || user.emergencyRelation || "")}" placeholder="Cónyuge, padre..." /></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="form-section form-section-amber full">
+        <legend>${IC.calendar} Ingreso al portal</legend>
+        <div class="form-section-grid">
+          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(String((user.portalSince || user.systemJoinDate || "").toString().slice(0, 10))}" /></label>
         </div>
       </fieldset>
 
@@ -10106,6 +10113,9 @@ function bindDynamicEvents() {
                   emergencyContact: String(data.emergencyContact || "").trim(),
                   emergencyPhone: String(data.emergencyPhone || "").trim(),
                   emergencyRelation: String(data.emergencyRelation || "").trim(),
+                  emergencyRelationship: String(data.emergencyRelation || "").trim(),
+                  systemJoinDate: String(data.systemJoinDate || "").trim().slice(0, 10),
+                  portalSince: String(data.systemJoinDate || "").trim().slice(0, 10),
                   companyId: company?.id || u.companyId,
                   company: company?.name || u.company,
                   avatarUrl: avatarUrlValue || u.avatarUrl || ""

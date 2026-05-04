@@ -13,6 +13,7 @@ import * as bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
+import { timestamptzStringColombiaNow } from "../common/colombia-time";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import {
   normalizeDatabaseUrl,
@@ -209,10 +210,12 @@ export class AuthService {
         }
       }
 
+      const regAtColombia = timestamptzStringColombiaNow();
+
       /** Auditoría alineada al copy legal del formulario (#form-register): términos, privacidad y Habeas en un solo checkbox. */
       const checklist: Record<string, unknown> = {
         idVerified: true,
-        acceptedTermsAt: new Date().toISOString(),
+        acceptedTermsAt: regAtColombia,
         requiredFieldsCompleted: true,
         termsOfUseAccepted: true,
         privacyPolicyAccepted: true,
@@ -268,13 +271,13 @@ export class AuthService {
             tipo_persona, tipo_documento, numero_identificacion, nit_empresa_registro, fecha_expedicion_documento,
             fecha_nacimiento, genero, cargo_registro, area_trabajo, telefono,
             departamento, ciudad, direccion,
-            fecha_aceptacion_terminos,
+            fecha_creacion, fecha_actualizacion, fecha_aceptacion_terminos,
             checklist_registro_json
           ) VALUES (
             $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
             $5, $6, $7, $8, $9, $10, $11, $12, NULL::date,
             $13::date, $14, $15, $16, $17, $18, $19, $20,
-            now(),
+            $22::timestamptz, $22::timestamptz, $22::timestamptz,
             $21::jsonb
           )
           ON CONFLICT (id) DO UPDATE SET
@@ -297,6 +300,8 @@ export class AuthService {
             departamento = EXCLUDED.departamento,
             ciudad = EXCLUDED.ciudad,
             direccion = EXCLUDED.direccion,
+            fecha_creacion = EXCLUDED.fecha_creacion,
+            fecha_actualizacion = EXCLUDED.fecha_actualizacion,
             fecha_aceptacion_terminos = EXCLUDED.fecha_aceptacion_terminos,
             checklist_registro_json = EXCLUDED.checklist_registro_json`,
           [
@@ -320,7 +325,8 @@ export class AuthService {
             this.normalizeDbText(dto.department),
             this.normalizeDbText(dto.city),
             this.normalizeDbTextUpper(dto.address),
-            JSON.stringify(checklist)
+            JSON.stringify(checklist),
+            regAtColombia
           ]
         );
       } catch (err: any) {
@@ -337,7 +343,7 @@ export class AuthService {
                 fecha_aceptacion_terminos
               ) VALUES (
                 $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
-                $5, $6, $7, $8, $9::date, $10, $11, $12, $13, $14, $15, now()
+                $5, $6, $7, $8, $9::date, $10, $11, $12, $13, $14, $15, $16::timestamptz
               )
               ON CONFLICT (id) DO UPDATE SET
                 correo_electronico = EXCLUDED.correo_electronico,
@@ -370,7 +376,8 @@ export class AuthService {
                 this.normalizeDbTextUpper(dto.workArea),
                 this.normalizeDbText(dto.department),
                 this.normalizeDbText(dto.city),
-                this.normalizeDbTextUpper(dto.address)
+                this.normalizeDbTextUpper(dto.address),
+                regAtColombia
               ]
             );
             // Intentar persistir checklist si existe la columna.
