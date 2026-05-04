@@ -34,7 +34,7 @@ const ROLE_REGISTER_TO_DB: Record<string, string> = {
 };
 
 /** Si `PORTAL_PUBLIC_URL` falta o apunta a localhost, los correos de Supabase usarán este origen. */
-const DEFAULT_PORTAL_PUBLIC_ORIGIN = "https://transportesantares.com";
+const DEFAULT_PORTAL_PUBLIC_ORIGIN = "https://www.transportesantares.co";
 
 type UsuarioRow = {
   id: string;

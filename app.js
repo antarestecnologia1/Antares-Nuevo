@@ -1187,6 +1187,9 @@ const PUBLIC_ES_EN_DICT = {
   "Capacidad:": "Capacity:",
   "Cajas:": "Boxes:",
   "Ideal para rutas urbanas y regionales": "Ideal for urban and regional routes",
+  Tractomula: "Articulated fleet",
+  Bus: "Bus",
+  "Traslados de equipo y corredores entre sedes": "Crew moves and corridor runs between locations",
   Camion: "Truck",
   "Balance entre volumen y eficiencia": "Balance of volume and efficiency",
   Tractocamion: "Tractor-trailer",
@@ -1365,9 +1368,9 @@ const PUBLIC_ES_EN_DICT = {
   Correo: "Email",
   "Tipo de servicio": "Service type",
   "Seleccione...": "Select...",
-  "Transporte refrigerado": "Refrigerated transport",
-  "Transporte dedicado": "Dedicated transport",
-  "Servicio eventual": "On-demand service",
+  "Transporte nacional con termoking": "National transport with Thermo King",
+  "Transporte nacional sin termoking": "National transport without Thermo King",
+  "Transporte entre sedes del cliente": "Transport between client sites",
   Mensaje: "Message",
   "Enviar solicitud": "Send request",
   Aplicar: "Apply",
@@ -1659,6 +1662,23 @@ const REGISTER_PHONE_COUNTRIES = [
   { id: "HN", label: "Honduras", dial: "504", minNat: 8, maxNat: 8, style: "generic", flag: "hn" }
 ];
 
+const PHONE_UI_PRESETS = {
+  register: {
+    cc: ".js-register-phone-cc",
+    nat: ".js-register-phone-national",
+    flag: ".js-register-lang-flag",
+    hintId: "register-phone-hint",
+    full: ".js-register-phone-full"
+  },
+  b2b: {
+    cc: ".js-b2b-phone-cc",
+    nat: ".js-b2b-phone-national",
+    flag: ".js-b2b-lang-flag",
+    hintId: "b2b-phone-hint",
+    full: ".js-b2b-phone-full"
+  }
+};
+
 function registerPhoneCountryOptionsHtml() {
   return REGISTER_PHONE_COUNTRIES.map((c, index) => {
     const escLabel = String(c.label || "")
@@ -1669,8 +1689,10 @@ function registerPhoneCountryOptionsHtml() {
   }).join("");
 }
 
-function getSelectedRegisterPhoneCountry(registerForm) {
-  const sel = registerForm?.querySelector(".js-register-phone-cc");
+function getSelectedPhoneCountry(form, presetKey) {
+  const p = PHONE_UI_PRESETS[presetKey];
+  if (!form || !p) return REGISTER_PHONE_COUNTRIES[0];
+  const sel = form.querySelector(p.cc);
   const id = sel?.value || "CO";
   return REGISTER_PHONE_COUNTRIES.find((c) => c.id === id) || REGISTER_PHONE_COUNTRIES[0];
 }
@@ -1699,16 +1721,19 @@ function stripDigitsForRegisterNational(raw, meta) {
   return d.slice(0, meta.maxNat);
 }
 
-function updateRegisterPhoneFieldForCountry(registerForm) {
-  const meta = getSelectedRegisterPhoneCountry(registerForm);
-  const hint = registerForm?.querySelector("#register-phone-hint");
-  const nat = registerForm?.querySelector(".js-register-phone-national");
-  const wrap = registerForm?.querySelector(".phone-input-professional");
-  const ccSel = registerForm?.querySelector(".js-register-phone-cc");
-  const langFlag = registerForm?.querySelector(".js-register-lang-flag");
+function updatePhoneFieldForCountry(form, presetKey) {
+  const p = PHONE_UI_PRESETS[presetKey];
+  if (!form || !p) return;
+  const meta = getSelectedPhoneCountry(form, presetKey);
+  const nat = form.querySelector(p.nat);
+  const wrap = nat?.closest(".phone-input-professional") || form.querySelector(".phone-input-professional");
+  const ccSel = form.querySelector(p.cc);
+  const langFlag = form.querySelector(p.flag);
+  const hint = document.getElementById(p.hintId);
   if (langFlag) {
     const sfx = meta.flag || "co";
-    langFlag.className = `js-register-lang-flag register-lang-flag register-lang-flag--${sfx}`;
+    const flagBase = presetKey === "b2b" ? "js-b2b-lang-flag" : "js-register-lang-flag";
+    langFlag.className = `${flagBase} register-lang-flag register-lang-flag--${sfx}`;
     langFlag.setAttribute("title", meta.label);
   }
   if (ccSel) {
@@ -1764,11 +1789,13 @@ function formatColombianNationalDisplay(value) {
   return segs.join(" ");
 }
 
-function syncRegisterPhoneHidden(registerForm) {
-  const nat = registerForm?.querySelector(".js-register-phone-national");
-  const hid = registerForm?.querySelector(".js-register-phone-full");
+function syncPhoneHiddenFull(form, presetKey) {
+  const p = PHONE_UI_PRESETS[presetKey];
+  if (!form || !p) return;
+  const nat = form.querySelector(p.nat);
+  const hid = form.querySelector(p.full);
   if (!nat || !hid) return;
-  const meta = getSelectedRegisterPhoneCountry(registerForm);
+  const meta = getSelectedPhoneCountry(form, presetKey);
   let digits = stripDigitsForRegisterNational(nat.value, meta);
   if (meta.style === "co") {
     nat.value = digits ? formatColombianNationalDisplay(digits) : "";
@@ -1846,12 +1873,14 @@ function initB2BFormExperience() {
   }
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
+      syncPhoneHiddenFull(form, "b2b");
       if (!validateStep(currentStep)) return;
       setStep(currentStep + 1);
     });
   }
   if (submitBtn) {
     submitBtn.addEventListener("click", () => {
+      syncPhoneHiddenFull(form, "b2b");
       if (!validateStep(currentStep)) return;
     });
   }
@@ -1861,25 +1890,38 @@ function initB2BFormExperience() {
     if (event.target instanceof HTMLTextAreaElement) return;
     if (currentStep >= panes.length - 1) return;
     event.preventDefault();
+    syncPhoneHiddenFull(form, "b2b");
     if (!validateStep(currentStep)) return;
     setStep(currentStep + 1);
   });
 
   setStep(0);
 
-  const phoneInput = form.querySelector("input[name='phone']");
+  const ccB2b = form.querySelector(".js-b2b-phone-cc");
+  if (ccB2b && ccB2b.options.length === 0) {
+    ccB2b.innerHTML = registerPhoneCountryOptionsHtml();
+  }
+  const b2bPhoneNat = form.querySelector(".js-b2b-phone-national");
+  const b2bPhoneCc = form.querySelector(".js-b2b-phone-cc");
+  if (b2bPhoneNat) {
+    b2bPhoneNat.addEventListener("input", () => {
+      syncPhoneHiddenFull(form, "b2b");
+      clearFieldError(b2bPhoneNat);
+    });
+  }
+  if (b2bPhoneCc) {
+    b2bPhoneCc.addEventListener("change", () => {
+      clearFieldError(b2bPhoneNat);
+      updatePhoneFieldForCountry(form, "b2b");
+      syncPhoneHiddenFull(form, "b2b");
+    });
+  }
+  updatePhoneFieldForCountry(form, "b2b");
+  syncPhoneHiddenFull(form, "b2b");
+
   const emailInput = form.querySelector("input[name='email']");
   const messageInput = form.querySelector("textarea[name='message']");
   const volumeInput = form.querySelector("input[name='monthlyVolumeKg']");
-
-  if (phoneInput) {
-    phoneInput.addEventListener("input", () => {
-      const cursorAtEnd = phoneInput.selectionStart === phoneInput.value.length;
-      phoneInput.value = formatColombianPhone(phoneInput.value);
-      if (cursorAtEnd) phoneInput.setSelectionRange(phoneInput.value.length, phoneInput.value.length);
-      clearFieldError(phoneInput);
-    });
-  }
 
   if (emailInput) {
     emailInput.addEventListener("input", () => clearFieldError(emailInput));
@@ -2423,7 +2465,7 @@ function buildSupabasePasswordRecoveryRedirectUrl() {
     host.endsWith(".localhost") ||
     host === "::1"
   ) {
-    return "https://transportesantares.com/";
+    return "https://www.transportesantares.co/";
   }
   return u.toString();
 }
@@ -3727,17 +3769,17 @@ function bindAuthForms() {
     const registerPhoneNat = register.querySelector(".js-register-phone-national");
     const registerPhoneCc = register.querySelector(".js-register-phone-cc");
     if (registerPhoneNat) {
-      registerPhoneNat.addEventListener("input", () => syncRegisterPhoneHidden(register));
+      registerPhoneNat.addEventListener("input", () => syncPhoneHiddenFull(register, "register"));
     }
     if (registerPhoneCc) {
       registerPhoneCc.addEventListener("change", () => {
         clearFieldError(registerPhoneNat);
-        updateRegisterPhoneFieldForCountry(register);
-        syncRegisterPhoneHidden(register);
+        updatePhoneFieldForCountry(register, "register");
+        syncPhoneHiddenFull(register, "register");
       });
     }
-    updateRegisterPhoneFieldForCountry(register);
-    syncRegisterPhoneHidden(register);
+    updatePhoneFieldForCountry(register, "register");
+    syncPhoneHiddenFull(register, "register");
     const regPass = register.querySelector("input[name='password']");
     const regPassConfirm = register.querySelector("input[name='passwordConfirm']");
     const syncRegisterPasswordMatchState = () => {
@@ -3761,7 +3803,7 @@ function bindAuthForms() {
       const submitBtn = register.querySelector("button[type='submit']");
       if (submitBtn) submitBtn.disabled = true;
       try {
-      syncRegisterPhoneHidden(register);
+      syncPhoneHiddenFull(register, "register");
       const data = Object.fromEntries(new FormData(register).entries());
       const fullName = [
         normalizeLatinUpperForDb(data.firstName),
@@ -3839,7 +3881,7 @@ function bindAuthForms() {
         notify(userMessage("registerMinor"), "error");
         return;
       }
-      const meta = getSelectedRegisterPhoneCountry(register);
+      const meta = getSelectedPhoneCountry(register, "register");
       const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
       if (!phoneDigitsAll.startsWith(meta.dial)) {
         notify("El teléfono no coincide con el país seleccionado.", "error");
@@ -4456,8 +4498,14 @@ function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   );
 }
 
+/** Solicitud con Thermo King o valores legacy que implican refrigeración. */
+function serviceTypeRequiresRefrigeration(serviceType) {
+  const s = String(serviceType || "").toLowerCase();
+  return s.includes("termoking") || s.includes("refrigerada");
+}
+
 function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
-  const requiresRefrigeration = String(request?.serviceType || "").toLowerCase().includes("refrigerada");
+  const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (!vehicle.available) return false;
     if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
@@ -4480,7 +4528,7 @@ function getCompatibleDriversForRequest(request, currentRequestId = null) {
 }
 
 function getVehicleCandidatesForRequest(request, currentRequestId = null) {
-  const requiresRefrigeration = String(request?.serviceType || "").toLowerCase().includes("refrigerada");
+  const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, [])
     .filter((vehicle) => {
       if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
@@ -5011,10 +5059,17 @@ function viewDashboard() {
   const list = getVisibleRequestsForUser(user);
   const byVehicle = {};
   list.forEach((r) => {
-    const key = r.vehicleType || "Sin tipo";
+    const key = r.vehicleType?.trim() || r.trip?.vehicleType?.trim() || "Sin tipo";
     byVehicle[key] = (byVehicle[key] || 0) + 1;
   });
-  const colors = { Turbo: "#F59F00", Camion: "#1565C0", Tractocamion: "#1B8E5F", "Sin tipo": "#94A3B8" };
+  const colors = {
+    Turbo: "#F59F00",
+    Tractomula: "#1B8E5F",
+    Bus: "#1565C0",
+    Camion: "#1565C0",
+    Tractocamion: "#1B8E5F",
+    "Sin tipo": "#94A3B8"
+  };
   const vehicleStats = Object.entries(byVehicle)
     .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="dash-stat-dot" style="background:${colors[k] || '#94A3B8'}"></span>${k}</div><div class="dash-stat-value">${v}</div></div>`)
     .join("");
@@ -5168,11 +5223,10 @@ function requestFormHtml() {
       </div>
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.truck} Carga y vehiculo</legend>
+      <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
-        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
+        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional con termoking</option><option>Transporte nacional sin termoking</option><option>Transporte entre sedes del cliente</option></select></label>
         <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
         <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
       </div>
@@ -5278,7 +5332,7 @@ function vehiclesHtml() {
         <label>${fieldLabel(IC.grid, "Línea / Modelo")}<input name="model" required placeholder="Ej: T800, NPR" /></label>
         <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej: ${new Date().getFullYear()}" /></label>
         <label>${fieldLabel(IC.palette, "Color")}<select name="color" required>${colorOptions}</select></label>
-        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Camión</option><option>Tractocamión</option></select></label>
+        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Tractomula</option><option>Bus</option></select></label>
       </div>
     </fieldset>
 
@@ -6085,7 +6139,7 @@ function historyHtml() {
       <td>${fmtDate(r.createdAt)}</td>
       <td><strong>${r.requestNumber || r.id}</strong></td>
       <td>${r.clientName}</td>
-      <td>${r.vehicleType}</td>
+      <td>${escapeHtml(String(r.vehicleType || r.trip?.vehicleType || "—").trim())}</td>
       <td>${prettyStatus(r.status)}</td>
       <td>${r.trip?.tripNumber || '<span class="muted">-</span>'}</td>
     </tr>`)
@@ -6198,7 +6252,8 @@ function topClients(requests) {
 function topVehicles(requests) {
   const acc = {};
   requests.forEach((r) => {
-    acc[r.vehicleType] = (acc[r.vehicleType] || 0) + 1;
+    const key = r.vehicleType?.trim() || r.trip?.vehicleType?.trim() || "Sin tipo";
+    acc[key] = (acc[key] || 0) + 1;
   });
   return Object.entries(acc)
     .sort((a, b) => b[1] - a[1])
@@ -9178,6 +9233,7 @@ function bindDynamicEvents() {
         clientCompanyId: reqCompany.id,
         requestedByName: user.name,
         ...payload,
+        vehicleType: "",
         pickupAt,
         etaDelivery,
         attachments,
@@ -9444,7 +9500,7 @@ function bindDynamicEvents() {
       const tripRateUi = buildTripRateModalFields(request, { required: false });
       openEditModal({
         title: "Aprobar solicitud",
-        subtitle: `${request.requestNumber || request.id} · ${request.vehicleType} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
+        subtitle: `${request.requestNumber || request.id} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
         submitText: "Confirmar aprobacion",
         afterMount: tripRateUi.afterMount,
         fields: [
@@ -9582,7 +9638,7 @@ function bindDynamicEvents() {
       const tripRateUi = buildTripRateModalFields(request, { required: true });
       openEditModal({
         title: "Asignar viaje",
-        subtitle: `${request.requestNumber || request.id} · ${request.vehicleType}`,
+        subtitle: `${request.requestNumber || request.id} · ${String(request.serviceType || "").trim() || "Servicio"}`,
         submitText: "Crear viaje",
         afterMount: tripRateUi.afterMount,
         fields: [
@@ -10250,7 +10306,7 @@ function bindDynamicEvents() {
         items
           .map(
             (r) =>
-              `<tr><td>${fmtDate(r.createdAt)}</td><td>${r.requestNumber || r.id}</td><td>${r.clientName}</td><td>${r.vehicleType}</td><td>${r.status}</td><td>${r.trip?.tripNumber || "-"}</td></tr>`
+              `<tr><td>${fmtDate(r.createdAt)}</td><td>${r.requestNumber || r.id}</td><td>${r.clientName}</td><td>${escapeHtml(String(r.vehicleType || r.trip?.vehicleType || "—").trim())}</td><td>${r.status}</td><td>${r.trip?.tripNumber || "-"}</td></tr>`
           )
           .join("") || "<tr><td colspan='6'>Sin registros</td></tr>";
     });
@@ -11747,13 +11803,15 @@ function initGlobalEvents() {
 
   nodes.b2bForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    syncPhoneHiddenFull(nodes.b2bForm, "b2b");
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
     const emailValue = normalizeEmail(data.email);
-    const phoneDigits = String(data.phone || "").replace(/\D/g, "");
     const messageValue = String(data.message || "").trim();
     const monthlyVolume = parseNum(data.monthlyVolumeKg);
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
+    const meta = getSelectedPhoneCountry(nodes.b2bForm, "b2b");
+    const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
 
     const errors = [];
     const jumpToStepForField = (selector) => {
@@ -11768,8 +11826,26 @@ function initGlobalEvents() {
       setFieldError(nodes.b2bForm.querySelector("input[name='email']"), "Ingresa un correo corporativo valido.");
       errors.push("email");
     }
-    if (phoneDigits.length !== 10 || !phoneDigits.startsWith("3")) {
-      setFieldError(nodes.b2bForm.querySelector("input[name='phone']"), "Ingresa un celular colombiano valido (10 digitos).");
+    const natPhoneField = nodes.b2bForm.querySelector(".js-b2b-phone-national");
+    let phoneErrMsg = "";
+    if (!phoneDigitsAll.startsWith(meta.dial)) {
+      phoneErrMsg = "El telefono no coincide con el pais seleccionado en el indicativo.";
+    } else {
+      const nationalLen = phoneDigitsAll.length - meta.dial.length;
+      if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
+        phoneErrMsg =
+          meta.style === "co"
+            ? "Ingrese un celular colombiano valido (10 digitos nacionales; puede incluir +57 en el mismo campo o usar solo el numero local)."
+            : `Ingrese entre ${meta.minNat} y ${meta.maxNat} digitos del numero local para ${meta.label}.`;
+      } else if (meta.style === "co") {
+        const nat = phoneDigitsAll.slice(meta.dial.length);
+        if (!nat.startsWith("3")) {
+          phoneErrMsg = "El celular en Colombia debe ser movil (empieza por 3).";
+        }
+      }
+    }
+    if (phoneErrMsg) {
+      setFieldError(natPhoneField, phoneErrMsg);
       errors.push("phone");
     }
     if (messageValue.length < 30) {
@@ -11783,7 +11859,7 @@ function initGlobalEvents() {
     if (errors.length) {
       const firstError = errors[0];
       if (firstError === "email") jumpToStepForField("input[name='email']");
-      if (firstError === "phone") jumpToStepForField("input[name='phone']");
+      if (firstError === "phone") jumpToStepForField(".js-b2b-phone-national");
       if (firstError === "message") jumpToStepForField("textarea[name='message']");
       if (firstError === "volume") jumpToStepForField("input[name='monthlyVolumeKg']");
       notify(userMessage("b2bFieldsInvalid"), "error");
@@ -11791,7 +11867,7 @@ function initGlobalEvents() {
     }
 
     data.email = emailValue;
-    data.phone = formatColombianPhone(data.phone);
+    data.phone = String(data.phone || "").trim();
     data.message = messageValue;
     data.monthlyVolumeKg = monthlyVolume;
 

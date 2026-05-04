@@ -48,11 +48,10 @@
       </div>
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.truck} Carga y vehiculo</legend>
+      <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.truck, "Tipo vehiculo")}<select name="vehicleType" required><option value="">Seleccione...</option><option>Turbo</option><option>Camion</option><option>Tractocamion</option></select></label>
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
-        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional</option><option>Ultima milla</option><option>Carga refrigerada</option><option>Carga seca</option></select></label>
+        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional con termoking</option><option>Transporte nacional sin termoking</option><option>Transporte entre sedes del cliente</option></select></label>
         <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
         <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
       </div>

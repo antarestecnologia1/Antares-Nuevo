@@ -2959,8 +2959,14 @@ body[data-theme="dark"] .users-pending-redirect {
 /* Registro: teléfono con indicativo (+57 / +1) + número local.
    Banderas: los mismos gradientes que en el selector de idioma (.lang-option .flag-co / .flag-us);
    allí solo funcionan porque el CSS está acoplado a .lang-option; aquí repetimos el dibujo en .register-lang-flag--*. */
-.phone-field-register {
+.phone-field-register,
+.phone-field-b2b {
   min-width: 0;
+}
+
+#b2b-form .phone-input-professional .phone-cc-select {
+  align-self: stretch;
+  min-height: 2.75rem;
 }
 
 .phone-input-professional .phone-reg-flag-slot {
@@ -3139,26 +3145,27 @@ body[data-theme="dark"] .users-pending-redirect {
   box-shadow: none;
 }
 
-.auth-register-form .phone-national-input {
+.phone-input-professional .phone-national-input {
   flex: 1;
   min-width: 0;
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   padding: 0 0.75rem !important;
-  min-height: 0 !important;
-  height: 100% !important;
+  min-height: 2.75rem;
   font: inherit;
   background: transparent;
   text-transform: none !important;
   letter-spacing: normal !important;
 }
 
-#form-register.auth-register-form .phone-national-input {
+#form-register.auth-register-form .phone-input-professional .phone-national-input {
+  min-height: 0 !important;
+  height: 100% !important;
   align-self: stretch;
 }
 
-.auth-register-form .phone-national-input:focus {
+.phone-input-professional .phone-national-input:focus {
   outline: none;
   box-shadow: none !important;
 }
@@ -3205,9 +3212,15 @@ body[data-theme="dark"] .users-pending-redirect {
 
 .auth-login-shell {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  /* minmax(0, fr): evita que el min-intrínseco del formulario empuje y el panel derecho pise el texto (p. ej. fila «Recordar»). */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   gap: 0.9rem;
   align-items: start;
+}
+
+.auth-login-shell > .auth-form,
+.auth-login-shell > .auth-login-side {
+  min-width: 0;
 }
 
 .auth-login-side {
@@ -3347,10 +3360,16 @@ body[data-theme="dark"] .users-pending-redirect {
   display: flex;
   align-items: flex-start;
   gap: 0.45rem;
+  min-width: 0;
   font-size: 0.88rem;
   line-height: 1.35;
   font-weight: 500;
   cursor: pointer;
+}
+
+.auth-remember-check > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .auth-remember-check input[type="checkbox"] {
@@ -6681,7 +6700,7 @@ body[data-theme="dark"] .phone-input-professional .phone-cc-select {
   color: #e8f3ff;
 }
 
-body[data-theme="dark"] .auth-register-form .phone-national-input {
+body[data-theme="dark"] .phone-input-professional .phone-national-input {
   color: #e8f3ff;
 }
 
