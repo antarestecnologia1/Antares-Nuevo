@@ -132,8 +132,12 @@ function notify(message, type = "info", durationMs = 3200) {
     box = document.createElement("div");
     box.id = "toast-container";
     box.className = "toast-container";
+    box.setAttribute("aria-live", "polite");
     document.body.appendChild(box);
   }
+  box.style.position = "fixed";
+  box.style.zIndex = "2147483647";
+  document.body.appendChild(box);
   const item = document.createElement("div");
   item.className = `toast toast-${type}`;
   item.textContent = message;
@@ -2113,8 +2117,12 @@ function prettyStatus(status, scope = "general") {
   return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${status}</span></span>`;
 }
 
-function fieldLabel(icon, text) {
-  return `<span class="field-label">${icon}<span>${text}</span></span>`;
+function fieldLabel(icon, text, opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const mark = o.required
+    ? '<span class="field-required-mark" aria-hidden="true" title="Obligatorio">*</span>'
+    : "";
+  return `<span class="field-label">${icon}<span>${text}</span>${mark}</span>`;
 }
 
 function departmentOptions(selected = "") {
@@ -5211,10 +5219,37 @@ function adminUsersHtml(current) {
   </form>`;
 
   const fComp = `<form id="form-admin-company-create" class="p-form">
-    <label>${fieldLabel(IC.briefcase, "Nombre empresa")}<input name="name" required placeholder="Nombre de la empresa" /></label>
-    <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" required placeholder="900.000.000-0" /></label>
-    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" required placeholder="+57 300 000 0000" /></label>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.briefcase} Datos de la empresa</legend>
+      <p class="muted full" style="margin:0 0 0.85rem;line-height:1.45">
+        Misma información que guarda la tabla <strong>empresas</strong>: razón social o nombre legal, NIT único y teléfono de contacto.
+        El teléfono es opcional en base de datos. Las fechas de creación y actualización las registra el servidor.
+      </p>
+      <div class="form-section-grid">
+        <label class="full">
+          ${fieldLabel(IC.briefcase, "Nombre o razón social", { required: true })}
+          <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
+            Obligatorio · hasta 255 caracteres
+          </span>
+          <input name="name" required maxlength="255" autocomplete="organization" placeholder="Ej. Flores del Valle S.A.S." />
+        </label>
+        <label>
+          ${fieldLabel(IC.badge, "NIT / RUT", { required: true })}
+          <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
+            Obligatorio · único en el sistema
+          </span>
+          <input name="taxId" required maxlength="32" inputmode="numeric" autocomplete="off" placeholder="900123456-7" />
+        </label>
+        <label>
+          ${fieldLabel(IC.phone, "Teléfono")}
+          <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
+            Opcional · solo dígitos, 7 a 15
+          </span>
+          <input name="phone" maxlength="15" inputmode="tel" autocomplete="tel" placeholder="Ej. 6011234567" />
+        </label>
+      </div>
+      <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
+    </fieldset>
   </form>`;
 
   const fPerm = `<form id="form-admin-user-permissions" class="p-form">
@@ -7518,9 +7553,17 @@ function enforceColombianFormStandards() {
   appendLegalNote("form-vehicle", "Documentación vigente exigida en Colombia: SOAT y tecnomecánica activa para operación.");
   ensureSelectOptions("#form-driver select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
 
-  setAttr("#form-admin-company-create input[name='taxId']", { pattern: "[0-9\\-]{6,20}", minlength: "6", maxlength: "20", placeholder: "900123456-7" });
-  setAttr("#form-admin-company-create input[name='phone']", { pattern: "[0-9]{7,15}", minlength: "7", maxlength: "15", placeholder: "6011234567" });
-  appendLegalNote("form-admin-company-create", "Registre razón social y NIT/RUT válido para trazabilidad tributaria y contractual.");
+  setAttr("#form-admin-company-create input[name='taxId']", {
+    pattern: "[0-9\\-]{6,32}",
+    minlength: "6",
+    maxlength: "32",
+    placeholder: "900123456-7"
+  });
+  setAttr("#form-admin-company-create input[name='phone']", { pattern: "[0-9]{7,15}", maxlength: "15", placeholder: "6011234567" });
+  appendLegalNote(
+    "form-admin-company-create",
+    "El NIT se valida con el algoritmo de verificación DIAN. Duplicar NIT bloqueará el registro en PostgreSQL por restricción única."
+  );
 
   setAttr("#form-admin-user-create input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
   setAttr("#form-admin-user-edit input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
@@ -7936,24 +7979,36 @@ function bindDynamicEvents() {
         notify(userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
+      const nameTrim = normalizeLatinForDb(String(data.name || "").trim());
+      if (!nameTrim) {
+        notify(userMessage("validationStep"), "error");
+        return;
+      }
+      if (nameTrim.length > 255) {
+        notify(userMessage("companyNameTooLong"), "error");
+        return;
+      }
       const companyPhone = String(data.phone || "").trim();
-      if (!/^\d{7,15}$/.test(companyPhone)) {
+      if (companyPhone && !/^\d{7,15}$/.test(companyPhone)) {
         notify(userMessage("companyPhoneInvalid"), "error");
         return;
       }
       const companies = read(KEYS.companies, []);
-      if (
-        companies.some(
-          (company) => company.name.toLowerCase() === String(data.name).toLowerCase()
-        )
-      ) {
-        notify(userMessage("companyExists"), "error");
+      const nitNorm = nitValidation.normalized;
+      const nameLc = nameTrim.toLowerCase();
+      if (companies.some((c) => String(c.name || "").trim().toLowerCase() === nameLc)) {
+        notify(userMessage("companyNameDuplicate"), "error");
+        return;
+      }
+      if (companies.some((c) => String(c.taxId || c.nit || "").trim() === nitNorm)) {
+        notify(userMessage("companyNitDuplicate"), "error");
         return;
       }
       companies.push({
         id: newUuidV4(),
-        name: String(data.name || "").trim(),
-        taxId: nitValidation.normalized,
+        name: nameTrim,
+        taxId: nitNorm,
+        nit: nitNorm,
         phone: companyPhone,
         createdAt: nowIso()
       });

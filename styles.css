@@ -2146,6 +2146,13 @@ tbody tr:last-child td { border-bottom: none; }
   color: var(--primary);
 }
 
+.field-label .field-required-mark {
+  color: #dc2626;
+  font-weight: 800;
+  margin-left: 0.15em;
+  line-height: 1;
+}
+
 .p-form input, .p-form select, .p-form textarea {
   border: 1px solid #D5DDE8;
   border-radius: 10px;
@@ -2662,11 +2669,17 @@ tbody tr:last-child td { border-bottom: none; }
   position: fixed;
   top: 1rem;
   right: 1rem;
-  /* Por encima de .modal (400), drawer y banners — los avisos deben verse siempre */
-  z-index: 100000;
+  /* Encima de .modal (backdrop-filter), portales y FAB; evitar quedar detrás del diálogo de login */
+  z-index: 2147483647;
+  isolation: isolate;
   display: grid;
   gap: 0.6rem;
   width: min(360px, 92vw);
+  pointer-events: none;
+}
+
+.toast-container .toast {
+  pointer-events: auto;
 }
 
 .toast {
@@ -8144,6 +8157,9 @@ body[data-theme="dark"] .field-label {
 body[data-theme="dark"] .field-label svg {
   background: rgba(99, 167, 247, 0.18);
   color: #93c5fd;
+}
+body[data-theme="dark"] .field-label .field-required-mark {
+  color: #f87171;
 }
 
 /* Pulir botón primario con más vida */

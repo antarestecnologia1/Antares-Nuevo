@@ -53,7 +53,11 @@
       "La solicitud quedó en bandeja de autorizaciones para aprobación del administrador.",
     userCreated: "Usuario creado correctamente.",
     companyNitInvalid: (msg) => `NIT no válido: ${msg}`,
-    companyPhoneInvalid: "Teléfono de la empresa no válido. Use solo dígitos (7 a 15).",
+    companyPhoneInvalid:
+      "Si indica teléfono, use solo dígitos (entre 7 y 15). Puede dejarlo en blanco: en base de datos el campo es opcional.",
+    companyNameTooLong: "La razón social no puede superar 255 caracteres (límite de la tabla empresas).",
+    companyNameDuplicate: "Ya hay una empresa registrada con el mismo nombre o razón social.",
+    companyNitDuplicate: "Ese NIT ya está registrado. El NIT debe ser único en el sistema.",
     companyExists: "Ya existe una empresa con ese NIT o nombre.",
     companyCreated: "Empresa registrada correctamente.",
     userPick: "Seleccione un usuario.",
