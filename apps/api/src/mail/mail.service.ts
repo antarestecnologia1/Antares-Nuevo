@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Resend } from "resend";
 
@@ -18,13 +18,42 @@ export type PortalRegistrationWelcomeParams = {
 };
 
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private readonly resend: Resend | null;
 
   constructor(private readonly config: ConfigService) {
-    const apiKey = this.config.get<string>("RESEND_API_KEY");
+    const raw =
+      this.config.get<string>("RESEND_API_KEY") ??
+      this.config.get<string>("RESEND_KEY") ??
+      process.env.RESEND_API_KEY ??
+      process.env.RESEND_KEY ??
+      "";
+    const apiKey = typeof raw === "string" ? raw.trim() : "";
     this.resend = apiKey ? new Resend(apiKey) : null;
+  }
+
+  onModuleInit() {
+    const fromConfigured = Boolean(this.resolveMailFrom());
+    if (this.resend) {
+      this.logger.log(
+        `Correo (Resend): cliente activo. MAIL_FROM ${fromConfigured ? "definido" : "no definido — usando remitente de prueba Resend (solo envíos de prueba)"}.`
+      );
+    } else {
+      this.logger.warn(
+        "Correo (Resend): sin API key — defina RESEND_API_KEY en el servicio **de la API** en Render (no en el sitio estático). Sin esto no se envían bienvenidas."
+      );
+    }
+  }
+
+  private resolveMailFrom(): string {
+    const explicit =
+      this.config.get<string>("MAIL_FROM")?.trim() ||
+      this.config.get<string>("MAIL_FROM_ADDRESS")?.trim() ||
+      process.env.MAIL_FROM?.trim() ||
+      process.env.MAIL_FROM_ADDRESS?.trim() ||
+      "";
+    return explicit;
   }
 
   async send(to: string, subject: string, html: string) {
@@ -34,10 +63,11 @@ export class MailService {
       );
       return;
     }
-    const from = this.config.get<string>("MAIL_FROM")?.trim() || "onboarding@resend.dev";
-    if (!this.config.get<string>("MAIL_FROM")?.trim()) {
+    const configuredFrom = this.resolveMailFrom();
+    const from = configuredFrom || "onboarding@resend.dev";
+    if (!configuredFrom) {
       this.logger.warn(
-        `MAIL_FROM no definido; usando onboarding@resend.dev (solo válido en pruebas de Resend). Configure MAIL_FROM con un dominio verificado.`
+        `MAIL_FROM no definido; usando onboarding@resend.dev (solo válido en modo prueba de Resend). En producción use MAIL_FROM="Nombre <noreply@dominio-verificado>".`
       );
     }
     const result = await this.resend.emails.send({
@@ -53,6 +83,21 @@ export class MailService {
           : JSON.stringify(result.error);
       this.logger.error(`Resend rechazó el envío a ${to}: ${msg}`);
       throw new Error(msg);
+    }
+    const id =
+      result &&
+      typeof result === "object" &&
+      "data" in result &&
+      result.data &&
+      typeof result.data === "object" &&
+      result.data !== null &&
+      "id" in result.data
+        ? String((result.data as { id?: string }).id || "")
+        : "";
+    if (id) {
+      this.logger.log(`Resend: correo aceptado id=${id} to=${to}`);
+    } else {
+      this.logger.log(`Resend: envío completado to=${to} (sin id en respuesta; revise el panel de Resend si no llega).`);
     }
   }
 

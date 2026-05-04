@@ -126,7 +126,7 @@ function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expa
   return pcardWrap(iconKey, title, subtitle, cardBody);
 }
 
-function notify(message, type = "info") {
+function notify(message, type = "info", durationMs = 3200) {
   let box = document.getElementById("toast-container");
   if (!box) {
     box = document.createElement("div");
@@ -139,10 +139,12 @@ function notify(message, type = "info") {
   item.textContent = message;
   box.appendChild(item);
   requestAnimationFrame(() => item.classList.add("show"));
+  const ms = Number(durationMs);
+  const hideAfter = Number.isFinite(ms) && ms > 0 ? ms : 3200;
   setTimeout(() => {
     item.classList.remove("show");
     setTimeout(() => item.remove(), 240);
-  }, 3200);
+  }, hideAfter);
 }
 
 /** Mensajes en {@link window.AntaresFeedback} (modules/core/feedback-messages.js). */
@@ -742,7 +744,9 @@ let state = {
     candidateFilter: "active",
     vacancyFilter: "open",
     candidateSort: "recent"
-  }
+  },
+  /** Tras registro exitoso: mensaje visible sobre la pestaña de ingreso (no solo toast). */
+  registrationSuccessBanner: null
 };
 
 window.__getAntaresPortalContacts = function getAntaresPortalContacts() {
@@ -2757,11 +2761,27 @@ function authView() {
   const tab = state.authTab;
   const deptOptions = departmentOptions();
   if (tab === "login") {
+    const regOk = state.registrationSuccessBanner;
+    const regBanner =
+      regOk && typeof regOk.message === "string" && regOk.message.trim()
+        ? `<div class="auth-register-success-banner" role="status">
+        <button type="button" class="auth-register-success-dismiss" data-action="dismiss-reg-success" aria-label="Cerrar aviso">×</button>
+        <p class="auth-register-success-title">${IC.check} Registro recibido</p>
+        <p class="auth-register-success-body">${escapeHtml(regOk.message.trim())}</p>
+        ${
+          regOk.email
+            ? `<p class="muted auth-register-success-email">Correo registrado: <strong>${escapeHtml(String(regOk.email).trim())}</strong></p>`
+            : ""
+        }
+        <p class="muted auth-register-success-hint">Hasta que un administrador apruebe su cuenta, el inicio de sesión no estará disponible. Si configuramos el correo en el servidor, también le enviamos un mensaje de bienvenida a esa dirección.</p>
+      </div>`
+        : "";
     return `
       <div class="auth-header-premium">
         <h3>Ingreso empresarial seguro</h3>
         <p class="muted">Acceda a su operación con trazabilidad, control de permisos y registro de actividad.</p>
       </div>
+      ${regBanner}
       <div class="auth-login-shell">
         <form id="form-login" class="form-grid auth-form auth-pane">
           <label class="full auth-field-stack">
@@ -2996,6 +3016,10 @@ function renderAuthTab() {
 }
 
 function bindAuthForms() {
+  document.querySelector("[data-action='dismiss-reg-success']")?.addEventListener("click", () => {
+    state.registrationSuccessBanner = null;
+    renderAuthTab();
+  });
   const login = document.getElementById("form-login");
   const register = document.getElementById("form-register");
   const recover = document.getElementById("form-recover");
@@ -3057,6 +3081,7 @@ function bindAuthForms() {
             /** La API solo devuelve tokens si estado_cuenta es aprobado; no bloquear por caché local desactualizado. */
             state.authSecurity.failedAttempts = 0;
             state.authSecurity.lockUntil = 0;
+            state.registrationSuccessBanner = null;
             setSession({
               userId: userApi.id,
               role: userApi.role,
@@ -3342,7 +3367,21 @@ function bindAuthForms() {
             password: data.password,
             acceptTerms: Boolean(data.acceptTerms)
           });
-          notify(body?.message || userMessage("registerSuccess"), "success");
+          const serverMsg =
+            typeof body === "object" && body !== null && typeof body.message === "string"
+              ? body.message.trim()
+              : "";
+          const successMsg = serverMsg || userMessage("registerSuccess");
+          state.registrationSuccessBanner = {
+            message: successMsg,
+            email: String(data.email || "").trim(),
+            pendingApproval: !(typeof body === "object" && body !== null && body.pendingApproval === false)
+          };
+          notify(
+            "Registro completado. Lea el mensaje destacado arriba del formulario de ingreso y revise su correo.",
+            "success",
+            8000
+          );
           state.authTab = "login";
           renderAuthTab();
           return;
@@ -3431,7 +3470,17 @@ function bindAuthForms() {
           body: `Cliente: ${fullName} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
         });
       });
-      notify(userMessage("registerSuccess"), "success");
+      const offlineMsg = userMessage("registerSuccess");
+      state.registrationSuccessBanner = {
+        message: offlineMsg,
+        email: String(data.email || "").trim(),
+        pendingApproval: true
+      };
+      notify(
+        "Registro guardado en este navegador. Lea el mensaje sobre el formulario de ingreso.",
+        "success",
+        8000
+      );
       state.authTab = "login";
       renderAuthTab();
       } finally {

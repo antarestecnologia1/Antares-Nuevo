@@ -633,7 +633,7 @@ export class AuthService {
       const portalUrl = (
         this.config.get<string>("PORTAL_PUBLIC_URL") ??
         this.config.get<string>("PUBLIC_PORTAL_URL") ??
-        "https://app.transportesantares.co"
+        "https://www.transportesantares.co"
       ).trim();
       await this.mail.sendPortalRegistrationWelcome({
         to: email,
@@ -642,7 +642,8 @@ export class AuthService {
         accountApproved: approved
       });
     } catch (e) {
-      this.logger.warn(`Correo bienvenida no enviado (${email}): ${e}`);
+      const detail = e instanceof Error ? e.stack || e.message : String(e);
+      this.logger.error(`Correo de bienvenida no enviado (${email}): ${detail}`);
     }
   }
 
