@@ -4277,6 +4277,47 @@ function currentUser() {
   return users.find((u) => String(u.id) === String(sid)) || null;
 }
 
+/** Nombre para UI: prioriza `name` (p. ej. nombre_completo del servidor), luego partes del registro, luego correo legible. */
+function getPortalUserDisplayName(user) {
+  if (!user) return "Usuario";
+  const raw = String(user.name ?? "").trim();
+  if (raw) return raw;
+  const composed = [user.firstName, user.middleName, user.lastName, user.secondLastName]
+    .map((x) => String(x ?? "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (composed) return composed;
+  const em = String(user.email ?? "").trim();
+  if (em) {
+    const local = em.split("@")[0] || em;
+    const nicer = local.replace(/[._-]+/g, " ").trim();
+    return nicer || em;
+  }
+  return "Usuario";
+}
+
+function formatPortalRoleLabel(role) {
+  const r = String(role || "").toLowerCase();
+  if (r === ROLES.ADMIN) return "Administrador";
+  if (r === ROLES.CLIENT) return "Cliente";
+  if (r === ROLES.RRHH) return "Recursos humanos";
+  if (r === ROLES.ADMINISTRACION) return "Administración";
+  if (r === ROLES.AUXILIAR_ADMINISTRATIVO) return "Auxiliar administrativo";
+  if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder administrativo";
+  return String(role || "usuario").toUpperCase();
+}
+
+function updatePortalSidebarSessionMeta() {
+  if (!nodes.sessionMeta) return;
+  const user = currentUser();
+  if (!user) {
+    nodes.sessionMeta.textContent = "";
+    return;
+  }
+  nodes.sessionMeta.textContent = `${getPortalUserDisplayName(user)} · ${formatPortalRoleLabel(user.role)}`;
+}
+
 function getVisibleRequestsForUser(user) {
   const requests = reqRead();
   if (!user) return [];
@@ -4435,7 +4476,7 @@ function renderPortal() {
     return;
   }
 
-  nodes.sessionMeta.textContent = `${user.name} - ${user.role.toUpperCase()}`;
+  updatePortalSidebarSessionMeta();
   document.querySelectorAll(".admin-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.ADMIN));
   document.querySelectorAll(".client-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.CLIENT));
   document.querySelectorAll(".rrhh-only").forEach((n) => n.classList.toggle("hidden", !canAccessRRHH(user.role)));
@@ -11623,6 +11664,11 @@ window.AppLegacyViews = {
 /** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */
 window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi() {
   if (!getSession()) return;
+  try {
+    updatePortalSidebarSessionMeta();
+  } catch (_e) {
+    /* noop */
+  }
   scheduleRenderPortalView();
   updateNotificationBadge();
 };
