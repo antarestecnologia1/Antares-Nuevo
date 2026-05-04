@@ -94,7 +94,11 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
     );
   }
 
-  if (/econnrefused|etimedout|enotfound|eai_again|getaddrinfo|socket hang up|connect timed out|connection refused/i.test(lower)) {
+  if (
+    /econnrefused|etimedout|enotfound|eai_again|enetunreach|ehostunreach|getaddrinfo|socket hang up|connect timed out|connection refused/i.test(
+      lower
+    )
+  ) {
     return new ServiceUnavailableException(
       "No se pudo establecer conexión TCP con Postgres. Revise DATABASE_URL en Render (host/puerto), firewall de Supabase (Allow all), pruebe Direct connection (5432) o Session pooler en Supabase."
     );
@@ -429,9 +433,13 @@ export class AuthService {
       }
 
       /** Errores de red / Node al conectar a Postgres (Render ↔ Supabase/Postgres). */
-      if (["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "ECONNRESET"].includes(code)) {
+      if (
+        ["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "ECONNRESET", "ENETUNREACH", "EHOSTUNREACH"].includes(code)
+      ) {
         throw new ServiceUnavailableException(
-          "No hay conexión a la base de datos. Verifique DATABASE_URL en Render (sin espacios), que la BD acepte conexiones externas y SSL; en Supabase use la cadena del panel (pool session/direct si el pool transaccional falla)."
+          code === "ENETUNREACH" || code === "EHOSTUNREACH"
+            ? "No se alcanza Postgres por red (IPv6/IPv4). La API ya fuerza IPv4 en el arranque; si persiste, en Render añada NODE_OPTIONS=--dns-result-order=ipv4first o use en Supabase la URI del Session pooler. Revise DATABASE_URL y firewall de Supabase."
+            : "No hay conexión a la base de datos. Verifique DATABASE_URL en Render (sin espacios), que la BD acepte conexiones externas y SSL; en Supabase use la cadena del panel (pool session/direct si el pool transaccional falla)."
         );
       }
 
