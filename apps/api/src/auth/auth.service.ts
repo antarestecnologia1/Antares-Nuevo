@@ -24,6 +24,7 @@ import { MailService } from "../mail/mail.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { RegisterPortalDto } from "./dto/register-portal.dto";
+import { RequestPasswordRecoveryDto } from "./dto/request-password-recovery.dto";
 
 /** Valores del ENUM rol_usuario en BD/postgres/02_enums.sql */
 const ROLE_REGISTER_TO_DB: Record<string, string> = {
@@ -548,7 +549,7 @@ export class AuthService {
     const res = await this.pool.query<UsuarioRow>(
       `SELECT id::text, correo_electronico, hash_contrasena, nombre_completo,
               rol::text AS rol, estado_cuenta::text AS estado_cuenta, refresh_token_hash
-       FROM usuarios WHERE lower(correo_electronico) = lower($1)`,
+       FROM usuarios WHERE lower(btrim(correo_electronico::text)) = $1`,
       [email]
     );
 
@@ -632,7 +633,7 @@ export class AuthService {
     const r = await this.pool.query(
       `UPDATE usuarios
        SET hash_contrasena = $1, refresh_token_hash = NULL
-       WHERE lower(correo_electronico) = lower($2)`,
+       WHERE lower(btrim(correo_electronico::text)) = $2`,
       [passwordHash, email]
     );
     if (!r.rowCount) {
@@ -645,6 +646,79 @@ export class AuthService {
       message:
         "Contraseña actualizada correctamente. Cierre cualquier sesión anterior e inicie sesión con la nueva contraseña."
     };
+  }
+
+  /**
+   * Dispara el correo de recuperación usando la API (misma instancia Supabase que el registro).
+   * Evita fallar cuando el navegador no carga @supabase/supabase-js desde el CDN.
+   */
+  async requestPasswordRecovery(dto: RequestPasswordRecoveryDto) {
+    this.assertDatabaseConfigured();
+    if (!this.supabaseAdmin) {
+      throw new ServiceUnavailableException(
+        "Recuperación por correo no está disponible: configure SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en la API."
+      );
+    }
+    const email = dto.email.trim().toLowerCase();
+    const st = await this.pool.query<{ s: string }>(
+      `SELECT estado_cuenta::text AS s FROM usuarios WHERE lower(btrim(correo_electronico::text)) = $1 LIMIT 1`,
+      [email]
+    );
+    const row = st.rows[0];
+    if (!row) {
+      throw new BadRequestException(
+        "No encontramos ese correo en el portal. Revise espacios al inicio o final y use exactamente el correo del registro."
+      );
+    }
+    if (row.s !== "aprobado") {
+      throw new BadRequestException(
+        "Su cuenta aún no está aprobada. Cuando un administrador la active, podrá usar «recuperar contraseña»."
+      );
+    }
+
+    const redirectTo = this.resolvePasswordRecoveryRedirect(dto.redirectTo);
+    const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) {
+      const mapped = this.mapSupabaseRecoveryError(String(error.message || ""));
+      this.logger.warn(`resetPasswordForEmail(${email}): ${error.message}`);
+      throw new BadRequestException(
+        mapped ||
+          `${error.message}. Revise en Supabase → Authentication → Users que exista el correo y que el envío de correo esté configurado.`
+      );
+    }
+    return {
+      message:
+        "Hemos solicitado el correo de recuperación. Abra el enlace que envía Supabase (revise spam). Si no llega en unos minutos, verifique Authentication → Users."
+    };
+  }
+
+  private resolvePasswordRecoveryRedirect(requested: string | undefined): string {
+    const fb = (
+      this.config.get<string>("PORTAL_PUBLIC_URL") ??
+      this.config.get<string>("PUBLIC_PORTAL_URL") ??
+      "https://www.transportesantares.co"
+    )
+      .trim()
+      .replace(/\/+$/, "");
+    const fallback = fb ? `${fb}/` : "https://www.transportesantares.co/";
+    const raw = String(requested ?? "").trim();
+    if (!raw) return fallback;
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return fallback;
+      return u.href;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private mapSupabaseRecoveryError(message: string): string | null {
+    const m = String(message || "").toLowerCase();
+    if (!m) return null;
+    if (/user not found|email address not found|no user|user does not exist|invalid login credentials/i.test(m)) {
+      return "Ese correo no aparece en Supabase Authentication (solo en la base no basta). Cree el usuario en Auth o registre de nuevo el acceso desde el portal aprobado.";
+    }
+    return null;
   }
 
   private async generateTokens(userId: string, email: string, role: string) {

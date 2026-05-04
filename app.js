@@ -3657,6 +3657,19 @@ function bindAuthForms() {
         return;
       }
 
+      const api = window.AntaresApi;
+      const apiBase = typeof api?.getBase === "function" ? api.getBase() : "";
+      if (apiBase && typeof api?.postJsonPublic === "function") {
+        try {
+          const redirectTo = buildSupabasePasswordRecoveryRedirectUrl();
+          const body = await api.postJsonPublic("/auth/password-recovery/request", { email, redirectTo });
+          notify(String(body?.message || userMessage("recoverSentSupabase")), "info");
+        } catch (err) {
+          notify(String(err?.message || userMessage("recoverSupabaseError")), "error");
+        }
+        return;
+      }
+
       const supabase = await waitForAntaresSupabaseClient(15000);
       if (supabase) {
         try {
@@ -3670,11 +3683,6 @@ function bindAuthForms() {
         } catch (err) {
           notify(String(err?.message || userMessage("recoverSupabaseError")), "error");
         }
-        return;
-      }
-
-      if (window.AntaresApi?.getBase?.()) {
-        notify(userMessage("recoverSupabaseUnavailable"), "error");
         return;
       }
 
