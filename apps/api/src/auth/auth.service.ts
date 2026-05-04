@@ -14,7 +14,10 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
-import { normalizeDatabaseUrl } from "../database/normalize-database-url";
+import {
+  normalizeDatabaseUrl,
+  SUPABASE_POOLER_TENANT_ERROR_HELP
+} from "../database/normalize-database-url";
 import { PG_POOL } from "../database/database.module";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
@@ -39,11 +42,12 @@ type UsuarioRow = {
 
 /** Errores de red/TLS/pooler que `pg` no codifica como ECONNREFUSED / 28P01. */
 function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException | null {
-  const e = err as { code?: string; message?: string } | null | undefined;
+  const e = err as { code?: string; message?: string; detail?: string } | null | undefined;
   if (!e) return null;
   const code = String(e.code ?? "");
   const message = String(e.message ?? "");
-  const lower = message.toLowerCase();
+  const detail = String(e.detail ?? "");
+  const lower = `${message} ${detail}`.toLowerCase();
 
   if (
     code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
@@ -66,9 +70,7 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
     lower.includes("could not find tenant") ||
     (lower.includes("user") && lower.includes("not found") && lower.includes("pooler"))
   ) {
-    return new ServiceUnavailableException(
-      "Usuario incorrecto para el pooler de Supabase: copie la URI completa del panel (Transaction pooler usa usuario postgres.PROJECT_REF, no solo postgres). O use Session mode / Direct connection y pegue esa cadena en DATABASE_URL."
-    );
+    return new ServiceUnavailableException(SUPABASE_POOLER_TENANT_ERROR_HELP);
   }
 
   if (lower.includes("max clients") || lower.includes("too many connections") || code === "53300") {
@@ -434,6 +436,9 @@ export class AuthService {
         `registerPortal unexpected error code=${code} message=${pgMsg} detail=${detail} stack=${String(err?.stack ?? "").slice(0, 500)}`
       );
 
+      const poolerMapped = mapSupabaseOrNetworkDbError(err);
+      if (poolerMapped) throw poolerMapped;
+
       if (code === "23505" || /duplicate key/i.test(pgMsg)) {
         throw new BadRequestException("El correo o documento ya está registrado.");
       }
@@ -487,6 +492,13 @@ export class AuthService {
         "53300"
       ]);
       if (sqlState && !alreadyHandled.has(sqlState)) {
+        if (sqlState === "XX000") {
+          const again = mapSupabaseOrNetworkDbError(err);
+          if (again) throw again;
+          throw new ServiceUnavailableException(
+            `PostgreSQL XX000 (error interno). ${detail ? String(detail).slice(0, 280) : pgMsg.slice(0, 200)} Si usa el pooler de Supabase, confirme la URI del panel; si el texto habla de tenant o usuario, vea la variable DATABASE_URL (pooler: usuario postgres.PROJECT_REF; directo: db.xxx.supabase.co:5432, usuario postgres).`
+          );
+        }
         if (["23502", "23514", "23P01"].includes(sqlState)) {
           throw new ServiceUnavailableException(
             `Datos incumplen restricciones en la base (${sqlState}). Revise longitudes de campos y scripts BD/postgres. ${detail ? String(detail).slice(0, 220) : ""}`
@@ -506,9 +518,6 @@ export class AuthService {
           `Error PostgreSQL ${sqlState}. Ejecute los scripts BD/postgres sobre la base y revise logs de Render. ${detail ? String(detail).slice(0, 140) : pgMsg.slice(0, 100)}`
         );
       }
-
-      const mapped = mapSupabaseOrNetworkDbError(err);
-      if (mapped) throw mapped;
 
       throw new ServiceUnavailableException(
         "No fue posible procesar el registro. Revise DATABASE_URL (misma URI que en Supabase → Database, sin comillas) y los logs de Render. Pooler 6543: usuario postgres.<ref_proyecto>; directo 5432: usuario postgres. Contraseña con @ u otros símbolos: codifíquela en la URL."
