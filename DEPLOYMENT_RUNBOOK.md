@@ -60,9 +60,33 @@ Variables locales: `npm run setup` crea `apps/api/.env` para Postgres Docker; pa
 
 - `CORS_ORIGINS` — lista separada por comas de orígenes exactos desde los que se abre el portal (ej. `https://transportesantares.co,https://www.transportesantares.co`). Si solo usa los dominios ya incluidos en código (`transportesantares.co`, `app.transportesantares.co`, `*.vercel.app`), puede quedar vacío. Para previews Vercel (`*.vercel.app`) ya hay comodín; para dominios nuevos u otros ambientes, añada aquí.
 
-**Opcionales**
+**Correo de bienvenida (Resend)**
 
-- `RESEND_API_KEY`, `MAIL_FROM` — correo transaccional.
+El registro por API dispara un correo HTML (`MailService.sendPortalRegistrationWelcome`) con bienvenida y **estado de la cuenta** (pendiente de aprobación o ya aprobada), según `estado_cuenta` en Postgres. Para que se envíe:
+
+1. **Cuenta en Resend**  
+   Entra en [https://resend.com](https://resend.com), crea cuenta y accede al dashboard.
+
+2. **`RESEND_API_KEY`**  
+   En el panel: **API Keys** → **Create API Key**. Copia el valor (empieza por `re_`) y pégalo en:
+   - `apps/api/.env` en local, y
+   - Variables de entorno del servicio en **Render** (o tu host), p. ej. `RESEND_API_KEY=re_xxxx`.
+
+3. **`MAIL_FROM`**  
+   Resend exige un remitente de **dominio verificado** (no basta un Gmail arbitrario).
+   - En Resend: **Domains** → **Add domain** → sigue los registros DNS (SPF/DKIM) que te indiquen para tu dominio (ej. `transportesantares.co`).
+   - Cuando el dominio esté **Verified**, usa una dirección de ese dominio, por ejemplo:
+     - `Antares <notificaciones@transportesantares.co>`  
+     o solo `notificaciones@transportesantares.co`  
+     Ese string completo va en `MAIL_FROM`.
+   - **Modo prueba:** sin dominio propio, Resend permite `MAIL_FROM=onboarding@resend.dev` solo para envíos de prueba muy limitados; para producción hay que verificar dominio.
+
+4. **URL del enlace “Ir al portal” en el correo** (opcional pero recomendado)
+
+- `PORTAL_PUBLIC_URL` o `PUBLIC_PORTAL_URL` — URL pública del portal (ej. `https://app.transportesantares.co`). Si no se define, el código usa un valor por defecto.
+
+**Opcionales (otros)**
+
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — si quiere crear usuarios también en Supabase Auth. **Sin ellos, registro y login siguen funcionando** solo con Postgres y JWT de la API.
 
 **Puerto**
