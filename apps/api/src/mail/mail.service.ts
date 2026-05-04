@@ -29,15 +29,31 @@ export class MailService {
 
   async send(to: string, subject: string, html: string) {
     if (!this.resend) {
-      this.logger.warn(`Resend no configurado. Email omitido para ${to}`);
+      this.logger.warn(
+        `Correo no enviado a ${to}: defina RESEND_API_KEY en la API (y MAIL_FROM verificado en Resend).`
+      );
       return;
     }
-    await this.resend.emails.send({
-      from: this.config.get<string>("MAIL_FROM") ?? "onboarding@resend.dev",
+    const from = this.config.get<string>("MAIL_FROM")?.trim() || "onboarding@resend.dev";
+    if (!this.config.get<string>("MAIL_FROM")?.trim()) {
+      this.logger.warn(
+        `MAIL_FROM no definido; usando onboarding@resend.dev (solo válido en pruebas de Resend). Configure MAIL_FROM con un dominio verificado.`
+      );
+    }
+    const result = await this.resend.emails.send({
+      from,
       to,
       subject,
       html
     });
+    if (result && typeof result === "object" && "error" in result && result.error) {
+      const msg =
+        typeof result.error === "object" && result.error !== null && "message" in result.error
+          ? String((result.error as { message: string }).message)
+          : JSON.stringify(result.error);
+      this.logger.error(`Resend rechazó el envío a ${to}: ${msg}`);
+      throw new Error(msg);
+    }
   }
 
   /**
