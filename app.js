@@ -820,6 +820,56 @@ function decodeJwtPayload(token) {
   }
 }
 
+function mapJwtRoleToAppRole(roleRaw) {
+  const r = String(roleRaw || "client")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_");
+  const roleMap = {
+    admin: ROLES.ADMIN,
+    administrador: ROLES.ADMIN,
+    client: ROLES.CLIENT,
+    cliente: ROLES.CLIENT,
+    rrhh: ROLES.RRHH,
+    administracion: ROLES.ADMINISTRACION,
+    auxiliar_administrativo: ROLES.AUXILIAR_ADMINISTRATIVO,
+    lider_administrativo: ROLES.LIDER_ADMINISTRATIVO
+  };
+  return roleMap[r] || ROLES.CLIENT;
+}
+
+/**
+ * Tras login API, /portal/bootstrap puede no haber hidratado caché aún; sin fila en KEYS.users el flujo abortaba.
+ * Los claims del access token vienen de la misma API (sub, email, role) y permiten abrir sesión hasta el próximo bootstrap.
+ */
+function upsertPortalUserStubFromJwtPayload(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const uid = String(payload.sub || "").trim();
+  const email = String(payload.email || "").trim();
+  if (!uid || !email) return null;
+  const users = read(KEYS.users, []);
+  const existing = users.find((u) => String(u.id) === uid);
+  if (existing) return existing;
+  const localPart = email.split("@")[0] || "";
+  const stub = {
+    id: uid,
+    email,
+    name: localPart.replace(/[._-]+/g, " ").trim() || email,
+    role: mapJwtRoleToAppRole(payload.role),
+    accountStatus: "aprobado",
+    companyId: "",
+    company: "",
+    password: "",
+    permissions: [],
+    taxId: "",
+    phone: ""
+  };
+  write(KEYS.users, [stub, ...users.filter((u) => String(u.id) !== uid)]);
+  return stub;
+}
+
 function applyPortalBootstrapPayload(p) {
   if (!p || typeof p !== "object") return;
   const PS = window.AntaresPortalSync;
@@ -2837,7 +2887,8 @@ function bindAuthForms() {
             body: JSON.stringify({ email: data.email, password: passwordRaw })
           });
           const body = await res.json().catch(() => null);
-          if (res.ok && body?.accessToken && body?.refreshToken) {
+          if (res.ok && body?.accessToken) {
+            const refreshTok = String(body.refreshToken || "").trim();
             window.AntaresApi.setAccessToken(body.accessToken);
             if (window.PortalDataLayer?.refreshCacheFromApi) {
               await window.PortalDataLayer.refreshCacheFromApi();
@@ -2847,7 +2898,10 @@ function bindAuthForms() {
             const payload = decodeJwtPayload(body.accessToken);
             const uid = payload?.sub;
             const usersAfter = read(KEYS.users, []);
-            const userApi = usersAfter.find((u) => String(u.id) === String(uid));
+            let userApi = usersAfter.find((u) => String(u.id) === String(uid));
+            if (!userApi) {
+              userApi = upsertPortalUserStubFromJwtPayload(payload);
+            }
             if (!userApi) {
               notify(userMessage("authProfileLoadFailed"), "error");
               return;
@@ -2860,7 +2914,7 @@ function bindAuthForms() {
               role: userApi.role,
               token: buildToken(userApi),
               accessToken: body.accessToken,
-              refreshToken: body.refreshToken,
+              refreshToken: refreshTok,
               lastActivityAt: Date.now(),
               tokenIssuedAt: Date.now()
             });
@@ -3814,7 +3868,9 @@ function minutesRemaining(createdAt) {
 
 function currentUser() {
   const users = read(KEYS.users, []);
-  return users.find((u) => u.id === state.session?.userId) || null;
+  const sid = state.session?.userId;
+  if (sid === undefined || sid === null) return null;
+  return users.find((u) => String(u.id) === String(sid)) || null;
 }
 
 function getVisibleRequestsForUser(user) {
