@@ -36,6 +36,66 @@ type UsuarioRow = {
   refresh_token_hash: string | null;
 };
 
+/** Errores de red/TLS/pooler que `pg` no codifica como ECONNREFUSED / 28P01. */
+function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException | null {
+  const e = err as { code?: string; message?: string } | null | undefined;
+  if (!e) return null;
+  const code = String(e.code ?? "");
+  const message = String(e.message ?? "");
+  const lower = message.toLowerCase();
+
+  if (
+    code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
+    code === "DEPTH_ZERO_SELF_SIGNED_CERT" ||
+    code === "CERT_HAS_EXPIRED" ||
+    code === "ERR_SSL_SSLV3_ALERT_BAD_CERTIFICATE" ||
+    /ssl|tls/i.test(code) ||
+    (lower.includes("ssl") && (lower.includes("error") || lower.includes("routine"))) ||
+    lower.includes("self signed certificate") ||
+    lower.includes("certificate verify failed") ||
+    lower.includes("wrong version number")
+  ) {
+    return new ServiceUnavailableException(
+      "Error SSL/TLS al conectar con Postgres. Use la URI exacta del panel Supabase (Settings → Database → Connection string). Si la contraseña tiene @ # % &, codifíquela en la URL. Pruebe conexión directa (puerto 5432, host db.xxx.supabase.co) si el pooler (6543) falla."
+    );
+  }
+
+  if (
+    lower.includes("tenant or user not found") ||
+    lower.includes("could not find tenant") ||
+    (lower.includes("user") && lower.includes("not found") && lower.includes("pooler"))
+  ) {
+    return new ServiceUnavailableException(
+      "Usuario incorrecto para el pooler de Supabase: copie la URI completa del panel (Transaction pooler usa usuario postgres.PROJECT_REF, no solo postgres). O use Session mode / Direct connection y pegue esa cadena en DATABASE_URL."
+    );
+  }
+
+  if (lower.includes("max clients") || lower.includes("too many connections") || code === "53300") {
+    return new ServiceUnavailableException(
+      "Límite de conexiones en Postgres. Use Session pooler o conexión directa en Supabase, o reduzca el tamaño del pool en la API."
+    );
+  }
+
+  if (
+    code === "EPIPE" ||
+    code === "ESOCKETTIMEDOUT" ||
+    lower.includes("connection terminated unexpectedly") ||
+    lower.includes("server closed the connection unexpectedly")
+  ) {
+    return new ServiceUnavailableException(
+      "La conexión a Postgres se cerró antes de tiempo. Revise DATABASE_URL, que Supabase permita conexiones externas y pruebe Direct connection si el pooler da timeouts."
+    );
+  }
+
+  if (/password authentication failed/i.test(lower) && code !== "28P01") {
+    return new ServiceUnavailableException(
+      "PostgreSQL rechazó la contraseña. Confirme la contraseña en Supabase (Database password). Si la URL está mal formada (p. ej. @ en la contraseña sin codificar), corrija o codifique la contraseña."
+    );
+  }
+
+  return null;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -376,8 +436,11 @@ export class AuthService {
         throw new ServiceUnavailableException("Demasiadas conexiones a PostgreSQL; reduzca el pool o actualice el plan.");
       }
 
+      const mapped = mapSupabaseOrNetworkDbError(err);
+      if (mapped) throw mapped;
+
       throw new ServiceUnavailableException(
-        "No fue posible procesar el registro. Revise DATABASE_URL y los logs del servicio en Render; si usa Supabase Pooler (puerto 6543) y sigue fallando, pruebe la URL de conexión directa o session pool del panel."
+        "No fue posible procesar el registro. Revise DATABASE_URL (misma URI que en Supabase → Database, sin comillas) y los logs de Render. Pooler 6543: usuario postgres.<ref_proyecto>; directo 5432: usuario postgres. Contraseña con @ u otros símbolos: codifíquela en la URL."
       );
     }
   }
