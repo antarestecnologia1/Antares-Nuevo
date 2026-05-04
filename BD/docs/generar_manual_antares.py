@@ -103,7 +103,7 @@ def main():
             "postgres/05_rrhh.sql",
             "postgres/06_sistema.sql",
             "postgres/07_indices.sql",
-            "Opcional: postgres/08_seed_tarifas_trayecto.sql",
+            "postgres/08_seed_tarifas_trayecto.sql (sin datos demo; tarifas desde portal)",
             "postgres/09_rls_tablas.sql — Row Level Security en tablas públicas",
             "postgres/10_rls_storage_supabase.sql — políticas de Storage (tras crear buckets)",
         ],

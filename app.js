@@ -558,7 +558,7 @@ const COLOMBIA_LOCATIONS = {
 const PERMISSION_META = {
   [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
   [PERMISSIONS.CLIENT_REQUESTS]: { title: "Solicitudes de cliente", desc: "Crear y consultar solicitudes propias." },
-  [PERMISSIONS.TRANSPORT_REQUESTS]: { title: "Bandeja de transporte", desc: "Resumen de pendientes y enlaces a operación (viajes, solicitudes)." },
+  [PERMISSIONS.TRANSPORT_REQUESTS]: { title: "Operacion solicitudes (legacy)", desc: "Sin pantalla propia; use Autorizaciones y Mis solicitudes." },
   [PERMISSIONS.TRANSPORT_TRIPS]: { title: "Gestion de viajes", desc: "Asignar y actualizar estados de viaje." },
   [PERMISSIONS.TRANSPORT_VEHICLES]: { title: "Gestion de camiones", desc: "Registrar y modificar vehiculos." },
   [PERMISSIONS.TRANSPORT_DRIVERS]: { title: "Gestion de conductores", desc: "Registrar y administrar conductores." },
@@ -577,7 +577,6 @@ const PERMISSION_META = {
 const VIEW_PERMISSIONS = {
   dashboard: PERMISSIONS.DASHBOARD_VIEW,
   requests: PERMISSIONS.CLIENT_REQUESTS,
-  "transport-requests": PERMISSIONS.TRANSPORT_REQUESTS,
   "transport-trips": PERMISSIONS.TRANSPORT_TRIPS,
   "transport-vehicles": PERMISSIONS.TRANSPORT_VEHICLES,
   "transport-drivers": PERMISSIONS.TRANSPORT_DRIVERS,
@@ -4186,6 +4185,11 @@ function isViewAllowedForUser(user, view) {
 }
 
 function viewFromPortalHash() {
+  const h = String(window.location.hash || "").split("?")[0].replace(/\/+$/, "");
+  if (h === "#portal/transport-requests") {
+    history.replaceState(null, "", "#portal/authorizations");
+    return PortalArch.isKnownView("authorizations") ? "authorizations" : "";
+  }
   return PortalRouterCore.getViewFromHash({
     hash: window.location.hash,
     isKnownView: PortalArch.isKnownView
@@ -4595,32 +4599,6 @@ function requestListClientHtml(user) {
     ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("Aun no hay solicitudes creadas.");
   return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
-}
-
-function adminQueueHtml() {
-  const allReq = reqRead();
-  const pendingSvc = allReq.filter((r) => r.status === STATUS.PENDIENTE);
-  const pendingAssign = allReq.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION);
-  const pendingUsers = read(KEYS.users, []).filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
-  const approvalsPending = read(KEYS.approvals, []).filter((a) => a.status === "pendiente").length;
-  const totalCentral = pendingSvc.length + pendingUsers.length + approvalsPending;
-  const queueHero = moduleFleetHeroStrip([
-    { label: "Pendientes (central)", value: totalCentral, tone: totalCentral ? "warn" : undefined },
-    { label: "Solicitudes servicio", value: pendingSvc.length, tone: pendingSvc.length ? "warn" : undefined },
-    { label: "Registros portal", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
-    { label: "Cola interna", value: approvalsPending, tone: approvalsPending ? "warn" : undefined },
-    { label: "Sin asignar viaje", value: pendingAssign.length, tone: pendingAssign.length ? "warn" : undefined }
-  ]);
-  const body = `<div class="auth-queue-section auth-queue-section--info admin-queue-redirect">
-    <p class="auth-central-redirect-lead">Los <strong>registros de cliente pendientes</strong> y la <strong>cola de autorizaciones internas</strong> se gestionan en <strong>Autorizaciones</strong>. El seguimiento operativo de solicitudes de viaje está en <strong>Mis solicitudes</strong> y <strong>Transporte</strong>.</p>
-    <p><a class="btn btn-primary" href="#portal/authorizations">${IC.shield} Abrir Autorizaciones</a></p>
-    ${
-      pendingAssign.length
-        ? `<p class="muted">Hay <strong>${pendingAssign.length}</strong> solicitud(es) ya aprobadas y pendientes de <strong>asignación de viaje</strong>: use <a href="#portal/transport-trips">Transporte · Viajes</a>.</p>`
-        : ""
-    }
-  </div>`;
-  return `${queueHero}${pcardWrap("inbox", "Bandeja operativa", "Vista centralizada", body)}`;
 }
 
 function vehiclesHtml() {
@@ -5172,7 +5150,7 @@ function adminUsersHtml(current) {
     </div>`;
   }).join("");
 
-  // --- Pendientes de registro (portal): bandeja unificada en Autorizaciones ---
+  // --- Pendientes de registro (portal): en Autorizaciones (sin ruta /transport-requests) ---
   const pendingUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
 
   // --- Formularios ---
@@ -6176,7 +6154,6 @@ function mountUniversalModuleFilters() {
   const headers = firstTable ? [...firstTable.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
   const moduleLabels = {
     requests: "Solicitudes",
-    "transport-requests": "Bandeja unificada",
     "transport-trips": "Viajes",
     "transport-vehicles": "Flota",
     "transport-drivers": "Conductores",
@@ -7309,7 +7286,7 @@ function authorizationsHtml() {
 
   const catalogItems = [
     "<strong>Registro de clientes (este módulo)</strong>: aprobación de cuentas creadas desde el sitio web; asignación de empresa y rol.",
-    "<strong>Solicitudes de viaje</strong>: seguimiento en <strong>Mis solicitudes</strong> y operación en <strong>Transporte · Bandeja unificada / Viajes</strong> (la aprobación operativa duplicada aquí fue retirada).",
+    "<strong>Solicitudes de viaje</strong>: seguimiento en <strong>Mis solicitudes</strong> y operación en <strong>Transporte · Viajes</strong> u otros módulos de la sección.",
     "<strong>Usuarios y permisos</strong>: alta de usuario interno cuando quien guarda no es administrador (cola en «Acceso y usuarios del portal»).",
     "<strong>Conductores</strong>: alta de conductor cuando quien guarda no es administrador.",
     "<strong>Nómina / nuevo empleado</strong>: ficha de colaborador cuando quien guarda no es administrador.",
@@ -11410,7 +11387,6 @@ window.AppLegacyViews = {
   viewDashboard,
   requestFormHtml,
   requestListClientHtml,
-  adminQueueHtml,
   transportTripsHtml,
   vehiclesHtml,
   driversHtml,

@@ -99,8 +99,6 @@ function run() {
       'title: "Dashboard"',
       "requests:",
       'title: "Solicitudes"',
-      '"transport-requests":',
-      'title: "Transporte · Solicitudes"',
       '"transport-trips":',
       'title: "Transporte · Viajes"',
       '"transport-vehicles":',
