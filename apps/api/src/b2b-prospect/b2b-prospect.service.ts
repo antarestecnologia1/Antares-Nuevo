@@ -8,12 +8,37 @@ import { CreateJobApplicationDto } from "./dto/create-job-application.dto";
 export class B2bProspectService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
+  /**
+   * Valida y normaliza teléfono del formulario B2B (coincide con el cliente: +57 opcional en Colombia).
+   * Colombia: 10 dígitos nacionales empezando en 3; se acepta prefijo 57.
+   * Otros países: 8–15 dígitos.
+   */
   private normalizePhone(raw: string): { ok: boolean; formatted: string } {
     const digits = String(raw || "").replace(/\D/g, "");
-    if (digits.length !== 10 || !digits.startsWith("3")) {
+    if (!digits) {
+      return { ok: false, formatted: "" };
+    }
+
+    if (digits.startsWith("57")) {
+      const national = digits.slice(2);
+      if (national.length === 10 && national.startsWith("3")) {
+        return { ok: true, formatted: national };
+      }
+      if (national.length >= 8 && national.length <= 15) {
+        return { ok: true, formatted: national };
+      }
       return { ok: false, formatted: digits };
     }
-    return { ok: true, formatted: digits };
+
+    if (digits.length === 10 && digits.startsWith("3")) {
+      return { ok: true, formatted: digits };
+    }
+
+    if (digits.length >= 8 && digits.length <= 15) {
+      return { ok: true, formatted: digits };
+    }
+
+    return { ok: false, formatted: digits };
   }
 
   private normalizePhoneFlexible(raw: string): string {
@@ -158,7 +183,9 @@ export class B2bProspectService {
   async create(dto: CreateB2bProspectDto) {
     const phoneCheck = this.normalizePhone(dto.phone);
     if (!phoneCheck.ok) {
-      throw new BadRequestException("Telefono celular colombiano invalido (10 digitos, inicia en 3).");
+      throw new BadRequestException(
+        "Telefono invalido. Colombia: celular 10 digitos que empiezan por 3 (puede incluir +57). Otros paises: entre 8 y 15 digitos."
+      );
     }
 
     const vol = Number(dto.monthlyVolumeKg);
