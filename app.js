@@ -161,7 +161,7 @@ function userMessage(key, ...args) {
   return v != null ? v : String(key);
 }
 
-function openEditModal({ title, subtitle = "", fields = [], submitText = "Guardar", onSubmit }) {
+function openEditModal({ title, subtitle = "", fields = [], submitText = "Guardar", onSubmit, afterMount }) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -225,7 +225,15 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
     },
     { once: true }
   );
-  content.querySelector("#crud-form").addEventListener("submit", async (event) => {
+  const formEl = content.querySelector("#crud-form");
+  if (typeof afterMount === "function") {
+    try {
+      afterMount(formEl);
+    } catch (err) {
+      devWarn("openEditModal afterMount", err);
+    }
+  }
+  formEl.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formEl = event.currentTarget;
     const payload = Object.fromEntries(new FormData(formEl).entries());
@@ -404,6 +412,42 @@ const KEYS = {
   approvals: "antares_approvals_v2",
   session: "antares_session_v2"
 };
+
+/** Opcional: usuario marca «recordar» en login; se guarda correo y contraseña en este navegador (texto plano). No usar en equipos compartidos. */
+const LOGIN_REMEMBER_STORAGE_KEY = "antares_portal_login_remember_v1";
+
+function readRememberedLoginCredentials() {
+  try {
+    const raw = localStorage.getItem(LOGIN_REMEMBER_STORAGE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== "object") return null;
+    const email = String(o.email || "").trim();
+    if (!email) return null;
+    return { email, password: String(o.password || "") };
+  } catch {
+    return null;
+  }
+}
+
+function writeRememberedLoginCredentials(email, password) {
+  try {
+    localStorage.setItem(
+      LOGIN_REMEMBER_STORAGE_KEY,
+      JSON.stringify({
+        email: String(email || "").trim(),
+        password: String(password || ""),
+        savedAt: Date.now()
+      })
+    );
+  } catch (_) {}
+}
+
+function clearRememberedLoginCredentials() {
+  try {
+    localStorage.removeItem(LOGIN_REMEMBER_STORAGE_KEY);
+  } catch (_) {}
+}
 
 const CO_TIMEZONE = "America/Bogota";
 const REGISTER_TERMS_URL = "./terminos-condiciones.html";
@@ -2091,20 +2135,188 @@ function routeRateKeyFromRequest(request) {
   return `${origin}->${destination}`;
 }
 
-function getConfiguredTripValue(request) {
-  const rates = read(KEYS.tripRouteRates, {});
-  const configured = parseNum(rates[routeRateKeyFromRequest(request)]);
-  return configured > 0 ? configured : 0;
-}
-
 function buildTripRouteRateKey(originDepartment, originCity, destinationDepartment, destinationCity) {
   const origin = `${String(originDepartment || "").trim()}|${String(originCity || "").trim()}`.toLowerCase();
   const destination = `${String(destinationDepartment || "").trim()}|${String(destinationCity || "").trim()}`.toLowerCase();
   return `${origin}->${destination}`;
 }
 
+/** Separador entre clave de ruta y ámbito de empresas en almacenamiento local / sync */
+const TRIP_RATE_SCOPE_SEP = "@@";
+
+function tripRateStorageKey(routeKey, companyIds) {
+  const ids = Array.isArray(companyIds) ? companyIds.map(String).filter(Boolean).sort() : [];
+  const suffix = ids.length ? ids.join(",") : "*";
+  return `${routeKey}${TRIP_RATE_SCOPE_SEP}${suffix}`;
+}
+
+function getTripRouteRatesNormalized() {
+  const raw = read(KEYS.tripRouteRates, {});
+  if (!raw || typeof raw !== "object") return {};
+  const out = {};
+  let needWrite = false;
+  for (const [k, val] of Object.entries(raw)) {
+    if (typeof val === "number" && Number.isFinite(val)) {
+      if (!k.includes(TRIP_RATE_SCOPE_SEP)) {
+        out[`${k}${TRIP_RATE_SCOPE_SEP}*`] = { value: val, companyIds: [] };
+        needWrite = true;
+      } else {
+        out[k] = { value: val, companyIds: [] };
+      }
+    } else if (val && typeof val === "object" && !Array.isArray(val)) {
+      const v = parseNum(val.value ?? 0);
+      if (v <= 0) continue;
+      const ids = Array.isArray(val.companyIds) ? val.companyIds.map(String).filter(Boolean) : [];
+      if (!k.includes(TRIP_RATE_SCOPE_SEP)) {
+        const suffix = ids.length ? ids.slice().sort().join(",") : "*";
+        out[`${k}${TRIP_RATE_SCOPE_SEP}${suffix}`] = { value: v, companyIds: ids };
+        needWrite = true;
+      } else {
+        out[k] = { value: v, companyIds: ids };
+      }
+    }
+  }
+  if (needWrite) write(KEYS.tripRouteRates, out);
+  return out;
+}
+
+function getConfiguredTripValue(request) {
+  const rates = getTripRouteRatesNormalized();
+  const rk = routeRateKeyFromRequest(request);
+  const cid = String(request?.clientCompanyId || "").trim();
+  let bestSpecific = 0;
+  let bestGlobal = 0;
+  for (const [fullKey, entry] of Object.entries(rates)) {
+    const sepIdx = fullKey.lastIndexOf(TRIP_RATE_SCOPE_SEP);
+    const routePart = sepIdx === -1 ? fullKey : fullKey.slice(0, sepIdx);
+    if (routePart !== rk) continue;
+    const v = parseNum(entry.value);
+    if (v <= 0) continue;
+    const ids = Array.isArray(entry.companyIds) ? entry.companyIds.map(String).filter(Boolean) : [];
+    if (!ids.length) {
+      if (v > bestGlobal) bestGlobal = v;
+    } else if (cid && ids.includes(cid)) {
+      if (v > bestSpecific) bestSpecific = v;
+    }
+  }
+  return bestSpecific > 0 ? bestSpecific : bestGlobal;
+}
+
+/** Opciones de tarifa guardadas que coinciden con la ruta de la solicitud (misma clave origen→destino). */
+function listTripRateOptionsForRequest(request) {
+  const rates = getTripRouteRatesNormalized();
+  const rk = routeRateKeyFromRequest(request);
+  const cid = String(request?.clientCompanyId || "").trim();
+  const items = [];
+  for (const [storageKey, entry] of Object.entries(rates)) {
+    const sepIdx = storageKey.lastIndexOf(TRIP_RATE_SCOPE_SEP);
+    const routePart = sepIdx === -1 ? storageKey : storageKey.slice(0, sepIdx);
+    if (routePart !== rk) continue;
+    const v = parseNum(entry.value);
+    if (v <= 0) continue;
+    const ids = Array.isArray(entry.companyIds) ? entry.companyIds.map(String).filter(Boolean) : [];
+    const scopeLabel = ids.length
+      ? ids.map((id) => getCompanyById(id)?.name || id).join(", ")
+      : "Todos los clientes";
+    const appliesToRequest = !ids.length || (cid && ids.includes(cid));
+    items.push({ storageKey, value: v, scopeLabel, appliesToRequest });
+  }
+  items.sort((a, b) => {
+    if (a.appliesToRequest !== b.appliesToRequest) return a.appliesToRequest ? -1 : 1;
+    if (b.value !== a.value) return b.value - a.value;
+    return String(a.storageKey).localeCompare(String(b.storageKey));
+  });
+  return items;
+}
+
+function defaultTripRateStorageKeyForRequest(request) {
+  const items = listTripRateOptionsForRequest(request);
+  const pref = items.find((i) => i.appliesToRequest);
+  return pref ? pref.storageKey : items.length ? items[0].storageKey : "";
+}
+
+function initialTripValueForAssignment(request, preferredStorageKey) {
+  const rates = getTripRouteRatesNormalized();
+  if (preferredStorageKey && rates[preferredStorageKey]) {
+    const v = parseNum(rates[preferredStorageKey].value);
+    if (v > 0) return v;
+  }
+  const cfg = getConfiguredTripValue(request);
+  if (cfg > 0) return cfg;
+  return parseNum(request.tripValue || 0);
+}
+
+/** Enlaza el selector de tarifa con el campo numérico de precio en el modal de asignación. */
+function wireTripRateChoiceSelect(formEl) {
+  const sel = formEl.querySelector("select[name='tripRateChoice']");
+  const num = formEl.querySelector("input[name='tripValue']");
+  if (!sel || !num) return;
+  sel.addEventListener("change", () => {
+    const key = String(sel.value || "").trim();
+    if (!key) return;
+    const rates = getTripRouteRatesNormalized();
+    const entry = rates[key];
+    if (entry && parseNum(entry.value) > 0) num.value = String(parseNum(entry.value));
+  });
+}
+
 function slugStatus(value) {
-  return value.toLowerCase().replaceAll(" ", "_");
+  return String(value || "")
+    .toLowerCase()
+    .replaceAll(" ", "_");
+}
+
+/** Campos de precio con selector de tarifa por trayecto (si hay) + valor editable. */
+function buildTripRateModalFields(request, opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const required = !!o.required;
+  const items = listTripRateOptionsForRequest(request);
+  const defaultKey = defaultTripRateStorageKeyForRequest(request);
+  const initial = initialTripValueForAssignment(request, defaultKey);
+  const fallbackVal = initial > 0 ? initial : parseNum(request?.tripValue || 0);
+
+  if (!items.length) {
+    return {
+      fields: [
+        {
+          name: "tripValue",
+          label: "Precio del viaje (COP)",
+          type: "number",
+          required,
+          value: fallbackVal
+        }
+      ]
+    };
+  }
+
+  const selectOptions = [
+    { value: "", label: "Manual / sin elegir tarifa del catalogo" },
+    ...items.map((i) => ({
+      value: i.storageKey,
+      label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otro cliente / alcance)"}`
+    }))
+  ];
+
+  return {
+    fields: [
+      {
+        name: "tripRateChoice",
+        label: "Tarifa por trayecto (opcional)",
+        type: "select",
+        required: false,
+        value: defaultKey || "",
+        options: selectOptions
+      },
+      {
+        name: "tripValue",
+        label: "Precio del viaje (COP) · editable",
+        type: "number",
+        required,
+        value: fallbackVal
+      }
+    ],
+    afterMount: (formEl) => wireTripRateChoiceSelect(formEl)
+  };
 }
 
 function prettyStatus(status, scope = "general") {
@@ -2584,6 +2796,62 @@ function buildAuthStandardActionsHtml(mode, id) {
     </div>`;
 }
 
+/** Orden: más reciente primero (fecha ISO). */
+function sortAuthQueueByDateDesc(items, getIso) {
+  const getTs = typeof getIso === "function" ? getIso : (x) => x;
+  return items.slice().sort((a, b) => {
+    const ta = new Date(getTs(a) || 0).getTime();
+    const tb = new Date(getTs(b) || 0).getTime();
+    return tb - ta;
+  });
+}
+
+const AUTH_QUEUE_SHORT_TAB_LABELS = {
+  portal_access: "Alta usuarios",
+  transport_fleet: "Conductores",
+  workforce: "Empleados",
+  hr_absences: "Ausencias",
+  payroll_pay: "Liquidaciones"
+};
+
+function buildAuthorizationsTransportRequestsSection(pendingRequests) {
+  const n = pendingRequests.length;
+  const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
+  const cards = pendingRequests
+    .map((r) => {
+      const eid = escapeAttr(String(r.id));
+      return `<article class="auth-request-card">
+      <div class="auth-request-card-top">
+        <span class="auth-request-card-id">${escapeHtml(String(r.requestNumber || r.id))}</span>
+        ${prettyStatus(r.status, "request")}
+      </div>
+      <p class="auth-request-card-route">${escapeHtml(formatRoute(r))}</p>
+      <p class="muted auth-request-card-meta">${escapeHtml(String(r.clientName || "").trim() || "—")} · ${escapeHtml(String(r.requestedByName || "").trim() || "—")}</p>
+      <p class="muted auth-request-card-date">${fmtDate(r.createdAt)}</p>
+      <div class="toolbar auth-request-card-actions">
+        <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${eid}">${IC.eye} Ver</button>
+        <button type="button" class="btn btn-sm btn-approve" data-action="approve" data-id="${eid}">${IC.check} Aprobar</button>
+        <button type="button" class="btn btn-sm btn-reject" data-action="reject" data-id="${eid}">${IC.x} Rechazar</button>
+      </div>
+    </article>`;
+    })
+    .join("");
+  const body = n
+    ? `<div class="auth-request-cards-scroll">${cards}</div>`
+    : emptyState("No hay solicitudes de transporte pendientes de aprobación.");
+  return `<section class="auth-queue-section auth-queue-section--transport-req" data-auth-section="transport_requests" aria-label="Solicitudes de viaje">
+      <header class="auth-queue-section-head">
+        <div class="auth-queue-section-title-row">
+          <h3 class="auth-queue-section-title">Solicitudes de transporte</h3>
+          ${countBadge}
+        </div>
+        <p class="muted auth-queue-section-desc">Pendientes de aprobación operativa. Lo más reciente aparece primero; use <strong>Aprobar</strong> para el mismo flujo que en Solicitudes.</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen:</span> Solicitudes de cliente · estado Pendiente</p>
+      </header>
+      <div class="auth-queue-section-body">${body}</div>
+    </section>`;
+}
+
 function portalRegistrationDetailLine(u) {
   const company = getCompanyById(u.companyId)?.name || u.company || "";
   const doc = [u.documentType, u.taxId].filter(Boolean).join(" ");
@@ -2601,7 +2869,8 @@ function portalRegistrationDetailLine(u) {
 
 function buildPortalRegistrationPendingTableHtml(pendingUsers) {
   const LABEL = "Registro de cliente (portal)";
-  const body = pendingUsers
+  const sorted = sortAuthQueueByDateDesc(pendingUsers || [], (u) => u.registeredAt || u.createdAt);
+  const body = sorted
     .map((u) => {
       const detail = portalRegistrationDetailLine(u);
       const when = u.registeredAt || u.createdAt;
@@ -2621,7 +2890,8 @@ function buildPortalRegistrationPendingTableHtml(pendingUsers) {
 }
 
 function buildPendingApprovalsTableHtml(rows) {
-  const body = rows
+  const sorted = sortAuthQueueByDateDesc(rows || [], (a) => a.requestedAt);
+  const body = sorted
     .map((a) => {
       const detail = approvalDetailLine(a);
       const detailHtml = escapeHtml(detail);
@@ -3012,6 +3282,13 @@ function authView() {
               <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">${IC.eye} Mostrar</button>
             </div>
           </label>
+          <label class="full auth-remember-row">
+            <span class="auth-remember-check">
+              <input type="checkbox" name="rememberCredentials" id="login-remember-credentials" value="1" />
+              <span>Recordar usuario y contraseña en este equipo</span>
+            </span>
+            <small class="muted auth-remember-hint">Solo recomendable en su equipo personal. Evite esta opción en dispositivos compartidos o públicos.</small>
+          </label>
           <button class="btn btn-primary full" type="submit">${IC.check} Ingresar al portal</button>
         </form>
         <div class="auth-login-side auth-pane">
@@ -3180,9 +3457,9 @@ function authView() {
     return `
     <div class="auth-header-premium">
       <h3>Recuperación de acceso</h3>
-      <p class="muted">Si su cuenta está registrada y autorizada, recibirá un <strong>correo electrónico</strong> con un enlace seguro para definir una nueva contraseña. Revise también la carpeta de spam o correo no deseado.</p>
+      <p class="muted">Indique el <strong>correo corporativo asociado a su cuenta</strong>. Si el usuario está activo en el sistema, recibirá un mensaje con las instrucciones para restablecer su contraseña de forma segura.</p>
     </div>
-    <form id="form-recover" class="form-grid auth-pane auth-form">
+    <form id="form-recover" class="form-grid auth-pane auth-form auth-form-recover">
       <label class="full auth-field-stack">
         <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo registrado")}</span>
         <div class="auth-input-row">
@@ -3191,13 +3468,18 @@ function authView() {
         </div>
       </label>
       <div class="auth-recover-hint" role="note">
-        <span class="auth-recover-hint-icon" aria-hidden="true">${IC.shield}</span>
-        <div>
-          <strong>Enlace con vigencia limitada</strong>
-          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">Por seguridad, el enlace caduca en breve. Tras actualizar la contraseña podrá ingresar con el mismo correo. Si no recibe el mensaje, confirme la dirección escrita o contacte a soporte corporativo.</p>
+        <div class="auth-recover-hint-inner">
+          <span class="auth-recover-hint-icon" aria-hidden="true">${IC.shield}</span>
+          <div class="auth-recover-hint-body">
+            <p class="auth-recover-hint-title">Enlace seguro y de vigencia limitada</p>
+            <p class="auth-recover-hint-text">Recibirá un enlace personalizado y cifrado. Por estándares de seguridad, el enlace caduca transcurrido un plazo breve y solo puede utilizarse para completar el restablecimiento; si expira, podrá solicitar uno nuevo desde esta misma pantalla.</p>
+            <p class="auth-recover-hint-text">Una vez actualizada la contraseña, podrá ingresar al portal con <strong>el mismo correo</strong> y sus nuevas credenciales. Si no ve el mensaje en unos minutos, revise la carpeta de spam o correo no deseado y confirme que el correo indicado coincide con el registrado. Para escalamiento técnico, diríjase al equipo de soporte de su organización.</p>
+          </div>
         </div>
       </div>
-      <button class="btn btn-primary full" type="submit">${IC.send} Enviar enlace al correo</button>
+      <div class="auth-recover-actions">
+        <button class="btn btn-primary full auth-recover-submit" type="submit">${IC.send} Enviar enlace al correo</button>
+      </div>
     </form>
   `;
 }
@@ -3257,6 +3539,15 @@ function bindAuthForms() {
   });
 
   if (login) {
+    const remembered = readRememberedLoginCredentials();
+    if (remembered) {
+      const em = login.querySelector("input[name='email']");
+      const pw = login.querySelector("input[name='password']");
+      const cb = login.querySelector("#login-remember-credentials");
+      if (em) em.value = remembered.email;
+      if (pw) pw.value = remembered.password;
+      if (cb) cb.checked = true;
+    }
     login.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (Date.now() < state.authSecurity.lockUntil) {
@@ -3309,6 +3600,8 @@ function bindAuthForms() {
               tokenIssuedAt: Date.now(),
               profileSnapshot: buildProfileSnapshotFromUserRow(userApi)
             });
+            if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
+            else clearRememberedLoginCredentials();
             hideAuth();
             startSessionSecurityWatch();
             renderPortal();
@@ -3359,6 +3652,8 @@ function bindAuthForms() {
         profileSnapshot: buildProfileSnapshotFromUserRow(user)
       });
       void tryApiLoginBridge(user, passwordRaw);
+      if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
+      else clearRememberedLoginCredentials();
       hideAuth();
       startSessionSecurityWatch();
       renderPortal();
@@ -5100,8 +5395,17 @@ function driversHtml() {
 }
 
 function transportTripsHtml() {
-  const rates = read(KEYS.tripRouteRates, {});
-  const rateEntries = Object.entries(rates).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const rates = getTripRouteRatesNormalized();
+  const companiesForRates = read(KEYS.companies, []);
+  const rateCompanyOptions = companiesForRates
+    .map(
+      (c) =>
+        `<option value="${escapeAttr(String(c.id || ""))}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`
+    )
+    .join("");
+  const rateEntries = Object.entries(rates)
+    .map(([storageKey, entry]) => ({ storageKey, ...entry, value: parseNum(entry.value) }))
+    .sort((a, b) => String(a.storageKey).localeCompare(String(b.storageKey)));
   const pendingForTrip = reqRead().filter(
     (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
   );
@@ -5131,18 +5435,26 @@ function transportTripsHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
 
-  const formatRateRowLabel = (key) => {
-    const [orig, dest] = String(key).split("->");
+  const formatRateRowLabel = (storageKey) => {
+    const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
+    const routeOnly = sepIdx === -1 ? String(storageKey) : String(storageKey).slice(0, sepIdx);
+    const [orig, dest] = String(routeOnly).split("->");
     const [od, oc] = String(orig || "").split("|");
     const [dd, dc] = String(dest || "").split("|");
     return `${escapeHtml(od || "-")} · ${escapeHtml(oc || "-")} → ${escapeHtml(dd || "-")} · ${escapeHtml(dc || "-")}`;
   };
+  const formatRateClientsLabel = (companyIds) => {
+    const ids = Array.isArray(companyIds) ? companyIds : [];
+    if (!ids.length) return '<span class="muted">Todos los clientes</span>';
+    return ids.map((id) => escapeHtml(getCompanyById(id)?.name || String(id))).join(", ");
+  };
   const ratesRows = rateEntries.length
     ? rateEntries
-        .map(([key, val]) => {
-          const safeKey = encodeURIComponent(key);
+        .map(({ storageKey, value: val, companyIds }) => {
+          const safeKey = encodeURIComponent(storageKey);
           return `<tr>
-          <td><strong>${formatRateRowLabel(key)}</strong></td>
+          <td><strong>${formatRateRowLabel(storageKey)}</strong></td>
+          <td>${formatRateClientsLabel(companyIds)}</td>
           <td><strong>$${parseNum(val).toLocaleString("es-CO")}</strong></td>
           <td><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}">${IC.trash} Quitar</button></td>
         </tr>`;
@@ -5150,7 +5462,7 @@ function transportTripsHtml() {
         .join("")
     : "";
   const ratesTable = ratesRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Trayecto</th><th>Tarifa (COP)</th><th></th></tr></thead><tbody>${ratesRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Trayecto</th><th>Clientes</th><th>Tarifa (COP)</th><th></th></tr></thead><tbody>${ratesRows}</tbody></table></div>`
     : emptyState("No hay tarifas por trayecto. Define rutas para autocompletar precios al asignar.");
 
   const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored">
@@ -5174,7 +5486,18 @@ function transportTripsHtml() {
         <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ej: 4200000" /></label>
       </div>
     </fieldset>
-    <p class="muted full legal-form-note">Misma combinacion origen/destino que en solicitudes de cliente. Si ya existe, se actualiza el valor.</p>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.briefcase} Clientes (negociación)</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.briefcase, "Aplicar a clientes (multi-selección)", { required: false })}
+          <select name="rateClientCompanies" id="route-rate-clients" multiple size="5" class="route-rate-clients-select">
+            ${rateCompanyOptions}
+          </select>
+        </label>
+        <p class="muted full" style="margin:0;line-height:1.45">Sin seleccionar ninguno: la tarifa vale para <strong>todos</strong> los clientes. Con una o varias empresas: solo autocompleta precio cuando la solicitud es de esa empresa. Use Ctrl o Cmd para elegir varios.</p>
+      </div>
+    </fieldset>
+    <p class="muted full legal-form-note">Misma combinación origen/destino que en solicitudes. Puede existir una tarifa general y otras por cliente; al asignar viaje se prioriza la tarifa del cliente si hay coincidencia.</p>
     <button class="btn btn-primary full" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
   </form>`;
 
@@ -7526,7 +7849,7 @@ function profileHtml(user) {
 function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const n = pendingUsers.length;
   const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
-  const body = n ? buildPortalRegistrationPendingTableHtml(pendingUsers) : emptyState("No hay registros de cliente pendientes de aprobación.");
+  const body = n ? `<div class="auth-queue-scroll">${buildPortalRegistrationPendingTableHtml(pendingUsers)}</div>` : emptyState("No hay registros de cliente pendientes de aprobación.");
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
         <div class="auth-queue-section-title-row">
@@ -7546,7 +7869,11 @@ function authorizationsHtml() {
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
   const rejectedCt = approvals.filter((a) => a.status === "rechazado").length;
   const pendingUsers = read(KEYS.users, []).filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
-  const totalOpen = pending.length + pendingUsers.length;
+  const pendingTransportRequests = sortAuthQueueByDateDesc(
+    reqRead().filter((r) => r.status === STATUS.PENDIENTE),
+    (r) => r.createdAt
+  );
+  const totalOpen = pending.length + pendingUsers.length + pendingTransportRequests.length;
 
   const groups = new Map();
   APPROVAL_UI_BLOCKS.forEach((b) => {
@@ -7560,41 +7887,22 @@ function authorizationsHtml() {
     groups.get(safeKey).push(a);
   });
 
+  ["portal_access", "transport_fleet", "workforce", "hr_absences", "payroll_pay", "misc"].forEach((gk) => {
+    const arr = groups.get(gk);
+    if (Array.isArray(arr) && arr.length > 1) {
+      arr.sort((a, b) => new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime());
+    }
+  });
+
   const authHero = moduleFleetHeroStrip([
     { label: "Pendientes (total)", value: totalOpen, tone: totalOpen ? "warn" : undefined },
-    { label: "Cola flujos internos", value: pending.length, tone: pending.length ? "warn" : undefined },
+    { label: "Solicitudes viaje", value: pendingTransportRequests.length, tone: pendingTransportRequests.length ? "warn" : undefined },
+    { label: "Cola interna", value: pending.length, tone: pending.length ? "warn" : undefined },
     { label: "Registros portal", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined }
   ]);
 
+  const transportSection = buildAuthorizationsTransportRequestsSection(pendingTransportRequests);
   const portalRegHtml = buildAuthorizationsPortalRegistrationsSection(pendingUsers);
-
-  const mainSectionsHtml = APPROVAL_UI_BLOCKS.map((section) => {
-    if (section.kind === "info") {
-      return `<section class="auth-queue-section auth-queue-section--info" data-auth-section="${section.key}">
-      <header class="auth-queue-section-head">
-        <h3 class="auth-queue-section-title">${section.title}</h3>
-        <p class="muted auth-queue-section-desc">${section.description}</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
-      </header>
-    </section>`;
-    }
-    const rows = groups.get(section.key) || [];
-    const countBadge = `<span class="auth-section-count">${rows.length} pendiente(s)</span>`;
-    const tableOrEmpty = rows.length
-      ? buildPendingApprovalsTableHtml(rows)
-      : emptyState("No hay autorizaciones pendientes en esta categoría.");
-    return `<section class="auth-queue-section" data-auth-section="${section.key}" aria-label="${escapeAttr(section.title)}">
-      <header class="auth-queue-section-head">
-        <div class="auth-queue-section-title-row">
-          <h3 class="auth-queue-section-title">${section.title}</h3>
-          ${countBadge}
-        </div>
-        <p class="muted auth-queue-section-desc">${section.description}</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
-      </header>
-      <div class="auth-queue-section-body">${tableOrEmpty}</div>
-    </section>`;
-  }).join("");
 
   const miscRows = groups.get("misc") || [];
   const miscSectionHtml =
@@ -7611,26 +7919,86 @@ function authorizationsHtml() {
     </section>`
       : "";
 
+  const tabDefs = [
+    { id: "transport_requests", label: "Solicitudes", count: pendingTransportRequests.length, html: transportSection },
+    { id: "portal_registrations", label: "Clientes web", count: pendingUsers.length, html: portalRegHtml }
+  ];
+  APPROVAL_UI_BLOCKS.forEach((section) => {
+    if (section.kind !== "queue") return;
+    const rows = groups.get(section.key) || [];
+    const countBadge = `<span class="auth-section-count">${rows.length} pendiente(s)</span>`;
+    const tableOrEmpty = rows.length
+      ? buildPendingApprovalsTableHtml(rows)
+      : emptyState("No hay autorizaciones pendientes en esta categoría.");
+    const html = `<section class="auth-queue-section" data-auth-section="${section.key}" aria-label="${escapeAttr(section.title)}">
+      <header class="auth-queue-section-head">
+        <div class="auth-queue-section-title-row">
+          <h3 class="auth-queue-section-title">${section.title}</h3>
+          ${countBadge}
+        </div>
+        <p class="muted auth-queue-section-desc">${section.description}</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
+      </header>
+      <div class="auth-queue-section-body"><div class="auth-queue-scroll">${tableOrEmpty}</div></div>
+    </section>`;
+    tabDefs.push({
+      id: section.key,
+      label: AUTH_QUEUE_SHORT_TAB_LABELS[section.key] || section.title,
+      count: rows.length,
+      html
+    });
+  });
+  if (miscRows.length) {
+    tabDefs.push({ id: "misc", label: "Otras colas", count: miscRows.length, html: miscSectionHtml });
+  }
+
+  const tabBar = `<div class="auth-tabs-bar" data-auth-tabs-bar role="tablist">${tabDefs
+    .map(
+      (t, i) =>
+        `<button type="button" role="tab" class="auth-tab-btn ${i === 0 ? "is-active" : ""}" data-auth-tab="${escapeAttr(
+          t.id
+        )}" aria-selected="${i === 0 ? "true" : "false"}">${escapeHtml(t.label)} <span class="auth-tab-badge">${t.count}</span></button>`
+    )
+    .join("")}</div>`;
+  const tabPanels = `<div class="auth-tab-panels">${tabDefs
+    .map(
+      (t, i) =>
+        `<div class="auth-tab-panel ${i === 0 ? "is-active" : ""}" data-auth-panel="${escapeAttr(t.id)}" role="tabpanel" ${i === 0 ? "" : "hidden"}>${t.html}</div>`
+    )
+    .join("")}</div>`;
+  const tabsWrap = `<div class="auth-tabs-layout">${tabBar}${tabPanels}</div>`;
+
+  const infoSectionsHtml = APPROVAL_UI_BLOCKS.filter((s) => s.kind === "info")
+    .map(
+      (section) =>
+        `<section class="auth-queue-section auth-queue-section--info" data-auth-section="${section.key}">
+      <header class="auth-queue-section-head">
+        <h3 class="auth-queue-section-title">${section.title}</h3>
+        <p class="muted auth-queue-section-desc">${section.description}</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
+      </header>
+    </section>`
+    )
+    .join("");
+
   const catalogItems = [
-    "<strong>Registro de clientes (este módulo)</strong>: aprobación de cuentas creadas desde el sitio web; asignación de empresa y rol.",
-    "<strong>Solicitudes de viaje</strong>: seguimiento en <strong>Mis solicitudes</strong> y operación en <strong>Transporte · Viajes</strong> u otros módulos de la sección.",
-    "<strong>Usuarios y permisos</strong>: alta de usuario interno cuando quien guarda no es administrador (cola en «Acceso y usuarios del portal»).",
-    "<strong>Conductores</strong>: alta de conductor cuando quien guarda no es administrador.",
-    "<strong>Nómina / nuevo empleado</strong>: ficha de colaborador cuando quien guarda no es administrador.",
-    "<strong>Cumplimiento laboral y SST</strong>: registro de ausencia cuando el rol es RRHH o administrativo.",
-    "<strong>Nómina / liquidaciones</strong>: marcar pago de liquidación con roles administrativos (doble control).",
-    "<strong>Nota</strong>: la cola interna (<code>antares_approvals_v2</code>) es distinta del registro en PostgreSQL para clientes nuevos; ambas se atienden aquí por secciones."
+    "<strong>Solicitudes de transporte (pestaña Solicitudes)</strong>: aprobar o rechazar con el mismo flujo que en el módulo Solicitudes; ordenadas con lo más reciente primero.",
+    "<strong>Registro de clientes (pestaña Clientes web)</strong>: cuentas desde el sitio público; asignación de empresa y rol.",
+    "<strong>Colas internas</strong>: alta de usuario, conductor, empleado, ausencias y pagos cuando quien guarda no es administrador.",
+    "<strong>Nota</strong>: la cola en disco (<code>antares_approvals_v2</code>) es distinta del registro en PostgreSQL para clientes nuevos; ambas se atienden aquí."
   ]
     .map((li) => `<li>${li}</li>`)
     .join("");
 
   const catalogHtml = `<details class="auth-flow-catalog">
     <summary class="auth-flow-catalog-summary">Inventario de flujos que requieren validación administrativa</summary>
-    <p class="muted auth-flow-catalog-lead">Registros de portal y cola interna por ámbito. Cada bloque tiene un color de referencia para ubicar el origen del trámite.</p>
+    <p class="muted auth-flow-catalog-lead">Use las pestañas para cambiar de cola sin desplazarse por toda la página.</p>
     <ul class="auth-flow-catalog-list">${catalogItems}</ul>
   </details>`;
 
-  const bodyInner = `${portalRegHtml}${mainSectionsHtml}${miscSectionHtml}${catalogHtml}`;
+  const bodyInner = `${tabsWrap}${
+    infoSectionsHtml ? `<div class="auth-info-blocks">${infoSectionsHtml}</div>` : ""
+  }${catalogHtml}`;
   return authHero + pcardWrap("shield", "Autorizaciones", `${totalOpen} pendiente(s) · Cola interna: ${approvedCt} aprob. / ${rejectedCt} rech. histórico`, bodyInner);
 }
 
@@ -8050,6 +8418,45 @@ function buildContractDocxTestPayload(templateKind) {
     cargo_empleado: kind === "prestacion" ? "Conductor nacional (ejemplo C2)" : "Auxiliar administrativo (ejemplo)",
     signDate: today
   };
+}
+
+function mountAuthorizationsTabs() {
+  const shell = nodes.viewRoot && nodes.viewRoot.querySelector('.module-shell[data-module-view="authorizations"]');
+  if (!shell) return;
+  const bar = shell.querySelector("[data-auth-tabs-bar]");
+  if (!bar) return;
+  const activate = (id) => {
+    const sid = String(id || "");
+    bar.querySelectorAll("[data-auth-tab]").forEach((btn) => {
+      const on = String(btn.getAttribute("data-auth-tab") || "") === sid;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    shell.querySelectorAll("[data-auth-panel]").forEach((panel) => {
+      const on = String(panel.getAttribute("data-auth-panel") || "") === sid;
+      panel.classList.toggle("is-active", on);
+      if (on) panel.removeAttribute("hidden");
+      else panel.setAttribute("hidden", "");
+    });
+    try {
+      localStorage.setItem("antares_auth_tab", sid);
+    } catch (_) {}
+  };
+  bar.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-auth-tab]");
+    if (!btn || !bar.contains(btn)) return;
+    e.preventDefault();
+    activate(btn.getAttribute("data-auth-tab"));
+  });
+  let initial =
+    bar.querySelector(".auth-tab-btn.is-active")?.getAttribute("data-auth-tab") ||
+    bar.querySelector("[data-auth-tab]")?.getAttribute("data-auth-tab") ||
+    "";
+  try {
+    const saved = localStorage.getItem("antares_auth_tab");
+    if (saved && shell.querySelector(`[data-auth-panel="${saved}"]`)) initial = saved;
+  } catch (_) {}
+  if (initial) activate(initial);
 }
 
 function bindDynamicEvents() {
@@ -9025,11 +9432,12 @@ function bindDynamicEvents() {
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
       const driverCandidates = getDriverCandidatesForRequest(request, requestId);
-      const configuredTripValue = getConfiguredTripValue(request);
+      const tripRateUi = buildTripRateModalFields(request, { required: false });
       openEditModal({
         title: "Aprobar solicitud",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
         submitText: "Confirmar aprobacion",
+        afterMount: tripRateUi.afterMount,
         fields: [
           {
             name: "mode",
@@ -9068,13 +9476,7 @@ function bindDynamicEvents() {
               }))
             ]
           },
-          {
-            name: "tripValue",
-            label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
-            type: "number",
-            required: false,
-            value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
-          }
+          ...tripRateUi.fields
         ],
         onSubmit: (form) => {
           const selectedMode = String(form.mode || "pending");
@@ -9121,7 +9523,7 @@ function bindDynamicEvents() {
         message: "Esta ruta dejara de sugerir precio al asignar viajes.",
         confirmText: "Quitar tarifa",
         onConfirm: () => {
-          const rates = read(KEYS.tripRouteRates, {});
+          const rates = getTripRouteRatesNormalized();
           delete rates[key];
           write(KEYS.tripRouteRates, rates);
           notify(userMessage("routeRateDeleted"), "success");
@@ -9168,11 +9570,12 @@ function bindDynamicEvents() {
       }
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
-      const configuredTripValue = getConfiguredTripValue(request);
+      const tripRateUi = buildTripRateModalFields(request, { required: true });
       openEditModal({
         title: "Asignar viaje",
         subtitle: `${request.requestNumber || request.id} · ${request.vehicleType}`,
         submitText: "Crear viaje",
+        afterMount: tripRateUi.afterMount,
         fields: [
           {
             name: "vehicleId",
@@ -9198,13 +9601,7 @@ function bindDynamicEvents() {
               }))
               : [{ value: "", label: "No hay conductores compatibles disponibles" }]
           },
-          {
-            name: "tripValue",
-            label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
-            type: "number",
-            required: true,
-            value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
-          }
+          ...tripRateUi.fields
         ],
         onSubmit: (form) => {
           if (!compatibleVehicles.length || !compatibleDrivers.length) {
@@ -9256,6 +9653,9 @@ function bindDynamicEvents() {
     routeRateFormEl.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(routeRateFormEl).entries());
+      const companyIds = [...new FormData(routeRateFormEl).getAll("rateClientCompanies")]
+        .map((v) => String(v || "").trim())
+        .filter(Boolean);
       const od = String(data.originDepartment || "").trim();
       const oc = String(data.originCity || "").trim();
       const dd = String(data.destinationDepartment || "").trim();
@@ -9269,8 +9669,10 @@ function bindDynamicEvents() {
         notify(userMessage("routeRateInvalidCop"), "error");
         return;
       }
-      const key = buildTripRouteRateKey(od, oc, dd, dc);
-      const next = { ...read(KEYS.tripRouteRates, {}), [key]: tripRateCop };
+      const routeKey = buildTripRouteRateKey(od, oc, dd, dc);
+      const normalized = getTripRouteRatesNormalized();
+      const storageKey = tripRateStorageKey(routeKey, companyIds);
+      const next = { ...normalized, [storageKey]: { value: tripRateCop, companyIds } };
       write(KEYS.tripRouteRates, next);
       notify(userMessage("routeRateSaved"), "success");
       renderPortalView();
@@ -11036,12 +11438,13 @@ function bindDynamicEvents() {
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
         const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
         const driverCandidates = getDriverCandidatesForRequest(request, requestId);
-        const configuredTripValue = getConfiguredTripValue(request);
+        const tripRateUi = buildTripRateModalFields(request, { required: false });
 
         openEditModal({
           title: "Aprobar solicitud de viaje",
           subtitle: "Puedes asignar camion y conductor ahora, o dejar pendiente para asignacion manual.",
           submitText: "Aprobar",
+          afterMount: tripRateUi.afterMount,
           fields: [
             {
               name: "vehicleId",
@@ -11067,13 +11470,7 @@ function bindDynamicEvents() {
                 }))
               ]
             },
-            {
-              name: "tripValue",
-              label: configuredTripValue > 0 ? "Precio del viaje (COP) · autocompletado por trayecto" : "Precio del viaje (COP)",
-              type: "number",
-              required: false,
-              value: configuredTripValue > 0 ? configuredTripValue : parseNum(request.tripValue || 0)
-            }
+            ...tripRateUi.fields
           ],
           onSubmit: (form) => {
             const vehicleId = String(form.vehicleId || "").trim();
@@ -11223,6 +11620,8 @@ function bindDynamicEvents() {
       }
     });
   });
+
+  mountAuthorizationsTabs();
 }
 
 function initGlobalEvents() {

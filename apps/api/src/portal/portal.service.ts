@@ -584,14 +584,21 @@ export class PortalService {
 
   private async loadTripRouteRates() {
     const r = await this.pool.query(
-      `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino, valor_tarifa_cop
+      `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+              valor_tarifa_cop, ids_empresas
        FROM tarifas_trayecto WHERE activo = true`
     );
-    const out: Record<string, number> = {};
+    const out: Record<string, { value: number; companyIds: string[] }> = {};
+    const SEP = "@@";
     for (const row of r.rows) {
       const o = `${String(row.departamento_origen || "").trim()}|${String(row.ciudad_origen || "").trim()}`.toLowerCase();
       const d = `${String(row.departamento_destino || "").trim()}|${String(row.ciudad_destino || "").trim()}`.toLowerCase();
-      out[`${o}->${d}`] = Number(row.valor_tarifa_cop);
+      const routeKey = `${o}->${d}`;
+      const rawIds = row.ids_empresas as string[] | null;
+      const companyIds = Array.isArray(rawIds) ? rawIds.map((id) => String(id)) : [];
+      const suffix = companyIds.length ? companyIds.slice().sort().join(",") : "*";
+      const storageKey = `${routeKey}${SEP}${suffix}`;
+      out[storageKey] = { value: Number(row.valor_tarifa_cop), companyIds };
     }
     return out;
   }
@@ -2272,19 +2279,56 @@ export class PortalService {
 
   private async syncTripRouteRates(c: PoolClient, data: unknown) {
     if (!data || typeof data !== "object") throw new ForbiddenException();
-    for (const [keyStr, val] of Object.entries(data as Record<string, number>)) {
-      const parts = String(keyStr).split("->");
-      if (parts.length !== 2) continue;
+    const SEP = "@@";
+    await c.query(`DELETE FROM tarifas_trayecto`);
+
+    const parseEntry = (
+      keyStr: string,
+      valRaw: unknown
+    ): { od: string; oc: string; dd: string; dc: string; cop: number; companyIds: string[] } | null => {
+      let routePart = String(keyStr || "");
+      let companyIds: string[] = [];
+      const sepIdx = routePart.lastIndexOf(SEP);
+      if (sepIdx !== -1) {
+        const scope = routePart.slice(sepIdx + SEP.length);
+        routePart = routePart.slice(0, sepIdx);
+        if (scope && scope !== "*") {
+          companyIds = scope
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+      }
+      const parts = routePart.split("->");
+      if (parts.length !== 2) return null;
       const [oa, da] = parts;
       const [od, oc] = String(oa).split("|");
       const [dd, dc] = String(da).split("|");
+
+      let cop = 0;
+      if (typeof valRaw === "number") cop = Number(valRaw);
+      else if (valRaw && typeof valRaw === "object" && !Array.isArray(valRaw)) {
+        const v = (valRaw as { value?: unknown; companyIds?: unknown }).value;
+        const ids = (valRaw as { companyIds?: unknown }).companyIds;
+        cop = Number(v) || 0;
+        if (Array.isArray(ids) && ids.length) {
+          companyIds = ids.map((x) => String(x)).filter(Boolean);
+        }
+      }
+      if (!(cop > 0)) return null;
+      return { od: od || "", oc: oc || "", dd: dd || "", dc: dc || "", cop, companyIds };
+    };
+
+    for (const [keyStr, valRaw] of Object.entries(data as Record<string, unknown>)) {
+      const row = parseEntry(keyStr, valRaw);
+      if (!row) continue;
+      const idsPg = row.companyIds.length ? row.companyIds : null;
       await c.query(
         `INSERT INTO tarifas_trayecto (
-          departamento_origen, ciudad_origen, departamento_destino, ciudad_destino, valor_tarifa_cop, activo
-        ) VALUES ($1, $2, $3, $4, $5, true)
-        ON CONFLICT (departamento_origen, ciudad_origen, departamento_destino, ciudad_destino)
-        DO UPDATE SET valor_tarifa_cop = EXCLUDED.valor_tarifa_cop`,
-        [od || "", oc || "", dd || "", dc || "", Number(val) || 0]
+          departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+          valor_tarifa_cop, ids_empresas, activo
+        ) VALUES ($1, $2, $3, $4, $5, $6::uuid[], true)`,
+        [row.od, row.oc, row.dd, row.dc, row.cop, idsPg]
       );
     }
   }

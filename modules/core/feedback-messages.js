@@ -37,11 +37,11 @@
     registerDocExists: "Ya hay un registro con ese tipo y número de documento.",
     registerPersonalDocExists:
       "Ya existe un usuario con ese documento personal (cédula). Cada persona solo puede registrarse una vez.",
-    recoverNoUser: "No hay ningún usuario registrado con ese correo.",
+    recoverNoUser: "No consta ningún usuario registrado con ese correo en el sistema.",
     recoverSent:
-      "Si el correo existe, recibirá instrucciones. De lo contrario, contacte a un administrador.",
+      "Si la dirección indicada corresponde a una cuenta registrada, recibirá las instrucciones en su bandeja en los próximos minutos. Si no recibe nada, revise el correo escrito o consulte con el administrador del portal.",
     recoverSentSupabase:
-      "Si el correo corresponde a una cuenta autorizada, recibirá un mensaje con el enlace para restablecer la contraseña. Revise la bandeja de entrada y la carpeta de spam.",
+      "Si el correo está asociado a una cuenta autorizada, recibirá un mensaje con un enlace seguro para restablecer su contraseña. Revise la bandeja de entrada y, de ser necesario, la carpeta de correo no deseado o spam.",
     recoverSupabaseError: "No se pudo enviar el correo de recuperación. Intente de nuevo o contacte a soporte.",
     recoverSupabaseUnavailable:
       "No se pudo iniciar la recuperación desde el navegador. Actualice la página y compruebe su conexión, o solicite asistencia a soporte.",
