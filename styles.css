@@ -2662,7 +2662,8 @@ tbody tr:last-child td { border-bottom: none; }
   position: fixed;
   top: 1rem;
   right: 1rem;
-  z-index: 120;
+  /* Por encima de .modal (400), drawer y banners — los avisos deben verse siempre */
+  z-index: 100000;
   display: grid;
   gap: 0.6rem;
   width: min(360px, 92vw);

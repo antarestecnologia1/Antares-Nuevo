@@ -1563,6 +1563,25 @@ function uid() {
   return Math.random().toString(36).slice(2, 11);
 }
 
+/** UUID v4 para entidades que persisten en PostgreSQL (empresas, etc.). */
+function newUuidV4() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+const UUID_V4_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuidString(value) {
+  return typeof value === "string" && UUID_V4_RE.test(value.trim());
+}
+
 /**
  * Registro teléfono: países principales (Colombia siempre primero = opción por defecto).
  * `flag`: sufijo CSS `.register-lang-flag--*` (gradientes locales, sin red).
@@ -7843,7 +7862,7 @@ function bindDynamicEvents() {
 
   const adminCompanyCreate = document.getElementById("form-admin-company-create");
   if (adminCompanyCreate) {
-    adminCompanyCreate.addEventListener("submit", (event) => {
+    adminCompanyCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
       const nitValidation = validateColombianDocument("NIT", data.taxId);
@@ -7866,13 +7885,28 @@ function bindDynamicEvents() {
         return;
       }
       companies.push({
-        id: uid(),
+        id: newUuidV4(),
         name: String(data.name || "").trim(),
         taxId: nitValidation.normalized,
         phone: companyPhone,
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
+      const api = window.AntaresApi;
+      if (api?.isConfigured?.() && typeof api.postJson === "function") {
+        try {
+          await api.postJson("/portal/sync-key", { key: "companies", data: read(KEYS.companies, []) });
+        } catch (err) {
+          notify(
+            String(
+              err?.message ||
+                "La empresa no se pudo guardar en el servidor (revise UUID y conexión). Corrija y reintente."
+            ),
+            "error"
+          );
+          return;
+        }
+      }
       notify(userMessage("companyCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "" };
       renderPortalView();
@@ -8016,9 +8050,20 @@ function bindDynamicEvents() {
       const users = read(KEYS.users, []);
       const target = users.find((u) => u.id === userId);
       if (!target) return;
-      const companies = read(KEYS.companies, []);
+      const companiesAll = read(KEYS.companies, []);
+      const apiOn = Boolean(window.AntaresApi?.isConfigured?.());
+      const companies = apiOn
+        ? companiesAll.filter((c) => isUuidString(String(c.id || "")))
+        : companiesAll;
       if (!companies.length) {
-        notify(userMessage("noCompaniesForUser"), "error");
+        if (apiOn && companiesAll.length) {
+          notify(
+            "Las empresas en lista no tienen id compatible con el servidor (deben ser UUID). Registre la empresa de nuevo con «Nueva empresa» o cargue datos desde el servidor.",
+            "error"
+          );
+        } else {
+          notify(userMessage("noCompaniesForUser"), "error");
+        }
         return;
       }
       openEditModal({
@@ -8031,7 +8076,10 @@ function bindDynamicEvents() {
             label: "Empresa a asociar",
             type: "select",
             required: true,
-            value: target.companyId || "",
+            value:
+              target.companyId && (!apiOn || isUuidString(String(target.companyId)))
+                ? target.companyId
+                : "",
             options: companies.map((c) => ({ value: c.id, label: `${c.name} (${c.taxId || "Sin NIT"})` }))
           },
           {

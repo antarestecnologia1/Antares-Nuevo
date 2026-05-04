@@ -8,6 +8,10 @@ import type { PortalSyncKey } from "./dto/sync-key.dto";
 
 type JwtRole = string;
 
+/** UUID v4 — mismas entradas que acepta PostgreSQL al castear ::uuid */
+const PG_UUID_V4_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /** Igual que `defaultPermissionsForRole` / ALL_PERMISSIONS en app.js */
 const ALL_PORTAL_PERMISSIONS: string[] = [
   "dashboard_view",
@@ -231,6 +235,15 @@ export class PortalService {
     const rolDb = String(role || "client").trim().toLowerCase();
     if (!cid || !tid) throw new BadRequestException("Usuario y empresa son obligatorios");
     if (!APPROVE_VALID_ROLES.has(rolDb)) throw new BadRequestException("Rol no permitido para esta operación");
+
+    if (!PG_UUID_V4_RE.test(cid)) {
+      throw new BadRequestException(
+        "El id de empresa no es un UUID válido. Cree la empresa de nuevo desde el panel con la sesión iniciada en el servidor, para que se guarde en la tabla empresas."
+      );
+    }
+    if (!PG_UUID_V4_RE.test(tid)) {
+      throw new BadRequestException("El id de usuario no es un UUID válido.");
+    }
 
     const empRes = await this.pool.query<{ nombre: string }>(`SELECT nombre FROM empresas WHERE id = $1::uuid`, [cid]);
     if (!empRes.rowCount) throw new BadRequestException("Empresa no encontrada");
@@ -1241,11 +1254,13 @@ export class PortalService {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const row of data) {
       if (!row?.id) continue;
+      const id = String(row.id).trim();
+      if (!PG_UUID_V4_RE.test(id)) continue;
       await c.query(
         `INSERT INTO empresas (id, nombre, nit, telefono)
          VALUES ($1::uuid, $2, $3, $4)
          ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, nit = EXCLUDED.nit, telefono = EXCLUDED.telefono`,
-        [row.id, row.name, row.nit, row.phone || null]
+        [id, row.name, row.nit, row.phone || null]
       );
     }
   }
