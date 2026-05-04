@@ -27,7 +27,8 @@
     registerBirthInvalid: "La fecha de nacimiento no es válida.",
     registerMinor: "Debe ser mayor de edad para registrarse.",
     registerServerError: "No se pudo completar el registro en el servidor.",
-    registerSuccess: "Registro enviado. Un administrador revisará su cuenta.",
+    registerSuccess:
+      "¡Bienvenido a Transportes Antares! Su cuenta fue creada. Un administrador debe aprobarla antes de que pueda iniciar sesión. Revise su correo para más detalles.",
     registerEmailExists: "Ya existe un usuario con ese correo.",
     registerDocExists: "Ya hay un registro con ese tipo y número de documento.",
     registerPersonalDocExists:

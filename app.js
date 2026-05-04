@@ -2694,7 +2694,7 @@ function authView() {
     return `
       <div class="auth-header-premium">
         <h3>Registro de cliente empresarial</h3>
-        <p class="muted">Complete su perfil. <strong>Solo un administrador</strong> puede revisar y aprobar el acceso; hasta entonces no podrá iniciar sesión.</p>
+        <p class="muted">Le damos la bienvenida. Complete sus datos con cuidado: un <strong>administrador del sistema</strong> debe revisar y aprobar su cuenta antes de que pueda ingresar al portal. Tras enviar el formulario recibirá un correo con la confirmación y el estado de su solicitud.</p>
       </div>
       <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
         <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" /></label>

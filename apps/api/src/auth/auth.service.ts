@@ -168,7 +168,7 @@ export class AuthService {
     return {
       pendingApproval: true,
       message:
-        "Registro recibido. Tu cuenta está pendiente de aprobación; no podrás iniciar sesión hasta que un administrador la active en la base de datos."
+        "¡Bienvenido a Transportes Antares! Su cuenta fue creada con éxito. Para ingresar al portal, un usuario administrador debe aprobarla antes; hasta entonces no podrá iniciar sesión. Revise su correo electrónico: le enviamos un mensaje de bienvenida con el estado de su solicitud y un enlace al sitio."
     };
   }
 
@@ -438,7 +438,7 @@ export class AuthService {
       return {
         pendingApproval: true,
         message:
-          "Registro recibido. Tu cuenta está pendiente de aprobación; no podrás iniciar sesión hasta que un administrador la active."
+          "¡Bienvenido a Transportes Antares! Su cuenta fue creada con éxito. Para ingresar al portal, un usuario administrador debe aprobarla antes; hasta entonces no podrá iniciar sesión. Revise su correo electrónico: le enviamos un mensaje de bienvenida con el estado de su solicitud y un enlace al sitio."
       };
     } catch (err: any) {
       if (supabaseUserCreated && authUserId) {
