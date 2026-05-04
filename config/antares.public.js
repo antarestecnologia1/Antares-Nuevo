@@ -25,4 +25,10 @@
   "use strict";
   // Producción (Render API). Debe ser base sin sufijo /api.
   window.__ANTARES_API_BASE__ = "https://antares-nuevo.onrender.com";
+  /**
+   * Origen público del portal (https://dominio, sin barra final). Debe coincidir con PORTAL_PUBLIC_URL en la API
+   * y con una URL permitida en el proveedor de autenticación (redirects). Si no se define, el enlace de
+   * recuperación de contraseña tomará el host de la página actual (puede ser localhost en desarrollo).
+   */
+  window.__PORTAL_PUBLIC_ORIGIN__ = "https://www.transportesantares.co";
 })();

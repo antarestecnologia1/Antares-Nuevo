@@ -116,6 +116,8 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly supabaseAdmin;
+  /** Cliente para `signInWithOtp` (correo enviado por GoTrue). Prefiere anon key si existe. */
+  private readonly supabaseOtpMailer: ReturnType<typeof createClient> | null;
   private readonly supabaseEnabled: boolean;
 
   constructor(
@@ -128,6 +130,13 @@ export class AuthService {
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
     this.supabaseEnabled = Boolean(url && key);
     this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
+    const anonKey = (
+      this.config.get<string>("SUPABASE_ANON_KEY") ??
+      this.config.get<string>("NEXT_PUBLIC_SUPABASE_ANON_KEY") ??
+      ""
+    ).trim();
+    this.supabaseOtpMailer =
+      this.supabaseEnabled && url ? createClient(url, anonKey || key) : null;
   }
 
   /** Sin Postgres no hay registro ni sesión (solo JWT es insuficiente). */
@@ -169,7 +178,7 @@ export class AuthService {
     return {
       pendingApproval: true,
       message:
-        "¡Bienvenido a Transportes Antares! Su cuenta fue creada con éxito. Para ingresar al portal, un usuario administrador debe aprobarla antes; hasta entonces no podrá iniciar sesión. Revise su correo electrónico: le enviamos un mensaje de bienvenida con el estado de su solicitud y un enlace al sitio."
+        "Su solicitud de registro fue recibida correctamente. Un administrador revisará y aprobará su cuenta antes de que pueda ingresar al portal. Hemos enviado un correo a la dirección indicada con la confirmación y el enlace al sitio; si no lo recibe en unos minutos, revise spam o filtros de su organización."
     };
   }
 
@@ -439,7 +448,7 @@ export class AuthService {
       return {
         pendingApproval: true,
         message:
-          "¡Bienvenido a Transportes Antares! Su cuenta fue creada con éxito. Para ingresar al portal, un usuario administrador debe aprobarla antes; hasta entonces no podrá iniciar sesión. Revise su correo electrónico: le enviamos un mensaje de bienvenida con el estado de su solicitud y un enlace al sitio."
+          "Su solicitud de registro fue recibida correctamente. Un administrador revisará y aprobará su cuenta antes de que pueda ingresar al portal. Hemos enviado un correo a la dirección indicada con la confirmación y el enlace al sitio; si no lo recibe en unos minutos, revise spam o filtros de su organización."
       };
     } catch (err: any) {
       if (supabaseUserCreated && authUserId) {
@@ -638,7 +647,7 @@ export class AuthService {
     );
     if (!r.rowCount) {
       throw new BadRequestException(
-        "No hay una cuenta de portal asociada a este correo. Si es un usuario antiguo sin Supabase Auth, contacte al administrador."
+        "No hay una cuenta de portal asociada a este correo. Si su acceso es antiguo, contacte al administrador."
       );
     }
 
@@ -692,12 +701,12 @@ export class AuthService {
       this.logger.warn(`resetPasswordForEmail(${email}): ${error.message}`);
       throw new BadRequestException(
         mapped ||
-          `${error.message}. Revise en Supabase → Authentication → Users que exista el correo y que el envío de correo esté configurado.`
+          "No se pudo completar la solicitud de recuperación en este momento. Intente más tarde o contacte a soporte."
       );
     }
     return {
       message:
-        "Hemos solicitado el correo de recuperación. Abra el enlace que envía Supabase (revise spam). Si no llega en unos minutos, verifique Authentication → Users."
+        "Le hemos enviado las instrucciones a su correo, siempre que la cuenta exista y esté autorizada. Revise la bandeja de entrada y la carpeta de spam; el enlace tiene vigencia limitada."
     };
   }
 
@@ -757,6 +766,17 @@ export class AuthService {
     try {
       const u = new URL(raw);
       if (u.protocol !== "http:" && u.protocol !== "https:") return fallback;
+      const host = u.hostname.toLowerCase();
+      if (
+        host === "localhost" ||
+        host.endsWith(".localhost") ||
+        host === "127.0.0.1" ||
+        host === "0.0.0.0" ||
+        host === "[::1]" ||
+        host === "::1"
+      ) {
+        return fallback;
+      }
       return u.href;
     } catch {
       return fallback;
@@ -767,7 +787,7 @@ export class AuthService {
     const m = String(message || "").toLowerCase();
     if (!m) return null;
     if (/user not found|email address not found|no user|user does not exist|invalid login credentials/i.test(m)) {
-      return "Ese correo no aparece en Supabase Authentication (solo en la base no basta). Cree el usuario en Auth o registre de nuevo el acceso desde el portal aprobado.";
+      return "No encontramos una cuenta autorizada para recuperación con ese correo. Verifique la dirección o contacte a soporte.";
     }
     return null;
   }
@@ -810,15 +830,78 @@ export class AuthService {
         this.config.get<string>("PUBLIC_PORTAL_URL") ??
         "https://www.transportesantares.co"
       ).trim();
-      await this.mail.sendPortalRegistrationWelcome({
-        to: email,
-        recipientName: displayName,
-        portalUrl,
-        accountApproved: approved
-      });
+
+      let sent = false;
+      if (this.mail.hasResend()) {
+        try {
+          await this.mail.sendPortalRegistrationWelcome({
+            to: email,
+            recipientName: displayName,
+            portalUrl,
+            accountApproved: approved
+          });
+          sent = true;
+        } catch (resendErr) {
+          const msg = resendErr instanceof Error ? resendErr.message : String(resendErr);
+          this.logger.warn(`Bienvenida Resend falló (${email}), probando Supabase: ${msg}`);
+        }
+      }
+
+      if (!sent) {
+        await this.sendRegistrationWelcomeViaSupabaseMagicLink(email, portalUrl, userId);
+      }
     } catch (e) {
       const detail = e instanceof Error ? e.stack || e.message : String(e);
       this.logger.error(`Correo de bienvenida no enviado (${email}): ${detail}`);
+    }
+  }
+
+  /**
+   * Misma tubería que recuperación: correo saliente de Supabase Auth (SMTP del proyecto).
+   * Envía magic link al portal; plantilla «Magic Link» en Authentication → Email Templates.
+   */
+  private async sendRegistrationWelcomeViaSupabaseMagicLink(
+    email: string,
+    portalUrl: string,
+    userId: string
+  ): Promise<void> {
+    if (!this.supabaseAdmin || !this.supabaseOtpMailer) {
+      this.logger.warn(
+        `Bienvenida sin Resend y sin Supabase completo: no se envía magic link a ${email}. Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (+ opcional SUPABASE_ANON_KEY).`
+      );
+      return;
+    }
+    try {
+      try {
+        await this.provisionSupabaseAuthUserForApprovedPortal(email, userId);
+      } catch (provErr) {
+        const msg = provErr instanceof Error ? provErr.message : String(provErr);
+        this.logger.warn(`Bienvenida Supabase: aprovisionamiento Auth omitido o fallido (${email}): ${msg}`);
+      }
+
+      const emailRedirectTo = this.resolvePasswordRecoveryRedirect(portalUrl);
+      const { error } = await this.supabaseOtpMailer.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo,
+          shouldCreateUser: false
+        }
+      });
+      if (error) {
+        const em = String(error.message || "").toLowerCase();
+        if (/user not found|signups not allowed|not authorized|otp disabled/i.test(em)) {
+          this.logger.warn(
+            `signInWithOtp bienvenida (${email}): ${error.message}. Revise en Supabase «Enable email confirmations» / plantilla Magic Link y URL en redirect allow list.`
+          );
+        } else {
+          this.logger.warn(`signInWithOtp bienvenida (${email}): ${error.message}`);
+        }
+        return;
+      }
+      this.logger.log(`Correo de bienvenida (magic link Supabase) encolado/enviado a ${email}`);
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`Bienvenida vía Supabase falló (${email}): ${detail}`);
     }
   }
 

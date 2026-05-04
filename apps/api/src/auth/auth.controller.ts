@@ -33,8 +33,8 @@ export class AuthController {
   }
 
   /**
-   * Solicita el correo de recuperación vía Supabase Auth (evita depender del cliente JS/esm.sh en el navegador).
-   * Comprueba que exista fila aprobada en `usuarios`.
+   * Solicita el correo de recuperación por el servidor (no depende del flujo en el navegador).
+   * Exige cuenta aprobada en `usuarios`.
    */
   @HttpCode(200)
   @Post("password-recovery/request")
@@ -43,8 +43,8 @@ export class AuthController {
   }
 
   /**
-   * Tras abrir el enlace del correo de Supabase (recuperación), el cliente envía el access_token
-   * de esa sesión y la nueva contraseña. Se alinea Supabase Auth y hash_contrasena en public.usuarios.
+   * Tras abrir el enlace del correo de recuperación, el cliente envía el access_token de esa sesión
+   * y la nueva contraseña para alinear el proveedor de autenticación y `hash_contrasena` en `usuarios`.
    */
   @HttpCode(200)
   @Post("password-recovery/complete")

@@ -28,7 +28,11 @@
     registerMinor: "Debe ser mayor de edad para registrarse.",
     registerServerError: "No se pudo completar el registro en el servidor.",
     registerSuccess:
-      "¡Bienvenido a Transportes Antares! Su cuenta fue creada. Un administrador debe aprobarla antes de que pueda iniciar sesión. Revise su correo para más detalles.",
+      "Gracias por registrarse en Transportes Antares. Su solicitud quedó registrada: un administrador validará los datos y aprobará el acceso al portal empresarial. Recibirá un correo con la confirmación y el estado; revise también spam o filtros de su empresa.",
+    registerToastSuccess:
+      "Solicitud enviada correctamente. Le mostramos un resumen fijo en la pantalla de ingreso; conserve el mensaje en su correo.",
+    registerOfflineToast:
+      "Registro guardado solo en este equipo. Para un alta corporativa completa debe usarse el servidor; lea el resumen en la pantalla de ingreso.",
     registerEmailExists: "Ya existe un usuario con ese correo.",
     registerDocExists: "Ya hay un registro con ese tipo y número de documento.",
     registerPersonalDocExists:
@@ -37,10 +41,10 @@
     recoverSent:
       "Si el correo existe, recibirá instrucciones. De lo contrario, contacte a un administrador.",
     recoverSentSupabase:
-      "Si el correo está registrado en Supabase, recibirá un mensaje con el enlace para restablecer la contraseña. Revise la bandeja de entrada y el spam.",
+      "Si el correo corresponde a una cuenta autorizada, recibirá un mensaje con el enlace para restablecer la contraseña. Revise la bandeja de entrada y la carpeta de spam.",
     recoverSupabaseError: "No se pudo enviar el correo de recuperación. Intente de nuevo o contacte a soporte.",
     recoverSupabaseUnavailable:
-      "No se pudo cargar el cliente de Supabase en el navegador. Actualice la página, revise la red o que supabase.public.js esté publicado.",
+      "No se pudo iniciar la recuperación desde el navegador. Actualice la página y compruebe su conexión, o solicite asistencia a soporte.",
     recoverCompleteSuccess: "Contraseña actualizada. Ya puede iniciar sesión con su correo y la nueva contraseña.",
     recoverCompleteError: "No se pudo guardar la nueva contraseña.",
     recoverCompleteNeedsApi:

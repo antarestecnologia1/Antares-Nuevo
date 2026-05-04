@@ -41,9 +41,14 @@ export class MailService implements OnModuleInit {
       );
     } else {
       this.logger.warn(
-        "Correo (Resend): sin API key — defina RESEND_API_KEY en el servicio **de la API** en Render (no en el sitio estático). Sin esto no se envían bienvenidas."
+        "Correo (Resend): sin API key — las bienvenidas usarán el correo SMTP de Supabase (magic link) si la API tiene SUPABASE_URL y clave; defina RESEND_API_KEY para plantilla HTML propia."
       );
     }
+  }
+
+  /** Resend configurado (scripts de despliegue / Render). */
+  hasResend(): boolean {
+    return Boolean(this.resend);
   }
 
   private resolveMailFrom(): string {

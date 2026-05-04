@@ -6,7 +6,7 @@ export class RequestPasswordRecoveryDto {
   @MaxLength(320)
   email!: string;
 
-  /** URL absoluta permitida en Supabase → Authentication → Redirect URLs */
+  /** URL absoluta de retorno (HTTPS); debe estar permitida en el panel del proveedor de autenticación. */
   @IsOptional()
   @IsString()
   @MaxLength(2048)

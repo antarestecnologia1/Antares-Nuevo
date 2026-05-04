@@ -2095,8 +2095,15 @@ function sendEmail({ to, subject, body }) {
   write(KEYS.emails, outbox);
 }
 
-/** URL sin hash ni query: debe estar en Redirect URLs de Supabase (Authentication). */
+/**
+ * URL de retorno tras recuperar contraseña (sin hash ni query). En producción use __PORTAL_PUBLIC_ORIGIN__
+ * en antares.public.js para que el correo no apunte a localhost.
+ */
 function buildSupabasePasswordRecoveryRedirectUrl() {
+  const configured = String(window.__PORTAL_PUBLIC_ORIGIN__ || "").trim().replace(/\/+$/, "");
+  if (configured && /^https?:\/\//i.test(configured)) {
+    return `${configured}/`;
+  }
   const u = new URL(window.location.href);
   u.hash = "";
   u.search = "";
@@ -2837,7 +2844,7 @@ function authView() {
     return `
     <div class="auth-header-premium">
       <h3>Nueva contraseña</h3>
-      <p class="muted">Elija una contraseña segura. Se actualizará en el portal (inicio de sesión actual) y en el acceso gestionado por Supabase.</p>
+      <p class="muted">Elija una contraseña segura. Quedará aplicada para el inicio de sesión en este portal.</p>
     </div>
     <form id="form-recover-complete" class="form-grid auth-pane auth-form" autocomplete="off">
       <label class="full auth-field-stack">
@@ -2871,14 +2878,14 @@ function authView() {
       regOk && typeof regOk.message === "string" && regOk.message.trim()
         ? `<div class="auth-register-success-banner" role="status">
         <button type="button" class="auth-register-success-dismiss" data-action="dismiss-reg-success" aria-label="Cerrar aviso">×</button>
-        <p class="auth-register-success-title">${IC.check} Registro recibido</p>
+        <p class="auth-register-success-title">${IC.check} Solicitud registrada</p>
         <p class="auth-register-success-body">${escapeHtml(regOk.message.trim())}</p>
         ${
           regOk.email
-            ? `<p class="muted auth-register-success-email">Correo registrado: <strong>${escapeHtml(String(regOk.email).trim())}</strong></p>`
+            ? `<p class="muted auth-register-success-email">Correo de contacto: <strong>${escapeHtml(String(regOk.email).trim())}</strong></p>`
             : ""
         }
-        <p class="muted auth-register-success-hint">Hasta que un administrador apruebe su cuenta, el inicio de sesión no estará disponible. Si configuramos el correo en el servidor, también le enviamos un mensaje de bienvenida a esa dirección.</p>
+        <p class="muted auth-register-success-hint">Un administrador revisará su solicitud y habilitará el acceso cuando corresponda. Hasta entonces no podrá iniciar sesión. Enviaremos un mensaje a su correo con la confirmación y los siguientes pasos; si no lo ve en unos minutos, revise spam o correos bloqueados.</p>
       </div>`
         : "";
     return `
@@ -3071,10 +3078,10 @@ function authView() {
     `;
   }
 
-  return `
+    return `
     <div class="auth-header-premium">
       <h3>Recuperación de acceso</h3>
-      <p class="muted">Recibirá un <strong>correo electrónico de Supabase</strong> con un enlace para definir una nueva contraseña. Revise también spam o correo no deseado.</p>
+      <p class="muted">Si su cuenta está registrada y autorizada, recibirá un <strong>correo electrónico</strong> con un enlace seguro para definir una nueva contraseña. Revise también la carpeta de spam o correo no deseado.</p>
     </div>
     <form id="form-recover" class="form-grid auth-pane auth-form">
       <label class="full auth-field-stack">
@@ -3087,8 +3094,8 @@ function authView() {
       <div class="auth-recover-hint" role="note">
         <span class="auth-recover-hint-icon" aria-hidden="true">${IC.shield}</span>
         <div>
-          <strong>Correo enviado por Supabase</strong>
-          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">El enlace caduca al poco tiempo. Tras guardar la nueva contraseña podrá ingresar con el mismo correo. Si no recibe el mensaje, confirme la dirección o contacte a soporte.</p>
+          <strong>Enlace con vigencia limitada</strong>
+          <p class="muted" style="margin:0.25rem 0 0;font-size:0.82rem">Por seguridad, el enlace caduca en breve. Tras actualizar la contraseña podrá ingresar con el mismo correo. Si no recibe el mensaje, confirme la dirección escrita o contacte a soporte corporativo.</p>
         </div>
       </div>
       <button class="btn btn-primary full" type="submit">${IC.send} Enviar enlace al correo</button>
@@ -3488,11 +3495,7 @@ function bindAuthForms() {
             email: String(data.email || "").trim(),
             pendingApproval: !(typeof body === "object" && body !== null && body.pendingApproval === false)
           };
-          notify(
-            "Registro completado. Lea el mensaje destacado arriba del formulario de ingreso y revise su correo.",
-            "success",
-            8000
-          );
+          notify(userMessage("registerToastSuccess"), "success", 12000);
           state.authTab = "login";
           renderAuthTab();
           return;
@@ -3587,11 +3590,7 @@ function bindAuthForms() {
         email: String(data.email || "").trim(),
         pendingApproval: true
       };
-      notify(
-        "Registro guardado en este navegador. Lea el mensaje sobre el formulario de ingreso.",
-        "success",
-        8000
-      );
+      notify(userMessage("registerOfflineToast"), "success", 12000);
       state.authTab = "login";
       renderAuthTab();
       } finally {
