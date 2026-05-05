@@ -240,7 +240,15 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureEmpresasSchema: índice único empresa propia no creado: ${msg}`);
     }
-    this.logger.log("empresas: esquema tipo_relacion_empresa verificado.");
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT true`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN activo fallo (no fatal): ${msg}`);
+    }
+    this.logger.log("empresas: esquema tipo_relacion_empresa y activo verificado.");
   }
 
   /** Sincroniza `prospectos_contacto_b2b` con migración `14_contacto_web_b2b.sql`. */
@@ -920,6 +928,7 @@ export class PortalService implements OnModuleInit {
     const r = await this.pool.query(
       `SELECT id::text, nombre AS name, nit, telefono AS phone,
               tipo_relacion_empresa::text AS "companyKind",
+              COALESCE(activo, true) AS activo,
               fecha_creacion AS "createdAt"
        FROM empresas ORDER BY nombre`
     );
@@ -930,6 +939,7 @@ export class PortalService implements OnModuleInit {
       taxId: row.nit,
       phone: row.phone || "",
       companyKind: row.companyKind || "cliente",
+      active: row.activo !== false,
       createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
     }));
   }
@@ -1903,15 +1913,25 @@ export class PortalService implements OnModuleInit {
       const ks = kindPick != null ? String(kindPick).trim().toLowerCase() : "";
       const tipoRelacion =
         ks === "tercero" ? "tercero" : ks === "propia" ? "propia" : "cliente";
+      const rawActive = pickPortalField(rec, "active", "activo");
+      const activo =
+        rawActive === undefined || rawActive === null
+          ? true
+          : Boolean(
+              rawActive === true ||
+                rawActive === 1 ||
+                String(rawActive).trim().toLowerCase() === "true"
+            );
       await c.query(
-        `INSERT INTO empresas (id, nombre, nit, telefono, tipo_relacion_empresa)
-         VALUES ($1::uuid, $2, $3, $4, $5::tipo_relacion_empresa)
+        `INSERT INTO empresas (id, nombre, nit, telefono, tipo_relacion_empresa, activo)
+         VALUES ($1::uuid, $2, $3, $4, $5::tipo_relacion_empresa, $6)
          ON CONFLICT (id) DO UPDATE SET
            nombre = EXCLUDED.nombre,
            nit = EXCLUDED.nit,
            telefono = EXCLUDED.telefono,
-           tipo_relacion_empresa = EXCLUDED.tipo_relacion_empresa`,
-        [id, String(nombre).trim(), String(nit).trim(), telefono, tipoRelacion]
+           tipo_relacion_empresa = EXCLUDED.tipo_relacion_empresa,
+           activo = EXCLUDED.activo`,
+        [id, String(nombre).trim(), String(nit).trim(), telefono, tipoRelacion, activo]
       );
     }
   }
