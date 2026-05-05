@@ -96,7 +96,7 @@ window.PortalArchitecture = (() => {
     },
     "contact-leads": {
       title: "Solicitudes de contacto (web)",
-      access: "admin",
+      access: "admin-or-contact-b2b",
       shell: true,
       renderer: [{ module: "contacto-b2b", exportName: "contactLeadsHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
@@ -144,6 +144,9 @@ window.PortalArchitecture = (() => {
     switch (def.access) {
       case "admin":
         return user.role === ROLES.ADMIN;
+      case "admin-or-contact-b2b":
+        if (user.role === ROLES.ADMIN) return true;
+        return Array.isArray(user.permissions) && user.permissions.includes("contact_b2b_view");
       case "rrhh":
         return canAccessRRHH(user.role);
       case "admin-or-rrhh":

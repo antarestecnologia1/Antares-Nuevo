@@ -118,6 +118,7 @@ export class PortalService {
     const admin = this.isAdmin(role);
     const transport = this.isTransportOps(role) || admin;
     const rrhh = this.isRrhh(role);
+    const canViewContactB2b = admin || (await this.hasContactB2bViewPermission(userId));
 
     const empresaPromise = this.getUserCompany(userId);
     const independentPromise = Promise.all([
@@ -129,7 +130,7 @@ export class PortalService {
       transport ? this.loadDrivers() : Promise.resolve([]),
       this.loadNotifications(userId, admin),
       this.loadEmails(admin),
-      this.loadContacts(admin),
+      this.loadContacts(canViewContactB2b),
       rrhh || admin ? this.loadPositions() : Promise.resolve([]),
       rrhh || admin ? this.loadVacancies() : Promise.resolve([]),
       rrhh || admin ? this.loadCandidates() : Promise.resolve([]),
@@ -835,10 +836,19 @@ export class PortalService {
     }));
   }
 
-  private async loadContacts(admin: boolean) {
-    if (!admin) return [];
-    const r = await this.pool.query(`SELECT * FROM prospectos_contacto_b2b ORDER BY fecha_creacion DESC LIMIT 500`);
-    return r.rows.map((c) => ({
+  private async hasContactB2bViewPermission(userId: string): Promise<boolean> {
+    const uid = String(userId || "").trim();
+    if (!PG_UUID_V4_RE.test(uid)) return false;
+    const r = await this.pool.query(
+      `SELECT 1 AS ok FROM permisos_usuario WHERE id_usuario = $1::uuid AND permiso = $2 LIMIT 1`,
+      [uid, "contact_b2b_view"]
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private mapProspectLeadRows(rows: any[]): Array<Record<string, unknown>> {
+    return rows.map((c) => ({
       id: c.id,
       contactName: c.nombre_contacto,
       companyName: c.nombre_empresa,
@@ -854,6 +864,24 @@ export class PortalService {
       message: c.mensaje,
       createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString()
     }));
+  }
+
+  private async fetchProspectLeadsLimited() {
+    const r = await this.pool.query(`SELECT * FROM prospectos_contacto_b2b ORDER BY fecha_creacion DESC LIMIT 500`);
+    return this.mapProspectLeadRows(r.rows);
+  }
+
+  private async loadContacts(canView: boolean) {
+    if (!canView) return [];
+    return this.fetchProspectLeadsLimited();
+  }
+
+  /** Endpoint dedicado: una sola consulta; mismo permiso que en bootstrap (admin o permiso granular). */
+  async getContactB2bProspects(userId: string, role: JwtRole) {
+    const admin = this.isAdmin(role);
+    const ok = admin || (await this.hasContactB2bViewPermission(userId));
+    if (!ok) throw new ForbiddenException("Sin permiso para ver prospectos de contacto web");
+    return this.fetchProspectLeadsLimited();
   }
 
   private async loadPositions() {

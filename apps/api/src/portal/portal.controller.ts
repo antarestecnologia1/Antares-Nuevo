@@ -18,6 +18,12 @@ export class PortalController {
     return this.portal.bootstrap(req.user.userId, req.user.role);
   }
 
+  /** Prospectos del formulario B2B público (tabla prospectos_contacto_b2b). Admin o permiso contact_b2b_view. */
+  @Get("contact-b2b-prospects")
+  contactB2bProspects(@Req() req: { user: ReqUser }) {
+    return this.portal.getContactB2bProspects(req.user.userId, req.user.role);
+  }
+
   @Post("sync-key")
   syncKey(@Req() req: { user: ReqUser }, @Body() dto: SyncKeyDto) {
     return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role);

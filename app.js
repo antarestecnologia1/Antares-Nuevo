@@ -725,7 +725,9 @@ let state = {
     candidateSort: "recent"
   },
   /** Tras registro exitoso: mensaje visible sobre la pestaña de ingreso (no solo toast). */
-  registrationSuccessBanner: null
+  registrationSuccessBanner: null,
+  /** Módulo contact-leads: primera carga desde API en curso. */
+  contactLeadsLoading: false
 };
 
 window.AntaresDataAccess = Object.freeze({
@@ -995,9 +997,22 @@ function __applyPortalBootstrapPayloadInner(p) {
   }
 }
 
-async function applyPortalBootstrapFromApi() {
+/** Alinea el token Bearer con la sesión persistida si difieren (evita llamadas silenciosas sin Auth). */
+function portalEnsureApiTokensAligned() {
   const api = window.AntaresApi;
-  if (!api?.getBase?.() || !api.getAccessToken?.()) return false;
+  if (!api || typeof api.getAccessToken !== "function" || typeof api.setAccessToken !== "function") return;
+  const s = getSession();
+  const fromSession = String(s?.accessToken || "").trim();
+  if (!fromSession) return;
+  const cur = String(api.getAccessToken() || "").trim();
+  if (fromSession !== cur) api.setAccessToken(fromSession);
+}
+
+async function applyPortalBootstrapFromApi() {
+  portalEnsureApiTokensAligned();
+  const api = window.AntaresApi;
+  if (!api?.getBase?.()) return false;
+  if (!String(api.getAccessToken?.() || "").trim()) return false;
   try {
     const p = await api.getJson("/portal/bootstrap");
     applyPortalBootstrapPayload(p);
@@ -1009,11 +1024,29 @@ async function applyPortalBootstrapFromApi() {
   }
 }
 
+/** Lista prospectos B2B sin depender del bootstrap pesado (mitiga fallos al abrir Solicitudes contacto web). */
+async function refreshContactB2bProspectsFromApi() {
+  portalEnsureApiTokensAligned();
+  const api = window.AntaresApi;
+  if (!api?.getBase?.()) return false;
+  if (!String(api.getAccessToken?.() || "").trim()) return false;
+  try {
+    const rows = await api.getJson("/portal/contact-b2b-prospects");
+    if (!Array.isArray(rows)) return false;
+    state.portalContacts = rows;
+    return true;
+  } catch (err) {
+    devWarn("Portal: GET /portal/contact-b2b-prospects fallo.", err?.message || err);
+    return false;
+  }
+}
+
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 
 async function startPortalBootstrapForInteractiveSession() {
+  portalEnsureApiTokensAligned();
   const api = window.AntaresApi;
-  if (!api?.getBase?.() || !api.getAccessToken?.()) return;
+  if (!api?.getBase?.() || !String(api.getAccessToken?.() || "").trim()) return;
   const p = window.PortalDataLayer?.refreshCacheFromApi
     ? window.PortalDataLayer.refreshCacheFromApi()
     : applyPortalBootstrapFromApi();
@@ -4907,10 +4940,14 @@ function setView(view) {
   state.currentView = view;
   syncPortalHash(view);
   PortalRouterCore.activateSideLinks(nodes.sideLinks, view);
-  if (view === "contact-leads" && user.role === ROLES.ADMIN) {
-    void applyPortalBootstrapFromApi().then((ok) => {
-      if (ok) scheduleRenderPortalView();
-    });
+  if (view === "contact-leads" && hasPermission(user, PERMISSIONS.CONTACT_B2B_VIEW)) {
+    state.contactLeadsLoading = true;
+    void refreshContactB2bProspectsFromApi()
+      .catch(() => {})
+      .finally(() => {
+        state.contactLeadsLoading = false;
+        scheduleRenderPortalView();
+      });
   }
   renderPortalView();
 }
@@ -8145,46 +8182,110 @@ function authorizationsHtml() {
 
 function contactLeadsHtml() {
   const user = currentUser();
-  if (user?.role !== ROLES.ADMIN) {
-    return emptyState("Solo el administrador puede ver las solicitudes de contacto del sitio web.");
+  if (!hasPermission(user, PERMISSIONS.CONTACT_B2B_VIEW)) {
+    return emptyState("No tiene permiso para ver las solicitudes de contacto del sitio web.");
   }
+
+  const loading = Boolean(state.contactLeadsLoading);
   const list = (Array.isArray(state.portalContacts) ? state.portalContacts : []).slice().sort((a, b) => {
     const ta = new Date(b.createdAt || 0).getTime();
     const tb = new Date(a.createdAt || 0).getTime();
     return ta - tb;
   });
+
+  portalEnsureApiTokensAligned();
+  const apiLive = Boolean(
+    window.AntaresApi?.getBase?.() && String(window.AntaresApi?.getAccessToken?.() || "").trim()
+  );
+
   const hero = moduleFleetHeroStrip([
-    { label: "Registros", value: list.length },
-    { label: "Origen", value: "PostgreSQL" },
-    { label: "Actualizado", value: "al iniciar sesion o al pulsar Actualizar" }
+    { label: "Prospectos", value: loading ? "…" : String(list.length) },
+    { label: "Pipeline", value: loading ? "…" : "Web → PostgreSQL" },
+    { label: "Sesión API", value: apiLive ? "Enlazada" : "Revisar" }
   ]);
-  const toolbar = `<div class="notif-toolbar" style="margin-bottom:0.6rem">
-    <button type="button" class="btn btn-sm btn-primary" data-action="contact-leads-refresh">
-      ${IC.activity} Actualizar desde servidor
-    </button>
-    <span class="muted" style="font-size:0.85rem">Los datos no se guardan en el disco del navegador; vienen de la API.</span>
+
+  const toolbar = `<div class="b2b-leads-toolbar">
+    <button type="button" class="btn btn-sm btn-primary b2b-leads-sync-btn" data-action="contact-leads-refresh"${loading ? " disabled" : ""}>${IC.activity} Actualizar desde el servidor</button>
+    <p class="muted b2b-leads-toolbar-hint"><span class="b2b-leads-live-pill${apiLive ? " b2b-leads-live-pill--ok" : ""}">${apiLive ? "En tiempo real contra la API" : "Sin API o sin token Bearer"}</span><span>${apiLive ? " Los registros públicos llegan cuando sincroniza; no dependen solo de memoria antigua." : " Configure la URL de la API y cierre/abra sesión para autorizar esta pantalla."}</span></p>
   </div>`;
-  if (!list.length) {
-    return hero + pcardWrap("mail", "Solicitudes de contacto (web B2B)", "0 prospectos", toolbar + emptyState("Aún no hay solicitudes o la API no devolvió datos."));
+
+  if (loading) {
+    const shell = `<div class="b2b-leads-loading" role="status" aria-live="polite" aria-busy="true">
+      <div class="b2b-leads-spinner" aria-hidden="true"></div>
+      <div class="b2b-leads-loading-text">
+        <strong>Trayendo solicitudes desde el servidor</strong>
+        <span class="muted">Un momento: estamos cargando la bandeja B2B en directo desde la base.</span>
+      </div>
+    </div>`;
+    return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "Sincronizando datos…", toolbar + shell);
   }
-  const rows = list
-    .map((c) => {
-      const msg = String(c.message || "").trim();
-      const msgShort = msg.length > 220 ? `${escapeHtml(msg.slice(0, 220))}…` : escapeHtml(msg);
-      return `<tr>
-        <td>${fmtDate(c.createdAt)}</td>
-        <td><strong>${escapeHtml(String(c.contactName || "").trim() || "—")}</strong><br/><span class="muted">${escapeHtml(String(c.companyName || "").trim() || "—")}</span></td>
-        <td>${escapeHtml(String(c.email || "").trim() || "—")}<br/><span class="muted">${escapeHtml(String(c.phone || "").trim() || "—")}</span></td>
-        <td>${escapeHtml(String(c.serviceType || "").trim() || "—")}</td>
-        <td>${escapeHtml(String(c.operationType || "").trim() || "—")}</td>
-        <td style="max-width:280px;font-size:0.86rem;line-height:1.35">${msgShort}</td>
-      </tr>`;
+
+  if (!list.length) {
+    const hint = apiLive
+      ? "Todavía no hay filas sincronizadas en esta vista. Pulse «Actualizar desde el servidor» o vuelva a entrar después del envío en la web."
+      : "Sin enlace válido con la API. Verifique la URL base del backend y que su sesión tenga JWT activo.";
+    return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "0 prospectos visibles", toolbar + emptyState(hint));
+  }
+
+  const cards = list
+    .map((c, ix) => {
+      const hueClass = ["b2b-accent-a", "b2b-accent-b", "b2b-accent-c"][ix % 3];
+      const rawName = String(c.contactName || "").trim();
+      const name = escapeHtml(rawName || "Contacto sin nombre");
+      const av = escapeHtml((rawName || "?").slice(0, 1).toUpperCase());
+      const company = escapeHtml(String(c.companyName || "").trim());
+      const emailRaw = String(c.email || "").trim();
+      const phoneRaw = String(c.phone || "").trim();
+      const email = escapeHtml(emailRaw);
+      const phone = escapeHtml(phoneRaw);
+      const svc = escapeHtml(String(c.serviceType || "").trim()) || "—";
+      const op = escapeHtml(String(c.operationType || "").trim()) || "—";
+      const role = escapeHtml(String(c.role || "").trim()) || "—";
+      const nit = escapeHtml(String(c.nit || "").trim()) || "—";
+      const freq = escapeHtml(String(c.frequency || "").trim()) || "—";
+      const win = escapeHtml(String(c.serviceWindow || "").trim()) || "—";
+      const volNum = parseNum(c.monthlyVolumeKg);
+      const vol =
+        typeof c.monthlyVolumeKg !== "undefined" && c.monthlyVolumeKg !== null && String(c.monthlyVolumeKg).trim() !== ""
+          ? `${volNum.toLocaleString("es-CO")} kg / mes`
+          : "—";
+      const brief = escapeHtml(String(c.message || "").trim() || "(Sin mensaje corporativo)");
+      const briefHtml = brief.replace(/\r\n|\r|\n/g, "<br />");
+      const mailHref = escapeAttr(emailRaw);
+      const telHref = escapeAttr(phoneRaw.replace(/\s+/g, ""));
+
+      return `<article class="b2b-leads-card ${hueClass}">
+        <header class="b2b-leads-card-top">
+          <div class="b2b-leads-card-identity">
+            <span class="b2b-leads-avatar">${av}</span>
+            <div>
+              <h3 class="b2b-leads-title">${name}</h3>
+              ${company ? `<p class="b2b-leads-company muted">${company}</p>` : ""}
+              <div class="b2b-leads-chip-row">
+                <span class="b2b-chip b2b-chip-strong">${svc}</span>
+                <span class="b2b-chip">${op}</span>
+              </div>
+            </div>
+          </div>
+          <time class="b2b-leads-when">${fmtDate(c.createdAt)}</time>
+        </header>
+        <dl class="b2b-leads-meta">
+          <div><dt>Correo</dt><dd>${emailRaw ? `<a href="mailto:${mailHref}" class="b2b-leads-link">${email}</a>` : "—"}</dd></div>
+          <div><dt>Teléfono</dt><dd>${phoneRaw ? `<a href="tel:${telHref}" class="b2b-leads-link">${phone}</a>` : "—"}</dd></div>
+          <div><dt>Cargo contacto</dt><dd>${role}</dd></div>
+          <div><dt>NIT</dt><dd>${nit}</dd></div>
+          <div><dt>Frecuencia</dt><dd>${freq}</dd></div>
+          <div><dt>Inicio esperado</dt><dd>${win}</dd></div>
+          <div><dt>Volumen ref.</dt><dd>${escapeHtml(vol)}</dd></div>
+        </dl>
+        <section class="b2b-leads-brief" aria-label="Mensaje del prospecto"><h4 class="b2b-leads-brief-title">Brief de la solicitud</h4><div class="b2b-leads-brief-body">${briefHtml}</div></section>
+      </article>`;
     })
     .join("");
-  const table = `<div class="table-wrap"><table class="table-compact-contact-leads"><thead><tr>
-    <th>Fecha</th><th>Contacto / empresa</th><th>Correo / tel.</th><th>Servicio</th><th>Operacion</th><th>Mensaje</th>
-  </tr></thead><tbody>${rows}</tbody></table></div>`;
-  return hero + pcardWrap("mail", "Solicitudes de contacto (web B2B)", `${list.length} en base de datos`, toolbar + table);
+
+  const mosaic = `<div class="b2b-leads-mosaic">${cards}</div>`;
+  const footer = `<p class="muted b2b-leads-footer-footnote">${list.length} registro(s) mostrados. Origen: tabla <code>prospectos_contacto_b2b</code>.</p>`;
+  return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", `${list.length} en base · vista enriquecida`, toolbar + mosaic + footer);
 }
 
 function renderFromModule(moduleName, exportName, ...args) {
@@ -9448,14 +9549,25 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='contact-leads-refresh']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      void applyPortalBootstrapFromApi().then((ok) => {
-        if (ok) {
-          notify("Lista actualizada desde el servidor.", "success");
-          scheduleRenderPortalView();
-        } else {
-          notify("No se pudo actualizar. Revise conexion y sesion con la API.", "error");
+      btn.disabled = true;
+      void (async () => {
+        try {
+          portalEnsureApiTokensAligned();
+          let ok = await refreshContactB2bProspectsFromApi();
+          if (!ok) ok = await applyPortalBootstrapFromApi();
+          if (ok) {
+            notify("Prospectos B2B actualizados desde el servidor.", "success");
+            scheduleRenderPortalView();
+          } else {
+            notify(
+              "No se pudo actualizar. Revise la conexion, el inicio de sesion en la API o el permiso contact_b2b_view.",
+              "error"
+            );
+          }
+        } finally {
+          btn.disabled = false;
         }
-      });
+      })();
     });
   });
 
