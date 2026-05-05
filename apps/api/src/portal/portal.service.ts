@@ -1221,25 +1221,39 @@ export class PortalService {
       const fechaIngresoPortal =
         rawPortal != null && String(rawPortal).trim() !== "" ? String(rawPortal).trim().slice(0, 10) : null;
 
+      const rec = u as Record<string, unknown>;
+      const birthRaw = rec.birthDate;
+      const birthDateSql =
+        birthRaw != null && String(birthRaw).trim() !== ""
+          ? String(birthRaw).trim().slice(0, 10)
+          : null;
+      const fechaNacimiento =
+        birthDateSql && /^\d{4}-\d{2}-\d{2}$/.test(birthDateSql) ? birthDateSql : null;
+
       await c.query(
         `UPDATE usuarios SET
-          nombre_completo = COALESCE($2, nombre_completo),
-          primer_nombre = COALESCE($3, primer_nombre),
-          segundo_nombre = COALESCE($4, segundo_nombre),
-          primer_apellido = COALESCE($5, primer_apellido),
-          segundo_apellido = COALESCE($6, segundo_apellido),
-          telefono = COALESCE($7, telefono),
-          departamento = COALESCE($8, departamento),
-          ciudad = COALESCE($9, ciudad),
-          direccion = COALESCE($10, direccion),
-          contacto_emergencia = COALESCE($11, contacto_emergencia),
-          telefono_emergencia = COALESCE($12, telefono_emergencia),
-          parentesco_emergencia = COALESCE($13, parentesco_emergencia),
-          url_avatar = COALESCE($14, url_avatar),
-          cargo_registro = COALESCE($15, cargo_registro),
-          area_trabajo = COALESCE($16, area_trabajo),
+          nombre_completo = COALESCE(NULLIF(trim(COALESCE($2::text, '')), ''), nombre_completo),
+          primer_nombre = COALESCE(NULLIF(trim(COALESCE($3::text, '')), ''), primer_nombre),
+          segundo_nombre = COALESCE(NULLIF(trim(COALESCE($4::text, '')), ''), segundo_nombre),
+          primer_apellido = COALESCE(NULLIF(trim(COALESCE($5::text, '')), ''), primer_apellido),
+          segundo_apellido = COALESCE(NULLIF(trim(COALESCE($6::text, '')), ''), segundo_apellido),
+          telefono = COALESCE(NULLIF(trim(COALESCE($7::text, '')), ''), telefono),
+          departamento = COALESCE(NULLIF(trim(COALESCE($8::text, '')), ''), departamento),
+          ciudad = COALESCE(NULLIF(trim(COALESCE($9::text, '')), ''), ciudad),
+          direccion = COALESCE(NULLIF(trim(COALESCE($10::text, '')), ''), direccion),
+          contacto_emergencia = COALESCE(NULLIF(trim(COALESCE($11::text, '')), ''), contacto_emergencia),
+          telefono_emergencia = COALESCE(NULLIF(trim(COALESCE($12::text, '')), ''), telefono_emergencia),
+          parentesco_emergencia = COALESCE(NULLIF(trim(COALESCE($13::text, '')), ''), parentesco_emergencia),
+          url_avatar = COALESCE(NULLIF(trim(COALESCE($14::text, '')), ''), url_avatar),
+          cargo_registro = COALESCE(NULLIF(trim(COALESCE($15::text, '')), ''), cargo_registro),
+          area_trabajo = COALESCE(NULLIF(trim(COALESCE($16::text, '')), ''), area_trabajo),
           checklist_registro_json = COALESCE($17::jsonb, checklist_registro_json),
-          fecha_ingreso_portal = COALESCE($18::date, fecha_ingreso_portal)
+          fecha_ingreso_portal = COALESCE($18::date, fecha_ingreso_portal),
+          tipo_persona = COALESCE(NULLIF(trim(COALESCE($19::text, '')), ''), tipo_persona),
+          genero = COALESCE(NULLIF(trim(COALESCE($20::text, '')), ''), genero),
+          fecha_nacimiento = COALESCE($21::date, fecha_nacimiento),
+          tipo_documento = COALESCE(NULLIF(trim(COALESCE($22::text, '')), ''), tipo_documento),
+          numero_identificacion = COALESCE(NULLIF(trim(COALESCE($23::text, '')), ''), numero_identificacion)
         WHERE id = $1::uuid`,
         [
           u.id,
@@ -1259,7 +1273,12 @@ export class PortalService {
           u.position ?? null,
           u.workArea ?? null,
           u.profileQualityChecklist ? JSON.stringify(u.profileQualityChecklist) : null,
-          fechaIngresoPortal
+          fechaIngresoPortal,
+          String(rec.personType ?? "").trim() || null,
+          String(rec.gender ?? "").trim() || null,
+          fechaNacimiento,
+          String(rec.documentType ?? "").trim() || null,
+          String(rec.taxId ?? rec.personalDoc ?? "").trim() || null
         ]
       );
       if (admin && Array.isArray(u.permissions)) {

@@ -4811,20 +4811,42 @@ function currentUser() {
   return users.find((u) => String(u.id) === String(sid)) || null;
 }
 
-/** Nombre para UI: prioriza `name` (p. ej. nombre_completo del servidor), luego partes del registro, luego correo legible. */
+/** Si `name` es stub JWT/local-part del correo pero hay partes de registro en BD, no usar ese placeholder. */
+function portalUserNameLooksLikeEmailPlaceholder(nameStr, emailStr) {
+  const raw = String(nameStr ?? "").trim();
+  const em = String(emailStr ?? "").trim().toLowerCase();
+  if (!raw || !em) return !raw;
+  if (raw.toLowerCase() === em) return true;
+  const local = em.split("@")[0] || "";
+  if (!local) return false;
+  const fold = (s) => String(s || "").replace(/[.\s_-]+/g, "").toLowerCase();
+  return fold(raw) === fold(local);
+}
+
+/** Nombre para UI: prioriza nombre legal coherente (PostgreSQL o partes de registro); evita mostrar solo el local-part del correo si hay datos reales. */
 function getPortalUserDisplayName(user) {
   if (!user) return "Usuario";
-  const raw = String(user.name ?? "").trim();
-  if (raw) return raw;
   const composed = [user.firstName, user.middleName, user.lastName, user.secondLastName]
     .map((x) => String(x ?? "").trim())
     .filter(Boolean)
     .join(" ")
     .trim();
-  if (composed) return composed;
+  const raw = String(user.name ?? "").trim();
   const em = String(user.email ?? "").trim();
-  if (em) {
-    const local = em.split("@")[0] || em;
+  const placeholder = portalUserNameLooksLikeEmailPlaceholder(raw, em);
+  if (composed && (!raw || placeholder)) return composed;
+  if (raw && !placeholder && !raw.includes("@")) return raw;
+  if (composed) return composed;
+  if (raw) {
+    if (raw.includes("@")) {
+      const lp = raw.split("@")[0];
+      return lp.replace(/[._-]+/g, " ").trim() || raw;
+    }
+    return raw;
+  }
+  const eml = em.toLowerCase();
+  if (eml) {
+    const local = eml.split("@")[0] || eml;
     const nicer = local.replace(/[._-]+/g, " ").trim();
     return nicer || em;
   }
@@ -5881,6 +5903,14 @@ function adminUsersHtml(current) {
         .join("")
     : "";
 
+  const genderOptsEdit = editingUser
+    ? `<option value="">— Sin especificar —</option>${CO_CATALOGS.genders.map((g) => {
+        const ug = String(editingUser.gender || "").trim().toUpperCase();
+        const sel = ug === g.trim().toUpperCase() ? " selected" : "";
+        return `<option value="${escapeAttr(g)}"${sel}>${escapeHtml(g)}</option>`;
+      }).join("")}`
+    : "";
+
   const userOptions = users
     .map((u) => `<option value="${u.id}">${u.name} (${u.role})${u.id === current.id ? " · tu perfil" : ""}</option>`)
     .join("");
@@ -5924,9 +5954,9 @@ function adminUsersHtml(current) {
     const isMe = u.id === current.id;
     return `<div class="user-card">
       <div class="user-card-top">
-        <div class="user-avatar">${u.name.charAt(0).toUpperCase()}</div>
+        <div class="user-avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase())}</div>
         <div class="user-card-info">
-          <h4>${u.name}${isMe ? ' <span class="muted" style="font-weight:400;font-size:0.78rem">(tu)</span>' : ""}</h4>
+          <h4>${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="muted" style="font-weight:400;font-size:0.78rem">(tu)</span>' : ""}</h4>
           <p>${u.email}</p>
         </div>
         <div class="user-card-badges">
@@ -6090,49 +6120,91 @@ function adminUsersHtml(current) {
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar permisos</button>
   </form>`;
 
-  const fEdit = editingUser ? `<form id="form-admin-user-edit" class="p-form">
-    <input type="hidden" name="id" value="${editingUser.id}" />
-    <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${editingUser.name || ""}" required /></label>
-    <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" value="${editingUser.email || ""}" required /></label>
-    <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" placeholder="Dejar vacío para conservar" /></label>
-    <label>${fieldLabel(IC.file, "Tipo documento")}
-      <select name="documentType" required>
-        <option value="CC" ${editingUser.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
-        <option value="CE" ${editingUser.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
-        <option value="NIT" ${editingUser.documentType === "NIT" ? "selected" : ""}>NIT</option>
-        <option value="PAS" ${editingUser.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.shield, "Rol")}
-      <select name="role" required>
-        <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
-        <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
-        <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administración</option>
-        <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
-        <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
-        <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
-      <option value="">Seleccione...</option>
-      ${companyEditOptions}
-    </select></label>
-    <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${editingUser.phone || ""}" /></label>
-    <label>${fieldLabel(IC.mapPin, "Departamento")}
-      <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
-    </label>
-    <label>${fieldLabel(IC.mapPin, "Ciudad")}
-      <select name="city" id="admin-edit-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingUser.department || "", editingUser.city || "")}</select>
-    </label>
-    <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" value="${editingUser.address || ""}" /></label>
-    <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="${editingUser.company || ""}" /></label>
-    <label>${fieldLabel(IC.badge, "NIT / RUT")}<input name="taxId" value="${editingUser.taxId || ""}" /></label>
-    <label>${fieldLabel(IC.lock, "Autenticación 2FA")}<select name="twoFactorEnabled">
-      <option value="false" ${!editingUser.twoFactorEnabled ? "selected" : ""}>Deshabilitada</option>
-      <option value="true" ${editingUser.twoFactorEnabled ? "selected" : ""}>Habilitada (recomendado)</option>
-    </select></label>
-    <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${editingUser.systemJoinDate || (editingUser.createdAt ? String(editingUser.createdAt).slice(0,10) : "")}" /></label>
-    <label class="full">${fieldLabel(IC.upload, "Cambiar avatar")}<input type="file" name="avatarFile" accept="image/*" /></label>
+  const fEdit = editingUser
+    ? `<form id="form-admin-user-edit" class="p-form p-form-colored">
+    <input type="hidden" name="id" value="${escapeAttr(String(editingUser.id || ""))}" />
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.user} Nombre y datos del registro</legend>
+      <p class="muted full" style="margin:0 0 0.75rem;line-height:1.45">
+        El <strong>nombre completo</strong> debe coincidir con <code>nombre_completo</code> en PostgreSQL. Si venía vacío o igual al correo,
+        use los campos por componente (como en el registro público) para reconstruir la identidad.
+      </p>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(getPortalUserDisplayName(editingUser))}" required autocomplete="name" /></label>
+        <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" value="${escapeAttr(String(editingUser.firstName ?? ""))}" autocomplete="given-name" /></label>
+        <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" value="${escapeAttr(String(editingUser.middleName ?? ""))}" autocomplete="additional-name" /></label>
+        <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" value="${escapeAttr(String(editingUser.lastName ?? ""))}" autocomplete="family-name" /></label>
+        <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" value="${escapeAttr(String(editingUser.secondLastName ?? ""))}" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.file} Persona y documento</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.file, "Tipo de persona")}
+          <select name="personType">
+            <option value="Natural" ${!isPersonTypeJuridica(editingUser.personType) ? "selected" : ""}>Natural</option>
+            <option value="Juridica" ${isPersonTypeJuridica(editingUser.personType) ? "selected" : ""}>Jurídica</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.file, "Tipo documento")}
+          <select name="documentType" required>
+            <option value="CC" ${String(editingUser.documentType || "").toUpperCase() === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
+            <option value="CE" ${String(editingUser.documentType || "").toUpperCase() === "CE" ? "selected" : ""}>Cédula de extranjería</option>
+            <option value="NIT" ${String(editingUser.documentType || "").toUpperCase() === "NIT" ? "selected" : ""}>NIT</option>
+            <option value="PAS" ${String(editingUser.documentType || "").toUpperCase() === "PAS" ? "selected" : ""}>Pasaporte</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.badge, "Número de documento / NIT")}<input name="taxId" value="${escapeAttr(String(editingUser.taxId ?? editingUser.personalDoc ?? ""))}" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${escapeAttr(String(editingUser.birthDate || "").slice(0, 10))}" /></label>
+        <label>${fieldLabel(IC.users, "Género")}<select name="gender">${genderOptsEdit}</select></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.mail} Acceso y rol</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" value="${escapeAttr(String(editingUser.email || ""))}" required autocomplete="email" /></label>
+        <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" placeholder="Dejar vacío para conservar" autocomplete="new-password" /></label>
+        <label>${fieldLabel(IC.shield, "Rol")}
+          <select name="role" required>
+            <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
+            <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
+            <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administración</option>
+            <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
+            <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
+            <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
+          <option value="">Seleccione...</option>
+          ${companyEditOptions}
+        </select></label>
+        <label>${fieldLabel(IC.lock, "Autenticación 2FA")}<select name="twoFactorEnabled">
+          <option value="false" ${!editingUser.twoFactorEnabled ? "selected" : ""}>Deshabilitada</option>
+          <option value="true" ${editingUser.twoFactorEnabled ? "selected" : ""}>Habilitada (recomendado)</option>
+        </select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(String(editingUser.systemJoinDate || (editingUser.createdAt ? String(editingUser.createdAt).slice(0, 10) : "")))}" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.mapPin} Ubicación y contacto operativo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${escapeAttr(String(editingUser.phone ?? ""))}" autocomplete="tel" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}
+          <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
+        </label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}
+          <select name="city" id="admin-edit-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingUser.department || "", editingUser.city || "")}</select>
+        </label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" value="${escapeAttr(String(editingUser.address ?? ""))}" /></label>
+        <label>${fieldLabel(IC.user, "Cargo (registro)")}<input name="position" value="${escapeAttr(String(editingUser.position ?? ""))}" placeholder="Ej. Gerente comercial" /></label>
+        <label>${fieldLabel(IC.briefcase, "Área de trabajo")}<input name="workArea" value="${escapeAttr(String(editingUser.workArea ?? ""))}" /></label>
+        <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial / razón corta")}<input name="company" value="${escapeAttr(String(editingUser.company ?? ""))}" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section full perm-fieldset">
+      <legend>${IC.upload} Avatar</legend>
+      <label class="full">${fieldLabel(IC.upload, "Cambiar foto")}<input type="file" name="avatarFile" accept="image/*" /></label>
+    </fieldset>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
       <div class="perm-grid">${permissionChecks(editingUser.permissions || [])}</div>
@@ -6141,7 +6213,8 @@ function adminUsersHtml(current) {
       <button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>
       <button class="btn btn-action" type="button" data-action="close-edit-user">${IC.x} Cancelar</button>
     </div>
-  </form>` : "";
+  </form>`
+    : "";
 
   // --- Empresas tabla ---
   const companyRows = companies.map((c) => `<div class="company-chip">
@@ -6178,7 +6251,13 @@ function adminUsersHtml(current) {
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
   if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
   if (ui.panel === "set-permissions") html += pcardWrap("save", "Asignar permisos", "Selecciona usuario y permisos", fPerm);
-  if (editingUser) html += pcardWrap("edit", "Editar usuario", `Actualiza los datos de ${editingUser.name}`, fEdit);
+  if (editingUser)
+    html += pcardWrap(
+      "edit",
+      "Editar usuario",
+      `Actualiza los datos de ${escapeHtml(getPortalUserDisplayName(editingUser))}`,
+      fEdit
+    );
 
   html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
 
@@ -9095,19 +9174,41 @@ function bindDynamicEvents() {
         }
         nextPassword = await hashPassword(String(data.password || "").trim());
       }
+      const fn = normalizeLatinForDb(String(data.firstName ?? "").trim());
+      const mn = normalizeLatinForDb(String(data.middleName ?? "").trim());
+      const ln = normalizeLatinForDb(String(data.lastName ?? "").trim());
+      const sln = normalizeLatinForDb(String(data.secondLastName ?? "").trim());
+      const composedFromParts = [fn, mn, ln, sln].filter(Boolean).join(" ").trim();
+      const nameFromInput = normalizeLatinForDb(String(data.name ?? "").trim());
+      const resolvedFullName = nameFromInput || composedFromParts || normalizeLatinForDb(String(existing.name ?? "").trim());
+      const birthIn = String(data.birthDate ?? "").trim();
+      const birthStored =
+        !birthIn
+          ? ""
+          : /^\d{4}-\d{2}-\d{2}$/.test(birthIn.slice(0, 10))
+            ? birthIn.slice(0, 10)
+            : String(existing.birthDate || "").slice(0, 10) || "";
+      const gRaw = String(data.gender ?? "").trim();
+      const genderStored = gRaw ? normalizeLatinUpperForDb(gRaw) : "";
       write(
         KEYS.users,
         users.map((u) =>
           u.id === userId
             ? {
                 ...u,
-                name: normalizeLatinForDb(String(data.name || "").trim()),
+                name: resolvedFullName,
+                firstName: fn || undefined,
+                middleName: mn || undefined,
+                lastName: ln || undefined,
+                secondLastName: sln || undefined,
                 email: normalizeEmail(data.email),
                 password: nextPassword,
                 role: String(data.role || u.role),
                 documentType: String(data.documentType || u.documentType || "CC"),
                 personType: normalizePersonTypeForDb(String(data.personType || u.personType || "")),
                 documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
+                birthDate: birthStored,
+                gender: genderStored,
                 companyId: company.id,
                 company: normalizeLatinForDb(String(data.company || company.name).trim()),
                 taxId: String(data.taxId || "").trim(),
@@ -9115,6 +9216,8 @@ function bindDynamicEvents() {
                 city: normalizeLatinForDb(String(data.city || "").trim()),
                 department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
                 address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
+                position: normalizeLatinForDb(String(data.position ?? u.position ?? "").trim()),
+                workArea: normalizeLatinForDb(String(data.workArea ?? u.workArea ?? "").trim()),
                 twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
                 systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
                 permissions:
