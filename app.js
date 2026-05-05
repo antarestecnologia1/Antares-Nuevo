@@ -13041,6 +13041,17 @@ initPortalClientStorage();
 initGlobalEvents();
 initPublicEffects();
 
+/**
+ * Pintamos el portal de forma SÍNCRONA usando la sesión persistida en `localStorage` y el
+ * `profileSnapshot` capturado al login. Así, tras F5, el usuario ve su portal en milisegundos
+ * (no espera al refresh JWT ni a `/portal/bootstrap`, que en Render cold-start podían tardar
+ * 10-30 s y mostrar el sitio público todo ese tiempo, dando sensación de "deslogueo").
+ *
+ * Después, en segundo plano, refrescamos token y bootstrap; cuando llegan, repintamos vista y
+ * permisos vía `__portalRefreshAfterBootstrap` sin que el usuario pierda contexto.
+ */
+renderPortal();
+
 void (async function bootApplicationFromDatabaseThenUi() {
   /** Tras F5 el access JWT puede estar vencido; sin refresh /portal/bootstrap devuelve 401 y se vacía la proyección en RAM. */
   try {
@@ -13056,14 +13067,30 @@ void (async function bootApplicationFromDatabaseThenUi() {
   } catch (_e) {
     /* startPortalBootstrapForInteractiveSession ya tolera fallos */
   }
-  await ensureUsersPasswordHashing();
+  try {
+    await ensureUsersPasswordHashing();
+  } catch (_e) {
+    /* no fatal: rehidratación no debe tirar la sesión */
+  }
   if (window.DomainRegistry?.list) {
     const missingDomains = window.DomainRegistry.list().filter((name) => !window.DomainRegistry.get(name));
     if (missingDomains.length) {
       devWarn("Dominios sin inicializar:", missingDomains.join(", "));
     }
   }
-  renderPortal();
+  /** Si tras refresh+bootstrap hay sesión en disco pero el portal aún no se mostró (login viejo en otra pestaña, etc.), forzamos render. */
+  if (getSession()) {
+    try {
+      window.__portalRefreshAfterBootstrap?.();
+    } catch (_e) {
+      /* noop */
+    }
+    if (!document.body.classList.contains("portal-mode")) {
+      renderPortal();
+    }
+  } else {
+    renderPortal();
+  }
   try {
     syncSessionProfileSnapshotFromCache();
   } catch (_e) {}
