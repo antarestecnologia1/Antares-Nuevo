@@ -585,6 +585,18 @@ const ACCOUNT_STATUS = {
   RECHAZADO: "rechazado"
 };
 
+function normalizeUserAccountStatus(user) {
+  return String(user?.accountStatus ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+/** Cuentas creadas en el sitio / API con estado pendiente en PostgreSQL. */
+function isPortalUserPendingApproval(user) {
+  const s = normalizeUserAccountStatus(user);
+  return s === ACCOUNT_STATUS.PENDIENTE || s === "pending";
+}
+
 const PIPELINE = ["Recibido", "Preseleccionado", "Entrevistado", "Oferta enviada", "Contratado", "Descartado"];
 const PIPELINE_TRANSITIONS = {
   Recibido: ["Preseleccionado", "Descartado"],
@@ -2716,9 +2728,14 @@ function ensureUsersPermissions() {
 
 function ensureUsersAccountStatus() {
   const users = read(KEYS.users, []);
+  const serverBacked = Boolean(window.AntaresApi?.isConfigured?.() && window.AntaresApi?.getBase?.());
   let changed = false;
   const updated = users.map((user) => {
-    if (user.accountStatus) return user;
+    const raw = user.accountStatus;
+    if (raw !== undefined && raw !== null && String(raw).trim() !== "") return user;
+    if (serverBacked) {
+      return user;
+    }
     changed = true;
     return { ...user, accountStatus: ACCOUNT_STATUS.APROBADO };
   });
@@ -2918,26 +2935,55 @@ function portalRegistrationDetailLine(u) {
   return parts.length ? parts.join(" · ") : "—";
 }
 
-function buildPortalRegistrationPendingTableHtml(pendingUsers) {
-  const LABEL = "Registro de cliente (portal)";
+function portalRegistrationInboxInitials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+}
+
+function buildPortalRegistrationInboxCardsHtml(pendingUsers) {
   const sorted = sortAuthQueueByDateDesc(pendingUsers || [], (u) => u.registeredAt || u.createdAt);
-  const body = sorted
+  return sorted
     .map((u) => {
-      const detail = portalRegistrationDetailLine(u);
+      const eid = escapeAttr(String(u.id));
       const when = u.registeredAt || u.createdAt;
-      return `<tr>
-    <td><span class="auth-type-badge">${escapeHtml(LABEL)}</span></td>
-    <td><strong>${escapeHtml(String(u.name || "").trim() || "—")}</strong></td>
-    <td class="auth-detail-cell">${escapeHtml(detail)}</td>
-    <td>${escapeHtml("Portal público")}</td>
-    <td>${when ? fmtDate(when) : "—"}</td>
-    <td>${buildAuthStandardActionsHtml("registration", u.id)}</td>
-  </tr>`;
+      const docLine = [u.documentType, u.taxId || u.personalDoc].filter(Boolean).join(" ");
+      const loc = [u.city, u.department].filter(Boolean).join(", ");
+      const personLabel = u.personType === "juridica" ? "Jurídica" : u.personType === "natural" ? "Natural" : String(u.personType || "").trim() || "—";
+      const nitEmp = String(u.companyNit || "").trim();
+      return `<article class="auth-inbox-card" data-pending-user-id="${eid}">
+        <div class="auth-inbox-card-accent" aria-hidden="true"></div>
+        <div class="auth-inbox-card-main">
+          <div class="auth-inbox-card-avatar" aria-hidden="true">${escapeHtml(portalRegistrationInboxInitials(u.name))}</div>
+          <div class="auth-inbox-card-body">
+            <div class="auth-inbox-card-top">
+              <h4 class="auth-inbox-card-name">${escapeHtml(String(u.name || "").trim() || "Sin nombre")}</h4>
+              <span class="auth-inbox-pulse">${IC.userPlus} En revisión</span>
+            </div>
+            <p class="auth-inbox-card-email">${escapeHtml(normalizeEmail(u.email || ""))}</p>
+            <div class="auth-inbox-chip-row">
+              <span class="auth-inbox-chip">${IC.briefcase} ${escapeHtml(personLabel)}</span>
+              ${docLine ? `<span class="auth-inbox-chip">${IC.badge} ${escapeHtml(docLine)}</span>` : ""}
+              ${nitEmp ? `<span class="auth-inbox-chip">${IC.building} NIT ${escapeHtml(nitEmp)}</span>` : ""}
+              ${u.position ? `<span class="auth-inbox-chip">${IC.award} ${escapeHtml(String(u.position).trim())}</span>` : ""}
+              ${loc ? `<span class="auth-inbox-chip">${IC.mapPin} ${escapeHtml(loc)}</span>` : ""}
+              ${u.phone ? `<span class="auth-inbox-chip">${IC.phone} ${escapeHtml(String(u.phone).trim())}</span>` : ""}
+            </div>
+            <p class="auth-inbox-card-date">${IC.clock} Solicitud · ${when ? escapeHtml(fmtDate(when)) : "—"}</p>
+            <div class="auth-inbox-card-actions">${buildAuthStandardActionsHtml("registration", u.id).replace("auth-approval-toolbar", "auth-approval-toolbar auth-inbox-actions")}</div>
+          </div>
+        </div>
+      </article>`;
     })
     .join("");
-  return `<div class="table-wrap auth-pending-table"><table><thead><tr>
-    <th>Tipo</th><th>Resumen</th><th>Detalle</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th>
-  </tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function buildPortalRegistrationPendingTableHtml(pendingUsers) {
+  return `<div class="auth-inbox-grid">${buildPortalRegistrationInboxCardsHtml(pendingUsers)}</div>`;
 }
 
 function buildPendingApprovalsTableHtml(rows) {
@@ -3686,7 +3732,7 @@ function bindAuthForms() {
       }
       state.authSecurity.failedAttempts = 0;
       state.authSecurity.lockUntil = 0;
-      if (user.accountStatus === ACCOUNT_STATUS.PENDIENTE) {
+      if (isPortalUserPendingApproval(user)) {
         notify(userMessage("authPendingApproval"), "info");
         return;
       }
@@ -5864,7 +5910,7 @@ function adminUsersHtml(current) {
   }).join("");
 
   // --- Pendientes de registro (portal): en Autorizaciones (sin ruta /transport-requests) ---
-  const pendingUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
+  const pendingUsers = users.filter((u) => isPortalUserPendingApproval(u));
 
   // --- Formularios ---
   const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
@@ -6876,7 +6922,7 @@ function mountUniversalModuleFilters() {
     payroll: "Nomina",
     hiring: "Contratacion",
     "admin-users": "Usuarios",
-    authorizations: "Autorizaciones",
+    authorizations: "Centro de aprobaciones",
     notifications: "Notificaciones",
     reports: "Reporteria"
   };
@@ -7912,16 +7958,20 @@ function profileHtml(user) {
 
 function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const n = pendingUsers.length;
-  const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
-  const body = n ? `<div class="auth-queue-scroll">${buildPortalRegistrationPendingTableHtml(pendingUsers)}</div>` : emptyState("No hay registros de cliente pendientes de aprobación.");
+  const countBadge = `<span class="auth-section-count">${n} en bandeja</span>`;
+  const body = n
+    ? buildPortalRegistrationPendingTableHtml(pendingUsers)
+    : `<div class="auth-inbox-empty">${emptyState(
+        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, pulse «Sincronizar ahora» arriba: la lista proviene de PostgreSQL tras cada carga."
+      )}</div>`;
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
         <div class="auth-queue-section-title-row">
-          <h3 class="auth-queue-section-title">Registro de clientes (portal público)</h3>
+          <h3 class="auth-queue-section-title">Bandeja de altas (portal web)</h3>
           ${countBadge}
         </div>
-        <p class="muted auth-queue-section-desc">Personas que completaron el formulario de alta en el sitio y esperan asignación de empresa, rol y activación de cuenta por un administrador.</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen:</span> Sitio web → Registro de cliente</p>
+        <p class="muted auth-queue-section-desc">Vista unificada de solicitudes nuevas: revise identidad, datos de contacto y asigne empresa antes de activar el acceso.</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen de datos:</span> PostgreSQL · tabla <code style="font-size:0.85em">usuarios</code> (<code style="font-size:0.85em">estado_cuenta = pendiente</code>)</p>
       </header>
       <div class="auth-queue-section-body">${body}</div>
     </section>`;
@@ -7932,7 +7982,7 @@ function authorizationsHtml() {
   const pending = approvals.filter((a) => a.status === "pendiente");
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
   const rejectedCt = approvals.filter((a) => a.status === "rechazado").length;
-  const pendingUsers = read(KEYS.users, []).filter((u) => u.accountStatus === ACCOUNT_STATUS.PENDIENTE);
+  const pendingUsers = read(KEYS.users, []).filter((u) => isPortalUserPendingApproval(u));
   const pendingTransportRequests = sortAuthQueueByDateDesc(
     reqRead().filter((r) => r.status === STATUS.PENDIENTE),
     (r) => r.createdAt
@@ -7959,10 +8009,10 @@ function authorizationsHtml() {
   });
 
   const authHero = moduleFleetHeroStrip([
-    { label: "Pendientes (total)", value: totalOpen, tone: totalOpen ? "warn" : undefined },
-    { label: "Solicitudes viaje", value: pendingTransportRequests.length, tone: pendingTransportRequests.length ? "warn" : undefined },
-    { label: "Cola interna", value: pending.length, tone: pending.length ? "warn" : undefined },
-    { label: "Registros portal", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined }
+    { label: "Bandeja total", value: totalOpen, tone: totalOpen ? "warn" : undefined },
+    { label: "Nuevas cuentas web", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
+    { label: "Solicitudes de viaje", value: pendingTransportRequests.length, tone: pendingTransportRequests.length ? "warn" : undefined },
+    { label: "Cola interna (aprobaciones)", value: pending.length, tone: pending.length ? "warn" : undefined }
   ]);
 
   const transportSection = buildAuthorizationsTransportRequestsSection(pendingTransportRequests);
@@ -7984,8 +8034,18 @@ function authorizationsHtml() {
       : "";
 
   const tabDefs = [
-    { id: "transport_requests", label: "Solicitudes", count: pendingTransportRequests.length, html: transportSection },
-    { id: "portal_registrations", label: "Clientes web", count: pendingUsers.length, html: portalRegHtml }
+    {
+      id: "portal_registrations",
+      label: "Nuevas cuentas",
+      count: pendingUsers.length,
+      html: portalRegHtml
+    },
+    {
+      id: "transport_requests",
+      label: "Viajes",
+      count: pendingTransportRequests.length,
+      html: transportSection
+    }
   ];
   APPROVAL_UI_BLOCKS.forEach((section) => {
     if (section.kind !== "queue") return;
@@ -8045,11 +8105,20 @@ function authorizationsHtml() {
     )
     .join("");
 
+  const apiLive = Boolean(window.AntaresApi?.isConfigured?.() && window.AntaresApi?.getBase?.());
+  const toolbarHint = apiLive
+    ? `<span class="auth-hub-live"><span class="auth-hub-live-dot" aria-hidden="true"></span> Enlace en vivo con el servidor</span><span class="muted auth-hub-live-meta">Los registros nuevos aparecen tras sincronizar</span>`
+    : `<span class="muted">Sin API configurada: solo datos locales</span>`;
+  const hubToolbar = `<div class="auth-hub-toolbar">
+    <div class="auth-hub-toolbar-lead">${toolbarHint}</div>
+    <button type="button" class="btn btn-sm btn-primary auth-hub-sync-btn" data-action="auth-refresh-bootstrap">${IC.activity} Sincronizar ahora</button>
+  </div>`;
+
   const catalogItems = [
-    "<strong>Solicitudes de transporte (pestaña Solicitudes)</strong>: aprobar o rechazar con el mismo flujo que en el módulo Solicitudes; ordenadas con lo más reciente primero.",
-    "<strong>Registro de clientes (pestaña Clientes web)</strong>: cuentas desde el sitio público; asignación de empresa y rol.",
-    "<strong>Colas internas</strong>: alta de usuario, conductor, empleado, ausencias y pagos cuando quien guarda no es administrador.",
-    "<strong>Nota</strong>: la cola en disco (<code>antares_approvals_v2</code>) es distinta del registro en PostgreSQL para clientes nuevos; ambas se atienden aquí."
+    "<strong>Nuevas cuentas</strong>: clientes que se registraron en el sitio; requieren empresa, rol y aprobación en base de datos.",
+    "<strong>Viajes</strong>: solicitudes de transporte en estado pendiente (mismo flujo que en Solicitudes).",
+    "<strong>Colas internas</strong>: altas hechas desde el portal por perfiles sin permiso de administrador (conductores, empleados, etc.).",
+    "<strong>Histórico local</strong>: cola <code>antares_approvals_v2</code> en la proyección del navegador; las cuentas web viven en PostgreSQL."
   ]
     .map((li) => `<li>${li}</li>`)
     .join("");
@@ -8060,10 +8129,18 @@ function authorizationsHtml() {
     <ul class="auth-flow-catalog-list">${catalogItems}</ul>
   </details>`;
 
-  const bodyInner = `${tabsWrap}${
+  const bodyInner = `${hubToolbar}${tabsWrap}${
     infoSectionsHtml ? `<div class="auth-info-blocks">${infoSectionsHtml}</div>` : ""
   }${catalogHtml}`;
-  return authHero + pcardWrap("shield", "Autorizaciones", `${totalOpen} pendiente(s) · Cola interna: ${approvedCt} aprob. / ${rejectedCt} rech. histórico`, bodyInner);
+  return (
+    authHero +
+    pcardWrap(
+      "shield",
+      "Centro de aprobaciones",
+      `${totalOpen} ítem(s) abierto(s) · Histórico cola local: ${approvedCt} aprob. / ${rejectedCt} rech.`,
+      bodyInner
+    )
+  );
 }
 
 function contactLeadsHtml() {
@@ -8357,6 +8434,19 @@ function renderPortalViewImpl() {
 
   const user = currentUser();
   const view = state.currentView;
+  const prevPortalView = state.__portalPrevViewForSync;
+  state.__portalPrevViewForSync = view;
+  if (
+    view === "authorizations" &&
+    prevPortalView !== "authorizations" &&
+    window.AntaresApi?.isConfigured?.() &&
+    typeof window.AntaresApi.getAccessToken === "function" &&
+    window.AntaresApi.getAccessToken()
+  ) {
+    void applyPortalBootstrapFromApi().then((ok) => {
+      if (ok) scheduleRenderPortalView();
+    });
+  }
   const viewTitle = PortalArch.getTitle(view);
   nodes.viewTitle.textContent = viewTitle;
   const content = PortalRendererCore.safeResolve({
@@ -9038,16 +9128,27 @@ function bindDynamicEvents() {
         subtitle: "Ingresa motivo de rechazo",
         submitText: "Rechazar",
         fields: [{ name: "reason", label: "Motivo", value: "", required: true }],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           const users = read(KEYS.users, []);
           const target = users.find((u) => u.id === userId);
           if (!target) return false;
-          write(
-            KEYS.users,
-            users.map((u) => u.id === userId ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason } : u)
-          );
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.()) {
+            try {
+              await api.postJson("/portal/admin-user-status", { userId: String(target.id), status: "rechazado" });
+              await applyPortalBootstrapFromApi();
+            } catch (err) {
+              notify(String(err?.message || "No se pudo rechazar en el servidor."), "error");
+              return false;
+            }
+          } else {
+            write(
+              KEYS.users,
+              users.map((u) => (u.id === userId ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason } : u))
+            );
+          }
           saveNotification({
             userId: target.id,
             title: "Registro rechazado",
@@ -9355,6 +9456,24 @@ function bindDynamicEvents() {
           notify("No se pudo actualizar. Revise conexion y sesion con la API.", "error");
         }
       });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='auth-refresh-bootstrap']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btn.disabled = true;
+      void applyPortalBootstrapFromApi()
+        .then((ok) => {
+          if (ok) {
+            notify("Bandeja sincronizada con PostgreSQL.", "success");
+            scheduleRenderPortalView();
+          } else {
+            notify("No se pudo sincronizar. Revise conexion, token o permisos de administrador.", "error");
+          }
+        })
+        .finally(() => {
+          btn.disabled = false;
+        });
     });
   });
 

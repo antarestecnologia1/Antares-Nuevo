@@ -88,7 +88,7 @@ window.PortalArchitecture = (() => {
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".users-hero-strip", "[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     authorizations: {
-      title: "Autorizaciones",
+      title: "Centro de aprobaciones",
       access: "admin",
       shell: true,
       renderer: [{ module: "autorizaciones", exportName: "authorizationsHtml" }],
