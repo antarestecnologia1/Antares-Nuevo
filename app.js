@@ -6569,12 +6569,6 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" value="${escapeAttr(String(editingUser.middleName ?? ""))}" autocomplete="additional-name" /></label>
         <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" value="${escapeAttr(String(editingUser.lastName ?? ""))}" autocomplete="family-name" /></label>
         <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" value="${escapeAttr(String(editingUser.secondLastName ?? ""))}" /></label>
-        <label class="full">${fieldLabel(IC.shield, "Tipo de vínculo con Antares")}
-          <select name="registrationKind" id="admin-edit-registration-kind" required>
-            <option value="cliente" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "cliente" ? "selected" : ""}>Cliente externo</option>
-            <option value="empleado_interno" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "empleado_interno" ? "selected" : ""}>Empleado interno</option>
-          </select>
-        </label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
@@ -6612,6 +6606,12 @@ function adminUsersHtml(current) {
             <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
             <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
             <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
+          </select>
+        </label>
+        <label class="full">${fieldLabel(IC.users, "Cliente o usuario interno")}
+          <select name="registrationKind" id="admin-edit-registration-kind" required aria-label="Cliente externo o usuario interno Antares">
+            <option value="cliente" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "cliente" ? "selected" : ""}>Cliente (persona de empresa externa)</option>
+            <option value="empleado_interno" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "empleado_interno" ? "selected" : ""}>Usuario interno (personal Antares)</option>
           </select>
         </label>
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
