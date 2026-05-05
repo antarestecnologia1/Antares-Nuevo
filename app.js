@@ -772,7 +772,8 @@ let state = {
   },
   adminUsersUi: {
     panel: "",
-    editUserId: ""
+    editUserId: "",
+    editCompanyId: ""
   },
   createPanels: {},
   calendarFocus: null,
@@ -1103,6 +1104,24 @@ function __applyPortalBootstrapPayloadInner(p) {
     if (prop === "users") {
       const raw = Array.isArray(p.users) ? p.users : [];
       write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
+      continue;
+    }
+    if (prop === "companies") {
+      const raw = Array.isArray(p.companies) ? p.companies : [];
+      const prev = read(KEYS.companies, []);
+      const prevMap = new Map(prev.map((c) => [String(c.id ?? ""), c]));
+      const merged = raw.map((c) => {
+        const id = String(c?.id ?? "");
+        const old = id ? prevMap.get(id) : null;
+        const explicitInactive =
+          c.active === false ||
+          String(c.active ?? "").toLowerCase() === "false" ||
+          String((c.activeCompany ?? c.companyActive) ?? "").toLowerCase() === "false";
+        const active =
+          explicitInactive ? false : old && typeof old.active === "boolean" ? old.active : true;
+        return { ...c, active };
+      });
+      write(KEYS.companies, merged);
       continue;
     }
     write(key, p[prop]);
@@ -2372,6 +2391,16 @@ function companyKindLabel(kind) {
   return "Cliente";
 }
 
+function isCompanyRecordActive(c) {
+  return c && c.active !== false;
+}
+
+function companyKindChipHtml(kind) {
+  const k = normalizeCompanyKindForDb(kind);
+  const colors = { cliente: "#0E7490", tercero: "#7C3AED", propia: "#377cc0" };
+  return `<span class="role-chip company-kind-chip" style="--role-color:${colors[k] || "#64748B"}">${escapeHtml(companyKindLabel(k))}</span>`;
+}
+
 function isPersonTypeJuridica(value) {
   return normalizePersonTypeForDb(value) === "Juridica";
 }
@@ -2929,6 +2958,7 @@ function findOrCreateCompanyIdByName(name) {
     nit: "",
     phone: "",
     companyKind: "cliente",
+    active: true,
     createdAt: nowIso()
   };
   companies.push(company);
@@ -2941,10 +2971,12 @@ function getCompanyById(companyId) {
 }
 
 function companySelectOptions(selectedId = "") {
+  const sel = String(selectedId || "").trim();
   return read(KEYS.companies, [])
+    .filter((company) => isCompanyRecordActive(company) || String(company.id) === sel)
     .map(
       (company) =>
-        `<option value="${company.id}" ${company.id === selectedId ? "selected" : ""}>${escapeHtml(String(company.name || ""))} (${companyKindLabel(company.companyKind)})</option>`
+        `<option value="${company.id}" ${String(company.id) === sel ? "selected" : ""}>${escapeHtml(String(company.name || ""))} (${escapeHtml(companyKindLabel(company.companyKind))})</option>`
     )
     .join("");
 }
@@ -2985,6 +3017,7 @@ function ensureCompaniesAndUserMapping() {
       nit: user.taxId || "",
       phone: user.phone || "",
       companyKind: "cliente",
+      active: true,
       createdAt: nowIso()
     };
     nextCompanies.push(created);
@@ -6359,18 +6392,25 @@ function transportCalendarHtml() {
 function adminUsersHtml(current) {
   const users = read(KEYS.users, []);
   const companies = read(KEYS.companies, []);
-  const ui = state.adminUsersUi || { panel: "", editUserId: "" };
+  const ui = state.adminUsersUi || { panel: "", editUserId: "", editCompanyId: "" };
   const editingUser = ui.editUserId ? users.find((u) => u.id === ui.editUserId) : null;
+  const editingCompany = ui.editCompanyId ? companies.find((c) => String(c.id) === String(ui.editCompanyId)) : null;
 
-  const companyOptions = companies
-    .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${companyKindLabel(c.companyKind)})</option>`)
+  const companiesAssignable = companies.filter((c) => isCompanyRecordActive(c));
+
+  const companyOptions = companiesAssignable
+    .map(
+      (c) =>
+        `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`
+    )
     .join("");
   const companyEditOptions = editingUser
     ? companies
         .map((c) => {
           const id = String(c.id ?? "");
           const selected = String(editingUser.companyId ?? "") === id ? " selected" : "";
-          return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""} · ${escapeHtml(companyKindLabel(c.companyKind))}</option>`;
+          const inactiveMark = !isCompanyRecordActive(c) ? " · Inactiva" : "";
+          return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""} · ${escapeHtml(companyKindLabel(c.companyKind))}${inactiveMark}</option>`;
         })
         .join("")
     : "";
@@ -6463,6 +6503,40 @@ function adminUsersHtml(current) {
       ${note}
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
       ${actions}
+    </div>`;
+  };
+
+  const renderCompanyCard = (c) => {
+    const active = isCompanyRecordActive(c);
+    const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
+    const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
+    const coStatusBadge = active
+      ? `<span class="status status-viaje_asignado">Activa</span>`
+      : `<span class="status status-rechazada">Inactiva</span>`;
+    const coActions = `<div class="user-card-actions">
+      <button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>
+      <button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>
+      <button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}">${IC.trash} Eliminar</button>
+    </div>`;
+    const metaParts = [
+      `${IC.badge} ${escapeHtml(String(c.taxId || c.nit || "—"))}`,
+      c.phone ? `${IC.phone} ${escapeHtml(String(c.phone))}` : `<span class="muted">${IC.phone} Sin teléfono</span>`,
+      `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
+    ];
+    return `<div class="user-card user-card--company${active ? "" : " user-card--company-inactive"}">
+      <div class="user-card-top">
+        <div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>
+        <div class="user-card-info">
+          <h4>${escapeHtml(String(c.name || ""))}</h4>
+          <p class="muted">Empresa</p>
+        </div>
+        <div class="user-card-badges">
+          ${companyKindChipHtml(c.companyKind)}
+          ${coStatusBadge}
+        </div>
+      </div>
+      <div class="user-card-meta">${metaParts.map((x) => `<span>${x}</span>`).join("")}</div>
+      ${coActions}
     </div>`;
   };
 
@@ -6608,6 +6682,40 @@ function adminUsersHtml(current) {
     </fieldset>
   </form>`;
 
+  const fCompanyEdit = editingCompany
+    ? `<form id="form-admin-company-edit" class="p-form p-form-colored">
+    <input type="hidden" name="id" value="${escapeAttr(String(editingCompany.id || ""))}" />
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.briefcase} Datos de la empresa</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.shield, "Clasificación de la empresa")}
+          <select name="companyKind" required>
+            <option value="cliente" ${normalizeCompanyKindForDb(editingCompany.companyKind) === "cliente" ? "selected" : ""}>Cliente (contrata servicios)</option>
+            <option value="tercero" ${normalizeCompanyKindForDb(editingCompany.companyKind) === "tercero" ? "selected" : ""}>Tercero (proveedor u otro vínculo)</option>
+            <option value="propia" ${normalizeCompanyKindForDb(editingCompany.companyKind) === "propia" ? "selected" : ""}>Empresa propia — Antares (operador)</option>
+          </select>
+        </label>
+        <label class="full">
+          ${fieldLabel(IC.briefcase, "Nombre o razón social", { required: true })}
+          <input name="name" required maxlength="255" autocomplete="organization" value="${escapeAttr(String(editingCompany.name || ""))}" />
+        </label>
+        <label>
+          ${fieldLabel(IC.badge, "NIT / RUT", { required: true })}
+          <input name="taxId" required maxlength="32" inputmode="numeric" autocomplete="off" value="${escapeAttr(String(editingCompany.taxId ?? editingCompany.nit ?? ""))}" />
+        </label>
+        <label>
+          ${fieldLabel(IC.phone, "Teléfono")}
+          <input name="phone" maxlength="32" inputmode="tel" autocomplete="tel" placeholder="+57 300 000 0000" value="${escapeAttr(String(editingCompany.phone ?? ""))}" />
+        </label>
+      </div>
+    </fieldset>
+    <div class="toolbar full">
+      <button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>
+      <button class="btn btn-action" type="button" data-action="close-edit-company">${IC.x} Cancelar</button>
+    </div>
+  </form>`
+    : "";
+
   const fPerm = `<form id="form-admin-user-permissions" class="p-form">
     <label class="full">${fieldLabel(IC.user, "Seleccionar usuario")}
       <select name="userId" required>
@@ -6720,11 +6828,13 @@ function adminUsersHtml(current) {
   </form>`
     : "";
 
-  // --- Empresas tabla ---
-  const companyRows = companies.map((c) => `<div class="company-chip">
-    <strong>${escapeHtml(String(c.name || ""))}</strong>
-    <span class="muted">${escapeHtml(String(c.taxId || c.nit || ""))} · ${escapeHtml(companyKindLabel(c.companyKind))}${c.phone ? ` · ${escapeHtml(String(c.phone))}` : ""}</span>
-  </div>`).join("");
+  const companiesSorted = [...companies].sort((a, b) => {
+    const aa = isCompanyRecordActive(a) ? 0 : 1;
+    const bb = isCompanyRecordActive(b) ? 0 : 1;
+    if (aa !== bb) return aa - bb;
+    return String(a.name || "").localeCompare(String(b.name || ""), "es", { sensitivity: "base" });
+  });
+  const companyCardsHtml = companiesSorted.map((c) => renderCompanyCard(c)).join("");
 
   // --- Render ---
   let html = "";
@@ -6755,6 +6865,13 @@ function adminUsersHtml(current) {
       `Actualiza los datos de ${escapeHtml(getPortalUserDisplayName(editingUser))}`,
       fEdit
     );
+  if (editingCompany)
+    html += pcardWrap(
+      "briefcase",
+      "Editar empresa",
+      escapeHtml(String(editingCompany.name || "")),
+      fCompanyEdit
+    );
 
   /**
    * Pendientes primero: el admin ve aquí mismo quién espera aprobación con la nota visible y
@@ -6780,7 +6897,12 @@ function adminUsersHtml(current) {
   );
 
   if (companies.length > 0) {
-    html += pcardWrap("briefcase", "Empresas registradas", companies.length + " empresas", `<div class="company-grid">${companyRows}</div>`);
+    html += pcardWrap(
+      "briefcase",
+      "Empresas registradas",
+      `${companies.length} empresa${companies.length === 1 ? "" : "s"}`,
+      `<div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div>`
+    );
   }
 
   return html;
@@ -7777,7 +7899,8 @@ function payrollHtml() {
   const positions = getActivePositions();
   const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const companyOptions = companies
-    .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${companyKindLabel(c.companyKind)})</option>`)
+    .filter((c) => isCompanyRecordActive(c))
+    .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`)
     .join("");
   const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
@@ -9199,13 +9322,25 @@ function enforceColombianFormStandards() {
     maxlength: "32",
     placeholder: "900123456-7"
   });
-  setAttr("#form-admin-company-create input[name='phone']", { pattern: "[0-9]{7,15}", maxlength: "15", placeholder: "6011234567" });
+  setAttr("#form-admin-company-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 601 234 5678" });
   appendLegalNote(
     "form-admin-company-create",
     "El NIT se valida con el algoritmo de verificación DIAN. No puede repetirse en el sistema."
   );
 
-  setAttr("#form-admin-user-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel" });
+  setAttr("#form-admin-company-edit input[name='taxId']", {
+    pattern: "[0-9\\-]{6,32}",
+    minlength: "6",
+    maxlength: "32",
+    placeholder: "900123456-7"
+  });
+  setAttr("#form-admin-company-edit input[name='phone']", {
+    maxlength: "32",
+    inputmode: "tel",
+    autocomplete: "tel",
+    placeholder: "+57 300 000 0000"
+  });
+  setAttr("#form-admin-user-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
   setAttr("#form-admin-user-edit input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
   appendLegalNote("form-admin-user-create", "Valide identificación y datos de contacto conforme a políticas de gestión de datos personales.");
 
@@ -9601,7 +9736,8 @@ function bindDynamicEvents() {
       const currentPanel = state.adminUsersUi?.panel || "";
       state.adminUsersUi = {
         panel: currentPanel === panel ? "" : panel,
-        editUserId: ""
+        editUserId: "",
+        editCompanyId: ""
       };
       renderPortalView();
     });
@@ -9611,15 +9747,96 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      state.adminUsersUi = { panel: "", editUserId: id };
+      state.adminUsersUi = { panel: "", editUserId: id, editCompanyId: "" };
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.adminUsersUi = { panel: "", editUserId: "" };
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='open-edit-company']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      if (!id) return;
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: id };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='close-edit-company']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-company-active']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const companyId = String(btn.dataset.id || "");
+      if (!companyId) return;
+      const companies = read(KEYS.companies, []);
+      const target = companies.find((c) => String(c.id) === companyId);
+      if (!target) return;
+      const active = isCompanyRecordActive(target);
+      const verb = active ? "desactivar" : "activar";
+      openConfirmModal({
+        title: `${active ? "Desactivar" : "Activar"} empresa`,
+        message: `Se va a ${verb} "${String(target.name || "").trim()}". Las empresas inactivas no aparecen al asignar usuarios nuevos.`,
+        confirmText: active ? "Desactivar" : "Activar",
+        onConfirm: () => {
+          write(
+            KEYS.companies,
+            companies.map((c) =>
+              String(c.id) === companyId ? { ...c, active: !active } : c
+            )
+          );
+          notify(userMessage(active ? "companyDeactivated" : "companyActivated"), "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-company']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const companyId = String(btn.dataset.id || "");
+      if (!companyId) return;
+      const companies = read(KEYS.companies, []);
+      const target = companies.find((c) => String(c.id) === companyId);
+      if (!target) return;
+      const linkedUsers = read(KEYS.users, []).filter((u) => String(u.companyId || "") === companyId);
+      if (linkedUsers.length > 0) {
+        notify(userMessage("companyDeleteBlockedUsers"), "error");
+        return;
+      }
+      openConfirmModal({
+        title: "Eliminar empresa",
+        message: `Eliminar permanentemente "${String(target.name || "").trim()}" del sistema.`,
+        confirmText: "Eliminar",
+        onConfirm: async () => {
+          const api = window.AntaresApi;
+          if (api?.isConfigured?.() && typeof api.postJson === "function") {
+            try {
+              await api.postJson("/portal/admin-company-delete", { companyId });
+            } catch (err) {
+              notify(String(err?.message || userMessage("genericError")), "error");
+              return;
+            }
+          }
+          write(
+            KEYS.companies,
+            read(KEYS.companies, []).filter((c) => String(c.id) !== companyId)
+          );
+          state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+          notify(userMessage("companyDeleted"), "success");
+          renderPortalView();
+        }
+      });
     });
   });
 
@@ -9707,7 +9924,7 @@ function bindDynamicEvents() {
       });
       write(KEYS.users, users);
       notify(userMessage("userCreated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "" };
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
     });
   }
@@ -9731,8 +9948,9 @@ function bindDynamicEvents() {
         notify(userMessage("companyNameTooLong"), "error");
         return;
       }
-      const companyPhone = String(data.phone || "").trim();
-      if (companyPhone && !/^\d{7,15}$/.test(companyPhone)) {
+      const phoneStored = normalizePortalPhoneForStorage(String(data.phone || ""));
+      const phoneDigits = phoneStored.replace(/\D/g, "");
+      if (phoneStored && phoneDigits.length < 7) {
         notify(userMessage("companyPhoneInvalid"), "error");
         return;
       }
@@ -9757,8 +9975,9 @@ function bindDynamicEvents() {
         name: nameTrim,
         taxId: nitNorm,
         nit: nitNorm,
-        phone: companyPhone,
+        phone: phoneStored,
         companyKind: kind,
+        active: true,
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
@@ -9778,7 +9997,94 @@ function bindDynamicEvents() {
         }
       }
       notify(userMessage("companyCreated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "" };
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      renderPortalView();
+    });
+  }
+
+  const adminCompanyEdit = document.getElementById("form-admin-company-edit");
+  if (adminCompanyEdit) {
+    adminCompanyEdit.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
+      const companyId = String(data.id || "");
+      if (!companyId) return;
+      const companies = read(KEYS.companies, []);
+      const existing = companies.find((c) => String(c.id) === companyId);
+      if (!existing) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const nitValidation = validateColombianDocument("NIT", data.taxId);
+      if (!nitValidation.ok) {
+        notify(userMessage("companyNitInvalid", nitValidation.message), "error");
+        return;
+      }
+      const nameTrim = normalizeLatinForDb(String(data.name || "").trim());
+      if (!nameTrim) {
+        notify(userMessage("validationStep"), "error");
+        return;
+      }
+      if (nameTrim.length > 255) {
+        notify(userMessage("companyNameTooLong"), "error");
+        return;
+      }
+      const nitNorm = nitValidation.normalized;
+      const nameLc = nameTrim.toLowerCase();
+      if (companies.some((c) => String(c.id) !== companyId && String(c.name || "").trim().toLowerCase() === nameLc)) {
+        notify(userMessage("companyNameDuplicate"), "error");
+        return;
+      }
+      if (companies.some((c) => String(c.id) !== companyId && String(c.taxId || c.nit || "").trim() === nitNorm)) {
+        notify(userMessage("companyNitDuplicate"), "error");
+        return;
+      }
+      const kind = normalizeCompanyKindForDb(data.companyKind);
+      if (
+        kind === "propia" &&
+        companies.some((c) => String(c.id) !== companyId && normalizeCompanyKindForDb(c.companyKind) === "propia")
+      ) {
+        notify(userMessage("companyPropiaDuplicate"), "error");
+        return;
+      }
+      const phoneStored = normalizePortalPhoneForStorage(String(data.phone || ""));
+      const phoneDigits = phoneStored.replace(/\D/g, "");
+      if (phoneStored && phoneDigits.length < 7) {
+        notify(userMessage("companyPhoneInvalid"), "error");
+        return;
+      }
+      write(
+        KEYS.companies,
+        companies.map((c) =>
+          String(c.id) === companyId
+            ? {
+                ...c,
+                name: nameTrim,
+                taxId: nitNorm,
+                nit: nitNorm,
+                phone: phoneStored,
+                companyKind: kind
+              }
+            : c
+        )
+      );
+      const api = window.AntaresApi;
+      if (api?.isConfigured?.() && typeof api.postJson === "function") {
+        try {
+          await api.postJson("/portal/sync-key", { key: "companies", data: read(KEYS.companies, []) });
+        } catch (err) {
+          notify(
+            String(
+              err?.message ||
+                "La empresa no se pudo guardar en el servidor (revise UUID y conexión). Corrija y reintente."
+            ),
+            "error"
+          );
+          return;
+        }
+      }
+      notify(userMessage("companyUpdated"), "success");
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
     });
   }
@@ -9821,7 +10127,7 @@ function bindDynamicEvents() {
         }
       }
       notify(userMessage("permissionsUpdated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "" };
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
     });
   }
@@ -9936,7 +10242,7 @@ function bindDynamicEvents() {
         )
       );
       notify(userMessage("userUpdated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "" };
+      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
     });
   }

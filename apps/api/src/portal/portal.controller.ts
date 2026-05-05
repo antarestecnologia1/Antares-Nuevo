@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
 import { AdminUserDeleteDto } from "./dto/admin-user-delete.dto";
+import { AdminCompanyDeleteDto } from "./dto/admin-company-delete.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { PortalService } from "./portal.service";
@@ -68,5 +69,11 @@ export class PortalController {
   @Post("admin-user-delete")
   adminUserDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminUserDeleteDto) {
     return this.portal.adminDeleteUser(req.user.userId, req.user.role, dto.userId);
+  }
+
+  /** Solo admin: elimina empresa sin usuarios ni nómina vinculados. */
+  @Post("admin-company-delete")
+  adminCompanyDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminCompanyDeleteDto) {
+    return this.portal.adminDeleteCompany(req.user.userId, req.user.role, dto.companyId);
   }
 }

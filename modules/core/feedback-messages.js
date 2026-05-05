@@ -77,6 +77,13 @@
       "Ya existe una empresa registrada como operadora propia (Antares). Solo puede haber una en el sistema.",
     companyExists: "Ya existe una empresa con ese NIT o nombre.",
     companyCreated: "Empresa registrada correctamente.",
+    companyDeleted: "Empresa eliminada correctamente.",
+    companyDeleteBlockedUsers:
+      "No se puede eliminar esta empresa mientras tenga usuarios asociados. Reasigne o elimine esos usuarios antes.",
+    companyDeleteBlockedHr:
+      "No se puede eliminar: hay empleados en nómina vinculados a esta empresa en el servidor.",
+    companyDeactivated: "Empresa desactivada. Ya no aparecerá al crear usuarios nuevos.",
+    companyActivated: "Empresa activada de nuevo.",
     userPick: "Seleccione un usuario.",
     permissionsChangedLogout: "Sus permisos cambiaron. Por seguridad, debe iniciar sesión de nuevo.",
     permissionsUpdated: "Permisos actualizados correctamente.",

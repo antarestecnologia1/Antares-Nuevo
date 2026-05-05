@@ -783,6 +783,49 @@ export class PortalService implements OnModuleInit {
     return { ok: true, userId: tid };
   }
 
+  async adminDeleteCompany(actorUserId: string, actorRole: JwtRole, targetCompanyId: string) {
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    const cid = String(targetCompanyId || "").trim();
+    if (!cid || !PG_UUID_V4_RE.test(cid)) throw new BadRequestException("Empresa objetivo invalida");
+
+    const uc = await this.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM usuarios WHERE id_empresa = $1::uuid`,
+      [cid]
+    );
+    if (Number(uc.rows[0]?.n || 0) > 0) {
+      throw new BadRequestException(
+        "Hay usuarios vinculados a esta empresa. Reasigne esas cuentas antes de eliminar."
+      );
+    }
+
+    if (await this.tableExists("empleados_nomina")) {
+      const ec = await this.pool.query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM empleados_nomina WHERE id_empresa = $1::uuid`,
+        [cid]
+      );
+      if (Number(ec.rows[0]?.n || 0) > 0) {
+        throw new BadRequestException(
+          "Hay empleados en nomina con esta empresa. No se puede eliminar desde el portal."
+        );
+      }
+    }
+
+    try {
+      const del = await this.pool.query(`DELETE FROM empresas WHERE id = $1::uuid`, [cid]);
+      if (del.rowCount === 0) throw new BadRequestException("Empresa no encontrada");
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/violates foreign key|foreign key constraint/i.test(msg)) {
+        throw new BadRequestException(
+          "No se puede eliminar: hay datos operativos que referencian esta empresa."
+        );
+      }
+      throw e;
+    }
+    return { ok: true, companyId: cid };
+  }
+
   private async deleteSupabaseAuthUser(userId: string) {
     if (!this.supabaseAdmin || !userId) return;
     await this.supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);

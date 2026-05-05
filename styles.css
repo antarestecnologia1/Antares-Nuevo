@@ -2889,6 +2889,34 @@ body[data-theme="dark"] .user-card-pending-note strong {
   margin-top: 0.5rem;
 }
 
+.user-grid-companies {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+
+.user-card--company .user-avatar--company {
+  background: linear-gradient(145deg, #377cc0 0%, #2563a8 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.user-card--company-inactive {
+  opacity: 0.9;
+  border-style: dashed;
+}
+
+.user-card--company-inactive .user-avatar--company {
+  background: linear-gradient(145deg, #64748b 0%, #475569 100%);
+}
+
+.company-kind-chip {
+  font-size: 0.72rem !important;
+}
+
+body[data-theme="dark"] .user-card--company-inactive {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
 /* Permission fieldset */
 .perm-fieldset {
   border: 1px solid #E2E8F0;
