@@ -2038,6 +2038,11 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const v of data) {
       if (!v?.id || !v.plate) continue;
+      const vid = String(v.id).trim();
+      if (!PG_UUID_V4_RE.test(vid)) {
+        this.logger.warn(`syncVehicles: omitiendo fila con id no UUID: ${vid.slice(0, 24)}`);
+        continue;
+      }
       await c.query(
         `INSERT INTO vehiculos (
           id, placa, marca, linea_modelo, anio_modelo, color, tipo_vehiculo, capacidad_kg, refrigerado_termoking,
@@ -2116,6 +2121,11 @@ export class PortalService implements OnModuleInit {
     for (const raw of data) {
       const d = raw as Record<string, unknown>;
       if (!d?.id) continue;
+      const did = String(d.id).trim();
+      if (!PG_UUID_V4_RE.test(did)) {
+        this.logger.warn(`syncDrivers: omitiendo fila con id no UUID: ${did.slice(0, 24)}`);
+        continue;
+      }
       const p = pickPortalField;
       const hiredRaw = p(d, "hiredAt");
       const hiredTs =
@@ -2219,6 +2229,11 @@ export class PortalService implements OnModuleInit {
     for (const raw of data) {
       const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
+      const eid = String(e.id).trim();
+      if (!PG_UUID_V4_RE.test(eid)) {
+        this.logger.warn(`syncPayrollEmployees: omitiendo fila con id no UUID: ${eid.slice(0, 24)}`);
+        continue;
+      }
       const p = pickPortalField;
       const name = String(e.name ?? "").trim() || "Empleado";
       const docType = String(e.documentType || "CC");

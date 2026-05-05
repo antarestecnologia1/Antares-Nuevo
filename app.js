@@ -2210,6 +2210,26 @@ function colombiaTodayIsoDate() {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/** Año calendario después de una fecha `YYYY-MM-DD` (p. ej. vencimiento SOAT un año tras expedición). */
+function addCalendarYearsIsoDate(isoDateStr, years = 1) {
+  const raw = String(isoDateStr || "").trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return "";
+  const dt = new Date(y, mo - 1, d);
+  if (Number.isNaN(dt.getTime())) return "";
+  const n = Number(years);
+  const deltaYears = Number.isFinite(n) && n !== 0 ? n : 1;
+  dt.setFullYear(dt.getFullYear() + deltaYears);
+  const oy = dt.getFullYear();
+  const om = String(dt.getMonth() + 1).padStart(2, "0");
+  const od = String(dt.getDate()).padStart(2, "0");
+  return `${oy}-${om}-${od}`;
+}
+
 /** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */
 function colombiaDatetimeLocalString(dateValue = new Date()) {
   const p = getColombiaDateParts(dateValue);
@@ -2994,7 +3014,7 @@ const APPROVAL_TYPE_META = {
   create_employee: { sectionKey: "workforce", label: "Alta de colaborador (nómina)" },
   register_hr_absence: { sectionKey: "hr_absences", label: "Registro de ausencia o incapacidad" },
   mark_payroll_paid: { sectionKey: "payroll_pay", label: "Confirmar pago de liquidación" },
-  approve_trip_request: { sectionKey: "misc", label: "Aprobación de solicitud de viaje (cola histórica)" }
+  approve_trip_request: { sectionKey: "misc", label: "Solicitud de transporte pendiente (historico en cola)" }
 };
 
 const APPROVAL_UI_BLOCKS = [
@@ -3139,7 +3159,7 @@ const AUTH_QUEUE_SHORT_TAB_LABELS = {
 
 function buildAuthorizationsTransportRequestsSection(pendingRequests) {
   const n = pendingRequests.length;
-  const countBadge = `<span class="auth-section-count">${n} pendiente(s)</span>`;
+  const countBadge = `<span class="auth-section-count">${n} solicitud pendiente${n === 1 ? "" : "es"}</span>`;
   const cards = pendingRequests
     .map((r) => {
       const eid = escapeAttr(String(r.id));
@@ -3163,10 +3183,10 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
   const body = n
     ? `<div class="auth-request-cards-scroll">${cards}</div>`
     : emptyState("No hay solicitudes de transporte pendientes de aprobación.");
-  return `<section class="auth-queue-section auth-queue-section--transport-req" data-auth-section="transport_requests" aria-label="Solicitudes de viaje">
+  return `<section class="auth-queue-section auth-queue-section--transport-req" data-auth-section="transport_requests" aria-label="Solicitudes de transporte pendientes">
       <header class="auth-queue-section-head">
         <div class="auth-queue-section-title-row">
-          <h3 class="auth-queue-section-title">Solicitudes de transporte</h3>
+          <h3 class="auth-queue-section-title">Solicitudes pendientes</h3>
           ${countBadge}
         </div>
         <p class="muted auth-queue-section-desc">Pendientes de aprobación operativa. Lo más reciente aparece primero; use <strong>Aprobar</strong> para el mismo flujo que en Solicitudes.</p>
@@ -4973,6 +4993,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
   if (!current || !canAssignTrip) return false;
 
   if (auto) {
+    const systemTimerApprove = String(actorName || "").trim() === "Sistema";
     reqWrite(
       requests.map((r) =>
         r.id === requestId
@@ -4981,7 +5002,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
               status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
               approvedAt: nowIso(),
               approvedBy: actorName,
-              autoApproved: true,
+              autoApproved: systemTimerApprove,
               rejectionReason: ""
             }
           : r
@@ -4994,8 +5015,10 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     if (targetUser) {
       saveNotification({
         userId: targetUser.id,
-        title: "Solicitud autoaprobada",
-        body: `Tu solicitud ${current.requestNumber || current.id} fue autoaprobada y quedo pendiente de asignacion de viaje.`
+        title: systemTimerApprove ? "Solicitud aprobada automaticamente" : "Solicitud aprobada",
+        body: systemTimerApprove
+          ? `Tu solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignacion de viaje.`
+          : `Tu solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignacion de viaje.`
       });
     }
     return true;
@@ -5096,13 +5119,15 @@ function rejectRequest(requestId, reason, actorName) {
 
 function updateAutoApprove() {
   const requests = reqRead();
+  let changed = false;
   requests
     .filter((r) => r.status === STATUS.PENDIENTE)
     .forEach((r) => {
       if (diffMinutes(r.createdAt) >= AUTO_APPROVE_MINUTES) {
-        approveRequest(r.id, "Sistema", true);
+        if (approveRequest(r.id, "Sistema", true)) changed = true;
       }
     });
+  return changed;
 }
 
 function minutesRemaining(createdAt) {
@@ -6021,7 +6046,7 @@ function transportTripsHtml() {
         <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
       </div>
     </fieldset>
-    <p class="muted full">${pendingForTrip.length ? "Al enviar se abrira el selector de camion, conductor y precio del viaje." : "Aprobá solicitudes desde Transporte · Solicitudes o esperá la ventana de autoaprobacion."}</p>
+    <p class="muted full">${pendingForTrip.length ? "Al enviar se abrira el selector de camion, conductor y precio del viaje." : "Apruebe solicitudes desde Transporte · Solicitudes o aguarde la aprobacion automatica por tiempo de respuesta (si esta configurada)."}</p>
     <button class="btn btn-primary full" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje desde solicitud</button>
   </form>`;
 
@@ -7365,7 +7390,7 @@ function syncDriverFromEmployee(employee, extraDriverData = {}) {
     write(KEYS.drivers, drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d)));
     return;
   }
-  write(KEYS.drivers, [{ id: uid(), ...nextDriver }, ...drivers]);
+  write(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers]);
 }
 
 function deleteEmployeesCascade(employeeIds = []) {
@@ -8596,7 +8621,7 @@ function authorizationsHtml() {
     const authHero = moduleFleetHeroStrip([
       { label: "Bandeja total", value: "…" },
       { label: "Nuevas cuentas web", value: "…" },
-      { label: "Solicitudes de viaje", value: "…" },
+      { label: "Solicitudes pendientes", value: "…" },
       { label: "Cola interna", value: "…" }
     ]);
     const syncPanel = `<div class="auth-hub-sync-loading" role="status" aria-live="polite" aria-busy="true">
@@ -8645,7 +8670,7 @@ function authorizationsHtml() {
   const authHero = moduleFleetHeroStrip([
     { label: "Bandeja total", value: totalOpen, tone: totalOpen ? "warn" : undefined },
     { label: "Nuevas cuentas web", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
-    { label: "Solicitudes de viaje", value: pendingTransportRequests.length, tone: pendingTransportRequests.length ? "warn" : undefined },
+    { label: "Solicitudes pendientes", value: pendingTransportRequests.length, tone: pendingTransportRequests.length ? "warn" : undefined },
     { label: "Cola interna (aprobaciones)", value: pending.length, tone: pending.length ? "warn" : undefined }
   ]);
 
@@ -8676,7 +8701,7 @@ function authorizationsHtml() {
     },
     {
       id: "transport_requests",
-      label: "Viajes",
+      label: "Solicitudes pendientes",
       count: pendingTransportRequests.length,
       html: transportSection
     }
@@ -8750,7 +8775,7 @@ function authorizationsHtml() {
 
   const catalogItems = [
     "<strong>Nuevas cuentas</strong>: clientes que se registraron en el sitio; requieren empresa, rol y aprobación en base de datos.",
-    "<strong>Viajes</strong>: solicitudes de transporte en estado pendiente (mismo flujo que en Solicitudes).",
+    "<strong>Solicitudes pendientes</strong>: solicitudes de transporte en estado Pendiente (mismo flujo que en Solicitudes).",
     "<strong>Colas internas</strong>: altas hechas desde el portal por perfiles sin permiso de administrador (conductores, empleados, etc.).",
     "<strong>Histórico local</strong>: cola <code>antares_approvals_v2</code> en la proyección del navegador; las cuentas web viven en PostgreSQL."
   ]
@@ -10989,6 +11014,16 @@ function bindDynamicEvents() {
 
   const vehicleForm = document.getElementById("form-vehicle");
   if (vehicleForm) {
+    const soatExpEl = vehicleForm.querySelector("input[name='soatExpeditionDate']");
+    const soatVenEl = vehicleForm.querySelector("input[name='soatExpiryDate']");
+    if (soatExpEl && soatVenEl) {
+      const syncSoatExpiryFromExpedition = () => {
+        const next = addCalendarYearsIsoDate(soatExpEl.value, 1);
+        if (next) soatVenEl.value = next;
+      };
+      soatExpEl.addEventListener("change", syncSoatExpiryFromExpedition);
+      soatExpEl.addEventListener("blur", syncSoatExpiryFromExpedition);
+    }
     vehicleForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
@@ -11003,9 +11038,14 @@ function bindDynamicEvents() {
         notify(userMessage("vehicleYearInvalid"), "error");
         return;
       }
+      let soatExpeditionDate = data.soatExpeditionDate;
+      let soatExpiryDate = data.soatExpiryDate;
+      if (soatExpeditionDate && (!soatExpiryDate || !String(soatExpiryDate).trim())) {
+        soatExpiryDate = addCalendarYearsIsoDate(soatExpeditionDate, 1) || soatExpiryDate;
+      }
       const list = read(KEYS.vehicles, []);
       list.push({
-        id: uid(),
+        id: newUuidV4(),
         plate,
         brand: String(data.brand || "").trim(),
         model: String(data.model || "").trim(),
@@ -11020,8 +11060,8 @@ function bindDynamicEvents() {
         engineNumber: String(data.engineNumber || "").trim(),
         vin: String(data.vin || "").trim().toUpperCase(),
         ownershipCard: String(data.ownershipCard || "").trim(),
-        soatExpeditionDate: data.soatExpeditionDate,
-        soatExpiryDate: data.soatExpiryDate,
+        soatExpeditionDate,
+        soatExpiryDate,
         techInspectionExpeditionDate: data.techInspectionExpeditionDate,
         techInspectionExpiryDate: data.techInspectionExpiryDate,
         rcPolicyContract: String(data.rcPolicyContract || "").trim(),
@@ -11077,13 +11117,13 @@ function bindDynamicEvents() {
         return;
       }
       const list = read(KEYS.drivers, []);
-      list.push({ id: uid(), ...data, available: true, hiredAt: nowIso() });
+      list.push({ id: newUuidV4(), ...data, available: true, hiredAt: nowIso() });
       write(KEYS.drivers, list);
       const employees = read(KEYS.payrollEmployees, []);
       const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(data.idDoc || ""));
       if (!existsEmployee) {
         employees.push({
-          id: uid(),
+          id: newUuidV4(),
           name: data.name,
           idDoc: data.idDoc,
           documentType: data.documentType,
@@ -11587,7 +11627,7 @@ function bindDynamicEvents() {
           }
         }
         const all = read(KEYS.payrollEmployees, []);
-        all.push({ id: uid(), ...payload });
+        all.push({ id: newUuidV4(), ...payload });
         write(KEYS.payrollEmployees, all);
         syncDriverFromEmployee(payload, {
           license: payload.license,
@@ -12490,17 +12530,17 @@ function bindDynamicEvents() {
           payload.workerRole = pos.workerRole || payload.workerRole || "empleado";
           payload.contractType = payload.contractType || pos.contractTypeDefault || "Termino indefinido";
         }
-        employees.push({ id: uid(), workerRole: payload.workerRole || "empleado", ...payload });
+        employees.push({ id: newUuidV4(), workerRole: payload.workerRole || "empleado", ...payload });
         write(KEYS.payrollEmployees, employees);
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
-        drivers.push({ id: uid(), ...approval.payload, available: true, hiredAt: nowIso() });
+        drivers.push({ id: newUuidV4(), ...approval.payload, available: true, hiredAt: nowIso() });
         write(KEYS.drivers, drivers);
         const employees = read(KEYS.payrollEmployees, []);
         const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(approval.payload.idDoc || ""));
         if (!existsEmployee) {
           employees.push({
-            id: uid(),
+            id: newUuidV4(),
             name: approval.payload.name,
             idDoc: approval.payload.idDoc,
             documentType: approval.payload.documentType || "CC",
@@ -13383,7 +13423,9 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
   } catch (_e) {
     /* noop */
   }
-  scheduleRenderPortalView();
+  if (!hasUnsavedPortalFormData()) {
+    scheduleRenderPortalView();
+  }
   updateNotificationBadge();
 };
 
@@ -13469,8 +13511,9 @@ void (async function bootApplicationFromDatabaseThenUi() {
   window.PortalDataLayer?.enableVisibilityRefresh?.();
   setInterval(() => {
     if (!state.session) return;
-    updateAutoApprove();
-    if (hasUnsavedPortalFormData()) return;
-    renderPortalView();
+    const changed = updateAutoApprove();
+    if (changed && !hasUnsavedPortalFormData()) {
+      scheduleRenderPortalView();
+    }
   }, 30000);
 })();
