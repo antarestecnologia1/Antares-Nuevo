@@ -207,10 +207,10 @@
     wordTemplatesRedownloaded:
       "Se descargó de nuevo el Word usando las plantillas de documentación.",
     b2bFieldsInvalid: "Revise los campos marcados para enviar su solicitud B2B.",
-    b2bContactSent: "Solicitud registrada en la base de datos. Gracias por contactarnos.",
+    b2bContactSent: "Solicitud registrada correctamente. Gracias por contactarnos.",
     b2bServerError: "No se pudo guardar en el servidor. Intente de nuevo o contacte por otro canal.",
     b2bApiMissing:
-      "Sin URL de API configurada: configure antares_api_base (o __ANTARES_API_BASE__) para guardar en PostgreSQL.",
+      "Sin URL de API configurada: defina antares_api_base (o __ANTARES_API_BASE__) para enviar la solicitud al servidor.",
     b2bContactSentLocalOnly:
       "Sin API: los datos quedaron solo en este navegador. Configure la URL del servidor para persistencia segura.",
     vacancyPublicClosed: "Esta vacante ya no está disponible.",

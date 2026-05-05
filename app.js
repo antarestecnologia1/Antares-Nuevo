@@ -573,7 +573,7 @@ const PERMISSION_META = {
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: { title: "Autorizaciones", desc: "Aprobar solicitudes de operaciones y personal." },
   [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
   [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." },
-  [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Solicitudes contacto web", desc: "Ver prospectos del formulario B2B en PostgreSQL." }
+  [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Solicitudes contacto web", desc: "Ver y gestionar prospectos del formulario de contacto B2B." }
 };
 
 const VIEW_PERMISSIONS = {
@@ -1762,9 +1762,9 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage .section-head p": "Rutas principales y corredores frecuentes para el sector floricultor y exportador.",
     "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
     "#careers .muted":
-      "Con la API configurada, las vacantes y postulaciones se guardan en PostgreSQL; sin URL de API solo se usan datos demo en este navegador.",
+      "Con el servidor de la empresa configurado, las vacantes y postulaciones quedan registradas de forma centralizada; sin esa conexión solo verá datos de demostración en este equipo.",
     "#contact .container > article:nth-child(2) .muted":
-      "Con la API configurada, las solicitudes se guardan en PostgreSQL. Sin URL de API, solo en este navegador (riesgo de perdida)."
+      "Con el servidor configurado, las solicitudes se registran de forma segura. Sin conexión, la información puede quedar solo en este navegador."
   },
   en: {
     "#trusted .section-head p": "Allies across floriculture, trading, and exports who prioritize punctuality and cold-chain integrity.",
@@ -1778,9 +1778,9 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage .section-head p": "Main routes and frequent corridors for the floriculture and export sector.",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
     "#careers .muted":
-      "With the API configured, openings and applications are stored in PostgreSQL; without an API URL only demo data in this browser is used.",
+      "With your organization server configured, openings and applications are stored centrally; without it you only see demo data in this browser.",
     "#contact .container > article:nth-child(2) .muted":
-      "With the API configured, requests are stored in PostgreSQL. Without an API URL, data stays only in this browser (loss risk)."
+      "With the server configured, requests are stored securely. Without a connection, information may remain only in this browser."
   }
 };
 
@@ -6449,7 +6449,7 @@ function adminUsersHtml(current) {
               <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
             </ul>
           </div>
-          <p id="admin-create-password-hint" class="muted password-policy-hint">Mismo estándar que el registro público (10+ caracteres, mayúscula, minúscula, número y símbolo). La contraseña se muestra tal cual al escribirla; se guarda con hash seguro.</p>
+          <p id="admin-create-password-hint" class="muted password-policy-hint">Mismo estándar que el alta público del sitio (10+ caracteres, mayúscula, minúscula, número y símbolo). La contraseña se muestra tal cual al escribirla; se guarda con hash seguro.</p>
         </label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>
           <option value="CC">Cédula de ciudadanía</option>
@@ -6515,8 +6515,7 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
       <p class="muted full" style="margin:0 0 0.85rem;line-height:1.45">
-        Misma información que guarda la tabla <strong>empresas</strong>: razón social o nombre legal, NIT único y teléfono de contacto.
-        El teléfono es opcional en base de datos. Las fechas de creación y actualización las registra el servidor.
+        Razón social o nombre legal, NIT único en el sistema y teléfono de contacto opcional.
       </p>
       <div class="form-section-grid">
         <label class="full">
@@ -6575,7 +6574,6 @@ function adminUsersHtml(current) {
             <option value="cliente" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "cliente" ? "selected" : ""}>Cliente externo</option>
             <option value="empleado_interno" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "empleado_interno" ? "selected" : ""}>Empleado interno</option>
           </select>
-          <span class="muted" style="display:block;font-size:0.82rem;font-weight:400;margin:0.2rem 0 0;line-height:1.4">Se guarda en PostgreSQL como <code>tipo_vinculo_registro</code> (cliente · empleado interno).</span>
         </label>
       </div>
     </fieldset>
@@ -8695,7 +8693,7 @@ function authorizationsHtml() {
     const syncPanel = `<div class="auth-hub-sync-loading" role="status" aria-live="polite" aria-busy="true">
       <div class="auth-hub-sync-spinner" aria-hidden="true"></div>
       <div class="auth-hub-sync-loading-text">
-        <strong>Sincronizando con PostgreSQL</strong>
+        <strong>Sincronizando con el servidor</strong>
         <span class="muted">Cargando usuarios pendientes, solicitudes y colas de aprobación desde el servidor.</span>
       </div>
     </div>`;
@@ -8842,10 +8840,10 @@ function authorizationsHtml() {
   </div>`;
 
   const catalogItems = [
-    "<strong>Nuevas cuentas</strong>: clientes que se registraron en el sitio; requieren empresa, rol y aprobación en base de datos.",
+    "<strong>Nuevas cuentas</strong>: personas que se registraron en el sitio; requieren empresa, rol y aprobación administrativa.",
     "<strong>Solicitudes pendientes</strong>: solicitudes de transporte en estado Pendiente (mismo flujo que en Solicitudes).",
     "<strong>Colas internas</strong>: altas hechas desde el portal por perfiles sin permiso de administrador (conductores, empleados, etc.).",
-    "<strong>Histórico local</strong>: cola <code>antares_approvals_v2</code> en la proyección del navegador; las cuentas web viven en PostgreSQL."
+    "<strong>Histórico en este equipo</strong>: parte de la cola de aprobaciones puede conservarse localmente mientras usa el portal; las cuentas nuevas del sitio se administran en el servidor."
   ]
     .map((li) => `<li>${li}</li>`)
     .join("");
@@ -9138,7 +9136,7 @@ function enforceColombianFormStandards() {
   setAttr("#form-admin-company-create input[name='phone']", { pattern: "[0-9]{7,15}", maxlength: "15", placeholder: "6011234567" });
   appendLegalNote(
     "form-admin-company-create",
-    "El NIT se valida con el algoritmo de verificación DIAN. Duplicar NIT bloqueará el registro en PostgreSQL por restricción única."
+    "El NIT se valida con el algoritmo de verificación DIAN. No puede repetirse en el sistema."
   );
 
   setAttr("#form-admin-user-create input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
@@ -9253,7 +9251,7 @@ function renderPortalViewImpl() {
           state.authorizationsSyncError = {
             code: "PARCIAL",
             message:
-              "El volcado general de datos no se completó; la cola de altas pendientes (usuarios) sí se actualizó desde PostgreSQL."
+              "El volcado general de datos no se completó; la lista de usuarios pendientes de alta sí se actualizó desde el servidor."
           };
         } else {
           state.authorizationsSyncError = {
