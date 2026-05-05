@@ -130,12 +130,12 @@ export class MailService implements OnModuleInit {
             </td>
           </tr>
         </table>`
-      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;border-radius:10px;background:#E3EEFA;border-left:4px solid #1565C0;overflow:hidden;">
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;border-radius:10px;background:#e8f4fc;border-left:4px solid #377cc0;overflow:hidden;">
           <tr>
             <td style="padding:16px 18px;">
-              <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#0A2E5C;">Estado de su cuenta</p>
+              <p style="margin:0 0 6px 0;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#134067;">Estado de su cuenta</p>
               <p style="margin:0;font-size:15px;line-height:1.55;color:#344F69;">
-                Hemos registrado sus datos correctamente. Su cuenta está <strong style="color:#0A2E5C;">pendiente de aprobación</strong> por parte de un <strong>usuario administrador</strong> de Transportes Antares.
+                Hemos registrado sus datos correctamente. Su cuenta está <strong style="color:#134067;">pendiente de aprobación</strong> por parte de un <strong>usuario administrador</strong> de Transportes Antares.
                 Una vez autorizado el acceso, podrá iniciar sesión en el portal. Le invitamos a conservar este correo como comprobante de solicitud.
               </p>
             </td>
@@ -147,22 +147,22 @@ export class MailService implements OnModuleInit {
 <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Transportes Antares</title>
 </head>
-<body style="margin:0;padding:0;background:#F5F9FF;font-family:'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background:#eef6fc;font-family:'Montserrat','Poppins','Roboto','Lato','Segoe UI',Helvetica,Arial,sans-serif;">
   <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;">
     ${accountApproved ? "Acceso al portal empresarial habilitado." : "Registro corporativo recibido; pendiente de validación administrativa."}
   </span>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F5F9FF;padding:36px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef6fc;padding:36px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #C5D8EC;box-shadow:0 8px 32px rgba(10,46,92,0.10);">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #cce5f8;box-shadow:0 8px 32px rgba(15,52,82,0.12);">
           <tr>
-            <td style="padding:32px 36px 28px 36px;background:linear-gradient(135deg,#071E3D 0%,#0A2E5C 42%,#1565C0 100%);">
-              <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#B8D0EB;">Transportes Antares</p>
-              <p style="margin:10px 0 0 0;font-size:13px;line-height:1.4;color:#E3EEFA;opacity:0.95;">Operador logístico B2B · Trazabilidad y cumplimiento</p>
-              <h1 style="margin:18px 0 0 0;font-size:24px;font-weight:800;color:#ffffff;line-height:1.25;letter-spacing:-0.02em;">
+            <td style="padding:32px 36px 28px 36px;background:linear-gradient(135deg,#134067 0%,#377cc0 48%,#83bee9 100%);">
+              <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#cce5f8;">Transportes Antares</p>
+              <p style="margin:10px 0 0 0;font-size:13px;line-height:1.4;color:#cce5f8;opacity:0.95;">Operador logístico B2B · Trazabilidad y cumplimiento</p>
+              <h1 style="margin:18px 0 0 0;font-size:24px;font-weight:700;color:#ffffff;line-height:1.25;letter-spacing:-0.02em;">
                 Portal empresarial Antares
               </h1>
-              <p style="margin:10px 0 0 0;font-size:15px;line-height:1.5;color:#E3EEFA;max-width:480px;">
+              <p style="margin:10px 0 0 0;font-size:15px;line-height:1.5;color:#cce5f8;max-width:480px;">
                 Le damos la bienvenida. Este mensaje confirma su registro en nuestra plataforma de relación con clientes y equipos operativos.
               </p>
             </td>
@@ -182,7 +182,7 @@ export class MailService implements OnModuleInit {
               </p>
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 22px 0;">
                 <tr>
-                  <td style="border-radius:10px;background:#1565C0;box-shadow:0 6px 20px rgba(21,101,192,0.35);">
+                  <td style="border-radius:10px;background:#377cc0;box-shadow:0 6px 20px rgba(55,124,192,0.35);">
                     <a href="${escapeHtml(baseUrl)}" target="_blank" rel="noopener noreferrer"
                        style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
                       Acceder al portal empresarial
@@ -192,14 +192,14 @@ export class MailService implements OnModuleInit {
               </table>
               <p style="margin:0;font-size:12px;line-height:1.55;color:#64748b;">
                 Si el botón no responde, copie y pegue esta dirección en su navegador:<br/>
-                <span style="word-break:break-all;color:#1565C0;font-weight:600;">${escapeHtml(baseUrl)}</span>
+                <span style="word-break:break-all;color:#377cc0;font-weight:600;">${escapeHtml(baseUrl)}</span>
               </p>
             </td>
           </tr>
           <tr>
-            <td style="padding:22px 36px 28px 36px;background:linear-gradient(180deg,#F0F6FD 0%,#FFFFFF 100%);border-top:1px solid #C5D8EC;">
+            <td style="padding:22px 36px 28px 36px;background:linear-gradient(180deg,#eef6fc 0%,#FFFFFF 100%);border-top:1px solid #cce5f8;">
               <p style="margin:0 0 10px 0;font-size:12px;line-height:1.55;color:#344F69;">
-                <strong style="color:#0A2E5C;">Confidencialidad.</strong> La información contenida es para uso del destinatario. Si recibió este mensaje por error, elimínelo y notifíquelo a su contacto en Transportes Antares.
+                <strong style="color:#134067;">Confidencialidad.</strong> La información contenida es para uso del destinatario. Si recibió este mensaje por error, elimínelo y notifíquelo a su contacto en Transportes Antares.
               </p>
               <p style="margin:0;font-size:11px;line-height:1.5;color:#64748b;">
                 Mensaje generado automáticamente — no responda a esta cuenta. Antares · Logística refrigerada y transporte especializado.

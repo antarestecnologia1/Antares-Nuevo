@@ -10,10 +10,16 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#42A5F5",
-          dark: "#1976D2",
-          light: "#E3F2FD"
+          DEFAULT: "#377cc0",
+          mid: "#83bee9",
+          soft: "#cce5f8",
+          dark: "#2a6099"
         }
+      },
+      fontFamily: {
+        display: ["var(--font-montserrat)", "Montserrat", "system-ui", "sans-serif"],
+        secondary: ["var(--font-poppins)", "Poppins", "system-ui", "sans-serif"],
+        body: ["var(--font-roboto)", "var(--font-lato)", "Roboto", "Lato", "system-ui", "sans-serif"]
       }
     }
   },
