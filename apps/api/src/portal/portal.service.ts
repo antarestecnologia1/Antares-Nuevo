@@ -1679,11 +1679,20 @@ export class PortalService implements OnModuleInit {
 
   /* ─── Sync (upsert por id) ─── */
 
+  /** Evita 500 por cast inválido a UUID en PostgreSQL (datos legacy o cliente desfasado). */
+  private skipUnlessPersistUuid(scope: string, rawId: unknown): boolean {
+    const s = String(rawId ?? "").trim();
+    if (PG_UUID_V4_RE.test(s)) return false;
+    this.logger.warn(`${scope}: omitiendo fila (id no UUID): ${s.slice(0, 36)}`);
+    return true;
+  }
+
   private async syncUsers(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException("Formato invalido");
     const admin = this.isAdmin(role);
     for (const u of data) {
       if (!u?.id) continue;
+      if (this.skipUnlessPersistUuid("syncUsers", u.id)) continue;
       if (!admin && String(u.id) !== userId) throw new ForbiddenException();
       const parentesco =
         (u as { emergencyRelationship?: string; emergencyRelation?: string }).emergencyRelationship ??
@@ -1786,7 +1795,7 @@ export class PortalService implements OnModuleInit {
     for (const row of data) {
       if (!row?.id) continue;
       const id = String(row.id).trim();
-      if (!PG_UUID_V4_RE.test(id)) continue;
+      if (this.skipUnlessPersistUuid("syncCompanies", id)) continue;
       const rec = row as Record<string, unknown>;
       const nombre = pickPortalField(rec, "name", "nombre");
       const nit = pickPortalField(rec, "nit", "taxId");
@@ -1820,6 +1829,7 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const row of data) {
       if (!row?.id) continue;
+      if (this.skipUnlessPersistUuid("syncContacts", row.id)) continue;
       await c.query(
         `INSERT INTO prospectos_contacto_b2b (
           id, nombre_contacto, nombre_empresa, nit, cargo_contacto, telefono, correo_electronico,
@@ -2038,11 +2048,7 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const v of data) {
       if (!v?.id || !v.plate) continue;
-      const vid = String(v.id).trim();
-      if (!PG_UUID_V4_RE.test(vid)) {
-        this.logger.warn(`syncVehicles: omitiendo fila con id no UUID: ${vid.slice(0, 24)}`);
-        continue;
-      }
+      if (this.skipUnlessPersistUuid("syncVehicles", v.id)) continue;
       await c.query(
         `INSERT INTO vehiculos (
           id, placa, marca, linea_modelo, anio_modelo, color, tipo_vehiculo, capacidad_kg, refrigerado_termoking,
@@ -2121,11 +2127,7 @@ export class PortalService implements OnModuleInit {
     for (const raw of data) {
       const d = raw as Record<string, unknown>;
       if (!d?.id) continue;
-      const did = String(d.id).trim();
-      if (!PG_UUID_V4_RE.test(did)) {
-        this.logger.warn(`syncDrivers: omitiendo fila con id no UUID: ${did.slice(0, 24)}`);
-        continue;
-      }
+      if (this.skipUnlessPersistUuid("syncDrivers", d.id)) continue;
       const p = pickPortalField;
       const hiredRaw = p(d, "hiredAt");
       const hiredTs =
@@ -2201,7 +2203,9 @@ export class PortalService implements OnModuleInit {
     const admin = this.isAdmin(role);
     for (const n of data) {
       if (!n?.id) continue;
+      if (this.skipUnlessPersistUuid("syncNotifications", n.id)) continue;
       if (!admin && String(n.userId) !== userId) throw new ForbiddenException();
+      if (this.skipUnlessPersistUuid("syncNotifications.targetUserId", n.userId)) continue;
       await c.query(
         `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz)
@@ -2215,6 +2219,7 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const e of data) {
       if (!e?.id) continue;
+      if (this.skipUnlessPersistUuid("syncEmails", e.id)) continue;
       await c.query(
         `INSERT INTO correos_salida (id, direccion_destino, asunto, cuerpo, fecha_envio_real)
          VALUES ($1::uuid, $2, $3, $4, $5::timestamptz)
@@ -2229,11 +2234,8 @@ export class PortalService implements OnModuleInit {
     for (const raw of data) {
       const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
-      const eid = String(e.id).trim();
-      if (!PG_UUID_V4_RE.test(eid)) {
-        this.logger.warn(`syncPayrollEmployees: omitiendo fila con id no UUID: ${eid.slice(0, 24)}`);
-        continue;
-      }
+      if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollEmployees.companyId", e.companyId)) continue;
       const p = pickPortalField;
       const name = String(e.name ?? "").trim() || "Empleado";
       const docType = String(e.documentType || "CC");
@@ -2393,6 +2395,8 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const run of data) {
       if (!run?.id || !run.employeeId) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollRuns", run.id)) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollRuns.employeeId", run.employeeId)) continue;
       await c.query(
         `INSERT INTO liquidaciones_nomina (
           id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
@@ -2463,6 +2467,9 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const row of data) {
       if (!row?.id) continue;
+      if (this.skipUnlessPersistUuid("syncFuelLogs", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncFuelLogs.vehicleId", row.vehicleId)) continue;
+      if (this.skipUnlessPersistUuid("syncFuelLogs.driverId", row.driverId)) continue;
       await c.query(
         `INSERT INTO registros_combustible (
           id, fecha, id_vehiculo, placa_vehiculo, id_conductor, nombre_conductor, numero_viaje, litros, costo_total,
@@ -2504,6 +2511,8 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const row of data) {
       if (!row?.id) continue;
+      if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs.vehicleId", row.vehicleId)) continue;
       await c.query(
         `INSERT INTO registros_mantenimiento_vehiculo (
           id, fecha, id_vehiculo, placa_vehiculo, tipo_intervencion, descripcion, costo, horas_inactividad, estado_seguimiento
@@ -2544,6 +2553,7 @@ export class PortalService implements OnModuleInit {
       for (const raw of data) {
         const p = raw as Record<string, unknown>;
         if (!p?.id) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.positions", p.id)) continue;
         const integralRaw = pickPortalField(p, "integralSalary");
         const integral =
           integralRaw === true ||
@@ -2582,6 +2592,8 @@ export class PortalService implements OnModuleInit {
       for (const raw of data) {
         const v = raw as Record<string, unknown>;
         if (!v?.id || !v.positionId) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.vacancies", v.id)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.vacancies.positionId", v.positionId)) continue;
         const cupos = Math.max(
           1,
           Math.floor(Number(pickPortalField(v, "slots", "openings") ?? v.slots ?? v.openings) || 1)
@@ -2632,6 +2644,8 @@ export class PortalService implements OnModuleInit {
       for (const raw of data) {
         const x = raw as Record<string, unknown>;
         if (!x?.id || !x.vacancyId) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.candidates", x.id)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.candidates.vacancyId", x.vacancyId)) continue;
         const salaryAsp = Number(
           pickPortalField(x, "salaryExpectation", "expectedSalary") ?? x.salaryExpectation
         );
@@ -2689,6 +2703,8 @@ export class PortalService implements OnModuleInit {
       for (const raw of data) {
         const i = raw as Record<string, unknown>;
         if (!i?.id || !i.candidateId) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.interviews", i.id)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.interviews.candidateId", i.candidateId)) continue;
         await c.query(
           `INSERT INTO entrevistas (id, id_candidato, nombre_candidato_denorm, fecha_hora, entrevistador, modalidad, lugar_o_enlace, notas)
            VALUES ($1::uuid, $2::uuid, $3, $4::timestamptz, $5, $6, $7, $8)
@@ -2717,6 +2733,17 @@ export class PortalService implements OnModuleInit {
     if (key === "contracts") {
       for (const x of data) {
         if (!x?.id || !x.positionId || !x.companyId) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.contracts", x.id)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.contracts.positionId", x.positionId)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.contracts.companyId", x.companyId)) continue;
+        const candRaw = (x as Record<string, unknown>).candidateId;
+        if (
+          candRaw != null &&
+          String(candRaw).trim() !== "" &&
+          this.skipUnlessPersistUuid("syncHrKeys.contracts.candidateId", candRaw)
+        ) {
+          continue;
+        }
         await c.query(
           `INSERT INTO contratos (
             id, tipo_persona_origen, id_candidato, nombre_candidato_denorm, rol_trabajador, id_cargo, nombre_cargo_denorm,
@@ -2771,6 +2798,8 @@ export class PortalService implements OnModuleInit {
     for (const raw of data) {
       const row = raw as Record<string, unknown>;
       if (!row?.id || !row.employeeId) continue;
+      if (this.skipUnlessPersistUuid("syncHrAbsences", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncHrAbsences.employeeId", row.employeeId)) continue;
       const tipo = String(
         pickPortalField(row, "type", "absenceType") ?? "incapacidad"
       );
@@ -2815,6 +2844,8 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     for (const row of data) {
       if (!row?.id || !row.employeeId) continue;
+      if (this.skipUnlessPersistUuid("syncSst", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncSst.employeeId", row.employeeId)) continue;
       await c.query(
         `INSERT INTO registros_cumplimiento_sst (
           id, id_empleado, nombre_empleado, tipo_registro, proveedor_entidad, fecha_vencimiento_control, estado, codigo_documento, observaciones, creado_por
@@ -2906,7 +2937,10 @@ export class PortalService implements OnModuleInit {
     const admin = this.isAdmin(role);
     for (const a of data) {
       if (!a?.id) continue;
+      if (this.skipUnlessPersistUuid("syncApprovals", a.id)) continue;
       if (!admin && String(a.requestedByUserId) !== userId) throw new ForbiddenException();
+      const reqBy = a.requestedByUserId || userId;
+      if (this.skipUnlessPersistUuid("syncApprovals.requestedByUserId", reqBy)) continue;
       await c.query(
         `INSERT INTO solicitudes_autorizacion (
           id, tipo_solicitud, titulo, datos_json, estado, id_usuario_solicitante, nombre_solicitante,
@@ -2923,7 +2957,7 @@ export class PortalService implements OnModuleInit {
           a.title,
           JSON.stringify(a.payload || {}),
           a.status || "pendiente",
-          a.requestedByUserId || userId,
+          reqBy,
           a.requestedByName || "",
           a.reviewedAt || null,
           a.reviewedBy || null,

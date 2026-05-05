@@ -1849,6 +1849,7 @@ function applyTheme(theme = "light") {
   });
 }
 
+/** IDs cortos locales (no usar para filas que sincronizan a PostgreSQL con `::uuid`; usar `newUuidV4`). */
 function uid() {
   return Math.random().toString(36).slice(2, 11);
 }
@@ -2681,7 +2682,7 @@ function attachDepartmentCitySelects(form, {
 
 function saveNotification({ userId, title, body }) {
   const all = read(KEYS.notifications, []);
-  all.unshift({ id: uid(), userId, title, body, createdAt: nowIso(), readAt: null });
+  all.unshift({ id: newUuidV4(), userId, title, body, createdAt: nowIso(), readAt: null });
   write(KEYS.notifications, all);
 }
 
@@ -2693,7 +2694,7 @@ function notifyHrUsers(title, body) {
 
 function sendEmail({ to, subject, body }) {
   const outbox = read(KEYS.emails, []);
-  outbox.unshift({ id: uid(), to, subject, body, createdAt: nowIso() });
+  outbox.unshift({ id: newUuidV4(), to, subject, body, createdAt: nowIso() });
   write(KEYS.emails, outbox);
 }
 
@@ -2819,7 +2820,7 @@ function findOrCreateCompanyIdByName(name) {
   );
   if (existing) return existing.id;
   const company = {
-    id: uid(),
+    id: newUuidV4(),
     name: companyName,
     taxId: "",
     phone: "",
@@ -2870,7 +2871,7 @@ function ensureCompaniesAndUserMapping() {
     const existing = companyByName(user.company);
     if (existing) return { ...user, companyId: existing.id };
     const created = {
-      id: uid(),
+      id: newUuidV4(),
       name: user.company || "Empresa sin nombre",
       taxId: user.taxId || "",
       phone: user.phone || "",
@@ -2984,7 +2985,7 @@ function ensureUsersAccountStatus() {
 function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
-    id: uid(),
+    id: newUuidV4(),
     type,
     title,
     payload,
@@ -4356,7 +4357,7 @@ function bindAuthForms() {
       const { passwordConfirm, acceptTerms, companyNit, personalTaxId, personalDocumentType, ...profileData } =
         data;
       const newUser = {
-        id: uid(),
+        id: newUuidV4(),
         ...profileData,
         firstName: normalizeLatinUpperForDb(data.firstName),
         middleName: normalizeLatinUpperForDb(data.middleName || ""),
@@ -4791,7 +4792,7 @@ function applyStandbyCharge(request, actorName) {
   const value = hours * rate;
   const currentTotal = parseNum(request.standbyChargeTotal);
   const event = {
-    id: uid(),
+    id: newUuidV4(),
     hours,
     rate,
     value,
@@ -9542,7 +9543,7 @@ function bindDynamicEvents() {
         return;
       }
       users.push({
-        id: uid(),
+        id: newUuidV4(),
         name: normalizeLatinForDb(data.name),
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
@@ -11456,7 +11457,7 @@ function bindDynamicEvents() {
       }
       const list = read(KEYS.fuelLogs, []);
       list.unshift({
-        id: uid(),
+        id: newUuidV4(),
         date: data.date || nowIso().slice(0, 10),
         vehicleId: vehicle.id,
         vehiclePlate: vehicle.plate,
@@ -11489,7 +11490,7 @@ function bindDynamicEvents() {
       }
       const list = read(KEYS.vehicleTechnicalLogs, []);
       list.unshift({
-        id: uid(),
+        id: newUuidV4(),
         date: data.date || nowIso().slice(0, 10),
         vehicleId: vehicle.id,
         vehiclePlate: vehicle.plate,
@@ -11689,7 +11690,7 @@ function bindDynamicEvents() {
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
       const list = read(KEYS.hrAbsences, []);
       const absencePayload = {
-        id: uid(),
+        id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
         absenceType: data.absenceType,
@@ -11902,7 +11903,7 @@ function bindDynamicEvents() {
       const deductions = health + pension + solidarity;
       const net = gross - deductions;
       const run = {
-        id: uid(),
+        id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
         month: data.month,
@@ -12067,7 +12068,7 @@ function bindDynamicEvents() {
       }
       const all = read(KEYS.vacancies, []);
       all.unshift({
-        id: uid(),
+        id: newUuidV4(),
         ...data,
         openings: Math.max(1, parseNum(data.openings || 1)),
         salaryOffer: parseNum(position.baseSalary),
@@ -12094,7 +12095,7 @@ function bindDynamicEvents() {
       }
       const all = read(KEYS.positions, []);
       all.unshift({
-        id: uid(),
+        id: newUuidV4(),
         name: String(data.name || "").trim(),
         workerRole: String(data.workerRole || "empleado"),
         baseSalary: parseNum(data.baseSalary),
@@ -12196,7 +12197,7 @@ function bindDynamicEvents() {
       }
       const all = read(KEYS.candidates, []);
       all.unshift({
-        id: uid(),
+        id: newUuidV4(),
         name: data.name,
         email: data.email,
         phone: data.phone,
@@ -12264,7 +12265,7 @@ function bindDynamicEvents() {
       }
       const all = read(KEYS.interviews, []);
       all.unshift({
-        id: uid(),
+        id: newUuidV4(),
         candidateId: candidate.id,
         candidateName: candidate.name,
         when: data.when,
@@ -12351,7 +12352,7 @@ function bindDynamicEvents() {
         await generateOfficialWordContract(payload);
         const all = read(KEYS.contracts, []);
         all.unshift({
-          id: uid(),
+          id: newUuidV4(),
           employeeId: employee.id,
           employeeName: employee.name,
           position: payload.cargo_empleado,
@@ -12391,7 +12392,7 @@ function bindDynamicEvents() {
       }
       const list = read(KEYS.sstCompliance, []);
       list.unshift({
-        id: uid(),
+        id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
         recordType: String(data.recordType || "").trim(),
@@ -12498,7 +12499,7 @@ function bindDynamicEvents() {
           const p = approval.payload;
           const compName = p.companyName || getCompanyById(p.companyId)?.name || "";
           users.push({
-            id: uid(),
+            id: newUuidV4(),
             name: normalizeLatinForDb(p.name),
             email: normalizeEmail(p.email),
             password: await hashPassword(p.password),
@@ -12562,7 +12563,7 @@ function bindDynamicEvents() {
         const absences = read(KEYS.hrAbsences, []);
         absences.unshift({
           ...approval.payload,
-          id: approval.payload?.id || uid(),
+          id: isUuidString(approval.payload?.id) ? String(approval.payload.id).trim() : newUuidV4(),
           approvedBy: actor.name,
           approvedAt: nowIso()
         });
@@ -13175,7 +13176,7 @@ function openPublicVacancyApplyModal(vacancy) {
       }
       const all = read(KEYS.candidates, []);
       all.unshift({
-        id: uid(),
+        id: newUuidV4(),
         name: String(form.name || "").trim(),
         email: normalizeEmail(form.email),
         phone: String(form.phone || "").trim(),
