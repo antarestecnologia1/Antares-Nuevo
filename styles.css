@@ -9011,8 +9011,9 @@ body[data-theme="dark"] .auth-request-card {
   letter-spacing: 0.04em;
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
-  background: color-mix(in srgb, #f59e0b 22%, #ffffff 78%);
-  color: #92400e;
+  background: color-mix(in srgb, var(--brand-blue-soft) 58%, #ffffff 42%);
+  color: var(--primary-deeper);
+  border: 1px solid color-mix(in srgb, var(--brand-blue-deep) 16%, transparent);
 }
 
 .auth-inbox-card-email {
@@ -9087,18 +9088,18 @@ body[data-theme="dark"] .auth-request-card {
 }
 
 .auth-inbox-source--auth {
-  background: color-mix(in srgb, #f43f5e 14%, #fff5f7 86%);
-  color: #9f1239;
-  border: 1px solid color-mix(in srgb, #f43f5e 32%, transparent);
+  background: color-mix(in srgb, var(--warning) 14%, #fffbf0 86%);
+  color: #9a3412;
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, transparent);
 }
 
 .auth-inbox-card--orphan {
-  border-color: color-mix(in srgb, #f43f5e 32%, var(--line, #c5d8ec) 68%);
-  background: linear-gradient(165deg, #fff5f7 0%, #ffffff 100%);
+  border-color: color-mix(in srgb, var(--warning) 26%, var(--line, #c5d8ec) 74%);
+  background: linear-gradient(165deg, #fffbf0 0%, #ffffff 100%);
 }
 
 .auth-inbox-card--orphan .auth-inbox-card-accent {
-  background: linear-gradient(180deg, #f43f5e, #fb7185);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 92%, #92400e 8%), var(--warning));
 }
 
 body[data-theme="dark"] .auth-inbox-source--db {
@@ -9108,14 +9109,14 @@ body[data-theme="dark"] .auth-inbox-source--db {
 }
 
 body[data-theme="dark"] .auth-inbox-source--auth {
-  background: color-mix(in srgb, #f43f5e 24%, #2a1422 76%);
-  color: #fda4af;
-  border-color: color-mix(in srgb, #f43f5e 38%, transparent);
+  background: color-mix(in srgb, var(--warning) 22%, #2a1810 78%);
+  color: #fcd34d;
+  border-color: color-mix(in srgb, var(--warning) 38%, transparent);
 }
 
 body[data-theme="dark"] .auth-inbox-card--orphan {
-  background: linear-gradient(165deg, #28121e 0%, #1c1929 100%);
-  border-color: color-mix(in srgb, #f43f5e 36%, #334155 64%);
+  background: linear-gradient(165deg, #2a2118 0%, #1c1929 100%);
+  border-color: color-mix(in srgb, var(--warning) 34%, #334155 66%);
 }
 
 @media (max-width: 520px) {
@@ -9153,8 +9154,8 @@ body[data-theme="dark"] .auth-inbox-chip {
 }
 
 body[data-theme="dark"] .auth-inbox-pulse {
-  background: color-mix(in srgb, #f59e0b 32%, #0f1f34 68%);
-  color: #fde68a;
+  background: color-mix(in srgb, var(--brand-blue-deep) 36%, #0f1f34 64%);
+  color: var(--brand-blue-soft);
 }
 
 body[data-theme="dark"] .auth-queue-section {
@@ -9166,9 +9167,9 @@ body[data-theme="dark"] .auth-queue-section--info {
 }
 
 body[data-theme="dark"] .module-shell[data-module-view="authorizations"] .auth-section-count {
-  background: color-mix(in srgb, #f59e0b 28%, #0f1f34 72%);
-  color: #fcd34d;
-  border-color: color-mix(in srgb, #f59e0b 40%, transparent);
+  background: color-mix(in srgb, var(--brand-blue-deep) 34%, #0f1f34 66%);
+  color: var(--brand-blue-soft);
+  border-color: color-mix(in srgb, var(--brand-blue-mid) 40%, transparent);
 }
 
 body[data-theme="dark"] .auth-flow-catalog {
