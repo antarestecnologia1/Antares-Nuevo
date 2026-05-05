@@ -6564,16 +6564,19 @@ function adminUsersHtml(current) {
     <input type="hidden" name="id" value="${escapeAttr(String(editingUser.id || ""))}" />
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Nombre y datos del registro</legend>
-      <p class="muted full" style="margin:0 0 0.75rem;line-height:1.45">
-        El <strong>nombre completo</strong> debe coincidir con <code>nombre_completo</code> en PostgreSQL. Si venía vacío o igual al correo,
-        use los campos por componente (como en el registro público) para reconstruir la identidad.
-      </p>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(getPortalUserDisplayName(editingUser))}" required autocomplete="name" /></label>
         <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" value="${escapeAttr(String(editingUser.firstName ?? ""))}" autocomplete="given-name" /></label>
         <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" value="${escapeAttr(String(editingUser.middleName ?? ""))}" autocomplete="additional-name" /></label>
         <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" value="${escapeAttr(String(editingUser.lastName ?? ""))}" autocomplete="family-name" /></label>
         <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" value="${escapeAttr(String(editingUser.secondLastName ?? ""))}" /></label>
+        <label class="full">${fieldLabel(IC.shield, "Tipo de vínculo con Antares")}
+          <select name="registrationKind" id="admin-edit-registration-kind" required>
+            <option value="cliente" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "cliente" ? "selected" : ""}>Cliente externo</option>
+            <option value="empleado_interno" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "empleado_interno" ? "selected" : ""}>Empleado interno</option>
+          </select>
+          <span class="muted" style="display:block;font-size:0.82rem;font-weight:400;margin:0.2rem 0 0;line-height:1.4">Se guarda en PostgreSQL como <code>tipo_vinculo_registro</code> (cliente · empleado interno).</span>
+        </label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
@@ -6611,12 +6614,6 @@ function adminUsersHtml(current) {
             <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
             <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
             <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
-          </select>
-        </label>
-        <label>${fieldLabel(IC.shield, "Tipo de vínculo")}
-          <select name="registrationKind" required>
-            <option value="cliente" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "cliente" ? "selected" : ""}>Cliente externo</option>
-            <option value="empleado_interno" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "empleado_interno" ? "selected" : ""}>Empleado interno</option>
           </select>
         </label>
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
