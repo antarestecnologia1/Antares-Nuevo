@@ -603,11 +603,22 @@ function normalizePortalBootstrapUserRow(u) {
   const s = normalizeUserAccountStatus(u);
   const out = { ...u };
   if (s) out.accountStatus = s;
+  if (!out.source) {
+    out.source = out.accountStatus === ACCOUNT_STATUS.PENDIENTE ? "portal_db" : "portal_db";
+  }
   return out;
 }
 
-/** Cuentas creadas en el sitio / API con estado pendiente en PostgreSQL. */
+/** Origen del registro pendiente: BD `usuarios` vs solo Supabase Auth (huérfano). */
+function pendingUserOrigin(user) {
+  const raw = String(user?.source || "").trim().toLowerCase();
+  if (raw === "supabase_auth_only") return "supabase_auth_only";
+  return "portal_db";
+}
+
+/** Cuentas creadas en el sitio / API con estado pendiente en PostgreSQL o solo en Supabase Auth. */
 function isPortalUserPendingApproval(user) {
+  if (pendingUserOrigin(user) === "supabase_auth_only") return true;
   const s = normalizeUserAccountStatus(user);
   return s === ACCOUNT_STATUS.PENDIENTE || s === "pending";
 }
@@ -744,7 +755,9 @@ let state = {
   /** Módulo contact-leads: primera carga desde API en curso. */
   contactLeadsLoading: false,
   /** Autorizaciones: primer GET /portal/bootstrap al abrir el módulo (evita lista vacía hasta pulsar sync). */
-  authorizationsHydrating: false
+  authorizationsHydrating: false,
+  /** Último fallo o aviso parcial al cargar Autorizaciones desde la API (no bloquea datos ya en caché). */
+  authorizationsSyncError: null
 };
 
 window.AntaresDataAccess = Object.freeze({
@@ -1044,13 +1057,78 @@ function portalCanRefreshFromApi() {
 async function applyPortalBootstrapFromApi() {
   if (!portalCanRefreshFromApi()) return false;
   const api = window.AntaresApi;
-  try {
+  const runBootstrap = async () => {
     const p = await api.getJson("/portal/bootstrap");
     applyPortalBootstrapPayload(p);
     syncSessionProfileSnapshotFromCache();
+  };
+  try {
+    await runBootstrap();
     return true;
   } catch (err) {
+    const st = err && typeof err.status === "number" ? err.status : 0;
+    if (st === 401) {
+      await tryApiRefreshBridge();
+      portalEnsureApiTokensAligned();
+      if (!portalCanRefreshFromApi()) return false;
+      try {
+        await runBootstrap();
+        return true;
+      } catch (e2) {
+        devWarn("Portal: /portal/bootstrap fallo tras renovar token.", e2?.message || e2);
+        return false;
+      }
+    }
     devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+    return false;
+  }
+}
+
+/** Fusiona filas de GET /portal/pending-user-registrations sin borrar el resto de usuarios en caché. */
+function mergePendingUserRegistrationsIntoCache(rows) {
+  if (!Array.isArray(rows)) return;
+  const normalized = rows.map(normalizePortalBootstrapUserRow);
+  const existing = read(KEYS.users, []);
+  const byId = new Map(existing.map((u) => [String(u.id), { ...u }]));
+  /** Sólo huérfanos vivos en la respuesta actual: si el admin los borra, deben desaparecer. */
+  const orphansSeen = new Set();
+  for (const row of normalized) {
+    const id = String(row.id || "").trim();
+    if (!id) continue;
+    const prev = byId.get(id) || {};
+    if (pendingUserOrigin(row) === "supabase_auth_only") {
+      orphansSeen.add(id);
+    }
+    byId.set(id, {
+      ...prev,
+      ...row,
+      accountStatus: row.accountStatus || prev.accountStatus || ACCOUNT_STATUS.PENDIENTE,
+      source: row.source || prev.source || "portal_db"
+    });
+  }
+  // Remueve huérfanos cacheados que la API ya no devuelve (p.ej. usuario eliminado en Supabase Auth).
+  const out = [];
+  for (const u of byId.values()) {
+    if (pendingUserOrigin(u) === "supabase_auth_only" && !orphansSeen.has(String(u.id))) {
+      continue;
+    }
+    out.push(u);
+  }
+  write(KEYS.users, out);
+}
+
+/** Solo administrador: bandeja dedicada de altas pendientes (misma fuente que BD). */
+async function applyPendingUserRegistrationsFromApi() {
+  if (!portalCanRefreshFromApi()) return false;
+  if (currentUser()?.role !== ROLES.ADMIN) return false;
+  const api = window.AntaresApi;
+  try {
+    const rows = await api.getJson("/portal/pending-user-registrations");
+    if (!Array.isArray(rows)) return false;
+    mergePendingUserRegistrationsIntoCache(rows);
+    return true;
+  } catch (err) {
+    devWarn("Portal: GET /portal/pending-user-registrations fallo.", err?.message || err);
     return false;
   }
 }
@@ -2886,6 +2964,22 @@ function approvalTypeLabel(type) {
   return APPROVAL_TYPE_META[type]?.label || type;
 }
 
+/** Referencias cortas para correlacionar colas en soporte (no sustituyen UUID completos en API). */
+function shortAuthRefSegment(rawId) {
+  const s = String(rawId || "").replace(/-/g, "");
+  return s.length >= 8 ? s.slice(0, 8).toUpperCase() : (s || "--------").toUpperCase();
+}
+function authRefAltaUsuario(id) {
+  return `USR-${shortAuthRefSegment(id)}`;
+}
+function authRefSolicitudViaje(r) {
+  const n = String(r.requestNumber || "").trim();
+  return n ? `VIA-${n}` : `VIA-${shortAuthRefSegment(r.id)}`;
+}
+function authRefColaInterna(approvalId) {
+  return `COL-${shortAuthRefSegment(approvalId)}`;
+}
+
 function approvalDetailLine(approval) {
   const p = approval.payload || {};
   switch (approval.type) {
@@ -2951,6 +3045,7 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
       const eid = escapeAttr(String(r.id));
       return `<article class="auth-request-card">
       <div class="auth-request-card-top">
+        <span class="auth-ref-pill" title="Código solicitud">${escapeHtml(authRefSolicitudViaje(r))}</span>
         <span class="auth-request-card-id">${escapeHtml(String(r.requestNumber || r.id))}</span>
         ${prettyStatus(r.status, "request")}
       </div>
@@ -3016,13 +3111,22 @@ function buildPortalRegistrationInboxCardsHtml(pendingUsers) {
       const loc = [u.city, u.department].filter(Boolean).join(", ");
       const personLabel = u.personType === "juridica" ? "Jurídica" : u.personType === "natural" ? "Natural" : String(u.personType || "").trim() || "—";
       const nitEmp = String(u.companyNit || "").trim();
-      return `<article class="auth-inbox-card" data-pending-user-id="${eid}">
+      const origin = pendingUserOrigin(u);
+      const orphan = origin === "supabase_auth_only";
+      const originBadge = orphan
+        ? `<span class="auth-inbox-source auth-inbox-source--auth" title="Existe en Supabase Auth pero aún no tiene fila en la tabla usuarios. Al aprobar se aprovisiona automáticamente.">${IC.shield || ""} Solo en Supabase Auth</span>`
+        : `<span class="auth-inbox-source auth-inbox-source--db" title="Existe en la tabla usuarios y, si Supabase Auth está habilitado, también allí.">${IC.database || IC.briefcase} En PostgreSQL</span>`;
+      return `<article class="auth-inbox-card ${orphan ? "auth-inbox-card--orphan" : ""}" data-pending-user-id="${eid}" data-pending-source="${escapeAttr(origin)}">
         <div class="auth-inbox-card-accent" aria-hidden="true"></div>
         <div class="auth-inbox-card-main">
           <div class="auth-inbox-card-avatar" aria-hidden="true">${escapeHtml(portalRegistrationInboxInitials(u.name))}</div>
           <div class="auth-inbox-card-body">
             <div class="auth-inbox-card-top">
-              <h4 class="auth-inbox-card-name">${escapeHtml(String(u.name || "").trim() || "Sin nombre")}</h4>
+              <div class="auth-inbox-card-title-row">
+                <h4 class="auth-inbox-card-name">${escapeHtml(String(u.name || "").trim() || "Sin nombre")}</h4>
+                <span class="auth-ref-pill" title="Código de alta">${escapeHtml(authRefAltaUsuario(u.id))}</span>
+                ${originBadge}
+              </div>
               <span class="auth-inbox-pulse">${IC.userPlus} En revisión</span>
             </div>
             <p class="auth-inbox-card-email">${escapeHtml(normalizeEmail(u.email || ""))}</p>
@@ -3054,6 +3158,7 @@ function buildPendingApprovalsTableHtml(rows) {
       const detail = approvalDetailLine(a);
       const detailHtml = escapeHtml(detail);
       return `<tr>
+    <td><span class="auth-ref-pill">${escapeHtml(authRefColaInterna(a.id))}</span></td>
     <td><span class="auth-type-badge">${escapeHtml(approvalTypeLabel(a.type))}</span></td>
     <td><strong>${escapeHtml(String(a.title || "").trim() || "—")}</strong></td>
     <td class="auth-detail-cell">${detailHtml}</td>
@@ -3064,7 +3169,7 @@ function buildPendingApprovalsTableHtml(rows) {
     })
     .join("");
   return `<div class="table-wrap auth-pending-table"><table><thead><tr>
-    <th>Tipo</th><th>Resumen</th><th>Detalle</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th>
+    <th>Código</th><th>Tipo</th><th>Resumen</th><th>Detalle</th><th>Solicitante</th><th>Fecha</th><th>Acciones</th>
   </tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
@@ -8092,12 +8197,17 @@ function profileHtml(user) {
 }
 
 function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
-  const n = pendingUsers.length;
-  const countBadge = `<span class="auth-section-count">${n} en bandeja</span>`;
+  const list = Array.isArray(pendingUsers) ? pendingUsers : [];
+  const n = list.length;
+  const dbCount = list.filter((u) => pendingUserOrigin(u) !== "supabase_auth_only").length;
+  const orphanCount = list.length - dbCount;
+  const countBadge = `<span class="auth-section-count">${n} en bandeja${
+    orphanCount ? ` · ${orphanCount} solo en Supabase Auth` : ""
+  }</span>`;
   const body = n
-    ? buildPortalRegistrationPendingTableHtml(pendingUsers)
+    ? buildPortalRegistrationPendingTableHtml(list)
     : `<div class="auth-inbox-empty">${emptyState(
-        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o salga y vuelva a entrar a Autorizaciones: la lista se sincroniza con PostgreSQL al abrir el módulo."
+        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o salga y vuelva a entrar a Autorizaciones: la lista se sincroniza con PostgreSQL y Supabase Auth al abrir el módulo."
       )}</div>`;
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
@@ -8105,8 +8215,8 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
           <h3 class="auth-queue-section-title">Bandeja de altas (portal web)</h3>
           ${countBadge}
         </div>
-        <p class="muted auth-queue-section-desc">Vista unificada de solicitudes nuevas: revise identidad, datos de contacto y asigne empresa antes de activar el acceso.</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen de datos:</span> PostgreSQL · tabla <code style="font-size:0.85em">usuarios</code> (<code style="font-size:0.85em">estado_cuenta = pendiente</code>)</p>
+        <p class="muted auth-queue-section-desc">Vista unificada de solicitudes nuevas: revise identidad, datos de contacto y asigne empresa antes de activar el acceso. Se incluyen también cuentas creadas en Supabase Auth que aún no tienen fila en la tabla <code style="font-size:0.85em">usuarios</code> (al aprobar se aprovisionan automáticamente).</p>
+        <p class="auth-queue-section-origin"><span class="auth-origin-label">Orígenes de datos:</span> PostgreSQL · <code style="font-size:0.85em">usuarios.estado_cuenta = pendiente</code> + Supabase Authentication (cuentas huérfanas).</p>
       </header>
       <div class="auth-queue-section-body">${body}</div>
     </section>`;
@@ -8284,7 +8394,13 @@ function authorizationsHtml() {
     <ul class="auth-flow-catalog-list">${catalogItems}</ul>
   </details>`;
 
-  const bodyInner = `${hubToolbar}${tabsWrap}${
+  const syncBanner = state.authorizationsSyncError
+    ? `<div class="auth-sync-banner ${state.authorizationsSyncError.code === "PARCIAL" ? "auth-sync-banner--warn" : "auth-sync-banner--err"}" role="status">
+        <strong>${escapeHtml(String(state.authorizationsSyncError.code || "Aviso"))}</strong>
+        <span>${escapeHtml(String(state.authorizationsSyncError.message || ""))}</span>
+      </div>`
+    : "";
+  const bodyInner = `${syncBanner}${hubToolbar}${tabsWrap}${
     infoSectionsHtml ? `<div class="auth-info-blocks">${infoSectionsHtml}</div>` : ""
   }${catalogHtml}`;
   return (
@@ -8657,16 +8773,40 @@ function renderPortalViewImpl() {
     const canAuthSync = portalCanRefreshFromApi();
     if (prevPortalView !== "authorizations" && canAuthSync) {
       state.authorizationsHydrating = true;
-      void applyPortalBootstrapFromApi()
-        .then((ok) => {
-          if (!ok) {
-            devWarn("Autorizaciones: bootstrap no devolvió datos; la bandeja puede estar desactualizada.");
+      state.authorizationsSyncError = null;
+      void (async () => {
+        let bootstrapOk = false;
+        try {
+          bootstrapOk = await applyPortalBootstrapFromApi();
+        } catch (_e) {
+          bootstrapOk = false;
+        }
+        let pendingOk = false;
+        if (currentUser()?.role === ROLES.ADMIN) {
+          try {
+            pendingOk = await applyPendingUserRegistrationsFromApi();
+          } catch (_e2) {
+            pendingOk = false;
           }
-        })
-        .finally(() => {
-          state.authorizationsHydrating = false;
-          scheduleRenderPortalView();
-        });
+        }
+        if (bootstrapOk) {
+          state.authorizationsSyncError = null;
+        } else if (currentUser()?.role === ROLES.ADMIN && pendingOk) {
+          state.authorizationsSyncError = {
+            code: "PARCIAL",
+            message:
+              "El volcado general de datos no se completó; la cola de altas pendientes (usuarios) sí se actualizó desde PostgreSQL."
+          };
+        } else {
+          state.authorizationsSyncError = {
+            code: "SYNC-API",
+            message:
+              "No se pudo sincronizar con el servidor. Revise conexión, sesión JWT (cierre sesión y vuelva a entrar) o que su usuario sea administrador con acceso a la API."
+          };
+        }
+        state.authorizationsHydrating = false;
+        scheduleRenderPortalView();
+      })();
     } else if (prevPortalView !== "authorizations") {
       state.authorizationsHydrating = false;
     }
@@ -9271,6 +9411,7 @@ function bindDynamicEvents() {
       const users = read(KEYS.users, []);
       const target = users.find((u) => u.id === userId);
       if (!target) return;
+      const isOrphan = pendingUserOrigin(target) === "supabase_auth_only";
       const companiesAll = read(KEYS.companies, []);
       const apiOn = Boolean(window.AntaresApi?.isConfigured?.());
       const companies = apiOn
@@ -9288,8 +9429,12 @@ function bindDynamicEvents() {
         return;
       }
       openEditModal({
-        title: "Aprobar usuario y asociar empresa",
-        subtitle: `${target.name} · ${target.email}`,
+        title: isOrphan
+          ? "Aprovisionar y aprobar (Supabase Auth)"
+          : "Aprobar usuario y asociar empresa",
+        subtitle: isOrphan
+          ? `${target.name || "Sin nombre"} · ${target.email || "—"} · Solo en Supabase Auth (la fila se creará en usuarios al aprobar)`
+          : `${target.name} · ${target.email}`,
         submitText: "Aprobar cuenta",
         fields: [
           {

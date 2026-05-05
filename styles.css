@@ -8049,6 +8049,60 @@ body[data-theme="dark"] .auth-request-card {
   flex-shrink: 0;
 }
 
+.auth-ref-pill {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.18rem 0.48rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--module-accent-start, #0f766e) 12%, #f1f5f9);
+  border: 1px solid color-mix(in srgb, var(--module-accent-start, #0f766e) 28%, transparent);
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+}
+
+.auth-sync-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line, #c5d8ec);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: flex-start;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.auth-sync-banner strong {
+  margin-right: 0.35rem;
+}
+
+.auth-sync-banner--err {
+  background: color-mix(in srgb, #dc2626 9%, #fff5f5);
+  border-color: color-mix(in srgb, #dc2626 32%, transparent);
+}
+
+.auth-sync-banner--warn {
+  background: color-mix(in srgb, #d97706 11%, #fffbeb);
+  border-color: color-mix(in srgb, #d97706 30%, transparent);
+}
+
+.auth-inbox-card-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.auth-inbox-card-title-row .auth-inbox-card-name {
+  flex: 1;
+  min-width: min(100%, 12rem);
+}
+
 .auth-inbox-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
@@ -8179,6 +8233,63 @@ body[data-theme="dark"] .auth-request-card {
 
 .auth-inbox-empty .empty-state {
   margin: 0.5rem 0;
+}
+
+.auth-inbox-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.auth-inbox-source svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.auth-inbox-source--db {
+  background: color-mix(in srgb, #0ea5e9 14%, #ffffff 86%);
+  color: #075985;
+  border: 1px solid color-mix(in srgb, #0ea5e9 30%, transparent);
+}
+
+.auth-inbox-source--auth {
+  background: color-mix(in srgb, #f43f5e 14%, #fff5f7 86%);
+  color: #9f1239;
+  border: 1px solid color-mix(in srgb, #f43f5e 32%, transparent);
+}
+
+.auth-inbox-card--orphan {
+  border-color: color-mix(in srgb, #f43f5e 32%, var(--line, #c5d8ec) 68%);
+  background: linear-gradient(165deg, #fff5f7 0%, #ffffff 100%);
+}
+
+.auth-inbox-card--orphan .auth-inbox-card-accent {
+  background: linear-gradient(180deg, #f43f5e, #fb7185);
+}
+
+body[data-theme="dark"] .auth-inbox-source--db {
+  background: color-mix(in srgb, #0ea5e9 24%, #0f1f34 76%);
+  color: #bfdbfe;
+  border-color: color-mix(in srgb, #0ea5e9 35%, transparent);
+}
+
+body[data-theme="dark"] .auth-inbox-source--auth {
+  background: color-mix(in srgb, #f43f5e 24%, #2a1422 76%);
+  color: #fda4af;
+  border-color: color-mix(in srgb, #f43f5e 38%, transparent);
+}
+
+body[data-theme="dark"] .auth-inbox-card--orphan {
+  background: linear-gradient(165deg, #28121e 0%, #1c1929 100%);
+  border-color: color-mix(in srgb, #f43f5e 36%, #334155 64%);
 }
 
 @media (max-width: 520px) {

@@ -18,6 +18,12 @@ export class PortalController {
     return this.portal.bootstrap(req.user.userId, req.user.role);
   }
 
+  /** Solo admin JWT: usuarios con alta pendiente (bandeja Autorizaciones si bootstrap falla o va incompleto). */
+  @Get("pending-user-registrations")
+  pendingUserRegistrations(@Req() req: { user: ReqUser }) {
+    return this.portal.getPendingUserRegistrations(req.user.userId, req.user.role);
+  }
+
   /** Prospectos del formulario B2B público (tabla prospectos_contacto_b2b). Admin o permiso contact_b2b_view. */
   @Get("contact-b2b-prospects")
   contactB2bProspects(@Req() req: { user: ReqUser }) {

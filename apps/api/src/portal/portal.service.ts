@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Pool, PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
@@ -82,6 +82,7 @@ function portalDateOrNull(v: unknown): string | null {
 
 @Injectable()
 export class PortalService {
+  private readonly logger = new Logger(PortalService.name);
   private readonly supabaseAdmin;
   private readonly supabaseEnabled: boolean;
 
@@ -115,6 +116,171 @@ export class PortalService {
       [userId]
     );
     return r.rows[0]?.id_empresa ?? null;
+  }
+
+  /**
+   * Lista usuarios de Supabase Auth (admin API). Iteración paginada con cota dura.
+   * Devuelve [] si Supabase no está habilitado o falla la lectura (no debe romper bootstrap).
+   */
+  private async listSupabaseAuthUsers(): Promise<
+    Array<{
+      id: string;
+      email: string | null;
+      createdAt: string | null;
+      emailConfirmedAt: string | null;
+      lastSignInAt: string | null;
+      fullName: string | null;
+      phone: string | null;
+    }>
+  > {
+    if (!this.supabaseAdmin) return [];
+    const out: Array<{
+      id: string;
+      email: string | null;
+      createdAt: string | null;
+      emailConfirmedAt: string | null;
+      lastSignInAt: string | null;
+      fullName: string | null;
+      phone: string | null;
+    }> = [];
+    const perPage = 200;
+    const maxPages = 25; // 5.000 usuarios cota; impide bucles infinitos si la API no respeta paginación
+    for (let page = 1; page <= maxPages; page += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const { data, error } = await this.supabaseAdmin.auth.admin.listUsers({ page, perPage });
+      if (error) {
+        this.logger.warn(`listSupabaseAuthUsers page=${page}: ${error.message}`);
+        break;
+      }
+      const users = data?.users ?? [];
+      if (!users.length) break;
+      for (const u of users) {
+        const meta = (u.user_metadata as Record<string, unknown> | null | undefined) ?? {};
+        const fullName =
+          (typeof meta.full_name === "string" && meta.full_name) ||
+          (typeof meta.name === "string" && (meta.name as string)) ||
+          null;
+        out.push({
+          id: String(u.id || "").trim(),
+          email: u.email ? String(u.email).trim().toLowerCase() : null,
+          createdAt: u.created_at ?? null,
+          emailConfirmedAt: u.email_confirmed_at ?? null,
+          lastSignInAt: u.last_sign_in_at ?? null,
+          fullName,
+          phone: u.phone ? String(u.phone).trim() : null
+        });
+      }
+      if (users.length < perPage) break;
+    }
+    return out;
+  }
+
+  /**
+   * Usuarios en Supabase Auth que NO existen en `public.usuarios` (huérfanos).
+   * Se incluyen en la bandeja de Autorizaciones para que el admin pueda revisarlos.
+   * Coincide por UUID o por email (normalizado en minúsculas).
+   */
+  private async loadSupabaseAuthOrphans(
+    knownDbUsers: ReadonlyArray<Record<string, unknown>>
+  ): Promise<Array<Record<string, unknown>>> {
+    if (!this.supabaseAdmin) return [];
+    let authUsers: Awaited<ReturnType<typeof this.listSupabaseAuthUsers>> = [];
+    try {
+      authUsers = await this.listSupabaseAuthUsers();
+    } catch (err) {
+      this.logger.warn(
+        `loadSupabaseAuthOrphans: listUsers falló: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return [];
+    }
+    if (!authUsers.length) return [];
+
+    const knownIds = new Set<string>();
+    const knownEmails = new Set<string>();
+    for (const r of knownDbUsers) {
+      const id = String(r?.id || "").trim().toLowerCase();
+      if (id) knownIds.add(id);
+      const em = String(r?.email || "").trim().toLowerCase();
+      if (em) knownEmails.add(em);
+    }
+
+    const orphans: Array<Record<string, unknown>> = [];
+    for (const au of authUsers) {
+      const idLc = au.id.toLowerCase();
+      const emailLc = (au.email || "").toLowerCase();
+      if (!idLc) continue;
+      if (knownIds.has(idLc)) continue;
+      if (emailLc && knownEmails.has(emailLc)) continue;
+      const createdIso = au.createdAt ? new Date(au.createdAt).toISOString() : new Date().toISOString();
+      orphans.push({
+        id: au.id,
+        email: au.email || "",
+        name: au.fullName || au.email || "Sin nombre",
+        role: "client",
+        accountStatus: "pendiente",
+        companyId: null,
+        company: "",
+        firstName: null,
+        middleName: null,
+        lastName: null,
+        secondLastName: null,
+        personType: null,
+        documentType: null,
+        personalDoc: null,
+        companyNit: null,
+        taxId: null,
+        documentIssuedAt: "",
+        birthDate: "",
+        gender: null,
+        position: null,
+        workArea: null,
+        phone: au.phone || null,
+        department: null,
+        city: null,
+        address: null,
+        emergencyContact: null,
+        emergencyPhone: null,
+        emergencyRelationship: null,
+        emergencyRelation: "",
+        avatarUrl: null,
+        portalSince: "",
+        systemJoinDate: "",
+        createdAt: createdIso,
+        registeredAt: createdIso,
+        password: "",
+        permissions: [],
+        source: "supabase_auth_only",
+        emailConfirmedAt: au.emailConfirmedAt,
+        lastSignInAt: au.lastSignInAt
+      });
+    }
+    return orphans;
+  }
+
+  /** Asegura que un id de Supabase Auth tenga fila en `public.usuarios` (estado pendiente) antes de aprobar. */
+  private async provisionUsuariosFromAuthOrphan(authUserId: string): Promise<{ id: string; email: string; name: string } | null> {
+    if (!this.supabaseAdmin) return null;
+    if (!PG_UUID_V4_RE.test(authUserId)) return null;
+    const { data, error } = await this.supabaseAdmin.auth.admin.getUserById(authUserId);
+    if (error || !data?.user) return null;
+    const u = data.user;
+    const email = (u.email || "").trim().toLowerCase();
+    if (!email) return null;
+    const meta = (u.user_metadata as Record<string, unknown> | null | undefined) ?? {};
+    const fullName =
+      (typeof meta.full_name === "string" && meta.full_name) ||
+      (typeof meta.name === "string" && (meta.name as string)) ||
+      email;
+    await this.pool.query(
+      `INSERT INTO usuarios (
+         id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta
+       ) VALUES (
+         $1::uuid, $2, '', $3, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario
+       )
+       ON CONFLICT (id) DO NOTHING`,
+      [authUserId, email, fullName]
+    );
+    return { id: authUserId, email, name: fullName };
   }
 
   async bootstrap(userId: string, role: JwtRole) {
@@ -256,8 +422,22 @@ export class PortalService {
       `SELECT estado_cuenta::text AS estado_cuenta FROM usuarios WHERE id = $1::uuid`,
       [tid]
     );
-    const target = userRes.rows[0];
-    if (!target) throw new BadRequestException("Usuario no encontrado");
+    let target = userRes.rows[0];
+    if (!target) {
+      // Auto-aprovisionar si el id existe en Supabase Auth pero falta la fila en `usuarios`.
+      const provisioned = await this.provisionUsuariosFromAuthOrphan(tid).catch((err) => {
+        this.logger.warn(
+          `approvePendingUser: aprovisionamiento desde Supabase Auth falló: ${err instanceof Error ? err.message : String(err)}`
+        );
+        return null;
+      });
+      if (!provisioned) {
+        throw new BadRequestException(
+          "Usuario no encontrado en `usuarios` ni en Supabase Auth. Refresque la bandeja de Autorizaciones e intente de nuevo."
+        );
+      }
+      target = { estado_cuenta: "pendiente" };
+    }
     if (target.estado_cuenta !== "pendiente") {
       throw new BadRequestException("El usuario no está pendiente de aprobación");
     }
@@ -322,8 +502,13 @@ export class PortalService {
       `SELECT rol::text AS rol FROM usuarios WHERE id = $1::uuid`,
       [tid]
     );
-    const target = targetRes.rows[0];
-    if (!target) throw new BadRequestException("Usuario no encontrado");
+    let target = targetRes.rows[0];
+    if (!target) {
+      // Huérfano de Supabase Auth: aprovisionamos antes de aplicar el cambio de estado.
+      const provisioned = await this.provisionUsuariosFromAuthOrphan(tid).catch(() => null);
+      if (!provisioned) throw new BadRequestException("Usuario no encontrado");
+      target = { rol: "client" };
+    }
     if (target.rol === "admin" && accountStatus !== "aprobado") {
       const adminsActive = await this.pool.query<{ total: string }>(
         `SELECT count(*)::text AS total
@@ -357,7 +542,11 @@ export class PortalService {
       [tid]
     );
     const target = targetRes.rows[0];
-    if (!target) throw new BadRequestException("Usuario no encontrado");
+    if (!target) {
+      // Huérfano de Supabase Auth (sin fila en `usuarios`): basta con eliminarlo del proveedor de Auth.
+      await this.deleteSupabaseAuthUser(tid);
+      return { ok: true, userId: tid, deletedFromAuthOnly: true };
+    }
     if (target.rol === "admin") {
       const adminsTotal = await this.pool.query<{ total: string }>(
         `SELECT count(*)::text AS total FROM usuarios WHERE rol = 'admin'::rol_usuario`
@@ -536,7 +725,50 @@ export class PortalService {
       ? await this.pool.query(sql)
       : await this.pool.query(sql, [userId, empresaId, includePendingWithoutCompany]);
 
-    const ids = r.rows.map((x) => x.id);
+    const dbUsers = await this.finalizePortalUserRowsFromJoin(r.rows);
+    if (!admin) return dbUsers;
+    // Solo admin: surface Supabase Auth orphans para que aparezcan en Autorizaciones.
+    const orphans = await this.loadSupabaseAuthOrphans(dbUsers);
+    return [...dbUsers, ...orphans];
+  }
+
+  /**
+   * Altas de portal con estado pendiente (solo JWT admin).
+   * Permite hidratar la bandeja aunque falle o incompleto GET /portal/bootstrap.
+   * Combina filas en `usuarios` con `estado_cuenta='pendiente'` y huérfanos de Supabase Auth.
+   */
+  async getPendingUserRegistrations(_actorUserId: string, role: JwtRole) {
+    if (!this.isAdmin(role)) return [];
+    const sql = `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
+              u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
+              e.nombre AS company,
+              u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
+              u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
+              u.numero_identificacion AS "personalDoc",
+              u.nit_empresa_registro AS "companyNit",
+              COALESCE(u.nit_empresa_registro, u.numero_identificacion) AS "taxId",
+              u.fecha_expedicion_documento AS "documentIssuedAt",
+              u.fecha_nacimiento AS "birthDate", u.genero AS gender, u.cargo_registro AS position, u.area_trabajo AS "workArea",
+              u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
+              u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
+              u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
+         FROM usuarios u
+         LEFT JOIN empresas e ON e.id = u.id_empresa
+         WHERE u.estado_cuenta = 'pendiente'::estado_cuenta_usuario
+         ORDER BY u.fecha_creacion DESC NULLS LAST`;
+    const r = await this.pool.query(sql);
+    const dbPending = await this.finalizePortalUserRowsFromJoin(r.rows);
+    // También leemos *todos* los usuarios para no marcar como huérfano a uno ya aprobado en BD.
+    const allRes = await this.pool.query<{ id: string; email: string }>(
+      `SELECT id::text, lower(correo_electronico) AS email FROM usuarios`
+    );
+    const orphans = await this.loadSupabaseAuthOrphans(allRes.rows);
+    return [...dbPending, ...orphans];
+  }
+
+  private async finalizePortalUserRowsFromJoin(rawRows: Array<Record<string, unknown>>) {
+    const ids = rawRows.map((x) => x.id as string);
     const permMap = new Map<string, string[]>();
     if (ids.length) {
       const p = await this.pool.query(`SELECT id_usuario::text AS uid, permiso FROM permisos_usuario WHERE id_usuario = ANY($1::uuid[])`, [
@@ -549,19 +781,21 @@ export class PortalService {
       }
     }
 
-    return r.rows.map((row) => {
+    return rawRows.map((row) => {
       const createdIso = row.createdAt ? new Date(row.createdAt as string).toISOString() : "";
       const portalSinceStr = row.portalSince
         ? new Date(row.portalSince as string).toISOString().slice(0, 10)
         : "";
+      const rid = row.id as string;
       return {
         ...row,
         password: "",
-        permissions: permMap.get(row.id) || [],
+        permissions: permMap.get(rid) || [],
+        source: "portal_db",
         documentIssuedAt: row.documentIssuedAt
-          ? new Date(row.documentIssuedAt).toISOString().slice(0, 10)
+          ? new Date(row.documentIssuedAt as string).toISOString().slice(0, 10)
           : "",
-        birthDate: row.birthDate ? new Date(row.birthDate).toISOString().slice(0, 10) : "",
+        birthDate: row.birthDate ? new Date(row.birthDate as string).toISOString().slice(0, 10) : "",
         company: row.company || "",
         createdAt: createdIso,
         registeredAt: createdIso,
