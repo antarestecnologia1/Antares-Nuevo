@@ -7307,6 +7307,177 @@ body[data-theme="dark"] tr[data-payroll-state="paid"] {
   gap: 0.85rem;
 }
 
+/* ─── Spotlights RRHH (Nómina / Contratación) ─── */
+.module-spotlight {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem 1.15rem;
+  align-items: center;
+  padding: 1.05rem 1.15rem;
+  border-radius: 16px;
+  border: 1px solid rgba(55, 124, 192, 0.22);
+  box-shadow: 0 14px 34px rgba(10, 46, 92, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+.module-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 80% at 100% 0%, rgba(255, 255, 255, 0.55), transparent 52%);
+}
+
+.module-spotlight-visual {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(15, 52, 92, 0.22);
+  position: relative;
+  z-index: 1;
+}
+
+.module-spotlight-visual svg {
+  width: 26px;
+  height: 26px;
+}
+
+.module-spotlight-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.module-spotlight-title {
+  margin: 0 0 0.28rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0c3d63;
+}
+
+.module-spotlight-lead {
+  margin: 0 0 0.45rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #355e84;
+}
+
+.module-spotlight-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: #305573;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.module-spotlight-list li {
+  margin-bottom: 0.18rem;
+}
+
+.module-spotlight--payroll {
+  background: linear-gradient(135deg, #ecfdf8 0%, #e0f7fa 38%, #f0f9ff 100%);
+}
+
+.module-spotlight--payroll .module-spotlight-visual {
+  background: linear-gradient(145deg, #0d9488, #0f766e);
+}
+
+.module-spotlight--hiring {
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 36%, #eff6ff 100%);
+}
+
+.module-spotlight--hiring .module-spotlight-visual {
+  background: linear-gradient(145deg, #7c3aed, #5b21b6);
+}
+
+.ops-module-head--rich .ops-module-subtitle {
+  margin: 0.38rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #486788;
+  max-width: 52rem;
+}
+
+.ops-block-head .ops-block-lead {
+  margin: 0.28rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.payroll-shell .payroll-filters-bar {
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.92), rgba(255, 255, 255, 0.96));
+}
+
+.payroll-shell .table-wrap tbody tr:nth-child(even) td,
+.hiring-shell .table-wrap tbody tr:nth-child(even) td {
+  background: rgba(55, 124, 192, 0.035);
+}
+
+.hiring-shell .hr-flow-block h3 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e4d7b;
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 720px) {
+  .module-spotlight {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .module-spotlight-visual {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+body[data-theme="dark"] .module-spotlight {
+  border-color: rgba(148, 196, 255, 0.2);
+  box-shadow: 0 14px 38px rgba(2, 10, 22, 0.45);
+}
+
+body[data-theme="dark"] .module-spotlight-title {
+  color: #eaf4ff;
+}
+
+body[data-theme="dark"] .module-spotlight-lead,
+body[data-theme="dark"] .module-spotlight-list {
+  color: #bfd9f5;
+}
+
+body[data-theme="dark"] .module-spotlight--payroll {
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.14), rgba(15, 76, 129, 0.55));
+}
+
+body[data-theme="dark"] .module-spotlight--hiring {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(15, 76, 129, 0.52));
+}
+
+body[data-theme="dark"] .ops-module-head--rich .ops-module-subtitle {
+  color: #a9c7e8;
+}
+
+body[data-theme="dark"] .payroll-shell .payroll-filters-bar {
+  border-color: rgba(94, 164, 232, 0.28);
+  background: linear-gradient(180deg, rgba(12, 38, 62, 0.92), rgba(15, 33, 54, 0.96));
+}
+
+body[data-theme="dark"] .payroll-shell .table-wrap tbody tr:nth-child(even) td,
+body[data-theme="dark"] .hiring-shell .table-wrap tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .payroll-executive-strip {
   display: flex;
   justify-content: space-between;

@@ -110,6 +110,10 @@
     const letters =
       String(input.salario_letras || "").trim() ||
       formatSalarioLetrasPesos(salaryNumber);
+    const salFmt =
+      Number.isFinite(salaryNumber) && salaryNumber > 0
+        ? Math.round(salaryNumber).toLocaleString("es-CO")
+        : String(Math.round(Number(salaryNumber) || 0));
     const pairs = [
       ["nombre_empleado", String(input.nombre_empleado || "").trim()],
       ["cedula_empleado", String(input.cedula_empleado || "").trim()],
@@ -119,7 +123,7 @@
       ["salario_letras", letters],
       ["duracion_contrato", String(input.duracion_contrato || "").trim()],
       ["cargo_empleado", String(input.cargo_empleado || "").trim()],
-      ["salario", String(Math.round(salaryNumber))]
+      ["salario", salFmt]
     ];
     return pairs.sort((a, b) => b[0].length - a[0].length);
   }
@@ -161,6 +165,47 @@
   }
 
   /**
+   * Completa el párrafo de constancia cuando Word parte runs (<w:t>…</w:t>) entre ciudad / día / mes-año.
+   * También cubre la variante de prestación de servicios (una sola línea con día/mes/año).
+   */
+  function replaceConstanciaParagraphs(xml, city, dateValue) {
+    let out = replaceDateSentence(xml, city, dateValue);
+
+    const dt = dateValue ? new Date(`${dateValue}T12:00:00`) : new Date();
+    const validDate = Number.isFinite(dt.getTime()) ? dt : new Date();
+    const day = String(validDate.getDate());
+    const monthWord = MONTHS_ES[validDate.getMonth()];
+    const year = String(validDate.getFullYear());
+    const c = escapeXml(city);
+    const d = escapeXml(day);
+    const m = escapeXml(monthWord);
+    const y = escapeXml(year);
+
+    /** Prestación de servicios / línea única: "Para constancia se firma el día … del mes de … del AAAA." */
+    out = out.replace(
+      /Para constancia se firma el d[ií]a[\s_\u00a0]+del mes de[\s_\u00a0]+del\s*\d{4}\./gi,
+      `Para constancia se firma el día ${d} del mes de ${m} del ${y}.`
+    );
+
+    out = out.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/gi, (para) => {
+      if (!para.includes("Para constancia")) return para;
+      if (!para.includes("_")) return para;
+
+      let p = para;
+      p = p.replace(/en la ciudad de[\s_\u00a0]{6,}/gi, `en la ciudad de ${c} `);
+      p = p.replace(/a los[\s_\u00a0]+d[ií]as/gi, `a los ${d} días`);
+      p = p.replace(/del mes de[\s_\u00a0]{4,}(?=\s*<\/w:t>)/gi, `del mes de ${m} `);
+      p = p.replace(/(<w:t[^>]*(?:xml:space="preserve")?>)(\s*[\s_\u00a0]{4,}\.)(<\/w:t>)/gi, (full, open, mid, close) => {
+        if (!/_/i.test(mid)) return full;
+        return `${open} ${y}.${close}`;
+      });
+      return p;
+    });
+
+    return out;
+  }
+
+  /**
    * Ultima hoja: lineas con solo "Cc." reciben la cedula.
    * Cubre runs partidos y variantes de puntuacion en word/document.xml.
    */
@@ -169,12 +214,18 @@
     if (!esc) return xml;
 
     let out = xml;
-    out = out.replace(/(<w:t[^>]*>)\s*Cc\.\s*<\/w:t>/gi, `$1Cc. ${esc}<\/w:t>`);
+    out = out.replace(/(<w:t[^>]*>)\s*Cc\.\s*<\/w:t>/gi, (full, open) => {
+      if (full.includes(`Cc. ${esc}`)) return full;
+      return `${open}Cc. ${esc}<\/w:t>`;
+    });
     out = out.replace(/(<w:t[^>]*>)\s*Cc\s*<\/w:t>/gi, (full, open) => {
       if (full.includes(`Cc. ${esc}`) || full.includes(esc)) return full;
       return `${open}Cc. ${esc}<\/w:t>`;
     });
-    out = out.replace(/(<w:t[^>]*>)\s*Cc:\s*<\/w:t>/gi, `$1Cc: ${esc}<\/w:t>`);
+    out = out.replace(/(<w:t[^>]*>)\s*Cc:\s*<\/w:t>/gi, (full, open) => {
+      if (full.includes(esc)) return full;
+      return `${open}Cc: ${esc}<\/w:t>`;
+    });
     return out;
   }
 
@@ -208,7 +259,7 @@
           const escaped = escapeXml(val);
           next = next.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), escaped);
         });
-        next = replaceDateSentence(next, ciudadFirma, input.signDate || "");
+        next = replaceConstanciaParagraphs(next, ciudadFirma, input.signDate || "");
         next = injectCedulaAfterCcRuns(next, cedulaVal);
         zip.file(entry, next);
       })

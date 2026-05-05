@@ -8155,34 +8155,54 @@ function payrollHtml() {
     <p class="muted full legal-form-note">El cargo y salario deben cumplir parámetros mínimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y auxilio de transporte $${CO_HR_RULES.transportAllowance.toLocaleString("es-CO")}). Aportes patronales (12% pensión, 8.5% salud), parafiscales (SENA 2%, ICBF 3%, Caja 4%) y ARL según nivel de riesgo son obligatorios.</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
   </form>`;
-  const formPay = `<form id="form-payroll" class="p-form">
-    <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
-    <label>Mes <input type="month" name="month" required /></label>
-    <label>${fieldLabel(IC.dollar, "Viaticos manuales")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
-    <label>${fieldLabel(IC.dollar, "Reembolso combustible manual")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
-    <label>Horas extras <input type="number" name="extras" value="0" /></label>
-    <label>Aux transporte <input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" /></label>
-    <label>Bonificaciones <input type="number" name="bonus" value="0" /></label>
-    <p class="muted full">Para conductores el sistema suma automaticamente viaticos por viajes interdepartamentales ($${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje) y reembolsos de combustible pagado por conductor en el mes seleccionado. Puedes ajustar manualmente si hay novedades.</p>
-    <p class="muted full">Deducciones empleado (referencia): Salud 4%, Pension 4% sobre IBC; Fondo de Solidaridad Pensional 1% si IBC supera 4 SMMLV. Valores legales definitivos dependen del periodo y norma vigente.</p>
-    <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidacion</button>
+  const formPay = `<form id="form-payroll" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.user} Periodo y persona</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.calendar, "Mes a liquidar")}<input type="month" name="month" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.dollar} Pagos y deducciones variables</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Reembolso combustible manual (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
+        <label>${fieldLabel(IC.clock, "Horas extras")}<input type="number" name="extras" value="0" min="0" /></label>
+        <label>${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
+        <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
+      </div>
+    </fieldset>
+    <p class="muted full">Para conductores el sistema suma viáticos por viajes interdepartamentales ($${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje) y reembolsos de combustible del mes. Ajuste manual si hay novedades.</p>
+    <p class="muted full">Deducciones referenciales: salud 4 %, pensión 4 % sobre IBC; FSP 1 % si el IBC supera 4 SMMLV.</p>
+    <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidación</button>
   </form>`;
-  const formAbsence = `<form id="form-hr-absence" class="p-form">
-    <label>Empleado <select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.idDoc}</option>`).join("")}</select></label>
-    <label>Tipo de ausencia
-      <select name="absenceType" required>
-        <option value="incapacidad">Incapacidad (EPS / enfermedad general o accidente)</option>
-        <option value="vacaciones">Vacaciones remuneradas</option>
-        <option value="licencia">Licencia (maternidad/paternidad u otra)</option>
-        <option value="calamidad">Licencia por calamidad domestica (3 dias/calendario ano)</option>
-      </select>
-    </label>
-    <label>Desde <input type="date" name="startDate" required /></label>
-    <label>Hasta <input type="date" name="endDate" required /></label>
-    <label class="full">No. incapacidad o soporte (si aplica) <input name="supportNumber" placeholder="Codigo EPS / radicado" /></label>
-    <label class="full">EPS o entidad (incapacidad) <select name="epsEntity">${epsOptions}<option value="Otra">Otra</option></select></label>
-    <label class="full">Observaciones <textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
-    <p class="muted full">Registro interno para control de nomina y ausencias. Pagos de incapacidad y causacion de vacaciones en sistema real requieren parametrizacion contable y validacion con normativa vigente (CST, Ley 1562 de 2012, Decreto 2649, entre otros).</p>
+  const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored">
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.calendar} Datos de la novedad</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.idDoc}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de ausencia")}
+          <select name="absenceType" required>
+            <option value="incapacidad">Incapacidad (EPS / enfermedad general o accidente)</option>
+            <option value="vacaciones">Vacaciones remuneradas</option>
+            <option value="licencia">Licencia (maternidad/paternidad u otra)</option>
+            <option value="calamidad">Licencia por calamidad doméstica (3 días/calendario año)</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="startDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="endDate" required /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.file} Soporte</legend>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.hash, "No. incapacidad o soporte")}<input name="supportNumber" placeholder="Código EPS / radicado" /></label>
+        <label class="full">${fieldLabel(IC.heart, "EPS o entidad")}<select name="epsEntity">${epsOptions}<option value="Otra">Otra</option></select></label>
+        <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
+      </div>
+    </fieldset>
+    <p class="muted full">Registro interno para control de nómina. Liquidaciones definitivas requieren validación según normativa vigente.</p>
     <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
   </form>`;
   const absenceRows = absences
@@ -8225,10 +8245,11 @@ function payrollHtml() {
       </select></label>
       <button type="button" class="btn btn-action btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
     </form>`;
-  const payrollHead = `<div class="ops-module-head">
+  const payrollHead = `<div class="ops-module-head ops-module-head--rich">
       <div class="ops-module-title">
         <span class="ops-module-kicker">Recursos humanos</span>
         <h2>Nómina y gestión de personal</h2>
+        <p class="ops-module-subtitle">Liquidaciones, huella de empleados y ausencias con vista clara de pendientes.</p>
       </div>
       <div class="ops-module-chips">
         <span class="ops-chip"><strong>${employees.length}</strong> empleados</span>
@@ -8249,15 +8270,29 @@ function payrollHtml() {
         <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Neto mayor</button>
       </div>
     </div>`;
-  const payrollExecutionBlock = `<section class="ops-block">
+  const payrollSpotlight = `<aside class="module-spotlight module-spotlight--payroll" role="note" aria-label="Resumen del módulo de nómina">
+      <div class="module-spotlight-visual" aria-hidden="true">${IC.dollar}</div>
+      <div class="module-spotlight-text">
+        <h3 class="module-spotlight-title">Operación clara y guiada</h3>
+        <p class="module-spotlight-lead">Centraliza datos laborales, liquidaciones y ausencias con filtros que ponen primero lo pendiente.</p>
+        <ul class="module-spotlight-list">
+          <li><strong>Ficha completa</strong> → contratos Word coherentes en Contratación</li>
+          <li><strong>Historial de pagos</strong> con marca visual Pagado / Pendiente</li>
+          <li><strong>Atajos</strong>: alta de empleado, liquidación y ausencias</li>
+        </ul>
+      </div>
+    </aside>`;
+  const payrollExecutionBlock = `<section class="ops-block ops-block--payroll-flow">
       <header class="ops-block-head">
         <h3>Ejecución de nómina</h3>
+        <p class="ops-block-lead muted">Formularios colapsables para registrar personas, liquidar mes y cargar novedades.</p>
       </header>
       <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
     </section>`;
-  const payrollDataBlock = `<section class="ops-block">
+  const payrollDataBlock = `<section class="ops-block ops-block--payroll-data">
       <header class="ops-block-head">
         <h3>Control y trazabilidad</h3>
+        <p class="ops-block-lead muted">Empleados, ausencias e historial filtrable por periodo y estado.</p>
       </header>
       <div class="payroll-data-grid">
         ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
@@ -8275,7 +8310,7 @@ function payrollHtml() {
       tone: pendingAbsenceApprovals ? "warn" : undefined
     }
   ]);
-  return `<section class="payroll-shell">${payrollFleetHero}${payrollHead}
+  return `<section class="payroll-shell">${payrollFleetHero}${payrollSpotlight}${payrollHead}
       ${payrollActions}
       <section class="ops-block">
         <header class="ops-block-head">
@@ -8465,7 +8500,7 @@ function hiringHtml() {
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestacion servicios</button>
       </div>
     </fieldset>
-    <p class="muted full legal-form-note">Plantillas en <strong>documentacion/*.docx</strong>: se sustituyen los textos <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong>, <strong>salario_letras</strong> (o se genera en letras + pesos colombianos), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong> con los datos del empleado en Nomina. El parrafo &quot;Para constancia se firma… en la ciudad de… a los… dias del mes de… de…&quot; se completa con la ciudad del empleado y la fecha de firma. En la ultima hoja, la linea <strong>Cc.</strong> recibe la <strong>cedula_empleado</strong>.</p>
+    <p class="muted full legal-form-note">Marcadores en Word (<strong>documentacion/*.docx</strong>): <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong> (formato colombiano), <strong>salario_letras</strong> (se genera en pesos si falta), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong>. El párrafo tipo «Para constancia se firma… en la ciudad de… a los… días del mes de… de…» se rellena con <strong>ciudad_empleado</strong> y la <strong>fecha de firma</strong> elegida (incluye plantillas con texto partido en Word). En la última hoja, líneas <strong>Cc.</strong> / <strong>Cc</strong> reciben la <strong>cedula_empleado</strong>.</p>
     <button class="btn btn-primary full" type="submit">${IC.file} Generar y descargar contrato Word</button>
   </form>`;
 
@@ -8521,10 +8556,24 @@ function hiringHtml() {
     }
   ]);
 
-  const hiringHead = `<div class="ops-module-head ops-module-head-hiring">
+  const hiringSpotlight = `<aside class="module-spotlight module-spotlight--hiring" role="note" aria-label="Resumen del módulo de contratación">
+      <div class="module-spotlight-visual" aria-hidden="true">${IC.send}</div>
+      <div class="module-spotlight-text">
+        <h3 class="module-spotlight-title">Embudo de selección con foco</h3>
+        <p class="module-spotlight-lead">Vacantes, candidatos y contratos en paneles que guían el siguiente paso.</p>
+        <ul class="module-spotlight-list">
+          <li><strong>Alertas</strong> de cierre de vacante y fin de contrato</li>
+          <li><strong>Contrato Word</strong> enlazado a la ficha de Nómina</li>
+          <li><strong>Filtros rápidos</strong> para candidatos activos y pipeline</li>
+        </ul>
+      </div>
+    </aside>`;
+
+  const hiringHead = `<div class="ops-module-head ops-module-head-hiring ops-module-head--rich">
       <div class="ops-module-title">
         <span class="ops-module-kicker">Recursos humanos</span>
         <h2>Contratación y selección</h2>
+        <p class="ops-module-subtitle">Del cargo publicado al contrato firmado, con tableros que remarcan urgencias.</p>
       </div>
       <div class="ops-module-chips">
         <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes</span>
@@ -8546,9 +8595,10 @@ function hiringHtml() {
         <button class="btn btn-sm btn-outline ${candidateSort === "pipeline" ? "is-active" : ""}" type="button" data-action="hiring-sort-candidates" data-sort="pipeline">${IC.filter} Orden pipeline</button>
       </div>
     </div>`;
-  const hiringExecutionBlock = `<section class="ops-block">
+  const hiringExecutionBlock = `<section class="ops-block ops-block--hiring-flow">
       <header class="ops-block-head">
         <h3>Operación de contratación</h3>
+        <p class="ops-block-lead muted">Defina cargos, publique vacantes y registre candidatos; luego entre vista y contrato formal.</p>
       </header>
       <div class="hr-flow-block">
         <h3>Cargos, vacantes y candidatos</h3>
@@ -8559,9 +8609,10 @@ function hiringHtml() {
         <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
       </div>
     </section>`;
-  const hiringDataBlock = `<section class="ops-block">
+  const hiringDataBlock = `<section class="ops-block ops-block--hiring-data">
       <header class="ops-block-head">
         <h3>Seguimiento y resultados</h3>
+        <p class="ops-block-lead muted">Alertas, pipeline, vacantes, entrevistas y contratos en tarjetas independientes.</p>
       </header>
       <div class="hiring-data-grid hiring-results-grid">
         ${pcardWrap("activity", "Alertas", null, alertsBody)}
@@ -8572,7 +8623,7 @@ function hiringHtml() {
         ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
       </div>
     </section>`;
-  return `<section class="hiring-shell">${hiringHead}${hiringFleetHero}
+  return `<section class="hiring-shell">${hiringFleetHero}${hiringSpotlight}${hiringHead}
     ${hiringActions}
     ${hiringExecutionBlock}
     ${hiringDataBlock}
