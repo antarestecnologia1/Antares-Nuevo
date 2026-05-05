@@ -2195,21 +2195,43 @@ tbody tr:last-child td { border-bottom: none; }
   padding: 0 1.4rem;
 }
 
-/* Status badges */
+/* Status badges — texto claro sobre fondo definido (no usar var(--white): en tema oscuro invierte el token y rompe pills) */
 .status {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
-  color: var(--white);
+  color: #ffffff;
   font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
+.status-pretty {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  overflow: hidden;
+  /* Fallback marca si falta una variante .status-* (API / datos nuevos): texto sigue legible */
+  background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 45%, var(--primary) 100%);
+  box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.28);
+}
+
+.status-pretty .btn-icon {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+}
+
+/* Variantes: misma segunda clase en .status y .status-pretty (las reglas posteriores sobreescriben el fondo base de .status-pretty) */
 .status-pendiente { background: linear-gradient(135deg, #F59F00, #E67700); }
-/* Aprobada pendiente asignación: pill con marca (antes sin fondo → texto blanco invisible sobre tarjeta blanca) */
 .status-aprobada_pendiente_asignacion {
   background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 42%, var(--primary) 100%);
   box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.35);
@@ -2219,25 +2241,12 @@ tbody tr:last-child td { border-bottom: none; }
 .status-espera_standby { background: linear-gradient(135deg, #8a5b00, #6d4800); }
 .status-completada { background: linear-gradient(135deg, #0e7490, #0c5f74); }
 .status-cerrada { background: linear-gradient(135deg, #334155, #1e293b); }
-.status-cancelada, .status-rechazada { background: linear-gradient(135deg, #D62828, #B02020); }
-
-.status-pretty {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.75rem;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 0.76rem;
-  font-weight: 700;
-  overflow: hidden;
-}
-
-.status-pretty .btn-icon {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
+.status-cancelada,
+.status-rechazada { background: linear-gradient(135deg, #D62828, #B02020); }
+/* Vencido / caducado — tono distinto al “cancelada/rechazada” */
+.status-vencida {
+  background: linear-gradient(135deg, #9a3412, #7c2d12);
+  box-shadow: 0 2px 10px rgba(124, 45, 18, 0.38);
 }
 
 .status-road::after {
@@ -2254,6 +2263,12 @@ tbody tr:last-child td { border-bottom: none; }
 @keyframes roadMove {
   from { background-position-x: 0; }
   to { background-position-x: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-road::after {
+    animation: none;
+  }
 }
 
 /* Portal buttons */
@@ -9294,6 +9309,11 @@ body[data-theme="dark"] .empty-state {
 body[data-theme="dark"] .empty-state-icon {
   background: #213b59;
   color: #b8d9ff;
+}
+
+body[data-theme="dark"] .portal-main .quality-row span,
+body[data-theme="dark"] .portal-main .quality-row b {
+  color: var(--text-soft);
 }
 
 body[data-theme="dark"] .perm-badge,
