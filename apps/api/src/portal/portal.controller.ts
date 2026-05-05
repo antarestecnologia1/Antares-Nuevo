@@ -18,6 +18,16 @@ export class PortalController {
     return this.portal.bootstrap(req.user.userId, req.user.role);
   }
 
+  /**
+   * Perfil propio del usuario autenticado: payload mínimo para que el portal pueda
+   * pintar Mi perfil aunque /portal/bootstrap falle. Necesario porque el JWT solo
+   * trae id+email+rol, sin nombre ni datos del registro.
+   */
+  @Get("me")
+  me(@Req() req: { user: ReqUser }) {
+    return this.portal.getOwnProfile(req.user.userId);
+  }
+
   /** Solo admin JWT: usuarios con alta pendiente (bandeja Autorizaciones si bootstrap falla o va incompleto). */
   @Get("pending-user-registrations")
   pendingUserRegistrations(@Req() req: { user: ReqUser }) {

@@ -105,18 +105,26 @@ export class PortalService implements OnModuleInit {
 
   /**
    * Auto-migraciones idempotentes que se ejecutan al iniciar Nest. Permite que un deploy
-   * sobre una BD que no tiene corrida la migración correspondiente (p. ej. Render/Supabase
-   * con esquema viejo) se autocure sin acción manual. Cada bloque ignora silenciosamente
-   * tablas inexistentes (BD totalmente nueva con `04_transporte.sql` aún por correr).
+   * sobre una BD con esquema viejo (Render/Supabase) se autocure sin acción manual. Cubre
+   * todas las migraciones SQL del repo que solo agregan columnas/índices/tablas faltantes
+   * (`ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, etc.). Si la tabla base ni
+   * existe (BD totalmente nueva sin `03_*.sql`/`04_*.sql`), el bloque se salta limpiamente.
+   *
+   * Por qué importa para el perfil del usuario: si falta `usuarios.primer_nombre` u otras
+   * columnas del registro, el INSERT cae al modo minimal y `nombre_completo`/firstName/etc.
+   * quedan vacíos en BD; o si falla `tarifas_trayecto.ids_empresas`, el bootstrap entero
+   * devuelve 500 y el frontend cae al stub JWT (solo email/rol). En ambos casos el perfil
+   * aparece vacío. Aplicar estas migraciones aquí elimina ambas raíces a la vez.
    */
   async onModuleInit() {
     await this.ensureTarifasTrayectoSchema();
+    await this.ensureUsuariosSchema();
+    await this.ensureProspectosContactoB2bSchema();
   }
 
-  /** Sincroniza el esquema de `tarifas_trayecto` con la migración `09_tarifas_trayecto_clientes.sql`. */
+  /** Sincroniza `tarifas_trayecto` con migración `09_tarifas_trayecto_clientes.sql`. */
   private async ensureTarifasTrayectoSchema() {
-    const tableExists = await this.tableExists("tarifas_trayecto");
-    if (!tableExists) return; // BD nueva sin scripts base; los crearán los SQL del repo.
+    if (!(await this.tableExists("tarifas_trayecto"))) return;
     try {
       await this.pool.query(
         `ALTER TABLE tarifas_trayecto DROP CONSTRAINT IF EXISTS uq_tarifas_trayecto_ruta`
@@ -132,6 +140,90 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureTarifasTrayectoSchema fallo no fatal: ${msg}`);
+    }
+  }
+
+  /** Sincroniza `usuarios` con migraciones `11_*`, `12_*`, `13_*`, `15_*`. */
+  private async ensureUsuariosSchema() {
+    if (!(await this.tableExists("usuarios"))) return;
+    /**
+     * Cada ALTER va en su propio query: si uno falla por permisos/constraint colateral,
+     * los demás continúan (no encadenamos en una transacción para no bloquear todo).
+     */
+    const alters: string[] = [
+      // 11_alter_usuarios_campos_registro.sql
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS primer_nombre VARCHAR(120)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS segundo_nombre VARCHAR(120)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS primer_apellido VARCHAR(120)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS segundo_apellido VARCHAR(120)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS genero VARCHAR(40)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS cargo_registro VARCHAR(255)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS area_trabajo VARCHAR(120)`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS fecha_aceptacion_terminos TIMESTAMPTZ`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS checklist_registro_json JSONB NOT NULL DEFAULT '{}'`,
+      // 12_usuarios_refresh_token_api.sql
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS refresh_token_hash TEXT`,
+      // 13_usuarios_nit_empresa.sql
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS nit_empresa_registro VARCHAR(32)`,
+      // 15_usuario_aprobacion_admin.sql
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS fecha_aprobacion_cuenta TIMESTAMPTZ`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS cuenta_aprobada_por UUID REFERENCES public.usuarios (id) ON DELETE SET NULL`
+    ];
+    let applied = 0;
+    for (const q of alters) {
+      try {
+        await this.pool.query(q);
+        applied += 1;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureUsuariosSchema: falló (no fatal) "${q.slice(0, 70)}…": ${msg}`);
+      }
+    }
+    try {
+      await this.pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_documento_personal
+           ON public.usuarios (lower(trim(numero_identificacion)))
+           WHERE numero_identificacion IS NOT NULL AND btrim(numero_identificacion) <> ''`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureUsuariosSchema: índice documento_personal no creado: ${msg}`);
+    }
+    this.logger.log(`usuarios: esquema verificado (${applied}/${alters.length} ALTERs idempotentes OK).`);
+  }
+
+  /** Sincroniza `prospectos_contacto_b2b` con migración `14_contacto_web_b2b.sql`. */
+  private async ensureProspectosContactoB2bSchema() {
+    try {
+      await this.pool.query(
+        `CREATE TABLE IF NOT EXISTS prospectos_contacto_b2b (
+          id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          nombre_contacto             VARCHAR(255) NOT NULL,
+          nombre_empresa              VARCHAR(255) NOT NULL,
+          nit                         VARCHAR(32) NOT NULL,
+          cargo_contacto              VARCHAR(255) NOT NULL,
+          telefono                    VARCHAR(32) NOT NULL,
+          correo_electronico          VARCHAR(320) NOT NULL,
+          tipo_servicio               VARCHAR(120) NOT NULL,
+          tipo_operacion              VARCHAR(80) NOT NULL,
+          frecuencia_operacion        VARCHAR(64) NOT NULL,
+          ventana_inicio_servicio     VARCHAR(80) NOT NULL,
+          volumen_mensual_aprox_kg    NUMERIC(14,2) NOT NULL CHECK (volumen_mensual_aprox_kg >= 0),
+          mensaje                     TEXT NOT NULL,
+          fecha_creacion              TIMESTAMPTZ NOT NULL DEFAULT now()
+        )`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_prospectos_contacto_b2b_fecha_creacion_desc
+           ON prospectos_contacto_b2b (fecha_creacion DESC)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_prospectos_contacto_b2b_correo
+           ON prospectos_contacto_b2b (correo_electronico)`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureProspectosContactoB2bSchema fallo no fatal: ${msg}`);
     }
   }
 
@@ -782,6 +874,40 @@ export class PortalService implements OnModuleInit {
     // Solo admin: surface Supabase Auth orphans para que aparezcan en Autorizaciones.
     const orphans = await this.loadSupabaseAuthOrphans(dbUsers);
     return [...dbUsers, ...orphans];
+  }
+
+  /**
+   * Perfil propio del usuario autenticado: payload mínimo para que Mi perfil funcione
+   * aunque /portal/bootstrap falle (p. ej. esquema con columnas faltantes en otra tabla).
+   * Usa el mismo finalize que loadUsers para que los campos coincidan 1:1 con el bootstrap.
+   */
+  async getOwnProfile(userId: string) {
+    const r = await this.pool.query(
+      `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
+              u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
+              e.nombre AS company,
+              u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
+              u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
+              u.numero_identificacion AS "personalDoc",
+              u.nit_empresa_registro AS "companyNit",
+              COALESCE(u.nit_empresa_registro, u.numero_identificacion) AS "taxId",
+              u.fecha_expedicion_documento AS "documentIssuedAt",
+              u.fecha_nacimiento AS "birthDate", u.genero AS gender, u.cargo_registro AS position, u.area_trabajo AS "workArea",
+              u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
+              u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
+              u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
+         FROM usuarios u
+         LEFT JOIN empresas e ON e.id = u.id_empresa
+         WHERE u.id = $1::uuid
+         LIMIT 1`,
+      [userId]
+    );
+    if (!r.rows.length) {
+      throw new BadRequestException("Usuario no encontrado");
+    }
+    const [row] = await this.finalizePortalUserRowsFromJoin(r.rows);
+    return row ?? null;
   }
 
   /**

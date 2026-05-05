@@ -887,6 +887,23 @@ function upsertPortalUserStubFromJwtPayload(payload) {
   return stub;
 }
 
+/**
+ * Inserta o reemplaza una fila de usuario (formato `loadUsers`) en `KEYS.users`.
+ * Usado como fallback ligero si /portal/bootstrap falla pero /portal/me responde:
+ * así Mi perfil renderiza con datos reales en vez de stub vacío del JWT.
+ */
+function upsertPortalUserRowIntoCache(row) {
+  if (!row || typeof row !== "object") return null;
+  const uid = String(row.id || "").trim();
+  if (!uid) return null;
+  const normalized = normalizePortalBootstrapUserRow(row);
+  const users = read(KEYS.users, []);
+  const others = users.filter((u) => String(u.id) !== uid);
+  const merged = { ...normalized };
+  write(KEYS.users, [merged, ...others]);
+  return merged;
+}
+
 /** Mini-identidad persistida en antares_session_v2 para sobrevivir a F5 (caché de usuarios solo en RAM). */
 function buildProfileSnapshotFromUserRow(u) {
   if (!u || u.id == null) return null;
@@ -1062,6 +1079,22 @@ async function applyPortalBootstrapFromApi() {
     applyPortalBootstrapPayload(p);
     syncSessionProfileSnapshotFromCache();
   };
+  /**
+   * Si bootstrap falla por completo (p. ej. error 500 en otra tabla), al menos
+   * intentamos hidratar el perfil propio para que Mi perfil no quede vacío.
+   * Endpoint dedicado: /portal/me (lectura ligera, no depende de tarifas/viajes/etc.).
+   */
+  const tryHydrateOwnProfileFallback = async () => {
+    try {
+      const me = await api.getJson("/portal/me");
+      if (me && me.id) {
+        upsertPortalUserRowIntoCache(me);
+        syncSessionProfileSnapshotFromCache();
+      }
+    } catch (_meErr) {
+      /* sin fallback, se usará lo que haya en cache/JWT */
+    }
+  };
   try {
     await runBootstrap();
     return true;
@@ -1076,10 +1109,12 @@ async function applyPortalBootstrapFromApi() {
         return true;
       } catch (e2) {
         devWarn("Portal: /portal/bootstrap fallo tras renovar token.", e2?.message || e2);
+        await tryHydrateOwnProfileFallback();
         return false;
       }
     }
     devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+    await tryHydrateOwnProfileFallback();
     return false;
   }
 }
@@ -3840,8 +3875,25 @@ function bindAuthForms() {
             await startPortalBootstrapForInteractiveSession();
             const payload = decodeJwtPayload(body.accessToken);
             const uid = payload?.sub;
-            const usersAfter = read(KEYS.users, []);
+            let usersAfter = read(KEYS.users, []);
             let userApi = usersAfter.find((u) => String(u.id) === String(uid));
+            if (!userApi) {
+              /**
+               * Fallback ligero: si el bootstrap completo falló (p. ej. error en otra
+               * tabla), obtenemos solo el perfil propio para que Mi perfil tenga nombre
+               * y datos reales en lugar de quedarse con el local-part del correo.
+               */
+              try {
+                const me = await window.AntaresApi.getJson("/portal/me");
+                if (me && me.id) {
+                  upsertPortalUserRowIntoCache(me);
+                  usersAfter = read(KEYS.users, []);
+                  userApi = usersAfter.find((u) => String(u.id) === String(uid));
+                }
+              } catch (_meErr) {
+                /* fallback final al stub del JWT */
+              }
+            }
             if (!userApi) {
               userApi = upsertPortalUserStubFromJwtPayload(payload);
             }
@@ -8087,6 +8139,12 @@ function notificationsHtml() {
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
   const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
+  /**
+   * Nombre estable: prioriza primer/segundo nombre+apellido (BD), luego `nombre_completo`,
+   * y solo como último recurso el correo. Esto evita ver "juan.perez" si el bootstrap aún
+   * no había rellenado `KEYS.users` (caso de stub JWT).
+   */
+  const displayName = getPortalUserDisplayName(user);
   const profileFields = [
     "name",
     "phone",
@@ -8120,11 +8178,11 @@ function profileHtml(user) {
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
       <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}" title="Cambiar foto de perfil">
-        <span class="profile-avatar-initial">${user.avatarUrl ? "" : (user.name || "U").charAt(0).toUpperCase()}</span>
+        <span class="profile-avatar-initial">${user.avatarUrl ? "" : (displayName || "U").charAt(0).toUpperCase()}</span>
         <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
-        <h3>${user.name || "Usuario"}</h3>
+        <h3>${escapeHtml(displayName)}</h3>
         <p>${user.email || "-"}</p>
         <div class="profile-hero-chips">
           <span>${String(user.role || "perfil").toUpperCase()}</span>
@@ -8149,7 +8207,7 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-blue full">
         <legend>${IC.user} Información personal</legend>
         <div class="form-section-grid">
-          <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${user.name || ""}" required /></label>
+          <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(displayName)}" required /></label>
           <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
           <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType">
             <option value="CC" ${user.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
