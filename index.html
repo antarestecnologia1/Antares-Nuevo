@@ -22,7 +22,37 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260505-session-instant" />
+    <link rel="stylesheet" href="./styles.css?v=20260505-portal-uxpass" />
+    <script>
+      /**
+       * Boot guard inline (corre antes del primer paint):
+       * si ya hay sesión válida en localStorage, oculta el sitio público y deja listo el shell del
+       * portal con `body.portal-mode`. Así, tras F5 el usuario no ve un destello del index público
+       * mientras `app.js` se descarga, evalúa y ejecuta `renderPortal()`.
+       */
+      (function antaresBootGuard() {
+        try {
+          var raw = localStorage.getItem("antares_session_v2");
+          if (!raw) return;
+          var s = JSON.parse(raw);
+          if (!s || !s.userId) return;
+          var last = typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0;
+          if (last && Date.now() - last > 30 * 60 * 1000) return;
+          var html = document.documentElement;
+          if (html) html.classList.add("antares-booting-portal");
+        } catch (_e) {
+          /* sin sesión válida → arranque público normal */
+        }
+      })();
+    </script>
+    <style>
+      /**
+       * Mientras el JS principal arranca y `renderPortal()` se ejecuta, ocultamos visualmente el
+       * sitio público para evitar flash de "deslogueo" en F5 cuando hay sesión válida.
+       */
+      html.antares-booting-portal #public-app { visibility: hidden; }
+      html.antares-booting-portal body { background: #f5f9ff; }
+    </style>
   </head>
   <body>
     <!-- ─── NAVIGATION ─── -->
@@ -987,10 +1017,6 @@
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="5" width="3" height="12"/></svg>
             Reporteria
           </button>
-          <button data-view="contact-leads" class="side-link">
-            <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            Contacto web (B2B)
-          </button>
           <p class="sidebar-section-label rrhh-only">Recursos humanos</p>
           <button data-view="payroll" class="side-link rrhh-only">
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -1003,6 +1029,10 @@
           <button data-view="labor-compliance" class="side-link rrhh-only">
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
             Cumplimiento laboral y SST
+          </button>
+          <button data-view="contact-leads" class="side-link rrhh-only">
+            <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Contacto web (B2B)
           </button>
           <p class="sidebar-section-label admin-only">Sistema</p>
           <button data-view="admin-users" class="side-link admin-only">
@@ -1195,6 +1225,6 @@
     <script src="./modules/core/feedback-messages.js?v=20260503-recover-copy"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
-    <script src="./app.js?v=20260505-session-instant"></script>
+    <script src="./app.js?v=20260505-portal-uxpass"></script>
   </body>
 </html>

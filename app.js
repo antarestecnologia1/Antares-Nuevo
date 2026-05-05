@@ -94,6 +94,30 @@ function moduleFleetHeroStrip(metrics) {
   return `<div class="fleet-hero-strip fleet-hero-strip--solo"><div class="fleet-hero-metrics">${inner}</div></div>`;
 }
 
+/**
+ * Cuadrícula de tarjetas de "alerta" para módulos de RRHH (Contratación, Cumplimiento, etc.).
+ * Cada item: { icon, label, value, help, tone: "ok"|"info"|"warn"|"alert" }.
+ * Sustituye el listado plano `<div class="hr-alert-list">` por algo más visual y escaneable.
+ */
+function renderHrAlertCards(items = []) {
+  const cards = (items || [])
+    .map((item) => {
+      const tone = ["ok", "info", "warn", "alert"].includes(item?.tone) ? item.tone : "info";
+      const iconHtml = item?.icon || "";
+      const value = item?.value === undefined || item?.value === null ? "—" : item.value;
+      return `<div class="hr-alert-card hr-alert-card--${tone}">
+        <span class="hr-alert-card-ico" aria-hidden="true">${iconHtml}</span>
+        <div class="hr-alert-card-body">
+          <span class="hr-alert-card-label">${escapeHtml(String(item?.label || ""))}</span>
+          <strong class="hr-alert-card-value">${escapeHtml(String(value))}</strong>
+          ${item?.help ? `<p class="hr-alert-card-help">${escapeHtml(String(item.help))}</p>` : ""}
+        </div>
+      </div>`;
+    })
+    .join("");
+  return `<div class="hr-alert-grid">${cards}</div>`;
+}
+
 function isAntaresDebugEnabled() {
   try {
     if (typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true) return true;
@@ -193,6 +217,14 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
       }
       if (f.type === "file") {
         return `<label class="full"><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
+      }
+      if (f.type === "custom") {
+        /**
+         * Bloque HTML libre dentro del modal (p.ej. checklist de permisos editables).
+         * El consumidor wirea sus interacciones con `afterMount(form)` y/o lee los inputs en `onSubmit`.
+         */
+        const labelHtml = f.label ? `<span class="modal-edit-section-title">${escapeHtml(f.label)}</span>` : "";
+        return `<div class="full modal-edit-custom-slot"${f.id ? ` id="${escapeAttr(f.id)}"` : ""}>${labelHtml}${f.html || ""}</div>`;
       }
       const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
       return `<label><span>${escapeHtml(f.label)}</span><input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" ${f.required ? "required" : ""} /></label>`;
@@ -5251,6 +5283,8 @@ function renderPortal() {
     setPortalDrawerOpen(false);
     document.body.classList.remove("portal-mode");
     document.body.classList.remove("public-nav-open");
+    /** Quitamos el guard de booting: el usuario no tiene sesión, debe ver el sitio público. */
+    document.documentElement.classList.remove("antares-booting-portal");
     const pubNav = document.getElementById("main-nav");
     if (pubNav) pubNav.classList.remove("nav-open");
     const pubHam = document.getElementById("hamburger-btn");
@@ -5289,6 +5323,8 @@ function renderPortal() {
   setPortalDrawerOpen(false);
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
+  /** El portal ya está en pantalla: liberamos la regla anti-flash del boot guard inline. */
+  document.documentElement.classList.remove("antares-booting-portal");
   const user = materializePortalUserFromSession(session);
   if (!user) {
     /**
@@ -6224,22 +6260,40 @@ function adminUsersHtml(current) {
     return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${r}</span>`;
   };
 
-  // --- Usuarios ---
-  const userCards = users.map((u) => {
+  /**
+   * Render de la tarjeta de usuario.
+   * `mode === "pending"` añade la nota "Pendiente de aprobación" y CTA directo a aprobar/rechazar
+   * para que el admin no tenga que cambiar de módulo.
+   */
+  const renderUserCard = (u, mode = "active") => {
     const namedPerms = (u.permissions || []).map((p) => PERMISSION_META[p]?.title || p);
     const visiblePerms = namedPerms.slice(0, 3);
     const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
     const permList = [
-      ...visiblePerms.map((label) => `<span class="perm-tag">${label}</span>`),
+      ...visiblePerms.map((label) => `<span class="perm-tag">${escapeHtml(label)}</span>`),
       hiddenCount > 0 ? `<span class="perm-tag perm-tag-more">+${hiddenCount} mas</span>` : ""
     ].join("");
     const isMe = u.id === current.id;
-    return `<div class="user-card">
+    const isPending = mode === "pending";
+    const note = isPending
+      ? `<p class="user-card-pending-note"><strong>Pendiente de aprobación.</strong> Asigne empresa, rol y permisos para activar la cuenta.</p>`
+      : "";
+    const actions = isPending
+      ? `<div class="user-card-actions">
+          <button class="btn btn-sm btn-primary" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>
+          <button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>
+        </div>`
+      : `<div class="user-card-actions">
+          <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${escapeAttr(String(u.id))}">${IC.edit} Editar</button>
+          ${!isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
+          ${!isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}">${IC.trash} Eliminar</button>` : ""}
+        </div>`;
+    return `<div class="user-card${isPending ? " user-card--pending" : ""}">
       <div class="user-card-top">
-        <div class="user-avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase())}</div>
+        <div class="user-avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>
         <div class="user-card-info">
           <h4>${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="muted" style="font-weight:400;font-size:0.78rem">(tu)</span>' : ""}</h4>
-          <p>${u.email}</p>
+          <p>${escapeHtml(String(u.email || ""))}</p>
         </div>
         <div class="user-card-badges">
           ${roleBadge(u.role)}
@@ -6247,21 +6301,23 @@ function adminUsersHtml(current) {
         </div>
       </div>
       <div class="user-card-meta">
-        <span>${IC.briefcase} ${getCompanyById(u.companyId)?.name || u.company || "Sin empresa"}</span>
-        ${u.phone ? `<span>${IC.user} ${u.phone}</span>` : ""}
-        ${u.city ? `<span>${IC.mapPin} ${u.city}${u.department ? `, ${u.department}` : ""}</span>` : ""}
+        <span>${IC.briefcase} ${escapeHtml(getCompanyById(u.companyId)?.name || u.company || "Sin empresa")}</span>
+        ${u.phone ? `<span>${IC.user} ${escapeHtml(String(u.phone))}</span>` : ""}
+        ${u.city ? `<span>${IC.mapPin} ${escapeHtml(String(u.city))}${u.department ? `, ${escapeHtml(String(u.department))}` : ""}</span>` : ""}
+        ${u.registrationKind ? `<span>${IC.shield} ${escapeHtml(registrationKindLabel(u.registrationKind))}</span>` : ""}
       </div>
+      ${note}
       ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
-      <div class="user-card-actions">
-        <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${u.id}">${IC.edit} Editar</button>
-        ${!isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${u.id}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
-        ${!isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${u.id}">${IC.trash} Eliminar</button>` : ""}
-      </div>
+      ${actions}
     </div>`;
-  }).join("");
+  };
 
-  // --- Pendientes de registro (portal): en Autorizaciones (sin ruta /transport-requests) ---
+  /** Pendientes vs activos: separamos para mostrar primero los que requieren acción del admin. */
   const pendingUsers = users.filter((u) => isPortalUserPendingApproval(u));
+  const pendingIdSet = new Set(pendingUsers.map((u) => u.id));
+  const activeUsers = users.filter((u) => !pendingIdSet.has(u.id));
+  const pendingCardsHtml = pendingUsers.map((u) => renderUserCard(u, "pending")).join("");
+  const userCards = activeUsers.map((u) => renderUserCard(u, "active")).join("");
 
   // --- Formularios ---
   const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
@@ -6523,13 +6579,6 @@ function adminUsersHtml(current) {
     </div>
   </div>`;
 
-  if (pendingUsers.length > 0) {
-    html += `<div class="users-pending-redirect" role="note">
-      <p class="users-pending-redirect-text"><strong>${pendingUsers.length}</strong> registro(s) de cliente pendiente(s) de aprobación. La bandeja está unificada en Autorizaciones.</p>
-      <a class="btn btn-sm btn-primary" href="#portal/authorizations">${IC.shield} Ir a Autorizaciones</a>
-    </div>`;
-  }
-
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
   if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
   if (ui.panel === "set-permissions") html += pcardWrap("save", "Asignar permisos", "Selecciona usuario y permisos", fPerm);
@@ -6541,7 +6590,28 @@ function adminUsersHtml(current) {
       fEdit
     );
 
-  html += pcardWrap("shield", "Usuarios del sistema", users.length + " registrados", userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados."));
+  /**
+   * Pendientes primero: el admin ve aquí mismo quién espera aprobación con la nota visible y
+   * los CTA "Aprobar" / "Rechazar". El módulo "Autorizaciones" sigue funcionando, pero ya no es
+   * obligatorio cambiar de pantalla.
+   */
+  if (pendingUsers.length > 0) {
+    const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
+    const pendingHelper = `<p class="muted user-grid-pending-help">Las cuentas creadas por el formulario público quedan inactivas hasta que un administrador les asigne empresa, rol y permisos.</p>`;
+    html += pcardWrap(
+      "shield",
+      "Pendientes de aprobación",
+      pendingSubtitle,
+      pendingHelper + `<div class="user-grid user-grid-pending">${pendingCardsHtml}</div>`
+    );
+  }
+
+  html += pcardWrap(
+    "shield",
+    "Usuarios del sistema",
+    `${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"}${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}` : ""}`,
+    userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados.")
+  );
 
   if (companies.length > 0) {
     html += pcardWrap("briefcase", "Empresas registradas", companies.length + " empresas", `<div class="company-grid">${companyRows}</div>`);
@@ -6580,28 +6650,43 @@ function historyHtml() {
     .join("");
   const driverOptions = drivers.map((d) => `<option value="${d.id}">${d.name}</option>`).join("");
   const vehicleOptions = vehicles.map((v) => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join("");
-  const rows = requests
-    .map((r) => `<tr>
+  /**
+   * Filas: la columna Estado vuelve a usar `prettyStatus` (ya devuelve un pill estilizado).
+   * Cada `<tr>` recibe `data-history-row` para que el listener del formulario pueda filtrar
+   * por texto en cliente sin reconstruir el HTML.
+   */
+  const renderHistoryRow = (r) => {
+    const number = String(r.requestNumber || r.id || "").trim();
+    const client = String(r.clientName || "").trim();
+    const vehicle = String(r.vehicleType || r.trip?.vehicleType || "—").trim();
+    const trip = String(r.trip?.tripNumber || "").trim();
+    const haystack = `${number} ${client} ${vehicle} ${trip}`.toLowerCase();
+    return `<tr data-history-row data-haystack="${escapeAttr(haystack)}">
       <td>${fmtDate(r.createdAt)}</td>
-      <td><strong>${r.requestNumber || r.id}</strong></td>
-      <td>${r.clientName}</td>
-      <td>${escapeHtml(String(r.vehicleType || r.trip?.vehicleType || "—").trim())}</td>
+      <td><strong>${escapeHtml(number)}</strong></td>
+      <td>${escapeHtml(client)}</td>
+      <td>${escapeHtml(vehicle)}</td>
       <td>${prettyStatus(r.status)}</td>
-      <td>${r.trip?.tripNumber || '<span class="muted">-</span>'}</td>
-    </tr>`)
-    .join("");
+      <td>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
+    </tr>`;
+  };
+  const rows = requests.map(renderHistoryRow).join("");
 
-  const filterBody = `<form id="history-filter" class="p-form p-form-colored">
+  const filterBody = `<form id="history-filter" class="p-form p-form-colored history-filter-form">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.filter} Periodo y criterios</legend>
       <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.search || IC.filter, "Búsqueda libre")}<input type="search" name="q" placeholder="Buscar por número de solicitud, cliente, viaje o vehículo..." autocomplete="off" /></label>
         <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
         <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
         <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${options}</select></label>
         <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.filter} Aplicar filtro</button>
+    <div class="history-filter-actions">
+      <button class="btn btn-primary" type="submit">${IC.filter} Aplicar filtro</button>
+      <button class="btn btn-action" type="reset" data-action="history-clear-filter">${IC.x} Limpiar</button>
+    </div>
   </form>`;
   const driverReportBody = `<form id="driver-month-report-form" class="p-form p-form-colored">
     <fieldset class="form-section form-section-violet full">
@@ -7580,15 +7665,29 @@ function payrollHtml() {
     </tr>`;
     })
     .join("");
+  /**
+   * Cada fila marca su estado vía `data-payroll-state` para que CSS pueda dar un tinte ámbar a las
+   * pendientes (más fáciles de detectar al escanear) y verde sutil a las pagadas.
+   */
   const runRows = sortedRuns
-    .map((r) => `<tr>
-      <td>${r.month}</td><td>${r.employeeName}</td><td>$${parseNum(r.gross).toLocaleString("es-CO")}</td><td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td><td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td><td>$${parseNum(r.net).toLocaleString("es-CO")}</td>
-      <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="payslip" data-id="${r.id}">${IC.printer} Desprendible</button>
-        ${!r.paid ? `<button class="btn btn-sm btn-approve" data-action="mark-payroll-paid" data-id="${r.id}">${IC.check} Marcar pagado</button>` : ""}
-      </div></td>
-    </tr>`)
+    .map((r) => {
+      const state = r.paid ? "paid" : "pending";
+      const monthLabel = String(r.month || "").trim();
+      return `<tr data-payroll-state="${state}">
+        <td><strong>${escapeHtml(monthLabel)}</strong></td>
+        <td>${escapeHtml(String(r.employeeName || "—"))}</td>
+        <td>$${parseNum(r.gross).toLocaleString("es-CO")}</td>
+        <td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td>
+        <td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td>
+        <td>$${parseNum(r.deductions).toLocaleString("es-CO")}</td>
+        <td><strong>$${parseNum(r.net).toLocaleString("es-CO")}</strong></td>
+        <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
+        <td><div class="toolbar">
+          <button class="btn btn-sm btn-action" data-action="payslip" data-id="${escapeAttr(String(r.id))}">${IC.printer} Desprendible</button>
+          ${!r.paid ? `<button class="btn btn-sm btn-approve" data-action="mark-payroll-paid" data-id="${escapeAttr(String(r.id))}">${IC.check} Marcar pagado</button>` : ""}
+        </div></td>
+      </tr>`;
+    })
     .join("");
 
   const licenseCategoryOptions = selectOptionsFromCatalog(CO_CATALOGS.licenseCategories);
@@ -8019,13 +8118,40 @@ function hiringHtml() {
   const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
-  const alertsBody = `
-    <div class="hr-alert-list">
-      <div class="hr-alert-item"><strong>Vacantes por cerrar (<= 7 dias):</strong> ${soonClosingVacancies.length || 0}</div>
-      <div class="hr-alert-item"><strong>Contratos por vencer (<= 30 dias):</strong> ${contractsEndingSoon.length || 0}</div>
-      <div class="hr-alert-item"><strong>Candidatos activos en pipeline:</strong> ${activeCandidates.length || 0}</div>
-      <div class="hr-alert-item"><strong>Contratos generados este mes:</strong> ${contractsThisMonth.length || 0}</div>
-    </div>`;
+  /**
+   * Tarjetas visuales (con icono y tono) en lugar del listado plano. Cada tarjeta deja claro
+   * el indicador, el número y un microcopy explicativo.
+   */
+  const alertsBody = renderHrAlertCards([
+    {
+      icon: IC.alertTriangle,
+      label: "Vacantes por cerrar (≤ 7 días)",
+      value: soonClosingVacancies.length,
+      help: "Publicadas con fecha límite cercana. Revísalas o extiéndelas.",
+      tone: soonClosingVacancies.length ? "warn" : "ok"
+    },
+    {
+      icon: IC.calendar,
+      label: "Contratos por vencer (≤ 30 días)",
+      value: contractsEndingSoon.length,
+      help: "Anticipa renovaciones, prórrogas o liquidaciones.",
+      tone: contractsEndingSoon.length ? "warn" : "ok"
+    },
+    {
+      icon: IC.users,
+      label: "Candidatos activos en pipeline",
+      value: activeCandidates.length,
+      help: "Personas en proceso (no contratados ni descartados).",
+      tone: "info"
+    },
+    {
+      icon: IC.file,
+      label: "Contratos generados este mes",
+      value: contractsThisMonth.length,
+      help: "Documentos de contratación cerrados en el mes en curso.",
+      tone: "ok"
+    }
+  ]);
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
   const hiringFleetHero = moduleFleetHeroStrip([
@@ -8117,25 +8243,68 @@ function laborComplianceHtml() {
     return (expTs - todayTs) / 86400000 <= dueSoonDays;
   });
   const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
+  /**
+   * Pill por estado del control: Cumplido (verde), En gestion (azul), Pendiente / vencido (rojo)
+   * y vencimiento próximo en ámbar. La fila también recibe un atributo `data-sst-state` para
+   * permitir resaltado por CSS sin recalcular en cliente.
+   */
+  const statusBadgeForCompliance = (status, dueDate) => {
+    const s = String(status || "Pendiente").trim().toLowerCase();
+    if (s.startsWith("cumpl")) return `<span class="status status-completada">Cumplido</span>`;
+    if (s.startsWith("en gest")) return `<span class="status status-en_transito">En gestión</span>`;
+    if (dueDate) {
+      const ts = new Date(`${dueDate}T12:00:00`).getTime();
+      if (Number.isFinite(ts) && ts < Date.now()) return `<span class="status status-vencida">Vencido</span>`;
+      if (Number.isFinite(ts) && (ts - Date.now()) / 86400000 <= 30) {
+        return `<span class="status status-pendiente">Próximo</span>`;
+      }
+    }
+    return `<span class="status status-pendiente">Pendiente</span>`;
+  };
   const recordRows = records
     .map((record) => {
       const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
-      return `<tr>
-        <td><strong>${record.recordType || "-"}</strong><br><span class="muted">${record.documentCode || "Sin codigo"}</span></td>
-        <td>${employee?.name || record.employeeName || "-"}</td>
-        <td>${record.provider || "-"}</td>
-        <td>${record.dueDate || "-"}</td>
-        <td>${record.status || "Pendiente"}</td>
-        <td>${record.notes || "-"}</td>
+      const stateKey = String(record.status || "Pendiente").trim().toLowerCase().replace(/\s+/g, "-");
+      return `<tr data-sst-state="${escapeAttr(stateKey)}">
+        <td><strong>${escapeHtml(String(record.recordType || "-"))}</strong><br><span class="muted">${escapeHtml(String(record.documentCode || "Sin código"))}</span></td>
+        <td>${escapeHtml(String(employee?.name || record.employeeName || "-"))}</td>
+        <td>${escapeHtml(String(record.provider || "-"))}</td>
+        <td>${escapeHtml(String(record.dueDate || "-"))}</td>
+        <td>${statusBadgeForCompliance(record.status, record.dueDate)}</td>
+        <td>${escapeHtml(String(record.notes || "-"))}</td>
       </tr>`;
     })
     .join("");
-  const alertsBody = `<div class="hr-alert-list">
-      <div class="hr-alert-item"><strong>Contratos por vencer (30 dias):</strong> ${expiringContracts.length}</div>
-      <div class="hr-alert-item"><strong>Empleados con seguridad social incompleta:</strong> ${missingSocialSecurity.length}</div>
-      <div class="hr-alert-item"><strong>Licencias por vencer (30 dias):</strong> ${expiringLicenses.length}</div>
-      <div class="hr-alert-item"><strong>Registros documentales en auditoria:</strong> ${records.length}</div>
-    </div>`;
+  const alertsBody = renderHrAlertCards([
+    {
+      icon: IC.calendar,
+      label: "Contratos por vencer (30 días)",
+      value: expiringContracts.length,
+      help: "Anticipa la renovación o el reemplazo del personal.",
+      tone: expiringContracts.length ? "warn" : "ok"
+    },
+    {
+      icon: IC.shield,
+      label: "Seguridad social incompleta",
+      value: missingSocialSecurity.length,
+      help: "Empleados sin EPS, pensión o ARL en su ficha.",
+      tone: missingSocialSecurity.length ? "alert" : "ok"
+    },
+    {
+      icon: IC.alertTriangle,
+      label: "Licencias por vencer (30 días)",
+      value: expiringLicenses.length,
+      help: "Licencias de conducción próximas a expirar.",
+      tone: expiringLicenses.length ? "warn" : "ok"
+    },
+    {
+      icon: IC.file,
+      label: "Registros documentales",
+      value: records.length,
+      help: "Controles SST y de cumplimiento en auditoría.",
+      tone: "info"
+    }
+  ]);
   const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored">
       <fieldset class="form-section form-section-blue full">
         <legend>${IC.user} Empleado y tipo</legend>
@@ -8621,30 +8790,26 @@ function contactLeadsHtml() {
 
   const hero = moduleFleetHeroStrip([
     { label: "Prospectos", value: loading ? "…" : String(list.length) },
-    { label: "Pipeline", value: loading ? "…" : "Web → PostgreSQL" },
-    { label: "Sesión API", value: apiLive ? "Enlazada" : "Revisar" }
+    { label: "Pipeline", value: loading ? "…" : "Web → Equipo" },
+    { label: "Estado", value: apiLive ? "Activo" : "Sin conexión" }
   ]);
-
-  const toolbar = `<div class="b2b-leads-toolbar">
-    <p class="muted b2b-leads-toolbar-hint"><span class="b2b-leads-live-pill${apiLive ? " b2b-leads-live-pill--ok" : ""}">${apiLive ? "En tiempo real contra la API" : "Sin API o sin token Bearer"}</span><span>${apiLive ? " Los registros se cargan al abrir este módulo." : " Configure la URL de la API y cierre/abra sesión para autorizar esta pantalla."}</span></p>
-  </div>`;
 
   if (loading) {
     const shell = `<div class="b2b-leads-loading" role="status" aria-live="polite" aria-busy="true">
       <div class="b2b-leads-spinner" aria-hidden="true"></div>
       <div class="b2b-leads-loading-text">
-        <strong>Trayendo solicitudes desde el servidor</strong>
-        <span class="muted">Un momento: estamos cargando la bandeja B2B en directo desde la base.</span>
+        <strong>Cargando solicitudes</strong>
+        <span class="muted">Un momento, estamos trayendo la bandeja de prospectos.</span>
       </div>
     </div>`;
-    return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "Sincronizando datos…", toolbar + shell);
+    return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "Sincronizando datos…", shell);
   }
 
   if (!list.length) {
     const hint = apiLive
-      ? "Todavía no hay filas en esta vista. Los envíos recientes aparecen al volver a abrir el módulo o tras unos segundos."
-      : "Sin enlace válido con la API. Verifique la URL base del backend y que su sesión tenga JWT activo.";
-    return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "0 prospectos visibles", toolbar + emptyState(hint));
+      ? "Todavía no hay solicitudes recibidas. Cuando un prospecto envíe el formulario aparecerá aquí."
+      : "Sin conexión activa. Reintente en unos segundos o vuelva a iniciar sesión.";
+    return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "0 prospectos visibles", emptyState(hint));
   }
 
   const cards = list
@@ -8704,8 +8869,8 @@ function contactLeadsHtml() {
     .join("");
 
   const mosaic = `<div class="b2b-leads-mosaic">${cards}</div>`;
-  const footer = `<p class="muted b2b-leads-footer-footnote">${list.length} registro(s) mostrados. Origen: tabla <code>prospectos_contacto_b2b</code>.</p>`;
-  return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", `${list.length} en base · vista enriquecida`, toolbar + mosaic + footer);
+  const subtitle = `${list.length} prospecto${list.length === 1 ? "" : "s"} · vista enriquecida`;
+  return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", subtitle, mosaic);
 }
 
 function renderFromModule(moduleName, exportName, ...args) {
@@ -9635,6 +9800,34 @@ function bindDynamicEvents() {
         if (docPart) modalSubtitleLines.push(`Documento: ${docPart}`);
       }
       if (target.phone) modalSubtitleLines.push(`Tel.: ${String(target.phone).trim()}`);
+      const initialRole = target.role || ROLES.CLIENT;
+      const initialPerms = Array.isArray(target.permissions) && target.permissions.length
+        ? target.permissions.filter((p) => ALL_PERMISSIONS.includes(p))
+        : defaultPermissionsForRole(initialRole);
+      const renderPermsChecklistHtml = (selected) => {
+        const setSel = new Set(selected);
+        const items = ALL_PERMISSIONS.map((permission) => {
+          const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
+          const checked = setSel.has(permission) ? "checked" : "";
+          return `<label class="perm-check perm-check--compact">
+            <input type="checkbox" name="permissions" value="${escapeAttr(permission)}" ${checked} />
+            <span><strong>${escapeHtml(meta.title)}</strong>${meta.desc ? `<small>${escapeHtml(meta.desc)}</small>` : ""}</span>
+          </label>`;
+        }).join("");
+        return `<div class="approve-perms-shell" data-approve-perms-shell>
+          <div class="approve-perms-head">
+            <p class="muted approve-perms-help">Marca o desmarca lo que el usuario podrá ver/usar. Se prellena con los permisos típicos del rol seleccionado, pero puedes ajustarlos antes de aprobar.</p>
+            <div class="approve-perms-actions">
+              <button type="button" class="btn btn-action btn-sm" data-perm-bulk="all">${IC.check} Marcar todos</button>
+              <button type="button" class="btn btn-action btn-sm" data-perm-bulk="none">${IC.x} Desmarcar todos</button>
+              <button type="button" class="btn btn-action btn-sm" data-perm-bulk="role">${IC.shield} Volver al rol</button>
+            </div>
+          </div>
+          <div class="approve-perms-grid perm-grid" data-approve-perms-grid>${items}</div>
+          <p class="muted approve-perms-counter" data-approve-perms-counter></p>
+        </div>`;
+      };
+
       openEditModal({
         title: "Aprobar usuario y asociar empresa",
         subtitle: modalSubtitleLines.join(" · "),
@@ -9656,7 +9849,7 @@ function bindDynamicEvents() {
             label: "Rol en el sistema",
             type: "select",
             required: true,
-            value: target.role || ROLES.CLIENT,
+            value: initialRole,
             options: [
               { value: ROLES.CLIENT, label: "Cliente" },
               { value: ROLES.RRHH, label: "Recursos Humanos" },
@@ -9665,9 +9858,66 @@ function bindDynamicEvents() {
               { value: ROLES.LIDER_ADMINISTRATIVO, label: "Líder administrativo" },
               { value: ROLES.ADMIN, label: "Administrador" }
             ]
+          },
+          {
+            name: "__permissions_block",
+            type: "custom",
+            label: "Permisos del usuario",
+            id: "approve-permissions-block",
+            html: renderPermsChecklistHtml(initialPerms)
           }
         ],
-        onSubmit: async (form) => {
+        afterMount: (form) => {
+          if (!form) return;
+          const roleSelect = form.querySelector("select[name='role']");
+          const shell = form.querySelector("[data-approve-perms-shell]");
+          if (!shell) return;
+          const refreshCounter = () => {
+            const counter = shell.querySelector("[data-approve-perms-counter]");
+            if (!counter) return;
+            const total = ALL_PERMISSIONS.length;
+            const marked = shell.querySelectorAll("input[name='permissions']:checked").length;
+            counter.textContent = `${marked} de ${total} permisos seleccionados`;
+          };
+          const repaintForRole = (role, opts = {}) => {
+            const grid = shell.querySelector("[data-approve-perms-grid]");
+            if (!grid) return;
+            const base = defaultPermissionsForRole(role);
+            const next = opts.preserveSelection
+              ? base
+              : base;
+            const setNext = new Set(next);
+            grid.innerHTML = ALL_PERMISSIONS.map((permission) => {
+              const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
+              const checked = setNext.has(permission) ? "checked" : "";
+              return `<label class="perm-check perm-check--compact">
+                <input type="checkbox" name="permissions" value="${escapeAttr(permission)}" ${checked} />
+                <span><strong>${escapeHtml(meta.title)}</strong>${meta.desc ? `<small>${escapeHtml(meta.desc)}</small>` : ""}</span>
+              </label>`;
+            }).join("");
+            refreshCounter();
+          };
+          if (roleSelect) {
+            roleSelect.addEventListener("change", () => {
+              repaintForRole(roleSelect.value || ROLES.CLIENT);
+            });
+          }
+          shell.addEventListener("click", (event) => {
+            const trigger = event.target.closest("[data-perm-bulk]");
+            if (!trigger) return;
+            const mode = trigger.getAttribute("data-perm-bulk");
+            const inputs = [...shell.querySelectorAll("input[name='permissions']")];
+            if (mode === "all") inputs.forEach((i) => { i.checked = true; });
+            else if (mode === "none") inputs.forEach((i) => { i.checked = false; });
+            else if (mode === "role") repaintForRole(roleSelect?.value || ROLES.CLIENT);
+            refreshCounter();
+          });
+          shell.addEventListener("change", (event) => {
+            if (event.target?.name === "permissions") refreshCounter();
+          });
+          refreshCounter();
+        },
+        onSubmit: async (form, formEl) => {
           const selected = getCompanyById(String(form.companyId || ""));
           if (!selected) {
             notify(userMessage("userSelectCompany"), "error");
@@ -9678,13 +9928,28 @@ function bindDynamicEvents() {
             notify("Seleccione un rol válido.", "error");
             return false;
           }
+          /**
+           * Lectura de permisos manual (varios checkboxes con el mismo `name`): FormData solo trae
+           * la última coincidencia, así que extraemos los marcados directamente del DOM. Si el
+           * admin desmarcó todos, conservamos al menos los mínimos del rol para no dejar la cuenta
+           * sin acceso a Dashboard / Mi perfil / Notificaciones.
+           */
+          const checkedPerms = formEl
+            ? [...formEl.querySelectorAll("input[name='permissions']:checked")]
+                .map((el) => el.value)
+                .filter((p) => ALL_PERMISSIONS.includes(p))
+            : [];
+          const finalPerms = checkedPerms.length
+            ? [...new Set(checkedPerms)]
+            : defaultPermissionsForRole(chosenRole);
           const api = window.AntaresApi;
           if (api?.isConfigured?.()) {
             try {
               await api.postJson("/portal/approve-pending-user", {
                 userId: String(target.id),
                 companyId: String(selected.id),
-                role: chosenRole
+                role: chosenRole,
+                permissions: finalPerms
               });
               await startPortalBootstrapForInteractiveSession();
             } catch (err) {
@@ -9702,7 +9967,7 @@ function bindDynamicEvents() {
                       companyId: selected.id,
                       company: selected.name,
                       role: chosenRole,
-                      permissions: defaultPermissionsForRole(chosenRole)
+                      permissions: finalPerms
                     }
                   : u
               )
@@ -10993,21 +11258,56 @@ function bindDynamicEvents() {
 
   const historyFilter = document.getElementById("history-filter");
   if (historyFilter) {
-    historyFilter.addEventListener("submit", (event) => {
-      event.preventDefault();
+    /**
+     * Filtrado del módulo Historial: combina criterios estructurados (cliente, estado, rango de
+     * fechas) con búsqueda libre (`q`) sobre número de solicitud, cliente, viaje y tipo de
+     * vehículo. Mantiene los pills de estado (`prettyStatus`) para conservar la UX.
+     */
+    const filterRows = () => {
       const data = Object.fromEntries(new FormData(historyFilter).entries());
+      const q = String(data.q || "").trim().toLowerCase();
       let items = reqRead();
       if (data.client) items = items.filter((i) => i.clientUserId === data.client);
       if (data.status) items = items.filter((i) => i.status === data.status);
       if (data.from) items = items.filter((i) => new Date(i.createdAt) >= new Date(`${data.from}T00:00`));
       if (data.to) items = items.filter((i) => new Date(i.createdAt) <= new Date(`${data.to}T23:59`));
-      document.getElementById("history-body").innerHTML =
-        items
-          .map(
-            (r) =>
-              `<tr><td>${fmtDate(r.createdAt)}</td><td>${r.requestNumber || r.id}</td><td>${r.clientName}</td><td>${escapeHtml(String(r.vehicleType || r.trip?.vehicleType || "—").trim())}</td><td>${r.status}</td><td>${r.trip?.tripNumber || "-"}</td></tr>`
-          )
-          .join("") || "<tr><td colspan='6'>Sin registros</td></tr>";
+      if (q) {
+        items = items.filter((i) => {
+          const hay = `${i.requestNumber || i.id || ""} ${i.clientName || ""} ${i.vehicleType || i.trip?.vehicleType || ""} ${i.trip?.tripNumber || ""}`.toLowerCase();
+          return hay.includes(q);
+        });
+      }
+      const body = document.getElementById("history-body");
+      if (!body) return;
+      body.innerHTML = items.length
+        ? items
+            .map((r) => {
+              const number = String(r.requestNumber || r.id || "").trim();
+              const client = String(r.clientName || "").trim();
+              const vehicle = String(r.vehicleType || r.trip?.vehicleType || "—").trim();
+              const trip = String(r.trip?.tripNumber || "").trim();
+              return `<tr>
+                <td>${fmtDate(r.createdAt)}</td>
+                <td><strong>${escapeHtml(number)}</strong></td>
+                <td>${escapeHtml(client)}</td>
+                <td>${escapeHtml(vehicle)}</td>
+                <td>${prettyStatus(r.status)}</td>
+                <td>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
+              </tr>`;
+            })
+            .join("")
+        : "<tr><td colspan='6'><div class='history-empty-row'>Sin registros para los filtros aplicados.</div></td></tr>";
+    };
+    historyFilter.addEventListener("submit", (event) => {
+      event.preventDefault();
+      filterRows();
+    });
+    const liveSearch = historyFilter.querySelector("input[name='q']");
+    if (liveSearch) {
+      liveSearch.addEventListener("input", () => filterRows());
+    }
+    historyFilter.addEventListener("reset", () => {
+      window.requestAnimationFrame(() => filterRows());
     });
   }
 
@@ -13053,6 +13353,23 @@ initPublicEffects();
 renderPortal();
 
 void (async function bootApplicationFromDatabaseThenUi() {
+  /**
+   * Política de arranque (post-F5):
+   *   1) Render síncrono inmediato a partir de la sesión cacheada → el portal se ve "al
+   *      instante" (combinado con el guard inline en <head> que oculta el sitio público
+   *      mientras app.js termina de cargar).
+   *   2) Bootstrap (refresh JWT + /portal/bootstrap) en segundo plano: cuando termina,
+   *      llamamos a `__portalRefreshAfterBootstrap` para repintar la vista con datos frescos
+   *      sin sacar al usuario del módulo en el que estaba.
+   *   3) Si no hay sesión guardada, mostramos el sitio público desde el primer paint.
+   */
+  const hadSessionAtBoot = Boolean(getSession());
+  try {
+    renderPortal();
+  } catch (err) {
+    devWarn("renderPortal síncrono falló al arrancar:", err);
+  }
+
   /** Tras F5 el access JWT puede estar vencido; sin refresh /portal/bootstrap devuelve 401 y se vacía la proyección en RAM. */
   try {
     const s0 = getSession();
@@ -13078,7 +13395,11 @@ void (async function bootApplicationFromDatabaseThenUi() {
       devWarn("Dominios sin inicializar:", missingDomains.join(", "));
     }
   }
-  /** Si tras refresh+bootstrap hay sesión en disco pero el portal aún no se mostró (login viejo en otra pestaña, etc.), forzamos render. */
+  /**
+   * Tras el bootstrap async: si seguimos con sesión válida, repintamos para reflejar permisos
+   * y datos definitivos sin perder la URL (#portal/<modulo>). Si la sesión expiró durante el
+   * bootstrap (refresh fallido), `renderPortal()` mostrará automáticamente el sitio público.
+   */
   if (getSession()) {
     try {
       window.__portalRefreshAfterBootstrap?.();
@@ -13088,7 +13409,8 @@ void (async function bootApplicationFromDatabaseThenUi() {
     if (!document.body.classList.contains("portal-mode")) {
       renderPortal();
     }
-  } else {
+  } else if (hadSessionAtBoot) {
+    /** Tenía sesión y se invalidó durante el bootstrap → caer al sitio público sin parpadeo extra. */
     renderPortal();
   }
   try {

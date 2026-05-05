@@ -2622,6 +2622,53 @@ tbody tr:last-child td { border-bottom: none; }
   background: linear-gradient(135deg, #fffef8, #fff);
 }
 
+/**
+ * Tarjeta de usuario "Pendiente de aprobación" mostrada dentro del módulo "Usuarios del sistema".
+ * Marco amarillo + nota explícita para que el admin entienda inmediatamente que la cuenta no ha
+ * sido activada.
+ */
+.user-card.user-card--pending {
+  background: linear-gradient(135deg, #fffaf0, #fff);
+  border-color: #fcd34d;
+  box-shadow: 0 6px 18px -12px rgba(217, 119, 6, 0.45);
+}
+
+.user-card-pending-note {
+  margin: 0.4rem 0 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  border: 1px solid #fde68a;
+}
+
+.user-card-pending-note strong {
+  color: #78350f;
+}
+
+.user-grid-pending-help {
+  margin: 0 0 0.65rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+body[data-theme="dark"] .user-card.user-card--pending {
+  background: linear-gradient(135deg, #1f2937, #111827);
+  border-color: #b45309;
+}
+
+body[data-theme="dark"] .user-card-pending-note {
+  background: rgba(180, 83, 9, 0.18);
+  color: #fde68a;
+  border-color: rgba(253, 230, 138, 0.3);
+}
+
+body[data-theme="dark"] .user-card-pending-note strong {
+  color: #fcd34d;
+}
+
 .role-chip {
   display: inline-block;
   padding: 0.2rem 0.6rem;
@@ -2750,6 +2797,101 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.72rem;
   color: #64748b;
   line-height: 1.2;
+}
+
+/**
+ * Modal "Aprobar usuario" — bloque de permisos editables (versión compacta para modal).
+ * El admin escoge empresa y rol; al elegir rol se prellenan los permisos típicos pero quedan
+ * editables (botones Marcar todos / Desmarcar todos / Volver al rol).
+ */
+.modal-edit-section-title {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+  margin: 0.6rem 0 0.4rem;
+}
+
+.modal-edit-custom-slot {
+  margin-top: 0.4rem;
+}
+
+.approve-perms-shell {
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem 0.95rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.approve-perms-head {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.approve-perms-help {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.approve-perms-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.approve-perms-actions .btn {
+  font-size: 0.74rem;
+  padding: 0.32rem 0.6rem;
+}
+
+.approve-perms-grid {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 0.5rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.perm-check.perm-check--compact {
+  padding: 0.32rem 0.5rem;
+  font-size: 0.78rem !important;
+}
+
+.perm-check.perm-check--compact span strong {
+  font-size: 0.78rem;
+}
+
+.perm-check.perm-check--compact span small {
+  font-size: 0.68rem;
+}
+
+.approve-perms-counter {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #475569;
+  text-align: right;
+}
+
+body[data-theme="dark"] .approve-perms-shell {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+
+body[data-theme="dark"] .approve-perms-grid {
+  background: #111c2e;
+  border-color: #1e293b;
+}
+
+body[data-theme="dark"] .approve-perms-help,
+body[data-theme="dark"] .approve-perms-counter,
+body[data-theme="dark"] .modal-edit-section-title {
+  color: #cbd5e1;
 }
 
 /* Company chips */
@@ -6642,6 +6784,226 @@ body[data-theme="dark"] .p-form textarea {
   background: #f8fbff;
   font-size: 0.9rem;
   color: var(--text);
+}
+
+/**
+ * Cuadrícula de "alert cards" para los módulos de Contratación / Cumplimiento.
+ * Cada tarjeta muestra ícono, indicador, valor y microcopy con un tono de color
+ * (ok = verde, info = azul, warn = ámbar, alert = rojo) que reemplaza el viejo
+ * listado plano <div class="hr-alert-item">…</div>.
+ */
+.hr-alert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.7rem;
+}
+
+.hr-alert-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 8px 18px -16px rgba(15, 23, 42, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hr-alert-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+  background: var(--hr-alert-tone, #94a3b8);
+}
+
+.hr-alert-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 14px 26px -18px rgba(15, 23, 42, 0.28);
+}
+
+.hr-alert-card-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--hr-alert-tone, #94a3b8) 14%, transparent);
+  color: var(--hr-alert-tone, #475569);
+}
+
+.hr-alert-card-ico svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.hr-alert-card-body {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.hr-alert-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
+.hr-alert-card-value {
+  font-size: 1.5rem;
+  line-height: 1.05;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.hr-alert-card-help {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.hr-alert-card--ok    { --hr-alert-tone: #15803d; }
+.hr-alert-card--info  { --hr-alert-tone: #1d4ed8; }
+.hr-alert-card--warn  { --hr-alert-tone: #b45309; background: linear-gradient(135deg, #ffffff 0%, #fff8eb 100%); }
+.hr-alert-card--alert { --hr-alert-tone: #b91c1c; background: linear-gradient(135deg, #ffffff 0%, #fff1f2 100%); }
+
+body[data-theme="dark"] .hr-alert-card {
+  background: linear-gradient(135deg, #111827 0%, #0b1424 100%);
+  border-color: #1f2937;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 24px -22px rgba(0, 0, 0, 0.5);
+}
+
+body[data-theme="dark"] .hr-alert-card-label {
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .hr-alert-card-value {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .hr-alert-card-help {
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .hr-alert-card--warn {
+  background: linear-gradient(135deg, #111827 0%, #2a1f0a 100%);
+}
+
+body[data-theme="dark"] .hr-alert-card--alert {
+  background: linear-gradient(135deg, #111827 0%, #2a0d10 100%);
+}
+
+/**
+ * Filas de la tabla de cumplimiento SST: tinte sutil según el estado del control para que
+ * "Cumplido" se vea en verde, "En gestión" en azul y "Pendiente" en ámbar al escanear.
+ */
+tr[data-sst-state="cumplido"] {
+  background: rgba(34, 197, 94, 0.07);
+}
+
+tr[data-sst-state="en-gestion"] {
+  background: rgba(37, 99, 235, 0.07);
+}
+
+tr[data-sst-state="pendiente"] {
+  background: rgba(217, 119, 6, 0.08);
+}
+
+body[data-theme="dark"] tr[data-sst-state="cumplido"] {
+  background: rgba(34, 197, 94, 0.1);
+}
+body[data-theme="dark"] tr[data-sst-state="en-gestion"] {
+  background: rgba(96, 165, 250, 0.1);
+}
+body[data-theme="dark"] tr[data-sst-state="pendiente"] {
+  background: rgba(251, 191, 36, 0.12);
+}
+
+/**
+ * Historial — filtros, búsqueda libre y empty-state dentro de la tabla.
+ */
+.history-filter-form .form-section-grid input[type="search"] {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.history-filter-form .form-section-grid input[type="search"]:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.history-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.history-empty-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+body[data-theme="dark"] .history-filter-form .form-section-grid input[type="search"] {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .history-empty-row {
+  color: #94a3b8;
+}
+
+/**
+ * Nómina — tinte por estado de la corrida de nómina (pendiente / pagada). Con esto se ve a
+ * golpe de vista qué desprendibles aún esperan pago vs. los ya conciliados.
+ */
+tr[data-payroll-state="pending"] {
+  background: rgba(217, 119, 6, 0.07);
+}
+
+tr[data-payroll-state="paid"] {
+  background: rgba(34, 197, 94, 0.05);
+}
+
+body[data-theme="dark"] tr[data-payroll-state="pending"] {
+  background: rgba(251, 191, 36, 0.1);
+}
+
+body[data-theme="dark"] tr[data-payroll-state="paid"] {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+/**
+ * Reporte de combustibles / técnicas dentro del módulo Historial — estética de tarjetas.
+ */
+.history-insights-grid .p-card,
+.history-ops-grid .p-card {
+  height: 100%;
+}
+
+.history-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 0.85rem;
 }
 
 .ops-module-head {

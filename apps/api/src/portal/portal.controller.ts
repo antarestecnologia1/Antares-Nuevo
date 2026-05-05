@@ -48,7 +48,14 @@ export class PortalController {
   /** Solo admin: aprueba usuario pendiente y asigna id_empresa en PostgreSQL. */
   @Post("approve-pending-user")
   approvePendingUser(@Req() req: { user: ReqUser }, @Body() dto: ApprovePendingUserDto) {
-    return this.portal.approvePendingUser(req.user.userId, req.user.role, dto.userId, dto.companyId, dto.role);
+    return this.portal.approvePendingUser(
+      req.user.userId,
+      req.user.role,
+      dto.userId,
+      dto.companyId,
+      dto.role,
+      dto.permissions
+    );
   }
 
   /** Solo admin: cambia estado de cuenta (ej: desactivar => rechazado). */

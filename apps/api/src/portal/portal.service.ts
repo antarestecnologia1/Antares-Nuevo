@@ -555,7 +555,8 @@ export class PortalService implements OnModuleInit {
     actorRole: JwtRole,
     targetUserId: string,
     companyId: string,
-    role: string
+    role: string,
+    permissionsRequested?: string[]
   ) {
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
 
@@ -602,7 +603,19 @@ export class PortalService implements OnModuleInit {
     }
 
     const empresaNombre = empRes.rows[0].nombre;
-    const perms = defaultPermissionsForApprovedRole(rolDb);
+    /**
+     * Si el admin envió un set explícito de permisos desde el modal de aprobación, lo usamos
+     * (filtrado contra el catálogo conocido, sin duplicados). Si no envía nada, caemos a los
+     * permisos por defecto del rol.
+     */
+    const requestedSet = Array.isArray(permissionsRequested)
+      ? [...new Set(
+          permissionsRequested
+            .map((p) => String(p || "").trim())
+            .filter((p) => ALL_PORTAL_PERMISSIONS.includes(p))
+        )]
+      : [];
+    const perms = requestedSet.length ? requestedSet : defaultPermissionsForApprovedRole(rolDb);
 
     const client = await this.pool.connect();
     try {
