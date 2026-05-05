@@ -22,7 +22,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260505-brand-logo-xl" />
+    <link rel="stylesheet" href="./styles.css?v=20260505-hero-brand" />
   </head>
   <body>
     <!-- ─── NAVIGATION ─── -->
@@ -33,8 +33,8 @@
             class="brand-logo"
             src="./imagenes%20empresa/Logo.png"
             alt="Transportes Antares S.A.S"
-            width="280"
-            height="72"
+            width="200"
+            height="52"
             decoding="async"
             fetchpriority="high"
           />
@@ -102,55 +102,72 @@
         </svg>
 
         <div class="container hero-content">
-          <p class="hero-kicker" data-reveal>
-            <svg class="hero-kicker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-            </svg>
-            Logistica premium para floricultura y exportacion
-          </p>
-          <h1>Transporte especializado de flores con <span class="hero-h1-accent">trazabilidad total</span></h1>
-          <p>
-            Operamos una red B2B con turbos, camiones y tractocamiones para movilizar
-            flor de exportacion con control de temperatura, seguridad y cumplimiento en toda Colombia.
-          </p>
-          <div class="hero-actions">
-            <a href="#contact" class="btn btn-primary">
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              Solicitar propuesta
-            </a>
-            <button id="open-auth-hero" class="btn btn-ghost-light" type="button">
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Ingresar al portal
-            </button>
-          </div>
-          <div class="hero-stats" data-reveal>
-            <article class="hero-stat glass-card">
-              <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-              </svg>
-              <div class="hero-stat-text">
-                <span>Entregas mensuales</span>
-                <b>1.850+</b>
+          <div class="hero-content-layout">
+            <aside class="hero-brand-slot" aria-label="Marca corporativa">
+              <div class="hero-brand-panel" data-reveal>
+                <img
+                  class="hero-brand-logo"
+                  src="./imagenes%20empresa/Logo.png"
+                  alt="Transportes Antares S.A.S — Logística refrigerada"
+                  width="400"
+                  height="140"
+                  decoding="async"
+                  fetchpriority="high"
+                />
               </div>
-            </article>
-            <article class="hero-stat glass-card">
-              <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-              <div class="hero-stat-text">
-                <span>Nivel de cumplimiento</span>
-                <b>98.7%</b>
+            </aside>
+            <div class="hero-copy">
+              <p class="hero-kicker" data-reveal>
+                <svg class="hero-kicker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Logistica premium para floricultura y exportacion
+              </p>
+              <h1>Transporte especializado de flores con <span class="hero-h1-accent">trazabilidad total</span></h1>
+              <p>
+                Operamos una red B2B con turbos, camiones y tractocamiones para movilizar
+                flor de exportacion con control de temperatura, seguridad y cumplimiento en toda Colombia.
+              </p>
+              <div class="hero-actions">
+                <a href="#contact" class="btn btn-primary">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  Solicitar propuesta
+                </a>
+                <button id="open-auth-hero" class="btn btn-ghost-light" type="button">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  Ingresar al portal
+                </button>
               </div>
-            </article>
-            <article class="hero-stat glass-card">
-              <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-              <div class="hero-stat-text">
-                <span>Tiempo de respuesta</span>
-                <b>&lt; 12 min</b>
+              <div class="hero-stats" data-reveal>
+                <article class="hero-stat glass-card">
+                  <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                  </svg>
+                  <div class="hero-stat-text">
+                    <span>Entregas mensuales</span>
+                    <b>1.850+</b>
+                  </div>
+                </article>
+                <article class="hero-stat glass-card">
+                  <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  <div class="hero-stat-text">
+                    <span>Nivel de cumplimiento</span>
+                    <b>98.7%</b>
+                  </div>
+                </article>
+                <article class="hero-stat glass-card">
+                  <svg class="hero-stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  <div class="hero-stat-text">
+                    <span>Tiempo de respuesta</span>
+                    <b>&lt; 12 min</b>
+                  </div>
+                </article>
               </div>
-            </article>
+            </div>
           </div>
         </div>
       </section>
