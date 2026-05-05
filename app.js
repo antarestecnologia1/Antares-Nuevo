@@ -804,7 +804,9 @@ let state = {
    * __tickNotificationsPoll cuando la notificación en bandeja es para la sesión actual (p. ej.
    * admin que también es el cliente de la solicitud).
    */
-  portalSuppressSelfPollToastUntil: 0
+  portalSuppressSelfPollToastUntil: 0,
+  /** Evita registrar varias veces los listeners capture en viewRoot (no-admin); antes se acumulaban en cada cambio de módulo. */
+  portalNonAdminCaptureBound: false
 };
 
 window.AntaresDataAccess = Object.freeze({
@@ -4772,22 +4774,36 @@ function recalculateResourceAvailability() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
 
-  write(
-    KEYS.vehicles,
-    vehicles.map((vehicle) => {
-      if (busyVehicleIds.has(vehicle.id)) return { ...vehicle, available: false, autoBusy: true };
-      if (vehicle.autoBusy) return { ...vehicle, available: true, autoBusy: false };
-      return vehicle;
-    })
-  );
-  write(
-    KEYS.drivers,
-    drivers.map((driver) => {
-      if (busyDriverIds.has(driver.id)) return { ...driver, available: false, autoBusy: true };
-      if (driver.autoBusy) return { ...driver, available: true, autoBusy: false };
-      return driver;
-    })
-  );
+  let vehiclesChanged = false;
+  const nextVehicles = vehicles.map((vehicle) => {
+    if (busyVehicleIds.has(vehicle.id)) {
+      if (vehicle.available === false && vehicle.autoBusy === true) return vehicle;
+      vehiclesChanged = true;
+      return { ...vehicle, available: false, autoBusy: true };
+    }
+    if (vehicle.autoBusy) {
+      vehiclesChanged = true;
+      return { ...vehicle, available: true, autoBusy: false };
+    }
+    return vehicle;
+  });
+
+  let driversChanged = false;
+  const nextDrivers = drivers.map((driver) => {
+    if (busyDriverIds.has(driver.id)) {
+      if (driver.available === false && driver.autoBusy === true) return driver;
+      driversChanged = true;
+      return { ...driver, available: false, autoBusy: true };
+    }
+    if (driver.autoBusy) {
+      driversChanged = true;
+      return { ...driver, available: true, autoBusy: false };
+    }
+    return driver;
+  });
+
+  if (vehiclesChanged) write(KEYS.vehicles, nextVehicles);
+  if (driversChanged) write(KEYS.drivers, nextDrivers);
 }
 
 function buildTripInvoice(request) {
@@ -9698,37 +9714,64 @@ function mountAuthorizationsTabs() {
   if (initial) activate(initial);
 }
 
+/** Acciones que los usuarios que no son administrador no pueden ejecutar (listeners capture en `viewRoot`, una sola vez). */
+const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
+  "edit",
+  "cancel",
+  "approve",
+  "reject",
+  "edit-admin",
+  "delete-admin",
+  "trip-status",
+  "delete-trip",
+  "edit-vehicle",
+  "toggle-vehicle",
+  "delete-vehicle",
+  "edit-driver",
+  "toggle-driver",
+  "delete-driver",
+  "delete-route-rate",
+  "edit-employee",
+  "delete-employee",
+  "close-vacancy",
+  "toggle-position",
+  "candidate-status",
+  "open-edit-user",
+  "delete-user",
+  "approve-registration",
+  "reject-registration",
+  "approval-approve",
+  "approval-reject",
+  "open-edit-company",
+  "close-edit-company",
+  "toggle-company-active",
+  "delete-company"
+]);
+
+function portalNonAdminRestrictedCaptureClick(event) {
+  if (currentUser()?.role === ROLES.ADMIN) return;
+  const trigger = event.target.closest("[data-action]");
+  const action = String(trigger?.dataset?.action || "");
+  if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  notify(userMessage("adminOnlyModule"), "error");
+}
+
+function portalNonAdminRestrictedCaptureChange(event) {
+  if (currentUser()?.role === ROLES.ADMIN) return;
+  const trigger = event.target.closest("[data-action]");
+  const action = String(trigger?.dataset?.action || "");
+  if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  notify(userMessage("adminOnlyModule"), "error");
+}
+
 function bindDynamicEvents() {
   const actor = currentUser();
   const isAdmin = actor?.role === ROLES.ADMIN;
-  const restrictedActions = new Set([
-    "edit",
-    "cancel",
-    "approve",
-    "reject",
-    "edit-admin",
-    "delete-admin",
-    "trip-status",
-    "delete-trip",
-    "edit-vehicle",
-    "toggle-vehicle",
-    "delete-vehicle",
-    "edit-driver",
-    "toggle-driver",
-    "delete-driver",
-    "delete-route-rate",
-    "edit-employee",
-    "delete-employee",
-    "close-vacancy",
-    "toggle-position",
-    "candidate-status",
-    "open-edit-user",
-    "delete-user",
-    "approve-registration",
-    "reject-registration",
-    "approval-approve",
-    "approval-reject"
-  ]);
+  const restrictedActions = PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
 
   if (!isAdmin) {
     nodes.viewRoot.querySelectorAll("[data-action]").forEach((node) => {
@@ -9741,30 +9784,11 @@ function bindDynamicEvents() {
         node.style.cursor = "not-allowed";
       }
     });
-    nodes.viewRoot.addEventListener(
-      "click",
-      (event) => {
-        const trigger = event.target.closest("[data-action]");
-        const action = String(trigger?.dataset?.action || "");
-        if (!restrictedActions.has(action)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        notify(userMessage("adminOnlyModule"), "error");
-      },
-      true
-    );
-    nodes.viewRoot.addEventListener(
-      "change",
-      (event) => {
-        const trigger = event.target.closest("[data-action]");
-        const action = String(trigger?.dataset?.action || "");
-        if (!restrictedActions.has(action)) return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        notify(userMessage("adminOnlyModule"), "error");
-      },
-      true
-    );
+    if (!state.portalNonAdminCaptureBound) {
+      state.portalNonAdminCaptureBound = true;
+      nodes.viewRoot.addEventListener("click", portalNonAdminRestrictedCaptureClick, true);
+      nodes.viewRoot.addEventListener("change", portalNonAdminRestrictedCaptureChange, true);
+    }
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-create-panel']").forEach((btn) => {
