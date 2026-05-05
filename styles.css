@@ -3439,11 +3439,15 @@ body[data-theme="dark"] .users-pending-redirect {
   flex-direction: column;
   gap: 0.2rem;
   margin: 0.15rem 0 0.25rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .auth-remember-check {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
   gap: 0.45rem;
   min-width: 0;
   font-size: 0.88rem;
@@ -3454,12 +3458,12 @@ body[data-theme="dark"] .users-pending-redirect {
 
 .auth-remember-check > span:last-child {
   min-width: 0;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .auth-remember-check input[type="checkbox"] {
   margin-top: 0.12rem;
-  flex-shrink: 0;
 }
 
 .auth-remember-hint {
@@ -3468,6 +3472,9 @@ body[data-theme="dark"] .users-pending-redirect {
   padding-left: 1.55rem;
   font-size: 0.78rem;
   line-height: 1.35;
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .auth-plain-label .field-label {
