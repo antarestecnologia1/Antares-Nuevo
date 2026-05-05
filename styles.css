@@ -2209,6 +2209,11 @@ tbody tr:last-child td { border-bottom: none; }
 }
 
 .status-pendiente { background: linear-gradient(135deg, #F59F00, #E67700); }
+/* Aprobada pendiente asignación: pill con marca (antes sin fondo → texto blanco invisible sobre tarjeta blanca) */
+.status-aprobada_pendiente_asignacion {
+  background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 42%, var(--primary) 100%);
+  box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.35);
+}
 .status-viaje_asignado { background: linear-gradient(135deg, #1B8E5F, #157A50); }
 .status-en_transito { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
 .status-espera_standby { background: linear-gradient(135deg, #8a5b00, #6d4800); }
