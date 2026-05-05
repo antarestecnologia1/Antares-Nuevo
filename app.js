@@ -5477,7 +5477,12 @@ function __tickNotificationsPoll() {
   if (!user) return;
   const current = getCurrentNotifications();
   const seen = __lastSeenNotificationIds || new Set();
-  const fresh = current.filter((n) => !seen.has(n.id));
+  /**
+   * Solo avisar en toast las notificaciones dirigidas al usuario de la sesión. Los admins ven en
+   * la bandeja las de otros (p. ej. "Cuenta aprobada" para un cliente), pero no deben duplicar el
+   * mensaje explícito que ya muestra la acción (Aprobar usuario, etc.).
+   */
+  const fresh = current.filter((n) => !seen.has(n.id) && String(n.userId || "") === String(user.id || ""));
     if (fresh.length) {
       fresh.forEach((n) => {
         if (typeof notify === "function") {
