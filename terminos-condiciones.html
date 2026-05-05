@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Antares | Terminos y condiciones</title>
+  <link rel="icon" type="image/png" href="./imagenes%20empresa/Logo.png" />
+  <link rel="apple-touch-icon" href="./imagenes%20empresa/Logo.png" />
   <style>
     :root {
       --bg: #f7f9fc;
@@ -26,6 +28,34 @@
       margin: 2rem auto;
       padding: 0 1rem;
     }
+    .legal-header {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin-bottom: 1.2rem;
+      padding: 0 0.25rem;
+    }
+    .legal-header img {
+      display: block;
+      height: 54px;
+      width: auto;
+      max-width: 220px;
+      object-fit: contain;
+    }
+    .legal-header .legal-brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .legal-header .legal-brand-text strong {
+      font-size: 1rem;
+      color: var(--primary);
+      letter-spacing: 0.2px;
+    }
+    .legal-header .legal-brand-text span {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -43,6 +73,13 @@
 </head>
 <body>
   <main class="wrap">
+    <a href="./" class="legal-header" aria-label="Volver al sitio principal de Transportes Antares S.A.S">
+      <img src="./imagenes%20empresa/Logo.png" alt="Transportes Antares S.A.S" />
+      <span class="legal-brand-text">
+        <strong>Transportes Antares S.A.S</strong>
+        <span>Logística refrigerada B2B · Colombia</span>
+      </span>
+    </a>
     <section class="card">
       <h1>Terminos y condiciones</h1>
       <p class="muted">Ultima actualizacion: 30 de abril de 2026</p>
