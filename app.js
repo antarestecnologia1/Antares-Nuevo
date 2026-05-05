@@ -586,9 +586,24 @@ const ACCOUNT_STATUS = {
 };
 
 function normalizeUserAccountStatus(user) {
-  return String(user?.accountStatus ?? "")
+  const raw =
+    user?.accountStatus ??
+    user?.account_status ??
+    user?.estadoCuenta ??
+    user?.estado_cuenta ??
+    "";
+  return String(raw)
     .trim()
     .toLowerCase();
+}
+
+/** Normaliza filas de GET /portal/bootstrap (aliases snake_case / español). */
+function normalizePortalBootstrapUserRow(u) {
+  if (!u || typeof u !== "object") return u;
+  const s = normalizeUserAccountStatus(u);
+  const out = { ...u };
+  if (s) out.accountStatus = s;
+  return out;
 }
 
 /** Cuentas creadas en el sitio / API con estado pendiente en PostgreSQL. */
@@ -995,7 +1010,13 @@ function __applyPortalBootstrapPayloadInner(p) {
     ["approvals", KEYS.approvals]
   ];
   for (const [prop, key] of map) {
-    if (p[prop] !== undefined) write(key, p[prop]);
+    if (p[prop] === undefined) continue;
+    if (prop === "users") {
+      const raw = Array.isArray(p.users) ? p.users : [];
+      write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
+      continue;
+    }
+    write(key, p[prop]);
   }
 }
 
@@ -1010,11 +1031,19 @@ function portalEnsureApiTokensAligned() {
   if (fromSession !== cur) api.setAccessToken(fromSession);
 }
 
-async function applyPortalBootstrapFromApi() {
+/** URL API + JWT (cliente o sesión): mismos criterios que bootstrap tras `portalEnsureApiTokensAligned`. */
+function portalCanRefreshFromApi() {
   portalEnsureApiTokensAligned();
   const api = window.AntaresApi;
   if (!api?.getBase?.()) return false;
-  if (!String(api.getAccessToken?.() || "").trim()) return false;
+  const tok =
+    String(api.getAccessToken?.() || "").trim() || String(getSession()?.accessToken || "").trim();
+  return Boolean(tok);
+}
+
+async function applyPortalBootstrapFromApi() {
+  if (!portalCanRefreshFromApi()) return false;
+  const api = window.AntaresApi;
   try {
     const p = await api.getJson("/portal/bootstrap");
     applyPortalBootstrapPayload(p);
@@ -1028,10 +1057,8 @@ async function applyPortalBootstrapFromApi() {
 
 /** Lista prospectos B2B sin depender del bootstrap pesado (mitiga fallos al abrir Solicitudes contacto web). */
 async function refreshContactB2bProspectsFromApi() {
-  portalEnsureApiTokensAligned();
+  if (!portalCanRefreshFromApi()) return false;
   const api = window.AntaresApi;
-  if (!api?.getBase?.()) return false;
-  if (!String(api.getAccessToken?.() || "").trim()) return false;
   try {
     const rows = await api.getJson("/portal/contact-b2b-prospects");
     if (!Array.isArray(rows)) return false;
@@ -1044,11 +1071,10 @@ async function refreshContactB2bProspectsFromApi() {
 }
 
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
+window.portalCanRefreshFromApi = portalCanRefreshFromApi;
 
 async function startPortalBootstrapForInteractiveSession() {
-  portalEnsureApiTokensAligned();
-  const api = window.AntaresApi;
-  if (!api?.getBase?.() || !String(api.getAccessToken?.() || "").trim()) return;
+  if (!portalCanRefreshFromApi()) return;
   const p = window.PortalDataLayer?.refreshCacheFromApi
     ? window.PortalDataLayer.refreshCacheFromApi()
     : applyPortalBootstrapFromApi();
@@ -4964,15 +4990,6 @@ function setView(view) {
   state.currentView = view;
   syncPortalHash(view);
   PortalRouterCore.activateSideLinks(nodes.sideLinks, view);
-  if (view === "contact-leads" && hasPermission(user, PERMISSIONS.CONTACT_B2B_VIEW)) {
-    state.contactLeadsLoading = true;
-    void refreshContactB2bProspectsFromApi()
-      .catch(() => {})
-      .finally(() => {
-        state.contactLeadsLoading = false;
-        scheduleRenderPortalView();
-      });
-  }
   renderPortalView();
 }
 
@@ -8080,7 +8097,7 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const body = n
     ? buildPortalRegistrationPendingTableHtml(pendingUsers)
     : `<div class="auth-inbox-empty">${emptyState(
-        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o pulse «Sincronizar ahora»: la lista viene de PostgreSQL y se carga al abrir Autorizaciones."
+        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o salga y vuelva a entrar a Autorizaciones: la lista se sincroniza con PostgreSQL al abrir el módulo."
       )}</div>`;
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
@@ -8107,7 +8124,7 @@ function authorizationsHtml() {
       <div class="auth-hub-sync-spinner" aria-hidden="true"></div>
       <div class="auth-hub-sync-loading-text">
         <strong>Sincronizando con PostgreSQL</strong>
-        <span class="muted">Cargando usuarios pendientes, solicitudes y colas de aprobación para que pueda actuar sin pulsar «Sincronizar ahora».</span>
+        <span class="muted">Cargando usuarios pendientes, solicitudes y colas de aprobación desde el servidor.</span>
       </div>
     </div>`;
     return (
@@ -8244,15 +8261,12 @@ function authorizationsHtml() {
     .join("");
 
   portalEnsureApiTokensAligned();
-  const apiLive = Boolean(
-    window.AntaresApi?.getBase?.() && String(window.AntaresApi?.getAccessToken?.() || "").trim()
-  );
+  const apiLive = portalCanRefreshFromApi();
   const toolbarHint = apiLive
-    ? `<span class="auth-hub-live"><span class="auth-hub-live-dot" aria-hidden="true"></span> Enlace en vivo con el servidor</span><span class="muted auth-hub-live-meta">La bandeja se actualiza al abrir este módulo; use el botón si necesita forzar otra pasada.</span>`
-    : `<span class="muted">Sin API configurada: solo datos locales</span>`;
+    ? `<span class="auth-hub-live"><span class="auth-hub-live-dot" aria-hidden="true"></span> Enlace en vivo con el servidor</span><span class="muted auth-hub-live-meta">La bandeja se actualiza cada vez que abre este módulo.</span>`
+    : `<span class="muted">Sin API o sin sesión JWT: solo datos ya cargados en memoria</span>`;
   const hubToolbar = `<div class="auth-hub-toolbar">
     <div class="auth-hub-toolbar-lead">${toolbarHint}</div>
-    <button type="button" class="btn btn-sm btn-primary auth-hub-sync-btn" data-action="auth-refresh-bootstrap">${IC.activity} Sincronizar ahora</button>
   </div>`;
 
   const catalogItems = [
@@ -8298,9 +8312,7 @@ function contactLeadsHtml() {
   });
 
   portalEnsureApiTokensAligned();
-  const apiLive = Boolean(
-    window.AntaresApi?.getBase?.() && String(window.AntaresApi?.getAccessToken?.() || "").trim()
-  );
+  const apiLive = portalCanRefreshFromApi();
 
   const hero = moduleFleetHeroStrip([
     { label: "Prospectos", value: loading ? "…" : String(list.length) },
@@ -8309,8 +8321,7 @@ function contactLeadsHtml() {
   ]);
 
   const toolbar = `<div class="b2b-leads-toolbar">
-    <button type="button" class="btn btn-sm btn-primary b2b-leads-sync-btn" data-action="contact-leads-refresh"${loading ? " disabled" : ""}>${IC.activity} Actualizar desde el servidor</button>
-    <p class="muted b2b-leads-toolbar-hint"><span class="b2b-leads-live-pill${apiLive ? " b2b-leads-live-pill--ok" : ""}">${apiLive ? "En tiempo real contra la API" : "Sin API o sin token Bearer"}</span><span>${apiLive ? " Los registros públicos llegan cuando sincroniza; no dependen solo de memoria antigua." : " Configure la URL de la API y cierre/abra sesión para autorizar esta pantalla."}</span></p>
+    <p class="muted b2b-leads-toolbar-hint"><span class="b2b-leads-live-pill${apiLive ? " b2b-leads-live-pill--ok" : ""}">${apiLive ? "En tiempo real contra la API" : "Sin API o sin token Bearer"}</span><span>${apiLive ? " Los registros se cargan al abrir este módulo." : " Configure la URL de la API y cierre/abra sesión para autorizar esta pantalla."}</span></p>
   </div>`;
 
   if (loading) {
@@ -8326,7 +8337,7 @@ function contactLeadsHtml() {
 
   if (!list.length) {
     const hint = apiLive
-      ? "Todavía no hay filas sincronizadas en esta vista. Pulse «Actualizar desde el servidor» o vuelva a entrar después del envío en la web."
+      ? "Todavía no hay filas en esta vista. Los envíos recientes aparecen al volver a abrir el módulo o tras unos segundos."
       : "Sin enlace válido con la API. Verifique la URL base del backend y que su sesión tenga JWT activo.";
     return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", "0 prospectos visibles", toolbar + emptyState(hint));
   }
@@ -8643,9 +8654,7 @@ function renderPortalViewImpl() {
   state.__portalPrevViewForSync = view;
 
   if (view === "authorizations") {
-    portalEnsureApiTokensAligned();
-    const api = window.AntaresApi;
-    const canAuthSync = Boolean(api?.getBase?.() && String(api.getAccessToken?.() || "").trim());
+    const canAuthSync = portalCanRefreshFromApi();
     if (prevPortalView !== "authorizations" && canAuthSync) {
       state.authorizationsHydrating = true;
       void applyPortalBootstrapFromApi()
@@ -8660,6 +8669,21 @@ function renderPortalViewImpl() {
         });
     } else if (prevPortalView !== "authorizations") {
       state.authorizationsHydrating = false;
+    }
+  }
+
+  if (view === "contact-leads" && hasPermission(user, PERMISSIONS.CONTACT_B2B_VIEW)) {
+    const canSync = portalCanRefreshFromApi();
+    if (prevPortalView !== "contact-leads" && canSync) {
+      state.contactLeadsLoading = true;
+      void refreshContactB2bProspectsFromApi()
+        .catch(() => {})
+        .finally(() => {
+          state.contactLeadsLoading = false;
+          scheduleRenderPortalView();
+        });
+    } else if (prevPortalView !== "contact-leads") {
+      state.contactLeadsLoading = false;
     }
   }
   const viewTitle = PortalArch.getTitle(view);
@@ -9682,52 +9706,6 @@ function bindDynamicEvents() {
       );
       renderPortalView();
       updateNotificationBadge();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='contact-leads-refresh']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      btn.disabled = true;
-      void (async () => {
-        try {
-          portalEnsureApiTokensAligned();
-          let ok = await refreshContactB2bProspectsFromApi();
-          if (!ok) ok = await applyPortalBootstrapFromApi();
-          if (ok) {
-            notify("Prospectos B2B actualizados desde el servidor.", "success");
-            scheduleRenderPortalView();
-          } else {
-            notify(
-              "No se pudo actualizar. Revise la conexion, el inicio de sesion en la API o el permiso contact_b2b_view.",
-              "error"
-            );
-          }
-        } finally {
-          btn.disabled = false;
-        }
-      })();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='auth-refresh-bootstrap']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      btn.disabled = true;
-      portalEnsureApiTokensAligned();
-      void applyPortalBootstrapFromApi()
-        .then((ok) => {
-          if (ok) {
-            notify("Bandeja sincronizada con PostgreSQL.", "success");
-            scheduleRenderPortalView();
-          } else {
-            notify(
-              "No se pudo sincronizar. Revise conexion, token JWT (cierre y vuelva a iniciar sesion) o que su usuario sea administrador con acceso a /portal/bootstrap.",
-              "error"
-            );
-          }
-        })
-        .finally(() => {
-          btn.disabled = false;
-        });
     });
   });
 

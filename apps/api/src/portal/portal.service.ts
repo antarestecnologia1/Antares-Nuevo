@@ -60,6 +60,9 @@ const APPROVE_VALID_ROLES = new Set([
   "lider_administrativo"
 ]);
 
+/** Bootstrap no-admin: incluir filas `pendiente` aun sin `id_empresa` (altas web en cola). */
+const BOOTSTRAP_PENDING_QUEUE_ROLES = new Set(["administracion", "lider_administrativo", "auxiliar_administrativo", "rrhh"]);
+
 /** Formulario vs bootstrap pueden usar distinto nombre de propiedad para el mismo dato. */
 function pickPortalField(obj: Record<string, unknown>, ...keys: string[]): unknown {
   for (const k of keys) {
@@ -145,7 +148,7 @@ export class PortalService {
 
     const empresaId = await empresaPromise;
     const dependentPromise = Promise.all([
-      this.loadUsers(admin, userId, empresaId),
+      this.loadUsers(admin, userId, empresaId, role),
       this.loadRequests(admin, userId, empresaId, transport),
       rrhh || admin ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId)
@@ -488,7 +491,10 @@ export class PortalService {
     }));
   }
 
-  private async loadUsers(admin: boolean, userId: string, empresaId: string | null) {
+  private async loadUsers(admin: boolean, userId: string, empresaId: string | null, viewerRole: JwtRole) {
+    const includePendingWithoutCompany =
+      !admin && BOOTSTRAP_PENDING_QUEUE_ROLES.has(String(viewerRole || "").toLowerCase());
+
     const sql = admin
       ? `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
               u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
@@ -523,11 +529,12 @@ export class PortalService {
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
-         WHERE u.id = $1::uuid OR ($2::uuid IS NOT NULL AND u.id_empresa = $2::uuid)`;
+         WHERE u.id = $1::uuid OR ($2::uuid IS NOT NULL AND u.id_empresa = $2::uuid)
+            OR ($3::boolean = true AND u.estado_cuenta = 'pendiente'::estado_cuenta_usuario)`;
 
     const r = admin
       ? await this.pool.query(sql)
-      : await this.pool.query(sql, [userId, empresaId]);
+      : await this.pool.query(sql, [userId, empresaId, includePendingWithoutCompany]);
 
     const ids = r.rows.map((x) => x.id);
     const permMap = new Map<string, string[]>();

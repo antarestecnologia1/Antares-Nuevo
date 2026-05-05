@@ -14,13 +14,11 @@
 
   function isServerBacked() {
     var a = window.AntaresApi;
-    return Boolean(
-      a &&
-        typeof a.getBase === "function" &&
-        a.getBase() &&
-        typeof a.getAccessToken === "function" &&
-        a.getAccessToken()
-    );
+    if (!a || typeof a.getBase !== "function" || !a.getBase()) return false;
+    if (typeof window.portalCanRefreshFromApi === "function") {
+      return window.portalCanRefreshFromApi();
+    }
+    return Boolean(typeof a.getAccessToken === "function" && String(a.getAccessToken() || "").trim());
   }
 
   /**
