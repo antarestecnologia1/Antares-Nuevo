@@ -1110,17 +1110,19 @@ function __applyPortalBootstrapPayloadInner(p) {
       const raw = Array.isArray(p.companies) ? p.companies : [];
       const prev = read(KEYS.companies, []);
       const prevMap = new Map(prev.map((c) => [String(c.id ?? ""), c]));
-      const merged = raw.map((c) => {
-        const id = String(c?.id ?? "");
-        const old = id ? prevMap.get(id) : null;
-        const explicitInactive =
-          c.active === false ||
-          String(c.active ?? "").toLowerCase() === "false" ||
-          String((c.activeCompany ?? c.companyActive) ?? "").toLowerCase() === "false";
-        const active =
-          explicitInactive ? false : old && typeof old.active === "boolean" ? old.active : true;
-        return { ...c, active };
-      });
+      const merged = patchOperatorCompanyKindIfNeeded(
+        raw.map((c) => {
+          const id = String(c?.id ?? "");
+          const old = id ? prevMap.get(id) : null;
+          const explicitInactive =
+            c.active === false ||
+            String(c.active ?? "").toLowerCase() === "false" ||
+            String((c.activeCompany ?? c.companyActive) ?? "").toLowerCase() === "false";
+          const active =
+            explicitInactive ? false : old && typeof old.active === "boolean" ? old.active : true;
+          return { ...c, active };
+        })
+      );
       write(KEYS.companies, merged);
       continue;
     }
@@ -2354,6 +2356,14 @@ function normalizePortalPhoneForStorage(raw) {
   return trimmed.replace(/\s+/g, " ").trim();
 }
 
+/** Listados y tarjetas: mismo criterio que al guardar cuando solo hay dígitos (p. ej. fijo medellín → +57 …). */
+function formatPortalPhoneForDisplay(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const normalized = normalizePortalPhoneForStorage(s);
+  return normalized && /\d/.test(normalized) ? normalized : s;
+}
+
 /** Nombres, cargo, dirección, etc.: mayúsculas + sin tildes (uniforme en BD y listados). No usar en correo/contraseña ni en valores de catálogo (departamento/ciudad). */
 function normalizeLatinUpperForDb(value) {
   return normalizeLatinForDb(value).toUpperCase();
@@ -2391,6 +2401,14 @@ function companyKindLabel(kind) {
   return "Cliente";
 }
 
+/** Chip en tarjetas (`.role-chip` fuerza mayúsculas); texto corto para no desalinear la cabecera. */
+function companyKindChipShortLabel(kind) {
+  const k = normalizeCompanyKindForDb(kind);
+  if (k === "propia") return "Propia";
+  if (k === "tercero") return "Tercero";
+  return "Cliente";
+}
+
 function isCompanyRecordActive(c) {
   return c && c.active !== false;
 }
@@ -2398,7 +2416,30 @@ function isCompanyRecordActive(c) {
 function companyKindChipHtml(kind) {
   const k = normalizeCompanyKindForDb(kind);
   const colors = { cliente: "#0E7490", tercero: "#7C3AED", propia: "#377cc0" };
-  return `<span class="role-chip company-kind-chip" style="--role-color:${colors[k] || "#64748B"}">${escapeHtml(companyKindLabel(k))}</span>`;
+  return `<span class="role-chip company-kind-chip" style="--role-color:${colors[k] || "#64748B"}">${escapeHtml(companyKindChipShortLabel(k))}</span>`;
+}
+
+/**
+ * Una sola fila con nombre canónico "antares" como cliente y sin otra empresa "propia":
+ * se interpreta como operador (misma semántica que tipo_relacion propia en BD).
+ */
+function patchOperatorCompanyKindIfNeeded(companies) {
+  if (!Array.isArray(companies) || companies.length === 0) return companies;
+  const normName = (n) =>
+    normalizeLatinForDb(String(n || ""))
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  const antaresRows = companies.filter((c) => normName(c.name) === "antares");
+  if (antaresRows.length !== 1) return companies;
+  const hasPropia = companies.some((c) => normalizeCompanyKindForDb(c.companyKind) === "propia");
+  if (hasPropia) return companies;
+  const targetId = String(antaresRows[0].id ?? "");
+  return companies.map((c) => {
+    if (String(c.id ?? "") !== targetId) return c;
+    if (normalizeCompanyKindForDb(c.companyKind) !== "cliente") return c;
+    return { ...c, companyKind: "propia" };
+  });
 }
 
 function isPersonTypeJuridica(value) {
@@ -6510,6 +6551,10 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
     const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
+    const nit = String(c.taxId || c.nit || "").trim();
+    const subtitle = nit
+      ? `${IC.badge} NIT ${escapeHtml(nit)}`
+      : `<span class="muted">${IC.badge} Sin NIT registrado</span>`;
     const coStatusBadge = active
       ? `<span class="status status-viaje_asignado">Activa</span>`
       : `<span class="status status-rechazada">Inactiva</span>`;
@@ -6518,20 +6563,24 @@ function adminUsersHtml(current) {
       <button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>
       <button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}">${IC.trash} Eliminar</button>
     </div>`;
+    const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
     const metaParts = [
-      `${IC.badge} ${escapeHtml(String(c.taxId || c.nit || "—"))}`,
-      c.phone ? `${IC.phone} ${escapeHtml(String(c.phone))}` : `<span class="muted">${IC.phone} Sin teléfono</span>`,
+      phoneDisp
+        ? `${IC.phone} ${escapeHtml(phoneDisp)}`
+        : `<span class="muted">${IC.phone} Sin teléfono</span>`,
       `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
     ];
+    const kindForUi =
+      patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
     return `<div class="user-card user-card--company${active ? "" : " user-card--company-inactive"}">
       <div class="user-card-top">
         <div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>
         <div class="user-card-info">
           <h4>${escapeHtml(String(c.name || ""))}</h4>
-          <p class="muted">Empresa</p>
+          <p class="muted">${subtitle}</p>
         </div>
         <div class="user-card-badges">
-          ${companyKindChipHtml(c.companyKind)}
+          ${companyKindChipHtml(kindForUi)}
           ${coStatusBadge}
         </div>
       </div>

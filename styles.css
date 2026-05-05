@@ -2889,6 +2889,15 @@ body[data-theme="dark"] .user-card-pending-note strong {
   margin-top: 0.5rem;
 }
 
+.user-card-top .user-card-badges {
+  flex-shrink: 0;
+}
+
+.company-kind-chip {
+  font-size: 0.72rem !important;
+  white-space: nowrap;
+}
+
 .user-grid-companies {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
 }
@@ -2907,10 +2916,6 @@ body[data-theme="dark"] .user-card-pending-note strong {
 
 .user-card--company-inactive .user-avatar--company {
   background: linear-gradient(145deg, #64748b 0%, #475569 100%);
-}
-
-.company-kind-chip {
-  font-size: 0.72rem !important;
 }
 
 body[data-theme="dark"] .user-card--company-inactive {
