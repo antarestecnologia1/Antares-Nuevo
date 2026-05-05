@@ -928,6 +928,15 @@ function syncSessionProfileSnapshotFromCache() {
 
 /**
  * Tras F5 la tabla users está vacía en RAM hasta el bootstrap; evita clearSession si la sesión en disco sigue siendo válida.
+ *
+ * Estrategia:
+ *  1. `currentUser()` directo (cache repoblado por bootstrap reciente).
+ *  2. `profileSnapshot` persistido en la sesión al login (sobrevive a F5).
+ *  3. JWT decodificado (claims sub/email/role).
+ *  4. Stub mínimo (solo userId + role) — siempre devuelve algo si la sesión está sana.
+ *
+ * NO bloquea la materialización aunque permisos vengan vacíos: el bootstrap diferido
+ * los hidratará cuando la API responda (`__portalRefreshAfterBootstrap` re-evalúa la URL).
  */
 function materializePortalUserFromSession(session) {
   if (!session?.userId) return null;
@@ -977,25 +986,29 @@ function materializePortalUserFromSession(session) {
     }
   }
 
-  if (session.userId && session.role) {
-    const users = read(KEYS.users, []);
-    const row = {
-      id: String(session.userId),
-      email: String(session.profileSnapshot?.email || "").trim() || "usuario@portal",
-      name: String(session.profileSnapshot?.name || "").trim() || "Usuario",
-      role: session.role,
-      accountStatus: "aprobado",
-      companyId: String(session.profileSnapshot?.companyId || ""),
-      company: "",
-      password: "",
-      permissions: Array.isArray(session.profileSnapshot?.permissions) ? session.profileSnapshot.permissions : [],
-      taxId: "",
-      phone: ""
-    };
-    write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))]);
-    user = currentUser();
-    if (user && String(user.id) === String(session.userId)) return user;
-  }
+  /**
+   * Fallback final: siempre construimos un stub usable a partir de session.userId. Si falta `role`
+   * asumimos cliente para no expulsar al usuario por una sesión incompleta tras F5; cuando el
+   * bootstrap responda se rehidrata con el rol real y permisos correctos.
+   */
+  const fallbackRole = session.role || session.profileSnapshot?.role || ROLES.CLIENT;
+  const usersFinal = read(KEYS.users, []);
+  const stubRow = {
+    id: String(session.userId),
+    email: String(session.profileSnapshot?.email || "").trim() || "usuario@portal",
+    name: String(session.profileSnapshot?.name || "").trim() || "Usuario",
+    role: fallbackRole,
+    accountStatus: "aprobado",
+    companyId: String(session.profileSnapshot?.companyId || ""),
+    company: "",
+    password: "",
+    permissions: Array.isArray(session.profileSnapshot?.permissions) ? session.profileSnapshot.permissions : [],
+    taxId: "",
+    phone: ""
+  };
+  write(KEYS.users, [stubRow, ...usersFinal.filter((u) => String(u.id) !== String(stubRow.id))]);
+  user = currentUser();
+  if (user && String(user.id) === String(session.userId)) return user;
 
   return null;
 }
@@ -3286,6 +3299,15 @@ function initPortalClientStorage() {
   }
 }
 
+/**
+ * Política de sesión:
+ *  - F5 / recarga: la sesión persiste en `localStorage` (`antares_session_v2`) y se rehidrata
+ *    siempre que no se exceda el idle máximo. Nunca se cierra solo porque la API esté lenta o
+ *    el bootstrap falle: usamos el `profileSnapshot` capturado al login.
+ *  - Inactividad (sin mover mouse / teclado / scroll / toques): 30 minutos. Tras ese tiempo el
+ *    timer global o el chequeo de `renderPortal` ejecutan `clearSession()` y avisan al usuario.
+ *  - Cierre manual: botón "Cerrar sesión" (logout) hace `clearSession()` independientemente del idle.
+ */
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
 /** Evita JSON.stringify + localStorage en cada bump: solo persistir cada ~2 min (la actividad real sigue en memoria). */
@@ -5239,6 +5261,11 @@ function renderPortal() {
   }
   const ts = Date.now();
   if (typeof session.lastActivityAt !== "number") {
+    /**
+     * F5 sin bump previo: la sesión existe pero le falta `lastActivityAt`. La consideramos
+     * activa "ahora" para no expulsar al usuario por culpa de un timestamp ausente, y
+     * persistimos el cambio para que la próxima recarga ya tenga marca consistente.
+     */
     session = {
       ...session,
       lastActivityAt: ts,
@@ -5246,6 +5273,7 @@ function renderPortal() {
     };
     setSession(session);
   } else if (ts - getEffectiveLastActivityAt() > SESSION_IDLE_MS) {
+    /** Solo aquí cerramos sesión: > 30 min sin interacción real (regla de inactividad). */
     clearSession();
     notify(userMessage("sessionIdle"), "info");
     renderPortal();
@@ -5263,8 +5291,14 @@ function renderPortal() {
   nodes.portalApp.classList.remove("hidden");
   const user = materializePortalUserFromSession(session);
   if (!user) {
-    clearSession();
-    renderPortal();
+    /**
+     * Materialización falló (caso muy raro: sesión sin userId+role+snapshot). En vez de
+     * expulsar al usuario, mostramos aviso y dejamos visible el portal vacío para que pueda
+     * reintentar (recargar manualmente o esperar al bootstrap diferido). Cerrar sesión aquí
+     * provocaba "deslogueo" al pulsar F5 cuando la API tarda en responder.
+     */
+    devWarn("Portal: no se pudo materializar usuario tras F5; se mantiene la sesión.");
+    notify(userMessage("authProfileLoadFailed") || "Cargando perfil…", "info");
     return;
   }
 
@@ -5282,10 +5316,26 @@ function renderPortal() {
     link.classList.toggle("hidden", isRoleHidden || !allowedByPermission);
   });
   renderKpis();
-  enforcePortalViewFromUrl(user);
-  if (!isViewAllowedForUser(user, state.currentView)) {
-    state.currentView = "dashboard";
-    syncPortalHash("dashboard");
+  /**
+   * Si tras F5 caímos en stub (cache de usuarios todavía no rehidratado y permisos vacíos para no-admin),
+   * no reescribimos la URL todavía: respetamos el hash original (`#portal/...`) y dejamos que
+   * `__portalRefreshAfterBootstrap` re-evalúe permisos cuando la API responda. Así el usuario no
+   * pierde su vista actual aunque el bootstrap esté lento o falle temporalmente.
+   */
+  const userPermsArr = Array.isArray(user.permissions) ? user.permissions : [];
+  const userIsAdmin = user.role === ROLES.ADMIN;
+  const hydratingStub = !userIsAdmin && userPermsArr.length === 0;
+  if (hydratingStub) {
+    const urlView = viewFromPortalHash();
+    if (urlView && PortalArch.isKnownView(urlView)) {
+      state.currentView = urlView;
+    }
+  } else {
+    enforcePortalViewFromUrl(user);
+    if (!isViewAllowedForUser(user, state.currentView)) {
+      state.currentView = "dashboard";
+      syncPortalHash("dashboard");
+    }
   }
   renderPortalView();
   updateNotificationBadge();
@@ -12967,6 +13017,19 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
   try {
     syncSessionProfileSnapshotFromCache();
     updatePortalSidebarSessionMeta();
+  } catch (_e) {
+    /* noop */
+  }
+  /**
+   * Tras la rehidratación, el usuario ya tiene permisos reales. Re-evaluamos la vista de la URL
+   * para que, si en F5 caímos a `dashboard` por permisos en blanco, podamos volver a la vista
+   * previa (#portal/...) sin que el usuario tenga que renavegar.
+   */
+  try {
+    const u = currentUser();
+    if (u) {
+      enforcePortalViewFromUrl(u);
+    }
   } catch (_e) {
     /* noop */
   }
