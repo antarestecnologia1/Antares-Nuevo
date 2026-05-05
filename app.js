@@ -3146,6 +3146,14 @@ function portalRegistrationDetailLine(u) {
   return parts.length ? parts.join(" · ") : "—";
 }
 
+function registrationKindLabel(kind) {
+  const k = String(kind || "")
+    .trim()
+    .toLowerCase();
+  if (k === "empleado_interno") return "Empleado interno";
+  return "Cliente externo";
+}
+
 function portalRegistrationInboxInitials(name) {
   const parts = String(name || "")
     .trim()
@@ -3192,6 +3200,7 @@ function buildPortalRegistrationInboxCardsHtml(pendingUsers) {
               <span class="auth-inbox-chip">${IC.briefcase} ${escapeHtml(personLabel)}</span>
               ${docLine ? `<span class="auth-inbox-chip" title="Documento enmascarado por privacidad. Verá el número completo al aprobar.">${IC.badge} ${escapeHtml(docLine)}</span>` : ""}
               ${nitMasked ? `<span class="auth-inbox-chip" title="NIT enmascarado por privacidad. Verá el número completo al aprobar.">${IC.building} NIT ${escapeHtml(nitMasked)}</span>` : ""}
+              ${u.registrationKind ? `<span class="auth-inbox-chip">${IC.shield} ${escapeHtml(registrationKindLabel(u.registrationKind))}</span>` : ""}
               ${u.position ? `<span class="auth-inbox-chip">${IC.award} ${escapeHtml(String(u.position).trim())}</span>` : ""}
               ${loc ? `<span class="auth-inbox-chip">${IC.mapPin} ${escapeHtml(loc)}</span>` : ""}
               ${phoneMasked ? `<span class="auth-inbox-chip" title="Teléfono enmascarado por privacidad. Verá el número completo al aprobar.">${IC.phone} ${escapeHtml(phoneMasked)}</span>` : ""}
@@ -3634,10 +3643,24 @@ function authView() {
   if (tab === "register") {
     return `
       <div class="auth-header-premium">
-        <h3>Registro de cliente empresarial</h3>
-        <p class="muted">Le damos la bienvenida. Complete sus datos con cuidado: un <strong>administrador del sistema</strong> debe revisar y aprobar su cuenta antes de que pueda ingresar al portal. Tras enviar el formulario recibirá un correo con la confirmación y el estado de su solicitud.</p>
+        <h3>Registro al portal</h3>
+        <p class="muted">Complete sus datos con cuidado e indique si es <strong>cliente externo</strong> o <strong>empleado interno</strong>. Un administrador revisará y aprobará su cuenta antes de que pueda ingresar. Tras enviar el formulario recibirá un correo con la confirmación.</p>
       </div>
       <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
+        <div class="register-kind-field full">
+          <span class="register-kind-label">${fieldLabel(IC.users, "Tipo de vínculo")}</span>
+          <div class="register-kind-options" role="radiogroup" aria-label="Tipo de vínculo con Antares">
+            <label class="register-kind-option">
+              <input type="radio" name="registrationKind" value="cliente" required checked />
+              <span>Cliente externo</span>
+            </label>
+            <label class="register-kind-option">
+              <input type="radio" name="registrationKind" value="empleado_interno" required />
+              <span>Empleado interno</span>
+            </label>
+          </div>
+          <small class="muted register-kind-hint">Cliente: empresas u organizaciones que contratan el servicio. Empleado interno: personal de Transportes Antares.</small>
+        </div>
         <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" /></label>
         <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" /></label>
         <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" /></label>
@@ -3770,7 +3793,7 @@ function authView() {
         <div class="full auth-inline-note">
           <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
         </div>
-        <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear cuenta cliente</button>
+        <button class="btn btn-primary full" type="submit">${IC.userPlus} Enviar solicitud de registro</button>
       </form>
     `;
   }
@@ -4216,6 +4239,10 @@ function bindAuthForms() {
             city: normalizeLatinForDb(data.city),
             address: normalizeLatinUpperForDb(data.address),
             email: data.email,
+            registrationKind:
+              String(data.registrationKind || "").trim().toLowerCase() === "empleado_interno"
+                ? "empleado_interno"
+                : "cliente",
             password: data.password,
             acceptTerms: Boolean(data.acceptTerms)
           });
@@ -4273,6 +4300,10 @@ function bindAuthForms() {
         department: normalizeLatinForDb(data.department),
         city: normalizeLatinForDb(data.city),
         address: normalizeLatinUpperForDb(data.address),
+        registrationKind:
+          String(data.registrationKind || "").trim().toLowerCase() === "empleado_interno"
+            ? "empleado_interno"
+            : "cliente",
         name: fullName,
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
@@ -4288,6 +4319,10 @@ function bindAuthForms() {
           termsOfUseAccepted: true,
           privacyPolicyAccepted: true,
           habeasDataAcknowledged: true,
+          registrationKind:
+            String(data.registrationKind || "").trim().toLowerCase() === "empleado_interno"
+              ? "empleado_interno"
+              : "cliente",
           ...(isJuridica
             ? {
                 representativeDocumentType: String(data.personalDocumentType || "CC")
@@ -9537,6 +9572,9 @@ function bindDynamicEvents() {
       const modalSubtitleLines = [
         `${getPortalUserDisplayName(target)} · ${target.email || "—"}`
       ];
+      if (target.registrationKind) {
+        modalSubtitleLines.push(`Tipo de vínculo: ${registrationKindLabel(target.registrationKind)}`);
+      }
       if (target.documentType || target.taxId || target.personalDoc) {
         const docPart = [
           String(target.documentType || "").trim(),

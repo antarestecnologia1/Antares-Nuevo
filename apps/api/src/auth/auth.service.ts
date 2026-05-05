@@ -230,6 +230,10 @@ export class AuthService {
       }
 
       const regAtColombia = timestamptzStringColombiaNow();
+      const vinculoDb: "cliente" | "empleado_interno" =
+        String(dto.registrationKind || "").trim().toLowerCase() === "empleado_interno"
+          ? "empleado_interno"
+          : "cliente";
 
       /** Auditoría alineada al copy legal del formulario (#form-register): términos, privacidad y Habeas en un solo checkbox. */
       const checklist: Record<string, unknown> = {
@@ -238,7 +242,8 @@ export class AuthService {
         requiredFieldsCompleted: true,
         termsOfUseAccepted: true,
         privacyPolicyAccepted: true,
-        habeasDataAcknowledged: true
+        habeasDataAcknowledged: true,
+        registrationKind: vinculoDb
       };
       if (docType === "NIT" && dto.personalDocumentType) {
         checklist.representativeDocumentType = String(dto.personalDocumentType).trim().toUpperCase();
@@ -291,13 +296,15 @@ export class AuthService {
             fecha_nacimiento, genero, cargo_registro, area_trabajo, telefono,
             departamento, ciudad, direccion,
             fecha_creacion, fecha_actualizacion, fecha_aceptacion_terminos,
+            tipo_vinculo_registro,
             checklist_registro_json
           ) VALUES (
             $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
             $5, $6, $7, $8, $9, $10, $11, $12, NULL::date,
             $13::date, $14, $15, $16, $17, $18, $19, $20,
-            $22::timestamptz, $22::timestamptz, $22::timestamptz,
-            $21::jsonb
+            $23::timestamptz, $23::timestamptz, $23::timestamptz,
+            $21::tipo_vinculo_registro,
+            $22::jsonb
           )
           ON CONFLICT (id) DO UPDATE SET
             correo_electronico = EXCLUDED.correo_electronico,
@@ -322,6 +329,7 @@ export class AuthService {
             fecha_creacion = EXCLUDED.fecha_creacion,
             fecha_actualizacion = EXCLUDED.fecha_actualizacion,
             fecha_aceptacion_terminos = EXCLUDED.fecha_aceptacion_terminos,
+            tipo_vinculo_registro = EXCLUDED.tipo_vinculo_registro,
             checklist_registro_json = EXCLUDED.checklist_registro_json`,
           [
             authUserId,
@@ -344,6 +352,7 @@ export class AuthService {
             this.normalizeDbText(dto.department),
             this.normalizeDbText(dto.city),
             this.normalizeDbTextUpper(dto.address),
+            vinculoDb,
             JSON.stringify(checklist),
             regAtColombia
           ]
@@ -359,10 +368,13 @@ export class AuthService {
                 id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta,
                 tipo_persona, tipo_documento, numero_identificacion, telefono,
                 fecha_nacimiento, genero, cargo_registro, area_trabajo, departamento, ciudad, direccion,
+                tipo_vinculo_registro,
                 fecha_aceptacion_terminos
               ) VALUES (
                 $1::uuid, $2, $3, $4, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario,
-                $5, $6, $7, $8, $9::date, $10, $11, $12, $13, $14, $15, $16::timestamptz
+                $5, $6, $7, $8, $9::date, $10, $11, $12, $13, $14, $15,
+                $16::tipo_vinculo_registro,
+                $17::timestamptz
               )
               ON CONFLICT (id) DO UPDATE SET
                 correo_electronico = EXCLUDED.correo_electronico,
@@ -379,6 +391,7 @@ export class AuthService {
                 departamento = EXCLUDED.departamento,
                 ciudad = EXCLUDED.ciudad,
                 direccion = EXCLUDED.direccion,
+                tipo_vinculo_registro = EXCLUDED.tipo_vinculo_registro,
                 fecha_aceptacion_terminos = EXCLUDED.fecha_aceptacion_terminos`,
               [
                 authUserId,
@@ -396,6 +409,7 @@ export class AuthService {
                 this.normalizeDbText(dto.department),
                 this.normalizeDbText(dto.city),
                 this.normalizeDbTextUpper(dto.address),
+                vinculoDb,
                 regAtColombia
               ]
             );

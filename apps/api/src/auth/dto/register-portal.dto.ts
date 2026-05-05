@@ -1,5 +1,5 @@
 import { Transform } from "class-transformer";
-import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, MaxLength, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, MaxLength, MinLength } from "class-validator";
 
 /** Cadenas vacías del JSON → undefined (class-validator trata "" como valor presente). */
 function emptyToUndefined({ value }: { value: unknown }) {
@@ -86,6 +86,10 @@ export class RegisterPortalDto {
   @Transform(({ value }) => (typeof value === "string" ? String(value).trim().toLowerCase() : value))
   @IsEmail()
   email!: string;
+
+  @Transform(({ value }) => (typeof value === "string" ? String(value).trim().toLowerCase() : value))
+  @IsIn(["cliente", "empleado_interno"])
+  registrationKind!: "cliente" | "empleado_interno";
 
   @MinLength(10)
   password!: string;

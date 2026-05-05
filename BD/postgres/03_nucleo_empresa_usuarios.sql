@@ -23,6 +23,7 @@ CREATE TABLE usuarios (
   primer_apellido                 VARCHAR(120),
   segundo_apellido                VARCHAR(120),
   rol                             rol_usuario NOT NULL DEFAULT 'client',
+  tipo_vinculo_registro           tipo_vinculo_registro NOT NULL DEFAULT 'cliente',
   estado_cuenta                   estado_cuenta_usuario NOT NULL DEFAULT 'pendiente',
   numero_identificacion           VARCHAR(32),
   telefono                        VARCHAR(32),
@@ -64,6 +65,7 @@ COMMENT ON COLUMN usuarios.area_trabajo IS 'Formulario registro: workArea.';
 COMMENT ON COLUMN usuarios.nit_empresa_registro IS 'NIT empresa cuando el registro es jurídico; puede repetirse entre usuarios.';
 COMMENT ON COLUMN usuarios.fecha_aceptacion_terminos IS 'Momento de aceptación Habeas Data / términos (acceptTerms).';
 COMMENT ON COLUMN usuarios.checklist_registro_json IS 'Equivalente a profileQualityChecklist en app (idVerified, acceptedTermsAt, etc.).';
+COMMENT ON COLUMN usuarios.tipo_vinculo_registro IS 'Registro web: cliente externo o empleado interno (declaración del solicitante).';
 
 CREATE TABLE permisos_usuario (
   id_usuario    UUID NOT NULL REFERENCES usuarios (id) ON DELETE CASCADE,

@@ -143,9 +143,22 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  /** Sincroniza `usuarios` con migraciones `11_*`, `12_*`, `13_*`, `15_*`. */
+  /** Sincroniza `usuarios` con migraciones `11_*`, `12_*`, `13_*`, `15_*`, `16_*`. */
   private async ensureUsuariosSchema() {
     if (!(await this.tableExists("usuarios"))) return;
+    try {
+      await this.pool.query(`
+        DO $migrateTipo$
+        BEGIN
+          CREATE TYPE public.tipo_vinculo_registro AS ENUM ('cliente', 'empleado_interno');
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END $migrateTipo$
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureUsuariosSchema: crear tipo tipo_vinculo_registro fallo (no fatal): ${msg}`);
+    }
     /**
      * Cada ALTER va en su propio query: si uno falla por permisos/constraint colateral,
      * los demás continúan (no encadenamos en una transacción para no bloquear todo).
@@ -167,7 +180,9 @@ export class PortalService implements OnModuleInit {
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS nit_empresa_registro VARCHAR(32)`,
       // 15_usuario_aprobacion_admin.sql
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS fecha_aprobacion_cuenta TIMESTAMPTZ`,
-      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS cuenta_aprobada_por UUID REFERENCES public.usuarios (id) ON DELETE SET NULL`
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS cuenta_aprobada_por UUID REFERENCES public.usuarios (id) ON DELETE SET NULL`,
+      // 16_usuarios_tipo_vinculo_registro.sql
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS tipo_vinculo_registro public.tipo_vinculo_registro NOT NULL DEFAULT 'cliente'`
     ];
     let applied = 0;
     for (const q of alters) {
@@ -417,9 +432,9 @@ export class PortalService implements OnModuleInit {
       email;
     await this.pool.query(
       `INSERT INTO usuarios (
-         id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta
+         id, correo_electronico, hash_contrasena, nombre_completo, rol, estado_cuenta, tipo_vinculo_registro
        ) VALUES (
-         $1::uuid, $2, '', $3, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario
+         $1::uuid, $2, '', $3, 'client'::rol_usuario, 'pendiente'::estado_cuenta_usuario, 'cliente'::tipo_vinculo_registro
        )
        ON CONFLICT (id) DO NOTHING`,
       [authUserId, email, fullName]
@@ -842,6 +857,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -859,6 +875,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -896,6 +913,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -930,6 +948,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa

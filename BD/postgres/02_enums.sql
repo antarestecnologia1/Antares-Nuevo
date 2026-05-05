@@ -10,6 +10,12 @@ CREATE TYPE rol_usuario AS ENUM (
   'lider_administrativo'
 );
 
+/** Declaración en el formulario de registro público: cliente externo vs personal interno Antares. */
+CREATE TYPE tipo_vinculo_registro AS ENUM (
+  'cliente',
+  'empleado_interno'
+);
+
 CREATE TYPE estado_cuenta_usuario AS ENUM (
   'pendiente',
   'aprobado',

@@ -3172,6 +3172,49 @@ body[data-theme="dark"] .users-pending-redirect {
   align-items: start;
 }
 
+#form-register .register-kind-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+#form-register .register-kind-label {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+
+#form-register .register-kind-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+#form-register .register-kind-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(21, 101, 192, 0.22);
+  background: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body[data-theme="dark"] #form-register .register-kind-option {
+  background: rgba(14, 28, 48, 0.55);
+  border-color: rgba(129, 187, 255, 0.28);
+}
+
+#form-register .register-kind-option:has(input:checked) {
+  border-color: var(--accent, #2196f3);
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.18);
+}
+
+#form-register .register-kind-option input {
+  accent-color: var(--accent, #2196f3);
+}
+
 #form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input),
 #form-register.auth-register-form select:not(.phone-cc-select) {
   min-height: var(--reg-control-h);
