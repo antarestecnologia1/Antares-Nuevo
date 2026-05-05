@@ -2696,6 +2696,14 @@ tbody tr:last-child td { border-bottom: none; }
   gap: 0.8rem;
 }
 
+.user-grid > .user-card {
+  min-width: 0;
+}
+
+.user-grid-pending > .user-card {
+  min-width: 0;
+}
+
 .user-card {
   background: linear-gradient(145deg, #ffffff, #f8fbff);
   border: 1px solid #d9e3ef;
@@ -2883,10 +2891,28 @@ body[data-theme="dark"] .user-card-pending-note strong {
 
 .user-card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   padding-top: 0.6rem;
   border-top: 1px solid #F1F5F9;
   margin-top: 0.5rem;
+}
+
+/** Tres acciones (Editar / Desactivar / Eliminar): misma fila que encoge sin salirse del ancho de tarjeta estrecha (~280px). */
+.user-card--company .user-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.user-card--company .user-card-actions > .btn {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+  padding: 0.4rem 0.45rem;
 }
 
 .user-card-top .user-card-badges {
