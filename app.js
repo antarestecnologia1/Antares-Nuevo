@@ -9802,7 +9802,7 @@ function bindDynamicEvents() {
       const userId = btn.dataset.id;
       if (!userId) return;
       const users = read(KEYS.users, []);
-      const target = users.find((u) => u.id === userId);
+      const target = users.find((u) => String(u.id) === String(userId));
       if (!target) return;
       const isOrphan = pendingUserOrigin(target) === "supabase_auth_only";
       const companiesAll = read(KEYS.companies, []);
@@ -9990,7 +9990,42 @@ function bindDynamicEvents() {
                 role: chosenRole,
                 permissions: finalPerms
               });
+              /**
+               * Proyección local alineada al servidor: si /portal/bootstrap falla, antes quedaba el usuario
+               * como pendiente hasta un volcado exitoso (y tras F5 seguía la cola mal).
+               * begin/endBootstrap evita POST sync-key con el array completo de usuarios.
+               */
+              const PS = window.AntaresPortalSync;
+              if (PS?.beginBootstrap) PS.beginBootstrap();
+              try {
+                write(
+                  KEYS.users,
+                  read(KEYS.users, []).map((u) =>
+                    String(u.id) === String(target.id)
+                      ? {
+                          ...u,
+                          accountStatus: ACCOUNT_STATUS.APROBADO,
+                          companyId: selected.id,
+                          company: selected.name,
+                          role: chosenRole,
+                          permissions: finalPerms,
+                          source: "portal_db"
+                        }
+                      : u
+                  )
+                );
+              } finally {
+                if (PS?.endBootstrap) PS.endBootstrap();
+              }
               await startPortalBootstrapForInteractiveSession();
+              if (PS?.beginBootstrap) PS.beginBootstrap();
+              try {
+                if (currentUser()?.role === ROLES.ADMIN) {
+                  await applyPendingUserRegistrationsFromApi();
+                }
+              } finally {
+                if (PS?.endBootstrap) PS.endBootstrap();
+              }
             } catch (err) {
               notify(String(err?.message || userMessage("registerServerError")), "error");
               return false;
