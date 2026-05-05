@@ -5529,8 +5529,8 @@ function viewDashboard() {
   const colors = {
     Turbo: "#F59F00",
     Tractomula: "#1B8E5F",
-    Bus: "#1565C0",
-    Camion: "#1565C0",
+    Bus: "#377cc0",
+    Camion: "#377cc0",
     Tractocamion: "#1B8E5F",
     "Sin tipo": "#94A3B8"
   };
@@ -6289,7 +6289,7 @@ function adminUsersHtml(current) {
 
   const roleBadge = (r) => {
     const colors = {
-      admin: "#1565C0",
+      admin: "#377cc0",
       rrhh: "#7C3AED",
       administracion: "#1D4ED8",
       auxiliar_administrativo: "#0EA5E9",
