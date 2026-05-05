@@ -2314,6 +2314,14 @@ function normalizePersonTypeForDb(value) {
   return "Natural";
 }
 
+/** tipo_vinculo_registro / registrationKind: siempre "cliente" | "empleado_interno". */
+function normalizeRegistrationKindForDb(value) {
+  const k = String(value || "")
+    .trim()
+    .toLowerCase();
+  return k === "empleado_interno" ? "empleado_interno" : "cliente";
+}
+
 function isPersonTypeJuridica(value) {
   return normalizePersonTypeForDb(value) === "Juridica";
 }
@@ -4359,10 +4367,7 @@ function bindAuthForms() {
             city: normalizeLatinForDb(data.city),
             address: normalizeLatinUpperForDb(data.address),
             email: data.email,
-            registrationKind:
-              String(data.registrationKind || "").trim().toLowerCase() === "empleado_interno"
-                ? "empleado_interno"
-                : "cliente",
+            registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
             password: data.password,
             acceptTerms: Boolean(data.acceptTerms)
           });
@@ -4420,10 +4425,7 @@ function bindAuthForms() {
         department: normalizeLatinForDb(data.department),
         city: normalizeLatinForDb(data.city),
         address: normalizeLatinUpperForDb(data.address),
-        registrationKind:
-          String(data.registrationKind || "").trim().toLowerCase() === "empleado_interno"
-            ? "empleado_interno"
-            : "cliente",
+        registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
         name: fullName,
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
@@ -4439,10 +4441,7 @@ function bindAuthForms() {
           termsOfUseAccepted: true,
           privacyPolicyAccepted: true,
           habeasDataAcknowledged: true,
-          registrationKind:
-            String(data.registrationKind || "").trim().toLowerCase() === "empleado_interno"
-              ? "empleado_interno"
-              : "cliente",
+          registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
           ...(isJuridica
             ? {
                 representativeDocumentType: String(data.personalDocumentType || "CC")
@@ -6474,6 +6473,10 @@ function adminUsersHtml(current) {
           <option value="${ROLES.LIDER_ADMINISTRATIVO}">Líder administrativo</option>
           <option value="${ROLES.CLIENT}">Cliente</option>
         </select></label>
+        <label>${fieldLabel(IC.shield, "Tipo de vínculo")}<select name="registrationKind" required>
+          <option value="cliente">Cliente externo</option>
+          <option value="empleado_interno">Empleado interno</option>
+        </select></label>
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
           <option value="">Seleccione...</option>
           ${companyOptions}
@@ -6608,6 +6611,12 @@ function adminUsersHtml(current) {
             <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
             <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
             <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
+          </select>
+        </label>
+        <label>${fieldLabel(IC.shield, "Tipo de vínculo")}
+          <select name="registrationKind" required>
+            <option value="cliente" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "cliente" ? "selected" : ""}>Cliente externo</option>
+            <option value="empleado_interno" ${normalizeRegistrationKindForDb(editingUser.registrationKind ?? editingUser.profileQualityChecklist?.registrationKind) === "empleado_interno" ? "selected" : ""}>Empleado interno</option>
           </select>
         </label>
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required>
@@ -9603,6 +9612,7 @@ function bindDynamicEvents() {
         renderPortalView();
         return;
       }
+      const registrationKindCreate = normalizeRegistrationKindForDb(data.registrationKind);
       users.push({
         id: newUuidV4(),
         name: normalizeLatinForDb(data.name),
@@ -9620,6 +9630,10 @@ function bindDynamicEvents() {
         city: normalizeLatinForDb(data.city),
         department: normalizeLatinForDb(data.department),
         address: normalizeLatinForDb(data.address),
+        registrationKind: registrationKindCreate,
+        profileQualityChecklist: {
+          registrationKind: registrationKindCreate
+        },
         twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
         systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
         createdAt: nowIso(),
@@ -9806,6 +9820,7 @@ function bindDynamicEvents() {
             : String(existing.birthDate || "").slice(0, 10) || "";
       const gRaw = String(data.gender ?? "").trim();
       const genderStored = gRaw ? normalizeLatinUpperForDb(gRaw) : "";
+      const registrationKindStored = normalizeRegistrationKindForDb(data.registrationKind);
       write(
         KEYS.users,
         users.map((u) =>
@@ -9834,6 +9849,13 @@ function bindDynamicEvents() {
                 address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
                 position: normalizeLatinForDb(String(data.position ?? u.position ?? "").trim()),
                 workArea: normalizeLatinForDb(String(data.workArea ?? u.workArea ?? "").trim()),
+                registrationKind: registrationKindStored,
+                profileQualityChecklist: {
+                  ...(u.profileQualityChecklist && typeof u.profileQualityChecklist === "object"
+                    ? u.profileQualityChecklist
+                    : {}),
+                  registrationKind: registrationKindStored
+                },
                 twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
                 systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
                 permissions:

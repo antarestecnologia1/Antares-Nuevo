@@ -1787,6 +1787,16 @@ export class PortalService implements OnModuleInit {
       if (admin && u.role) {
         await c.query(`UPDATE usuarios SET rol = $2::rol_usuario WHERE id = $1::uuid`, [u.id, String(u.role).toLowerCase()]);
       }
+      if (admin && rec.registrationKind !== undefined && rec.registrationKind !== null) {
+        const rk = String(rec.registrationKind).trim().toLowerCase();
+        const tipo = rk === "empleado_interno" ? "empleado_interno" : rk === "cliente" ? "cliente" : null;
+        if (tipo) {
+          await c.query(
+            `UPDATE usuarios SET tipo_vinculo_registro = $2::tipo_vinculo_registro WHERE id = $1::uuid`,
+            [u.id, tipo]
+          );
+        }
+      }
     }
   }
 
