@@ -24,18 +24,8 @@
       href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@400;600;700&family=Roboto:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260506-antares-brand-bidi" />
+    <link rel="stylesheet" href="./styles.css?v=20260506-strip-module-comments" />
     <style>
-      /**
-       * Estado “portal boot” antes de que `app.js` ejecute `renderPortal()`:
-       *
-       * El marcador SOLO ocultaba `#public-app`, pero el índice público incluye `.top-nav`,
-       * `.site-footer` y `.whatsapp-fab` **fuera** de ese main — por eso el usuario seguía viendo
-       * “el index” unos segundos al refrescar. Aquí replicamos la misma política que
-       * `body.portal-mode` en styles.css y además forzamos la visibilidad del shell `#portal-app`
-       * (sidebar HTML ya está en el documento) para que la experiencia sea continua con el portal.
-       */
       html.antares-booting-portal .top-nav,
       html.antares-booting-portal #public-app,
       html.antares-booting-portal .site-footer,
@@ -1252,6 +1242,6 @@
     <script src="./modules/core/feedback-messages.js?v=20260505-module-load-perf"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js?v=20260505-contract-merge"></script>
-    <script src="./app.js?v=20260506-antares-brand"></script>
+        <script src="./app.js?v=20260506-strip-module-comments"></script>
   </body>
 </html>

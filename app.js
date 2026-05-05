@@ -82,7 +82,6 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
-/** Hero de métricas con el mismo estilo visual que Transporte · Camiones (franja azul + tarjetas). */
 function moduleFleetHeroStrip(metrics) {
   const inner = (metrics || [])
     .map(({ label, value, tone }) => {
@@ -94,11 +93,6 @@ function moduleFleetHeroStrip(metrics) {
   return `<div class="fleet-hero-strip fleet-hero-strip--solo"><div class="fleet-hero-metrics">${inner}</div></div>`;
 }
 
-/**
- * Cuadrícula de tarjetas de "alerta" para módulos de RRHH (Contratación, Cumplimiento, etc.).
- * Cada item: { icon, label, value, help, tone: "ok"|"info"|"warn"|"alert" }.
- * Sustituye el listado plano `<div class="hr-alert-list">` por algo más visual y escaneable.
- */
 function renderHrAlertCards(items = []) {
   const cards = (items || [])
     .map((item) => {
@@ -138,7 +132,6 @@ function devError() {
   console.error.apply(console, arguments);
 }
 
-/** Icono compacto para pestañas tipo producto (RRHH). */
 function hrWorkspaceTabIcon(iconKey) {
   const raw = IC[String(iconKey || "")];
   if (!raw) return "";
@@ -146,7 +139,6 @@ function hrWorkspaceTabIcon(iconKey) {
   return `<span class="hr-workspace-tab-ico" aria-hidden="true">${svg}</span>`;
 }
 
-/** Pestañas para módulos RRHH densos: segmenta panorama / operación / datos sin perder estado en formularios ocultos. */
 function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs }) {
   const safeModule = escapeAttr(module);
   const safeAria = escapeAttr(ariaLabel);
@@ -188,10 +180,6 @@ function hrWizardStepValid(stepEl) {
   return true;
 }
 
-/**
- * Formularios RRHH largos: un paso visible, puntos para saltar solo si los previos son válidos,
- * y envío bloqueado hasta el último paso (reduce saturación cognitiva).
- */
 function bindHrFormWizard(form) {
   if (!form || form.dataset.hrWizardBound === "1") return;
   const wizard = form.querySelector("[data-hr-wizard]");
@@ -245,8 +233,7 @@ function bindHrFormWizard(form) {
     if (hintEl) {
       const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
       if (wizKind === "contract") {
-        hintEl.textContent =
-          "Paso 2 es opcional (pruebas de plantilla). Puede generar el contrato desde cualquier paso.";
+        hintEl.textContent = "Puede generar el contrato desde el paso que prefiera.";
       } else {
         hintEl.textContent =
           idx < steps.length - 1
@@ -928,12 +915,10 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
 let state = {
   session: null,
   currentView: "dashboard",
-  /** Prospectos B2B desde GET /portal/bootstrap (solo RAM; no localStorage). */
   portalContacts: [],
   theme: "light",
   publicLang: "es",
   authTab: "login",
-  /** Tras abrir enlace de Supabase (recuperación): formulario de nueva contraseña en el modal de auth. */
   authSupabaseRecovery: false,
   authSecurity: {
     failedAttempts: 0,
@@ -954,7 +939,6 @@ let state = {
   },
   payrollUi: {
     runSort: "recent",
-    /** overview | operate | data — reduce saturación segmentando el módulo. */
     workspace: "overview"
   },
   hiringUi: {
@@ -963,21 +947,11 @@ let state = {
     candidateSort: "recent",
     workspace: "overview"
   },
-  /** Tras registro exitoso: mensaje visible sobre la pestaña de ingreso (no solo toast). */
   registrationSuccessBanner: null,
-  /** Módulo contact-leads: primera carga desde API en curso. */
   contactLeadsLoading: false,
-  /** Autorizaciones: primer GET /portal/bootstrap al abrir el módulo (evita lista vacía hasta pulsar sync). */
   authorizationsHydrating: false,
-  /** Último fallo o aviso parcial al cargar Autorizaciones desde la API (no bloquea datos ya en caché). */
   authorizationsSyncError: null,
-  /**
-   * Tras un notify(success) local que ya informó al usuario, evita duplicar el mismo aviso vía
-   * __tickNotificationsPoll cuando la notificación en bandeja es para la sesión actual (p. ej.
-   * admin que también es el cliente de la solicitud).
-   */
   portalSuppressSelfPollToastUntil: 0,
-  /** Evita registrar varias veces los listeners capture en viewRoot (no-admin); antes se acumulaban en cada cambio de módulo. */
   portalNonAdminCaptureBound: false
 };
 
@@ -1018,7 +992,6 @@ const UI_PREFS = {
   publicLang: "antares_public_lang_v1"
 };
 
-/** Última pestaña activa en mesas de trabajo RRHH (sobrevive recarga; solo preferencia de UI). */
 const HR_WORKSPACE_STORAGE = {
   payroll: "antares_hr_payroll_workspace_v1",
   hiring: "antares_hr_hiring_workspace_v1"
@@ -3583,7 +3556,6 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
           ${countBadge}
         </div>
         <p class="muted auth-queue-section-desc">Pendientes de aprobación operativa. Lo más reciente aparece primero; use <strong>Aprobar</strong> para el mismo flujo que en Solicitudes.</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen:</span> Solicitudes de cliente · estado Pendiente</p>
       </header>
       <div class="auth-queue-section-body">${body}</div>
     </section>`;
@@ -6115,7 +6087,6 @@ function requestFormHtml() {
     </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
-    <p class="muted full legal-form-note">La solicitud queda sujeta a aprobacion operativa y disponibilidad de flota.</p>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
   return clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
@@ -6212,7 +6183,7 @@ function vehiclesHtml() {
     </fieldset>
 
     <fieldset class="form-section form-section-violet full">
-      <legend>${IC.layers} Especificaciones técnicas</legend>
+      <legend>${IC.layers} Características del vehículo</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.package, "Tipo de carrocería")}<select name="bodyType" required>${bodyTypeOptions}</select></label>
         <label>${fieldLabel(IC.activity, "Termoking (refrigerado)")}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
@@ -6248,7 +6219,6 @@ function vehiclesHtml() {
       </div>
     </fieldset>
 
-    <p class="muted full legal-form-note">Documentación obligatoria en Colombia: tarjeta de propiedad, SOAT, tecnomecánica, RC contractual y extracontractual. Para transporte refrigerado se exige certificación de cadena de frío y registro INVIMA cuando aplique.</p>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = rows
@@ -6435,7 +6405,6 @@ function transportTripsHtml() {
         <p class="muted full" style="margin:0;line-height:1.45">Sin seleccionar ninguno: la tarifa vale para <strong>todos</strong> los clientes. Con una o varias empresas: solo autocompleta precio cuando la solicitud es de esa empresa. Use Ctrl o Cmd para elegir varios.</p>
       </div>
     </fieldset>
-    <p class="muted full legal-form-note">Misma combinación origen/destino que en solicitudes. Puede existir una tarifa general y otras por cliente; al asignar viaje se prioriza la tarifa del cliente si hay coincidencia.</p>
     <button class="btn btn-primary full" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
   </form>`;
 
@@ -6717,11 +6686,6 @@ function adminUsersHtml(current) {
     return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${r}</span>`;
   };
 
-  /**
-   * Render de la tarjeta de usuario.
-   * `mode === "pending"` añade la nota "Pendiente de aprobación" y CTA directo a aprobar/rechazar
-   * para que el admin no tenga que cambiar de módulo.
-   */
   const renderUserCard = (u, mode = "active") => {
     const namedPerms = (u.permissions || []).map((p) => PERMISSION_META[p]?.title || p);
     const visiblePerms = namedPerms.slice(0, 3);
@@ -6811,14 +6775,12 @@ function adminUsersHtml(current) {
     </div>`;
   };
 
-  /** Pendientes vs activos: separamos para mostrar primero los que requieren acción del admin. */
   const pendingUsers = users.filter((u) => isPortalUserPendingApproval(u));
   const pendingIdSet = new Set(pendingUsers.map((u) => u.id));
   const activeUsers = users.filter((u) => !pendingIdSet.has(u.id));
   const pendingCardsHtml = pendingUsers.map((u) => renderUserCard(u, "pending")).join("");
   const userCards = activeUsers.map((u) => renderUserCard(u, "active")).join("");
 
-  // --- Formularios ---
   const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Datos personales</legend>
@@ -7107,7 +7069,6 @@ function adminUsersHtml(current) {
   });
   const companyCardsHtml = companiesSorted.map((c) => renderCompanyCard(c)).join("");
 
-  // --- Render ---
   let html = "";
   const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
 
@@ -7144,11 +7105,6 @@ function adminUsersHtml(current) {
       fCompanyEdit
     );
 
-  /**
-   * Pendientes primero: el admin ve aquí mismo quién espera aprobación con la nota visible y
-   * los CTA "Aprobar" / "Rechazar". El módulo "Autorizaciones" sigue funcionando, pero ya no es
-   * obligatorio cambiar de pantalla.
-   */
   if (pendingUsers.length > 0) {
     const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
     const pendingHelper = `<p class="muted user-grid-pending-help">Las cuentas creadas por el formulario público quedan inactivas hasta que un administrador les asigne empresa, rol y permisos.</p>`;
@@ -7209,11 +7165,6 @@ function historyHtml() {
     .join("");
   const driverOptions = drivers.map((d) => `<option value="${d.id}">${d.name}</option>`).join("");
   const vehicleOptions = vehicles.map((v) => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join("");
-  /**
-   * Filas: la columna Estado vuelve a usar `prettyStatus` (ya devuelve un pill estilizado).
-   * Cada `<tr>` recibe `data-history-row` para que el listener del formulario pueda filtrar
-   * por texto en cliente sin reconstruir el HTML.
-   */
   const renderHistoryRow = (r) => {
     const number = String(r.requestNumber || r.id || "").trim();
     const client = String(r.clientName || "").trim();
@@ -8228,10 +8179,6 @@ function payrollHtml() {
     </tr>`;
     })
     .join("");
-  /**
-   * Cada fila marca su estado vía `data-payroll-state` para que CSS pueda dar un tinte ámbar a las
-   * pendientes (más fáciles de detectar al escanear) y verde sutil a las pagadas.
-   */
   const runRows = sortedRuns
     .map((r) => {
       const state = r.paid ? "paid" : "pending";
@@ -8390,9 +8337,6 @@ function payrollHtml() {
     </fieldset>
 
     <label class="full">${fieldLabel(IC.upload, "Foto del empleado")}<input type="file" name="avatarFile" accept="image/*" /></label>
-    <details class="hr-form-help"><summary>Nota legal y salarial (referencia)</summary>
-      <p class="muted full legal-form-note" style="margin-top:0.5rem">El cargo y salario deben cumplir parámetros mínimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y auxilio de transporte $${CO_HR_RULES.transportAllowance.toLocaleString("es-CO")}). Aportes patronales (12% pensión, 8.5% salud), parafiscales (SENA 2%, ICBF 3%, Caja 4%) y ARL según nivel de riesgo son obligatorios.</p>
-    </details>
 
       </div>
 
@@ -8424,10 +8368,6 @@ function payrollHtml() {
         <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
       </div>
     </fieldset>
-    <details class="hr-form-help"><summary>Referencias de cálculo (opcional)</summary>
-      <p class="muted full" style="margin-top:0.45rem">Para conductores el sistema suma viáticos por viajes interdepartamentales ($${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje) y reembolsos de combustible del mes. Ajuste manual si hay novedades.</p>
-      <p class="muted full">Deducciones referenciales: salud 4 %, pensión 4 % sobre IBC; FSP 1 % si el IBC supera 4 SMMLV.</p>
-    </details>
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidación</button>
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
@@ -8455,9 +8395,6 @@ function payrollHtml() {
         <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
       </div>
     </fieldset>
-    <details class="hr-form-help"><summary>Notas sobre el registro</summary>
-      <p class="muted full" style="margin-top:0.45rem">Registro interno para control de nómina. Liquidaciones definitivas requieren validación según normativa vigente.</p>
-    </details>
     <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
   </form>`;
   const absenceRows = absences
@@ -8553,25 +8490,6 @@ function payrollHtml() {
       tone: pendingAbsenceApprovals ? "warn" : undefined
     }
   ]);
-  const payrollSpotlightInner = `<aside class="module-spotlight module-spotlight--payroll" role="note" aria-label="Resumen del módulo de nómina">
-      <div class="module-spotlight-visual" aria-hidden="true">${IC.dollar}</div>
-      <div class="module-spotlight-text">
-        <h3 class="module-spotlight-title">Operación clara y guiada</h3>
-        <p class="module-spotlight-lead">Centraliza datos laborales, liquidaciones y ausencias con filtros que ponen primero lo pendiente.</p>
-        <ul class="module-spotlight-list">
-          <li><strong>Ficha completa</strong> → contratos Word coherentes en Contratación</li>
-          <li><strong>Historial de pagos</strong> con marca visual Pagado / Pendiente</li>
-          <li><strong>Atajos</strong>: alta de empleado, liquidación y ausencias</li>
-        </ul>
-      </div>
-    </aside>`;
-  const payrollGuideDrawer = `<details class="hr-guide-drawer">
-      <summary class="hr-guide-drawer-summary">
-        <span class="hr-guide-drawer-kicker">Orientación</span>
-        <span class="hr-guide-drawer-title">${IC.layers} Guía rápida (opcional)</span>
-      </summary>
-      <div class="hr-guide-drawer-body">${payrollSpotlightInner}</div>
-    </details>`;
   const payrollTabsNav = renderHrWorkspaceTabs({
     module: "payroll",
     ariaLabel: "Secciones del módulo Nómina",
@@ -8583,17 +8501,11 @@ function payrollHtml() {
     ]
   });
   const payrollWorkspaceJumps = `<div class="hr-workspace-jumps">
-      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="payroll" data-tab="operate">${IC.userPlus} Ir a Registrar</button>
-      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="payroll" data-tab="data">${IC.layers} Ir a tablas y filtros</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="operate">${IC.userPlus} Ir a Registrar</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="data">${IC.layers} Ir a tablas y filtros</button>
     </div>`;
   const payrollOverviewPanel = `<div class="hr-workspace-panel${payrollWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="overview">
-      ${payrollGuideDrawer}
       ${payrollHead}
-      <div class="hr-enterprise-strip" role="note">
-        <span class="hr-enterprise-strip-label">Uso en empresa</span>
-        <span class="hr-enterprise-strip-text">Registre novedades en <strong>Registrar</strong>; conserve evidencias y exportaciones desde <strong>Consultar</strong>, filtrando por periodo y estado.</span>
-      </div>
-      <p class="hr-workspace-intro muted">Cada pestaña reduce el ruido visual: panorama ejecutivo aquí, operación cotidiana aparte del archivo histórico.</p>
       ${payrollWorkspaceJumps}
     </div>`;
   const payrollOperatePanel = `<div class="hr-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
@@ -8705,12 +8617,9 @@ function hiringHtml() {
           <option value="false">No (10+ prestaciones)</option>
           <option value="true">Sí (≥ 13 SMMLV + 30% factor prestacional)</option>
         </select></label>
-        <label class="full">${fieldLabel(IC.file, "Base legal (referencia)")}<input name="legalBasis" value="CST art. 45-46, Ley 50/1990 y normatividad laboral vigente" /></label>
+        <label class="full">${fieldLabel(IC.file, "Base legal")}<input name="legalBasis" value="CST art. 45-46, Ley 50/1990 y normatividad laboral vigente" /></label>
       </div>
     </fieldset>
-    <details class="hr-form-help"><summary>Referencias legales laborales (opcional)</summary>
-      <p class="muted full legal-form-note" style="margin-top:0.45rem">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}, jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} h/semana, recargo nocturno 35%, dominical/festivo 75%, hora extra diurna 25%, hora extra nocturna 75%.</p>
-    </details>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
   </form>`;
   const fVac = `<form id="form-vacancy" class="p-form p-form-colored hr-form-flow hr-form-compact">
@@ -8815,7 +8724,7 @@ function hiringHtml() {
       <div class="hr-form-wizard-toolbar">
         <div>
           <p class="hr-form-wizard-kicker">Contrato Word</p>
-          <p class="hr-form-wizard-lead">Primero datos de firma; pruebas de plantilla y referencia legal aparte.</p>
+          <p class="hr-form-wizard-lead">Primero datos de firma; en el siguiente paso puede probar las plantillas.</p>
         </div>
         <div class="hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:50%"></span></div>
@@ -8830,7 +8739,6 @@ function hiringHtml() {
       <div class="hr-form-step is-active" data-step-index="0">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.file} Descargar contrato Word</legend>
-      <p class="muted full">Registre antes el empleado en <strong>Nómina</strong> con nombre, documento, ciudad, banco, cuenta, salario, duración y tipo de contrato. Aquí solo elige la persona, la plantilla (o automática) y la <strong>fecha de firma</strong> del párrafo de constancia.</p>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.position || "-"} · CC ${e.idDoc || "-"}</option>`).join("")}</select></label>
         <label>${fieldLabel(IC.file, "Plantilla Word")}<select name="contractTemplateKind">
@@ -8847,16 +8755,12 @@ function hiringHtml() {
       <div class="hr-form-step hidden" data-step-index="1">
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.download} Vista previa de plantilla</legend>
-      <p class="muted full">No utiliza la ficha del empleado; solo comprueba el archivo Word y la descarga.</p>
       <div class="form-section-grid hr-form-contract-tests">
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Termino fijo</button>
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestacion servicios</button>
       </div>
     </fieldset>
-    <details class="hr-form-help"><summary>Referencia de marcadores Word</summary>
-      <p class="muted full legal-form-note" style="margin-top:0.5rem">Marcadores en Word (<strong>documentacion/*.docx</strong>): <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong> (formato colombiano), <strong>salario_letras</strong> (se genera en pesos si falta), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong>. El párrafo tipo «Para constancia se firma… en la ciudad de… a los… días del mes de… de…» se rellena con <strong>ciudad_empleado</strong> y la <strong>fecha de firma</strong> elegida (incluye plantillas con texto partido en Word). En la última hoja, líneas <strong>Cc.</strong> / <strong>Cc</strong> reciben la <strong>cedula_empleado</strong>.</p>
-    </details>
       </div>
 
       <div class="hr-form-wizard-footer">
@@ -8864,7 +8768,7 @@ function hiringHtml() {
           <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
           <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
         </div>
-        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance al paso 2 solo si necesita pruebas; el guardado está en el último paso.</p>
+        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Use el siguiente paso si desea revisar una plantilla antes de descargar.</p>
         <button class="btn btn-primary hr-form-wizard-submit" type="submit" aria-disabled="false">${IC.file} Generar y descargar contrato Word</button>
       </div>
     </div>
@@ -8875,10 +8779,6 @@ function hiringHtml() {
   const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
-  /**
-   * Tarjetas visuales (con icono y tono) en lugar del listado plano. Cada tarjeta deja claro
-   * el indicador, el número y un microcopy explicativo.
-   */
   const alertsBody = renderHrAlertCards([
     {
       icon: IC.alertTriangle,
@@ -8976,25 +8876,6 @@ function hiringHtml() {
       tone: urgentItems ? "warn" : undefined
     }
   ]);
-  const hiringSpotlightInner = `<aside class="module-spotlight module-spotlight--hiring" role="note" aria-label="Resumen del módulo de contratación">
-      <div class="module-spotlight-visual" aria-hidden="true">${IC.send}</div>
-      <div class="module-spotlight-text">
-        <h3 class="module-spotlight-title">Embudo de selección con foco</h3>
-        <p class="module-spotlight-lead">Vacantes, candidatos y contratos en paneles que guían el siguiente paso.</p>
-        <ul class="module-spotlight-list">
-          <li><strong>Alertas</strong> de cierre de vacante y fin de contrato</li>
-          <li><strong>Contrato Word</strong> enlazado a la ficha de Nómina</li>
-          <li><strong>Filtros rápidos</strong> para candidatos activos y pipeline</li>
-        </ul>
-      </div>
-    </aside>`;
-  const hiringGuideDrawer = `<details class="hr-guide-drawer">
-      <summary class="hr-guide-drawer-summary">
-        <span class="hr-guide-drawer-kicker">Orientación</span>
-        <span class="hr-guide-drawer-title">${IC.send} Guía rápida (opcional)</span>
-      </summary>
-      <div class="hr-guide-drawer-body">${hiringSpotlightInner}</div>
-    </details>`;
   const hiringTabsNav = renderHrWorkspaceTabs({
     module: "hiring",
     ariaLabel: "Secciones del módulo Contratación",
@@ -9006,17 +8887,11 @@ function hiringHtml() {
     ]
   });
   const hiringWorkspaceJumps = `<div class="hr-workspace-jumps">
-      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="hiring" data-tab="operate">${IC.briefcase} Ir al embudo operativo</button>
-      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="hiring" data-tab="track">${IC.activity} Ir a tablero de seguimiento</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="operate">${IC.briefcase} Ir al embudo operativo</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="track">${IC.activity} Ir a tablero de seguimiento</button>
     </div>`;
   const hiringOverviewPanel = `<div class="hr-workspace-panel${hiringWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="overview">
-      ${hiringGuideDrawer}
       ${hiringHead}
-      <div class="hr-enterprise-strip hr-enterprise-strip--hiring" role="note">
-        <span class="hr-enterprise-strip-label">Uso en empresa</span>
-        <span class="hr-enterprise-strip-text"><strong>Embudo</strong> para publicar y registrar; <strong>Seguimiento</strong> para auditar pipeline, vacantes y contratos sin mezclar captura con lectura.</span>
-      </div>
-      <p class="hr-workspace-intro muted">Las alertas de cierre y vencimiento priorizan lo urgente sin inundar la pantalla de formularios.</p>
       ${hiringWorkspaceJumps}
     </div>`;
   const hiringOperatePanel = `<div class="hr-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
@@ -9055,11 +8930,6 @@ function laborComplianceHtml() {
     return (expTs - todayTs) / 86400000 <= dueSoonDays;
   });
   const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
-  /**
-   * Pill por estado del control: Cumplido (verde), En gestion (azul), Pendiente / vencido (rojo)
-   * y vencimiento próximo en ámbar. La fila también recibe un atributo `data-sst-state` para
-   * permitir resaltado por CSS sin recalcular en cliente.
-   */
   const statusBadgeForCompliance = (status, dueDate) => {
     const s = String(status || "Pendiente").trim().toLowerCase();
     if (s.startsWith("cumpl")) return `<span class="status status-completada">Cumplido</span>`;
@@ -9151,7 +9021,6 @@ function laborComplianceHtml() {
         </div>
       </fieldset>
       <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
-      <p class="muted full legal-form-note">Cumplimiento Colombia: valida afiliacion activa a EPS, pension y ARL, soportes SST y trazabilidad de controles por empleado.</p>
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar control legal/SST</button>
     </form>`;
   const recordsTable = recordRows
@@ -9225,13 +9094,6 @@ function notificationsHtml() {
   return heroStrip + pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body);
 }
 
-/**
- * Fecha de ingreso al sistema mostrada en Mi perfil (input solo lectura).
- * Fuente de verdad: `createdAt` (= `usuarios.fecha_creacion` en BD), porque es
- * la fecha exacta en que se creó la cuenta durante el registro. Como respaldo
- * se aceptan `portalSince` o `systemJoinDate` por si en algún momento la API
- * los exponía como fuente única. Devuelve `YYYY-MM-DD` o "" si no hay valor.
- */
 function profileSystemJoinDateValue(user) {
   if (!user || typeof user !== "object") return "";
   const candidates = [user.createdAt, user.registeredAt, user.portalSince, user.systemJoinDate];
@@ -9242,7 +9104,6 @@ function profileSystemJoinDateValue(user) {
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
     const d = new Date(s);
     if (Number.isFinite(d.getTime())) {
-      // ISO local-date sin TZ shifting agresivo; suficiente para mostrar en input[type=date].
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
@@ -9255,11 +9116,6 @@ function profileSystemJoinDateValue(user) {
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
   const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
-  /**
-   * Nombre estable: prioriza primer/segundo nombre+apellido (BD), luego `nombre_completo`,
-   * y solo como último recurso el correo. Esto evita ver "juan.perez" si el bootstrap aún
-   * no había rellenado `KEYS.users` (caso de stub JWT).
-   */
   const displayName = getPortalUserDisplayName(user);
   const profileFields = [
     "name",
@@ -9349,8 +9205,7 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-amber full">
         <legend>${IC.calendar} Ingreso al portal</legend>
         <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(profileSystemJoinDateValue(user))}" disabled aria-readonly="true" title="Solo lectura: corresponde a la fecha en que se creó la cuenta en el registro." /></label>
-          <p class="muted full" style="margin:0;font-size:0.82rem">Es la fecha en que se creó la cuenta al registrarse. La fija el sistema y no se puede modificar desde Mi perfil.</p>
+          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(profileSystemJoinDateValue(user))}" disabled aria-readonly="true" /></label>
         </div>
       </fieldset>
 
@@ -9362,9 +9217,6 @@ function profileHtml(user) {
         </label>
       </fieldset>
 
-      <p class="muted full">La foto se cambia pulsando el icono circular de arriba (JPG, PNG o WebP). Luego usa <strong>Guardar perfil</strong> para aplicar los cambios.</p>
-
-      <p class="muted full legal-form-note">Mantén datos de contacto y NIT/RUT actualizados para soporte contractual y trazabilidad administrativa.</p>
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
     </form>
   </section>`;
@@ -9496,7 +9348,6 @@ function authorizationsHtml() {
           ${countBadge}
         </div>
         <p class="muted auth-queue-section-desc">${section.description}</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
       </header>
       <div class="auth-queue-section-body"><div class="auth-queue-scroll">${tableOrEmpty}</div></div>
     </section>`;
@@ -9534,35 +9385,12 @@ function authorizationsHtml() {
       <header class="auth-queue-section-head">
         <h3 class="auth-queue-section-title">${section.title}</h3>
         <p class="muted auth-queue-section-desc">${section.description}</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Origen en el portal:</span> ${section.origin}</p>
       </header>
     </section>`
     )
     .join("");
 
   portalEnsureApiTokensAligned();
-  const apiLive = portalCanRefreshFromApi();
-  const toolbarHint = apiLive
-    ? `<span class="auth-hub-live"><span class="auth-hub-live-dot" aria-hidden="true"></span> Enlace en vivo con el servidor</span><span class="muted auth-hub-live-meta">La bandeja se actualiza cada vez que abre este módulo.</span>`
-    : `<span class="muted">Sin API o sin sesión JWT: solo datos ya cargados en memoria</span>`;
-  const hubToolbar = `<div class="auth-hub-toolbar">
-    <div class="auth-hub-toolbar-lead">${toolbarHint}</div>
-  </div>`;
-
-  const catalogItems = [
-    "<strong>Nuevas cuentas</strong>: personas que se registraron en el sitio; requieren empresa, rol y aprobación administrativa.",
-    "<strong>Solicitudes pendientes</strong>: solicitudes de transporte en estado Pendiente (mismo flujo que en Solicitudes).",
-    "<strong>Colas internas</strong>: altas hechas desde el portal por perfiles sin permiso de administrador (conductores, empleados, etc.).",
-    "<strong>Histórico en este equipo</strong>: parte de la cola de aprobaciones puede conservarse localmente mientras usa el portal; las cuentas nuevas del sitio se administran en el servidor."
-  ]
-    .map((li) => `<li>${li}</li>`)
-    .join("");
-
-  const catalogHtml = `<details class="auth-flow-catalog">
-    <summary class="auth-flow-catalog-summary">Inventario de flujos que requieren validación administrativa</summary>
-    <p class="muted auth-flow-catalog-lead">Use las pestañas para cambiar de cola sin desplazarse por toda la página.</p>
-    <ul class="auth-flow-catalog-list">${catalogItems}</ul>
-  </details>`;
 
   const syncBanner = state.authorizationsSyncError
     ? `<div class="auth-sync-banner ${state.authorizationsSyncError.code === "PARCIAL" ? "auth-sync-banner--warn" : "auth-sync-banner--err"}" role="status">
@@ -9570,9 +9398,9 @@ function authorizationsHtml() {
         <span>${escapeHtml(String(state.authorizationsSyncError.message || ""))}</span>
       </div>`
     : "";
-  const bodyInner = `${syncBanner}${hubToolbar}${tabsWrap}${
+  const bodyInner = `${syncBanner}${tabsWrap}${
     infoSectionsHtml ? `<div class="auth-info-blocks">${infoSectionsHtml}</div>` : ""
-  }${catalogHtml}`;
+  }`;
   return (
     authHero +
     pcardWrap(
@@ -9813,15 +9641,6 @@ function enforceColombianFormStandards() {
       node.setAttribute(key, String(value));
     });
   };
-  const appendLegalNote = (formId, text) => {
-    const form = document.getElementById(formId);
-    if (!form || form.querySelector(`[data-legal-note="${formId}"]`)) return;
-    const note = document.createElement("p");
-    note.className = "muted full legal-form-note";
-    note.dataset.legalNote = formId;
-    note.textContent = text;
-    form.appendChild(note);
-  };
   const ensureSelectOptions = (selector, values = [], placeholder = "Seleccione...") => {
     const select = document.querySelector(selector);
     if (!select || select.tagName !== "SELECT") return;
@@ -9834,7 +9653,6 @@ function enforceColombianFormStandards() {
 
   setAttr("#form-vehicle input[name='plate']", { pattern: "[A-Z]{3}[0-9]{3}", maxlength: "6", placeholder: "ABC123" });
   setAttr("#form-vehicle input[name='year']", { min: "1990", max: String(new Date().getFullYear() + 1) });
-  appendLegalNote("form-vehicle", "Documentación vigente exigida en Colombia: SOAT y tecnomecánica activa para operación.");
   ensureSelectOptions("#form-driver select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");
 
   setAttr("#form-admin-company-create input[name='taxId']", {
@@ -9844,10 +9662,6 @@ function enforceColombianFormStandards() {
     placeholder: "900123456-7"
   });
   setAttr("#form-admin-company-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 601 234 5678" });
-  appendLegalNote(
-    "form-admin-company-create",
-    "El NIT se valida con el algoritmo de verificación DIAN. No puede repetirse en el sistema."
-  );
 
   setAttr("#form-admin-company-edit input[name='taxId']", {
     pattern: "[0-9\\-]{6,32}",
@@ -9863,7 +9677,6 @@ function enforceColombianFormStandards() {
   });
   setAttr("#form-admin-user-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
   setAttr("#form-admin-user-edit input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
-  appendLegalNote("form-admin-user-create", "Valide identificación y datos de contacto conforme a políticas de gestión de datos personales.");
 
   setAttr("#form-employee input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
   setAttr("#form-employee input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
@@ -9874,57 +9687,33 @@ function enforceColombianFormStandards() {
   ensureSelectOptions("#form-employee select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
   ensureSelectOptions("#form-employee select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
   ensureSelectOptions("#form-employee select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
-  appendLegalNote("form-employee", "Incluya datos completos de seguridad social y soporte de vinculación según CST y SG-SST.");
 
   setAttr("#form-position input[name='baseSalary']", { min: String(CO_HR_RULES.minMonthlySalary) });
-  appendLegalNote("form-position", "El salario base del cargo no puede ser inferior al mínimo legal vigente.");
 
   setAttr("#form-vacancy input[name='openings']", { min: "1" });
   setAttr("#form-vacancy input[name='deadline']", { min: nowIso().slice(0, 10) });
-  appendLegalNote("form-vacancy", "Defina requisitos y plazo de cierre para soportar auditoría del proceso de selección.");
 
   setAttr("#form-candidate input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
   setAttr("#form-candidate input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
-  appendLegalNote("form-candidate", "Para contratación formal en Colombia debe existir identificación válida y soportes verificables.");
 
   setAttr("#form-interview input[name='when']", { min: colombiaDatetimeLocalString() });
-  appendLegalNote("form-interview", "Registre entrevistador y fecha para trazabilidad del proceso de contratación.");
-
-  appendLegalNote(
-    "form-contract",
-    "El Word se genera con datos del empleado en nómina y plantillas en documentacion/. Si falla la descarga, compruebe conexion (JSZip) y que el empleado tenga ciudad, banco y cuenta completos."
-  );
 
   setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
   ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "Otra"], "Seleccione EPS/entidad...");
-  appendLegalNote("form-hr-absence", "Toda ausencia debe contar con soporte y periodo validado para cumplimiento laboral.");
 
   setAttr("#form-sst-compliance input[name='documentCode']", { minlength: "4", maxlength: "32" });
-  appendLegalNote("form-sst-compliance", "Mantenga trazabilidad documental de SST y seguridad social por empleado.");
 
   const requestPrice = document.querySelector("#form-request input[name='tripValue']");
   if (requestPrice) {
     requestPrice.value = "0";
     requestPrice.setAttribute("readonly", "true");
     requestPrice.setAttribute("aria-readonly", "true");
-    requestPrice.setAttribute("title", "La tarifa la define Antares al asignar el viaje.");
-    const requestLabel = requestPrice.closest("label");
-    if (requestLabel && !requestLabel.querySelector("[data-price-msg]")) {
-      const msg = document.createElement("small");
-      msg.className = "muted";
-      msg.dataset.priceMsg = "1";
-      msg.textContent = "La tarifa final del viaje es definida por Antares en la asignación operativa.";
-      requestLabel.appendChild(msg);
-    }
-  } else {
-    appendLegalNote("form-request", "La tarifa final del viaje no la define el cliente; Antares la asigna en la programación del viaje.");
   }
 }
 
 let __schedulePortalViewMicrotask = null;
 let __schedulePortalViewWanted = false;
 
-/** Evita repintar varias veces en el mismo tick (notificaciones, sync API). El resultado es el mismo que renderPortalView(). */
 function scheduleRenderPortalView() {
   __schedulePortalViewWanted = true;
   if (__schedulePortalViewMicrotask != null) return;
@@ -13027,7 +12816,6 @@ function bindDynamicEvents() {
         <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
           <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px">
             <h1 style="margin:0;font-size:1.35rem">Desprendible de nomina</h1>
-            <p style="margin:0.35rem 0 0;font-size:0.9rem;color:#555">Documento informativo para el trabajador · Colombia</p>
           </div>
           <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
             <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${company?.name || "Antares"}</td></tr>
@@ -13044,7 +12832,7 @@ function bindDynamicEvents() {
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Total devengado</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.gross).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Viaticos</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.travelAllowance || 0).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Reembolso combustible</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.fuelReimbursement || 0).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">IBC (base cotizacion)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.ibc).toLocaleString("es-CO")}</td></tr>
+              <tr><td style="padding:8px;border-bottom:1px solid #ddd">IBC</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.ibc).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte salud empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.health).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte pension empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.pension).toLocaleString("es-CO")}</td></tr>
               <tr><td style="padding:8px;border-bottom:1px solid #ddd">Fondo de solidaridad pensional (si aplica)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.solidarity).toLocaleString("es-CO")}</td></tr>
@@ -13052,12 +12840,6 @@ function bindDynamicEvents() {
               <tr><td style="padding:10px 8px"><strong>Neto a pagar</strong></td><td style="padding:10px 8px;text-align:right;font-size:1.05rem"><strong>${netStr}</strong></td></tr>
             </tbody>
           </table>
-          <p style="font-size:0.78rem;color:#666;margin-top:1.5rem">
-            Nota: Los porcentajes de salud y pension aqui mostrados corresponden a la parte a cargo del trabajador en regimen ordinario.
-            Parafiscales (SENA, ICBF, caja si aplica) y aportes patronales no estan desglosados en este prototipo.
-            ${parseNum(run.interDepartmentTrips || 0) > 0 ? `Incluye ${parseNum(run.interDepartmentTrips || 0)} viaje(s) interdepartamental(es) para viaticos del periodo. ` : ""}
-            Conserve este documento para fines de auditoria interna. Generado: ${fmtDate(run.createdAt)}.
-          </p>
           <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
         </body></html>
       `);

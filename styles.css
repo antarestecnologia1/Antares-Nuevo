@@ -1571,12 +1571,6 @@ input[type="password"] {
   letter-spacing: normal;
 }
 
-/*
- * Contraseñas: siempre sin forzar mayúsculas en pantalla.
- * En registro, .auth-register-form aplica uppercase a los input que NO son password;
- * el botón «Mostrar» cambia el campo a type="text», por eso esa regla aplicaba
- * mayúsculas también al escribir la contraseña visible.
- */
 #form-register input[name="password"],
 #form-register input[name="passwordConfirm"],
 #form-register .auth-password-input,
@@ -1779,7 +1773,6 @@ body.portal-mode .whatsapp-fab {
   transform: translateY(0) scale(1);
 }
 
-/* ─── PORTAL ─── */
 .portal-layout {
   display: grid;
   grid-template-columns: 270px 1fr;
@@ -1797,7 +1790,6 @@ body.portal-mode .whatsapp-fab {
   flex-direction: column;
   gap: 0.3rem;
   background: linear-gradient(180deg, #060F1F 0%, #0B1D33 50%, #0F2847 100%);
-  /* Siempre texto claro sobre fondo oscuro (no usar var(--white): en tema oscuro global --white es oscuro). */
   color: #e8f2ff;
 }
 
@@ -1882,7 +1874,6 @@ body.portal-mode .whatsapp-fab {
   border-left: 3px solid rgba(var(--primary-mid-rgb), 0.85);
 }
 
-/* Barra superior portal (titulo + hamburguesa en movil) */
 .portal-header-bar {
   display: flex;
   align-items: center;
@@ -2133,7 +2124,6 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
 
 .kpi-icon svg { width: 100%; height: 100%; }
 
-/* Tonos suaves (mejor contraste con icono blanco) */
 .kpi-icon-warning { background: linear-gradient(135deg, #e8a83a, #d97706); }
 .kpi-icon-success { background: linear-gradient(135deg, #34a884, #26966f); }
 .kpi-icon-primary { background: linear-gradient(135deg, var(--brand-blue-mid), var(--brand-blue-deep)); }
@@ -2161,7 +2151,6 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   word-break: break-word;
 }
 
-/* Portal cards */
 .p-card {
   background: var(--white);
   border: 1px solid var(--line);
@@ -2218,7 +2207,6 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
 
 .p-card + .p-card { margin-top: 1rem; }
 
-/* En grillas, el margen entre .p-card rompe la alineacion de filas; el hueco lo cubre gap */
 .dash-grid > .p-card,
 .hiring-actions-grid > .p-card,
 .hiring-data-grid > .p-card,
@@ -2234,7 +2222,6 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   background: linear-gradient(135deg, #F59F00, #E67700);
 }
 
-/* Portal tables */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -2271,7 +2258,6 @@ tbody tr:last-child td { border-bottom: none; }
   padding: 0 1.4rem;
 }
 
-/* Status badges — texto claro sobre fondo definido (no usar var(--white): en tema oscuro invierte el token y rompe pills) */
 .status {
   display: inline-flex;
   align-items: center;
@@ -2295,7 +2281,6 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.76rem;
   font-weight: 700;
   overflow: hidden;
-  /* Fallback marca si falta una variante .status-* (API / datos nuevos): texto sigue legible */
   background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 45%, var(--primary) 100%);
   box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.28);
 }
@@ -2306,7 +2291,6 @@ tbody tr:last-child td { border-bottom: none; }
   min-width: 14px;
 }
 
-/* Variantes: misma segunda clase en .status y .status-pretty (las reglas posteriores sobreescriben el fondo base de .status-pretty) */
 .status-pendiente { background: linear-gradient(135deg, #F59F00, #E67700); }
 .status-aprobada_pendiente_asignacion {
   background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 42%, var(--primary) 100%);
@@ -2319,7 +2303,6 @@ tbody tr:last-child td { border-bottom: none; }
 .status-cerrada { background: linear-gradient(135deg, #334155, #1e293b); }
 .status-cancelada,
 .status-rechazada { background: linear-gradient(135deg, #D62828, #B02020); }
-/* Vencido / caducado — tono distinto al “cancelada/rechazada” */
 .status-vencida {
   background: linear-gradient(135deg, #9a3412, #7c2d12);
   box-shadow: 0 2px 10px rgba(124, 45, 18, 0.38);
@@ -2347,7 +2330,6 @@ tbody tr:last-child td { border-bottom: none; }
   }
 }
 
-/* Portal buttons */
 .toolbar {
   display: flex;
   gap: 0.4rem;
@@ -2515,7 +2497,6 @@ tbody tr:last-child td { border-bottom: none; }
   border-radius: 10px;
 }
 
-/* Portal forms */
 .p-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2564,7 +2545,6 @@ tbody tr:last-child td { border-bottom: none; }
   background: var(--white);
 }
 
-/* Empty state */
 .empty-state {
   text-align: center;
   padding: 2.5rem 1rem;
@@ -2586,7 +2566,6 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.92rem;
 }
 
-/* Timer badge */
 .timer-badge {
   display: inline-flex;
   align-items: center;
@@ -2601,7 +2580,6 @@ tbody tr:last-child td { border-bottom: none; }
 
 .timer-badge svg { width: 14px; height: 14px; }
 
-/* Quick stat in dashboard */
 .dash-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: stretch; }
 
 .dash-stat-row {
@@ -2635,8 +2613,6 @@ tbody tr:last-child td { border-bottom: none; }
   color: var(--text);
 }
 
-/* Perm badge */
-/* Permission badges */
 .perm-badge {
   display: inline-block;
   padding: 0.18rem 0.5rem;
@@ -2648,7 +2624,6 @@ tbody tr:last-child td { border-bottom: none; }
   margin: 2px;
 }
 
-/* ─── User cards ─── */
 .users-hero {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -2788,11 +2763,6 @@ tbody tr:last-child td { border-bottom: none; }
   background: linear-gradient(135deg, #fffef8, #fff);
 }
 
-/**
- * Tarjeta de usuario "Pendiente de aprobación" mostrada dentro del módulo "Usuarios del sistema".
- * Marco amarillo + nota explícita para que el admin entienda inmediatamente que la cuenta no ha
- * sido activada.
- */
 .user-card.user-card--pending {
   background: linear-gradient(135deg, #fffaf0, #fff);
   border-color: #fcd34d;
@@ -2903,7 +2873,6 @@ body[data-theme="dark"] .user-card-pending-note strong {
   margin-top: 0.5rem;
 }
 
-/** Tres acciones (Editar / Desactivar / Eliminar): misma fila que encoge sin salirse del ancho de tarjeta estrecha (~280px). */
 .user-card--company .user-card-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2953,7 +2922,6 @@ body[data-theme="dark"] .user-card--company-inactive {
   border-color: rgba(148, 163, 184, 0.35);
 }
 
-/* Permission fieldset */
 .perm-fieldset {
   border: 1px solid #E2E8F0;
   border-radius: 12px;
@@ -3016,11 +2984,6 @@ body[data-theme="dark"] .user-card--company-inactive {
   line-height: 1.2;
 }
 
-/**
- * Modal "Aprobar usuario" — bloque de permisos editables (versión compacta para modal).
- * El admin escoge empresa y rol; al elegir rol se prellenan los permisos típicos pero quedan
- * editables (botones Marcar todos / Desmarcar todos / Volver al rol).
- */
 .modal-edit-section-title {
   display: block;
   font-size: 0.78rem;
@@ -3111,7 +3074,6 @@ body[data-theme="dark"] .modal-edit-section-title {
   color: #cbd5e1;
 }
 
-/* Company chips */
 .company-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -3164,7 +3126,6 @@ body[data-theme="dark"] .modal-edit-section-title {
   font-size: 0.86rem;
 }
 
-/* ─── MODAL ─── */
 .modal {
   position: fixed;
   inset: 0;
@@ -3241,7 +3202,6 @@ body[data-theme="dark"] .modal-edit-section-title {
   font-size: 0.84rem;
 }
 
-/* Modal de autenticación: texto siempre horizontal y legible (evita herencias raras, saltos letra a letra en flex/rejilla muy estrecha). */
 #auth-modal,
 #auth-modal .modal-card-auth,
 #auth-content {
@@ -3273,7 +3233,6 @@ body[data-theme="dark"] .modal-edit-section-title {
   min-width: 0;
 }
 
-/* Formularios dentro del modal: una sola columna estable (sin auto-fit que fragmente filas en vistas estrechas). */
 #auth-modal .form-grid.auth-form,
 #auth-modal .form-grid.auth-form-recover {
   grid-template-columns: 1fr;
@@ -3294,7 +3253,6 @@ body[data-theme="dark"] .modal-edit-section-title {
   flex-shrink: 0;
 }
 
-/* Pestañas del modal: sin cortes agresivos entre letras (especialmente en WebKit móvil). */
 #auth-modal .tab {
   word-break: normal;
   hyphens: manual;
@@ -3349,7 +3307,6 @@ body[data-theme="dark"] .modal-edit-section-title {
   position: fixed;
   top: 1rem;
   right: 1rem;
-  /* Encima de .modal (backdrop-filter), portales y FAB; evitar quedar detrás del diálogo de login */
   z-index: 2147483647;
   isolation: isolate;
   display: grid;
@@ -3529,7 +3486,6 @@ body[data-theme="dark"] .users-pending-redirect {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-/* Registro cliente: altura única para inputs/select (teléfono compuesto se alinea al mismo alto) */
 #form-register.auth-register-form {
   --reg-control-h: 2.75rem;
   align-items: start;
@@ -3619,7 +3575,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   min-height: var(--reg-control-h);
 }
 
-/* Registro: tipo de persona + documentos misma rejilla y mismo ancho que el resto del formulario */
 .auth-register-form .register-doc-section {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -3631,7 +3586,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   min-width: 0;
 }
 
-/* Persona natural: tres columnas alineadas (tipo persona | tipo doc | número) */
 .auth-register-form #register-doc-persona.register-doc-block--natural {
   display: contents;
 }
@@ -3644,7 +3598,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   display: none !important;
 }
 
-/* Persona jurídica: panel ancho completo, campos en rejilla coherente */
 .auth-register-form #register-doc-empresa.register-doc-block--empresa {
   grid-column: 1 / -1;
   display: grid;
@@ -3664,9 +3617,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   line-height: 1.4;
 }
 
-/* Registro: teléfono con indicativo (+57 / +1) + número local.
-   Banderas: los mismos gradientes que en el selector de idioma (.lang-option .flag-co / .flag-us);
-   allí solo funcionan porque el CSS está acoplado a .lang-option; aquí repetimos el dibujo en .register-lang-flag--*. */
 .phone-field-register,
 .phone-field-b2b {
   min-width: 0;
@@ -3885,7 +3835,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   line-height: 1.35;
 }
 
-/* Mayúsculas solo en pantalla; el valor enviado se normaliza en JS. Correo en minúsculas; fecha y contraseña sin forzar. */
 .auth-register-form input:not([type="password"]):not([type="email"]):not([type="date"]):not([type="checkbox"]),
 .auth-register-form select {
   text-transform: uppercase;
@@ -3901,7 +3850,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   text-transform: lowercase;
 }
 
-/* Refuerzo: nombre + clase (válido con type=password o type=text al mostrar) */
 .auth-register-form input.auth-password-input {
   text-transform: none !important;
   letter-spacing: normal !important;
@@ -3920,7 +3868,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
 
 .auth-login-shell {
   display: grid;
-  /* minmax(0, fr): evita que el min-intrínseco del formulario empuje y el panel derecho pise el texto (p. ej. fila «Recordar»). */
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   gap: 0.9rem;
   align-items: start;
@@ -4081,7 +4028,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   flex-shrink: 0;
 }
 
-/* Icono + control en ingreso y recuperación */
 .auth-field-stack {
   display: flex;
   flex-direction: column;
@@ -4279,7 +4225,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   }
 }
 
-/* Panel de fortaleza de contraseña (registro, creación de usuario) — barra + píldora + checklist */
 .password-strength-suite {
   margin-top: 0.55rem;
   padding: 0.75rem 0.85rem;
@@ -4504,7 +4449,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   box-shadow: 0 2px 8px var(--primary-glow);
 }
 
-/* Login / registro / recuperar — modal auth responsive */
 @media (max-width: 720px) {
   #auth-modal.modal {
     display: flex;
@@ -4690,7 +4634,6 @@ body[data-theme="dark"] #form-register .register-kind-option {
   }
 }
 
-/* ─── Portal: bandeja B2B / prospectos web ─── */
 .b2b-leads-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -6940,7 +6883,6 @@ body[data-theme="dark"] .p-form textarea {
   margin-bottom: 0.55rem;
 }
 
-/* ─── Nomina: empleado con mini foto ─── */
 .emp-cell-name {
   display: flex;
   align-items: center;
@@ -6967,7 +6909,6 @@ body[data-theme="dark"] .p-form textarea {
   font-size: 0.95rem;
 }
 
-/* ─── HR dashboard enhancements ─── */
 .hr-kpi-grid {
   margin-bottom: 0.9rem;
 }
@@ -7009,12 +6950,6 @@ body[data-theme="dark"] .p-form textarea {
   color: var(--text);
 }
 
-/**
- * Cuadrícula de "alert cards" para los módulos de Contratación / Cumplimiento.
- * Cada tarjeta muestra ícono, indicador, valor y microcopy con un tono de color
- * (ok = verde, info = azul, warn = ámbar, alert = rojo) que reemplaza el viejo
- * listado plano <div class="hr-alert-item">…</div>.
- */
 .hr-alert-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -7124,10 +7059,6 @@ body[data-theme="dark"] .hr-alert-card--alert {
   background: linear-gradient(135deg, #111827 0%, #2a0d10 100%);
 }
 
-/**
- * Filas de la tabla de cumplimiento SST: tinte sutil según el estado del control para que
- * "Cumplido" se vea en verde, "En gestión" en azul y "Pendiente" en ámbar al escanear.
- */
 tr[data-sst-state="cumplido"] {
   background: rgba(34, 197, 94, 0.07);
 }
@@ -7150,9 +7081,6 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   background: rgba(251, 191, 36, 0.12);
 }
 
-/**
- * Historial — filtros, búsqueda libre y empty-state dentro de la tabla.
- */
 .history-filter-form .form-section-grid input[type="search"] {
   width: 100%;
   padding: 0.55rem 0.75rem;
@@ -7195,10 +7123,6 @@ body[data-theme="dark"] .history-empty-row {
   color: #94a3b8;
 }
 
-/**
- * Nómina — tinte por estado de la corrida de nómina (pendiente / pagada). Con esto se ve a
- * golpe de vista qué desprendibles aún esperan pago vs. los ya conciliados.
- */
 tr[data-payroll-state="pending"] {
   background: rgba(217, 119, 6, 0.07);
 }
@@ -7215,9 +7139,6 @@ body[data-theme="dark"] tr[data-payroll-state="paid"] {
   background: rgba(34, 197, 94, 0.08);
 }
 
-/**
- * Reporte de combustibles / técnicas dentro del módulo Historial — estética de tarjetas.
- */
 .history-insights-grid .p-card,
 .history-ops-grid .p-card {
   height: 100%;
@@ -7315,7 +7236,6 @@ body[data-theme="dark"] tr[data-payroll-state="paid"] {
   gap: 0.85rem;
 }
 
-/* ─── Mesa de trabajo RRHH: pestañas + guía plegable (menos saturación) ─── */
 .payroll-shell--workspace,
 .hiring-shell--workspace {
   gap: 1rem;
@@ -7520,7 +7440,6 @@ body[data-theme="dark"] tr[data-payroll-state="paid"] {
   color: #2a6399;
 }
 
-/* Shell RRHH “pro”: ritmo y chrome operativo sin cambiar el layout base */
 .hr-module-pro.payroll-shell--workspace,
 .hr-module-pro.hiring-shell--workspace {
   padding-bottom: 0.15rem;
@@ -7658,11 +7577,36 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 .hr-workspace-jumps {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: 0.65rem;
+  margin-top: 1rem;
 }
 
-/* ─── RRHH: menos saturación en datos · formularios guiados ─── */
+.hr-workspace-jump-btn.btn-primary {
+  flex: 1 1 min(240px, 100%);
+  justify-content: center;
+  min-height: 2.85rem;
+  padding: 0.84rem 1.5rem;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  border-radius: 12px;
+}
+
+.hr-workspace-jump-btn.btn-primary:focus-visible {
+  outline: 3px solid rgba(var(--primary-mid-rgb), 0.55);
+  outline-offset: 3px;
+}
+
+.hr-workspace-jump-btn .btn-icon {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 520px) {
+  .hr-workspace-jump-btn.btn-primary {
+    flex: 1 1 100%;
+  }
+}
+
 .hr-flow-shell .fleet-hero-strip {
   transition: padding 0.2s ease, opacity 0.2s ease;
 }
@@ -8127,7 +8071,6 @@ body[data-theme="dark"] .hiring-shell--workspace .hr-guide-drawer {
   background: rgba(var(--primary-rgb), 0.14);
 }
 
-/* ─── Spotlights RRHH (Nómina / Contratación) ─── */
 .module-spotlight {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -8388,7 +8331,6 @@ body[data-theme="dark"] .hiring-shell .table-wrap tbody tr:nth-child(even) td {
   font-size: 1.15rem;
 }
 
-/* ─── Universal module shell ─── */
 .module-shell {
   display: grid;
   gap: 0.9rem;
@@ -8745,7 +8687,6 @@ body[data-theme="dark"] .hiring-shell .table-wrap tbody tr:nth-child(even) td {
   }
 }
 
-/* ─── Hiring executive layout ─── */
 .hiring-shell {
   display: grid;
   gap: 0.85rem;
@@ -8817,7 +8758,6 @@ body[data-theme="dark"] .hiring-shell .table-wrap tbody tr:nth-child(even) td {
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
 }
 
-/* ─── Compact Pro Layout: Nomina + Contratacion ─── */
 .payroll-shell,
 .hiring-shell {
   gap: 0.7rem;
@@ -9035,7 +8975,6 @@ body[data-theme="dark"] .hiring-shell .table-wrap tbody tr:nth-child(even) td {
   gap: 0.5rem;
 }
 
-/* ─── Dark Theme Hardening (public + portal) ─── */
 body[data-theme="dark"] .site-footer {
   background: linear-gradient(180deg, #061223 0%, #08192c 55%, #0a1f36 100%);
   border-top: 1px solid rgba(117, 164, 219, 0.18);
@@ -9331,8 +9270,6 @@ body[data-theme="dark"] .ops-command-bar {
   border-color: #486c95;
 }
 
-/* RRHH “pro”: estas reglas tienen mayor especificidad que `.hr-module-pro … .ops-command-bar`
-   en claro; sin este bloque el modo oscuro quedaría con fondo blanco en la barra de comandos. */
 body[data-theme="dark"] .hr-module-pro.payroll-shell--workspace .ops-command-bar,
 body[data-theme="dark"] .hr-module-pro.hiring-shell--workspace .ops-command-bar {
   background: linear-gradient(180deg, rgba(27, 50, 76, 0.98), rgba(22, 42, 62, 0.99));
@@ -9503,7 +9440,6 @@ body[data-theme="dark"] .profile-form-centered {
   border-color: #446892;
 }
 
-/* Unified module accent system (light/dark) */
 .module-shell[data-module-view="dashboard"] {
   --module-accent-start: var(--brand-blue-deep);
   --module-accent-end: var(--brand-blue-mid);
@@ -9597,7 +9533,6 @@ body[data-theme="dark"] .auth-hub-sync-spinner {
   border-color: color-mix(in srgb, var(--brand-blue-deep) 26%, var(--module-border-strong, #c5d8ec) 74%);
 }
 
-/* Autorizaciones: franja izquierda por tipo de trámite (tonos dentro de la marca) */
 .module-shell[data-module-view="authorizations"] .auth-queue-section {
   --auth-strip-color: var(--brand-blue-deep);
   border-left: 4px solid var(--auth-strip-color);
@@ -9896,7 +9831,6 @@ body[data-theme="dark"] .auth-request-card {
   line-height: 1.55;
 }
 
-/* Centro de aprobaciones — barra de sincronización + tarjetas tipo inbox */
 .auth-hub-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -10341,14 +10275,12 @@ body[data-theme="dark"] .portal-main .btn-action {
   color: #f3f9ff;
 }
 
-/* Portal clarity pass: dark typography + layout consistency */
 .portal-main .dash-grid {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1rem;
   align-items: stretch;
 }
 
-/* Historial: dos columnas iguales (combustible / novedades) y tres insights alineados */
 .portal-main .history-ops-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
 }
@@ -10376,7 +10308,6 @@ body[data-theme="dark"] .portal-main .btn-action {
   }
 }
 
-/* Contratacion: filas de acciones alineadas (3 + 2 tarjetas) y panel de seguimiento */
 @media (min-width: 900px) {
   .hiring-actions-grid.hiring-actions-row--three {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -10588,7 +10519,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.45);
 }
 
-/* ─── FLOTA / CAMIONES ─── */
 .fleet-hero-strip,
 .drivers-hero-strip,
 .users-hero-strip,
@@ -10741,7 +10671,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   width: fit-content;
 }
 
-/* ─── CONDUCTORES Cards ─── */
 .drivers-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -10817,7 +10746,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   flex-wrap: wrap;
 }
 
-/* ─── CALENDARIO ─── */
 .calendar-shell {
   display: grid;
   gap: 1rem;
@@ -11040,7 +10968,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   font-size: 0.84rem;
 }
 
-/* ─── PAYROLL filters ─── */
 .payroll-filters-bar {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -11053,7 +10980,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   gap: 1rem;
 }
 
-/* hiring grids alignment */
 .hiring-actions-grid,
 .hiring-data-grid,
 .hiring-kpi-grid {
@@ -11069,7 +10995,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   flex-direction: column;
 }
 
-/* ─── USUARIOS rediseño ─── */
 .users-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -11107,7 +11032,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .users-stat-orange { background: linear-gradient(135deg, #d4804a, #e8a066); }
 .users-stat-green { background: linear-gradient(135deg, #4a9b62, #6bc585); }
 
-/* ─── NOTIFICACIONES ─── */
 .notif-toolbar {
   margin-bottom: 0.8rem;
   display: flex;
@@ -11183,7 +11107,6 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .notif-tag-slate { background: linear-gradient(135deg, #475569, #334155); }
 .notif-actions { white-space: nowrap; }
 
-/* ─── DARK theme tunings nuevos ─── */
 body[data-theme="dark"] .driver-card,
 body[data-theme="dark"] .notif-card,
 body[data-theme="dark"] .calendar-grid,
@@ -11234,7 +11157,6 @@ body[data-theme="dark"] .notif-card-unread {
   .cal-event-title { display: none; }
 }
 
-/* ─── Calendar filters bar ─── */
 .calendar-filters-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -11246,7 +11168,6 @@ body[data-theme="dark"] .notif-card-unread {
   border-radius: 14px;
 }
 
-/* ─── Form Sections con color (estilo enterprise) ─── */
 .p-form-colored {
   display: grid !important;
   grid-template-columns: 1fr !important;
@@ -11308,7 +11229,6 @@ body[data-theme="dark"] .notif-card-unread {
   box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
 }
 
-/* Variantes de color por sección */
 .form-section-blue {
   background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.09), rgba(var(--primary-rgb), 0.04));
   border-color: rgba(var(--primary-rgb), 0.28);
@@ -11348,7 +11268,6 @@ body[data-theme="dark"] .notif-card-unread {
 }
 .form-section-rose legend { background: linear-gradient(135deg, #be123c, #f43f5e); }
 
-/* ─── Field label con icono colorizado ─── */
 .field-label {
   display: inline-flex;
   align-items: center;
@@ -11372,7 +11291,6 @@ body[data-theme="dark"] .notif-card-unread {
   color: var(--primary);
 }
 
-/* ─── Dark theme tunings de form sections ─── */
 body[data-theme="dark"] .form-section {
   background: linear-gradient(180deg, #122036, #0e1a2c);
   border-color: #2b3e58;
@@ -11399,7 +11317,6 @@ body[data-theme="dark"] .field-label .field-required-mark {
   color: #f87171;
 }
 
-/* Pulir botón primario (solo tonos de marca) */
 .btn-primary {
   background: linear-gradient(135deg, var(--brand-blue-mid), var(--primary), var(--primary-deeper)) !important;
   background-size: 200% 200% !important;
@@ -11415,7 +11332,32 @@ body[data-theme="dark"] .field-label .field-required-mark {
   box-shadow: 0 12px 28px rgba(var(--primary-rgb), 0.48);
 }
 
-/* KPI cards en color para dashboard */
+.btn-primary.hr-workspace-jump-btn {
+  box-shadow: 0 9px 26px rgba(var(--primary-rgb), 0.4);
+}
+
+.btn-primary.hr-workspace-jump-btn:hover {
+  box-shadow: 0 13px 34px rgba(var(--primary-rgb), 0.52);
+}
+
+body[data-theme="dark"] .btn-primary.hr-workspace-jump-btn {
+  box-shadow:
+    0 10px 30px rgba(var(--primary-rgb), 0.44),
+    0 0 0 1px rgba(var(--brand-blue-mid), 0.24) inset;
+}
+
+body[data-theme="dark"] .btn-primary.hr-workspace-jump-btn:hover {
+  box-shadow:
+    0 14px 38px rgba(var(--primary-rgb), 0.55),
+    0 0 0 1px rgba(var(--brand-blue-mid), 0.34) inset;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary.hr-workspace-jump-btn:hover {
+    transform: none;
+  }
+}
+
 .kpi {
   position: relative;
   overflow: hidden;
@@ -11428,7 +11370,6 @@ body[data-theme="dark"] .field-label .field-required-mark {
   pointer-events: none;
 }
 
-/* Secciones colapsables más vivas */
 .create-card-toggle {
   background: linear-gradient(135deg, var(--primary-deeper), var(--primary)) !important;
   color: #fff !important;
