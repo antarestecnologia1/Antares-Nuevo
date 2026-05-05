@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  type OnModuleInit
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Pool, PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
@@ -81,7 +88,7 @@ function portalDateOrNull(v: unknown): string | null {
 }
 
 @Injectable()
-export class PortalService {
+export class PortalService implements OnModuleInit {
   private readonly logger = new Logger(PortalService.name);
   private readonly supabaseAdmin;
   private readonly supabaseEnabled: boolean;
@@ -94,6 +101,51 @@ export class PortalService {
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
     this.supabaseEnabled = Boolean(url && key);
     this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
+  }
+
+  /**
+   * Auto-migraciones idempotentes que se ejecutan al iniciar Nest. Permite que un deploy
+   * sobre una BD que no tiene corrida la migración correspondiente (p. ej. Render/Supabase
+   * con esquema viejo) se autocure sin acción manual. Cada bloque ignora silenciosamente
+   * tablas inexistentes (BD totalmente nueva con `04_transporte.sql` aún por correr).
+   */
+  async onModuleInit() {
+    await this.ensureTarifasTrayectoSchema();
+  }
+
+  /** Sincroniza el esquema de `tarifas_trayecto` con la migración `09_tarifas_trayecto_clientes.sql`. */
+  private async ensureTarifasTrayectoSchema() {
+    const tableExists = await this.tableExists("tarifas_trayecto");
+    if (!tableExists) return; // BD nueva sin scripts base; los crearán los SQL del repo.
+    try {
+      await this.pool.query(
+        `ALTER TABLE tarifas_trayecto DROP CONSTRAINT IF EXISTS uq_tarifas_trayecto_ruta`
+      );
+      await this.pool.query(
+        `ALTER TABLE tarifas_trayecto ADD COLUMN IF NOT EXISTS ids_empresas UUID[]`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_tarifas_trayecto_ruta
+           ON tarifas_trayecto (departamento_origen, ciudad_origen, departamento_destino, ciudad_destino)`
+      );
+      this.logger.log("tarifas_trayecto: esquema verificado (ids_empresas presente).");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureTarifasTrayectoSchema fallo no fatal: ${msg}`);
+    }
+  }
+
+  /** Helper: ¿existe la tabla en el schema actual (público por defecto)? */
+  private async tableExists(tableName: string): Promise<boolean> {
+    try {
+      const r = await this.pool.query<{ ok: boolean }>(
+        `SELECT to_regclass($1) IS NOT NULL AS ok`,
+        [tableName]
+      );
+      return Boolean(r.rows[0]?.ok);
+    } catch {
+      return false;
+    }
   }
 
   private isAdmin(role: JwtRole) {
@@ -825,18 +877,42 @@ export class PortalService {
   }
 
   private async loadTripRouteRates() {
-    const r = await this.pool.query(
-      `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
-              valor_tarifa_cop, ids_empresas
-       FROM tarifas_trayecto WHERE activo = true`
-    );
+    /**
+     * Si la BD no tiene corrida la migración `09_tarifas_trayecto_clientes.sql`
+     * (la columna `ids_empresas` aún no existe), caemos a SELECT sin esa columna
+     * para no tumbar todo el bootstrap. La autocura se hace en onModuleInit.
+     */
     const out: Record<string, { value: number; companyIds: string[] }> = {};
     const SEP = "@@";
-    for (const row of r.rows) {
+    let rows: Array<Record<string, unknown>>;
+    try {
+      const r = await this.pool.query(
+        `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+                valor_tarifa_cop, ids_empresas
+         FROM tarifas_trayecto WHERE activo = true`
+      );
+      rows = r.rows as Array<Record<string, unknown>>;
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      const msg = err instanceof Error ? err.message : String(err);
+      const isMissingColumn = code === "42703" && /ids_empresas/i.test(msg);
+      if (!isMissingColumn) throw err;
+      this.logger.warn(
+        "loadTripRouteRates: columna ids_empresas no existe; usando fallback sin segmentación por cliente. " +
+          "Aplique BD/postgres/09_tarifas_trayecto_clientes.sql o reinicie la API para auto-curar."
+      );
+      const r2 = await this.pool.query(
+        `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+                valor_tarifa_cop
+         FROM tarifas_trayecto WHERE activo = true`
+      );
+      rows = r2.rows as Array<Record<string, unknown>>;
+    }
+    for (const row of rows) {
       const o = `${String(row.departamento_origen || "").trim()}|${String(row.ciudad_origen || "").trim()}`.toLowerCase();
       const d = `${String(row.departamento_destino || "").trim()}|${String(row.ciudad_destino || "").trim()}`.toLowerCase();
       const routeKey = `${o}->${d}`;
-      const rawIds = row.ids_empresas as string[] | null;
+      const rawIds = (row as { ids_empresas?: unknown }).ids_empresas;
       const companyIds = Array.isArray(rawIds) ? rawIds.map((id) => String(id)) : [];
       const suffix = companyIds.length ? companyIds.slice().sort().join(",") : "*";
       const storageKey = `${routeKey}${SEP}${suffix}`;

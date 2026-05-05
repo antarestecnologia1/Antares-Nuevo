@@ -75,19 +75,16 @@ CREATE TABLE tarifas_trayecto (
   departamento_destino       VARCHAR(120) NOT NULL,
   ciudad_destino             VARCHAR(120) NOT NULL,
   valor_tarifa_cop           NUMERIC(18,2) NOT NULL CHECK (valor_tarifa_cop > 0),
+  ids_empresas               UUID[],
   activo                     BOOLEAN NOT NULL DEFAULT true,
   fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
-  fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_tarifas_trayecto_ruta UNIQUE (
-    departamento_origen,
-    ciudad_origen,
-    departamento_destino,
-    ciudad_destino
-  )
+  fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE tarifas_trayecto IS 'Tarifas base por trayecto para autocompletar valor de viaje (KEYS.tripRouteRates).';
 COMMENT ON COLUMN tarifas_trayecto.valor_tarifa_cop IS 'Tarifa COP sugerida para asignación operativa.';
+COMMENT ON COLUMN tarifas_trayecto.ids_empresas IS
+  'Clientes a los que aplica la tarifa; NULL o {} = todos. Permite varias filas misma ruta con distintos clientes/precios.';
 
 CREATE TABLE solicitudes_transporte (
   id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
