@@ -22,15 +22,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260505-portal-uxpass" />
+    <link rel="stylesheet" href="./styles.css?v=20260505-boot-shell" />
+    <style>
+      /**
+       * Estado “portal boot” antes de que `app.js` ejecute `renderPortal()`:
+       *
+       * El marcador SOLO ocultaba `#public-app`, pero el índice público incluye `.top-nav`,
+       * `.site-footer` y `.whatsapp-fab` **fuera** de ese main — por eso el usuario seguía viendo
+       * “el index” unos segundos al refrescar. Aquí replicamos la misma política que
+       * `body.portal-mode` en styles.css y además forzamos la visibilidad del shell `#portal-app`
+       * (sidebar HTML ya está en el documento) para que la experiencia sea continua con el portal.
+       */
+      html.antares-booting-portal .top-nav,
+      html.antares-booting-portal #public-app,
+      html.antares-booting-portal .site-footer,
+      html.antares-booting-portal .whatsapp-fab {
+        display: none !important;
+      }
+      html.antares-booting-portal #portal-app.hidden {
+        display: block !important;
+      }
+      html.antares-booting-portal body:not([data-theme="dark"]) {
+        background: #f5f9ff;
+      }
+      html.antares-booting-portal body[data-theme="dark"] {
+        background: #0f172a;
+      }
+      html.antares-booting-portal #view-root:empty {
+        min-height: 42vh;
+      }
+    </style>
+  </head>
+  <body>
     <script>
       /**
-       * Boot guard inline (corre antes del primer paint):
-       * si ya hay sesión válida en localStorage, oculta el sitio público y deja listo el shell del
-       * portal con `body.portal-mode`. Así, tras F5 el usuario no ve un destello del index público
-       * mientras `app.js` se descarga, evalúa y ejecuta `renderPortal()`.
+       * Debe ir lo antes posible dentro de `<body>` (antes del header público) para:
+       *   - Alinear `data-theme` con `localStorage` y evitar destello claro en modo oscuro.
+       *   - Activar `html.antares-booting-portal` cuando hay sesión persistida (misma heurística
+       *     que `SESSION_IDLE_MS` en app.js: 30 min).
        */
-      (function antaresBootGuard() {
+      (function antaresBootGuardEarlyBody() {
+        try {
+          var theme = localStorage.getItem("antares_theme_v1");
+          if (theme === "dark" || theme === "light") {
+            document.body.setAttribute("data-theme", theme);
+          }
+        } catch (_e) {}
         try {
           var raw = localStorage.getItem("antares_session_v2");
           if (!raw) return;
@@ -38,23 +75,10 @@
           if (!s || !s.userId) return;
           var last = typeof s.lastActivityAt === "number" ? s.lastActivityAt : 0;
           if (last && Date.now() - last > 30 * 60 * 1000) return;
-          var html = document.documentElement;
-          if (html) html.classList.add("antares-booting-portal");
-        } catch (_e) {
-          /* sin sesión válida → arranque público normal */
-        }
+          document.documentElement.classList.add("antares-booting-portal");
+        } catch (_e2) {}
       })();
     </script>
-    <style>
-      /**
-       * Mientras el JS principal arranca y `renderPortal()` se ejecuta, ocultamos visualmente el
-       * sitio público para evitar flash de "deslogueo" en F5 cuando hay sesión válida.
-       */
-      html.antares-booting-portal #public-app { visibility: hidden; }
-      html.antares-booting-portal body { background: #f5f9ff; }
-    </style>
-  </head>
-  <body>
     <!-- ─── NAVIGATION ─── -->
     <header class="top-nav">
       <div class="container nav-wrap">
@@ -1225,6 +1249,6 @@
     <script src="./modules/core/feedback-messages.js?v=20260503-recover-copy"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
-    <script src="./app.js?v=20260505-portal-uxpass"></script>
+    <script src="./app.js?v=20260505-boot-shell"></script>
   </body>
 </html>

@@ -1866,12 +1866,41 @@ export class PortalService implements OnModuleInit {
     const empresaId = await this.getUserCompany(userId);
     for (const req of data) {
       if (!req?.id) continue;
+      const idStr = String(req.id).trim();
+      if (!PG_UUID_V4_RE.test(idStr)) {
+        this.logger.warn(
+          `syncRequests: omitiendo fila con id no UUID (requerido por PostgreSQL): ${idStr.slice(0, 36)}`
+        );
+        continue;
+      }
       const ownerOk =
         admin ||
         transport ||
         String(req.clientUserId) === userId ||
         (empresaId && String(req.clientCompanyId || "") === String(empresaId));
       if (!ownerOk) throw new ForbiddenException();
+
+      const contactName = String(req.contactName ?? req.siteContactName ?? "").trim();
+      const contactPhone = String(req.contactPhone ?? req.siteContactPhone ?? "").trim();
+      if (!contactName || !contactPhone) {
+        throw new BadRequestException(
+          "Faltan contacto en sitio y/o teléfono en una solicitud (nombre y teléfono son obligatorios en base de datos)."
+        );
+      }
+      const boxesNum = Math.max(0, Number(req.boxesCount ?? req.boxes ?? 0) || 0);
+      let vehicleType = String(req.vehicleType || "").trim();
+      if (!vehicleType) {
+        const st = String(req.serviceType || "").toLowerCase();
+        vehicleType =
+          st.includes("termoking") || st.includes("refriger")
+            ? "Furgon refrigerado (Termoking)"
+            : st.includes("sin termoking") || st.includes("seco")
+              ? "Furgon seco"
+              : "Por definir";
+      }
+      if (vehicleType.length > 40) vehicleType = vehicleType.slice(0, 40);
+      const observations =
+        String(req.observations ?? req.notes ?? "").trim() || null;
 
       await c.query(
         `INSERT INTO solicitudes_transporte (
@@ -1933,14 +1962,14 @@ export class PortalService implements OnModuleInit {
           req.destinationAddress,
           req.pickupAt,
           req.etaDelivery,
-          req.vehicleType,
+          vehicleType,
           req.cargoDescription,
           req.serviceType,
-          Number(req.boxesCount) || 0,
+          boxesNum,
           Number(req.weightKg) || 0,
-          req.contactName,
-          req.contactPhone,
-          req.observations || null,
+          contactName,
+          contactPhone,
+          observations,
           JSON.stringify(Array.isArray(req.attachments) ? req.attachments : []),
           req.status,
           Number(req.tripValue) || 0,
@@ -1956,6 +1985,8 @@ export class PortalService implements OnModuleInit {
 
       if (req.trip && req.trip.tripNumber) {
         const t = req.trip;
+        const tripIdRaw = t.id != null ? String(t.id).trim() : "";
+        const tripId = PG_UUID_V4_RE.test(tripIdRaw) ? tripIdRaw : null;
         await c.query(
           `INSERT INTO viajes_transporte (
             id, id_solicitud, numero_viaje, id_vehiculo, id_conductor, placa_vehiculo, tipo_vehiculo_asignado,
@@ -1981,7 +2012,7 @@ export class PortalService implements OnModuleInit {
             estado_operativo_en_vivo = EXCLUDED.estado_operativo_en_vivo,
             datos_factura_json = EXCLUDED.datos_factura_json`,
           [
-            t.id || null,
+            tripId,
             req.id,
             t.tripNumber,
             t.vehicleId,

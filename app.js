@@ -4850,18 +4850,23 @@ function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = nu
   });
 }
 
-function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentRequestId = null) {
+function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
+  const requiresRefrigeration = Boolean(options.requiresRefrigeration);
   const vehicles = read(KEYS.vehicles, []);
+  const matchesThermal = (v) => !requiresRefrigeration || v.refrigerated;
   const filtered = vehicles.filter(
     (v) =>
       v.available &&
+      matchesThermal(v) &&
       (!requiredType || v.type === requiredType) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
   );
   const pick =
     filtered.find((v) => v.capacityKg >= weight) ||
     filtered[0] ||
-    vehicles.find((v) => v.available && !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)) ||
+    vehicles.find(
+      (v) => v.available && matchesThermal(v) && !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
+    ) ||
     null;
   return pick || null;
 }
@@ -4877,7 +4882,12 @@ function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
 /** Solicitud con Thermo King o valores legacy que implican refrigeración. */
 function serviceTypeRequiresRefrigeration(serviceType) {
   const s = String(serviceType || "").toLowerCase();
-  return s.includes("termoking") || s.includes("refrigerada");
+  return (
+    s.includes("termoking") ||
+    s.includes("thermo king") ||
+    s.includes("refrigerada") ||
+    s.includes("refrigerado")
+  );
 }
 
 function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
@@ -5001,7 +5011,8 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
       parseNum(current.weightKg),
       current.pickupAt,
       current.etaDelivery || current.pickupAt,
-      requestId
+      requestId,
+      { requiresRefrigeration: serviceTypeRequiresRefrigeration(current.serviceType) }
     );
   const driver = selectedDriverId
     ? compatibleDrivers.find((item) => item.id === selectedDriverId) || null
@@ -5016,7 +5027,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     requests.map((request) => String(request.trip?.tripNumber || "").trim()).filter(Boolean)
   );
   const trip = {
-    id: uid(),
+    id: newUuidV4(),
     tripNumber: makeTripNumber(usedTripNumbers),
     vehicleId: vehicle.id,
     vehiclePlate: vehicle ? vehicle.plate : "SIN-DISP",
@@ -10195,21 +10206,43 @@ function bindDynamicEvents() {
         notify(userMessage("requestDeliveryAfterPickup"), "error");
         return;
       }
-      const { pickupDate, pickupTime, deliveryDate, deliveryTime, ...payload } = data;
-      payload.tripValue = 0;
+      const {
+        pickupDate,
+        pickupTime,
+        deliveryDate,
+        deliveryTime,
+        siteContactName,
+        siteContactPhone,
+        boxes,
+        notes,
+        ...payloadRest
+      } = data;
+      payloadRest.tripValue = 0;
+      const contactName = String(siteContactName ?? "").trim();
+      const contactPhone = String(siteContactPhone ?? "").trim();
+      const boxesCount = Math.max(0, Number(boxes) || 0);
+      const notesTrim = String(notes ?? "").trim();
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
       const all = reqRead();
       const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
       const requestNumber = makeRequestNumber(usedRequestNumbers);
       const localRow = {
-        id: uid(),
+        id: newUuidV4(),
         requestNumber,
         clientUserId: user.id,
         clientName: reqCompany.name || user.company || "",
         clientCompanyId: reqCompany.id,
         requestedByName: user.name,
-        ...payload,
+        ...payloadRest,
+        contactName,
+        contactPhone,
+        siteContactName: contactName,
+        siteContactPhone: contactPhone,
+        boxesCount,
+        boxes: boxesCount,
+        notes: notesTrim,
+        observations: notesTrim || null,
         vehicleType: "",
         pickupAt,
         etaDelivery,
@@ -10457,6 +10490,7 @@ function bindDynamicEvents() {
       const requestId = String(btn.dataset.id || "");
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) return;
+      const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
@@ -10481,11 +10515,18 @@ function bindDynamicEvents() {
           },
           {
             name: "vehicleId",
-            label: "Selecciona camion compatible",
+            label: needsTermoking ? "Camion con Termoking (refrigerado)" : "Selecciona camion compatible",
             type: "select",
             required: false,
             options: [
-              { value: "", label: vehicleCandidates.length ? "Sin asignar por ahora" : "No hay camiones compatibles para el tipo/peso" },
+              {
+                value: "",
+                label: vehicleCandidates.length
+                  ? "Sin asignar por ahora"
+                  : needsTermoking
+                    ? "No hay camiones Termoking disponibles para tipo/peso/fecha"
+                    : "No hay camiones compatibles para el tipo/peso"
+              },
               ...vehicleCandidates.map((vehicle) => ({
               value: vehicle.id,
               label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
@@ -10597,6 +10638,7 @@ function bindDynamicEvents() {
         notify(userMessage("bulkRequestMissing"), "error");
         return;
       }
+      const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const tripRateUi = buildTripRateModalFields(request, { required: true });
@@ -10608,7 +10650,7 @@ function bindDynamicEvents() {
         fields: [
           {
             name: "vehicleId",
-            label: "Camion",
+            label: needsTermoking ? "Camion (solo Termoking / refrigerado)" : "Camion",
             type: "select",
             required: true,
             options: compatibleVehicles.length
@@ -10616,7 +10658,14 @@ function bindDynamicEvents() {
                 value: vehicle.id,
                 label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
               }))
-              : [{ value: "", label: "No hay camiones compatibles disponibles" }]
+              : [
+                  {
+                    value: "",
+                    label: needsTermoking
+                      ? "No hay camiones Termoking disponibles"
+                      : "No hay camiones compatibles disponibles"
+                  }
+                ]
           },
           {
             name: "driverId",
@@ -12502,6 +12551,7 @@ function bindDynamicEvents() {
           return;
         }
 
+        const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
         const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
         const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
@@ -12516,7 +12566,7 @@ function bindDynamicEvents() {
           fields: [
             {
               name: "vehicleId",
-              label: "Camion (opcional)",
+              label: needsTermoking ? "Camion con Termoking (opcional)" : "Camion (opcional)",
               type: "select",
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
