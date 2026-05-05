@@ -176,6 +176,14 @@ function notify(message, type = "info", durationMs = 3200) {
   }, hideAfter);
 }
 
+/** Si la bandeja guardó una notificación para quien ya vio el toast de éxito en pantalla, no repetir en el poll. */
+function suppressSelfInboxPollToastIfRecipientIsCurrentUser(recipientUserId) {
+  const self = currentUser();
+  if (!self || recipientUserId === undefined || recipientUserId === null || recipientUserId === "") return;
+  if (String(recipientUserId) !== String(self.id)) return;
+  state.portalSuppressSelfPollToastUntil = Date.now() + 5200;
+}
+
 /** Mensajes en {@link window.AntaresFeedback} (modules/core/feedback-messages.js). */
 function userMessage(key, ...args) {
   const M = window.AntaresFeedback;
@@ -789,7 +797,13 @@ let state = {
   /** Autorizaciones: primer GET /portal/bootstrap al abrir el módulo (evita lista vacía hasta pulsar sync). */
   authorizationsHydrating: false,
   /** Último fallo o aviso parcial al cargar Autorizaciones desde la API (no bloquea datos ya en caché). */
-  authorizationsSyncError: null
+  authorizationsSyncError: null,
+  /**
+   * Tras un notify(success) local que ya informó al usuario, evita duplicar el mismo aviso vía
+   * __tickNotificationsPoll cuando la notificación en bandeja es para la sesión actual (p. ej.
+   * admin que también es el cliente de la solicitud).
+   */
+  portalSuppressSelfPollToastUntil: 0
 };
 
 window.AntaresDataAccess = Object.freeze({
@@ -3033,7 +3047,7 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
   admins.forEach((admin) => {
     saveNotification({
       userId: admin.id,
-      title: "Nueva autorizacion pendiente",
+      title: "Nueva autorización pendiente",
       body: `${title} solicitada por ${requestedByName}.`
     });
   });
@@ -5047,10 +5061,10 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     if (targetUser) {
       saveNotification({
         userId: targetUser.id,
-        title: systemTimerApprove ? "Solicitud aprobada automaticamente" : "Solicitud aprobada",
+        title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
         body: systemTimerApprove
-          ? `Tu solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignacion de viaje.`
-          : `Tu solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignacion de viaje.`
+          ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
+          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
       });
     }
     return true;
@@ -5120,12 +5134,12 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     saveNotification({
       userId: target.id,
       title: "Solicitud aprobada",
-      body: `Tu solicitud ${current.requestNumber || current.id} fue aprobada${auto ? " automaticamente" : ""}. Viaje ${trip.tripNumber}.`
+      body: `Su solicitud ${current.requestNumber || current.id} fue aprobada${auto ? " automáticamente" : ""}. Viaje ${trip.tripNumber}.`
     });
     sendEmail({
       to: target.email,
       subject: "Solicitud aprobada",
-      body: `Viaje ${trip.tripNumber} - Vehiculo ${trip.vehiclePlate} - Conductor ${trip.driverName}`
+      body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
     });
   }
   return true;
@@ -5144,7 +5158,7 @@ function rejectRequest(requestId, reason, actorName) {
 
   const user = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
   if (user) {
-    saveNotification({ userId: user.id, title: "Solicitud rechazada", body: `Motivo: ${reason}` });
+    saveNotification({ userId: user.id, title: "Solicitud rechazada", body: `Su solicitud fue rechazada. Motivo: ${reason}` });
     sendEmail({ to: user.email, subject: "Solicitud rechazada", body: reason });
   }
 }
@@ -5482,20 +5496,31 @@ function __tickNotificationsPoll() {
    * la bandeja las de otros (p. ej. "Cuenta aprobada" para un cliente), pero no deben duplicar el
    * mensaje explícito que ya muestra la acción (Aprobar usuario, etc.).
    */
-  const fresh = current.filter((n) => !seen.has(n.id) && String(n.userId || "") === String(user.id || ""));
-    if (fresh.length) {
-      fresh.forEach((n) => {
-        if (typeof notify === "function") {
-          const message = `${n.title}${n.body ? " — " + n.body : ""}`;
-          notify(message, "info");
-        }
-      });
-      __lastSeenNotificationIds = new Set(current.map((n) => n.id));
-      updateNotificationBadge();
-      if (state.currentView === "notifications") {
-        scheduleRenderPortalView();
+  const suppressUntil = Number(state.portalSuppressSelfPollToastUntil || 0);
+  const now = Date.now();
+  const selfNew = current.filter((n) => !seen.has(n.id) && String(n.userId || "") === String(user.id || ""));
+  const toToast = [];
+  for (const n of selfNew) {
+    const age = now - new Date(n.createdAt || 0).getTime();
+    const skipDuplicateExplicitSuccess =
+      suppressUntil > now && age >= 0 && age < 6500;
+    if (!skipDuplicateExplicitSuccess) toToast.push(n);
+  }
+  if (toToast.length) {
+    toToast.forEach((n) => {
+      if (typeof notify === "function") {
+        const message = `${n.title}${n.body ? " — " + n.body : ""}`;
+        notify(message, "info");
       }
+    });
+  }
+  if (selfNew.length) {
+    __lastSeenNotificationIds = new Set(current.map((n) => n.id));
+    updateNotificationBadge();
+    if (state.currentView === "notifications") {
+      scheduleRenderPortalView();
     }
+  }
 }
 
 function getCurrentNotifications() {
@@ -10071,13 +10096,14 @@ function bindDynamicEvents() {
           saveNotification({
             userId: target.id,
             title: "Cuenta aprobada",
-            body: `Tu cuenta ha sido aprobada con rol asignado y asociada a ${selected.name}. Ya puedes iniciar sesion.`
+            body: `Su cuenta ha sido aprobada con el rol asignado y asociada a ${selected.name}. Ya puede iniciar sesión.`
           });
           sendEmail({
             to: target.email,
             subject: "Cuenta aprobada - Antares Portal",
-            body: `Hola ${target.name}, tu cuenta fue aprobada y asociada a ${selected.name}. Ya puedes iniciar sesion en el portal.`
+            body: `Hola ${target.name}, su cuenta fue aprobada y asociada a ${selected.name}. Ya puede iniciar sesión en el portal.`
           });
+          suppressSelfInboxPollToastIfRecipientIsCurrentUser(target.id);
           notify(userMessage("accountApproved", target.name), "success");
           renderPortalView();
           return true;
@@ -10135,13 +10161,14 @@ function bindDynamicEvents() {
           saveNotification({
             userId: target.id,
             title: "Registro rechazado",
-            body: `Tu solicitud de registro fue rechazada. Motivo: ${reason}`
+            body: `Su solicitud de registro fue rechazada. Motivo: ${reason}`
           });
           sendEmail({
             to: target.email,
             subject: "Registro rechazado - Antares Portal",
-            body: `Hola ${target.name}, tu solicitud de registro fue rechazada. Motivo: ${reason}. Contacta a soporte para mas informacion.`
+            body: `Hola ${target.name}, su solicitud de registro fue rechazada. Motivo: ${reason}. Contacte a soporte para más información.`
           });
+          suppressSelfInboxPollToastIfRecipientIsCurrentUser(target.id);
           notify(userMessage("accountRejected", target.name), "success");
           renderPortalView();
           return true;
@@ -10382,6 +10409,10 @@ function bindDynamicEvents() {
         });
       });
 
+      const actingUser = currentUser();
+      if (actingUser?.role === ROLES.ADMIN) {
+        suppressSelfInboxPollToastIfRecipientIsCurrentUser(actingUser.id);
+      }
       notify(userMessage("requestCreated"), "success");
       renderPortalView();
     });
@@ -10670,6 +10701,7 @@ function bindDynamicEvents() {
             ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue)
             : approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
+          suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
           notify(
             mode === "assign_now"
               ? userMessage("requestApprovedAssigned")
@@ -10800,6 +10832,7 @@ function bindDynamicEvents() {
             tripValue
           );
           if (!ok) return false;
+          suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
           notify(userMessage("tripCreatedAssigned"), "success");
           renderPortalView();
           return true;
@@ -10931,6 +10964,8 @@ function bindDynamicEvents() {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           rejectRequest(btn.dataset.id, reason, currentUser().name);
+          const rejectedReq = reqRead().find((r) => r.id === btn.dataset.id);
+          suppressSelfInboxPollToastIfRecipientIsCurrentUser(rejectedReq?.clientUserId);
           notify(userMessage("requestRejected"), "success");
           renderPortalView();
           return true;
@@ -12675,7 +12710,7 @@ function bindDynamicEvents() {
 
         openEditModal({
           title: "Aprobar solicitud de viaje",
-          subtitle: "Puedes asignar camion y conductor ahora, o dejar pendiente para asignacion manual.",
+          subtitle: "Puede asignar camión y conductor ahora, o dejar pendiente para asignación manual.",
           submitText: "Aprobar",
           afterMount: tripRateUi.afterMount,
           fields: [
@@ -12740,6 +12775,7 @@ function bindDynamicEvents() {
               )
             );
 
+            suppressSelfInboxPollToastIfRecipientIsCurrentUser(request?.clientUserId);
             notify(
               vehicleId && driverId ? userMessage("authApprovalWithTrip") : userMessage("authApprovalPendingManual"),
               "success"
@@ -12765,7 +12801,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       openEditModal({
-        title: "Rechazar autorizacion",
+        title: "Rechazar autorización",
         subtitle: "Motivo obligatorio",
         submitText: "Rechazar",
         fields: [{ name: "reason", label: "Motivo", value: "", required: true }],

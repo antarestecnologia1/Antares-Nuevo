@@ -199,9 +199,9 @@
     approvalLinkedRequestMissing: "No se encontró la solicitud asociada a esta autorización.",
     assignAutoPickResources: "Para asignar automáticamente debe seleccionar camión y conductor.",
     approvalResourcesFailed: "No fue posible aprobar la solicitud con los recursos seleccionados.",
-    authApprovalWithTrip: "Autorización aprobada y viaje asignado correctamente.",
+    authApprovalWithTrip: "Solicitud aprobada y viaje asignado correctamente.",
     authApprovalPendingManual:
-      "Autorización aprobada. La solicitud queda pendiente de asignación manual de viaje.",
+      "Solicitud aprobada. Queda pendiente de asignación manual de viaje.",
     authApprovalOk: "Autorización aprobada.",
     authRejectOk: "Autorización rechazada.",
     wordTemplatesRedownloaded:
