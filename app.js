@@ -727,7 +727,9 @@ let state = {
   /** Tras registro exitoso: mensaje visible sobre la pestaña de ingreso (no solo toast). */
   registrationSuccessBanner: null,
   /** Módulo contact-leads: primera carga desde API en curso. */
-  contactLeadsLoading: false
+  contactLeadsLoading: false,
+  /** Autorizaciones: primer GET /portal/bootstrap al abrir el módulo (evita lista vacía hasta pulsar sync). */
+  authorizationsHydrating: false
 };
 
 window.AntaresDataAccess = Object.freeze({
@@ -7999,7 +8001,7 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const body = n
     ? buildPortalRegistrationPendingTableHtml(pendingUsers)
     : `<div class="auth-inbox-empty">${emptyState(
-        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, pulse «Sincronizar ahora» arriba: la lista proviene de PostgreSQL tras cada carga."
+        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o pulse «Sincronizar ahora»: la lista viene de PostgreSQL y se carga al abrir Autorizaciones."
       )}</div>`;
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
@@ -8015,6 +8017,26 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
 }
 
 function authorizationsHtml() {
+  if (state.authorizationsHydrating) {
+    const authHero = moduleFleetHeroStrip([
+      { label: "Bandeja total", value: "…" },
+      { label: "Nuevas cuentas web", value: "…" },
+      { label: "Solicitudes de viaje", value: "…" },
+      { label: "Cola interna", value: "…" }
+    ]);
+    const syncPanel = `<div class="auth-hub-sync-loading" role="status" aria-live="polite" aria-busy="true">
+      <div class="auth-hub-sync-spinner" aria-hidden="true"></div>
+      <div class="auth-hub-sync-loading-text">
+        <strong>Sincronizando con PostgreSQL</strong>
+        <span class="muted">Cargando usuarios pendientes, solicitudes y colas de aprobación para que pueda actuar sin pulsar «Sincronizar ahora».</span>
+      </div>
+    </div>`;
+    return (
+      authHero +
+      pcardWrap("shield", "Centro de aprobaciones", "Actualizando datos del servidor…", syncPanel)
+    );
+  }
+
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
@@ -8142,9 +8164,12 @@ function authorizationsHtml() {
     )
     .join("");
 
-  const apiLive = Boolean(window.AntaresApi?.isConfigured?.() && window.AntaresApi?.getBase?.());
+  portalEnsureApiTokensAligned();
+  const apiLive = Boolean(
+    window.AntaresApi?.getBase?.() && String(window.AntaresApi?.getAccessToken?.() || "").trim()
+  );
   const toolbarHint = apiLive
-    ? `<span class="auth-hub-live"><span class="auth-hub-live-dot" aria-hidden="true"></span> Enlace en vivo con el servidor</span><span class="muted auth-hub-live-meta">Los registros nuevos aparecen tras sincronizar</span>`
+    ? `<span class="auth-hub-live"><span class="auth-hub-live-dot" aria-hidden="true"></span> Enlace en vivo con el servidor</span><span class="muted auth-hub-live-meta">La bandeja se actualiza al abrir este módulo; use el botón si necesita forzar otra pasada.</span>`
     : `<span class="muted">Sin API configurada: solo datos locales</span>`;
   const hubToolbar = `<div class="auth-hub-toolbar">
     <div class="auth-hub-toolbar-lead">${toolbarHint}</div>
@@ -8537,16 +8562,26 @@ function renderPortalViewImpl() {
   const view = state.currentView;
   const prevPortalView = state.__portalPrevViewForSync;
   state.__portalPrevViewForSync = view;
-  if (
-    view === "authorizations" &&
-    prevPortalView !== "authorizations" &&
-    window.AntaresApi?.isConfigured?.() &&
-    typeof window.AntaresApi.getAccessToken === "function" &&
-    window.AntaresApi.getAccessToken()
-  ) {
-    void applyPortalBootstrapFromApi().then((ok) => {
-      if (ok) scheduleRenderPortalView();
-    });
+
+  if (view === "authorizations") {
+    portalEnsureApiTokensAligned();
+    const api = window.AntaresApi;
+    const canAuthSync = Boolean(api?.getBase?.() && String(api.getAccessToken?.() || "").trim());
+    if (prevPortalView !== "authorizations" && canAuthSync) {
+      state.authorizationsHydrating = true;
+      void applyPortalBootstrapFromApi()
+        .then((ok) => {
+          if (!ok) {
+            devWarn("Autorizaciones: bootstrap no devolvió datos; la bandeja puede estar desactualizada.");
+          }
+        })
+        .finally(() => {
+          state.authorizationsHydrating = false;
+          scheduleRenderPortalView();
+        });
+    } else if (prevPortalView !== "authorizations") {
+      state.authorizationsHydrating = false;
+    }
   }
   const viewTitle = PortalArch.getTitle(view);
   nodes.viewTitle.textContent = viewTitle;
@@ -9574,13 +9609,17 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='auth-refresh-bootstrap']").forEach((btn) => {
     btn.addEventListener("click", () => {
       btn.disabled = true;
+      portalEnsureApiTokensAligned();
       void applyPortalBootstrapFromApi()
         .then((ok) => {
           if (ok) {
             notify("Bandeja sincronizada con PostgreSQL.", "success");
             scheduleRenderPortalView();
           } else {
-            notify("No se pudo sincronizar. Revise conexion, token o permisos de administrador.", "error");
+            notify(
+              "No se pudo sincronizar. Revise conexion, token JWT (cierre y vuelva a iniciar sesion) o que su usuario sea administrador con acceso a /portal/bootstrap.",
+              "error"
+            );
           }
         })
         .finally(() => {

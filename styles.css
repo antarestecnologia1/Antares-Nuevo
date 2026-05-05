@@ -7623,6 +7623,53 @@ body[data-theme="dark"] .profile-form-centered {
   --module-accent-end: #14b8a6;
 }
 
+.auth-hub-sync-loading {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.15rem 1.2rem;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--module-accent-end, #14b8a6) 40%, var(--line, #cfd8dc));
+  background: linear-gradient(125deg, color-mix(in srgb, var(--module-accent-start, #0f766e) 8%, var(--white, #fff)) 0%, var(--module-soft-bg, #f5f9ff) 100%);
+}
+
+.auth-hub-sync-spinner {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 3px solid rgba(20, 184, 166, 0.2);
+  border-top-color: var(--module-accent-end, #14b8a6);
+  animation: auth-hub-spin 0.85s linear infinite;
+}
+
+@keyframes auth-hub-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-hub-sync-loading-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.auth-hub-sync-loading-text strong {
+  font-size: 0.98rem;
+}
+
+body[data-theme="dark"] .auth-hub-sync-loading {
+  background: linear-gradient(125deg, rgba(15, 118, 110, 0.18), rgba(15, 23, 42, 0.88));
+  border-color: rgba(94, 234, 212, 0.28);
+}
+
+body[data-theme="dark"] .auth-hub-sync-spinner {
+  border-color: rgba(94, 234, 212, 0.15);
+  border-top-color: #5eead4;
+}
+
 .auth-queue-section {
   margin: 1.35rem 0 1.75rem;
   padding: 1rem 1.1rem 1.15rem;
