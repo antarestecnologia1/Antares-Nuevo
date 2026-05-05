@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <!-- Subir ?v= en cada despliegue para que producción no sirva app.js/styles.css en caché (en dev suele verse el cambio al instante). -->
-    <link rel="stylesheet" href="./styles.css?v=20260503-b2b-phone-chevron" />
+    <link rel="stylesheet" href="./styles.css?v=20260503-auth-login-ui" />
   </head>
   <body>
     <!-- ─── NAVIGATION ─── -->
@@ -1024,9 +1024,9 @@
       <div class="modal-card modal-card-auth">
         <div class="modal-head">
           <div class="auth-modal-title-wrap">
-            <h2 style="display:flex;align-items:center;gap:0.5rem;margin:0">
-              <svg style="width:24px;height:24px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Portal empresarial Antares
+            <h2 class="auth-modal-heading">
+              <svg class="auth-modal-heading-icon" style="width:24px;height:24px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span class="auth-modal-heading-text">Portal empresarial Antares</span>
             </h2>
             <p class="muted auth-modal-subtitle">Ingreso seguro para clientes y equipos operativos.</p>
           </div>
@@ -1135,6 +1135,6 @@
     <script src="./modules/core/feedback-messages.js?v=20260503-recover-copy"></script>
     <script src="./modules/portal/application.js"></script>
     <script src="./modules/recruitment/contracts-docx.js"></script>
-    <script src="./app.js?v=20260503-vehicle-types"></script>
+    <script src="./app.js?v=20260503-auth-login-ui"></script>
   </body>
 </html>

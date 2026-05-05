@@ -3343,7 +3343,7 @@ function authView() {
           <button class="btn btn-primary full" type="submit">${IC.check} Ingresar al portal</button>
         </form>
         <div class="auth-login-side auth-pane">
-          <h3>${IC.shield} Acceso seguro Antares</h3>
+          <h3 class="auth-side-heading"><span class="auth-side-heading-icon" aria-hidden="true">${IC.shield}</span><span class="auth-side-heading-text">Acceso seguro Antares</span></h3>
           <p class="muted">Portal diseñado para equipos de operaciones, administración y recursos humanos.</p>
           <ul class="auth-bullets">
             <li>Control por roles y permisos granulares</li>
