@@ -5,12 +5,14 @@ CREATE TABLE empresas (
   nombre                VARCHAR(255) NOT NULL,
   nit                   VARCHAR(32)  NOT NULL,
   telefono              VARCHAR(32),
+  tipo_relacion_empresa tipo_relacion_empresa NOT NULL DEFAULT 'cliente',
   fecha_creacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
   fecha_actualizacion   TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_empresas_nit UNIQUE (nit)
 );
 
-COMMENT ON TABLE empresas IS 'Clientes y empresa operadora; equivalente a KEYS.companies.';
+COMMENT ON TABLE empresas IS 'Clientes, terceros y empresa operadora; equivalente a KEYS.companies.';
+COMMENT ON COLUMN empresas.tipo_relacion_empresa IS 'cliente = contrata servicios; tercero = proveedor u otro; propia = operador Antares.';
 
 CREATE TABLE usuarios (
   id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

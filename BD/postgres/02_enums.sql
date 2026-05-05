@@ -16,6 +16,13 @@ CREATE TYPE tipo_vinculo_registro AS ENUM (
   'empleado_interno'
 );
 
+/** Clasificación comercial/operativa de la fila en empresas: cliente del servicio, tercero o empresa propia (Antares). */
+CREATE TYPE tipo_relacion_empresa AS ENUM (
+  'cliente',
+  'tercero',
+  'propia'
+);
+
 CREATE TYPE estado_cuenta_usuario AS ENUM (
   'pendiente',
   'aprobado',

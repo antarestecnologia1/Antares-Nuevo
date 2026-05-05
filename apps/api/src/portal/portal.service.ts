@@ -119,6 +119,7 @@ export class PortalService implements OnModuleInit {
   async onModuleInit() {
     await this.ensureTarifasTrayectoSchema();
     await this.ensureUsuariosSchema();
+    await this.ensureEmpresasSchema();
     await this.ensureProspectosContactoB2bSchema();
   }
 
@@ -205,6 +206,41 @@ export class PortalService implements OnModuleInit {
       this.logger.warn(`ensureUsuariosSchema: índice documento_personal no creado: ${msg}`);
     }
     this.logger.log(`usuarios: esquema verificado (${applied}/${alters.length} ALTERs idempotentes OK).`);
+  }
+
+  /** Enum + columna `tipo_relacion_empresa` en `empresas` (17_empresas_tipo_relacion.sql). */
+  private async ensureEmpresasSchema() {
+    if (!(await this.tableExists("empresas"))) return;
+    try {
+      await this.pool.query(`
+        DO $mEmp$
+        BEGIN
+          CREATE TYPE public.tipo_relacion_empresa AS ENUM ('cliente', 'tercero', 'propia');
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END $mEmp$
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpresasSchema: crear tipo tipo_relacion_empresa fallo (no fatal): ${msg}`);
+    }
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS tipo_relacion_empresa public.tipo_relacion_empresa NOT NULL DEFAULT 'cliente'`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN tipo_relacion_empresa fallo (no fatal): ${msg}`);
+    }
+    try {
+      await this.pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_empresas_una_sola_propia ON public.empresas ((true)) WHERE tipo_relacion_empresa = 'propia'::public.tipo_relacion_empresa`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpresasSchema: índice único empresa propia no creado: ${msg}`);
+    }
+    this.logger.log("empresas: esquema tipo_relacion_empresa verificado.");
   }
 
   /** Sincroniza `prospectos_contacto_b2b` con migración `14_contacto_web_b2b.sql`. */
@@ -839,7 +875,9 @@ export class PortalService implements OnModuleInit {
 
   private async loadCompanies() {
     const r = await this.pool.query(
-      `SELECT id::text, nombre AS name, nit, telefono AS phone, fecha_creacion AS "createdAt"
+      `SELECT id::text, nombre AS name, nit, telefono AS phone,
+              tipo_relacion_empresa::text AS "companyKind",
+              fecha_creacion AS "createdAt"
        FROM empresas ORDER BY nombre`
     );
     return r.rows.map((row) => ({
@@ -848,6 +886,7 @@ export class PortalService implements OnModuleInit {
       nit: row.nit,
       taxId: row.nit,
       phone: row.phone || "",
+      companyKind: row.companyKind || "cliente",
       createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
     }));
   }
@@ -1815,11 +1854,21 @@ export class PortalService implements OnModuleInit {
         phoneVal === undefined || phoneVal === null || String(phoneVal).trim() === ""
           ? null
           : String(phoneVal).trim();
+      const kindPick =
+        pickPortalField(rec, "companyKind", "company_kind") ??
+        pickPortalField(rec, "tipoRelacionEmpresa", "tipo_relacion_empresa");
+      const ks = kindPick != null ? String(kindPick).trim().toLowerCase() : "";
+      const tipoRelacion =
+        ks === "tercero" ? "tercero" : ks === "propia" ? "propia" : "cliente";
       await c.query(
-        `INSERT INTO empresas (id, nombre, nit, telefono)
-         VALUES ($1::uuid, $2, $3, $4)
-         ON CONFLICT (id) DO UPDATE SET nombre = EXCLUDED.nombre, nit = EXCLUDED.nit, telefono = EXCLUDED.telefono`,
-        [id, String(nombre).trim(), String(nit).trim(), telefono]
+        `INSERT INTO empresas (id, nombre, nit, telefono, tipo_relacion_empresa)
+         VALUES ($1::uuid, $2, $3, $4, $5::tipo_relacion_empresa)
+         ON CONFLICT (id) DO UPDATE SET
+           nombre = EXCLUDED.nombre,
+           nit = EXCLUDED.nit,
+           telefono = EXCLUDED.telefono,
+           tipo_relacion_empresa = EXCLUDED.tipo_relacion_empresa`,
+        [id, String(nombre).trim(), String(nit).trim(), telefono, tipoRelacion]
       );
     }
   }

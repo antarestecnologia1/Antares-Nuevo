@@ -2302,6 +2302,39 @@ function normalizeLatinForDb(value) {
     .replace(/Ñ/g, "N");
 }
 
+/**
+ * Teléfono en admin edición / alta usuario / perfil: acepta +57, espacios y separadores.
+ * Quita el patrón HTML solo-dígitos que bloqueaba "+57 …".
+ * — Colombia: 10 dígitos nacionales o prefijo 57 + 10 → guarda "+57 XXX XXX XX XX".
+ * — Otros: si solo dígitos y longitud internacional típica → "+…".
+ */
+function normalizePortalPhoneForStorage(raw) {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return "";
+  const d = trimmed.replace(/\D/g, "");
+  if (!d) return trimmed.replace(/\s+/g, " ").trim();
+
+  let national = d;
+  if (d.startsWith("57") && d.length >= 11) {
+    national = d.slice(2);
+  }
+
+  if (/^\d{10}$/.test(national)) {
+    const n = national;
+    return `+57 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6, 8)} ${n.slice(8)}`;
+  }
+
+  if (d.startsWith("57")) {
+    return `+${d}`;
+  }
+
+  if (/^\d{11,15}$/.test(d)) {
+    return `+${d}`;
+  }
+
+  return trimmed.replace(/\s+/g, " ").trim();
+}
+
 /** Nombres, cargo, dirección, etc.: mayúsculas + sin tildes (uniforme en BD y listados). No usar en correo/contraseña ni en valores de catálogo (departamento/ciudad). */
 function normalizeLatinUpperForDb(value) {
   return normalizeLatinForDb(value).toUpperCase();
@@ -2320,6 +2353,23 @@ function normalizeRegistrationKindForDb(value) {
     .trim()
     .toLowerCase();
   return k === "empleado_interno" ? "empleado_interno" : "cliente";
+}
+
+/** empresas.tipo_relacion_empresa / companyKind: cliente | tercero | propia */
+function normalizeCompanyKindForDb(value) {
+  const k = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (k === "tercero") return "tercero";
+  if (k === "propia") return "propia";
+  return "cliente";
+}
+
+function companyKindLabel(kind) {
+  const k = normalizeCompanyKindForDb(kind);
+  if (k === "propia") return "Empresa propia (Antares)";
+  if (k === "tercero") return "Tercero";
+  return "Cliente";
 }
 
 function isPersonTypeJuridica(value) {
@@ -2876,7 +2926,9 @@ function findOrCreateCompanyIdByName(name) {
     id: newUuidV4(),
     name: companyName,
     taxId: "",
+    nit: "",
     phone: "",
+    companyKind: "cliente",
     createdAt: nowIso()
   };
   companies.push(company);
@@ -2890,7 +2942,10 @@ function getCompanyById(companyId) {
 
 function companySelectOptions(selectedId = "") {
   return read(KEYS.companies, [])
-    .map((company) => `<option value="${company.id}" ${company.id === selectedId ? "selected" : ""}>${company.name}</option>`)
+    .map(
+      (company) =>
+        `<option value="${company.id}" ${company.id === selectedId ? "selected" : ""}>${escapeHtml(String(company.name || ""))} (${companyKindLabel(company.companyKind)})</option>`
+    )
     .join("");
 }
 
@@ -2927,7 +2982,9 @@ function ensureCompaniesAndUserMapping() {
       id: newUuidV4(),
       name: user.company || "Empresa sin nombre",
       taxId: user.taxId || "",
+      nit: user.taxId || "",
       phone: user.phone || "",
+      companyKind: "cliente",
       createdAt: nowIso()
     };
     nextCompanies.push(created);
@@ -6306,14 +6363,14 @@ function adminUsersHtml(current) {
   const editingUser = ui.editUserId ? users.find((u) => u.id === ui.editUserId) : null;
 
   const companyOptions = companies
-    .map((c) => `<option value="${c.id}">${c.name}</option>`)
+    .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${companyKindLabel(c.companyKind)})</option>`)
     .join("");
   const companyEditOptions = editingUser
     ? companies
         .map((c) => {
           const id = String(c.id ?? "");
           const selected = String(editingUser.companyId ?? "") === id ? " selected" : "";
-          return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
+          return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""} · ${escapeHtml(companyKindLabel(c.companyKind))}</option>`;
         })
         .join("")
     : "";
@@ -6518,6 +6575,13 @@ function adminUsersHtml(current) {
         Razón social o nombre legal, NIT único en el sistema y teléfono de contacto opcional.
       </p>
       <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.shield, "Clasificación de la empresa")}
+          <select name="companyKind" required>
+            <option value="cliente">Cliente (contrata servicios)</option>
+            <option value="tercero">Tercero (proveedor u otro vínculo)</option>
+            <option value="propia">Empresa propia — Antares (operador)</option>
+          </select>
+        </label>
         <label class="full">
           ${fieldLabel(IC.briefcase, "Nombre o razón social", { required: true })}
           <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
@@ -6628,7 +6692,7 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.mapPin} Ubicación y contacto operativo</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${escapeAttr(String(editingUser.phone ?? ""))}" autocomplete="tel" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono")}<input name="phone" value="${escapeAttr(String(editingUser.phone ?? ""))}" autocomplete="tel" inputmode="tel" maxlength="32" placeholder="+57 300 000 0000" /></label>
         <label>${fieldLabel(IC.mapPin, "Departamento")}
           <select name="department" id="admin-edit-department"><option value="">Seleccione...</option>${departmentOptions(editingUser.department || "")}</select>
         </label>
@@ -6658,8 +6722,8 @@ function adminUsersHtml(current) {
 
   // --- Empresas tabla ---
   const companyRows = companies.map((c) => `<div class="company-chip">
-    <strong>${c.name}</strong>
-    <span class="muted">${c.taxId || ""} · ${c.phone || ""}</span>
+    <strong>${escapeHtml(String(c.name || ""))}</strong>
+    <span class="muted">${escapeHtml(String(c.taxId || c.nit || ""))} · ${escapeHtml(companyKindLabel(c.companyKind))}${c.phone ? ` · ${escapeHtml(String(c.phone))}` : ""}</span>
   </div>`).join("");
 
   // --- Render ---
@@ -7712,7 +7776,9 @@ function payrollHtml() {
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const positions = getActivePositions();
   const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
-  const companyOptions = companies.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  const companyOptions = companies
+    .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${companyKindLabel(c.companyKind)})</option>`)
+    .join("");
   const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
   const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
@@ -9139,8 +9205,8 @@ function enforceColombianFormStandards() {
     "El NIT se valida con el algoritmo de verificación DIAN. No puede repetirse en el sistema."
   );
 
-  setAttr("#form-admin-user-create input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
-  setAttr("#form-admin-user-edit input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  setAttr("#form-admin-user-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel" });
+  setAttr("#form-admin-user-edit input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
   appendLegalNote("form-admin-user-create", "Valide identificación y datos de contacto conforme a políticas de gestión de datos personales.");
 
   setAttr("#form-employee input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
@@ -9621,7 +9687,7 @@ function bindDynamicEvents() {
         company: normalizeLatinForDb(data.company || company.name),
         companyId: company.id,
         taxId: data.taxId,
-        phone: normalizeLatinForDb(data.phone),
+        phone: normalizePortalPhoneForStorage(data.phone),
         city: normalizeLatinForDb(data.city),
         department: normalizeLatinForDb(data.department),
         address: normalizeLatinForDb(data.address),
@@ -9681,12 +9747,18 @@ function bindDynamicEvents() {
         notify(userMessage("companyNitDuplicate"), "error");
         return;
       }
+      const kind = normalizeCompanyKindForDb(data.companyKind);
+      if (kind === "propia" && companies.some((c) => normalizeCompanyKindForDb(c.companyKind) === "propia")) {
+        notify(userMessage("companyPropiaDuplicate"), "error");
+        return;
+      }
       companies.push({
         id: newUuidV4(),
         name: nameTrim,
         taxId: nitNorm,
         nit: nitNorm,
         phone: companyPhone,
+        companyKind: kind,
         createdAt: nowIso()
       });
       write(KEYS.companies, companies);
@@ -9838,7 +9910,7 @@ function bindDynamicEvents() {
                 companyId: company.id,
                 company: normalizeLatinForDb(String(data.company || company.name).trim()),
                 taxId: String(data.taxId || "").trim(),
-                phone: normalizeLatinForDb(String(data.phone || "").trim()),
+                phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
                 city: normalizeLatinForDb(String(data.city || "").trim()),
                 department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
                 address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
@@ -12572,7 +12644,7 @@ function bindDynamicEvents() {
               ? {
                   ...u,
                   name: String(data.name || u.name).trim(),
-                  phone: String(data.phone || "").trim(),
+                  phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
                   taxId: String(data.taxId || "").trim(),
                   documentType: String(data.documentType || u.documentType || "CC"),
                   birthDate: String(data.birthDate || "").trim(),
@@ -12637,7 +12709,7 @@ function bindDynamicEvents() {
             company: normalizeLatinForDb(compName),
             companyId: p.companyId,
             taxId: p.taxId,
-            phone: normalizeLatinForDb(p.phone || ""),
+            phone: normalizePortalPhoneForStorage(p.phone || ""),
             city: normalizeLatinForDb(p.city || ""),
             department: normalizeLatinForDb(p.department || ""),
             address: normalizeLatinForDb(p.address || ""),
