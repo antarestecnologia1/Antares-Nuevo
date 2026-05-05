@@ -1249,6 +1249,35 @@ async function startPortalBootstrapForInteractiveSession() {
   }
 }
 
+/** Evita POST /portal/sync-key con el array completo de usuarios mientras se ajusta caché a mano. */
+function portalPatchUsersCacheWithoutSyncKey(mutator) {
+  if (typeof mutator !== "function") return;
+  const PS = window.AntaresPortalSync;
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    mutator();
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
+  }
+}
+
+/**
+ * Tras POST que muta usuarios en PostgreSQL: volcado bootstrap y cola de pendientes (admin).
+ * El merge de pendientes también va bajo begin/end para no disparar sync-key redundante.
+ */
+async function portalRefreshBootstrapThenPendingRegistrations() {
+  await startPortalBootstrapForInteractiveSession();
+  const PS = window.AntaresPortalSync;
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    if (currentUser()?.role === ROLES.ADMIN) {
+      await applyPendingUserRegistrationsFromApi();
+    }
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
+  }
+}
+
 function reqRead() {
   return typeof DomainModules?.requests?.readAllSync === "function"
     ? DomainModules.requests.readAllSync()
@@ -9993,11 +10022,8 @@ function bindDynamicEvents() {
               /**
                * Proyección local alineada al servidor: si /portal/bootstrap falla, antes quedaba el usuario
                * como pendiente hasta un volcado exitoso (y tras F5 seguía la cola mal).
-               * begin/endBootstrap evita POST sync-key con el array completo de usuarios.
                */
-              const PS = window.AntaresPortalSync;
-              if (PS?.beginBootstrap) PS.beginBootstrap();
-              try {
+              portalPatchUsersCacheWithoutSyncKey(() => {
                 write(
                   KEYS.users,
                   read(KEYS.users, []).map((u) =>
@@ -10014,18 +10040,8 @@ function bindDynamicEvents() {
                       : u
                   )
                 );
-              } finally {
-                if (PS?.endBootstrap) PS.endBootstrap();
-              }
-              await startPortalBootstrapForInteractiveSession();
-              if (PS?.beginBootstrap) PS.beginBootstrap();
-              try {
-                if (currentUser()?.role === ROLES.ADMIN) {
-                  await applyPendingUserRegistrationsFromApi();
-                }
-              } finally {
-                if (PS?.endBootstrap) PS.endBootstrap();
-              }
+              });
+              await portalRefreshBootstrapThenPendingRegistrations();
             } catch (err) {
               notify(String(err?.message || userMessage("registerServerError")), "error");
               return false;
@@ -10082,13 +10098,23 @@ function bindDynamicEvents() {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           const users = read(KEYS.users, []);
-          const target = users.find((u) => u.id === userId);
+          const target = users.find((u) => String(u.id) === String(userId));
           if (!target) return false;
           const api = window.AntaresApi;
           if (api?.isConfigured?.()) {
             try {
               await api.postJson("/portal/admin-user-status", { userId: String(target.id), status: "rechazado" });
-              await applyPortalBootstrapFromApi();
+              portalPatchUsersCacheWithoutSyncKey(() => {
+                write(
+                  KEYS.users,
+                  read(KEYS.users, []).map((u) =>
+                    String(u.id) === String(target.id)
+                      ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason }
+                      : u
+                  )
+                );
+              });
+              await portalRefreshBootstrapThenPendingRegistrations();
             } catch (err) {
               notify(String(err?.message || "No se pudo rechazar en el servidor."), "error");
               return false;
@@ -10096,7 +10122,9 @@ function bindDynamicEvents() {
           } else {
             write(
               KEYS.users,
-              users.map((u) => (u.id === userId ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason } : u))
+              users.map((u) =>
+                String(u.id) === String(userId) ? { ...u, accountStatus: ACCOUNT_STATUS.RECHAZADO, rejectionReason: reason } : u
+              )
             );
           }
           saveNotification({
@@ -10162,7 +10190,7 @@ function bindDynamicEvents() {
       const userId = String(btn.dataset.id || "");
       if (!userId) return;
       const users = read(KEYS.users, []);
-      const target = users.find((u) => u.id === userId);
+      const target = users.find((u) => String(u.id) === String(userId));
       if (!target) return;
       const nextStatus = target.accountStatus === ACCOUNT_STATUS.RECHAZADO
         ? ACCOUNT_STATUS.APROBADO
@@ -10185,10 +10213,14 @@ function bindDynamicEvents() {
               return;
             }
           }
-          write(
-            KEYS.users,
-            users.map((u) => (u.id === userId ? { ...u, accountStatus: nextStatus } : u))
-          );
+          portalPatchUsersCacheWithoutSyncKey(() => {
+            write(
+              KEYS.users,
+              read(KEYS.users, []).map((u) =>
+                String(u.id) === String(userId) ? { ...u, accountStatus: nextStatus } : u
+              )
+            );
+          });
           notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
           renderPortalView();
         }
