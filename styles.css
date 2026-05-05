@@ -155,24 +155,35 @@ body[data-theme="dark"] .brand {
   color: var(--accent);
 }
 
-/* ─── BRAND LOGO (top nav) ─── */
+/* ─── BRAND LOGO (top nav) ───
+   Mayor presencia visual: el logotipo de Antares es la marca; aquí lo hacemos
+   protagonista (≈72px en desktop). En móviles se reduce, pero siempre se
+   prioriza sobre el resto de la barra. */
+.brand {
+  padding: 4px 0;
+}
 .brand-logo {
   display: block;
-  height: 44px;
+  height: 72px;
   width: auto;
-  max-width: 200px;
+  max-width: 320px;
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
-  filter: drop-shadow(0 1px 2px rgba(7, 30, 61, 0.08));
-  transition: transform 0.25s ease, filter 0.25s ease;
+  filter: drop-shadow(0 4px 12px rgba(7, 30, 61, 0.18));
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), filter 0.3s ease;
 }
-.brand:hover .brand-logo {
-  transform: scale(1.03);
-  filter: drop-shadow(0 4px 10px rgba(21, 101, 192, 0.25));
+.brand:hover .brand-logo,
+.brand:focus-visible .brand-logo {
+  transform: scale(1.04);
+  filter: drop-shadow(0 6px 18px rgba(21, 101, 192, 0.32));
 }
 body[data-theme="dark"] .brand-logo {
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 3px 10px rgba(0, 0, 0, 0.55));
+}
+body[data-theme="dark"] .brand:hover .brand-logo,
+body[data-theme="dark"] .brand:focus-visible .brand-logo {
+  filter: drop-shadow(0 6px 16px rgba(33, 150, 243, 0.45));
 }
 .brand-text-fallback,
 .visually-hidden {
@@ -186,16 +197,23 @@ body[data-theme="dark"] .brand-logo {
   white-space: nowrap !important;
   border: 0 !important;
 }
+
+@media (max-width: 1024px) {
+  .brand-logo {
+    height: 60px;
+    max-width: 260px;
+  }
+}
 @media (max-width: 720px) {
   .brand-logo {
-    height: 38px;
-    max-width: 160px;
+    height: 50px;
+    max-width: 210px;
   }
 }
 @media (max-width: 480px) {
   .brand-logo {
-    height: 34px;
-    max-width: 140px;
+    height: 42px;
+    max-width: 170px;
   }
 }
 

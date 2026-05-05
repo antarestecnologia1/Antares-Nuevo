@@ -3007,6 +3007,26 @@ function shortAuthRefSegment(rawId) {
 function authRefAltaUsuario(id) {
   return `USR-${shortAuthRefSegment(id)}`;
 }
+
+/**
+ * Enmascara un número/documento mostrando solo los últimos N caracteres.
+ * Pensado para PII (cédulas, NIT, teléfonos) en listados visibles a varios
+ * operadores: el admin reconoce el registro pero no expone el dato completo.
+ * El valor sin máscara solo se ve dentro del modal de aprobación.
+ */
+function maskSensitiveTail(raw, keep = 3) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const compact = s.replace(/\s+/g, "");
+  if (compact.length <= keep) return "•".repeat(Math.max(2, compact.length));
+  const visible = compact.slice(-keep);
+  return `${"•".repeat(Math.max(3, compact.length - keep))}${visible}`;
+}
+
+/** Enmascara teléfono dejando los últimos 4 dígitos visibles (estándar para PII). */
+function maskSensitivePhone(raw) {
+  return maskSensitiveTail(raw, 4);
+}
 function authRefSolicitudViaje(r) {
   const n = String(r.requestNumber || "").trim();
   return n ? `VIA-${n}` : `VIA-${shortAuthRefSegment(r.id)}`;
@@ -3142,16 +3162,20 @@ function buildPortalRegistrationInboxCardsHtml(pendingUsers) {
     .map((u) => {
       const eid = escapeAttr(String(u.id));
       const when = u.registeredAt || u.createdAt;
-      const docLine = [u.documentType, u.taxId || u.personalDoc].filter(Boolean).join(" ");
       const loc = [u.city, u.department].filter(Boolean).join(", ");
       const personLabel = u.personType === "juridica" ? "Jurídica" : u.personType === "natural" ? "Natural" : String(u.personType || "").trim() || "—";
-      const nitEmp = String(u.companyNit || "").trim();
-      const origin = pendingUserOrigin(u);
-      const orphan = origin === "supabase_auth_only";
-      const originBadge = orphan
-        ? `<span class="auth-inbox-source auth-inbox-source--auth" title="Existe en Supabase Auth pero aún no tiene fila en la tabla usuarios. Al aprobar se aprovisiona automáticamente.">${IC.shield || ""} Solo en Supabase Auth</span>`
-        : `<span class="auth-inbox-source auth-inbox-source--db" title="Existe en la tabla usuarios y, si Supabase Auth está habilitado, también allí.">${IC.database || IC.briefcase} En PostgreSQL</span>`;
-      return `<article class="auth-inbox-card ${orphan ? "auth-inbox-card--orphan" : ""}" data-pending-user-id="${eid}" data-pending-source="${escapeAttr(origin)}">
+      // PII enmascarada en la bandeja: el admin solo ve los últimos dígitos para
+      // reconocer la solicitud. El número completo se muestra dentro del modal
+      // de aprobación, donde la acción ya queda auditada.
+      const docTypeStr = String(u.documentType || "").trim();
+      const docNumRaw = String(u.taxId || u.personalDoc || "").trim();
+      const docMasked = docNumRaw ? maskSensitiveTail(docNumRaw, 3) : "";
+      const docLine = [docTypeStr, docMasked].filter(Boolean).join(" ");
+      const nitEmpRaw = String(u.companyNit || "").trim();
+      const nitMasked = nitEmpRaw ? maskSensitiveTail(nitEmpRaw, 3) : "";
+      const phoneRaw = String(u.phone || "").trim();
+      const phoneMasked = phoneRaw ? maskSensitivePhone(phoneRaw) : "";
+      return `<article class="auth-inbox-card" data-pending-user-id="${eid}">
         <div class="auth-inbox-card-accent" aria-hidden="true"></div>
         <div class="auth-inbox-card-main">
           <div class="auth-inbox-card-avatar" aria-hidden="true">${escapeHtml(portalRegistrationInboxInitials(u.name))}</div>
@@ -3160,18 +3184,17 @@ function buildPortalRegistrationInboxCardsHtml(pendingUsers) {
               <div class="auth-inbox-card-title-row">
                 <h4 class="auth-inbox-card-name">${escapeHtml(String(u.name || "").trim() || "Sin nombre")}</h4>
                 <span class="auth-ref-pill" title="Código de alta">${escapeHtml(authRefAltaUsuario(u.id))}</span>
-                ${originBadge}
               </div>
               <span class="auth-inbox-pulse">${IC.userPlus} En revisión</span>
             </div>
             <p class="auth-inbox-card-email">${escapeHtml(normalizeEmail(u.email || ""))}</p>
             <div class="auth-inbox-chip-row">
               <span class="auth-inbox-chip">${IC.briefcase} ${escapeHtml(personLabel)}</span>
-              ${docLine ? `<span class="auth-inbox-chip">${IC.badge} ${escapeHtml(docLine)}</span>` : ""}
-              ${nitEmp ? `<span class="auth-inbox-chip">${IC.building} NIT ${escapeHtml(nitEmp)}</span>` : ""}
+              ${docLine ? `<span class="auth-inbox-chip" title="Documento enmascarado por privacidad. Verá el número completo al aprobar.">${IC.badge} ${escapeHtml(docLine)}</span>` : ""}
+              ${nitMasked ? `<span class="auth-inbox-chip" title="NIT enmascarado por privacidad. Verá el número completo al aprobar.">${IC.building} NIT ${escapeHtml(nitMasked)}</span>` : ""}
               ${u.position ? `<span class="auth-inbox-chip">${IC.award} ${escapeHtml(String(u.position).trim())}</span>` : ""}
               ${loc ? `<span class="auth-inbox-chip">${IC.mapPin} ${escapeHtml(loc)}</span>` : ""}
-              ${u.phone ? `<span class="auth-inbox-chip">${IC.phone} ${escapeHtml(String(u.phone).trim())}</span>` : ""}
+              ${phoneMasked ? `<span class="auth-inbox-chip" title="Teléfono enmascarado por privacidad. Verá el número completo al aprobar.">${IC.phone} ${escapeHtml(phoneMasked)}</span>` : ""}
             </div>
             <p class="auth-inbox-card-date">${IC.clock} Solicitud · ${when ? escapeHtml(fmtDate(when)) : "—"}</p>
             <div class="auth-inbox-card-actions">${buildAuthStandardActionsHtml("registration", u.id).replace("auth-approval-toolbar", "auth-approval-toolbar auth-inbox-actions")}</div>
@@ -8136,6 +8159,33 @@ function notificationsHtml() {
   return heroStrip + pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body);
 }
 
+/**
+ * Fecha de ingreso al sistema mostrada en Mi perfil (input solo lectura).
+ * Fuente de verdad: `createdAt` (= `usuarios.fecha_creacion` en BD), porque es
+ * la fecha exacta en que se creó la cuenta durante el registro. Como respaldo
+ * se aceptan `portalSince` o `systemJoinDate` por si en algún momento la API
+ * los exponía como fuente única. Devuelve `YYYY-MM-DD` o "" si no hay valor.
+ */
+function profileSystemJoinDateValue(user) {
+  if (!user || typeof user !== "object") return "";
+  const candidates = [user.createdAt, user.registeredAt, user.portalSince, user.systemJoinDate];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const s = String(raw).trim();
+    if (!s) continue;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    if (Number.isFinite(d.getTime())) {
+      // ISO local-date sin TZ shifting agresivo; suficiente para mostrar en input[type=date].
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+  return "";
+}
+
 function profileHtml(user) {
   const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
   const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
@@ -8233,7 +8283,8 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-amber full">
         <legend>${IC.calendar} Ingreso al portal</legend>
         <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(String((user.portalSince || user.systemJoinDate || "").toString().slice(0, 10)))}" /></label>
+          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(profileSystemJoinDateValue(user))}" disabled aria-readonly="true" title="Solo lectura: corresponde a la fecha en que se creó la cuenta en el registro." /></label>
+          <p class="muted full" style="margin:0;font-size:0.82rem">Es la fecha en que se creó la cuenta al registrarse. La fija el sistema y no se puede modificar desde Mi perfil.</p>
         </div>
       </fieldset>
 
@@ -8257,15 +8308,11 @@ function profileHtml(user) {
 function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const list = Array.isArray(pendingUsers) ? pendingUsers : [];
   const n = list.length;
-  const dbCount = list.filter((u) => pendingUserOrigin(u) !== "supabase_auth_only").length;
-  const orphanCount = list.length - dbCount;
-  const countBadge = `<span class="auth-section-count">${n} en bandeja${
-    orphanCount ? ` · ${orphanCount} solo en Supabase Auth` : ""
-  }</span>`;
+  const countBadge = `<span class="auth-section-count">${n} en bandeja</span>`;
   const body = n
     ? buildPortalRegistrationPendingTableHtml(list)
     : `<div class="auth-inbox-empty">${emptyState(
-        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o salga y vuelva a entrar a Autorizaciones: la lista se sincroniza con PostgreSQL y Supabase Auth al abrir el módulo."
+        "Nadie en cola con estado pendiente. Si acaba de registrarse un cliente, espere unos segundos o salga y vuelva a entrar a Autorizaciones."
       )}</div>`;
   return `<section class="auth-queue-section auth-queue-section--portal" data-auth-section="portal_registrations" aria-label="Registro de clientes en el portal">
       <header class="auth-queue-section-head">
@@ -8273,8 +8320,7 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
           <h3 class="auth-queue-section-title">Bandeja de altas (portal web)</h3>
           ${countBadge}
         </div>
-        <p class="muted auth-queue-section-desc">Vista unificada de solicitudes nuevas: revise identidad, datos de contacto y asigne empresa antes de activar el acceso. Se incluyen también cuentas creadas en Supabase Auth que aún no tienen fila en la tabla <code style="font-size:0.85em">usuarios</code> (al aprobar se aprovisionan automáticamente).</p>
-        <p class="auth-queue-section-origin"><span class="auth-origin-label">Orígenes de datos:</span> PostgreSQL · <code style="font-size:0.85em">usuarios.estado_cuenta = pendiente</code> + Supabase Authentication (cuentas huérfanas).</p>
+        <p class="muted auth-queue-section-desc">Solicitudes nuevas pendientes de aprobación. Revise identidad y asigne empresa antes de activar el acceso.</p>
       </header>
       <div class="auth-queue-section-body">${body}</div>
     </section>`;
@@ -9486,13 +9532,24 @@ function bindDynamicEvents() {
         }
         return;
       }
+      // El modal muestra los datos completos al admin (acción auditada);
+      // las tarjetas de bandeja siguen enmascaradas para limitar exposición.
+      const modalSubtitleLines = [
+        `${getPortalUserDisplayName(target)} · ${target.email || "—"}`
+      ];
+      if (target.documentType || target.taxId || target.personalDoc) {
+        const docPart = [
+          String(target.documentType || "").trim(),
+          String(target.taxId || target.personalDoc || "").trim()
+        ]
+          .filter(Boolean)
+          .join(" ");
+        if (docPart) modalSubtitleLines.push(`Documento: ${docPart}`);
+      }
+      if (target.phone) modalSubtitleLines.push(`Tel.: ${String(target.phone).trim()}`);
       openEditModal({
-        title: isOrphan
-          ? "Aprovisionar y aprobar (Supabase Auth)"
-          : "Aprobar usuario y asociar empresa",
-        subtitle: isOrphan
-          ? `${target.name || "Sin nombre"} · ${target.email || "—"} · Solo en Supabase Auth (la fila se creará en usuarios al aprobar)`
-          : `${target.name} · ${target.email}`,
+        title: "Aprobar usuario y asociar empresa",
+        subtitle: modalSubtitleLines.join(" · "),
         submitText: "Aprobar cuenta",
         fields: [
           {
@@ -11919,8 +11976,12 @@ function bindDynamicEvents() {
                   emergencyPhone: String(data.emergencyPhone || "").trim(),
                   emergencyRelation: String(data.emergencyRelation || "").trim(),
                   emergencyRelationship: String(data.emergencyRelation || "").trim(),
-                  systemJoinDate: String(data.systemJoinDate || "").trim().slice(0, 10),
-                  portalSince: String(data.systemJoinDate || "").trim().slice(0, 10),
+                  // La fecha de ingreso al sistema es solo lectura: se deriva
+                  // siempre de la fecha de creación del usuario en el registro
+                  // (createdAt). Si no existiera todavía en cache, respaldamos
+                  // con valores previos. Nunca se sobreescribe desde Mi perfil.
+                  systemJoinDate: profileSystemJoinDateValue(u),
+                  portalSince: profileSystemJoinDateValue(u),
                   companyId: company?.id || u.companyId,
                   company: company?.name || u.company,
                   avatarUrl: avatarUrlValue || u.avatarUrl || ""
