@@ -138,10 +138,179 @@ function devError() {
   console.error.apply(console, arguments);
 }
 
+/** Icono compacto para pestañas tipo producto (RRHH). */
+function hrWorkspaceTabIcon(iconKey) {
+  const raw = IC[String(iconKey || "")];
+  if (!raw) return "";
+  const svg = raw.replace(/class="btn-icon"/, 'class="hr-tab-icon-svg"');
+  return `<span class="hr-workspace-tab-ico" aria-hidden="true">${svg}</span>`;
+}
+
+/** Pestañas para módulos RRHH densos: segmenta panorama / operación / datos sin perder estado en formularios ocultos. */
+function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs }) {
+  const safeModule = escapeAttr(module);
+  const safeAria = escapeAttr(ariaLabel);
+  return `<nav class="hr-workspace-tabs hr-workspace-tabs--pro" role="tablist" aria-label="${safeAria}">
+    ${tabs
+      .map((t, idx) => {
+        const active = activeId === t.id;
+        const hintHtml = t.hint ? `<span class="hr-workspace-tab-hint">${escapeHtml(t.hint)}</span>` : "";
+        const iconKey = t.icon;
+        const hasIcon = Boolean(iconKey);
+        const badge = hasIcon
+          ? hrWorkspaceTabIcon(iconKey)
+          : `<span class="hr-workspace-tab-num" aria-hidden="true">${idx + 1}</span>`;
+        const proClass = hasIcon ? " hr-workspace-tab--has-icon" : "";
+        return `<button type="button" role="tab" aria-selected="${active}" class="hr-workspace-tab hr-workspace-tab--pro${active ? " is-active" : ""}${proClass}" data-action="hr-workspace-tab" data-module="${safeModule}" data-tab="${escapeAttr(t.id)}">
+      ${badge}
+      <span class="hr-workspace-tab-body"><span class="hr-workspace-tab-label">${escapeHtml(t.label)}</span>${hintHtml}</span>
+    </button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
+function hrWizardValidityTargets(stepEl) {
+  if (!stepEl) return [];
+  return [...stepEl.querySelectorAll("input, select, textarea")].filter((el) => {
+    if (el.disabled || el.type === "hidden") return false;
+    return true;
+  });
+}
+
+function hrWizardStepValid(stepEl) {
+  for (const el of hrWizardValidityTargets(stepEl)) {
+    if (typeof el.checkValidity === "function" && !el.checkValidity()) {
+      el.reportValidity();
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Formularios RRHH largos: un paso visible, puntos para saltar solo si los previos son válidos,
+ * y envío bloqueado hasta el último paso (reduce saturación cognitiva).
+ */
+function bindHrFormWizard(form) {
+  if (!form || form.dataset.hrWizardBound === "1") return;
+  const wizard = form.querySelector("[data-hr-wizard]");
+  if (!wizard) return;
+  const steps = [...wizard.querySelectorAll(":scope > .hr-form-step")];
+  if (steps.length < 2) return;
+  form.dataset.hrWizardBound = "1";
+
+  const prevBtn = wizard.querySelector("[data-hr-wizard-prev]");
+  const nextBtn = wizard.querySelector("[data-hr-wizard-next]");
+  const submitBtn = wizard.querySelector(".hr-form-wizard-submit");
+  const progressEl = wizard.querySelector("[data-hr-wizard-progress]");
+  const progressFill = wizard.querySelector("[data-hr-wizard-progress-fill]");
+  const hintEl = wizard.querySelector("[data-hr-wizard-hint]");
+  const dots = [...wizard.querySelectorAll("[data-hr-wizard-dot]")];
+
+  let idx = Math.max(
+    0,
+    steps.findIndex((s) => s.classList.contains("is-active"))
+  );
+
+  const sync = () => {
+    steps.forEach((s, i) => {
+      const on = i === idx;
+      s.classList.toggle("is-active", on);
+      s.classList.toggle("hidden", !on);
+      s.setAttribute("aria-hidden", on ? "false" : "true");
+    });
+    dots.forEach((d, i) => {
+      const on = i === idx;
+      d.classList.toggle("is-active", on);
+      d.classList.toggle("is-done", i < idx);
+      if (on) d.setAttribute("aria-current", "step");
+      else d.removeAttribute("aria-current");
+    });
+    if (prevBtn) prevBtn.disabled = idx === 0;
+    if (nextBtn) {
+      nextBtn.classList.toggle("hidden", idx >= steps.length - 1);
+      nextBtn.disabled = idx >= steps.length - 1;
+    }
+    if (submitBtn) {
+      const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
+      const contractEarly = wizKind === "contract";
+      const last = idx >= steps.length - 1;
+      submitBtn.disabled = contractEarly ? false : !last;
+      submitBtn.setAttribute("aria-disabled", contractEarly || last ? "false" : "true");
+    }
+    const pct = steps.length ? ((idx + 1) / steps.length) * 100 : 0;
+    if (progressEl) progressEl.textContent = `Paso ${idx + 1} de ${steps.length}`;
+    if (progressFill) progressFill.style.width = `${pct}%`;
+    if (hintEl) {
+      const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
+      if (wizKind === "contract") {
+        hintEl.textContent =
+          "Paso 2 es opcional (pruebas de plantilla). Puede generar el contrato desde cualquier paso.";
+      } else {
+        hintEl.textContent =
+          idx < steps.length - 1
+            ? "Avance hasta el último paso para habilitar guardar."
+            : "Último paso: revise y guarde.";
+      }
+    }
+  };
+
+  prevBtn?.addEventListener("click", () => {
+    if (idx > 0) {
+      idx -= 1;
+      sync();
+    }
+  });
+
+  nextBtn?.addEventListener("click", () => {
+    if (!hrWizardStepValid(steps[idx])) return;
+    if (idx < steps.length - 1) {
+      idx += 1;
+      sync();
+    }
+  });
+
+  dots.forEach((dot) => {
+    dot.addEventListener("click", () => {
+      const raw = dot.dataset.hrWizardDot;
+      const targetIdx = Number.parseInt(String(raw ?? ""), 10);
+      if (!Number.isFinite(targetIdx) || targetIdx < 0 || targetIdx >= steps.length) return;
+      if (targetIdx === idx) return;
+      if (targetIdx > idx) {
+        for (let i = idx; i < targetIdx; i++) {
+          if (!hrWizardStepValid(steps[i])) return;
+        }
+      }
+      idx = targetIdx;
+      sync();
+    });
+  });
+
+  form.addEventListener(
+    "submit",
+    (ev) => {
+      for (let i = 0; i < steps.length; i++) {
+        if (!hrWizardStepValid(steps[i])) {
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+          idx = i;
+          sync();
+          notify("Revise el paso indicado antes de guardar.", "error");
+          return;
+        }
+      }
+    },
+    true
+  );
+
+  sync();
+}
+
 function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
   const expanded = Boolean(state.createPanels?.[panelId]);
   const toggleText = expanded ? "Ocultar formulario" : expandLabel;
-  const cardBody = `<div class="toolbar" style="margin-bottom:0.8rem">
+  const cardBody = `<div class="toolbar hr-create-toolbar">
     <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}">
       ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
     </button>
@@ -784,12 +953,15 @@ let state = {
     status: "all"
   },
   payrollUi: {
-    runSort: "recent"
+    runSort: "recent",
+    /** overview | operate | data — reduce saturación segmentando el módulo. */
+    workspace: "overview"
   },
   hiringUi: {
     candidateFilter: "active",
     vacancyFilter: "open",
-    candidateSort: "recent"
+    candidateSort: "recent",
+    workspace: "overview"
   },
   /** Tras registro exitoso: mensaje visible sobre la pestaña de ingreso (no solo toast). */
   registrationSuccessBanner: null,
@@ -808,6 +980,8 @@ let state = {
   /** Evita registrar varias veces los listeners capture en viewRoot (no-admin); antes se acumulaban en cada cambio de módulo. */
   portalNonAdminCaptureBound: false
 };
+
+hydrateHrWorkspaceFromStorage();
 
 window.AntaresDataAccess = Object.freeze({
   getPortalContacts() {
@@ -843,6 +1017,38 @@ const UI_PREFS = {
   theme: "antares_theme_v1",
   publicLang: "antares_public_lang_v1"
 };
+
+/** Última pestaña activa en mesas de trabajo RRHH (sobrevive recarga; solo preferencia de UI). */
+const HR_WORKSPACE_STORAGE = {
+  payroll: "antares_hr_payroll_workspace_v1",
+  hiring: "antares_hr_hiring_workspace_v1"
+};
+const HR_VALID_PAYROLL_WS = new Set(["overview", "operate", "data"]);
+const HR_VALID_HIRING_WS = new Set(["overview", "operate", "track"]);
+
+function hydrateHrWorkspaceFromStorage() {
+  try {
+    const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
+    const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
+    if (p && HR_VALID_PAYROLL_WS.has(p)) {
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: p };
+    }
+    if (h && HR_VALID_HIRING_WS.has(h)) {
+      state.hiringUi = { ...(state.hiringUi || {}), workspace: h };
+    }
+  } catch (_e) {}
+}
+
+function persistHrWorkspace(moduleId, workspace) {
+  const ws = String(workspace || "");
+  try {
+    if (moduleId === "payroll" && HR_VALID_PAYROLL_WS.has(ws)) {
+      localStorage.setItem(HR_WORKSPACE_STORAGE.payroll, ws);
+    } else if (moduleId === "hiring" && HR_VALID_HIRING_WS.has(ws)) {
+      localStorage.setItem(HR_WORKSPACE_STORAGE.hiring, ws);
+    }
+  } catch (_e) {}
+}
 
 /** Misma política que modules/core/persistence.js cuando no hay AntaresPersistence. */
 function capStoredArrayRows(key, value) {
@@ -7970,8 +8176,9 @@ function payrollHtml() {
   const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
   const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
-  const payrollUi = state.payrollUi || { runSort: "recent" };
+  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "overview" };
   const runSort = String(payrollUi.runSort || "recent");
+  const payrollWorkspace = String(payrollUi.workspace || "overview");
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
@@ -8063,7 +8270,28 @@ function payrollHtml() {
   const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
   const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
-  const formEmp = `<form id="form-employee" class="p-form p-form-colored">
+  const formEmp = `<form id="form-employee" class="p-form p-form-colored hr-form-flow">
+    <div class="hr-form-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
+      <div class="hr-form-wizard-toolbar">
+        <div>
+          <p class="hr-form-wizard-kicker">Flujo guiado</p>
+          <p class="hr-form-wizard-lead">Un bloque por pantalla; menos campos simultáneos y menos errores al pasar a guardar.</p>
+        </div>
+        <div class="hr-form-wizard-meta">
+          <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
+          <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 6</span>
+        </div>
+      </div>
+      <div class="hr-form-wizard-dots" role="tablist" aria-label="Secciones del formulario">
+        <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: datos personales"><span class="hr-dot-num">1</span><small>Persona</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><small>Contacto</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: laboral"><span class="hr-dot-num">3</span><small>Laboral</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><small>Seg. social</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: banco"><span class="hr-dot-num">5</span><small>Banco</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor y cierre"><span class="hr-dot-num">6</span><small>Extras</small></button>
+      </div>
+
+      <div class="hr-form-step is-active" data-step-index="0">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Datos personales</legend>
       <div class="form-section-grid">
@@ -8077,7 +8305,9 @@ function payrollHtml() {
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
       </div>
     </fieldset>
+      </div>
 
+      <div class="hr-form-step hidden" data-step-index="1">
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.mapPin} Contacto y residencia</legend>
       <div class="form-section-grid">
@@ -8091,7 +8321,9 @@ function payrollHtml() {
         <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." /></label>
       </div>
     </fieldset>
+      </div>
 
+      <div class="hr-form-step hidden" data-step-index="2">
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.briefcase} Datos laborales</legend>
       <div class="form-section-grid">
@@ -8113,7 +8345,9 @@ function payrollHtml() {
         </select></label>
       </div>
     </fieldset>
+      </div>
 
+      <div class="hr-form-step hidden" data-step-index="3">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.shield} Seguridad social y parafiscales</legend>
       <div class="form-section-grid">
@@ -8124,7 +8358,9 @@ function payrollHtml() {
         <label>${fieldLabel(IC.users, "Caja de compensación")}<select name="compensationFund">${compensationOpts}</select></label>
       </div>
     </fieldset>
+      </div>
 
+      <div class="hr-form-step hidden" data-step-index="4">
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.bank} Datos bancarios</legend>
       <div class="form-section-grid">
@@ -8133,7 +8369,9 @@ function payrollHtml() {
         <label>${fieldLabel(IC.hash, "Número de cuenta")}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
       </div>
     </fieldset>
+      </div>
 
+      <div class="hr-form-step hidden" data-step-index="5">
     <fieldset class="form-section form-section-rose full hr-conductor-fields" id="hr-conductor-fields">
       <legend>${IC.truck} Si el cargo es CONDUCTOR (datos adicionales)</legend>
       <div class="form-section-grid">
@@ -8152,10 +8390,23 @@ function payrollHtml() {
     </fieldset>
 
     <label class="full">${fieldLabel(IC.upload, "Foto del empleado")}<input type="file" name="avatarFile" accept="image/*" /></label>
-    <p class="muted full legal-form-note">El cargo y salario deben cumplir parámetros mínimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y auxilio de transporte $${CO_HR_RULES.transportAllowance.toLocaleString("es-CO")}). Aportes patronales (12% pensión, 8.5% salud), parafiscales (SENA 2%, ICBF 3%, Caja 4%) y ARL según nivel de riesgo son obligatorios.</p>
-    <button class="btn btn-primary full" type="submit">${IC.save} Guardar empleado</button>
+    <details class="hr-form-help"><summary>Nota legal y salarial (referencia)</summary>
+      <p class="muted full legal-form-note" style="margin-top:0.5rem">El cargo y salario deben cumplir parámetros mínimos legales (referencia SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")} y auxilio de transporte $${CO_HR_RULES.transportAllowance.toLocaleString("es-CO")}). Aportes patronales (12% pensión, 8.5% salud), parafiscales (SENA 2%, ICBF 3%, Caja 4%) y ARL según nivel de riesgo son obligatorios.</p>
+    </details>
+
+      </div>
+
+      <div class="hr-form-wizard-footer">
+        <div class="hr-form-wizard-footer-nav">
+          <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
+          <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
+        </div>
+        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
+        <button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>
+      </div>
+    </div>
   </form>`;
-  const formPay = `<form id="form-payroll" class="p-form p-form-colored">
+  const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
       <div class="form-section-grid">
@@ -8173,11 +8424,13 @@ function payrollHtml() {
         <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
       </div>
     </fieldset>
-    <p class="muted full">Para conductores el sistema suma viáticos por viajes interdepartamentales ($${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje) y reembolsos de combustible del mes. Ajuste manual si hay novedades.</p>
-    <p class="muted full">Deducciones referenciales: salud 4 %, pensión 4 % sobre IBC; FSP 1 % si el IBC supera 4 SMMLV.</p>
+    <details class="hr-form-help"><summary>Referencias de cálculo (opcional)</summary>
+      <p class="muted full" style="margin-top:0.45rem">Para conductores el sistema suma viáticos por viajes interdepartamentales ($${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje) y reembolsos de combustible del mes. Ajuste manual si hay novedades.</p>
+      <p class="muted full">Deducciones referenciales: salud 4 %, pensión 4 % sobre IBC; FSP 1 % si el IBC supera 4 SMMLV.</p>
+    </details>
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidación</button>
   </form>`;
-  const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored">
+  const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Datos de la novedad</legend>
       <div class="form-section-grid">
@@ -8202,7 +8455,9 @@ function payrollHtml() {
         <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
       </div>
     </fieldset>
-    <p class="muted full">Registro interno para control de nómina. Liquidaciones definitivas requieren validación según normativa vigente.</p>
+    <details class="hr-form-help"><summary>Notas sobre el registro</summary>
+      <p class="muted full" style="margin-top:0.45rem">Registro interno para control de nómina. Liquidaciones definitivas requieren validación según normativa vigente.</p>
+    </details>
     <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
   </form>`;
   const absenceRows = absences
@@ -8249,7 +8504,7 @@ function payrollHtml() {
       <div class="ops-module-title">
         <span class="ops-module-kicker">Recursos humanos</span>
         <h2>Nómina y gestión de personal</h2>
-        <p class="ops-module-subtitle">Liquidaciones, huella de empleados y ausencias con vista clara de pendientes.</p>
+        <p class="ops-module-subtitle">Liquidaciones, fichas y ausencias con trazabilidad para control interno y apoyo al área contable.</p>
       </div>
       <div class="ops-module-chips">
         <span class="ops-chip"><strong>${employees.length}</strong> empleados</span>
@@ -8270,18 +8525,6 @@ function payrollHtml() {
         <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Neto mayor</button>
       </div>
     </div>`;
-  const payrollSpotlight = `<aside class="module-spotlight module-spotlight--payroll" role="note" aria-label="Resumen del módulo de nómina">
-      <div class="module-spotlight-visual" aria-hidden="true">${IC.dollar}</div>
-      <div class="module-spotlight-text">
-        <h3 class="module-spotlight-title">Operación clara y guiada</h3>
-        <p class="module-spotlight-lead">Centraliza datos laborales, liquidaciones y ausencias con filtros que ponen primero lo pendiente.</p>
-        <ul class="module-spotlight-list">
-          <li><strong>Ficha completa</strong> → contratos Word coherentes en Contratación</li>
-          <li><strong>Historial de pagos</strong> con marca visual Pagado / Pendiente</li>
-          <li><strong>Atajos</strong>: alta de empleado, liquidación y ausencias</li>
-        </ul>
-      </div>
-    </aside>`;
   const payrollExecutionBlock = `<section class="ops-block ops-block--payroll-flow">
       <header class="ops-block-head">
         <h3>Ejecución de nómina</h3>
@@ -8310,16 +8553,69 @@ function payrollHtml() {
       tone: pendingAbsenceApprovals ? "warn" : undefined
     }
   ]);
-  return `<section class="payroll-shell">${payrollFleetHero}${payrollSpotlight}${payrollHead}
+  const payrollSpotlightInner = `<aside class="module-spotlight module-spotlight--payroll" role="note" aria-label="Resumen del módulo de nómina">
+      <div class="module-spotlight-visual" aria-hidden="true">${IC.dollar}</div>
+      <div class="module-spotlight-text">
+        <h3 class="module-spotlight-title">Operación clara y guiada</h3>
+        <p class="module-spotlight-lead">Centraliza datos laborales, liquidaciones y ausencias con filtros que ponen primero lo pendiente.</p>
+        <ul class="module-spotlight-list">
+          <li><strong>Ficha completa</strong> → contratos Word coherentes en Contratación</li>
+          <li><strong>Historial de pagos</strong> con marca visual Pagado / Pendiente</li>
+          <li><strong>Atajos</strong>: alta de empleado, liquidación y ausencias</li>
+        </ul>
+      </div>
+    </aside>`;
+  const payrollGuideDrawer = `<details class="hr-guide-drawer">
+      <summary class="hr-guide-drawer-summary">
+        <span class="hr-guide-drawer-kicker">Orientación</span>
+        <span class="hr-guide-drawer-title">${IC.layers} Guía rápida (opcional)</span>
+      </summary>
+      <div class="hr-guide-drawer-body">${payrollSpotlightInner}</div>
+    </details>`;
+  const payrollTabsNav = renderHrWorkspaceTabs({
+    module: "payroll",
+    ariaLabel: "Secciones del módulo Nómina",
+    activeId: payrollWorkspace,
+    tabs: [
+      { id: "overview", label: "Panorama", hint: "Métricas y contexto", icon: "compass" },
+      { id: "operate", label: "Registrar", hint: "Altas, liquidaciones, ausencias", icon: "userPlus" },
+      { id: "data", label: "Consultar", hint: "Filtros e historial", icon: "layers" }
+    ]
+  });
+  const payrollWorkspaceJumps = `<div class="hr-workspace-jumps">
+      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="payroll" data-tab="operate">${IC.userPlus} Ir a Registrar</button>
+      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="payroll" data-tab="data">${IC.layers} Ir a tablas y filtros</button>
+    </div>`;
+  const payrollOverviewPanel = `<div class="hr-workspace-panel${payrollWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="overview">
+      ${payrollGuideDrawer}
+      ${payrollHead}
+      <div class="hr-enterprise-strip" role="note">
+        <span class="hr-enterprise-strip-label">Uso en empresa</span>
+        <span class="hr-enterprise-strip-text">Registre novedades en <strong>Registrar</strong>; conserve evidencias y exportaciones desde <strong>Consultar</strong>, filtrando por periodo y estado.</span>
+      </div>
+      <p class="hr-workspace-intro muted">Cada pestaña reduce el ruido visual: panorama ejecutivo aquí, operación cotidiana aparte del archivo histórico.</p>
+      ${payrollWorkspaceJumps}
+    </div>`;
+  const payrollOperatePanel = `<div class="hr-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
       ${payrollActions}
+      ${payrollExecutionBlock}
+    </div>`;
+  const payrollDataPanel = `<div class="hr-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
       <section class="ops-block">
         <header class="ops-block-head">
           <h3>Filtro operativo</h3>
+          <p class="ops-block-lead muted">Aplique criterios antes de exportar o auditar el historial.</p>
         </header>
         ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
       </section>
-      ${payrollExecutionBlock}
       ${payrollDataBlock}
+    </div>`;
+  return `<section class="payroll-shell payroll-shell--workspace hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollFleetHero}${payrollTabsNav}
+      <div class="hr-workspace-panels">
+        ${payrollOverviewPanel}
+        ${payrollOperatePanel}
+        ${payrollDataPanel}
+      </div>
     </section>`;
 }
 
@@ -8335,10 +8631,16 @@ function hiringHtml() {
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
   const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
-  const hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+  const hiringUi = state.hiringUi || {
+    candidateFilter: "active",
+    vacancyFilter: "open",
+    candidateSort: "recent",
+    workspace: "overview"
+  };
   const candidateFilter = String(hiringUi.candidateFilter || "active");
   const vacancyFilter = String(hiringUi.vacancyFilter || "open");
   const candidateSort = String(hiringUi.candidateSort || "recent");
+  const hiringWorkspace = String(hiringUi.workspace || "overview");
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
     return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -8384,7 +8686,7 @@ function hiringHtml() {
 
   const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
   const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
-  const fPosition = `<form id="form-position" class="p-form p-form-colored">
+  const fPosition = `<form id="form-position" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Definición del cargo</legend>
       <div class="form-section-grid">
@@ -8406,10 +8708,12 @@ function hiringHtml() {
         <label class="full">${fieldLabel(IC.file, "Base legal (referencia)")}<input name="legalBasis" value="CST art. 45-46, Ley 50/1990 y normatividad laboral vigente" /></label>
       </div>
     </fieldset>
-    <p class="muted full legal-form-note">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}, jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} h/semana, recargo nocturno 35%, dominical/festivo 75%, hora extra diurna 25%, hora extra nocturna 75%.</p>
+    <details class="hr-form-help"><summary>Referencias legales laborales (opcional)</summary>
+      <p class="muted full legal-form-note" style="margin-top:0.45rem">Referencia Colombia: SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}, jornada ordinaria ${CO_HR_RULES.legalWeeklyHours} h/semana, recargo nocturno 35%, dominical/festivo 75%, hora extra diurna 25%, hora extra nocturna 75%.</p>
+    </details>
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
   </form>`;
-  const fVac = `<form id="form-vacancy" class="p-form p-form-colored">
+  const fVac = `<form id="form-vacancy" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.send} Publicación de la vacante</legend>
       <div class="form-section-grid">
@@ -8429,7 +8733,24 @@ function hiringHtml() {
   </form>`;
   const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
   const docTypeCand = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
-  const fCand = `<form id="form-candidate" class="p-form p-form-colored">
+  const fCand = `<form id="form-candidate" class="p-form p-form-colored hr-form-flow">
+    <div class="hr-form-wizard" data-hr-wizard="candidate" aria-label="Registro de candidato por pasos">
+      <div class="hr-form-wizard-toolbar">
+        <div>
+          <p class="hr-form-wizard-kicker">Registro en dos pasos</p>
+          <p class="hr-form-wizard-lead">Primero identidad y ubicación; luego perfil, vacante y adjuntos.</p>
+        </div>
+        <div class="hr-form-wizard-meta">
+          <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:50%"></span></div>
+          <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 2</span>
+        </div>
+      </div>
+      <div class="hr-form-wizard-dots hr-form-wizard-dots--few" role="tablist" aria-label="Secciones">
+        <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: datos personales"><span class="hr-dot-num">1</span><small>Identidad</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: perfil profesional"><span class="hr-dot-num">2</span><small>Perfil</small></button>
+      </div>
+
+      <div class="hr-form-step is-active" data-step-index="0">
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.user} Datos personales del candidato</legend>
       <div class="form-section-grid">
@@ -8444,6 +8765,9 @@ function hiringHtml() {
         <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required /></label>
       </div>
     </fieldset>
+      </div>
+
+      <div class="hr-form-step hidden" data-step-index="1">
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.briefcase} Perfil profesional</legend>
       <div class="form-section-grid">
@@ -8455,9 +8779,19 @@ function hiringHtml() {
         <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" multiple /></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.userPlus} Registrar candidato</button>
+      </div>
+
+      <div class="hr-form-wizard-footer">
+        <div class="hr-form-wizard-footer-nav">
+          <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
+          <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
+        </div>
+        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
+        <button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.userPlus} Registrar candidato</button>
+      </div>
+    </div>
   </form>`;
-  const fInt = `<form id="form-interview" class="p-form p-form-colored">
+  const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.calendar} Programación de entrevista</legend>
       <div class="form-section-grid">
@@ -8476,7 +8810,24 @@ function hiringHtml() {
     <button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button>
   </form>`;
   const signDateDefault = colombiaTodayIsoDate();
-  const fCon = `<form id="form-contract" class="p-form p-form-colored">
+  const fCon = `<form id="form-contract" class="p-form p-form-colored hr-form-flow">
+    <div class="hr-form-wizard" data-hr-wizard="contract" aria-label="Generación de contrato por pasos">
+      <div class="hr-form-wizard-toolbar">
+        <div>
+          <p class="hr-form-wizard-kicker">Contrato Word</p>
+          <p class="hr-form-wizard-lead">Primero datos de firma; pruebas de plantilla y referencia legal aparte.</p>
+        </div>
+        <div class="hr-form-wizard-meta">
+          <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:50%"></span></div>
+          <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 2</span>
+        </div>
+      </div>
+      <div class="hr-form-wizard-dots hr-form-wizard-dots--few" role="tablist">
+        <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Datos de descarga"><span class="hr-dot-num">1</span><small>Datos</small></button>
+        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Pruebas y referencia"><span class="hr-dot-num">2</span><small>Plantillas</small></button>
+      </div>
+
+      <div class="hr-form-step is-active" data-step-index="0">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.file} Descargar contrato Word</legend>
       <p class="muted full">Registre antes el empleado en <strong>Nómina</strong> con nombre, documento, ciudad, banco, cuenta, salario, duración y tipo de contrato. Aquí solo elige la persona, la plantilla (o automática) y la <strong>fecha de firma</strong> del párrafo de constancia.</p>
@@ -8491,17 +8842,32 @@ function hiringHtml() {
         <label>${fieldLabel(IC.calendar, "Fecha de firma (constancia)")}<input type="date" name="signDate" required value="${signDateDefault}" /></label>
       </div>
     </fieldset>
+      </div>
+
+      <div class="hr-form-step hidden" data-step-index="1">
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.download} Vista previa de plantilla</legend>
       <p class="muted full">No utiliza la ficha del empleado; solo comprueba el archivo Word y la descarga.</p>
-      <div class="form-section-grid" style="gap:0.6rem">
+      <div class="form-section-grid hr-form-contract-tests">
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="oficina">${IC.file} Prueba · Oficina</button>
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="fijo">${IC.file} Prueba · Termino fijo</button>
         <button type="button" class="btn btn-outline" data-action="contract-test-docx" data-template="prestacion">${IC.file} Prueba · Prestacion servicios</button>
       </div>
     </fieldset>
-    <p class="muted full legal-form-note">Marcadores en Word (<strong>documentacion/*.docx</strong>): <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong> (formato colombiano), <strong>salario_letras</strong> (se genera en pesos si falta), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong>. El párrafo tipo «Para constancia se firma… en la ciudad de… a los… días del mes de… de…» se rellena con <strong>ciudad_empleado</strong> y la <strong>fecha de firma</strong> elegida (incluye plantillas con texto partido en Word). En la última hoja, líneas <strong>Cc.</strong> / <strong>Cc</strong> reciben la <strong>cedula_empleado</strong>.</p>
-    <button class="btn btn-primary full" type="submit">${IC.file} Generar y descargar contrato Word</button>
+    <details class="hr-form-help"><summary>Referencia de marcadores Word</summary>
+      <p class="muted full legal-form-note" style="margin-top:0.5rem">Marcadores en Word (<strong>documentacion/*.docx</strong>): <strong>nombre_empleado</strong>, <strong>cedula_empleado</strong>, <strong>ciudad_empleado</strong>, <strong>banco_cuenta_bancaria</strong>, <strong>cuenta_bancaria</strong>, <strong>salario</strong> (formato colombiano), <strong>salario_letras</strong> (se genera en pesos si falta), <strong>duracion_contrato</strong>, <strong>cargo_empleado</strong>. El párrafo tipo «Para constancia se firma… en la ciudad de… a los… días del mes de… de…» se rellena con <strong>ciudad_empleado</strong> y la <strong>fecha de firma</strong> elegida (incluye plantillas con texto partido en Word). En la última hoja, líneas <strong>Cc.</strong> / <strong>Cc</strong> reciben la <strong>cedula_empleado</strong>.</p>
+    </details>
+      </div>
+
+      <div class="hr-form-wizard-footer">
+        <div class="hr-form-wizard-footer-nav">
+          <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
+          <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
+        </div>
+        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance al paso 2 solo si necesita pruebas; el guardado está en el último paso.</p>
+        <button class="btn btn-primary hr-form-wizard-submit" type="submit" aria-disabled="false">${IC.file} Generar y descargar contrato Word</button>
+      </div>
+    </div>
   </form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
@@ -8545,35 +8911,12 @@ function hiringHtml() {
   ]);
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
-  const hiringFleetHero = moduleFleetHeroStrip([
-    { label: "Vacantes abiertas", value: openVacancies.length },
-    { label: "Candidatos activos", value: activeCandidates.length },
-    { label: "Contratos del mes", value: contractsThisMonth.length },
-    {
-      label: "Alertas / conversion",
-      value: `${urgentItems} · ${candidateConversion}%`,
-      tone: urgentItems ? "warn" : undefined
-    }
-  ]);
-
-  const hiringSpotlight = `<aside class="module-spotlight module-spotlight--hiring" role="note" aria-label="Resumen del módulo de contratación">
-      <div class="module-spotlight-visual" aria-hidden="true">${IC.send}</div>
-      <div class="module-spotlight-text">
-        <h3 class="module-spotlight-title">Embudo de selección con foco</h3>
-        <p class="module-spotlight-lead">Vacantes, candidatos y contratos en paneles que guían el siguiente paso.</p>
-        <ul class="module-spotlight-list">
-          <li><strong>Alertas</strong> de cierre de vacante y fin de contrato</li>
-          <li><strong>Contrato Word</strong> enlazado a la ficha de Nómina</li>
-          <li><strong>Filtros rápidos</strong> para candidatos activos y pipeline</li>
-        </ul>
-      </div>
-    </aside>`;
 
   const hiringHead = `<div class="ops-module-head ops-module-head-hiring ops-module-head--rich">
       <div class="ops-module-title">
         <span class="ops-module-kicker">Recursos humanos</span>
         <h2>Contratación y selección</h2>
-        <p class="ops-module-subtitle">Del cargo publicado al contrato firmado, con tableros que remarcan urgencias.</p>
+        <p class="ops-module-subtitle">Del cargo definido al contrato formal, con alertas de plazo que ayudan a anticipar cierres y renovaciones.</p>
       </div>
       <div class="ops-module-chips">
         <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes</span>
@@ -8623,11 +8966,73 @@ function hiringHtml() {
         ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
       </div>
     </section>`;
-  return `<section class="hiring-shell">${hiringFleetHero}${hiringSpotlight}${hiringHead}
-    ${hiringActions}
-    ${hiringExecutionBlock}
-    ${hiringDataBlock}
-  </section>`;
+  const hiringFleetHero = moduleFleetHeroStrip([
+    { label: "Vacantes abiertas", value: openVacancies.length },
+    { label: "Candidatos activos", value: activeCandidates.length },
+    { label: "Contratos del mes", value: contractsThisMonth.length },
+    {
+      label: "Alertas / conversion",
+      value: `${urgentItems} · ${candidateConversion}%`,
+      tone: urgentItems ? "warn" : undefined
+    }
+  ]);
+  const hiringSpotlightInner = `<aside class="module-spotlight module-spotlight--hiring" role="note" aria-label="Resumen del módulo de contratación">
+      <div class="module-spotlight-visual" aria-hidden="true">${IC.send}</div>
+      <div class="module-spotlight-text">
+        <h3 class="module-spotlight-title">Embudo de selección con foco</h3>
+        <p class="module-spotlight-lead">Vacantes, candidatos y contratos en paneles que guían el siguiente paso.</p>
+        <ul class="module-spotlight-list">
+          <li><strong>Alertas</strong> de cierre de vacante y fin de contrato</li>
+          <li><strong>Contrato Word</strong> enlazado a la ficha de Nómina</li>
+          <li><strong>Filtros rápidos</strong> para candidatos activos y pipeline</li>
+        </ul>
+      </div>
+    </aside>`;
+  const hiringGuideDrawer = `<details class="hr-guide-drawer">
+      <summary class="hr-guide-drawer-summary">
+        <span class="hr-guide-drawer-kicker">Orientación</span>
+        <span class="hr-guide-drawer-title">${IC.send} Guía rápida (opcional)</span>
+      </summary>
+      <div class="hr-guide-drawer-body">${hiringSpotlightInner}</div>
+    </details>`;
+  const hiringTabsNav = renderHrWorkspaceTabs({
+    module: "hiring",
+    ariaLabel: "Secciones del módulo Contratación",
+    activeId: hiringWorkspace,
+    tabs: [
+      { id: "overview", label: "Panorama", hint: "Métricas y contexto", icon: "compass" },
+      { id: "operate", label: "Embudo", hint: "Cargos a contrato Word", icon: "briefcase" },
+      { id: "track", label: "Seguimiento", hint: "Alertas y tablas", icon: "activity" }
+    ]
+  });
+  const hiringWorkspaceJumps = `<div class="hr-workspace-jumps">
+      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="hiring" data-tab="operate">${IC.briefcase} Ir al embudo operativo</button>
+      <button type="button" class="btn btn-sm btn-outline" data-action="hr-workspace-tab" data-module="hiring" data-tab="track">${IC.activity} Ir a tablero de seguimiento</button>
+    </div>`;
+  const hiringOverviewPanel = `<div class="hr-workspace-panel${hiringWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="overview">
+      ${hiringGuideDrawer}
+      ${hiringHead}
+      <div class="hr-enterprise-strip hr-enterprise-strip--hiring" role="note">
+        <span class="hr-enterprise-strip-label">Uso en empresa</span>
+        <span class="hr-enterprise-strip-text"><strong>Embudo</strong> para publicar y registrar; <strong>Seguimiento</strong> para auditar pipeline, vacantes y contratos sin mezclar captura con lectura.</span>
+      </div>
+      <p class="hr-workspace-intro muted">Las alertas de cierre y vencimiento priorizan lo urgente sin inundar la pantalla de formularios.</p>
+      ${hiringWorkspaceJumps}
+    </div>`;
+  const hiringOperatePanel = `<div class="hr-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
+      ${hiringActions}
+      ${hiringExecutionBlock}
+    </div>`;
+  const hiringTrackPanel = `<div class="hr-workspace-panel${hiringWorkspace === "track" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="track">
+      ${hiringDataBlock}
+    </div>`;
+  return `<section class="hiring-shell hiring-shell--workspace hr-flow-shell hr-module-pro hr-module-pro--hiring" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringFleetHero}${hiringTabsNav}
+      <div class="hr-workspace-panels">
+        ${hiringOverviewPanel}
+        ${hiringOperatePanel}
+        ${hiringTrackPanel}
+      </div>
+    </section>`;
 }
 
 function laborComplianceHtml() {
@@ -9846,10 +10251,52 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const panelId = String(btn.dataset.panel || "");
       if (!panelId) return;
-      state.createPanels = {
-        ...(state.createPanels || {}),
-        [panelId]: !Boolean(state.createPanels?.[panelId])
-      };
+      const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-hr-absence"];
+      const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
+      const payrollSet = new Set(PAYROLL_CREATE_IDS);
+      const hiringSet = new Set(HIRING_CREATE_IDS);
+      const wasOpen = Boolean(state.createPanels?.[panelId]);
+      const nextOpen = !wasOpen;
+      state.createPanels = { ...(state.createPanels || {}) };
+
+      if (payrollSet.has(panelId)) {
+        PAYROLL_CREATE_IDS.forEach((id) => {
+          state.createPanels[id] = nextOpen && id === panelId;
+        });
+      } else if (hiringSet.has(panelId)) {
+        HIRING_CREATE_IDS.forEach((id) => {
+          state.createPanels[id] = nextOpen && id === panelId;
+        });
+      } else {
+        state.createPanels[panelId] = nextOpen;
+      }
+
+      if (payrollSet.has(panelId) && nextOpen) {
+        state.payrollUi = { ...(state.payrollUi || {}), workspace: "operate" };
+        persistHrWorkspace("payroll", "operate");
+      }
+      if (hiringSet.has(panelId) && nextOpen) {
+        state.hiringUi = { ...(state.hiringUi || {}), workspace: "operate" };
+        persistHrWorkspace("hiring", "operate");
+      }
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = String(btn.dataset.tab || "");
+      const moduleId = String(btn.dataset.module || "");
+      if (!tab || !moduleId) return;
+      if (moduleId === "payroll") {
+        if (!HR_VALID_PAYROLL_WS.has(tab)) return;
+        state.payrollUi = { ...(state.payrollUi || {}), workspace: tab };
+        persistHrWorkspace("payroll", tab);
+      } else if (moduleId === "hiring") {
+        if (!HR_VALID_HIRING_WS.has(tab)) return;
+        state.hiringUi = { ...(state.hiringUi || {}), workspace: tab };
+        persistHrWorkspace("hiring", tab);
+      }
       renderPortalView();
     });
   });
@@ -10960,6 +11407,8 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-pending']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.payrollFilters = { ...(state.payrollFilters || {}), status: "pending" };
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data" };
+      persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
   });
@@ -10967,14 +11416,18 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.payrollFilters = { ...(state.payrollFilters || {}), status: "all" };
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data" };
+      persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-sort-runs']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.payrollUi = state.payrollUi || { runSort: "recent" };
+      state.payrollUi = state.payrollUi || { runSort: "recent", workspace: "overview" };
       state.payrollUi.runSort = String(btn.dataset.sort || "recent");
+      state.payrollUi.workspace = "data";
+      persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
   });
@@ -12154,6 +12607,7 @@ function bindDynamicEvents() {
       empPosSelect.addEventListener("change", syncEmpFromPosition);
       syncEmpFromPosition();
     }
+    bindHrFormWizard(employeeForm);
     employeeForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -12762,32 +13216,40 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-active']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.candidateFilter = "active";
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.candidateFilter = "all";
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-open']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-sort-candidates']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
       renderPortalView();
     });
   });
@@ -12798,6 +13260,7 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    bindHrFormWizard(candidateForm);
     candidateForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(candidateForm).entries());
@@ -12944,6 +13407,8 @@ function bindDynamicEvents() {
     if (employeeSelect) {
       employeeSelect.addEventListener("change", syncTemplateFromEmployee);
     }
+
+    bindHrFormWizard(contractForm);
 
     contractForm.addEventListener("submit", async (event) => {
       event.preventDefault();
