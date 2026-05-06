@@ -23,7 +23,12 @@
  */
 (function () {
   "use strict";
-  // Producción (Render API). Debe ser base sin sufijo /api.
+  /**
+   * Aunque abra el portal en https://transportesantares.co o https://www.transportesantares.co ,
+   * aquí va la URL RAÍZ del servidor Nest (p. ej. Render), NO el dominio del sitio web público.
+   * Si igualara al dominio del portal sin tener proxy `/api` hacia Nest, vería 404 (Cannot POST /api/portal/…).
+   * Sin barra final; sin sufijo /api .
+   */
   window.__ANTARES_API_BASE__ = "https://antares-nuevo.onrender.com";
   /**
    * Origen público del portal (https://dominio, sin barra final). Debe coincidir con PORTAL_PUBLIC_URL en la API

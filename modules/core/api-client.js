@@ -6,7 +6,15 @@
 (function registerApiClient() {
   function normalizeBase(url) {
     if (!url || typeof url !== "string") return "";
-    return url.trim().replace(/\/+$/, "");
+    let s = url.trim().replace(/\/+$/, "");
+    /*
+     * El cliente siempre concatena `${base}/api/...`. Si la base ya termina en `/api`
+     * (error frecuente en localStorage), la petición va a `/api/api/...` → 404.
+     */
+    while (/\/api$/i.test(s)) {
+      s = s.slice(0, -4).replace(/\/+$/, "");
+    }
+    return s;
   }
 
   function getBase() {
@@ -75,6 +83,9 @@
       let msg = res.statusText;
       if (typeof data === "object" && data && data.message) {
         msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
+      }
+      if (res.status === 404 && /cannot post\b/i.test(String(msg))) {
+        msg = `${msg} Revise antares_api_base (o __ANTARES_API_BASE__): debe ser la URL raíz del servidor Nest sin sufijo /api; no use la URL del sitio estático ni Live Server.`;
       }
       const err = new Error(msg || `HTTP ${res.status}`);
       err.status = res.status;

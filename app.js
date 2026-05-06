@@ -1332,6 +1332,22 @@ function portalCanRefreshFromApi() {
   return Boolean(tok);
 }
 
+/**
+ * POST autenticado al API: usa la misma alineacion JWT↔sesion que bootstrap.
+ * Sin URL de backend: no llama al servidor (retorna undefined).
+ * Con backend pero sin token/sesión valida: lanza Error (evita borrados solo en caché en produccion).
+ */
+async function postPortalAuthorized(path, body) {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.()) return undefined;
+  if (!portalCanRefreshFromApi()) {
+    throw new Error(
+      "No hay sesion valida con el servidor. Revise antares_api_base y vuelva a iniciar sesion."
+    );
+  }
+  return api.postJson(path, body);
+}
+
 async function applyPortalBootstrapFromApi() {
   if (!portalCanRefreshFromApi()) return false;
   const api = window.AntaresApi;
@@ -10174,14 +10190,11 @@ function bindDynamicEvents() {
         message: `Eliminar permanentemente "${String(target.name || "").trim()}" del sistema.`,
         confirmText: "Eliminar",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-company-delete", { companyId });
-            } catch (err) {
-              notify(String(err?.message || userMessage("genericError")), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-company-delete", { companyId });
+          } catch (err) {
+            notify(String(err?.message || userMessage("genericError")), "error");
+            return;
           }
           write(
             KEYS.companies,
@@ -10940,21 +10953,11 @@ function bindDynamicEvents() {
         message: "Esta accion eliminara el usuario de forma permanente.",
         confirmText: "Eliminar",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-user-delete", { userId });
-              write(
-                KEYS.users,
-                read(KEYS.users, []).filter((user) => user.id !== userId)
-              );
-              notify(userMessage("userDeleted"), "success");
-              renderPortalView();
-              return;
-            } catch (err) {
-              notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-user-delete", { userId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
+            return;
           }
           write(
             KEYS.users,
@@ -11480,9 +11483,15 @@ function bindDynamicEvents() {
         title: "Quitar tarifa de trayecto",
         message: "Esta ruta dejara de sugerir precio al asignar viajes.",
         confirmText: "Quitar tarifa",
-        onConfirm: () => {
-          const rates = getTripRouteRatesNormalized();
+        onConfirm: async () => {
+          const rates = { ...getTripRouteRatesNormalized() };
           delete rates[key];
+          try {
+            await postPortalAuthorized("/portal/sync-key", { key: "tripRouteRates", data: rates });
+          } catch (err) {
+            notify(String(err?.message || "No se pudo actualizar las tarifas en el servidor."), "error");
+            return;
+          }
           write(KEYS.tripRouteRates, rates);
           notify(userMessage("routeRateDeleted"), "success");
           renderPortalView();
@@ -11771,14 +11780,11 @@ function bindDynamicEvents() {
         message: "Se eliminara la solicitud seleccionada.",
         confirmText: "Eliminar",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-request-delete", { requestId });
-            } catch (err) {
-              notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-request-delete", { requestId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
+            return;
           }
           reqWrite(reqRead().filter((r) => String(r.id) !== requestId));
           recalculateResourceAvailability();
@@ -11798,14 +11804,11 @@ function bindDynamicEvents() {
         message: "La solicitud quedara aprobada pendiente de asignacion manual.",
         confirmText: "Eliminar viaje",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-clear-trip", { requestId });
-            } catch (err) {
-              notify(String(err?.message || "No fue posible quitar el viaje en el servidor."), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-clear-trip", { requestId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible quitar el viaje en el servidor."), "error");
+            return;
           }
           reqWrite(
             reqRead().map((request) =>
@@ -11837,14 +11840,11 @@ function bindDynamicEvents() {
         message: "Se eliminara del catalogo y se limpiara su referencia en viajes historicos.",
         confirmText: "Eliminar camion",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-vehicle-delete", { vehicleId });
-            } catch (err) {
-              notify(String(err?.message || "No fue posible eliminar el vehiculo en el servidor."), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-vehicle-delete", { vehicleId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar el vehiculo en el servidor."), "error");
+            return;
           }
           write(
             KEYS.vehicles,
@@ -11880,14 +11880,11 @@ function bindDynamicEvents() {
         message: "Se eliminara del catalogo y se limpiara su referencia en viajes historicos.",
         confirmText: "Eliminar conductor",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-driver-delete", { driverId });
-            } catch (err) {
-              notify(String(err?.message || "No fue posible eliminar el conductor en el servidor."), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-driver-delete", { driverId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar el conductor en el servidor."), "error");
+            return;
           }
           write(
             KEYS.drivers,
@@ -12727,14 +12724,11 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: async () => {
           const empId = String(btn.dataset.id || "");
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-employee-delete", { employeeId: empId });
-            } catch (err) {
-              notify(String(err?.message || "No fue posible eliminar el empleado en el servidor."), "error");
-              return;
-            }
+          try {
+            await postPortalAuthorized("/portal/admin-employee-delete", { employeeId: empId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar el empleado en el servidor."), "error");
+            return;
           }
           const removed = deleteEmployeesCascade([empId]);
           notify(
@@ -12773,16 +12767,13 @@ function bindDynamicEvents() {
         message: `Se eliminaran ${selectedIds.length} empleados en cascada (nomina, ausencias, contratos y conductores asociados).`,
         confirmText: "Eliminar en cascada",
         onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
+          try {
             for (const employeeId of selectedIds) {
-              try {
-                await api.postJson("/portal/admin-employee-delete", { employeeId });
-              } catch (err) {
-                notify(String(err?.message || "No fue posible eliminar un empleado en el servidor."), "error");
-                return;
-              }
+              await postPortalAuthorized("/portal/admin-employee-delete", { employeeId });
             }
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar un empleado en el servidor."), "error");
+            return;
           }
           const removed = deleteEmployeesCascade(selectedIds);
           notify(userMessage("employeesBulkRemoved", removed), "success");
