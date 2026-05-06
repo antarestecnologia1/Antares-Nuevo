@@ -52,10 +52,10 @@
   --public-toggle-fg: #234e73;
   --public-toggle-active-bg: rgba(var(--primary-rgb), 0.16);
 
-  /* Tipografía corporativa: Montserrat semibold (títulos) · Poppins bold (énfasis/CTA) · Roboto/Lato (cuerpo) */
+  /* Tipografía corporativa: Montserrat (títulos) · Poppins (énfasis/CTA) · Roboto (cuerpo) */
   --font-display: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-secondary: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: "Roboto", "Lato", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 body[data-theme="light"] {

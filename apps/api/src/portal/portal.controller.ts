@@ -3,6 +3,11 @@ import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
 import { AdminUserDeleteDto } from "./dto/admin-user-delete.dto";
 import { AdminCompanyDeleteDto } from "./dto/admin-company-delete.dto";
+import { AdminRequestDeleteDto } from "./dto/admin-request-delete.dto";
+import { AdminVehicleDeleteDto } from "./dto/admin-vehicle-delete.dto";
+import { AdminDriverDeleteDto } from "./dto/admin-driver-delete.dto";
+import { AdminClearTripDto } from "./dto/admin-clear-trip.dto";
+import { AdminEmployeeDeleteDto } from "./dto/admin-employee-delete.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { PortalService } from "./portal.service";
@@ -75,5 +80,31 @@ export class PortalController {
   @Post("admin-company-delete")
   adminCompanyDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminCompanyDeleteDto) {
     return this.portal.adminDeleteCompany(req.user.userId, req.user.role, dto.companyId);
+  }
+
+  /** Solo admin: borra solicitud en BD (el viaje asociado cae en CASCADE). */
+  @Post("admin-request-delete")
+  adminRequestDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminRequestDeleteDto) {
+    return this.portal.adminDeleteTransportRequest(req.user.userId, req.user.role, dto.requestId);
+  }
+
+  @Post("admin-vehicle-delete")
+  adminVehicleDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminVehicleDeleteDto) {
+    return this.portal.adminDeleteVehicle(req.user.userId, req.user.role, dto.vehicleId);
+  }
+
+  @Post("admin-driver-delete")
+  adminDriverDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminDriverDeleteDto) {
+    return this.portal.adminDeleteDriver(req.user.userId, req.user.role, dto.driverId);
+  }
+
+  @Post("admin-clear-trip")
+  adminClearTrip(@Req() req: { user: ReqUser }, @Body() dto: AdminClearTripDto) {
+    return this.portal.adminClearTripForRequest(req.user.userId, req.user.role, dto.requestId);
+  }
+
+  @Post("admin-employee-delete")
+  adminEmployeeDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminEmployeeDeleteDto) {
+    return this.portal.adminDeletePayrollEmployee(req.user.userId, req.user.role, dto.employeeId);
   }
 }

@@ -834,6 +834,103 @@ export class PortalService implements OnModuleInit {
     return { ok: true, companyId: cid };
   }
 
+  async adminDeleteTransportRequest(actorUserId: string, actorRole: JwtRole, requestId: string) {
+    void actorUserId;
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    const rid = String(requestId || "").trim();
+    if (!rid || !PG_UUID_V4_RE.test(rid)) {
+      throw new BadRequestException("ID de solicitud invalido");
+    }
+    try {
+      const del = await this.pool.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
+      if ((del.rowCount ?? 0) === 0) {
+        throw new BadRequestException("Solicitud no encontrada.");
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/violates foreign key|foreign key constraint/i.test(msg)) {
+        throw new BadRequestException("No se puede eliminar esta solicitud por datos vinculados.");
+      }
+      throw e;
+    }
+    return { ok: true, requestId: rid };
+  }
+
+  async adminDeleteVehicle(actorUserId: string, actorRole: JwtRole, vehicleId: string) {
+    void actorUserId;
+    if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
+    const vid = String(vehicleId || "").trim();
+    if (!vid || !PG_UUID_V4_RE.test(vid)) throw new BadRequestException("ID de vehiculo invalido");
+    try {
+      const del = await this.pool.query(`DELETE FROM vehiculos WHERE id = $1::uuid`, [vid]);
+      if ((del.rowCount ?? 0) === 0) throw new BadRequestException("Vehiculo no encontrado.");
+    } catch (e) {
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/foreign key|violates foreign key/i.test(msg)) {
+        throw new BadRequestException(
+          "No se puede eliminar: el vehiculo tiene viajes u otros registros asociados en base de datos."
+        );
+      }
+      throw e;
+    }
+    return { ok: true, vehicleId: vid };
+  }
+
+  async adminDeleteDriver(actorUserId: string, actorRole: JwtRole, driverId: string) {
+    void actorUserId;
+    if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
+    const did = String(driverId || "").trim();
+    if (!did || !PG_UUID_V4_RE.test(did)) throw new BadRequestException("ID de conductor invalido");
+    try {
+      const del = await this.pool.query(`DELETE FROM conductores WHERE id = $1::uuid`, [did]);
+      if ((del.rowCount ?? 0) === 0) throw new BadRequestException("Conductor no encontrado.");
+    } catch (e) {
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/foreign key|violates foreign key/i.test(msg)) {
+        throw new BadRequestException(
+          "No se puede eliminar: el conductor tiene viajes u otros registros asociados."
+        );
+      }
+      throw e;
+    }
+    return { ok: true, driverId: did };
+  }
+
+  async adminClearTripForRequest(actorUserId: string, actorRole: JwtRole, requestId: string) {
+    void actorUserId;
+    if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
+    const rid = String(requestId || "").trim();
+    if (!rid || !PG_UUID_V4_RE.test(rid)) throw new BadRequestException("Solicitud invalida");
+    await this.pool.query(`DELETE FROM viajes_transporte WHERE id_solicitud = $1::uuid`, [rid]);
+    const up = await this.pool.query(
+      `UPDATE solicitudes_transporte
+       SET estado = 'Aprobada pendiente asignacion'::estado_solicitud_transporte,
+           fecha_entrega_efectiva = NULL,
+           fecha_cierre = NULL,
+           fecha_actualizacion = now()
+       WHERE id = $1::uuid`,
+      [rid]
+    );
+    if ((up.rowCount ?? 0) === 0) throw new BadRequestException("Solicitud no encontrada.");
+    return { ok: true, requestId: rid };
+  }
+
+  async adminDeletePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string) {
+    void actorUserId;
+    if (!this.isRrhh(actorRole)) throw new ForbiddenException();
+    const eid = String(employeeId || "").trim();
+    if (!eid || !PG_UUID_V4_RE.test(eid)) throw new BadRequestException("ID de empleado invalido");
+    if (!(await this.tableExists("empleados_nomina"))) {
+      throw new BadRequestException("Tabla de nomina no disponible en esta base.");
+    }
+    const del = await this.pool.query(`DELETE FROM empleados_nomina WHERE id = $1::uuid`, [eid]);
+    if ((del.rowCount ?? 0) === 0) throw new BadRequestException("Empleado no encontrado.");
+    return { ok: true, employeeId: eid };
+  }
+
   private async deleteSupabaseAuthUser(userId: string) {
     if (!this.supabaseAdmin || !userId) return;
     await this.supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
