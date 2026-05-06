@@ -1773,6 +1773,12 @@ body.portal-mode .whatsapp-fab {
   transform: translateY(0) scale(1);
 }
 
+/* Logo del hero: debe verse al pintar; sin esto queda opacity:0 hasta que app.js + IntersectionObserver añaden .is-visible */
+.hero-brand-panel[data-reveal] {
+  opacity: 1;
+  transform: none;
+}
+
 .portal-layout {
   display: grid;
   grid-template-columns: 270px 1fr;
