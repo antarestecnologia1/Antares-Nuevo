@@ -220,12 +220,18 @@ function bindHrFormWizard(form) {
       nextBtn.classList.toggle("hidden", idx >= steps.length - 1);
       nextBtn.disabled = idx >= steps.length - 1;
     }
+    const submitSyncButtons = [...wizard.querySelectorAll("[data-hr-wizard-submit-sync]")];
     if (submitBtn) {
       const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
       const contractEarly = wizKind === "contract";
       const last = idx >= steps.length - 1;
-      submitBtn.disabled = contractEarly ? false : !last;
-      submitBtn.setAttribute("aria-disabled", contractEarly || last ? "false" : "true");
+      const enableSubmit = contractEarly || last;
+      submitBtn.disabled = !enableSubmit;
+      submitBtn.setAttribute("aria-disabled", enableSubmit ? "false" : "true");
+      submitSyncButtons.forEach((btn) => {
+        btn.disabled = !enableSubmit;
+        btn.setAttribute("aria-disabled", enableSubmit ? "false" : "true");
+      });
     }
     const pct = steps.length ? ((idx + 1) / steps.length) * 100 : 0;
     if (progressEl) progressEl.textContent = `Paso ${idx + 1} de ${steps.length}`;
@@ -238,7 +244,9 @@ function bindHrFormWizard(form) {
         hintEl.textContent =
           idx < steps.length - 1
             ? "Avance hasta el último paso para habilitar guardar."
-            : "Último paso: revise y guarde.";
+            : wizKind === "employee"
+              ? "Último paso: puede generar el contrato Word antes de guardar la ficha."
+              : "Último paso: revise y guarde.";
       }
     }
   };
@@ -349,7 +357,15 @@ function userMessage(key, ...args) {
   return v != null ? v : String(key);
 }
 
-function openEditModal({ title, subtitle = "", fields = [], submitText = "Guardar", onSubmit, afterMount }) {
+function openEditModal({
+  title,
+  subtitle = "",
+  fields = [],
+  submitText = "Guardar",
+  onSubmit,
+  afterMount,
+  extraModalCardClass = ""
+}) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -359,6 +375,10 @@ function openEditModal({ title, subtitle = "", fields = [], submitText = "Guarda
     modal.setAttribute("aria-modal", "true");
     modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
     document.body.appendChild(modal);
+  }
+  const card = modal.querySelector(".modal-card");
+  if (card) {
+    card.className = `modal-card modal-card-edit${extraModalCardClass ? ` ${extraModalCardClass}` : ""}`;
   }
   const content = modal.querySelector("#crud-modal-content");
   const fieldsHtml = fields
@@ -466,6 +486,8 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
     modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
     document.body.appendChild(modal);
   }
+  const card = modal.querySelector(".modal-card");
+  if (card) card.className = "modal-card modal-card-edit";
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
     <div class="modal-head">
@@ -495,7 +517,7 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   );
 }
 
-function openInfoModal({ title, subtitle = "", bodyHtml = "" }) {
+function openInfoModal({ title, subtitle = "", bodyHtml = "", wide = false, extraModalCardClass = "" }) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -506,6 +528,11 @@ function openInfoModal({ title, subtitle = "", bodyHtml = "" }) {
     modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
     document.body.appendChild(modal);
   }
+  const card = modal.querySelector(".modal-card");
+  if (card) {
+    const extra = [wide ? "modal-card-edit--wide-info" : "", extraModalCardClass].filter(Boolean).join(" ");
+    card.className = `modal-card modal-card-edit${extra ? ` ${extra}` : ""}`;
+  }
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
     <div class="modal-head">
@@ -513,7 +540,7 @@ function openInfoModal({ title, subtitle = "", bodyHtml = "" }) {
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
     ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
-    <div class="modal-info-body">${bodyHtml}</div>
+    <div class="modal-info-body${wide ? " modal-info-body--profile" : ""}">${bodyHtml}</div>
     <div class="modal-edit-actions" style="margin-top:1rem;">
       <button type="button" id="crud-ok" class="btn btn-primary">Cerrar</button>
     </div>
@@ -722,7 +749,7 @@ const PERMISSION_META = {
   [PERMISSIONS.TRANSPORT_DRIVERS]: { title: "Gestion de conductores", desc: "Registrar y administrar conductores." },
   [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Calendario operativo", desc: "Ver programacion de viajes." },
   [PERMISSIONS.TRANSPORT_HISTORY]: { title: "Historial y reportes", desc: "Consultar historicos y filtros." },
-  [PERMISSIONS.PAYROLL_MANAGE]: { title: "Nomina", desc: "Gestionar empleados y liquidaciones." },
+  [PERMISSIONS.PAYROLL_MANAGE]: { title: "Gestión humana", desc: "Gestionar empleados y liquidaciones." },
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
   [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
@@ -905,7 +932,7 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
       return {
         ok: false,
         message:
-          "Para marcar como contratado debe existir un contrato generado (desde nomina, misma cedula) o el registro historico por candidato."
+          "Para marcar como contratado debe existir un contrato generado (desde Gestión humana o Contratación, misma cédula) o el registro histórico por candidato."
       };
     }
   }
@@ -949,7 +976,6 @@ let state = {
   },
   registrationSuccessBanner: null,
   contactLeadsLoading: false,
-  authorizationsHydrating: false,
   authorizationsSyncError: null,
   portalSuppressSelfPollToastUntil: 0,
   portalNonAdminCaptureBound: false
@@ -2492,6 +2518,31 @@ function addCalendarYearsIsoDate(isoDateStr, years = 1) {
   return `${oy}-${om}-${od}`;
 }
 
+/** SOAT y tecnomecánica: al cambiar fecha de expedición, sugerir vencimiento un año después. */
+function bindVehicleDocExpiryAutoFill(formEl) {
+  if (!formEl || typeof formEl.querySelector !== "function") return;
+  const soatExpEl = formEl.querySelector("input[name='soatExpeditionDate']");
+  const soatVenEl = formEl.querySelector("input[name='soatExpiryDate']");
+  if (soatExpEl && soatVenEl) {
+    const syncSoat = () => {
+      const next = addCalendarYearsIsoDate(soatExpEl.value, 1);
+      if (next) soatVenEl.value = next;
+    };
+    soatExpEl.addEventListener("change", syncSoat);
+    soatExpEl.addEventListener("blur", syncSoat);
+  }
+  const techExpEl = formEl.querySelector("input[name='techInspectionExpeditionDate']");
+  const techVenEl = formEl.querySelector("input[name='techInspectionExpiryDate']");
+  if (techExpEl && techVenEl) {
+    const syncTech = () => {
+      const next = addCalendarYearsIsoDate(techExpEl.value, 1);
+      if (next) techVenEl.value = next;
+    };
+    techExpEl.addEventListener("change", syncTech);
+    techExpEl.addEventListener("blur", syncTech);
+  }
+}
+
 /** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */
 function colombiaDatetimeLocalString(dateValue = new Date()) {
   const p = getColombiaDateParts(dateValue);
@@ -3393,7 +3444,7 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
 const APPROVAL_TYPE_META = {
   create_user: { sectionKey: "portal_access", label: "Alta de usuario del portal" },
   create_driver: { sectionKey: "transport_fleet", label: "Alta de conductor" },
-  create_employee: { sectionKey: "workforce", label: "Alta de colaborador (nómina)" },
+  create_employee: { sectionKey: "workforce", label: "Alta de colaborador (gestión humana)" },
   register_hr_absence: { sectionKey: "hr_absences", label: "Registro de ausencia o incapacidad" },
   mark_payroll_paid: { sectionKey: "payroll_pay", label: "Confirmar pago de liquidación" },
   approve_trip_request: { sectionKey: "misc", label: "Solicitud de transporte pendiente (historico en cola)" }
@@ -3413,16 +3464,16 @@ const APPROVAL_UI_BLOCKS = [
     kind: "queue",
     title: "Conductores y flota operativa",
     description:
-      "Alta de conductor solicitada por un perfil que no es administrador. Al aprobar, se crea el conductor disponible para asignación y, si aplica, el registro vinculado en nómina.",
+      "Alta de conductor solicitada por un perfil que no es administrador. Al aprobar, se crea el conductor disponible para asignación y, si aplica, el registro vinculado en gestión humana.",
     origin: "Conductores → nuevo registro (no administrador)"
   },
   {
     key: "workforce",
     kind: "queue",
-    title: "Talento, contratación y nómina",
+    title: "Talento, contratación y gestión humana",
     description:
-      "Ingreso de colaborador al libro de nómina cuando quien registra no es administrador. Incluye datos contractuales, seguridad social y desempeño del flujo de aprobación previo a la ficha activa.",
-    origin: "Nómina → nuevo empleado (no administrador)"
+      "Ingreso de colaborador al expediente de personal cuando quien registra no es administrador. Incluye datos contractuales, seguridad social y desempeño del flujo de aprobación previo a la ficha activa.",
+    origin: "Gestión humana → nuevo empleado (no administrador)"
   },
   {
     key: "hr_absences",
@@ -3438,7 +3489,7 @@ const APPROVAL_UI_BLOCKS = [
     title: "Liquidación y marcas de pago",
     description:
       "Marcar liquidación de nómina como pagada cuando la acción la inicia un perfil RRHH o administrativo (no administrador de sistema). Evita cierres contables sin doble validación.",
-    origin: "Nómina → marcar liquidación pagada (roles RRHH / administrativos)"
+    origin: "Gestión humana → marcar liquidación pagada (roles RRHH / administrativos)"
   }
 ];
 
@@ -7925,7 +7976,7 @@ function mountUniversalModuleFilters() {
     "transport-drivers": "Conductores",
     "transport-calendar": "Calendario",
     history: "Historial",
-    payroll: "Nomina",
+    payroll: "Gestión humana",
     hiring: "Contratacion",
     "admin-users": "Usuarios",
     authorizations: "Centro de aprobaciones",
@@ -8173,19 +8224,21 @@ function payrollHtml() {
     .filter((r) => String(r.month || "") === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
+  const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
   const employeeRows = employees
     .map((e) => {
-      const av = String(e.avatarUrl || "");
-      const avatar =
-        av && /^https?:\/\//i.test(av)
-          ? `<span class="emp-avatar" style="background-image:url('${av.replace(/'/g, "\\'")}')"></span>`
-          : `<span class="emp-avatar emp-avatar-letter">${(e.name || "E").charAt(0).toUpperCase()}</span>`;
+      const avCss = employeeAvatarCssUrl(e.avatarUrl);
+      const avatar = avCss
+        ? `<span class="emp-avatar" style="background-image:url('${avCss}')" role="img" aria-label=""></span>`
+        : `<span class="emp-avatar emp-avatar-letter" aria-hidden="true">${escapeHtml(String(e.name || "E").charAt(0).toUpperCase())}</span>`;
       return `<tr>
       <td><input type="checkbox" data-employee-select value="${e.id}" /></td>
-      <td><div class="emp-cell-name">${avatar}<div><strong>${e.name}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${e.idDoc}</td><td>${e.position}</td><td>${e.contractType}</td><td>${getCompanyById(e.companyId)?.name || "-"}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
-      <td><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="edit-employee" data-id="${e.id}">${IC.edit} Editar</button>
-        <button class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${e.id}">${IC.trash} Eliminar</button>
+      <td><div class="emp-cell-name">${avatar}<div><strong>${escapeHtml(e.name || "")}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${escapeHtml(String(e.idDoc || ""))}</td><td>${escapeHtml(String(e.position || ""))}</td><td>${escapeHtml(String(e.contractType || ""))}</td><td>${escapeHtml(getCompanyById(e.companyId)?.name || "-")}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
+      <td><div class="toolbar employee-table-actions">
+        <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
+        <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato Word</button>
+        <button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}">${IC.trash} Eliminar</button>
       </div></td>
     </tr>`;
     })
@@ -8206,6 +8259,7 @@ function payrollHtml() {
         <td><div class="toolbar">
           <button class="btn btn-sm btn-action" data-action="payslip" data-id="${escapeAttr(String(r.id))}">${IC.printer} Desprendible</button>
           ${!r.paid ? `<button class="btn btn-sm btn-approve" data-action="mark-payroll-paid" data-id="${escapeAttr(String(r.id))}">${IC.check} Marcar pagado</button>` : ""}
+          ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(r.id))}" title="Eliminar esta liquidacion (solo administradores)">${IC.trash} Eliminar liquidacion</button>` : ""}
         </div></td>
       </tr>`;
     })
@@ -8357,7 +8411,10 @@ function payrollHtml() {
           <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
         </div>
         <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
-        <button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>
+        <div class="hr-form-wizard-submit-row toolbar" style="justify-content:flex-end;flex-wrap:wrap;gap:0.5rem">
+          <button type="button" class="btn btn-outline btn-sm hr-form-wizard-contract-draft" data-action="employee-form-generate-contract-draft" data-hr-wizard-submit-sync disabled aria-disabled="true">${IC.file} Generar contrato Word</button>
+          <button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>
+        </div>
       </div>
     </div>
   </form>`;
@@ -8417,11 +8474,16 @@ function payrollHtml() {
       <td>${a.startDate} → ${a.endDate}</td>
       <td>${a.days}</td>
       <td><span class="muted">${a.supportNumber || "-"}</span></td>
+      <td>${
+        hrAdminDeletes
+          ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-hr-absence" data-id="${escapeAttr(String(a.id))}" title="Solo administradores">${IC.trash} Eliminar</button>`
+          : "—"
+      }</td>
     </tr>`
     )
     .join("");
   const absenceTable = absenceRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Dias</th><th>Soporte</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Dias</th><th>Soporte</th><th>Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin incapacidades ni vacaciones registradas.");
   const empTable = employeeRows
     ? `<div style="margin-bottom:0.8rem" class="toolbar"><button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject">${IC.trash} Eliminar seleccionados (cascada)</button></div><div class="table-wrap"><table><thead><tr><th></th><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
@@ -8451,7 +8513,7 @@ function payrollHtml() {
   const payrollHead = `<div class="ops-module-head ops-module-head--rich">
       <div class="ops-module-title">
         <span class="ops-module-kicker">Recursos humanos</span>
-        <h2>Nómina y gestión de personal</h2>
+        <h2>Gestión humana y colaboradores</h2>
         <p class="ops-module-subtitle">Liquidaciones, fichas y ausencias con trazabilidad para control interno y apoyo al área contable.</p>
       </div>
       <div class="ops-module-chips">
@@ -8475,7 +8537,7 @@ function payrollHtml() {
     </div>`;
   const payrollExecutionBlock = `<section class="ops-block ops-block--payroll-flow">
       <header class="ops-block-head">
-        <h3>Ejecución de nómina</h3>
+        <h3>Registro, liquidaciones y novedades</h3>
         <p class="ops-block-lead muted">Formularios colapsables para registrar personas, liquidar mes y cargar novedades.</p>
       </header>
       <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
@@ -8503,7 +8565,7 @@ function payrollHtml() {
   ]);
   const payrollTabsNav = renderHrWorkspaceTabs({
     module: "payroll",
-    ariaLabel: "Secciones del módulo Nómina",
+    ariaLabel: "Secciones del módulo Gestión humana",
     activeId: payrollWorkspace,
     tabs: [
       { id: "overview", label: "Panorama", hint: "Métricas y contexto", icon: "compass" },
@@ -8529,7 +8591,7 @@ function payrollHtml() {
           <h3>Filtro operativo</h3>
           <p class="ops-block-lead muted">Aplique criterios antes de exportar o auditar el historial.</p>
         </header>
-        ${pcardWrap("filter", "Filtros de nómina", null, filtersHtml)}
+        ${pcardWrap("filter", "Filtros de personal y pagos", null, filtersHtml)}
       </section>
       ${payrollDataBlock}
     </div>`;
@@ -8592,6 +8654,7 @@ function hiringHtml() {
     .join("");
 
   const filteredVacancies = vacancies.filter((v) => (vacancyFilter === "open" ? v.status === "Publicada" : true));
+  const vacancyAdminDeletes = currentUser()?.role === ROLES.ADMIN;
   const filteredCandidates = candidates.filter((c) => {
     if (candidateFilter === "active") return !["Contratado", "Descartado"].includes(String(c.status || ""));
     if (candidateFilter === "finalized") return ["Contratado", "Descartado"].includes(String(c.status || ""));
@@ -8602,7 +8665,31 @@ function hiringHtml() {
     if (candidateSort === "experience") return parseNum(b.experienceYears || 0) - parseNum(a.experienceYears || 0);
     return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
-  const vacRows = filteredVacancies.map((v) => `<tr><td><strong>${v.title}</strong></td><td>${v.positionName || "-"}</td><td>${v.city || "-"} · ${v.modality || "-"}</td><td>${v.openings || 1}</td><td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td><td>${v.deadline}</td><td>${v.status === "Publicada" ? '<span class="status status-viaje_asignado">Publicada</span>' : '<span class="status status-rechazada">Cerrada</span>'}</td><td><button class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${v.id}">${IC.x} Cerrar</button></td></tr>`).join("");
+  const vacRows = filteredVacancies
+    .map((v) => {
+      const delCell = vacancyAdminDeletes
+        ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vacancy" data-id="${escapeAttr(String(v.id))}" title="Solo administradores del sistema">${IC.trash} Eliminar</button>`
+        : `<span class="muted" title="Eliminar solo con rol administrador">—</span>`;
+      const statusHtml =
+        v.status === "Publicada"
+          ? '<span class="status status-viaje_asignado">Publicada</span>'
+          : '<span class="status status-rechazada">Cerrada</span>';
+      return `<tr>
+      <td><strong>${escapeHtml(String(v.title || ""))}</strong></td>
+      <td>${escapeHtml(String(v.positionName || "-"))}</td>
+      <td>${escapeHtml(String(v.city || "-"))} · ${escapeHtml(String(v.modality || "-"))}</td>
+      <td>${escapeHtml(String(v.openings ?? 1))}</td>
+      <td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td>
+      <td>${escapeHtml(String(v.deadline || "-"))}</td>
+      <td>${statusHtml}</td>
+      <td><div class="toolbar vacancy-row-actions">${[
+        `<button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>`,
+        `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>`,
+        delCell
+      ].join("")}</div></td>
+    </tr>`;
+    })
+    .join("");
   const candRows = sortedCandidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
   const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
   const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.contractType || "-"}${c.endDate ? `<br><span class="muted">Fin: ${c.endDate}</span>` : ""}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
@@ -8786,7 +8873,7 @@ function hiringHtml() {
   </form>`;
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
-  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th></th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
+  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
   const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
@@ -9256,26 +9343,6 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
 }
 
 function authorizationsHtml() {
-  if (state.authorizationsHydrating) {
-    const authHero = moduleFleetHeroStrip([
-      { label: "Bandeja total", value: "…" },
-      { label: "Nuevas cuentas web", value: "…" },
-      { label: "Solicitudes pendientes", value: "…" },
-      { label: "Cola interna", value: "…" }
-    ]);
-    const syncPanel = `<div class="auth-hub-sync-loading" role="status" aria-live="polite" aria-busy="true">
-      <div class="auth-hub-sync-spinner" aria-hidden="true"></div>
-      <div class="auth-hub-sync-loading-text">
-        <strong>Sincronizando con el servidor</strong>
-        <span class="muted">Cargando usuarios pendientes, solicitudes y colas de aprobación desde el servidor.</span>
-      </div>
-    </div>`;
-    return (
-      authHero +
-      pcardWrap("shield", "Centro de aprobaciones", "Actualizando datos del servidor…", syncPanel)
-    );
-  }
-
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
@@ -9750,7 +9817,7 @@ function renderPortalViewImpl() {
   if (view === "authorizations") {
     const canAuthSync = portalCanRefreshFromApi();
     if (prevPortalView !== "authorizations" && canAuthSync) {
-      state.authorizationsHydrating = true;
+      /** Sin pantalla bloqueante: se pintan primero datos en caché; el servidor actualiza en segundo plano. */
       state.authorizationsSyncError = null;
       void (async () => {
         let bootstrapOk = false;
@@ -9782,11 +9849,8 @@ function renderPortalViewImpl() {
               "No se pudo sincronizar con el servidor. Revise conexión, sesión JWT (cierre sesión y vuelva a entrar) o que su usuario sea administrador con acceso a la API."
           };
         }
-        state.authorizationsHydrating = false;
         scheduleRenderPortalView();
       })();
-    } else if (prevPortalView !== "authorizations") {
-      state.authorizationsHydrating = false;
     }
   }
 
@@ -9850,6 +9914,75 @@ function describeContractDurationForDocx(data) {
   return start ? `Vigencia desde ${start} · ${ct || "según anexo"}` : String(ct || "Según cláusulas y normativa aplicable");
 }
 
+/** Alta empleado (wizard): objeto listo para guardar Word o persistir (sin id). */
+function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = {}) {
+  const stripLargeAvatar = Boolean(avatarOpts.stripLargeAvatar);
+  let merged = String(avatarOpts.avatarUrl ?? raw.avatarUrl ?? "").trim();
+  if (stripLargeAvatar && merged.startsWith("data:")) merged = "";
+  const avatarUrl = merged;
+  const position = getPositionById(String(raw.positionId || ""));
+  if (!position || position.active === false) {
+    return { ok: false, msg: userMessage("recruitSelectActivePosition") };
+  }
+  const baseSalary = parseNum(raw.baseSalary);
+  if (baseSalary < CO_HR_RULES.minMonthlySalary) {
+    return {
+      ok: false,
+      msg: userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO"))
+    };
+  }
+  return {
+    ok: true,
+    payload: {
+      name: String(raw.name || "").trim(),
+      documentType: raw.documentType,
+      idDoc: docNormalized,
+      birthDate: String(raw.birthDate || "").trim(),
+      gender: String(raw.gender || "").trim(),
+      maritalStatus: String(raw.maritalStatus || "").trim(),
+      educationLevel: String(raw.educationLevel || "").trim(),
+      personalEmail: String(raw.personalEmail || "").trim(),
+      emergencyRelation: String(raw.emergencyRelation || "").trim(),
+      positionId: position.id,
+      position: position.name,
+      workerRole: position.workerRole || "empleado",
+      contractType: raw.contractType || position.contractTypeDefault || "Termino indefinido",
+      city: String(raw.city || "").trim(),
+      department: String(raw.department || "").trim(),
+      address: String(raw.address || "").trim(),
+      phone: String(raw.phone || "").trim(),
+      emergencyContact: String(raw.emergencyContact || "").trim(),
+      emergencyPhone: String(raw.emergencyPhone || "").trim(),
+      bloodType: String(raw.bloodType || "").trim(),
+      companyId: raw.companyId,
+      eps: String(raw.eps || "").trim(),
+      pensionFund: String(raw.pensionFund || "").trim(),
+      arl: String(raw.arl || "").trim(),
+      severanceFund: String(raw.severanceFund || "").trim(),
+      compensationFund: String(raw.compensationFund || "").trim(),
+      arlRiskLevel: String(raw.arlRiskLevel || "").trim(),
+      contributorType: String(raw.contributorType || "").trim(),
+      costCenter: String(raw.costCenter || "").trim(),
+      payFrequency: String(raw.payFrequency || "Mensual").trim(),
+      baseSalary,
+      transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
+      contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
+      contractDuration: String(raw.contractDuration || "").trim(),
+      bankName: String(raw.bankName || "").trim(),
+      bankAccount: String(raw.bankAccount || "").trim(),
+      bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
+      startDate: raw.startDate,
+      license: String(raw.license || "").trim(),
+      licenseCategory: String(raw.licenseCategory || "").trim(),
+      licenseExpiry: String(raw.licenseExpiry || "").trim(),
+      psychoTestDate: String(raw.psychoTestDate || "").trim(),
+      psychoTestExpiry: String(raw.psychoTestExpiry || "").trim(),
+      defensiveCourse: String(raw.defensiveCourse || "").trim(),
+      avatarUrl
+    }
+  };
+}
+
 function validateEmployeeContractDocFields(emp) {
   const miss = [];
   if (!String(emp.name || "").trim()) miss.push("nombre completo");
@@ -9863,6 +9996,256 @@ function validateEmployeeContractDocFields(emp) {
   const pos = getPositionById(String(emp.positionId || ""));
   if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
   return miss;
+}
+
+function employeeAvatarCssUrl(av) {
+  const u = String(av || "").trim();
+  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return u.replace(/'/g, "\\'");
+  return "";
+}
+
+function fmtProfileCell(value) {
+  const s = value == null || String(value).trim() === "" ? "—" : String(value);
+  return escapeHtml(s);
+}
+
+function employeeProfileKvRow(label, value) {
+  return `<div class="employee-profile-kv"><span>${escapeHtml(label)}</span><strong>${fmtProfileCell(value)}</strong></div>`;
+}
+
+function buildEmployeePayrollProfileBodyHtml(emp) {
+  if (!emp) return `<p class="muted">Sin datos.</p>`;
+  const css = employeeAvatarCssUrl(emp.avatarUrl);
+  const initial = escapeHtml(String(emp.name || "E").charAt(0).toUpperCase());
+  const hero = css
+    ? `<div class="employee-profile-hero-photo" style="background-image:url('${css}')" role="img" aria-label="Foto del colaborador"></div>`
+    : `<div class="employee-profile-hero-photo employee-profile-hero-photo--letter" aria-hidden="true"><span>${initial}</span></div>`;
+  const docs = `${String(emp.documentType || "").trim()} ${String(emp.idDoc || "").trim()}`.trim();
+  const companyName = getCompanyById(emp.companyId)?.name || "—";
+  const isDriver = String(emp.workerRole || "").toLowerCase() === "conductor";
+  const driverBlock = isDriver
+    ? `
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Conductor</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("N° licencia", emp.license)}
+      ${employeeProfileKvRow("Categoría licencia", emp.licenseCategory)}
+      ${employeeProfileKvRow("Vence licencia", emp.licenseExpiry)}
+      ${employeeProfileKvRow("Psicosensometría (examen)", emp.psychoTestDate)}
+      ${employeeProfileKvRow("Vence psicosensometría", emp.psychoTestExpiry)}
+      ${employeeProfileKvRow("Curso conducción defensiva", emp.defensiveCourse)}
+    </div></section>`
+    : "";
+  return `
+  <article class="employee-profile-card">${hero}<div class="employee-profile-intro">
+      <h3 class="employee-profile-name">${escapeHtml(String(emp.name || "").trim())}</h3>
+      <p class="employee-profile-intro-meta muted">${escapeHtml(String(emp.position || "").trim())} · ${escapeHtml(String(emp.contractType || "").trim())}${isDriver ? ` · ${escapeHtml("Conductor")}` : ""}</p>
+      <span class="employee-profile-chip">${fmtProfileCell(`${parseNum(emp.baseSalary).toLocaleString("es-CO")} COP · salario base`)}</span>
+    </div>
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Identidad</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("Documento", docs)}
+      ${employeeProfileKvRow("Fecha de nacimiento", emp.birthDate)}
+      ${employeeProfileKvRow("Género", emp.gender)}
+      ${employeeProfileKvRow("Estado civil", emp.maritalStatus)}
+      ${employeeProfileKvRow("Nivel educativo", emp.educationLevel)}
+      ${employeeProfileKvRow("Tipo sangre RH", emp.bloodType)}
+    </div></section>
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Contacto</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("Departamento", emp.department)}
+      ${employeeProfileKvRow("Ciudad", emp.city)}
+      ${employeeProfileKvRow("Dirección", emp.address)}
+      ${employeeProfileKvRow("Teléfono celular", emp.phone)}
+      ${employeeProfileKvRow("Correo personal", emp.personalEmail)}
+      ${employeeProfileKvRow("Contacto emergencia", emp.emergencyContact)}
+      ${employeeProfileKvRow("Tel. emergencia", emp.emergencyPhone)}
+      ${employeeProfileKvRow("Parentesco emergencia", emp.emergencyRelation)}
+    </div></section>
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Laboral</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("Empresa", companyName)}
+      ${employeeProfileKvRow("Fecha ingreso", emp.startDate)}
+      ${employeeProfileKvRow("Duración contrato", emp.contractDuration)}
+      ${employeeProfileKvRow("Centro costos", emp.costCenter)}
+      ${employeeProfileKvRow("Periodicidad", emp.payFrequency)}
+      ${employeeProfileKvRow("Aux. transporte (COP)", emp.transportAllowance != null ? parseNum(emp.transportAllowance).toLocaleString("es-CO") : "")}
+      ${employeeProfileKvRow("Tipo cotizante", emp.contributorType)}
+      ${employeeProfileKvRow("ARL nivel riesgo", emp.arlRiskLevel)}
+      ${employeeProfileKvRow("Plantilla contrato Word", emp.contractTemplateKind)}
+    </div></section>
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Seguridad social</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("EPS", emp.eps)}
+      ${employeeProfileKvRow("Fondo pensión", emp.pensionFund)}
+      ${employeeProfileKvRow("ARL", emp.arl)}
+      ${employeeProfileKvRow("Cesantías", emp.severanceFund)}
+      ${employeeProfileKvRow("Caja compensación", emp.compensationFund)}
+    </div></section>
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Pagos</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("Banco", emp.bankName)}
+      ${employeeProfileKvRow("Tipo cuenta", emp.bankAccountType)}
+      ${employeeProfileKvRow("N° cuenta", emp.bankAccount)}
+    </div></section>
+    ${driverBlock}</article>`;
+}
+
+function buildPayrollEmployeeEditModalFields(emp) {
+  const e = emp || {};
+  const empId = escapeAttr(String(e.id || ""));
+  const deps = `<option value="">${escapeHtml("Seleccione...")}</option>${departmentOptions(e.department || "")}`;
+  const docSel = CO_CATALOGS.documentTypes.map((d) => {
+    const lab =
+      d === "CC"
+        ? "Cédula de ciudadanía"
+        : d === "CE"
+          ? "Cédula de extranjería"
+          : d === "PAS"
+            ? "Pasaporte"
+            : d === "PEP"
+              ? "Permiso especial (PEP)"
+              : "Tarjeta de identidad";
+    return `<option value="${escapeAttr(d)}" ${String(e.documentType || "") === d ? "selected" : ""}>${escapeHtml(lab)}</option>`;
+  }).join("");
+  const genderSel = CO_CATALOGS.genders.map(
+    (g) => `<option value="${escapeAttr(g)}" ${String(e.gender || "") === g ? "selected" : ""}>${escapeHtml(g)}</option>`
+  ).join("");
+  const maritalSel = CO_CATALOGS.maritalStatus.map(
+    (g) =>
+      `<option value="${escapeAttr(g)}" ${String(e.maritalStatus || "").trim() === g ? "selected" : ""}>${escapeHtml(g)}</option>`
+  ).join("");
+  const eduSel = CO_CATALOGS.educationLevel.map(
+    (g) =>
+      `<option value="${escapeAttr(g)}" ${String(e.educationLevel || "").trim() === g ? "selected" : ""}>${escapeHtml(g)}</option>`
+  ).join("");
+  const contractSel = CO_CATALOGS.contractTypes.map(
+    (c) =>
+      `<option value="${escapeAttr(c)}" ${String(e.contractType || "").trim() === c ? "selected" : ""}>${escapeHtml(c)}</option>`
+  ).join("");
+  const tmplSel = [`oficina`, `fijo`, `prestacion`]
+    .map((k) => {
+      const lab =
+        k === "oficina" ? "Contrato trabajo personal oficina" : k === "fijo" ? "Contrato personal término fijo" : "Contrato prestación servicios conductores";
+      const cur = String(e.contractTemplateKind || "").trim().toLowerCase();
+      return `<option value="${escapeAttr(k)}" ${cur === k ? "selected" : ""}>${escapeHtml(lab)}</option>`;
+    })
+    .join("");
+  const payFreqSel = selectOptionsFromCatalog(CO_CATALOGS.payFrequency, e.payFrequency || "Mensual", "Seleccione...");
+  const companyOptsInner = [`<option value="">${escapeHtml("Seleccione")}</option>`]
+    .concat(
+      read(KEYS.companies, [])
+        .filter((c) => isCompanyRecordActive(c))
+        .map(
+          (c) =>
+            `<option value="${escapeAttr(c.id)}" ${String(e.companyId || "") === String(c.id || "") ? "selected" : ""}>${escapeHtml(String(c.name || ""))}</option>`
+        )
+    )
+    .join("");
+  const posOptsInner = [`<option value="">${escapeHtml("Seleccione")}</option>`]
+    .concat(
+      getActivePositions().map(
+        (p) =>
+          `<option value="${escapeAttr(p.id)}" ${String(e.positionId || "") === String(p.id || "") ? "selected" : ""}>${escapeHtml(`${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}`)}</option>`
+      )
+    )
+    .join("");
+  const tplKind = escapeAttr(String(e.contractTemplateKind || "oficina").toLowerCase());
+  const defCourse = escapeAttr(String(e.defensiveCourse || ""));
+  const existingAvatar = escapeAttr(String(e.avatarUrl || ""));
+  return [
+    {
+      type: "hidden",
+      name: "__employee_edit_id",
+      value: empId
+    },
+    {
+      type: "custom",
+      label: "Identidad",
+      html: `<div class="form-section-grid employee-edit-grid">
+<label><span>${escapeHtml("Nombre completo")}</span><input name="name" required value="${escapeAttr(e.name || "")}" /></label>
+<label><span>${escapeHtml("Tipo documento")}</span><select name="documentType" required>${docSel}</select></label>
+<label><span>${escapeHtml("N° documento")}</span><input name="idDoc" required value="${escapeAttr(e.idDoc || "")}" /></label>
+<label><span>${escapeHtml("Fecha nacimiento")}</span><input type="date" name="birthDate" value="${escapeAttr(e.birthDate || "")}" /></label>
+<label><span>${escapeHtml("Género")}</span><select name="gender">${genderSel}</select></label>
+<label><span>${escapeHtml("Estado civil")}</span><select name="maritalStatus">${maritalSel}</select></label>
+<label><span>${escapeHtml("Nivel educativo")}</span><select name="educationLevel">${eduSel}</select></label>
+<label><span>${escapeHtml("Tipo de sangre RH")}</span><select name="bloodType" required>${selectOptionsFromCatalog(CO_CATALOGS.bloodTypes, e.bloodType || "", "Seleccione tipo de sangre...")}</select></label>
+</div>`
+    },
+    {
+      type: "custom",
+      label: "Contacto y ubicación",
+      html: `<div class="form-section-grid employee-edit-grid">
+<label><span>${escapeHtml("Departamento")}</span><select name="department" id="employee-modal-department" required>${deps}</select></label>
+<label><span>${escapeHtml("Ciudad")}</span><select name="city" id="employee-modal-city" required><option value="">${escapeHtml("Seleccione un departamento...")}</option></select></label>
+<label class="full"><span>${escapeHtml("Dirección")}</span><input name="address" required value="${escapeAttr(e.address || "")}" /></label>
+<label><span>${escapeHtml("Teléfono celular")}</span><input name="phone" required value="${escapeAttr(e.phone || "")}" /></label>
+<label><span>${escapeHtml("Correo personal")}</span><input type="email" name="personalEmail" value="${escapeAttr(e.personalEmail || "")}" /></label>
+<label><span>${escapeHtml("Contacto emergencia")}</span><input name="emergencyContact" required value="${escapeAttr(e.emergencyContact || "")}" /></label>
+<label><span>${escapeHtml("Tel. emergencia")}</span><input name="emergencyPhone" required value="${escapeAttr(e.emergencyPhone || "")}" /></label>
+<label class="full"><span>${escapeHtml("Parentesco emergencia")}</span><input name="emergencyRelation" value="${escapeAttr(e.emergencyRelation || "")}" /></label>
+</div>`
+    },
+    {
+      type: "custom",
+      label: "Laboral",
+      html: `<div class="form-section-grid employee-edit-grid">
+<label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
+<label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
+<label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" required>${contractSel}</select></label>
+<label class="full"><span>${escapeHtml("Duración del contrato")}</span><input name="contractDuration" required value="${escapeAttr(e.contractDuration || "")}" /></label>
+<label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(e.startDate || "")}" /></label>
+<label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
+<label><span>${escapeHtml("Auxilio transporte")}</span><input type="number" name="transportAllowance" min="0" value="${escapeAttr(parseNum(e.transportAllowance) || CO_HR_RULES.transportAllowance)}" /></label>
+<label><span>${escapeHtml("Periodicidad pago")}</span><select name="payFrequency">${payFreqSel}</select></label>
+<label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(e.costCenter || "")}" /></label>
+<label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
+<label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
+<label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" required>${tmplSel}</select></label>
+</div>`
+    },
+    {
+      type: "custom",
+      label: "Seguridad social",
+      html: `<div class="form-section-grid employee-edit-grid">
+<label><span>${escapeHtml("EPS")}</span><select name="eps" required>${selectOptionsFromCatalog(CO_CATALOGS.eps, e.eps || "", "Seleccione EPS...")}</select></label>
+<label><span>${escapeHtml("Pensión")}</span><select name="pensionFund" required>${selectOptionsFromCatalog(CO_CATALOGS.pensionFunds, e.pensionFund || "", "Seleccione fondo...")}</select></label>
+<label><span>${escapeHtml("ARL")}</span><select name="arl" required>${selectOptionsFromCatalog(CO_CATALOGS.arl, e.arl || "", "Seleccione ARL...")}</select></label>
+<label><span>${escapeHtml("Fondo cesantías")}</span><select name="severanceFund">${selectOptionsFromCatalog(CO_CATALOGS.severanceFunds, e.severanceFund || "")}</select></label>
+<label><span>${escapeHtml("Caja compensación")}</span><select name="compensationFund">${selectOptionsFromCatalog(CO_CATALOGS.compensationFunds, e.compensationFund || "")}</select></label>
+</div>`
+    },
+    {
+      type: "custom",
+      label: "Datos bancarios",
+      html: `<div class="form-section-grid employee-edit-grid">
+<label><span>${escapeHtml("Banco")}</span><select name="bankName" required>${selectOptionsFromCatalog(CO_CATALOGS.banks, e.bankName || "", "Seleccione...")}</select></label>
+<label><span>${escapeHtml("Tipo cuenta")}</span><select name="bankAccountType">${selectOptionsFromCatalog(CO_CATALOGS.accountTypes, e.bankAccountType || "Ahorros")}</select></label>
+<label class="full"><span>${escapeHtml("Número cuenta")}</span><input name="bankAccount" required value="${escapeAttr(e.bankAccount || "")}" /></label>
+</div>`
+    },
+    {
+      type: "custom",
+      label: "Conductor",
+      html: `<div class="form-section-grid employee-edit-grid hr-modal-conductor-block">
+<label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
+<label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
+<label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(e.licenseExpiry || "")}" /></label>
+<label><span>${escapeHtml("Psicosensométrico")}</span><input type="date" name="psychoTestDate" value="${escapeAttr(e.psychoTestDate || "")}" /></label>
+<label><span>${escapeHtml("Vence psicosensométrico")}</span><input type="date" name="psychoTestExpiry" value="${escapeAttr(e.psychoTestExpiry || "")}" /></label>
+<label><span>${escapeHtml("Conducción defensiva")}</span><select name="defensiveCourse">
+<option value="">${escapeHtml("Seleccione...")}</option>
+<option value="vigente" ${defCourse === "vigente" ? "selected" : ""}>${escapeHtml("Vigente")}</option>
+<option value="vencido" ${defCourse === "vencido" ? "selected" : ""}>${escapeHtml("Vencido")}</option>
+<option value="no_aplica" ${defCourse === "no_aplica" ? "selected" : ""}>${escapeHtml("No aplica")}</option>
+</select></label>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.82rem">Si el cargo no es conductor, puede dejar esta sección en blanco.</p>
+</div>`
+    },
+    {
+      type: "custom",
+      label: "Foto",
+      html: `<div class="form-section-grid employee-edit-grid">
+<label class="full"><span>${escapeHtml("Nueva foto (opcional)")}</span><input type="file" name="avatarFile" accept="image/*" /></label>
+<input type="hidden" name="avatarUrlExisting" value="${existingAvatar}" />
+<p class="full muted modal-field-hint" style="font-size:0.82rem">${escapeHtml("Si no selecciona archivo, se mantiene la foto actual.")}</p>
+</div>`
+    }
+  ];
 }
 
 function buildEmployeeContractDocxPayload(employee, opts = {}) {
@@ -9987,9 +10370,8 @@ const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "toggle-driver",
   "delete-driver",
   "delete-route-rate",
-  "edit-employee",
   "delete-employee",
-  "close-vacancy",
+  "delete-vacancy",
   "toggle-position",
   "candidate-status",
   "open-edit-user",
@@ -10001,7 +10383,9 @@ const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "open-edit-company",
   "close-edit-company",
   "toggle-company-active",
-  "delete-company"
+  "delete-company",
+  "delete-payroll-run",
+  "delete-hr-absence"
 ]);
 
 function portalNonAdminRestrictedCaptureClick(event) {
@@ -11914,16 +12298,7 @@ function bindDynamicEvents() {
 
   const vehicleForm = document.getElementById("form-vehicle");
   if (vehicleForm) {
-    const soatExpEl = vehicleForm.querySelector("input[name='soatExpeditionDate']");
-    const soatVenEl = vehicleForm.querySelector("input[name='soatExpiryDate']");
-    if (soatExpEl && soatVenEl) {
-      const syncSoatExpiryFromExpedition = () => {
-        const next = addCalendarYearsIsoDate(soatExpEl.value, 1);
-        if (next) soatVenEl.value = next;
-      };
-      soatExpEl.addEventListener("change", syncSoatExpiryFromExpedition);
-      soatExpEl.addEventListener("blur", syncSoatExpiryFromExpedition);
-    }
+    bindVehicleDocExpiryAutoFill(vehicleForm);
     vehicleForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
@@ -11942,6 +12317,11 @@ function bindDynamicEvents() {
       let soatExpiryDate = data.soatExpiryDate;
       if (soatExpeditionDate && (!soatExpiryDate || !String(soatExpiryDate).trim())) {
         soatExpiryDate = addCalendarYearsIsoDate(soatExpeditionDate, 1) || soatExpiryDate;
+      }
+      let techInspectionExpeditionDate = data.techInspectionExpeditionDate;
+      let techInspectionExpiryDate = data.techInspectionExpiryDate;
+      if (techInspectionExpeditionDate && (!techInspectionExpiryDate || !String(techInspectionExpiryDate).trim())) {
+        techInspectionExpiryDate = addCalendarYearsIsoDate(techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
       }
       const list = read(KEYS.vehicles, []);
       list.push({
@@ -11962,8 +12342,8 @@ function bindDynamicEvents() {
         ownershipCard: String(data.ownershipCard || "").trim(),
         soatExpeditionDate,
         soatExpiryDate,
-        techInspectionExpeditionDate: data.techInspectionExpeditionDate,
-        techInspectionExpiryDate: data.techInspectionExpiryDate,
+        techInspectionExpeditionDate,
+        techInspectionExpiryDate,
         rcPolicyContract: String(data.rcPolicyContract || "").trim(),
         rcPolicyExtra: String(data.rcPolicyExtra || "").trim(),
         rcPolicyExpiry: data.rcPolicyExpiry || "",
@@ -12110,7 +12490,20 @@ function bindDynamicEvents() {
           { name: "ownerName", label: "Propietario", value: target.ownerName || "" },
           { name: "ownerTaxId", label: "NIT/Cédula propietario", value: target.ownerTaxId || "" }
         ],
+        afterMount: (formEl) => bindVehicleDocExpiryAutoFill(formEl),
         onSubmit: (form) => {
+          let soatExpiryDate = form.soatExpiryDate || "";
+          if (form.soatExpeditionDate && (!soatExpiryDate || !String(soatExpiryDate).trim())) {
+            soatExpiryDate = addCalendarYearsIsoDate(form.soatExpeditionDate, 1) || soatExpiryDate;
+          }
+          let techInspectionExpiryDate = form.techInspectionExpiryDate || "";
+          if (
+            form.techInspectionExpeditionDate &&
+            (!techInspectionExpiryDate || !String(techInspectionExpiryDate).trim())
+          ) {
+            techInspectionExpiryDate =
+              addCalendarYearsIsoDate(form.techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
+          }
           write(
             KEYS.vehicles,
             all.map((v) =>
@@ -12131,9 +12524,9 @@ function bindDynamicEvents() {
                     ownershipCard: String(form.ownershipCard || "").trim(),
                     refrigerated: String(form.refrigerated || "false") === "true",
                     soatExpeditionDate: form.soatExpeditionDate,
-                    soatExpiryDate: form.soatExpiryDate || "",
+                    soatExpiryDate,
                     techInspectionExpeditionDate: form.techInspectionExpeditionDate,
-                    techInspectionExpiryDate: form.techInspectionExpiryDate || "",
+                    techInspectionExpiryDate,
                     rcPolicyContract: String(form.rcPolicyContract || "").trim(),
                     rcPolicyExtra: String(form.rcPolicyExtra || "").trim(),
                     rcPolicyExpiry: form.rcPolicyExpiry || "",
@@ -12426,6 +12819,48 @@ function bindDynamicEvents() {
       syncEmpFromPosition();
     }
     bindHrFormWizard(employeeForm);
+    employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const raw = Object.fromEntries(new FormData(employeeForm).entries());
+        const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
+        if (!docValidation.ok) {
+          notify(docValidation.message, "error");
+          return;
+        }
+        const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
+          avatarUrl: "",
+          stripLargeAvatar: false
+        });
+        if (!packed.ok) {
+          notify(packed.msg, "error");
+          return;
+        }
+        const payload = packed.payload;
+        const miss = validateEmployeeContractDocFields(payload);
+        if (miss.length) {
+          notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
+          return;
+        }
+        if (payload.workerRole === "conductor") {
+          if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
+            notify(userMessage("employeeDriverFieldsRequired"), "error");
+            return;
+          }
+          if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+            notify(userMessage("payrollLicenseExpired"), "error");
+            return;
+          }
+        }
+        try {
+          await generateOfficialWordContract(
+            buildEmployeeContractDocxPayload(payload, { contractTemplateKind: payload.contractTemplateKind })
+          );
+          notify(userMessage("employeeContractWordOk"), "success");
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+        }
+      });
+    });
     employeeForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -12435,76 +12870,20 @@ function bindDynamicEvents() {
         notify(docValidation.message, "error");
         return;
       }
-      const position = getPositionById(String(raw.positionId || ""));
-      if (!position || position.active === false) {
-        notify(userMessage("recruitSelectActivePosition"), "error");
-        return;
-      }
-      const baseSalary = parseNum(raw.baseSalary);
-      if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-        notify(
-          userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
-          "error"
-        );
-        return;
-      }
+      const stripAvatar = actor?.role !== ROLES.ADMIN;
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
       const file = fileInput?.files?.[0];
-      const buildPayload = (avatarUrlValue, opts = {}) => {
-        const merged = String(avatarUrlValue ?? raw.avatarUrl ?? "").trim();
-        const strip = Boolean(opts.stripLargeAvatar) && merged.startsWith("data:");
-        const avatarUrl = strip ? "" : merged;
-        return {
-          name: String(raw.name || "").trim(),
-          documentType: raw.documentType,
-          idDoc: docValidation.normalized,
-          birthDate: String(raw.birthDate || "").trim(),
-          gender: String(raw.gender || "").trim(),
-          maritalStatus: String(raw.maritalStatus || "").trim(),
-          educationLevel: String(raw.educationLevel || "").trim(),
-          personalEmail: String(raw.personalEmail || "").trim(),
-          emergencyRelation: String(raw.emergencyRelation || "").trim(),
-          positionId: position.id,
-          position: position.name,
-          workerRole: position.workerRole || "empleado",
-          contractType: raw.contractType || position.contractTypeDefault || "Termino indefinido",
-          city: String(raw.city || "").trim(),
-          department: String(raw.department || "").trim(),
-          address: String(raw.address || "").trim(),
-          phone: String(raw.phone || "").trim(),
-          emergencyContact: String(raw.emergencyContact || "").trim(),
-          emergencyPhone: String(raw.emergencyPhone || "").trim(),
-          bloodType: String(raw.bloodType || "").trim(),
-          companyId: raw.companyId,
-          eps: String(raw.eps || "").trim(),
-          pensionFund: String(raw.pensionFund || "").trim(),
-          arl: String(raw.arl || "").trim(),
-          severanceFund: String(raw.severanceFund || "").trim(),
-          compensationFund: String(raw.compensationFund || "").trim(),
-          arlRiskLevel: String(raw.arlRiskLevel || "").trim(),
-          contributorType: String(raw.contributorType || "").trim(),
-          costCenter: String(raw.costCenter || "").trim(),
-          payFrequency: String(raw.payFrequency || "Mensual").trim(),
-          baseSalary,
-          transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
-          contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
-          contractDuration: String(raw.contractDuration || "").trim(),
-          bankName: String(raw.bankName || "").trim(),
-          bankAccount: String(raw.bankAccount || "").trim(),
-          bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
-          startDate: raw.startDate,
-          license: String(raw.license || "").trim(),
-          licenseCategory: String(raw.licenseCategory || "").trim(),
-          licenseExpiry: String(raw.licenseExpiry || "").trim(),
-          psychoTestDate: String(raw.psychoTestDate || "").trim(),
-          psychoTestExpiry: String(raw.psychoTestExpiry || "").trim(),
-          defensiveCourse: String(raw.defensiveCourse || "").trim(),
-          avatarUrl
-        };
-      };
       const saveEmployee = async (avatarUrlValue) => {
+        const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
+          avatarUrl: avatarUrlValue,
+          stripLargeAvatar: stripAvatar
+        });
+        if (!packed.ok) {
+          notify(packed.msg, "error");
+          return;
+        }
+        const payload = packed.payload;
         if (actor?.role !== ROLES.ADMIN) {
-          const payload = buildPayload(avatarUrlValue, { stripLargeAvatar: true });
           queueApproval({
             type: "create_employee",
             title: `Creacion de empleado ${payload.name}`,
@@ -12516,7 +12895,6 @@ function bindDynamicEvents() {
           renderPortalView();
           return;
         }
-        const payload = buildPayload(avatarUrlValue);
         if (payload.workerRole === "conductor") {
           if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
             notify(userMessage("employeeDriverFieldsRequired"), "error");
@@ -12535,34 +12913,12 @@ function bindDynamicEvents() {
           licenseCategory: payload.licenseCategory,
           licenseExpiry: payload.licenseExpiry
         });
-        if (window.RecruitmentDomain?.generateEmployeeContractDocx) {
-          try {
-            await window.RecruitmentDomain.generateEmployeeContractDocx({
-              contractTemplateKind: payload.contractTemplateKind,
-              contractType: payload.contractType,
-              workerRole: payload.workerRole,
-              nombre_empleado: payload.name,
-              cedula_empleado: payload.idDoc,
-              ciudad_empleado: payload.city,
-              banco_cuenta_bancaria: payload.bankName,
-              salario: payload.baseSalary,
-              salario_letras: "",
-              duracion_contrato: payload.contractDuration,
-              cuenta_bancaria: payload.bankAccount,
-              cargo_empleado: payload.position,
-              signDate: payload.startDate
-            });
-            notify(userMessage("employeeCreatedWithContract"), "success");
-          } catch (error) {
-            notify(userMessage("employeeCreatedWordFail", error?.message || "Error desconocido"), "error");
-          }
-        } else {
-          notify(userMessage("employeeCreatedOk"), "success");
-        }
+        notify(userMessage("employeeCreatedOk"), "success");
         renderPortalView();
       };
       if (file) {
         const reader = new FileReader();
+        reader.onerror = () => notify(userMessage("genericError"), "error");
         reader.onload = async () => {
           await saveEmployee(String(reader.result || ""));
         };
@@ -12580,7 +12936,10 @@ function bindDynamicEvents() {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(absenceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
-      if (!employee) return;
+      if (!employee) {
+        notify(userMessage("absencePickEmployee"), "error");
+        return;
+      }
       const start = new Date(`${data.startDate}T12:00:00`);
       const end = new Date(`${data.endDate}T12:00:00`);
       if (end.getTime() < start.getTime()) {
@@ -12621,93 +12980,110 @@ function bindDynamicEvents() {
     });
   }
 
+  nodes.viewRoot.querySelectorAll("[data-action='view-employee']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(btn.dataset.id || ""));
+      if (!target) {
+        notify(userMessage("employeeDeleteNotFound"), "error");
+        return;
+      }
+      openInfoModal({
+        title: "Ficha del colaborador",
+        subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
+        bodyHtml: buildEmployeePayrollProfileBodyHtml(target),
+        wide: true
+      });
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='edit-employee']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const all = read(KEYS.payrollEmployees, []);
-      const target = all.find((e) => e.id === btn.dataset.id);
+      const target = all.find((e) => String(e.id) === String(btn.dataset.id || ""));
       if (!target) return;
-      const posOpts = getActivePositions().map((p) => ({ value: p.id, label: `${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}` }));
       openEditModal({
-        title: "Editar empleado",
-        subtitle: target.name,
-        submitText: "Actualizar empleado",
-        fields: [
-          {
-            name: "positionId",
-            label: "Cargo (catalogo)",
-            type: "select",
-            required: true,
-            value: target.positionId || "",
-            options: [{ value: "", label: "Seleccione..." }, ...posOpts]
-          },
-          { name: "baseSalary", label: "Salario base", type: "number", value: target.baseSalary, required: true },
-          {
-            name: "bloodType",
-            label: "Tipo de sangre",
-            type: "select",
-            value: target.bloodType || "",
-            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))]
-          },
-          {
-            name: "eps",
-            label: "EPS",
-            type: "select",
-            value: target.eps || "",
-            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))]
-          },
-          {
-            name: "pensionFund",
-            label: "Fondo de pension",
-            type: "select",
-            value: target.pensionFund || "",
-            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.pensionFunds.map((item) => ({ value: item, label: item }))]
-          },
-          {
-            name: "arl",
-            label: "ARL",
-            type: "select",
-            value: target.arl || "",
-            options: [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.arl.map((item) => ({ value: item, label: item }))]
-          },
-          { name: "avatarUrl", label: "Foto URL (opcional)", value: target.avatarUrl || "" }
-        ],
-        onSubmit: (form) => {
-          const position = getPositionById(String(form.positionId || ""));
-          if (!position) {
-            notify(userMessage("recruitPickPosition"), "error");
+        title: "Editar colaborador",
+        subtitle: String(target.name || "").trim(),
+        submitText: "Guardar cambios",
+        extraModalCardClass: "modal-card-edit--employee",
+        fields: buildPayrollEmployeeEditModalFields(target),
+        afterMount: (formEl) => {
+          attachDepartmentCitySelects(formEl, {
+            departmentSelector: "select[name='department']",
+            citySelector: "select[name='city']",
+            initialDepartment: target.department || "",
+            initialCity: target.city || ""
+          });
+          const pos = formEl.querySelector("#employee-modal-position");
+          const salary = formEl.querySelector("#employee-modal-salary");
+          const contract = formEl.querySelector("select[name='contractType']");
+          const syncFromPos = () => {
+            const p = getPositionById(String(pos?.value || ""));
+            if (!p || !salary) return;
+            salary.value = String(parseNum(p.baseSalary));
+            if (contract && p.contractTypeDefault) contract.value = p.contractTypeDefault;
+          };
+          pos?.addEventListener("change", syncFromPos);
+        },
+        onSubmit: async (payload, formEl) => {
+          const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
+          if (!docValidation.ok) {
+            notify(docValidation.message, "error");
             return false;
           }
-          const baseSalary = parseNum(form.baseSalary);
-          if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-            notify(
-              userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
-              "error"
-            );
+          let nextAvatar = String(payload.avatarUrlExisting || "").trim();
+          try {
+            const file = formEl?.querySelector?.("input[name='avatarFile']")?.files?.[0];
+            if (file) {
+              nextAvatar = await new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onerror = () => reject(new Error("No se pudo leer la imagen."));
+                r.onload = () => resolve(String(r.result || ""));
+                r.readAsDataURL(file);
+              });
+            }
+          } catch (err) {
+            notify(String(err?.message || userMessage("genericError")), "error");
             return false;
+          }
+          const raw = { ...payload, avatarUrl: nextAvatar };
+          const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
+            avatarUrl: nextAvatar,
+            stripLargeAvatar: false
+          });
+          if (!packed.ok) {
+            notify(packed.msg, "error");
+            return false;
+          }
+          const nextPayload = packed.payload;
+          if (nextPayload.workerRole === "conductor") {
+            if (!nextPayload.license || !nextPayload.licenseCategory || !nextPayload.licenseExpiry) {
+              notify(userMessage("employeeDriverFieldsRequired"), "error");
+              return false;
+            }
+            if (new Date(nextPayload.licenseExpiry).getTime() <= Date.now()) {
+              notify(userMessage("payrollLicenseExpired"), "error");
+              return false;
+            }
           }
           write(
             KEYS.payrollEmployees,
-            all.map((e) =>
-              e.id === target.id
-                ? {
-                    ...e,
-                    positionId: position.id,
-                    position: position.name,
-                    workerRole: position.workerRole || e.workerRole,
-                    baseSalary,
-                    bloodType: String(form.bloodType || "").trim(),
-                    eps: String(form.eps || "").trim(),
-                    pensionFund: String(form.pensionFund || "").trim(),
-                    arl: String(form.arl || "").trim(),
-                    avatarUrl: String(form.avatarUrl || "").trim() || e.avatarUrl
+            all.map((empRow) =>
+              String(empRow.id) !== String(target.id)
+                ? empRow
+                : {
+                    ...empRow,
+                    ...nextPayload,
+                    id: empRow.id,
+                    avatarUrl:
+                      typeof nextAvatar === "string" && nextAvatar.trim()
+                        ? nextAvatar.trim()
+                        : empRow.avatarUrl || nextPayload.avatarUrl
                   }
-                : e
             )
           );
-          const refreshed = read(KEYS.payrollEmployees, []).find((e) => e.id === target.id);
-          if (refreshed && refreshed.workerRole === "conductor") {
-            syncDriverFromEmployee(refreshed);
-          }
+          const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
+          if (refreshed && refreshed.workerRole === "conductor") syncDriverFromEmployee(refreshed);
           notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
           return true;
@@ -12789,7 +13165,10 @@ function bindDynamicEvents() {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(payrollForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
-      if (!employee) return;
+      if (!employee) {
+        notify(userMessage("contractPickEmployee"), "error");
+        return;
+      }
       if (!monthRange(data.month)) {
         notify(userMessage("payrollSelectMonth"), "error");
         return;
@@ -12843,6 +13222,7 @@ function bindDynamicEvents() {
       const runs = read(KEYS.payrollRuns, []);
       runs.unshift(run);
       write(KEYS.payrollRuns, runs);
+      notify(userMessage("payrollSaved"), "success");
       renderPortalView();
     });
   }
@@ -12926,6 +13306,81 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='employee-generate-contract']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = String(btn.dataset.id || "").trim();
+      const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === id);
+      if (!emp) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const miss = validateEmployeeContractDocFields(emp);
+      if (miss.length) {
+        notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
+        return;
+      }
+      try {
+        await generateOfficialWordContract(
+          buildEmployeeContractDocxPayload(emp, { contractTemplateKind: emp.contractTemplateKind })
+        );
+        notify(userMessage("employeeContractWordOk"), "success");
+      } catch (err) {
+        notify(String(err?.message || userMessage("genericError")), "error");
+      }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-hr-absence']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
+        return;
+      }
+      const id = String(btn.dataset.id || "").trim();
+      if (!id) return;
+      openConfirmModal({
+        title: "Eliminar ausencia",
+        message: "Se eliminara este registro de ausencia del expediente digital.",
+        confirmText: "Eliminar",
+        onConfirm: () => {
+          write(
+            KEYS.hrAbsences,
+            read(KEYS.hrAbsences, []).filter((a) => String(a.id) !== id)
+          );
+          notify(userMessage("hrAbsenceDeleted"), "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-payroll-run']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
+        return;
+      }
+      const id = String(btn.dataset.id || "").trim();
+      if (!id) return;
+      const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
+      openConfirmModal({
+        title: "Eliminar liquidacion",
+        message: run
+          ? `Eliminar el registro de liquidacion (${run.month} · ${run.employeeName}). Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
+          : "Eliminar este registro de liquidacion.",
+        confirmText: "Eliminar liquidacion",
+        onConfirm: () => {
+          write(
+            KEYS.payrollRuns,
+            read(KEYS.payrollRuns, []).filter((r) => String(r.id) !== id)
+          );
+          notify(userMessage("payrollRunDeleted"), "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
   const exportPayroll = document.getElementById("export-payroll");
   if (exportPayroll) {
     exportPayroll.addEventListener("click", () => {
@@ -12964,8 +13419,17 @@ function bindDynamicEvents() {
     vacancyForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
-      const deadlineTs = new Date(`${String(data.deadline || "")}T12:00:00`).getTime();
-      if (!Number.isFinite(deadlineTs) || deadlineTs < Date.now()) {
+      const deadlineOk = (() => {
+        const s = String(data.deadline || "").trim();
+        const parts = s.split("-");
+        if (parts.length !== 3) return false;
+        const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+        if (!Number.isFinite(cand)) return false;
+        const t = new Date();
+        const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+        return cand >= t0;
+      })();
+      if (!deadlineOk) {
         notify(userMessage("vacancyDeadlineFuture"), "error");
         return;
       }
@@ -12974,12 +13438,17 @@ function bindDynamicEvents() {
         notify(userMessage("vacancySelectPosition"), "error");
         return;
       }
+      const salaryOffer = parseNum(data.salaryOffer);
+      if (salaryOffer < CO_HR_RULES.minMonthlySalary) {
+        notify(userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
+        return;
+      }
       const all = read(KEYS.vacancies, []);
       all.unshift({
         id: newUuidV4(),
         ...data,
         openings: Math.max(1, parseNum(data.openings || 1)),
-        salaryOffer: parseNum(position.baseSalary),
+        salaryOffer,
         positionName: position.name,
         workerRole: position.workerRole || "empleado",
         contractTypeDefault: position.contractTypeDefault || "Termino indefinido",
@@ -12987,6 +13456,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.vacancies, all);
+      notify(userMessage("vacancyPublishedOk"), "success");
       renderPortalView();
     });
   }
@@ -13036,7 +13506,59 @@ function bindDynamicEvents() {
         KEYS.vacancies,
         all.map((v) => (v.id === btn.dataset.id ? { ...v, status: "Cerrada" } : v))
       );
+      notify(userMessage("vacancyClosed"), "success");
       renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='view-vacancy']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = read(KEYS.vacancies, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!v) return;
+      const sal = parseNum(v.salaryOffer);
+      const reqs = escapeHtml(String(v.requirements || "").trim() || "Sin requisitos detallados.");
+      const body = `<div class="vacancy-detail-sheet">
+        <div class="vacancy-detail-pills">
+          <span class="vacancy-pill">${escapeHtml(String(v.positionName || "Cargo"))}</span>
+          <span class="vacancy-pill">${escapeHtml(String(v.city || "Ciudad"))}</span>
+          <span class="vacancy-pill">${escapeHtml(String(v.modality || "Modalidad"))}</span>
+          <span class="vacancy-pill">$${sal.toLocaleString("es-CO")} COP</span>
+          <span class="vacancy-pill">Cupos: ${escapeHtml(String(v.openings ?? 1))}</span>
+        </div>
+        <p><strong>Cierre postulaciones:</strong> ${escapeHtml(String(v.deadline || "—"))}</p>
+        <div class="vacancy-detail-reqs"><strong>Requisitos y perfil</strong><p class="muted" style="margin:0.35rem 0 0;white-space:pre-wrap">${reqs}</p></div>
+      </div>`;
+      openInfoModal({
+        title: String(v.title || "Vacante"),
+        subtitle: `${String(v.department || "").trim()} · ${String(v.workerRole || "").trim() || "RR.HH."}`,
+        bodyHtml: body,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-vacancy']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyModule"), "error");
+        return;
+      }
+      const id = String(btn.dataset.id || "").trim();
+      if (!id) return;
+      openConfirmModal({
+        title: "Eliminar vacante",
+        message:
+          "Se eliminara la vacante del listado. Esta accion no borra candidatos ya postulados en el pipeline, pero puede dejar registros con referencia huérfana.",
+        confirmText: "Eliminar vacante",
+        onConfirm: () => {
+          write(
+            KEYS.vacancies,
+            read(KEYS.vacancies, []).filter((v) => String(v.id) !== id)
+          );
+          notify(userMessage("vacancyDeletedOk"), "success");
+          renderPortalView();
+        }
+      });
     });
   });
 
@@ -13097,7 +13619,10 @@ function bindDynamicEvents() {
       }
       data.idDoc = docValidation.normalized;
       const vac = read(KEYS.vacancies, []).find((v) => v.id === data.vacancyId);
-      if (!vac) return;
+      if (!vac) {
+        notify(userMessage("hireSelectVacancy"), "error");
+        return;
+      }
       const files = [...candidateForm.querySelector("input[name='attachments']").files].map((f) => f.name);
       const expectedSalary = parseNum(data.expectedSalary);
       if (expectedSalary < CO_HR_RULES.minMonthlySalary) {
@@ -13135,6 +13660,7 @@ function bindDynamicEvents() {
       });
       write(KEYS.candidates, all);
       sendEmail({ to: data.email, subject: "Registro recibido", body: "Gracias por aplicar." });
+      notify(userMessage("candidateRegisteredOk"), "success");
       renderPortalView();
     });
   }
@@ -13160,6 +13686,7 @@ function bindDynamicEvents() {
           body: `Tu estado cambio a: ${current.status}`
         });
       }
+      notify(userMessage("candidateUpdated"), "success");
       renderPortalView();
     });
   });
@@ -13175,7 +13702,10 @@ function bindDynamicEvents() {
         return;
       }
       const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
-      if (!candidate) return;
+      if (!candidate) {
+        notify(userMessage("interviewCandidateMissing"), "error");
+        return;
+      }
       if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {
         notify(userMessage("interviewInvalidCandidate"), "error");
         return;
@@ -13202,6 +13732,7 @@ function bindDynamicEvents() {
         )
       );
       sendEmail({ to: candidate.email, subject: "Entrevista programada", body: `Fecha: ${data.when}` });
+      notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
     });
   }
@@ -13995,24 +14526,68 @@ function initRequiredFieldIndicators() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-/** Carreras públicas: si hay API base, lista viene de GET /api/public/vacancies; si no, de KEYS.vacancies en local. */
+/** Carreras públicas: combina GET /api/public/vacancies con vacantes publicadas en este navegador. */
 let publicCareersVacanciesSource = "local";
 let publicCareersVacanciesFromApi = null;
 
-function getPublicPublishedVacancies() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const list =
-    publicCareersVacanciesSource === "api"
-      ? publicCareersVacanciesFromApi !== null
-        ? publicCareersVacanciesFromApi
-        : []
-      : read(KEYS.vacancies, []);
-  return list.filter((v) => {
-    if (v.status !== "Publicada") return false;
-    if (!v.deadline) return true;
-    return new Date(`${v.deadline}T12:00:00`).getTime() >= today.getTime();
+function normalizeVacancyForCareersPublic(v) {
+  if (!v) return null;
+  return {
+    id: v.id,
+    title: String(v.title || ""),
+    department: String(v.department || ""),
+    city: String(v.city || ""),
+    deadline: v.deadline || "",
+    salaryOffer: parseNum(v.salaryOffer),
+    requirements: String(v.requirements || ""),
+    status: String(v.status || ""),
+    positionName: String(v.positionName || ""),
+    modality: String(v.modality || ""),
+    openings: v.openings != null ? v.openings : 1,
+    workerRole: String(v.workerRole || "")
+  };
+}
+
+function vacancyPublicationDeadlineOk(isoDateStr) {
+  const s = String(isoDateStr || "").trim();
+  if (!s) return true;
+  const parts = s.split("-");
+  if (parts.length !== 3) return false;
+  const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+  if (!Number.isFinite(cand)) return false;
+  const t = new Date();
+  const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  return cand >= t0;
+}
+
+function mergeApiVacanciesWithLocalPublished(apiList, localRawList) {
+  const out = [];
+  const seen = new Set();
+  (apiList || []).forEach((row) => {
+    const norm = normalizeVacancyForCareersPublic(row);
+    if (norm == null || norm.id === undefined || norm.id === null || String(norm.id).trim() === "") return;
+    const id = String(norm.id);
+    out.push(norm);
+    seen.add(id);
   });
+  (localRawList || []).forEach((row) => {
+    if (String(row?.status || "") !== "Publicada") return;
+    const norm = normalizeVacancyForCareersPublic(row);
+    if (norm == null || norm.id === undefined || norm.id === null || String(norm.id).trim() === "") return;
+    const id = String(norm.id);
+    if (seen.has(id)) return;
+    out.push(norm);
+    seen.add(id);
+  });
+  return out;
+}
+
+function getPublicPublishedVacancies() {
+  const rows =
+    publicCareersVacanciesSource === "api" && publicCareersVacanciesFromApi !== null && Array.isArray(publicCareersVacanciesFromApi)
+      ? publicCareersVacanciesFromApi
+      : (read(KEYS.vacancies, []) || []).map((v) => normalizeVacancyForCareersPublic(v)).filter(Boolean);
+  return rows.filter((v) => String(v.status || "") === "Publicada" && vacancyPublicationDeadlineOk(v.deadline));
 }
 
 function openPublicVacancyApplyModal(vacancy) {
@@ -14180,14 +14755,18 @@ function initPublicCareers() {
               salaryOffer: row.salaryOffer,
               requirements: row.requirements,
               status: row.status || "Publicada",
-              positionName: row.positionName
+              positionName: row.positionName,
+              modality: row.modality,
+              openings: row.openings,
+              workerRole: row.workerRole
             }))
           : [];
-        publicCareersVacanciesFromApi = mapped;
+        publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(mapped, read(KEYS.vacancies, []));
       })
       .catch((err) => {
         devWarn("Carreras: error al cargar vacantes desde la API.", err?.message || err);
-        publicCareersVacanciesFromApi = [];
+        publicCareersVacanciesSource = "local";
+        publicCareersVacanciesFromApi = null;
       })
       .finally(() => {
         render();

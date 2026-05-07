@@ -60,14 +60,14 @@ window.PortalArchitecture = (() => {
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     payroll: {
-      title: "Nomina",
+      title: "Gestión humana",
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "payrollHtml" }],
       layoutPlan: [{ container: ".payroll-shell", order: [".fleet-hero-strip", ".ops-module-head", ".ops-command-bar", ".ops-block", ".p-card", ".payroll-data-grid"] }]
     },
     hiring: {
-      title: "Contratacion",
+      title: "Contratación",
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "hiringHtml" }],
