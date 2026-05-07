@@ -10757,6 +10757,81 @@ body[data-theme="dark"] .portal-main .btn-action {
   }
 }
 
+/**
+ * Modo "apilado" para la pestaña Seguimiento del módulo Contratación.
+ * Cada tarjeta (alertas, candidatos, vacantes, entrevistas, contratos, cargos)
+ * ocupa el ancho completo del panel, de modo que las tablas con muchas columnas
+ * (8-9 cabeceras) no requieran scroll horizontal y se lean cómodamente.
+ */
+.hiring-data-grid.hiring-results-grid.hiring-results-grid--stacked,
+.hiring-shell--workspace .hiring-results-grid.hiring-results-grid--stacked {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.1rem;
+}
+
+@media (min-width: 1024px) {
+  .hiring-data-grid.hiring-results-grid.hiring-results-grid--stacked {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/**
+ * Cuando la tabla aún excede el ancho del card (móviles muy estrechos),
+ * `.table-wrap` mantiene el scroll-x pero le damos pista visual con
+ * gradiente lateral y aire interno suficiente para que se vea ordenado.
+ */
+.hiring-results-grid--stacked .table-wrap {
+  position: relative;
+  border-radius: 10px;
+  background: linear-gradient(
+      to right,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0) 24px
+    ),
+    linear-gradient(
+      to left,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 0) 24px
+    ),
+    linear-gradient(
+      to right,
+      rgba(11, 29, 51, 0.08),
+      rgba(11, 29, 51, 0)
+    ),
+    linear-gradient(to left, rgba(11, 29, 51, 0.08), rgba(11, 29, 51, 0));
+  background-attachment: local, local, scroll, scroll;
+  background-position: 0 0, 100% 0, 0 0, 100% 0;
+  background-repeat: no-repeat;
+  background-size: 24px 100%, 24px 100%, 14px 100%, 14px 100%;
+}
+
+.hiring-results-grid--stacked .table-wrap table {
+  min-width: 100%;
+}
+
+body[data-theme="dark"] .hiring-results-grid--stacked .table-wrap {
+  background: linear-gradient(
+      to right,
+      rgba(8, 18, 32, 1) 0%,
+      rgba(8, 18, 32, 0) 24px
+    ),
+    linear-gradient(
+      to left,
+      rgba(8, 18, 32, 1) 0%,
+      rgba(8, 18, 32, 0) 24px
+    ),
+    linear-gradient(
+      to right,
+      rgba(148, 196, 255, 0.12),
+      rgba(148, 196, 255, 0)
+    ),
+    linear-gradient(to left, rgba(148, 196, 255, 0.12), rgba(148, 196, 255, 0));
+  background-attachment: local, local, scroll, scroll;
+  background-position: 0 0, 100% 0, 0 0, 100% 0;
+  background-repeat: no-repeat;
+  background-size: 24px 100%, 24px 100%, 14px 100%, 14px 100%;
+}
+
 .portal-main .dash-grid > .p-card,
 .portal-main .hiring-actions-grid > .p-card,
 .portal-main .hiring-data-grid > .p-card,

@@ -24,25 +24,27 @@
 (function () {
   "use strict";
   /**
-   * URL RAÍZ del servidor Nest. NO incluye el sufijo /api (lo añade el cliente).
+   * URL RAÍZ del servidor Nest en producción. NO incluye el sufijo /api (lo añade el cliente).
    *
-   * Configuración por entorno:
-   *  - app.transportesantares.co (nuevo portal en Cloudflare Pages): API por Cloudflare Tunnel
-   *    en https://api.transportesantares.co.
-   *  - transportesantares.co / www.transportesantares.co (sitio público actual): mantiene Render
-   *    para no romper despliegues vigentes durante la migración.
-   *  - localhost / dev: vacío para que el portal caiga al modo offline o pueda sobreescribirse
-   *    con localStorage.antares_api_base.
+   * Producción 24/7 sin dependencia del PC del administrador:
+   *  - API NestJS: desplegada en Render (Web Service). Render auto-despliega desde GitHub
+   *    en cada push a `main` y entrega HTTPS automático. URL canónica:
+   *    https://antares-nuevo.onrender.com  (esa misma URL es la que usan TODOS los frontends:
+   *    Vercel en transportesantares.co, Cloudflare Pages en app.transportesantares.co y previews).
+   *
+   * Si más adelante quiere usar `https://api.transportesantares.co` con marca propia, basta con
+   * crear en Cloudflare DNS un CNAME `api → antares-nuevo.onrender.com` (proxy DNS-only) y, una
+   * vez verificado el dominio en Render, cambiar este default por la URL con marca. Mientras
+   * tanto, la URL de Render funciona sola y NO requiere el Cloudflare Tunnel.
+   *
+   * localhost / 127.0.0.1: vacío para que el portal caiga al modo offline o pueda sobreescribirse
+   * manualmente con `localStorage.antares_api_base`.
    */
   function resolveDefaultApiBase() {
     try {
       var host = String(location.hostname || "").toLowerCase();
       if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
         return "";
-      }
-      // Nuevo portal en Cloudflare Pages (subdominio definitivo + previews *.pages.dev).
-      if (host === "app.transportesantares.co" || host.endsWith(".pages.dev")) {
-        return "https://api.transportesantares.co";
       }
     } catch (_e) {}
     return "https://antares-nuevo.onrender.com";

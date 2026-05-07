@@ -160,7 +160,7 @@ function hrModuleOverviewGuide(variant) {
       <ol class="hr-overview-guide-steps">
         <li><span class="hr-overview-guide-step-num">1</span><div><strong>Inicio</strong> — bienvenida, métricas del proceso y accesos rápidos.</div></li>
         <li><span class="hr-overview-guide-step-num">2</span><div><strong>Proceso</strong> — define cargos, publica vacantes, evalúa candidatos y genera contratos.</div></li>
-        <li><span class="hr-overview-guide-step-num">3</span><div><strong>Resultados</strong> — alertas de plazos, embudo de candidatos y tablas detalladas.</div></li>
+        <li><span class="hr-overview-guide-step-num">3</span><div><strong>Seguimiento del proceso</strong> — alertas de plazos, candidatos en proceso, vacantes activas, entrevistas y contratos. Cada tabla a ancho completo para leerla sin deslizamientos.</div></li>
       </ol>
     </aside>`;
 }
@@ -476,11 +476,33 @@ function openEditModal({
       devWarn("openEditModal afterMount", err);
     }
   }
+  /**
+   * Misma guardia de idempotencia que en `openConfirmModal`: si el submit del
+   * modal de edición se llegara a disparar dos veces (doble click rápido al
+   * botón principal, Enter + click, listeners residuales por re-renders), solo
+   * la primera invocación corre `onSubmit`. Las siguientes son no-op hasta que
+   * el modal se cierre y se vuelva a abrir.
+   */
+  let submitInFlight = false;
   formEl.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const formEl = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(formEl).entries());
-    const fileInputs = [...formEl.querySelectorAll("input[type='file']")];
+    if (submitInFlight) return;
+    submitInFlight = true;
+    const submitBtn = formEl.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.setAttribute("aria-busy", "true");
+    }
+    const releaseLock = () => {
+      submitInFlight = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.removeAttribute("aria-busy");
+      }
+    };
+    const currentForm = event.currentTarget;
+    const payload = Object.fromEntries(new FormData(currentForm).entries());
+    const fileInputs = [...currentForm.querySelectorAll("input[type='file']")];
     fileInputs.forEach((input) => {
       if (input.multiple) {
         payload[input.name] = [...input.files].map((file) => file.name).join(", ");
@@ -488,16 +510,21 @@ function openEditModal({
         payload[input.name] = input.files[0].name;
       }
     });
-    let result = onSubmit?.(payload, formEl);
-    if (result && typeof result.then === "function") {
-      try {
+    let result;
+    try {
+      result = onSubmit?.(payload, currentForm);
+      if (result && typeof result.then === "function") {
         result = await result;
-      } catch (err) {
-        devWarn("openEditModal onSubmit", err);
-        return;
       }
+    } catch (err) {
+      devWarn("openEditModal onSubmit", err);
+      releaseLock();
+      return;
     }
-    if (result === false) return;
+    if (result === false) {
+      releaseLock();
+      return;
+    }
     close();
   });
 }
@@ -531,9 +558,26 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   modal.classList.remove("hidden");
   content.querySelector("#crud-close").addEventListener("click", close);
   content.querySelector("#crud-cancel").addEventListener("click", close);
-  content.querySelector("#crud-confirm").addEventListener("click", () => {
-    onConfirm?.();
-    close();
+
+  /**
+   * Guardia de idempotencia para evitar toasts/efectos duplicados al confirmar.
+   * Si por cualquier motivo (doble click rápido, listeners residuales, eventos
+   * sintéticos por extensiones del navegador, re-binding tras render parcial)
+   * el click se dispara más de una vez sobre el mismo modal, `onConfirm` solo
+   * se ejecutará una sola vez por apertura. Los demás disparos quedan no-op.
+   */
+  const confirmBtn = content.querySelector("#crud-confirm");
+  let confirmConsumed = false;
+  confirmBtn.addEventListener("click", () => {
+    if (confirmConsumed) return;
+    confirmConsumed = true;
+    confirmBtn.disabled = true;
+    confirmBtn.setAttribute("aria-busy", "true");
+    try {
+      onConfirm?.();
+    } finally {
+      close();
+    }
   });
   modal.addEventListener(
     "click",
@@ -9306,16 +9350,16 @@ function hiringHtml() {
     </section>`;
   const hiringDataBlock = `<section class="ops-block ops-block--hiring-data">
       <header class="ops-block-head">
-        <h3>Estado del proceso</h3>
-        <p class="ops-block-lead muted">Revisa alertas de plazos, candidatos en curso y los resultados consolidados.</p>
+        <h3>Tu panel de seguimiento</h3>
+        <p class="ops-block-lead muted">Aquí ves, de un vistazo, qué necesita atención hoy: alertas de plazos, candidatos en proceso, vacantes activas, entrevistas agendadas y contratos firmados. Cada bloque ocupa el ancho completo para que puedas leer las tablas sin tener que deslizarte de lado a lado.</p>
       </header>
-      <div class="hiring-data-grid hiring-results-grid">
-        ${pcardWrap("activity", "Alertas y plazos", null, alertsBody)}
-        ${pcardWrap("activity", "Embudo de candidatos", sortedCandidates.length + " en seguimiento", tCand)}
-        ${pcardWrap("briefcase", "Vacantes publicadas", filteredVacancies.length + " visibles", tVac)}
-        ${pcardWrap("calendar", "Entrevistas agendadas", interviews.length + " programadas", tInt)}
-        ${pcardWrap("file", "Contratos firmados", contracts.length + " contratos", tCon)}
-        ${pcardWrap("briefcase", "Cargos definidos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+      <div class="hiring-data-grid hiring-results-grid hiring-results-grid--stacked">
+        ${pcardWrap("activity", "Lo que necesita atención hoy", "Alertas y plazos clave", alertsBody)}
+        ${pcardWrap("users", "Candidatos en proceso", sortedCandidates.length + " personas en seguimiento", tCand)}
+        ${pcardWrap("briefcase", "Vacantes activas", filteredVacancies.length + " visibles para postular", tVac)}
+        ${pcardWrap("calendar", "Próximas entrevistas", interviews.length + " agendadas", tInt)}
+        ${pcardWrap("file", "Contratos firmados", contracts.length + " en el histórico", tCon)}
+        ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
       </div>
     </section>`;
   const hiringFleetHero = moduleFleetHeroStrip(
@@ -9338,7 +9382,7 @@ function hiringHtml() {
     tabs: [
       { id: "overview", label: "Inicio", hint: "Bienvenida y resumen", icon: "compass" },
       { id: "operate", label: "Proceso", hint: "Cargo, vacante, candidato, contrato", icon: "briefcase" },
-      { id: "track", label: "Resultados", hint: "Alertas, embudo y tablas", icon: "activity" }
+      { id: "track", label: "Seguimiento del proceso", hint: "Lo que necesita atención hoy", icon: "activity" }
     ]
   });
   const hiringWorkspaceJumps = `<div class="hr-workspace-jumps">
