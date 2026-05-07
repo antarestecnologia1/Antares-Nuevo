@@ -6163,6 +6163,47 @@ function __onNotificationsVisibilityChange() {
   __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
 }
 
+/**
+ * Ejecuta una rutina automática del sistema (auto-aprobación, cierres por
+ * timer, etc.) y marca como "ya vistas" cualquier notificación que esa
+ * rutina haya generado, para que el poll de la bandeja NO las re-toaste.
+ *
+ * Motivación: el usuario reportó que al entrar al módulo de Solicitudes
+ * salían múltiples toasts de "Solicitud aprobada automáticamente"
+ * cada vez que navegaba, porque el render dispara `updateAutoApprove()`
+ * y el siguiente tick del poll las leía como "nuevas". El cambio ya queda
+ * reflejado en el badge de la campana y en la lista de notificaciones,
+ * por lo que un toast intrusivo por cada navegación es ruido.
+ */
+function runAsSilentSystemNotifications(callback) {
+  let result;
+  try {
+    const before = new Set(read(KEYS.notifications, []).map((n) => n.id));
+    result = typeof callback === "function" ? callback() : undefined;
+    const after = read(KEYS.notifications, []);
+    let added = false;
+    for (const n of after) {
+      if (before.has(n.id)) continue;
+      if (!__lastSeenNotificationIds) {
+        __lastSeenNotificationIds = new Set(after.map((m) => m.id));
+        added = true;
+        break;
+      }
+      __lastSeenNotificationIds.add(n.id);
+      added = true;
+    }
+    if (added) {
+      try { updateNotificationBadge(); } catch (_e) {}
+    }
+  } catch (_err) {
+    /** Si la captura de IDs falla, no bloqueamos la rutina del sistema. */
+    if (typeof callback === "function" && result === undefined) {
+      try { result = callback(); } catch (_e) {}
+    }
+  }
+  return result;
+}
+
 function __tickNotificationsPoll() {
   const user = currentUser();
   if (!user) return;
@@ -10245,9 +10286,18 @@ function scheduleRenderPortalView() {
 }
 
 function renderPortalViewImpl() {
-  updateAutoApprove();
-  closeCompletedTripsAndGenerateInvoices();
-  recalculateResourceAvailability();
+  /**
+   * Las rutinas de fondo (auto-aprobación / cierres) corren dentro de un
+   * envoltorio que silencia el toast del poll para las notificaciones
+   * nuevas que generen aquí: la campana sigue sumando y la lista de
+   * notificaciones las muestra, pero al usuario no se le interrumpe con
+   * múltiples toasts cada vez que navega entre módulos.
+   */
+  runAsSilentSystemNotifications(() => {
+    updateAutoApprove();
+    closeCompletedTripsAndGenerateInvoices();
+    recalculateResourceAvailability();
+  });
   renderKpis();
 
   const user = currentUser();
@@ -16748,7 +16798,12 @@ void (async function bootApplicationFromDatabaseThenUi() {
   window.PortalDataLayer?.enableVisibilityRefresh?.();
   setInterval(() => {
     if (!state.session) return;
-    const changed = updateAutoApprove();
+    /**
+     * Marca las notificaciones generadas por la auto-aprobación de fondo
+     * como ya vistas para el poll: la campana sigue mostrándolas, pero
+     * no se disparan toasts por procesos que el usuario no inició.
+     */
+    const changed = runAsSilentSystemNotifications(() => updateAutoApprove());
     if (changed && !hasUnsavedPortalFormData()) {
       scheduleRenderPortalView();
     }
