@@ -339,7 +339,8 @@ function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expa
   <div class="${expanded ? "" : "hidden"}" data-create-panel="${escapeAttr(panelId)}">
     ${bodyHtml}
   </div>`;
-  return pcardWrap(iconKey, title, subtitle, cardBody);
+  const extraClass = expanded ? "p-card--expanded" : "p-card--collapsed";
+  return pcardWrap(iconKey, title, subtitle, cardBody, extraClass);
 }
 
 function notify(message, type = "info", durationMs = 3200) {
@@ -1008,6 +1009,11 @@ let state = {
 };
 
 hydrateHrWorkspaceFromStorage();
+try {
+  purgeDuplicateContracts();
+} catch (_) {
+  /* no-op: purge is best-effort */
+}
 
 window.AntaresDataAccess = Object.freeze({
   getPortalContacts() {
@@ -4116,7 +4122,7 @@ function authView() {
             ? `<p class="muted auth-register-success-email">Correo de contacto: <strong>${escapeHtml(String(regOk.email).trim())}</strong></p>`
             : ""
         }
-        <p class="muted auth-register-success-hint">Un administrador revisará su solicitud y habilitará el acceso cuando corresponda. Hasta entonces no podrá iniciar sesión. Enviaremos un mensaje a su correo con la confirmación y los siguientes pasos; si no lo ve en unos minutos, revise spam o correos bloqueados.</p>
+        <p class="muted auth-register-success-hint">Un administrador revisará su solicitud antes de habilitar el ingreso al portal. <strong>Cuando su cuenta sea aprobada</strong> recibirá un correo con el enlace de activación para definir su contraseña e iniciar sesión. Si no lo ve en su bandeja, revise la carpeta de spam o filtros corporativos.</p>
       </div>`
         : "";
     return `
@@ -4151,7 +4157,10 @@ function authView() {
             </span>
             <small class="muted auth-remember-hint">Solo recomendable en su equipo personal. Evite esta opción en dispositivos compartidos o públicos.</small>
           </label>
-          <button class="btn btn-primary full" type="submit">${IC.check} Ingresar al portal</button>
+          <button class="btn btn-primary full" type="submit" data-login-submit>
+            <span class="auth-submit-content"><span class="auth-submit-icon">${IC.check}</span><span class="auth-submit-label">Ingresar al portal</span></span>
+            <span class="auth-submit-spinner" aria-hidden="true"></span>
+          </button>
         </form>
         <div class="auth-login-side auth-pane">
           <h3 class="auth-side-heading"><span class="auth-side-heading-icon" aria-hidden="true">${IC.shield}</span><span class="auth-side-heading-text">Acceso seguro Antares</span></h3>
@@ -4424,6 +4433,23 @@ function bindAuthForms() {
       if (pw) pw.value = remembered.password;
       if (cb) cb.checked = true;
     }
+    const loginSubmitBtn = login.querySelector("[data-login-submit]");
+    const setLoginSubmitLoading = (loading) => {
+      if (!loginSubmitBtn) return;
+      if (loading) {
+        loginSubmitBtn.disabled = true;
+        loginSubmitBtn.classList.add("is-loading");
+        loginSubmitBtn.setAttribute("aria-busy", "true");
+        const labelEl = loginSubmitBtn.querySelector(".auth-submit-label");
+        if (labelEl) labelEl.textContent = "Ingresando…";
+      } else {
+        loginSubmitBtn.disabled = false;
+        loginSubmitBtn.classList.remove("is-loading");
+        loginSubmitBtn.removeAttribute("aria-busy");
+        const labelEl = loginSubmitBtn.querySelector(".auth-submit-label");
+        if (labelEl) labelEl.textContent = "Ingresar al portal";
+      }
+    };
     login.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (Date.now() < state.authSecurity.lockUntil) {
@@ -4434,117 +4460,122 @@ function bindAuthForms() {
       const data = Object.fromEntries(new FormData(login).entries());
       const passwordRaw = String(data.password || "");
 
-      /**
-       * Si hay URL de API, la autenticacion es SOLO contra el servidor (PostgreSQL).
-       * No se usa fallback local respecto a credenciales guardadas solo en el navegador.
-       */
-      if (window.AntaresApi?.getBase?.()) {
-        try {
-          const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
-          const res = await fetch(`${base}/api/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ email: data.email, password: passwordRaw })
-          });
-          const body = await res.json().catch(() => null);
-          if (res.ok && body?.accessToken) {
-            const refreshTok = String(body.refreshToken || "").trim();
-            window.AntaresApi.setAccessToken(body.accessToken);
-            const payload = decodeJwtPayload(body.accessToken);
-            const uid = payload?.sub;
-            let usersAfter = read(KEYS.users, []);
-            let userApi = usersAfter.find((u) => String(u.id) === String(uid));
-            if (!userApi) {
-              try {
-                const me = await window.AntaresApi.getJson("/portal/me");
-                if (me?.id) {
-                  upsertPortalUserRowIntoCache(me);
-                  usersAfter = read(KEYS.users, []);
-                  userApi = usersAfter.find((u) => String(u.id) === String(uid));
+      setLoginSubmitLoading(true);
+      try {
+        /**
+         * Si hay URL de API, la autenticacion es SOLO contra el servidor (PostgreSQL).
+         * No se usa fallback local respecto a credenciales guardadas solo en el navegador.
+         */
+        if (window.AntaresApi?.getBase?.()) {
+          try {
+            const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
+            const res = await fetch(`${base}/api/auth/login`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ email: data.email, password: passwordRaw })
+            });
+            const body = await res.json().catch(() => null);
+            if (res.ok && body?.accessToken) {
+              const refreshTok = String(body.refreshToken || "").trim();
+              window.AntaresApi.setAccessToken(body.accessToken);
+              const payload = decodeJwtPayload(body.accessToken);
+              const uid = payload?.sub;
+              let usersAfter = read(KEYS.users, []);
+              let userApi = usersAfter.find((u) => String(u.id) === String(uid));
+              if (!userApi) {
+                try {
+                  const me = await window.AntaresApi.getJson("/portal/me");
+                  if (me?.id) {
+                    upsertPortalUserRowIntoCache(me);
+                    usersAfter = read(KEYS.users, []);
+                    userApi = usersAfter.find((u) => String(u.id) === String(uid));
+                  }
+                } catch (_meErr) {
+                  /* el stub del JWT rellena el minimo hasta que llegue bootstrap en segundo plano */
                 }
-              } catch (_meErr) {
-                /* el stub del JWT rellena el minimo hasta que llegue bootstrap en segundo plano */
               }
-            }
-            if (!userApi) {
-              userApi = upsertPortalUserStubFromJwtPayload(payload);
-            }
-            if (!userApi) {
-              notify(userMessage("authProfileLoadFailed"), "error");
+              if (!userApi) {
+                userApi = upsertPortalUserStubFromJwtPayload(payload);
+              }
+              if (!userApi) {
+                notify(userMessage("authProfileLoadFailed"), "error");
+                return;
+              }
+              /** La API solo devuelve tokens si estado_cuenta es aprobado; no bloquear por caché local desactualizado. */
+              state.authSecurity.failedAttempts = 0;
+              state.authSecurity.lockUntil = 0;
+              state.registrationSuccessBanner = null;
+              setSession({
+                userId: userApi.id,
+                role: userApi.role,
+                token: buildToken(userApi),
+                accessToken: body.accessToken,
+                refreshToken: refreshTok,
+                lastActivityAt: Date.now(),
+                tokenIssuedAt: Date.now(),
+                profileSnapshot: buildProfileSnapshotFromUserRow(userApi)
+              });
+              if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
+              else clearRememberedLoginCredentials();
+              hideAuth();
+              startSessionSecurityWatch();
+              renderPortal();
+              void startPortalBootstrapForInteractiveSession();
               return;
             }
-            /** La API solo devuelve tokens si estado_cuenta es aprobado; no bloquear por caché local desactualizado. */
-            state.authSecurity.failedAttempts = 0;
-            state.authSecurity.lockUntil = 0;
-            state.registrationSuccessBanner = null;
-            setSession({
-              userId: userApi.id,
-              role: userApi.role,
-              token: buildToken(userApi),
-              accessToken: body.accessToken,
-              refreshToken: refreshTok,
-              lastActivityAt: Date.now(),
-              tokenIssuedAt: Date.now(),
-              profileSnapshot: buildProfileSnapshotFromUserRow(userApi)
-            });
-            if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
-            else clearRememberedLoginCredentials();
-            hideAuth();
-            startSessionSecurityWatch();
-            renderPortal();
-            void startPortalBootstrapForInteractiveSession();
+            const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
+            notify(String(apiMsg || userMessage("authInvalidServer")), "error");
+            state.authSecurity.failedAttempts += 1;
+            if (state.authSecurity.failedAttempts >= 5) {
+              state.authSecurity.lockUntil = Date.now() + 60_000;
+              state.authSecurity.failedAttempts = 0;
+            }
+            return;
+          } catch (_e) {
+            notify(userMessage("authNoConnection"), "error");
             return;
           }
-          const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
-          notify(String(apiMsg || userMessage("authInvalidServer")), "error");
+        }
+
+        const users = read(KEYS.users, []);
+        const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
+        const valid = user ? await verifyPassword(passwordRaw, user.password) : false;
+        if (!valid || !user) {
           state.authSecurity.failedAttempts += 1;
           if (state.authSecurity.failedAttempts >= 5) {
             state.authSecurity.lockUntil = Date.now() + 60_000;
             state.authSecurity.failedAttempts = 0;
           }
-          return;
-        } catch (_e) {
-          notify(userMessage("authNoConnection"), "error");
+          notify(userMessage("authInvalidLocal"), "error");
           return;
         }
-      }
-
-      const users = read(KEYS.users, []);
-      const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
-      const valid = user ? await verifyPassword(passwordRaw, user.password) : false;
-      if (!valid || !user) {
-        state.authSecurity.failedAttempts += 1;
-        if (state.authSecurity.failedAttempts >= 5) {
-          state.authSecurity.lockUntil = Date.now() + 60_000;
-          state.authSecurity.failedAttempts = 0;
+        state.authSecurity.failedAttempts = 0;
+        state.authSecurity.lockUntil = 0;
+        if (isPortalUserPendingApproval(user)) {
+          notify(userMessage("authPendingApproval"), "info");
+          return;
         }
-        notify(userMessage("authInvalidLocal"), "error");
-        return;
+        if (user.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
+          notify(userMessage("authRejected"), "error");
+          return;
+        }
+        setSession({
+          userId: user.id,
+          role: user.role,
+          token: buildToken(user),
+          lastActivityAt: Date.now(),
+          tokenIssuedAt: Date.now(),
+          profileSnapshot: buildProfileSnapshotFromUserRow(user)
+        });
+        void tryApiLoginBridge(user, passwordRaw);
+        if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
+        else clearRememberedLoginCredentials();
+        hideAuth();
+        startSessionSecurityWatch();
+        renderPortal();
+      } finally {
+        setLoginSubmitLoading(false);
       }
-      state.authSecurity.failedAttempts = 0;
-      state.authSecurity.lockUntil = 0;
-      if (isPortalUserPendingApproval(user)) {
-        notify(userMessage("authPendingApproval"), "info");
-        return;
-      }
-      if (user.accountStatus === ACCOUNT_STATUS.RECHAZADO) {
-        notify(userMessage("authRejected"), "error");
-        return;
-      }
-      setSession({
-        userId: user.id,
-        role: user.role,
-        token: buildToken(user),
-        lastActivityAt: Date.now(),
-        tokenIssuedAt: Date.now(),
-        profileSnapshot: buildProfileSnapshotFromUserRow(user)
-      });
-      void tryApiLoginBridge(user, passwordRaw);
-      if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
-      else clearRememberedLoginCredentials();
-      hideAuth();
-      startSessionSecurityWatch();
-      renderPortal();
     });
   }
 
@@ -5677,6 +5708,18 @@ function hasPermission(user, permission) {
   return permissions.includes(permission);
 }
 
+/**
+ * Verificación rápida de rol administrador para condicionar render de botones destructivos.
+ * Acepta un usuario opcional; por defecto lee el actor de la sesión actual.
+ * Cualquier acción destructiva (delete-*) debe envolverse con esto en el HTML para no
+ * exponer botones a usuarios que no son admin (defensa en profundidad junto a
+ * `PORTAL_NON_ADMIN_BLOCKED_ACTIONS`).
+ */
+function isAdminActor(user) {
+  const actor = user || currentUser();
+  return actor?.role === ROLES.ADMIN;
+}
+
 function canAccessView(user, view) {
   return hasPermission(user, VIEW_PERMISSIONS[view]);
 }
@@ -6213,6 +6256,7 @@ function requestListClientHtml(user) {
 
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
+  const isAdmin = isAdminActor();
   const totalCount = vehicles.length;
   const availableCount = vehicles.filter((v) => v.available).length;
   const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
@@ -6246,9 +6290,10 @@ function vehiclesHtml() {
         <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
         <td>${availabilityTag}</td>
         <td><div class="toolbar">
+          <button class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${v.id}">${IC.eye} Ver</button>
           <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
           <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
-          <button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}">${IC.trash} Eliminar</button>
+          ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </div></td>
       </tr>`;
     })
@@ -6327,6 +6372,7 @@ function vehiclesHtml() {
 
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
+  const isAdmin = isAdminActor();
   const totalDrivers = drivers.length;
   const availableDrivers = drivers.filter((d) => d.available).length;
   const expiringSoon = drivers.filter((d) => {
@@ -6370,9 +6416,10 @@ function driversHtml() {
           <div class="driver-info-row"><span>${IC.calendar}</span><span>Vence: ${d.licenseExpiry || "-"} ${licStatus}</span></div>
         </div>
         <footer class="driver-card-actions">
+          <button class="btn btn-sm btn-outline" data-action="view-driver" data-id="${d.id}">${IC.eye} Ver</button>
           <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
           <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
-          <button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}">${IC.trash} Eliminar</button>
+          ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </footer>
       </article>`;
     })
@@ -6391,6 +6438,7 @@ function driversHtml() {
 }
 
 function transportTripsHtml() {
+  const isAdmin = isAdminActor();
   const rates = getTripRouteRatesNormalized();
   const companiesForRates = read(KEYS.companies, []);
   const rateCompanyOptions = companiesForRates
@@ -6423,7 +6471,7 @@ function transportTripsHtml() {
       <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
       <td><div class="toolbar"><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
         ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
-      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button><button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}">${IC.trash} Eliminar viaje</button>${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}</div></td>
+      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button>${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores">${IC.trash} Eliminar viaje</button>` : ""}${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}</div></td>
     </tr>`;
     })
     .join("");
@@ -6452,7 +6500,7 @@ function transportTripsHtml() {
           <td><strong>${formatRateRowLabel(storageKey)}</strong></td>
           <td>${formatRateClientsLabel(companyIds)}</td>
           <td><strong>$${parseNum(val).toLocaleString("es-CO")}</strong></td>
-          <td><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}">${IC.trash} Quitar</button></td>
+          <td>${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Solo administradores">${IC.trash} Quitar</button>` : '<span class="muted">—</span>'}</td>
         </tr>`;
         })
         .join("")
@@ -6710,6 +6758,7 @@ function transportCalendarHtml() {
 }
 
 function adminUsersHtml(current) {
+  const isAdmin = isAdminActor(current);
   const users = read(KEYS.users, []);
   const companies = read(KEYS.companies, []);
   const ui = state.adminUsersUi || { panel: "", editUserId: "", editCompanyId: "" };
@@ -6789,13 +6838,14 @@ function adminUsersHtml(current) {
       : "";
     const actions = isPending
       ? `<div class="user-card-actions">
-          <button class="btn btn-sm btn-primary" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>
-          <button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>
+          ${isAdmin ? `<button class="btn btn-sm btn-primary" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>` : ""}
+          ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>` : ""}
         </div>`
       : `<div class="user-card-actions">
-          <button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${escapeAttr(String(u.id))}">${IC.edit} Editar</button>
-          ${!isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
-          ${!isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}">${IC.trash} Eliminar</button>` : ""}
+          <button class="btn btn-sm btn-outline" data-action="view-user" data-id="${escapeAttr(String(u.id))}">${IC.eye} Ver</button>
+          ${isAdmin ? `<button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${escapeAttr(String(u.id))}">${IC.edit} Editar</button>` : ""}
+          ${isAdmin && !isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
+          ${isAdmin && !isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </div>`;
     return `<div class="user-card${isPending ? " user-card--pending" : ""}">
       <div class="user-card-top">
@@ -6833,9 +6883,10 @@ function adminUsersHtml(current) {
       ? `<span class="status status-viaje_asignado">Activa</span>`
       : `<span class="status status-rechazada">Inactiva</span>`;
     const coActions = `<div class="user-card-actions">
-      <button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>
-      <button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>
-      <button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}">${IC.trash} Eliminar</button>
+      <button type="button" class="btn btn-sm btn-outline" data-action="view-company" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+      ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+      ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>` : ""}
+      ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
     </div>`;
     const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
     const metaParts = [
@@ -7955,6 +8006,51 @@ function syncDriverFromEmployee(employee, extraDriverData = {}) {
   write(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers]);
 }
 
+function contractDedupKey(row) {
+  if (!row) return "";
+  const empKey =
+    String(row.employeeId || "").trim().toLowerCase() ||
+    String(row.idDocSnapshot || "").trim().toLowerCase() ||
+    String(row.candidateId || "").trim().toLowerCase();
+  const tpl = String(row.contractTemplateKind || "").trim().toLowerCase();
+  const start = String(row.startDate || "").trim();
+  if (!empKey) return "";
+  return `${empKey}::${tpl}::${start}`;
+}
+
+function dedupContracts(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Map();
+  const result = [];
+  for (const row of list) {
+    if (!row) continue;
+    const key = contractDedupKey(row);
+    if (!key) {
+      result.push(row);
+      continue;
+    }
+    if (!seen.has(key)) {
+      seen.set(key, result.length);
+      result.push(row);
+      continue;
+    }
+    const idx = seen.get(key);
+    const prev = result[idx];
+    const prevTs = new Date(prev?.updatedAt || prev?.createdAt || 0).getTime() || 0;
+    const curTs = new Date(row.updatedAt || row.createdAt || 0).getTime() || 0;
+    result[idx] = curTs > prevTs ? { ...prev, ...row, id: prev.id || row.id } : { ...row, ...prev, id: prev.id || row.id };
+  }
+  return result;
+}
+
+function purgeDuplicateContracts() {
+  const before = read(KEYS.contracts, []);
+  const after = dedupContracts(before);
+  if (after.length !== before.length) {
+    write(KEYS.contracts, after);
+  }
+}
+
 function deleteEmployeesCascade(employeeIds = []) {
   const ids = [...new Set(employeeIds.map((id) => String(id || "").trim()).filter(Boolean))];
   if (!ids.length) return 0;
@@ -8258,13 +8354,13 @@ function payrollHtml() {
         ? `<span class="emp-avatar" style="background-image:url('${avCss}')" role="img" aria-label=""></span>`
         : `<span class="emp-avatar emp-avatar-letter" aria-hidden="true">${escapeHtml(String(e.name || "E").charAt(0).toUpperCase())}</span>`;
       return `<tr>
-      <td><input type="checkbox" data-employee-select value="${e.id}" /></td>
+      ${hrAdminDeletes ? `<td><input type="checkbox" data-employee-select value="${e.id}" /></td>` : ""}
       <td><div class="emp-cell-name">${avatar}<div><strong>${escapeHtml(e.name || "")}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${escapeHtml(String(e.idDoc || ""))}</td><td>${escapeHtml(String(e.position || ""))}</td><td>${escapeHtml(String(e.contractType || ""))}</td><td>${escapeHtml(getCompanyById(e.companyId)?.name || "-")}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
       <td><div class="toolbar employee-table-actions">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato Word</button>
-        <button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}">${IC.trash} Eliminar</button>
+        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
     })
@@ -8341,6 +8437,11 @@ function payrollHtml() {
         <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
+        <label>${fieldLabel(IC.heart, "¿Sufre alguna enfermedad o condición médica?")}<select name="hasIllness" id="emp-has-illness" required>
+          <option value="no">No</option>
+          <option value="si">Sí</option>
+        </select></label>
+        <label class="full hidden" id="emp-illness-detail-label">${fieldLabel(IC.alertTriangle, "¿Cuál? (descripción libre)")}<textarea name="illnessDescription" id="emp-illness-detail" rows="2" placeholder="Detalle breve para uso médico/HR (alergias, condiciones crónicas, medicación regular, etc.)"></textarea></label>
       </div>
     </fieldset>
       </div>
@@ -8500,19 +8601,19 @@ function payrollHtml() {
       <td>${a.startDate} → ${a.endDate}</td>
       <td>${a.days}</td>
       <td><span class="muted">${a.supportNumber || "-"}</span></td>
-      <td>${
-        hrAdminDeletes
-          ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-hr-absence" data-id="${escapeAttr(String(a.id))}" title="Solo administradores">${IC.trash} Eliminar</button>`
-          : "—"
-      }</td>
+      <td><div class="toolbar">
+        <button type="button" class="btn btn-sm btn-outline" data-action="view-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.eye} Ver</button>
+        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.edit} Editar</button>` : ""}
+        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-hr-absence" data-id="${escapeAttr(String(a.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
     </tr>`
     )
     .join("");
   const absenceTable = absenceRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Dias</th><th>Soporte</th><th>Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin incapacidades ni vacaciones registradas.");
   const empTable = employeeRows
-    ? `<div style="margin-bottom:0.8rem" class="toolbar"><button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject">${IC.trash} Eliminar seleccionados (cascada)</button></div><div class="table-wrap"><table><thead><tr><th></th><th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+    ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
     ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
@@ -8680,15 +8781,21 @@ function hiringHtml() {
     return days >= 0 && days <= 30;
   });
 
+  const positionAdminEdits = isAdminActor();
   const positionRows = positions
     .map((p) => `<tr>
-      <td><strong>${p.name}</strong></td>
+      <td><strong>${escapeHtml(String(p.name || ""))}</strong></td>
       <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
       <td>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</td>
-      <td>${p.contractTypeDefault || "-"}</td>
-      <td>${p.legalBasis || "CST"}</td>
+      <td>${escapeHtml(String(p.contractTypeDefault || "-"))}</td>
+      <td>${escapeHtml(String(p.legalBasis || "CST"))}</td>
       <td>${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}</td>
-      <td><button class="btn btn-sm btn-action" data-action="toggle-position" data-id="${p.id}">${IC.toggle} Estado</button></td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-outline" data-action="view-position" data-id="${escapeAttr(String(p.id))}">${IC.eye} Ver</button>
+        ${positionAdminEdits ? `<button class="btn btn-sm btn-action" data-action="edit-position" data-id="${escapeAttr(String(p.id))}">${IC.edit} Editar</button>` : ""}
+        <button class="btn btn-sm btn-action" data-action="toggle-position" data-id="${escapeAttr(String(p.id))}">${IC.toggle} Estado</button>
+        ${positionAdminEdits ? `<button class="btn btn-sm btn-reject" data-action="delete-position" data-id="${escapeAttr(String(p.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
     </tr>`)
     .join("");
 
@@ -8723,15 +8830,57 @@ function hiringHtml() {
       <td>${statusHtml}</td>
       <td><div class="toolbar vacancy-row-actions">${[
         `<button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>`,
+        vacancyAdminDeletes ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : "",
         `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>`,
         delCell
-      ].join("")}</div></td>
+      ].filter(Boolean).join("")}</div></td>
     </tr>`;
     })
     .join("");
-  const candRows = sortedCandidates.map((c) => `<tr><td><strong>${c.name}</strong></td><td>${c.email}<br><span class="muted">${c.phone || "-"}</span></td><td>${c.vacancyTitle || "-"}</td><td>${parseNum(c.experienceYears || 0)} anos · Disp: ${c.availabilityDate || "-"}</td><td><span class="muted">${c.source || "Portal"}</span></td><td><span class="status status-en_transito">${c.status}</span></td><td><select data-action="candidate-status" data-id="${c.id}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${p}</option>`).join("")}</select></td></tr>`).join("");
-  const interviewRows = interviews.map((i) => `<tr><td><strong>${i.candidateName}</strong></td><td>${i.when}</td><td>${i.interviewer}</td></tr>`).join("");
-  const contractRows = contracts.map((c) => `<tr><td><strong>${c.candidateName || c.employeeName || "-"}</strong></td><td>${c.position}</td><td>$${parseNum(c.salary).toLocaleString("es-CO")}</td><td>${c.contractType || "-"}${c.endDate ? `<br><span class="muted">Fin: ${c.endDate}</span>` : ""}</td><td>${c.source || "Candidato"}</td><td>${fmtDate(c.createdAt)}</td><td><button class="btn btn-sm btn-action" data-action="view-contract" data-id="${c.id}">${IC.eye} Ver</button></td></tr>`).join("");
+  const hiringAdminMutates = isAdminActor();
+  const candRows = sortedCandidates
+    .map((c) => `<tr>
+      <td><strong>${escapeHtml(String(c.name || ""))}</strong></td>
+      <td>${escapeHtml(String(c.email || ""))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></td>
+      <td>${escapeHtml(String(c.vacancyTitle || "-"))}</td>
+      <td>${parseNum(c.experienceYears || 0)} años · Disp: ${escapeHtml(String(c.availabilityDate || "-"))}</td>
+      <td><span class="muted">${escapeHtml(String(c.source || "Portal"))}</span></td>
+      <td><span class="status status-en_transito">${escapeHtml(String(c.status || ""))}</span></td>
+      <td><select data-action="candidate-status" data-id="${escapeAttr(String(c.id))}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+        ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+        ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
+    </tr>`)
+    .join("");
+  const interviewRows = interviews
+    .map((i) => `<tr>
+      <td><strong>${escapeHtml(String(i.candidateName || "-"))}</strong></td>
+      <td>${escapeHtml(String(i.when || "-"))}</td>
+      <td>${escapeHtml(String(i.interviewer || "-"))}</td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye} Ver</button>
+        ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-interview" data-id="${escapeAttr(String(i.id))}">${IC.edit} Editar</button>` : ""}
+        ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-interview" data-id="${escapeAttr(String(i.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
+    </tr>`)
+    .join("");
+  const contractRows = contracts
+    .map((c) => `<tr>
+      <td><strong>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</strong></td>
+      <td>${escapeHtml(String(c.position || ""))}</td>
+      <td>$${parseNum(c.salary).toLocaleString("es-CO")}</td>
+      <td>${escapeHtml(String(c.contractType || "-"))}${c.endDate ? `<br><span class="muted">Fin: ${escapeHtml(String(c.endDate))}</span>` : ""}</td>
+      <td>${escapeHtml(String(c.source || "Candidato"))}</td>
+      <td>${fmtDate(c.createdAt)}</td>
+      <td><div class="toolbar">
+        <button class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+        <button class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
+        ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
+    </tr>`)
+    .join("");
 
   const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
   const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
@@ -8911,11 +9060,11 @@ function hiringHtml() {
     </div>
   </form>`;
 
-  const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th></th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
+  const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
-  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
-  const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
-  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th></th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
+  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
+  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
   const alertsBody = renderHrAlertCards([
     {
       icon: IC.alertTriangle,
@@ -9105,6 +9254,7 @@ function laborComplianceHtml() {
     }
     return `<span class="status status-pendiente">Pendiente</span>`;
   };
+  const sstAdminMutates = isAdminActor();
   const recordRows = records
     .map((record) => {
       const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
@@ -9116,6 +9266,11 @@ function laborComplianceHtml() {
         <td>${escapeHtml(String(record.dueDate || "-"))}</td>
         <td>${statusBadgeForCompliance(record.status, record.dueDate)}</td>
         <td>${escapeHtml(String(record.notes || "-"))}</td>
+        <td><div class="toolbar">
+          <button class="btn btn-sm btn-outline" data-action="view-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.eye} Ver</button>
+          ${sstAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>` : ""}
+          ${sstAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+        </div></td>
       </tr>`;
     })
     .join("");
@@ -9186,7 +9341,7 @@ function laborComplianceHtml() {
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar control legal/SST</button>
     </form>`;
   const recordsTable = recordRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
     : emptyState("No hay controles de cumplimiento registrados.");
   const laborHero = moduleFleetHeroStrip([
     { label: "Controles", value: records.length },
@@ -10007,6 +10162,11 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       educationLevel: String(raw.educationLevel || "").trim(),
       personalEmail: String(raw.personalEmail || "").trim(),
       emergencyRelation: String(raw.emergencyRelation || "").trim(),
+      hasIllness: String(raw.hasIllness || "no").toLowerCase() === "si" ? "si" : "no",
+      illnessDescription:
+        String(raw.hasIllness || "no").toLowerCase() === "si"
+          ? String(raw.illnessDescription || "").trim()
+          : "",
       positionId: position.id,
       position: position.name,
       workerRole: position.workerRole || "empleado",
@@ -10081,9 +10241,13 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
   if (!emp) return `<p class="muted">Sin datos.</p>`;
   const css = employeeAvatarCssUrl(emp.avatarUrl);
   const initial = escapeHtml(String(emp.name || "E").charAt(0).toUpperCase());
-  const hero = css
+  const heroBanner = css
     ? `<div class="employee-profile-hero-photo" style="background-image:url('${css}')" role="img" aria-label="Foto del colaborador"></div>`
     : `<div class="employee-profile-hero-photo employee-profile-hero-photo--letter" aria-hidden="true"><span>${initial}</span></div>`;
+  const heroAvatar = css
+    ? `<div class="employee-profile-hero-avatar" role="img" aria-label="Foto del colaborador"><img src="${escapeAttr(emp.avatarUrl)}" alt="Foto de ${escapeAttr(String(emp.name || "Empleado"))}" loading="lazy" /></div>`
+    : `<div class="employee-profile-hero-avatar employee-profile-hero-avatar--letter" aria-hidden="true"><span>${initial}</span></div>`;
+  const hero = `${heroBanner}<div class="employee-profile-hero-photo-wrap">${heroAvatar}<p class="employee-profile-hero-photo-caption muted">${css ? "Foto del colaborador" : "Sin foto cargada — recomendamos subirla al editar el empleado."}</p></div>`;
   const docs = `${String(emp.documentType || "").trim()} ${String(emp.idDoc || "").trim()}`.trim();
   const companyName = getCompanyById(emp.companyId)?.name || "—";
   const isDriver = String(emp.workerRole || "").toLowerCase() === "conductor";
@@ -10121,6 +10285,17 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Contacto emergencia", emp.emergencyContact)}
       ${employeeProfileKvRow("Tel. emergencia", emp.emergencyPhone)}
       ${employeeProfileKvRow("Parentesco emergencia", emp.emergencyRelation)}
+    </div></section>
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Salud</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow(
+        "¿Condición médica?",
+        String(emp.hasIllness || "").toLowerCase() === "si" ? "Sí" : "No"
+      )}
+      ${
+        String(emp.hasIllness || "").toLowerCase() === "si"
+          ? employeeProfileKvRow("Detalle médico", emp.illnessDescription || "Sin detalle")
+          : ""
+      }
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Laboral</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Empresa", companyName)}
@@ -10228,6 +10403,11 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Estado civil")}</span><select name="maritalStatus">${maritalSel}</select></label>
 <label><span>${escapeHtml("Nivel educativo")}</span><select name="educationLevel">${eduSel}</select></label>
 <label><span>${escapeHtml("Tipo de sangre RH")}</span><select name="bloodType" required>${selectOptionsFromCatalog(CO_CATALOGS.bloodTypes, e.bloodType || "", "Seleccione tipo de sangre...")}</select></label>
+<label><span>${escapeHtml("¿Sufre alguna enfermedad o condición médica?")}</span><select name="hasIllness" data-emp-edit-illness required>
+<option value="no" ${String(e.hasIllness || "").toLowerCase() !== "si" ? "selected" : ""}>${escapeHtml("No")}</option>
+<option value="si" ${String(e.hasIllness || "").toLowerCase() === "si" ? "selected" : ""}>${escapeHtml("Sí")}</option>
+</select></label>
+<label class="full" data-emp-edit-illness-detail ${String(e.hasIllness || "").toLowerCase() === "si" ? "" : "hidden"}><span>${escapeHtml("¿Cuál? (descripción libre)")}</span><textarea name="illnessDescription" rows="2" placeholder="Detalle breve para uso médico/HR">${escapeHtml(e.illnessDescription || "")}</textarea></label>
 </div>`
     },
     {
@@ -10449,11 +10629,22 @@ const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "toggle-company-active",
   "delete-company",
   "delete-payroll-run",
-  "delete-hr-absence"
+  "delete-hr-absence",
+  "edit-hr-absence",
+  "edit-vacancy",
+  "edit-position",
+  "delete-position",
+  "edit-candidate",
+  "delete-candidate",
+  "edit-interview",
+  "delete-interview",
+  "delete-contract",
+  "edit-sst-record",
+  "delete-sst-record"
 ]);
 
 function portalNonAdminRestrictedCaptureClick(event) {
-  if (currentUser()?.role === ROLES.ADMIN) return;
+  if (isAdminActor()) return;
   const trigger = event.target.closest("[data-action]");
   const action = String(trigger?.dataset?.action || "");
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
@@ -10463,13 +10654,25 @@ function portalNonAdminRestrictedCaptureClick(event) {
 }
 
 function portalNonAdminRestrictedCaptureChange(event) {
-  if (currentUser()?.role === ROLES.ADMIN) return;
+  if (isAdminActor()) return;
   const trigger = event.target.closest("[data-action]");
   const action = String(trigger?.dataset?.action || "");
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
   notify(userMessage("adminOnlyModule"), "error");
+}
+
+/**
+ * Guarda dura para handlers destructivos. Aunque la barrera de captura cubre el camino feliz,
+ * si alguien manipula el DOM (devtools, extensión) o re-renderea sin pasar por viewRoot, este
+ * check rechaza la acción antes de tocar localStorage o la API.
+ * @returns {boolean} true si se debe abortar la acción.
+ */
+function abortIfNotAdmin(reason = "adminOnlyModule") {
+  if (isAdminActor()) return false;
+  notify(userMessage(reason), "error");
+  return true;
 }
 
 function bindDynamicEvents() {
@@ -10623,6 +10826,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-company']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const companyId = String(btn.dataset.id || "");
       if (!companyId) return;
       const companies = read(KEYS.companies, []);
@@ -11307,13 +11511,29 @@ function bindDynamicEvents() {
           saveNotification({
             userId: target.id,
             title: "Cuenta aprobada",
-            body: `Su cuenta ha sido aprobada con el rol asignado y asociada a ${selected.name}. Ya puede iniciar sesión.`
+            body: `Su cuenta ha sido aprobada con el rol asignado y asociada a ${selected.name}. Revise su correo para definir la contraseña y entrar al portal.`
           });
           sendEmail({
             to: target.email,
             subject: "Cuenta aprobada - Antares Portal",
-            body: `Hola ${target.name}, su cuenta fue aprobada y asociada a ${selected.name}. Ya puede iniciar sesión en el portal.`
+            body: `Hola ${target.name}, su cuenta fue aprobada y asociada a ${selected.name}. Le hemos enviado un correo con el enlace para definir su contraseña e iniciar sesión.`
           });
+          /**
+           * Correo de activación real. Al aprobar reutilizamos el flujo de recuperación de contraseña
+           * (POST /auth/password-recovery/request), que en Supabase manda un email con un enlace
+           * único. Así el usuario recibe la activación aunque su contraseña original ya esté en BD.
+           */
+          if (api?.postJsonPublic && target?.email) {
+            try {
+              const redirectTo = buildSupabasePasswordRecoveryRedirectUrl();
+              await api.postJsonPublic("/auth/password-recovery/request", {
+                email: String(target.email).trim(),
+                redirectTo
+              });
+            } catch (err) {
+              devWarn("approve-registration: password-recovery email no enviado.", err?.message || err);
+            }
+          }
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(target.id);
           notify(userMessage("accountApproved", target.name), "success");
           renderPortalView();
@@ -11390,6 +11610,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-user']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const userId = btn.dataset.id;
       if (!userId) return;
       if (state.session?.userId === userId) {
@@ -11924,6 +12145,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-route-rate']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const encoded = String(btn.dataset.rateKey || "");
       const key = decodeURIComponent(encoded);
       if (!key) return;
@@ -12222,6 +12444,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const requestId = String(btn.dataset.id || "");
       openConfirmModal({
         title: "Eliminar solicitud",
@@ -12245,6 +12468,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-trip']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const requestId = String(btn.dataset.id || "");
       if (!requestId) return;
       openConfirmModal({
@@ -12281,6 +12505,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-vehicle']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const vehicleId = String(btn.dataset.id || "");
       if (!vehicleId) return;
       openConfirmModal({
@@ -12321,6 +12546,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-driver']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       const driverId = String(btn.dataset.id || "");
       if (!driverId) return;
       openConfirmModal({
@@ -12882,6 +13108,25 @@ function bindDynamicEvents() {
       empPosSelect.addEventListener("change", syncEmpFromPosition);
       syncEmpFromPosition();
     }
+    const empIllnessSelect = employeeForm.querySelector("#emp-has-illness");
+    const empIllnessDetailLabel = employeeForm.querySelector("#emp-illness-detail-label");
+    const empIllnessDetail = employeeForm.querySelector("#emp-illness-detail");
+    const syncIllnessVisibility = () => {
+      if (!empIllnessSelect || !empIllnessDetailLabel || !empIllnessDetail) return;
+      const yes = String(empIllnessSelect.value || "").toLowerCase() === "si";
+      empIllnessDetailLabel.classList.toggle("hidden", !yes);
+      empIllnessDetailLabel.toggleAttribute("hidden", !yes);
+      if (yes) {
+        empIllnessDetail.setAttribute("required", "required");
+      } else {
+        empIllnessDetail.removeAttribute("required");
+        empIllnessDetail.value = "";
+      }
+    };
+    if (empIllnessSelect) {
+      empIllnessSelect.addEventListener("change", syncIllnessVisibility);
+      syncIllnessVisibility();
+    }
     bindHrFormWizard(employeeForm);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -12977,6 +13222,9 @@ function bindDynamicEvents() {
           licenseCategory: payload.licenseCategory,
           licenseExpiry: payload.licenseExpiry
         });
+        state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+        persistHrWorkspace("payroll", "data");
+        state.createPanels = { ...(state.createPanels || {}), "create-employee": false };
         notify(userMessage("employeeCreatedOk"), "success");
         renderPortalView();
       };
@@ -13039,6 +13287,9 @@ function bindDynamicEvents() {
       }
       list.unshift(absencePayload);
       write(KEYS.hrAbsences, list);
+      state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+      persistHrWorkspace("payroll", "data");
+      state.createPanels = { ...(state.createPanels || {}), "create-hr-absence": false };
       notify(userMessage("absenceRecorded"), "success");
       renderPortalView();
     });
@@ -13088,6 +13339,23 @@ function bindDynamicEvents() {
             if (contract && p.contractTypeDefault) contract.value = p.contractTypeDefault;
           };
           pos?.addEventListener("change", syncFromPos);
+          const illnessSel = formEl.querySelector("[data-emp-edit-illness]");
+          const illnessDetailLabel = formEl.querySelector("[data-emp-edit-illness-detail]");
+          const illnessDetailField = illnessDetailLabel?.querySelector("textarea[name='illnessDescription']");
+          const syncIllness = () => {
+            if (!illnessSel || !illnessDetailLabel || !illnessDetailField) return;
+            const yes = String(illnessSel.value || "").toLowerCase() === "si";
+            illnessDetailLabel.toggleAttribute("hidden", !yes);
+            illnessDetailLabel.classList.toggle("hidden", !yes);
+            if (yes) {
+              illnessDetailField.setAttribute("required", "required");
+            } else {
+              illnessDetailField.removeAttribute("required");
+              illnessDetailField.value = "";
+            }
+          };
+          illnessSel?.addEventListener("change", syncIllness);
+          syncIllness();
         },
         onSubmit: async (payload, formEl) => {
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
@@ -13158,6 +13426,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-employee']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
       openConfirmModal({
         title: "Eliminar empleado",
         message: "El empleado sera removido en cascada (nomina, ausencias, contratos y conductor relacionado).",
@@ -13197,6 +13466,10 @@ function bindDynamicEvents() {
   if (employeesDeleteSelected) {
     employeesDeleteSelected.addEventListener("click", (event) => {
       event.preventDefault();
+      if (!isAdminActor()) {
+        notify(userMessage("adminOnlyModule"), "error");
+        return;
+      }
       const selectedIds = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) => String(check.value || ""));
       if (!selectedIds.length) {
         notify(userMessage("employeesBulkSelect"), "error");
@@ -13286,6 +13559,9 @@ function bindDynamicEvents() {
       const runs = read(KEYS.payrollRuns, []);
       runs.unshift(run);
       write(KEYS.payrollRuns, runs);
+      state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+      persistHrWorkspace("payroll", "data");
+      state.createPanels = { ...(state.createPanels || {}), "create-payroll": false };
       notify(userMessage("payrollSaved"), "success");
       renderPortalView();
     });
@@ -13520,6 +13796,11 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.vacancies, all);
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi.vacancyFilter = "open";
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
+      state.createPanels = { ...(state.createPanels || {}), "create-vacancy": false };
       notify(userMessage("vacancyPublishedOk"), "success");
       renderPortalView();
     });
@@ -13547,6 +13828,10 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       });
       write(KEYS.positions, all);
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
+      state.createPanels = { ...(state.createPanels || {}), "create-position": false };
       notify(userMessage("positionCreatedOk"), "success");
       renderPortalView();
     });
@@ -13724,6 +14009,11 @@ function bindDynamicEvents() {
       });
       write(KEYS.candidates, all);
       sendEmail({ to: data.email, subject: "Registro recibido", body: "Gracias por aplicar." });
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi.candidateFilter = "active";
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
+      state.createPanels = { ...(state.createPanels || {}), "create-candidate": false };
       notify(userMessage("candidateRegisteredOk"), "success");
       renderPortalView();
     });
@@ -13796,6 +14086,10 @@ function bindDynamicEvents() {
         )
       );
       sendEmail({ to: candidate.email, subject: "Entrevista programada", body: `Fecha: ${data.when}` });
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi.workspace = "track";
+      persistHrWorkspace("hiring", "track");
+      state.createPanels = { ...(state.createPanels || {}), "create-interview": false };
       notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
     });
@@ -13833,6 +14127,7 @@ function bindDynamicEvents() {
 
     contractForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (contractForm.dataset.submitting === "1") return;
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
       if (!employee) {
@@ -13862,11 +14157,38 @@ function bindDynamicEvents() {
         `Plantilla: ${payload.contractTemplateKind}\n` +
         `Salario: ${payload.salario}\n` +
         `Firma constancia: ${signDate}\n`;
+      const submitBtn = contractForm.querySelector("button[type='submit']");
+      const restoreSubmitState = () => {
+        contractForm.dataset.submitting = "";
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.removeAttribute("aria-busy");
+        }
+      };
+      contractForm.dataset.submitting = "1";
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.setAttribute("aria-busy", "true");
+      }
       try {
         await generateOfficialWordContract(payload);
         const all = read(KEYS.contracts, []);
-        all.unshift({
-          id: newUuidV4(),
+        const empId = String(employee.id || "").trim();
+        const empDoc = String(employee.idDoc || "").trim();
+        const tplKind = String(payload.contractTemplateKind || "").trim().toLowerCase();
+        const matchesExisting = (row) => {
+          if (!row) return false;
+          const sameEmployee =
+            (empId && String(row.employeeId || "") === empId) ||
+            (empDoc && String(row.idDocSnapshot || "").trim() === empDoc);
+          if (!sameEmployee) return false;
+          const sameTemplate =
+            String(row.contractTemplateKind || "").trim().toLowerCase() === tplKind;
+          const sameStart = String(row.startDate || "").trim() === signDate;
+          return sameTemplate && sameStart;
+        };
+        const existingIdx = all.findIndex(matchesExisting);
+        const recordBase = {
           employeeId: employee.id,
           employeeName: employee.name,
           position: payload.cargo_empleado,
@@ -13874,16 +14196,38 @@ function bindDynamicEvents() {
           startDate: signDate,
           contractType: payload.contractType,
           contractTemplateKind: payload.contractTemplateKind,
-          idDocSnapshot: String(employee.idDoc || "").trim(),
+          idDocSnapshot: empDoc,
           workerRole: payload.workerRole,
           source: "Empleado",
-          content: contractText,
-          createdAt: nowIso()
-        });
-        write(KEYS.contracts, all);
-        notify(userMessage("contractWordSaved"), "success");
+          content: contractText
+        };
+        if (existingIdx >= 0) {
+          const previous = all[existingIdx];
+          all.splice(existingIdx, 1, {
+            ...previous,
+            ...recordBase,
+            id: previous.id,
+            createdAt: previous.createdAt || nowIso(),
+            updatedAt: nowIso()
+          });
+          notify("Contrato actualizado (mismo empleado, plantilla y fecha).", "info");
+        } else {
+          all.unshift({
+            id: newUuidV4(),
+            ...recordBase,
+            createdAt: nowIso()
+          });
+          notify(userMessage("contractWordSaved"), "success");
+        }
+        write(KEYS.contracts, dedupContracts(all));
+        state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+        state.hiringUi.workspace = "track";
+        persistHrWorkspace("hiring", "track");
+        state.createPanels = { ...(state.createPanels || {}), "create-contract": false };
       } catch (wordErr) {
         notify(userMessage("contractWordError", String(wordErr?.message || "error")), "error");
+      } finally {
+        restoreSubmitState();
       }
       renderPortalView();
     });
@@ -14538,8 +14882,1076 @@ function initGlobalEvents() {
     renderPortal();
   });
 
+  bindExtendedViewEditHandlers();
+
   initRequiredFieldIndicators();
   initB2BFormExperience();
+}
+
+function bindExtendedViewEditHandlers() {
+  const renderDetailRows = (pairs) =>
+    pairs
+      .filter((p) => p && p[1] !== null && p[1] !== undefined && String(p[1]).trim() !== "")
+      .map(
+        ([label, value]) =>
+          `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${value}</span></div>`
+      )
+      .join("");
+
+  const buildDetailGrid = (sections) =>
+    sections
+      .filter((sec) => sec && sec.rows && sec.rows.trim())
+      .map(
+        (sec) =>
+          `<section class="detail-section"><h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4><div class="detail-section-grid">${sec.rows}</div></section>`
+      )
+      .join("");
+
+  const fmtMoney = (val) => `$${parseNum(val).toLocaleString("es-CO")}`;
+  const fmtBool = (val) => (val ? "Sí" : "No");
+  const fmtDateOr = (val, fallback = "—") => {
+    const s = String(val || "").trim();
+    return s ? escapeHtml(s) : fallback;
+  };
+
+  /* ============= VEHÍCULO: VER ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-vehicle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = read(KEYS.vehicles, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!v) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const soat = docExpiryStatus(v.soatExpeditionDate);
+      const tec = docExpiryStatus(v.techInspectionExpeditionDate);
+      const sections = [
+        {
+          icon: "truck",
+          title: "Identificación",
+          rows: renderDetailRows([
+            ["Placa", `<strong>${escapeHtml(String(v.plate || ""))}</strong>`],
+            ["Marca", escapeHtml(String(v.brand || "-"))],
+            ["Línea/Modelo", escapeHtml(String(v.model || "-"))],
+            ["Año", escapeHtml(String(v.year || "-"))],
+            ["Color", escapeHtml(String(v.color || "-"))],
+            ["Tipo", escapeHtml(String(v.type || "-"))]
+          ])
+        },
+        {
+          icon: "layers",
+          title: "Características",
+          rows: renderDetailRows([
+            ["Carrocería", escapeHtml(String(v.bodyType || "-"))],
+            ["Refrigerado", fmtBool(v.refrigerated)],
+            ["Capacidad", `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg`],
+            ["Combustible", escapeHtml(String(v.fuelType || "-"))],
+            ["Ejes", escapeHtml(String(v.axleConfig || "-"))],
+            ["N° motor", escapeHtml(String(v.engineNumber || "-"))],
+            ["Chasis (VIN)", escapeHtml(String(v.vin || "-"))]
+          ])
+        },
+        {
+          icon: "shield",
+          title: "Documentos legales",
+          rows: renderDetailRows([
+            ["Tarjeta propiedad", escapeHtml(String(v.ownershipCard || "-"))],
+            ["SOAT expedido", `${fmtDateOr(v.soatExpeditionDate)} <span class="status ${soat.cls}">${soat.label}</span>`],
+            ["SOAT vence", fmtDateOr(v.soatExpiryDate)],
+            ["Tecnomecánica expedida", `${fmtDateOr(v.techInspectionExpeditionDate)} <span class="status ${tec.cls}">${tec.label}</span>`],
+            ["Tecnomecánica vence", fmtDateOr(v.techInspectionExpiryDate)],
+            ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "-"))],
+            ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "-"))],
+            ["Vence pólizas RCP", fmtDateOr(v.rcPolicyExpiry)]
+          ])
+        },
+        {
+          icon: "mapPin",
+          title: "Operación y propietario",
+          rows: renderDetailRows([
+            ["GPS satelital", fmtBool(v.hasGps)],
+            ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "-"))],
+            ["Disponibilidad", v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'],
+            ["Propietario", escapeHtml(String(v.ownerName || "-"))],
+            ["NIT/Cédula propietario", escapeHtml(String(v.ownerTaxId || "-"))]
+          ])
+        }
+      ];
+      openInfoModal({
+        title: `Camión ${String(v.plate || "")}`,
+        subtitle: `${String(v.brand || "")} · ${String(v.model || "")} · ${String(v.year || "")}`,
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  /* ============= CONDUCTOR: VER ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-driver']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const d = read(KEYS.drivers, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!d) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const company = getCompanyById(d.companyId);
+      const sections = [
+        {
+          icon: "user",
+          title: "Datos personales",
+          rows: renderDetailRows([
+            ["Nombre", `<strong>${escapeHtml(String(d.name || "-"))}</strong>`],
+            ["Documento", escapeHtml(String(d.idDoc || "-"))],
+            ["Teléfono", escapeHtml(String(d.phone || "-"))],
+            ["Tipo de sangre", escapeHtml(String(d.bloodType || "-"))],
+            ["Contacto emergencia", escapeHtml(String(d.emergencyContact || "-"))],
+            ["Tel. emergencia", escapeHtml(String(d.emergencyPhone || "-"))],
+            ["Empresa", escapeHtml(String(company?.name || "-"))]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Licencia y formación",
+          rows: renderDetailRows([
+            ["N° licencia", escapeHtml(String(d.license || "-"))],
+            ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
+            ["Vence licencia", fmtDateOr(d.licenseExpiry)],
+            ["Examen psicosensométrico", fmtDateOr(d.psychoTestDate)],
+            ["Vence psicosensométrico", fmtDateOr(d.psychoTestExpiry)],
+            ["Curso defensivo", escapeHtml(String(d.defensiveCourse || "-"))],
+            ["Vence curso defensivo", fmtDateOr(d.defensiveCourseExpiry)],
+            ["Años experiencia", String(parseNum(d.experienceYears || 0))]
+          ])
+        },
+        {
+          icon: "shield",
+          title: "Seguridad social y disciplina",
+          rows: renderDetailRows([
+            ["EPS", escapeHtml(String(d.eps || "-"))],
+            ["ARL", escapeHtml(String(d.arl || "-"))],
+            ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
+            ["Disponible", fmtBool(d.available)]
+          ])
+        }
+      ];
+      openInfoModal({
+        title: `Conductor ${String(d.name || "")}`,
+        subtitle: `${String(d.licenseCategory || "")} · ${String(d.idDoc || "")}`,
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  /* ============= EMPRESA: VER ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-company']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const c = read(KEYS.companies, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!c) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const usersCount = read(KEYS.users, []).filter((u) => String(u.companyId || "") === String(c.id)).length;
+      const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
+      const sections = [
+        {
+          icon: "briefcase",
+          title: "Identificación",
+          rows: renderDetailRows([
+            ["Razón social", `<strong>${escapeHtml(String(c.name || "-"))}</strong>`],
+            ["NIT", escapeHtml(String(c.taxId || c.nit || "-"))],
+            ["Tipo", escapeHtml(String(companyKindLabel(c.companyKind) || c.companyKind || "-"))],
+            ["Estado", isCompanyRecordActive(c) ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>']
+          ])
+        },
+        {
+          icon: "mapPin",
+          title: "Contacto",
+          rows: renderDetailRows([
+            ["Teléfono", escapeHtml(String(phoneDisp || "-"))],
+            ["Correo", escapeHtml(String(c.email || "-"))],
+            ["Dirección", escapeHtml(String(c.address || "-"))],
+            ["Ciudad", escapeHtml(String(c.city || "-"))],
+            ["Departamento", escapeHtml(String(c.department || "-"))]
+          ])
+        },
+        {
+          icon: "users",
+          title: "Vínculos",
+          rows: renderDetailRows([
+            ["Usuarios asociados", `${usersCount}`],
+            ["Creada", fmtDateOr(c.createdAt)]
+          ])
+        }
+      ];
+      openInfoModal({
+        title: String(c.name || "Empresa"),
+        subtitle: c.taxId ? `NIT ${String(c.taxId)}` : "",
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  /* ============= USUARIO: VER ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-user']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const u = read(KEYS.users, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!u) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const company = getCompanyById(u.companyId);
+      const permsHtml = (u.permissions || [])
+        .map((p) => `<span class="perm-tag">${escapeHtml(PERMISSION_META[p]?.title || String(p))}</span>`)
+        .join(" ");
+      const phoneDisp = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "";
+      const sections = [
+        {
+          icon: "user",
+          title: "Identidad",
+          rows: renderDetailRows([
+            ["Nombre", `<strong>${escapeHtml(getPortalUserDisplayName(u))}</strong>`],
+            ["Correo", escapeHtml(String(u.email || "-"))],
+            ["Documento", escapeHtml(String(u.idDoc || u.taxId || "-"))],
+            ["Teléfono", escapeHtml(String(phoneDisp || "-"))],
+            ["Ciudad", escapeHtml(String(u.city || "-"))],
+            ["Departamento", escapeHtml(String(u.department || "-"))]
+          ])
+        },
+        {
+          icon: "shield",
+          title: "Cuenta y rol",
+          rows: renderDetailRows([
+            ["Rol", escapeHtml(String(formatPortalRoleLabel(u.role) || u.role || "-"))],
+            ["Estado", escapeHtml(String(u.accountStatus || "-"))],
+            ["Tipo de vínculo", escapeHtml(String(registrationKindLabel(u.registrationKind) || "-"))],
+            ["Empresa", escapeHtml(String(company?.name || u.company || "-"))],
+            ["Creado", fmtDateOr(u.createdAt)]
+          ])
+        },
+        {
+          icon: "layers",
+          title: "Permisos asignados",
+          rows: permsHtml ? `<div class="detail-perms-list">${permsHtml}</div>` : `<span class="muted">Sin permisos asignados.</span>`
+        }
+      ];
+      openInfoModal({
+        title: getPortalUserDisplayName(u) || "Usuario",
+        subtitle: String(u.email || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  /* ============= AUSENCIA: VER ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-hr-absence']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const a = read(KEYS.hrAbsences, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!a) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const typeLabel = a.absenceType === "incapacidad" ? "Incapacidad" : a.absenceType === "vacaciones" ? "Vacaciones" : a.absenceType === "licencia" ? "Licencia" : "Calamidad";
+      const sections = [
+        {
+          icon: "calendar",
+          title: "Detalle",
+          rows: renderDetailRows([
+            ["Empleado", `<strong>${escapeHtml(String(a.employeeName || "-"))}</strong>`],
+            ["Tipo", escapeHtml(typeLabel)],
+            ["Inicio", fmtDateOr(a.startDate)],
+            ["Fin", fmtDateOr(a.endDate)],
+            ["Días", String(parseNum(a.days || 0))],
+            ["Soporte (N°)", escapeHtml(String(a.supportNumber || "-"))],
+            ["Entidad/EPS", escapeHtml(String(a.epsEntity || "-"))],
+            ["Registrado", fmtDateOr(a.createdAt)]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Observaciones",
+          rows: a.notes
+            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(a.notes))}</p>`
+            : `<span class="muted">Sin observaciones.</span>`
+        }
+      ];
+      openInfoModal({
+        title: `Ausencia · ${typeLabel}`,
+        subtitle: String(a.employeeName || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  /* ============= AUSENCIA: EDITAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='edit-hr-absence']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.hrAbsences, []);
+      const target = all.find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      openEditModal({
+        title: "Editar ausencia",
+        subtitle: String(target.employeeName || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          {
+            name: "absenceType",
+            label: "Tipo",
+            type: "select",
+            value: target.absenceType || "incapacidad",
+            options: [
+              { value: "incapacidad", label: "Incapacidad" },
+              { value: "vacaciones", label: "Vacaciones" },
+              { value: "licencia", label: "Licencia" },
+              { value: "calamidad", label: "Calamidad" }
+            ]
+          },
+          { name: "startDate", label: "Fecha de inicio", type: "date", value: target.startDate || "", required: true },
+          { name: "endDate", label: "Fecha de fin", type: "date", value: target.endDate || "", required: true },
+          { name: "supportNumber", label: "N° soporte / radicado", value: target.supportNumber || "" },
+          { name: "epsEntity", label: "EPS o entidad", value: target.epsEntity || "" },
+          { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
+        ],
+        onSubmit: (form) => {
+          const start = new Date(`${form.startDate}T12:00:00`);
+          const end = new Date(`${form.endDate}T12:00:00`);
+          if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+            notify("Fechas inválidas.", "error");
+            return false;
+          }
+          if (end.getTime() < start.getTime()) {
+            notify(userMessage("absenceDateOrder"), "error");
+            return false;
+          }
+          const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+          write(
+            KEYS.hrAbsences,
+            all.map((a) =>
+              String(a.id) !== String(target.id)
+                ? a
+                : {
+                    ...a,
+                    absenceType: String(form.absenceType || a.absenceType),
+                    startDate: form.startDate,
+                    endDate: form.endDate,
+                    days,
+                    supportNumber: String(form.supportNumber || "").trim(),
+                    epsEntity: String(form.epsEntity || "").trim(),
+                    notes: String(form.notes || "").trim()
+                  }
+            )
+          );
+          notify("Ausencia actualizada.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  /* ============= VACANTE: EDITAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='edit-vacancy']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.vacancies, []);
+      const target = all.find((v) => String(v.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      const positions = read(KEYS.positions, []).filter((p) => p.active !== false);
+      const positionOpts = [
+        { value: "", label: "Seleccione cargo..." },
+        ...positions.map((p) => ({ value: p.id, label: `${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}` }))
+      ];
+      openEditModal({
+        title: "Editar vacante",
+        subtitle: String(target.title || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          { name: "title", label: "Título de la vacante", value: target.title || "", required: true },
+          { name: "positionId", label: "Cargo base", type: "select", value: target.positionId || "", options: positionOpts, required: true },
+          { name: "city", label: "Ciudad", value: target.city || "" },
+          { name: "department", label: "Departamento", value: target.department || "" },
+          {
+            name: "modality",
+            label: "Modalidad",
+            type: "select",
+            value: target.modality || "Presencial",
+            options: [
+              { value: "Presencial", label: "Presencial" },
+              { value: "Remoto", label: "Remoto" },
+              { value: "Híbrido", label: "Híbrido" }
+            ]
+          },
+          { name: "openings", label: "Cupos", type: "number", value: parseNum(target.openings || 1), required: true },
+          { name: "salaryOffer", label: "Salario ofrecido (COP)", type: "number", value: parseNum(target.salaryOffer || 0), required: true },
+          { name: "deadline", label: "Cierre postulaciones", type: "date", value: target.deadline || "", required: true },
+          { name: "requirements", label: "Requisitos y perfil", type: "textarea", value: target.requirements || "", rows: 4 },
+          {
+            name: "status",
+            label: "Estado",
+            type: "select",
+            value: target.status || "Publicada",
+            options: [
+              { value: "Publicada", label: "Publicada" },
+              { value: "Cerrada", label: "Cerrada" }
+            ]
+          }
+        ],
+        onSubmit: (form) => {
+          const salaryOffer = parseNum(form.salaryOffer);
+          if (salaryOffer < CO_HR_RULES.minMonthlySalary) {
+            notify(userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
+            return false;
+          }
+          const position = getPositionById(String(form.positionId || ""));
+          if (!position) {
+            notify(userMessage("vacancySelectPosition"), "error");
+            return false;
+          }
+          write(
+            KEYS.vacancies,
+            all.map((v) =>
+              String(v.id) !== String(target.id)
+                ? v
+                : {
+                    ...v,
+                    title: String(form.title || "").trim(),
+                    positionId: position.id,
+                    positionName: position.name,
+                    workerRole: position.workerRole || v.workerRole || "empleado",
+                    contractTypeDefault: position.contractTypeDefault || v.contractTypeDefault,
+                    city: String(form.city || "").trim(),
+                    department: String(form.department || "").trim(),
+                    modality: String(form.modality || "").trim(),
+                    openings: Math.max(1, parseNum(form.openings || 1)),
+                    salaryOffer,
+                    deadline: form.deadline || "",
+                    requirements: String(form.requirements || "").trim(),
+                    status: String(form.status || "Publicada")
+                  }
+            )
+          );
+          notify("Vacante actualizada.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  /* ============= CARGO: VER / EDITAR / ELIMINAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-position']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const p = read(KEYS.positions, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!p) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const sections = [
+        {
+          icon: "briefcase",
+          title: "Cargo",
+          rows: renderDetailRows([
+            ["Nombre", `<strong>${escapeHtml(String(p.name || ""))}</strong>`],
+            ["Rol", p.workerRole === "conductor" ? "Conductor" : "Empleado"],
+            ["Salario base", fmtMoney(p.baseSalary)],
+            ["Tipo de contrato", escapeHtml(String(p.contractTypeDefault || "-"))],
+            ["Estado", p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'],
+            ["Jornada", escapeHtml(String(p.workSchedule || "-"))],
+            ["Riesgo ARL", escapeHtml(String(p.arlRiskLevel || "-"))],
+            ["Salario integral", fmtBool(String(p.integralSalary) === "true" || p.integralSalary === true)],
+            ["Base legal", escapeHtml(String(p.legalBasis || "CST"))],
+            ["Creado", fmtDateOr(p.createdAt)]
+          ])
+        }
+      ];
+      openInfoModal({
+        title: `Cargo: ${String(p.name || "")}`,
+        subtitle: p.workerRole === "conductor" ? "Conductor" : "Empleado",
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='edit-position']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.positions, []);
+      const target = all.find((p) => String(p.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      const contractOpts = [
+        { value: "", label: "Seleccione..." },
+        ...CO_CATALOGS.contractTypes.map((c) => ({ value: c, label: c }))
+      ];
+      const scheduleOpts = [
+        { value: "", label: "Seleccione..." },
+        ...CO_CATALOGS.workSchedule.map((s) => ({ value: s, label: s }))
+      ];
+      const arlOpts = [
+        { value: "", label: "Seleccione..." },
+        ...CO_CATALOGS.arlRiskLevels.map((s) => ({ value: s, label: s }))
+      ];
+      openEditModal({
+        title: "Editar cargo",
+        subtitle: String(target.name || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          { name: "name", label: "Nombre del cargo", value: target.name || "", required: true },
+          {
+            name: "workerRole",
+            label: "Rol del cargo",
+            type: "select",
+            value: target.workerRole || "empleado",
+            options: [
+              { value: "empleado", label: "Empleado" },
+              { value: "conductor", label: "Conductor" }
+            ]
+          },
+          { name: "baseSalary", label: "Salario base (COP)", type: "number", value: parseNum(target.baseSalary || 0), required: true },
+          { name: "contractTypeDefault", label: "Contrato sugerido", type: "select", value: target.contractTypeDefault || "", options: contractOpts },
+          { name: "workSchedule", label: "Jornada", type: "select", value: target.workSchedule || "", options: scheduleOpts },
+          { name: "arlRiskLevel", label: "Nivel ARL", type: "select", value: target.arlRiskLevel || "", options: arlOpts },
+          {
+            name: "integralSalary",
+            label: "Salario integral",
+            type: "select",
+            value: String(target.integralSalary) === "true" || target.integralSalary === true ? "true" : "false",
+            options: [
+              { value: "false", label: "No" },
+              { value: "true", label: "Sí" }
+            ]
+          },
+          { name: "legalBasis", label: "Base legal", value: target.legalBasis || "CST art. 45-46 y normatividad laboral vigente" }
+        ],
+        onSubmit: (form) => {
+          const baseSalary = parseNum(form.baseSalary);
+          if (baseSalary < CO_HR_RULES.minMonthlySalary) {
+            notify(userMessage("positionSalaryBaseMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
+            return false;
+          }
+          write(
+            KEYS.positions,
+            all.map((p) =>
+              String(p.id) !== String(target.id)
+                ? p
+                : {
+                    ...p,
+                    name: String(form.name || "").trim(),
+                    workerRole: String(form.workerRole || "empleado"),
+                    baseSalary,
+                    contractTypeDefault: String(form.contractTypeDefault || "").trim(),
+                    workSchedule: String(form.workSchedule || "").trim(),
+                    arlRiskLevel: String(form.arlRiskLevel || "").trim(),
+                    integralSalary: String(form.integralSalary || "false") === "true",
+                    legalBasis: String(form.legalBasis || "").trim()
+                  }
+            )
+          );
+          notify("Cargo actualizado.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-position']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "");
+      const target = read(KEYS.positions, []).find((p) => String(p.id) === id);
+      if (!target) return;
+      const linkedVacancies = read(KEYS.vacancies, []).filter((v) => String(v.positionId || "") === id).length;
+      if (linkedVacancies > 0) {
+        notify(`No se puede eliminar: hay ${linkedVacancies} vacante(s) que referencian este cargo. Cierra o reasigna primero.`, "error");
+        return;
+      }
+      openConfirmModal({
+        title: "Eliminar cargo",
+        message: `Se eliminará permanentemente el cargo "${String(target.name || "")}" del catálogo. Esta acción no afecta empleados o contratos ya guardados.`,
+        confirmText: "Eliminar cargo",
+        onConfirm: () => {
+          write(KEYS.positions, read(KEYS.positions, []).filter((p) => String(p.id) !== id));
+          notify("Cargo eliminado.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  /* ============= CANDIDATO: VER / EDITAR / ELIMINAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const c = read(KEYS.candidates, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!c) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const attachmentsHtml = Array.isArray(c.attachments) && c.attachments.length
+        ? c.attachments.map((f) => `<span class="perm-tag">${escapeHtml(String(f))}</span>`).join(" ")
+        : `<span class="muted">Sin adjuntos.</span>`;
+      const sections = [
+        {
+          icon: "user",
+          title: "Identificación",
+          rows: renderDetailRows([
+            ["Nombre", `<strong>${escapeHtml(String(c.name || ""))}</strong>`],
+            ["Documento", `${escapeHtml(String(c.documentType || "-"))} ${escapeHtml(String(c.idDoc || ""))}`],
+            ["Correo", escapeHtml(String(c.email || "-"))],
+            ["Teléfono", escapeHtml(String(c.phone || "-"))],
+            ["Ciudad", escapeHtml(String(c.city || "-"))],
+            ["Departamento", escapeHtml(String(c.department || "-"))],
+            ["Dirección", escapeHtml(String(c.address || "-"))]
+          ])
+        },
+        {
+          icon: "briefcase",
+          title: "Postulación",
+          rows: renderDetailRows([
+            ["Vacante", escapeHtml(String(c.vacancyTitle || "-"))],
+            ["Estado", `<span class="status status-en_transito">${escapeHtml(String(c.status || ""))}</span>`],
+            ["Origen", escapeHtml(String(c.source || "Portal"))],
+            ["Años experiencia", String(parseNum(c.experienceYears || 0))],
+            ["Aspiración salarial", fmtMoney(c.expectedSalary)],
+            ["Disponibilidad", fmtDateOr(c.availabilityDate)],
+            ["Registrado", fmtDateOr(c.createdAt)]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Adjuntos",
+          rows: `<div class="detail-perms-list">${attachmentsHtml}</div>`
+        }
+      ];
+      openInfoModal({
+        title: String(c.name || "Candidato"),
+        subtitle: String(c.vacancyTitle || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='edit-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.candidates, []);
+      const target = all.find((c) => String(c.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      const vacancyOpts = [
+        { value: "", label: "Seleccione vacante..." },
+        ...read(KEYS.vacancies, []).map((v) => ({ value: v.id, label: `${v.title || "Vacante"}${v.positionName ? ` (${v.positionName})` : ""}` }))
+      ];
+      const docTypeOpts = [
+        { value: "", label: "Seleccione..." },
+        ...CO_CATALOGS.documentTypes.map((d) => ({ value: d, label: d }))
+      ];
+      const statusOpts = PIPELINE.map((s) => ({ value: s, label: s }));
+      openEditModal({
+        title: "Editar candidato",
+        subtitle: String(target.name || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          { name: "name", label: "Nombre completo", value: target.name || "", required: true },
+          { name: "email", label: "Correo", type: "email", value: target.email || "", required: true },
+          { name: "phone", label: "Teléfono", value: target.phone || "" },
+          { name: "documentType", label: "Tipo documento", type: "select", value: target.documentType || "CC", options: docTypeOpts, required: true },
+          { name: "idDoc", label: "N° documento", value: target.idDoc || "", required: true },
+          { name: "city", label: "Ciudad", value: target.city || "" },
+          { name: "department", label: "Departamento", value: target.department || "" },
+          { name: "address", label: "Dirección", value: target.address || "" },
+          { name: "experienceYears", label: "Años experiencia", type: "number", value: parseNum(target.experienceYears || 0) },
+          { name: "expectedSalary", label: "Aspiración salarial", type: "number", value: parseNum(target.expectedSalary || 0) },
+          { name: "availabilityDate", label: "Disponibilidad", type: "date", value: target.availabilityDate || "" },
+          { name: "vacancyId", label: "Vacante", type: "select", value: target.vacancyId || "", options: vacancyOpts, required: true },
+          { name: "status", label: "Estado pipeline", type: "select", value: target.status || PIPELINE[0], options: statusOpts },
+          { name: "source", label: "Origen", value: target.source || "Portal RRHH" }
+        ],
+        onSubmit: (form) => {
+          const docValidation = validateColombianDocument(form.documentType, form.idDoc);
+          if (!docValidation.ok) {
+            notify(docValidation.message, "error");
+            return false;
+          }
+          const expectedSalary = parseNum(form.expectedSalary);
+          if (expectedSalary && expectedSalary < CO_HR_RULES.minMonthlySalary) {
+            notify(
+              userMessage("candidateSalaryAspirationMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+              "error"
+            );
+            return false;
+          }
+          const vac = read(KEYS.vacancies, []).find((v) => String(v.id) === String(form.vacancyId));
+          if (!vac) {
+            notify(userMessage("hireSelectVacancy"), "error");
+            return false;
+          }
+          write(
+            KEYS.candidates,
+            all.map((c) =>
+              String(c.id) !== String(target.id)
+                ? c
+                : {
+                    ...c,
+                    name: String(form.name || "").trim(),
+                    email: String(form.email || "").trim(),
+                    phone: String(form.phone || "").trim(),
+                    documentType: form.documentType,
+                    idDoc: docValidation.normalized,
+                    city: String(form.city || "").trim(),
+                    department: String(form.department || "").trim(),
+                    address: String(form.address || "").trim(),
+                    experienceYears: Math.max(0, parseNum(form.experienceYears || 0)),
+                    expectedSalary,
+                    availabilityDate: form.availabilityDate || "",
+                    vacancyId: vac.id,
+                    vacancyTitle: vac.title,
+                    status: String(form.status || c.status || PIPELINE[0]),
+                    source: String(form.source || "Portal RRHH")
+                  }
+            )
+          );
+          notify("Candidato actualizado.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "");
+      const target = read(KEYS.candidates, []).find((c) => String(c.id) === id);
+      if (!target) return;
+      const linkedInterviews = read(KEYS.interviews, []).filter((i) => String(i.candidateId || "") === id).length;
+      openConfirmModal({
+        title: "Eliminar candidato",
+        message: `Se eliminará al candidato "${String(target.name || "")}" del pipeline${linkedInterviews ? ` y sus ${linkedInterviews} entrevista(s) asociada(s)` : ""}.`,
+        confirmText: "Eliminar candidato",
+        onConfirm: () => {
+          write(KEYS.candidates, read(KEYS.candidates, []).filter((c) => String(c.id) !== id));
+          if (linkedInterviews > 0) {
+            write(KEYS.interviews, read(KEYS.interviews, []).filter((i) => String(i.candidateId || "") !== id));
+          }
+          notify("Candidato eliminado.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  /* ============= ENTREVISTA: VER / EDITAR / ELIMINAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-interview']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = read(KEYS.interviews, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!i) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const sections = [
+        {
+          icon: "calendar",
+          title: "Programación",
+          rows: renderDetailRows([
+            ["Candidato", `<strong>${escapeHtml(String(i.candidateName || "-"))}</strong>`],
+            ["Fecha y hora", escapeHtml(String(i.when || "-"))],
+            ["Entrevistador", escapeHtml(String(i.interviewer || "-"))],
+            ["Modalidad", escapeHtml(String(i.modality || "-"))],
+            ["Lugar / enlace", escapeHtml(String(i.locationOrLink || "-"))]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Notas",
+          rows: i.notes
+            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(i.notes))}</p>`
+            : `<span class="muted">Sin notas.</span>`
+        }
+      ];
+      openInfoModal({
+        title: `Entrevista · ${String(i.candidateName || "")}`,
+        subtitle: String(i.when || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='edit-interview']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.interviews, []);
+      const target = all.find((i) => String(i.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      openEditModal({
+        title: "Editar entrevista",
+        subtitle: String(target.candidateName || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          { name: "when", label: "Fecha y hora", type: "datetime-local", value: target.when || "", required: true },
+          { name: "interviewer", label: "Entrevistador(a)", value: target.interviewer || "", required: true },
+          {
+            name: "modality",
+            label: "Modalidad",
+            type: "select",
+            value: target.modality || "Presencial",
+            options: [
+              { value: "Presencial", label: "Presencial" },
+              { value: "Virtual", label: "Virtual" },
+              { value: "Telefónica", label: "Telefónica" }
+            ]
+          },
+          { name: "locationOrLink", label: "Lugar o enlace", value: target.locationOrLink || "" },
+          { name: "notes", label: "Notas", type: "textarea", value: target.notes || "", rows: 3 }
+        ],
+        onSubmit: (form) => {
+          const ts = new Date(String(form.when || "")).getTime();
+          if (!Number.isFinite(ts)) {
+            notify("Fecha y hora inválidas.", "error");
+            return false;
+          }
+          write(
+            KEYS.interviews,
+            all.map((i) =>
+              String(i.id) !== String(target.id)
+                ? i
+                : {
+                    ...i,
+                    when: form.when,
+                    interviewer: String(form.interviewer || "").trim(),
+                    modality: String(form.modality || ""),
+                    locationOrLink: String(form.locationOrLink || "").trim(),
+                    notes: String(form.notes || "").trim()
+                  }
+            )
+          );
+          notify("Entrevista actualizada.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-interview']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "");
+      const target = read(KEYS.interviews, []).find((i) => String(i.id) === id);
+      if (!target) return;
+      openConfirmModal({
+        title: "Eliminar entrevista",
+        message: `Se eliminará la entrevista de "${String(target.candidateName || "")}".`,
+        confirmText: "Eliminar entrevista",
+        onConfirm: () => {
+          write(KEYS.interviews, read(KEYS.interviews, []).filter((i) => String(i.id) !== id));
+          notify("Entrevista eliminada.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  /* ============= CONTRATO: VER (DETALLE) / ELIMINAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-contract-detail']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const c = read(KEYS.contracts, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!c) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const employee = c.employeeId
+        ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(c.employeeId))
+        : null;
+      const sections = [
+        {
+          icon: "user",
+          title: "Persona",
+          rows: renderDetailRows([
+            ["Nombre", `<strong>${escapeHtml(String(c.candidateName || c.employeeName || employee?.name || "-"))}</strong>`],
+            ["Documento", escapeHtml(String(c.idDocSnapshot || employee?.idDoc || "-"))],
+            ["Cargo", escapeHtml(String(c.position || employee?.position || "-"))],
+            ["Origen", escapeHtml(String(c.source || "Candidato"))]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Contrato",
+          rows: renderDetailRows([
+            ["Tipo", escapeHtml(String(c.contractType || "-"))],
+            ["Plantilla", escapeHtml(String(c.contractTemplateKind || "-"))],
+            ["Salario", fmtMoney(c.salary)],
+            ["Inicio", fmtDateOr(c.startDate)],
+            ["Fin", fmtDateOr(c.endDate)],
+            ["Generado", fmtDateOr(c.createdAt)]
+          ])
+        }
+      ];
+      const contentHtml = c.content
+        ? `<section class="detail-section"><h4 class="detail-section-title">${IC.file || ""}<span>Resumen interno</span></h4><pre class="detail-pre">${escapeHtml(String(c.content))}</pre></section>`
+        : "";
+      openInfoModal({
+        title: `Contrato · ${String(c.candidateName || c.employeeName || "")}`,
+        subtitle: String(c.position || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>${contentHtml}`,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-contract']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "");
+      const target = read(KEYS.contracts, []).find((c) => String(c.id) === id);
+      if (!target) return;
+      openConfirmModal({
+        title: "Eliminar contrato",
+        message: `Se eliminará el registro del contrato de "${String(target.candidateName || target.employeeName || "")}". El archivo Word ya descargado no se borrará automáticamente.`,
+        confirmText: "Eliminar contrato",
+        onConfirm: () => {
+          write(KEYS.contracts, read(KEYS.contracts, []).filter((c) => String(c.id) !== id));
+          notify("Contrato eliminado.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
+  /* ============= SST / CUMPLIMIENTO: VER / EDITAR / ELIMINAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-sst-record']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const r = read(KEYS.sstCompliance, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!r) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const sections = [
+        {
+          icon: "shield",
+          title: "Control",
+          rows: renderDetailRows([
+            ["Tipo", `<strong>${escapeHtml(String(r.recordType || "-"))}</strong>`],
+            ["Código documental", escapeHtml(String(r.documentCode || "-"))],
+            ["Empleado", escapeHtml(String(r.employeeName || "-"))],
+            ["Entidad / proveedor", escapeHtml(String(r.provider || "-"))],
+            ["Vencimiento", fmtDateOr(r.dueDate)],
+            ["Estado", escapeHtml(String(r.status || "-"))],
+            ["Registrado", fmtDateOr(r.createdAt)],
+            ["Responsable", escapeHtml(String(r.createdBy || "-"))]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Evidencia / observaciones",
+          rows: r.notes
+            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(r.notes))}</p>`
+            : `<span class="muted">Sin observaciones.</span>`
+        }
+      ];
+      openInfoModal({
+        title: `Control SST · ${String(r.recordType || "")}`,
+        subtitle: String(r.employeeName || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='edit-sst-record']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.sstCompliance, []);
+      const target = all.find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      openEditModal({
+        title: "Editar control SST",
+        subtitle: String(target.recordType || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          {
+            name: "recordType",
+            label: "Tipo de control",
+            type: "select",
+            value: target.recordType || "",
+            options: [
+              { value: "", label: "Seleccione..." },
+              { value: "Afiliacion EPS", label: "Afiliacion EPS" },
+              { value: "Afiliacion pension", label: "Afiliacion pension" },
+              { value: "Afiliacion ARL", label: "Afiliacion ARL" },
+              { value: "Examen medico ocupacional", label: "Examen medico ocupacional" },
+              { value: "Capacitacion SST", label: "Capacitacion SST" },
+              { value: "Inspeccion documental", label: "Inspeccion documental" }
+            ]
+          },
+          { name: "provider", label: "Entidad / proveedor", value: target.provider || "", required: true },
+          { name: "dueDate", label: "Vencimiento", type: "date", value: target.dueDate || "", required: true },
+          {
+            name: "status",
+            label: "Estado",
+            type: "select",
+            value: target.status || "Pendiente",
+            options: [
+              { value: "Pendiente", label: "Pendiente" },
+              { value: "En gestion", label: "En gestion" },
+              { value: "Cumplido", label: "Cumplido" }
+            ]
+          },
+          { name: "documentCode", label: "Código documental", value: target.documentCode || "" },
+          { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
+        ],
+        onSubmit: (form) => {
+          if (!form.dueDate) {
+            notify(userMessage("sstDueDateRequired"), "error");
+            return false;
+          }
+          write(
+            KEYS.sstCompliance,
+            all.map((r) =>
+              String(r.id) !== String(target.id)
+                ? r
+                : {
+                    ...r,
+                    recordType: String(form.recordType || r.recordType || "").trim(),
+                    provider: String(form.provider || "").trim(),
+                    dueDate: form.dueDate,
+                    status: String(form.status || "Pendiente"),
+                    documentCode: String(form.documentCode || "").trim().toUpperCase(),
+                    notes: String(form.notes || "").trim()
+                  }
+            )
+          );
+          notify("Control SST actualizado.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-sst-record']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "");
+      const target = read(KEYS.sstCompliance, []).find((r) => String(r.id) === id);
+      if (!target) return;
+      openConfirmModal({
+        title: "Eliminar control SST",
+        message: `Se eliminará el control "${String(target.recordType || "")}" del expediente.`,
+        confirmText: "Eliminar control",
+        onConfirm: () => {
+          write(KEYS.sstCompliance, read(KEYS.sstCompliance, []).filter((r) => String(r.id) !== id));
+          notify("Control SST eliminado.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
 }
 
 function initRequiredFieldIndicators() {

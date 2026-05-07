@@ -11,6 +11,7 @@ import type { Pool, PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import { PG_POOL } from "../database/database.module";
+import { MailService } from "../mail/mail.service";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 
 type JwtRole = string;
@@ -95,12 +96,69 @@ export class PortalService implements OnModuleInit {
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    private readonly mail: MailService
   ) {
     const url = normalizeSupabaseProjectUrl(this.config.get<string>("SUPABASE_URL"));
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
     this.supabaseEnabled = Boolean(url && key);
     this.supabaseAdmin = this.supabaseEnabled ? createClient(url, key) : null;
+  }
+
+  /** Resuelve la URL pública del portal con la misma lógica que `auth.service.ts`. */
+  private resolvePortalPublicUrl(): string {
+    const raw = String(
+      this.config.get<string>("PORTAL_PUBLIC_URL") ??
+        this.config.get<string>("PUBLIC_PORTAL_URL") ??
+        "https://www.transportesantares.co"
+    ).trim();
+    if (!raw) return "https://www.transportesantares.co";
+    return /^https?:\/\//i.test(raw) ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
+  }
+
+  /**
+   * Notifica por correo al usuario que su cuenta fue aprobada. No debe romper la respuesta del endpoint
+   * (admin ya recibió 200 antes), por eso se invoca con `void` y los errores quedan en logs.
+   */
+  private async sendAccountApprovedEmail(userId: string): Promise<void> {
+    try {
+      const r = await this.pool.query<{ correo_electronico: string; nombre_completo: string | null }>(
+        `SELECT correo_electronico, nombre_completo FROM usuarios WHERE id = $1::uuid`,
+        [userId]
+      );
+      const row = r.rows[0];
+      if (!row?.correo_electronico) return;
+      const email = String(row.correo_electronico).trim();
+      const name = String(row.nombre_completo || "").trim() || "Usuario";
+      const portalUrl = this.resolvePortalPublicUrl();
+
+      if (this.mail.hasResend()) {
+        await this.mail.sendPortalRegistrationWelcome({
+          to: email,
+          recipientName: name,
+          portalUrl,
+          accountApproved: true
+        });
+        return;
+      }
+
+      // Sin Resend: aún podemos disparar un correo de Supabase (set-password) que sirve como activación.
+      if (this.supabaseAdmin) {
+        const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, {
+          redirectTo: portalUrl
+        });
+        if (error) {
+          this.logger.warn(`approve-pending-user: resetPasswordForEmail (${email}): ${error.message}`);
+        }
+      } else {
+        this.logger.warn(
+          `approve-pending-user: ni Resend ni Supabase configurados. No se notifica al usuario ${email}.`
+        );
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`sendAccountApprovedEmail (${userId}) fallo no fatal: ${detail}`);
+    }
   }
 
   /**
@@ -694,6 +752,12 @@ export class PortalService implements OnModuleInit {
     } finally {
       client.release();
     }
+
+    /**
+     * Correo de activación tras aprobación. Se ejecuta fuera de la transacción y de forma
+     * fire-and-forget para no bloquear la respuesta al admin si Resend/Supabase tarda.
+     */
+    void this.sendAccountApprovedEmail(tid);
 
     return {
       ok: true,
@@ -1732,6 +1796,9 @@ export class PortalService implements OnModuleInit {
       workSchedule: e.jornada_laboral,
       avatarUrl: e.url_avatar,
       corporateEmail: e.correo_corporativo,
+      hasIllness: e.tiene_condicion_medica === true ? "si" : "no",
+      illnessDescription:
+        typeof e.descripcion_condicion_medica === "string" ? e.descripcion_condicion_medica : "",
       createdAt: e.fecha_creacion ? new Date(e.fecha_creacion as string).toISOString() : new Date().toISOString()
     };
   }
@@ -2489,7 +2556,8 @@ export class PortalService implements OnModuleInit {
           banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
-          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo
+          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
+          tiene_condicion_medica, descripcion_condicion_medica
         ) VALUES (
           $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
           $7::date, $8, $9, $10, $11,
@@ -2502,7 +2570,8 @@ export class PortalService implements OnModuleInit {
           $36, $37, $38, $39,
           $40, $41, $42,
           $43::date, $44::date, $45,
-          $46, $47, $48, $49, $50
+          $46, $47, $48, $49, $50,
+          $51::boolean, $52
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -2553,6 +2622,8 @@ export class PortalService implements OnModuleInit {
           fecha_fin_contrato = EXCLUDED.fecha_fin_contrato,
           jornada_laboral = EXCLUDED.jornada_laboral,
           correo_corporativo = EXCLUDED.correo_corporativo,
+          tiene_condicion_medica = EXCLUDED.tiene_condicion_medica,
+          descripcion_condicion_medica = EXCLUDED.descripcion_condicion_medica,
           url_avatar = EXCLUDED.url_avatar`,
         [
           e.id,
@@ -2604,7 +2675,11 @@ export class PortalService implements OnModuleInit {
           portalDateOrNull(p(e, "contractEndDate")),
           (p(e, "workSchedule") as string) || null,
           (p(e, "avatarUrl") as string) || null,
-          (p(e, "corporateEmail") as string) || null
+          (p(e, "corporateEmail") as string) || null,
+          String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
+          String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
+            ? ((p(e, "illnessDescription") as string) || "").trim() || null
+            : null
         ]
       );
     }

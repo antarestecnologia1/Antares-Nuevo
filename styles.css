@@ -3968,6 +3968,60 @@ body[data-theme="dark"] #form-register .register-kind-option {
   background: #f8fbff;
 }
 
+[data-login-submit] {
+  position: relative;
+  transition: background 0.18s ease, color 0.18s ease, opacity 0.18s ease;
+}
+
+[data-login-submit] .auth-submit-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  justify-content: center;
+}
+
+[data-login-submit] .auth-submit-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+[data-login-submit] .auth-submit-spinner {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+[data-login-submit] .auth-submit-spinner::before {
+  content: "";
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #ffffff;
+  animation: b2b-spin 0.7s linear infinite;
+}
+
+[data-login-submit].is-loading {
+  cursor: progress;
+  opacity: 0.92;
+}
+
+[data-login-submit].is-loading .auth-submit-content {
+  visibility: hidden;
+}
+
+[data-login-submit].is-loading .auth-submit-spinner {
+  display: flex;
+}
+
+[data-login-submit][disabled]:not(.is-loading) {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .auth-inline-note .muted {
   font-size: 0.78rem;
   display: block;
@@ -7890,10 +7944,28 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 
 .hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid,
 .hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid {
-  grid-template-columns: 1fr !important;
-  max-width: 42rem;
-  margin-inline: auto;
-  gap: 1rem !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+@media (min-width: 900px) {
+  .hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid > .p-card,
+.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .p-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid > .p-card.p-card--expanded,
+.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .p-card.p-card--expanded {
+  grid-column: 1 / -1;
 }
 
 .hr-flow-shell[data-hr-workspace="operate"] .p-card-body .hr-form-flow {
@@ -11764,6 +11836,53 @@ body[data-theme="dark"] .btn-primary.hr-workspace-jump-btn:hover {
   font-weight: 800;
 }
 
+.employee-profile-hero-photo-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: -54px;
+  padding: 0 0.5rem;
+}
+
+.employee-profile-hero-avatar {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 4px solid var(--bg, #fff);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.22);
+  background: var(--card, #fff);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.employee-profile-hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.employee-profile-hero-avatar--letter {
+  background: linear-gradient(135deg, var(--primary-mid), var(--primary-dark));
+  color: var(--white);
+  font-size: 2.4rem;
+  font-weight: 800;
+}
+
+.employee-profile-hero-photo-caption {
+  margin: 0;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+body[data-theme="dark"] .employee-profile-hero-avatar {
+  border-color: var(--card, #1f2937);
+  box-shadow: 0 8px 22px rgba(2, 6, 23, 0.6);
+}
+
 .employee-profile-intro {
   text-align: center;
 }
@@ -11878,4 +11997,136 @@ body[data-theme="dark"] .employee-profile-kv {
 .vacancy-detail-reqs strong {
   display: block;
   margin-bottom: 0.2rem;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.detail-section {
+  border: 1px solid var(--line);
+  background: rgba(248, 252, 255, 0.55);
+  border-radius: 12px;
+  padding: 0.75rem 0.95rem 0.85rem;
+}
+
+.detail-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.55rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.detail-section-title svg.btn-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.detail-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.45rem 1rem;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.18rem 0;
+  border-bottom: 1px dashed rgba(15, 23, 42, 0.06);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-soft);
+  font-weight: 700;
+}
+
+.detail-row-value {
+  font-size: 0.92rem;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.detail-row-value strong {
+  font-weight: 800;
+}
+
+.detail-row-value .status {
+  margin-left: 0.35rem;
+}
+
+.detail-perms-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+.detail-note {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.detail-pre {
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0.5rem 0 0;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+body[data-theme="dark"] .detail-section {
+  background: rgba(15, 23, 42, 0.45);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+body[data-theme="dark"] .detail-section-title {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .detail-row {
+  border-bottom-color: rgba(148, 163, 184, 0.15);
+}
+
+body[data-theme="dark"] .detail-row-label {
+  color: rgba(226, 232, 240, 0.7);
+}
+
+body[data-theme="dark"] .detail-row-value {
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .detail-note {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .detail-pre {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #e2e8f0;
 }
