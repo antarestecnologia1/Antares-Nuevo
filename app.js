@@ -8967,9 +8967,9 @@ function payrollHtml() {
     ariaLabel: "Secciones del módulo Personal y nómina",
     activeId: payrollWorkspace,
     tabs: [
-      { id: "overview", label: "Inicio", hint: "Bienvenida y resumen", icon: "compass" },
-      { id: "operate", label: "Nuevos registros", hint: "Empleado, nómina, ausencia", icon: "userPlus" },
-      { id: "data", label: "Información y reportes", hint: "Listas, filtros y CSV", icon: "layers" }
+      { id: "overview", label: "Inicio", icon: "compass" },
+      { id: "operate", label: "Nuevos registros", icon: "userPlus" },
+      { id: "data", label: "Información y reportes", icon: "layers" }
     ]
   });
   const payrollWorkspaceJumps = `<div class="hr-workspace-jumps">
@@ -9451,9 +9451,9 @@ function hiringHtml() {
     ariaLabel: "Secciones del módulo Selección y contratación",
     activeId: hiringWorkspace,
     tabs: [
-      { id: "overview", label: "Inicio", hint: "Bienvenida y resumen", icon: "compass" },
-      { id: "operate", label: "Proceso", hint: "Cargo, vacante, candidato, contrato", icon: "briefcase" },
-      { id: "track", label: "Seguimiento del proceso", hint: "Lo que necesita atención hoy", icon: "activity" }
+      { id: "overview", label: "Inicio", icon: "compass" },
+      { id: "operate", label: "Proceso", icon: "briefcase" },
+      { id: "track", label: "Seguimiento del proceso", icon: "activity" }
     ]
   });
   const hiringWorkspaceJumps = `<div class="hr-workspace-jumps">
