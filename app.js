@@ -4082,14 +4082,113 @@ function turnstileWidgetMarkup() {
   if (!siteKey) return "";
   return `
     <div class="full turnstile-row">
-      <div class="cf-turnstile" data-sitekey="${siteKey}" data-size="flexible" data-theme="auto"></div>
+      <div class="cf-turnstile" data-sitekey="${siteKey}" data-size="flexible" data-theme="auto" data-antares-pending="1"></div>
     </div>
   `;
 }
 
-/** Lee el token que el widget Turnstile inyecta como input oculto `cf-turnstile-response` dentro del propio form. */
+/**
+ * Renderiza explícitamente todos los widgets Turnstile presentes en el DOM. La auto-detección de
+ * `api.js` falla a veces en formularios montados dinámicamente; este paso es defensivo y se vuelve
+ * no-op cuando un nodo ya fue inicializado (marcamos con `data-antares-pending="0"`).
+ */
+function ensureTurnstileWidgets() {
+  const siteKey = String(window.ANTARES_TURNSTILE_SITE_KEY || "").trim();
+  if (!siteKey) return;
+  const nodes = document.querySelectorAll('.cf-turnstile[data-antares-pending="1"]');
+  if (!nodes.length) return;
+  const tryRender = () => {
+    if (!window.turnstile?.render) return false;
+    nodes.forEach((node) => {
+      try {
+        if (node.dataset.antaresPending !== "1") return;
+        node.dataset.antaresPending = "0";
+        window.turnstile.render(node, {
+          sitekey: siteKey,
+          callback: (token) => {
+            try {
+              node.dataset.antaresToken = String(token || "");
+            } catch (_e) {}
+          },
+          "error-callback": () => {
+            try {
+              node.dataset.antaresToken = "";
+            } catch (_e) {}
+          },
+          "expired-callback": () => {
+            try {
+              node.dataset.antaresToken = "";
+            } catch (_e) {}
+          }
+        });
+      } catch (_e) {
+        node.dataset.antaresPending = "1";
+      }
+    });
+    return true;
+  };
+  if (!tryRender()) {
+    // El script `api.js` aún no terminó de cargar (defer). Reintentamos cuando esté disponible.
+    const interval = window.setInterval(() => {
+      if (tryRender()) window.clearInterval(interval);
+    }, 250);
+    window.setTimeout(() => window.clearInterval(interval), 8000);
+  }
+}
+
+/** Espera a que el widget Turnstile produzca un token (hasta `timeoutMs`). Devuelve la cadena vacía si nunca llega. */
+function waitForTurnstileToken(form, timeoutMs = 6000) {
+  return new Promise((resolve) => {
+    if (!form) return resolve("");
+    const widget = form.querySelector(".cf-turnstile");
+    if (!widget) return resolve("");
+    const readNow = () => {
+      const fromWidget = String(widget.dataset.antaresToken || "").trim();
+      if (fromWidget) return fromWidget;
+      try {
+        if (window.turnstile?.getResponse) {
+          const v = window.turnstile.getResponse(widget);
+          if (v) return String(v).trim();
+        }
+      } catch (_e) {}
+      try {
+        const fd = new FormData(form);
+        const v = fd.get("cf-turnstile-response");
+        return typeof v === "string" ? v.trim() : "";
+      } catch (_e) {
+        return "";
+      }
+    };
+    const immediate = readNow();
+    if (immediate) return resolve(immediate);
+    const start = Date.now();
+    const timer = window.setInterval(() => {
+      const now = readNow();
+      if (now) {
+        window.clearInterval(timer);
+        resolve(now);
+      } else if (Date.now() - start > timeoutMs) {
+        window.clearInterval(timer);
+        resolve("");
+      }
+    }, 200);
+  });
+}
+
+/** Lectura síncrona del token (sin esperar). Útil cuando ya validamos antes en submit. */
 function readTurnstileToken(form) {
   if (!form) return "";
+  const widget = form.querySelector?.(".cf-turnstile");
+  if (widget) {
+    const fromWidget = String(widget.dataset.antaresToken || "").trim();
+    if (fromWidget) return fromWidget;
+    try {
+      if (window.turnstile?.getResponse) {
+        const v = window.turnstile.getResponse(widget);
+        if (v) return String(v).trim();
+      }
+    } catch (_e) {}
+  }
   try {
     const fd = new FormData(form);
     const v = fd.get("cf-turnstile-response");
@@ -4103,7 +4202,9 @@ function readTurnstileToken(form) {
 function resetTurnstile(form) {
   try {
     const widget = form?.querySelector?.(".cf-turnstile");
-    if (widget && window.turnstile?.reset) window.turnstile.reset(widget);
+    if (!widget) return;
+    if (widget.dataset) widget.dataset.antaresToken = "";
+    if (window.turnstile?.reset) window.turnstile.reset(widget);
   } catch (_e) {}
 }
 
@@ -4427,6 +4528,7 @@ function renderAuthTab() {
   if (!content) return;
   content.innerHTML = authView();
   bindAuthForms();
+  ensureTurnstileWidgets();
 }
 
 function bindAuthForms() {
@@ -4503,7 +4605,7 @@ function bindAuthForms() {
         if (window.AntaresApi?.getBase?.()) {
           try {
             const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
-            const turnstileToken = readTurnstileToken(login);
+            const turnstileToken = await waitForTurnstileToken(login);
             const res = await fetch(`${base}/api/auth/login`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -4812,6 +4914,7 @@ function bindAuthForms() {
 
       if (window.AntaresApi?.getBase?.() && typeof window.AntaresApi.postJsonPublic === "function") {
         try {
+          const turnstileToken = await waitForTurnstileToken(register);
           const body = await window.AntaresApi.postJsonPublic("/auth/register-portal", {
             firstName: normalizeLatinUpperForDb(data.firstName),
             middleName: normalizeLatinUpperForDb(data.middleName || ""),
@@ -4837,7 +4940,7 @@ function bindAuthForms() {
             registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
             password: data.password,
             acceptTerms: Boolean(data.acceptTerms),
-            turnstileToken: readTurnstileToken(register)
+            turnstileToken
           });
           const serverMsg =
             typeof body === "object" && body !== null && typeof body.message === "string"
@@ -4972,7 +5075,7 @@ function bindAuthForms() {
       if (apiBase && typeof api?.postJsonPublic === "function") {
         try {
           const redirectTo = buildSupabasePasswordRecoveryRedirectUrl();
-          const turnstileToken = readTurnstileToken(recover);
+          const turnstileToken = await waitForTurnstileToken(recover);
           const body = await api.postJsonPublic("/auth/password-recovery/request", {
             email,
             redirectTo,
