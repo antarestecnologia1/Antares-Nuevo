@@ -11530,7 +11530,38 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .notif-toolbar {
   margin-bottom: 0.8rem;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+/**
+ * Variante "peligro suave" para acciones destructivas no críticas
+ * (eliminar una notificación, vaciar bandeja). Mantiene la altura
+ * y forma del .btn-action pero con tinte rojo discreto, no chillón.
+ */
+.btn.btn-action.btn-danger-soft {
+  border-color: rgba(220, 38, 38, 0.32);
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.55);
+}
+.btn.btn-action.btn-danger-soft:hover {
+  border-color: rgba(220, 38, 38, 0.55);
+  background: rgba(254, 202, 202, 0.85);
+  color: #991b1b;
+}
+.btn.btn-action.btn-danger-soft .btn-icon {
+  color: currentColor;
+}
+body[data-theme="dark"] .btn.btn-action.btn-danger-soft {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.32);
+}
+body[data-theme="dark"] .btn.btn-action.btn-danger-soft:hover {
+  border-color: rgba(252, 165, 165, 0.7);
+  background: rgba(127, 29, 29, 0.55);
+  color: #ffe4e6;
 }
 .notif-list {
   display: grid;
@@ -11600,7 +11631,22 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .notif-tag-blue { background: linear-gradient(135deg, var(--primary), var(--primary-deeper)); }
 .notif-tag-violet { background: linear-gradient(135deg, var(--brand-blue-deep), var(--primary-dark)); }
 .notif-tag-slate { background: linear-gradient(135deg, #475569, #334155); }
-.notif-actions { white-space: nowrap; }
+.notif-actions {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .notif-card { grid-template-columns: auto 1fr; }
+  .notif-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
 
 body[data-theme="dark"] .driver-card,
 body[data-theme="dark"] .notif-card,

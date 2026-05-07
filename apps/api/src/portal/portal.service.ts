@@ -1943,6 +1943,37 @@ export class PortalService implements OnModuleInit {
     return true;
   }
 
+  /**
+   * Sincroniza eliminaciones para entidades cuyo contrato es "el cliente envía toda la lista
+   * y el servidor refleja ese conjunto autoritativo". Borra del repositorio las filas cuyo
+   * id ya no aparece en el arreglo entrante: cierra el flujo de "borré X en el portal y al
+   * refrescar volvió a aparecer" porque el sync solo era UPSERT.
+   *
+   * Importante: solo se llama cuando `data` es un Array válido (los handlers ya validaron).
+   * Si el cliente envía lista vacía, se interpreta como "vacíe la tabla" — coherente con
+   * el contrato de full-replacement de la sync-key.
+   *
+   * Filtra ids inválidos antes de comparar para evitar que un id corrupto en el cliente
+   * provoque un wipe accidental.
+   */
+  private async deleteRowsNotInIncomingList(
+    c: PoolClient,
+    table: string,
+    incoming: unknown[],
+    idAccessor: (row: unknown) => unknown = (row) =>
+      row && typeof row === "object" ? (row as { id?: unknown }).id : null
+  ): Promise<void> {
+    const ids = incoming
+      .map(idAccessor)
+      .map((raw) => String(raw ?? "").trim())
+      .filter((s) => PG_UUID_V4_RE.test(s));
+    if (ids.length === 0) {
+      await c.query(`DELETE FROM ${table}`);
+      return;
+    }
+    await c.query(`DELETE FROM ${table} WHERE id::text <> ALL($1::text[])`, [ids]);
+  }
+
   private async syncUsers(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException("Formato invalido");
     const admin = this.isAdmin(role);
@@ -2517,6 +2548,7 @@ export class PortalService implements OnModuleInit {
 
   private async syncPayrollEmployees(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    await this.deleteRowsNotInIncomingList(c, "empleados_nomina", data);
     for (const raw of data) {
       const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
@@ -2687,6 +2719,7 @@ export class PortalService implements OnModuleInit {
 
   private async syncPayrollRuns(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    await this.deleteRowsNotInIncomingList(c, "liquidaciones_nomina", data);
     for (const run of data) {
       if (!run?.id || !run.employeeId) continue;
       if (this.skipUnlessPersistUuid("syncPayrollRuns", run.id)) continue;
@@ -2759,6 +2792,7 @@ export class PortalService implements OnModuleInit {
 
   private async syncFuelLogs(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    await this.deleteRowsNotInIncomingList(c, "registros_combustible", data);
     for (const row of data) {
       if (!row?.id) continue;
       if (this.skipUnlessPersistUuid("syncFuelLogs", row.id)) continue;
@@ -2803,6 +2837,7 @@ export class PortalService implements OnModuleInit {
 
   private async syncVehicleTechnicalLogs(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    await this.deleteRowsNotInIncomingList(c, "registros_mantenimiento_vehiculo", data);
     for (const row of data) {
       if (!row?.id) continue;
       if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs", row.id)) continue;
@@ -2844,6 +2879,7 @@ export class PortalService implements OnModuleInit {
   private async syncHrKeys(c: PoolClient, key: PortalSyncKey, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     if (key === "positions") {
+      await this.deleteRowsNotInIncomingList(c, "cargos", data);
       for (const raw of data) {
         const p = raw as Record<string, unknown>;
         if (!p?.id) continue;
@@ -2883,6 +2919,7 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "vacancies") {
+      await this.deleteRowsNotInIncomingList(c, "vacantes", data);
       for (const raw of data) {
         const v = raw as Record<string, unknown>;
         if (!v?.id || !v.positionId) continue;
@@ -2935,6 +2972,7 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "candidates") {
+      await this.deleteRowsNotInIncomingList(c, "candidatos", data);
       for (const raw of data) {
         const x = raw as Record<string, unknown>;
         if (!x?.id || !x.vacancyId) continue;
@@ -2994,6 +3032,7 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "interviews") {
+      await this.deleteRowsNotInIncomingList(c, "entrevistas", data);
       for (const raw of data) {
         const i = raw as Record<string, unknown>;
         if (!i?.id || !i.candidateId) continue;
@@ -3025,6 +3064,7 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "contracts") {
+      await this.deleteRowsNotInIncomingList(c, "contratos", data);
       for (const x of data) {
         if (!x?.id || !x.positionId || !x.companyId) continue;
         if (this.skipUnlessPersistUuid("syncHrKeys.contracts", x.id)) continue;
@@ -3089,6 +3129,7 @@ export class PortalService implements OnModuleInit {
 
   private async syncHrAbsences(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    await this.deleteRowsNotInIncomingList(c, "ausencias_laborales", data);
     for (const raw of data) {
       const row = raw as Record<string, unknown>;
       if (!row?.id || !row.employeeId) continue;
@@ -3136,6 +3177,7 @@ export class PortalService implements OnModuleInit {
 
   private async syncSst(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    await this.deleteRowsNotInIncomingList(c, "registros_cumplimiento_sst", data);
     for (const row of data) {
       if (!row?.id || !row.employeeId) continue;
       if (this.skipUnlessPersistUuid("syncSst", row.id)) continue;

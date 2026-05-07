@@ -6218,11 +6218,21 @@ function __tickNotificationsPoll() {
   const now = Date.now();
   const selfNew = current.filter((n) => !seen.has(n.id) && String(n.userId || "") === String(user.id || ""));
   const toToast = [];
+  /**
+   * Solo se notifica en toast lo que ocurre en tiempo real (≤ 30s). Las notificaciones
+   * viejas que se materializan ahora — porque vinieron del servidor en un bootstrap
+   * tardío, porque la auto-aprobación cruzó su umbral en una sesión anterior o porque
+   * el usuario nunca leyó la campana — siguen visibles en la bandeja, pero no se
+   * vuelven a "tirar a la cara" cada vez que entra a un módulo.
+   */
+  const FRESH_TOAST_WINDOW_MS = 30_000;
   for (const n of selfNew) {
-    const age = now - new Date(n.createdAt || 0).getTime();
-    const skipDuplicateExplicitSuccess =
-      suppressUntil > now && age >= 0 && age < 6500;
-    if (!skipDuplicateExplicitSuccess) toToast.push(n);
+    const createdTs = new Date(n.createdAt || 0).getTime();
+    const age = Number.isFinite(createdTs) ? now - createdTs : Number.POSITIVE_INFINITY;
+    if (!Number.isFinite(age) || age < 0 || age >= FRESH_TOAST_WINDOW_MS) continue;
+    const skipDuplicateExplicitSuccess = suppressUntil > now && age < 6500;
+    if (skipDuplicateExplicitSuccess) continue;
+    toToast.push(n);
   }
   if (toToast.length) {
     toToast.forEach((n) => {
@@ -9644,6 +9654,7 @@ function notificationsHtml() {
           ? '<span class="notif-tag notif-tag-violet">Autorización</span>'
           : '<span class="notif-tag notif-tag-slate">Sistema</span>';
       const dot = n.readAt ? "" : '<span class="notif-dot"></span>';
+      const safeId = escapeAttr(n.id);
       return `<article class="notif-card ${n.readAt ? "" : "notif-card-unread"}">
         <div class="notif-leading">${dot}<span class="notif-icon">${IC.bell}</span></div>
         <div class="notif-content">
@@ -9652,7 +9663,8 @@ function notificationsHtml() {
           <p>${n.body || ""}</p>
         </div>
         <div class="notif-actions">
-          ${n.readAt ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${n.id}">${IC.check} Marcar leída</button>`}
+          ${n.readAt ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${safeId}">${IC.check} Marcar leída</button>`}
+          <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete" data-id="${safeId}" title="Eliminar notificación" aria-label="Eliminar notificación">${IC.trash} Eliminar</button>
         </div>
       </article>`;
     })
@@ -9662,6 +9674,8 @@ function notificationsHtml() {
   const body = list.length
     ? `<div class="notif-toolbar">
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
+        ${readCount ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-clear-read">${IC.trash} Eliminar leídas</button>` : ""}
+        <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-clear-all">${IC.trash} Vaciar bandeja</button>
       </div>
       <div class="notif-list">${items}</div>`
     : emptyState("No tienes notificaciones.");
@@ -12226,6 +12240,70 @@ function bindDynamicEvents() {
       );
       renderPortalView();
       updateNotificationBadge();
+    });
+  });
+
+  /** Eliminar una notificación puntual (solo borrado local, no sale de la bandeja a otros usuarios). */
+  nodes.viewRoot.querySelectorAll("[data-action='notif-delete']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "");
+      if (!id) return;
+      openConfirmModal({
+        title: "Eliminar notificación",
+        message: "¿Quieres eliminar esta notificación de tu bandeja? Esta acción no se puede deshacer.",
+        confirmText: "Eliminar",
+        onConfirm: () => {
+          const list = read(KEYS.notifications, []);
+          write(KEYS.notifications, list.filter((n) => n.id !== id));
+          notify("Notificación eliminada.", "success");
+          renderPortalView();
+          updateNotificationBadge();
+        }
+      });
+    });
+  });
+
+  /** Eliminar todas las notificaciones ya leídas (mantiene las pendientes). */
+  nodes.viewRoot.querySelectorAll("[data-action='notif-clear-read']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openConfirmModal({
+        title: "Eliminar leídas",
+        message: "¿Eliminar todas las notificaciones ya leídas de tu bandeja?",
+        confirmText: "Eliminar leídas",
+        onConfirm: () => {
+          const list = read(KEYS.notifications, []);
+          const user = currentUser();
+          const isOwn = (n) => user && (String(n.userId || "") === String(user.id || "") || user.role === ROLES.ADMIN);
+          const remaining = list.filter((n) => !(n.readAt && isOwn(n)));
+          const removed = list.length - remaining.length;
+          write(KEYS.notifications, remaining);
+          notify(removed ? `${removed} notificaciones eliminadas.` : "No había notificaciones leídas.", "success");
+          renderPortalView();
+          updateNotificationBadge();
+        }
+      });
+    });
+  });
+
+  /** Vaciar bandeja completa del usuario (admins limpian todas; otros, las propias). */
+  nodes.viewRoot.querySelectorAll("[data-action='notif-clear-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openConfirmModal({
+        title: "Vaciar bandeja",
+        message: "¿Eliminar todas las notificaciones (leídas y sin leer)? Esta acción no se puede deshacer.",
+        confirmText: "Vaciar bandeja",
+        onConfirm: () => {
+          const list = read(KEYS.notifications, []);
+          const user = currentUser();
+          const isOwn = (n) => user && (String(n.userId || "") === String(user.id || "") || user.role === ROLES.ADMIN);
+          const remaining = list.filter((n) => !isOwn(n));
+          const removed = list.length - remaining.length;
+          write(KEYS.notifications, remaining);
+          notify(removed ? `${removed} notificaciones eliminadas.` : "Bandeja ya estaba vacía.", "success");
+          renderPortalView();
+          updateNotificationBadge();
+        }
+      });
     });
   });
 
