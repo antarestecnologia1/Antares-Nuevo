@@ -4076,6 +4076,37 @@ async function ensureUsersPasswordHashing() {
   if (changed) write(KEYS.users, secured);
 }
 
+/** Marca opcional para el widget Turnstile. Si la site key no está configurada (dev sin captcha), devuelve cadena vacía y el formulario igual envía. */
+function turnstileWidgetMarkup() {
+  const siteKey = String(window.ANTARES_TURNSTILE_SITE_KEY || "").trim();
+  if (!siteKey) return "";
+  return `
+    <div class="full turnstile-row">
+      <div class="cf-turnstile" data-sitekey="${siteKey}" data-size="flexible" data-theme="auto"></div>
+    </div>
+  `;
+}
+
+/** Lee el token que el widget Turnstile inyecta como input oculto `cf-turnstile-response` dentro del propio form. */
+function readTurnstileToken(form) {
+  if (!form) return "";
+  try {
+    const fd = new FormData(form);
+    const v = fd.get("cf-turnstile-response");
+    return typeof v === "string" ? v.trim() : "";
+  } catch (_e) {
+    return "";
+  }
+}
+
+/** Reinicia el widget tras un error o submit fallido (cada token es de un solo uso). */
+function resetTurnstile(form) {
+  try {
+    const widget = form?.querySelector?.(".cf-turnstile");
+    if (widget && window.turnstile?.reset) window.turnstile.reset(widget);
+  } catch (_e) {}
+}
+
 function authView() {
   if (state.authSupabaseRecovery) {
     return `
@@ -4157,6 +4188,7 @@ function authView() {
             </span>
             <small class="muted auth-remember-hint">Solo recomendable en su equipo personal. Evite esta opción en dispositivos compartidos o públicos.</small>
           </label>
+          ${turnstileWidgetMarkup()}
           <button class="btn btn-primary full" type="submit" data-login-submit>
             <span class="auth-submit-content"><span class="auth-submit-icon">${IC.check}</span><span class="auth-submit-label">Ingresar al portal</span></span>
             <span class="auth-submit-spinner" aria-hidden="true"></span>
@@ -4334,6 +4366,7 @@ function authView() {
         <div class="full auth-inline-note">
           <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
         </div>
+        ${turnstileWidgetMarkup()}
         <button class="btn btn-primary full" type="submit">${IC.userPlus} Enviar solicitud de registro</button>
       </form>
     `;
@@ -4362,6 +4395,7 @@ function authView() {
           </div>
         </div>
       </div>
+      ${turnstileWidgetMarkup()}
       <div class="auth-recover-actions">
         <button class="btn btn-primary full auth-recover-submit" type="submit">${IC.send} Enviar enlace al correo</button>
       </div>
@@ -4469,10 +4503,11 @@ function bindAuthForms() {
         if (window.AntaresApi?.getBase?.()) {
           try {
             const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
+            const turnstileToken = readTurnstileToken(login);
             const res = await fetch(`${base}/api/auth/login`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Accept: "application/json" },
-              body: JSON.stringify({ email: data.email, password: passwordRaw })
+              body: JSON.stringify({ email: data.email, password: passwordRaw, turnstileToken })
             });
             const body = await res.json().catch(() => null);
             if (res.ok && body?.accessToken) {
@@ -4575,6 +4610,8 @@ function bindAuthForms() {
         renderPortal();
       } finally {
         setLoginSubmitLoading(false);
+        // Cada token Turnstile es de un solo uso: si la sesión no se cerró (error o bloqueo), refrescamos.
+        if (!state.session) resetTurnstile(login);
       }
     });
   }
@@ -4799,7 +4836,8 @@ function bindAuthForms() {
             email: data.email,
             registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
             password: data.password,
-            acceptTerms: Boolean(data.acceptTerms)
+            acceptTerms: Boolean(data.acceptTerms),
+            turnstileToken: readTurnstileToken(register)
           });
           const serverMsg =
             typeof body === "object" && body !== null && typeof body.message === "string"
@@ -4821,6 +4859,7 @@ function bindAuthForms() {
             ? "No fue posible conectar con la API. Verifica CORS_ORIGINS en Render y que la API este activa."
             : rawMsg || userMessage("genericError");
           notify(msg, "error");
+          resetTurnstile(register);
           return;
         }
       }
@@ -4933,10 +4972,16 @@ function bindAuthForms() {
       if (apiBase && typeof api?.postJsonPublic === "function") {
         try {
           const redirectTo = buildSupabasePasswordRecoveryRedirectUrl();
-          const body = await api.postJsonPublic("/auth/password-recovery/request", { email, redirectTo });
+          const turnstileToken = readTurnstileToken(recover);
+          const body = await api.postJsonPublic("/auth/password-recovery/request", {
+            email,
+            redirectTo,
+            turnstileToken
+          });
           notify(String(body?.message || userMessage("recoverSentSupabase")), "info");
         } catch (err) {
           notify(String(err?.message || userMessage("recoverSupabaseError")), "error");
+          resetTurnstile(recover);
         }
         return;
       }

@@ -11,4 +11,10 @@ export class RequestPasswordRecoveryDto {
   @IsString()
   @MaxLength(2048)
   redirectTo?: string;
+
+  /** Token Turnstile generado por el widget en el portal. Opcional: si CF_TURNSTILE_REQUIRED=false el backend lo ignora. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  turnstileToken?: string;
 }

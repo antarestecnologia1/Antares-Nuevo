@@ -5,13 +5,13 @@
     prestacion: "documentacion/CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
   };
 
-  const BACKEND_TEMPLATE_PATH = "/uploads/contract-template";
+  const BACKEND_TEMPLATE_PATH = "/api/uploads/contract-template";
   const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 
   /**
    * Descarga el binario de la plantilla. Si hay backend con JWT (Cloudflare R2
-   * privado), pide la plantilla a `/uploads/contract-template/:kind`. Si no,
-   * usa el archivo estático local como fallback.
+   * privado), pide la plantilla a `/api/uploads/contract-template/:kind`. Si
+   * no, usa el archivo estático local como fallback.
    */
   async function fetchTemplateBuffer(kind) {
     const api = window.AntaresApi;

@@ -4270,6 +4270,20 @@ body[data-theme="dark"] #form-register .register-kind-option {
   margin-top: 0.35rem;
 }
 
+.turnstile-row {
+  display: flex;
+  justify-content: center;
+  margin: 0.4rem 0;
+  min-height: 65px;
+}
+
+.turnstile-row .cf-turnstile {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  justify-content: center;
+}
+
 .auth-form-recover .auth-recover-actions .auth-recover-submit {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, var(--brand-blue-deep)) 28%, transparent);
 }

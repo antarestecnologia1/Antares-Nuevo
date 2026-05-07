@@ -97,4 +97,10 @@ export class RegisterPortalDto {
   @Transform(({ value }) => value === true || value === "on" || value === "true")
   @IsBoolean()
   acceptTerms!: boolean;
+
+  /** Token Turnstile generado por el widget en el portal. Opcional: si CF_TURNSTILE_REQUIRED=false el backend lo ignora. */
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @MaxLength(4096)
+  turnstileToken?: string;
 }

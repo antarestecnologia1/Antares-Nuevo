@@ -29,6 +29,12 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css?v=20260506-perf-login-fonts-defer" />
+    <script>
+      // Site key del widget Turnstile (gestionado en panel Cloudflare → Turnstile).
+      // Es público por diseño; el dominio queda atado a los hostnames del widget.
+      window.ANTARES_TURNSTILE_SITE_KEY = "0x4AAAAAADK_eZ_IIl7exsor";
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
       html.antares-booting-portal .top-nav,
       html.antares-booting-portal #public-app,

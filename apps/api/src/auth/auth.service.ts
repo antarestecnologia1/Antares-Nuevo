@@ -25,6 +25,7 @@ import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { RegisterPortalDto } from "./dto/register-portal.dto";
 import { RequestPasswordRecoveryDto } from "./dto/request-password-recovery.dto";
+import { TurnstileService } from "./turnstile.service";
 
 /** Valores del ENUM rol_usuario en BD/postgres/02_enums.sql */
 const ROLE_REGISTER_TO_DB: Record<string, string> = {
@@ -127,7 +128,8 @@ export class AuthService {
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    private readonly mail: MailService
+    private readonly mail: MailService,
+    private readonly turnstile: TurnstileService
   ) {
     const url = normalizeSupabaseProjectUrl(this.config.get<string>("SUPABASE_URL"));
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
@@ -190,6 +192,7 @@ export class AuthService {
     /** Solo limpiar Auth en Supabase si el usuario fue creado allí; con UUID local no hay nada que borrar. */
     let supabaseUserCreated = false;
     try {
+      await this.turnstile.assertValid(dto.turnstileToken);
       if (!dto.acceptTerms) {
         throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
       }
@@ -570,6 +573,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    await this.turnstile.assertValid(dto.turnstileToken);
     this.assertDatabaseConfigured();
     const email = dto.email.trim().toLowerCase();
     const res = await this.pool.query<UsuarioRow>(
@@ -679,6 +683,7 @@ export class AuthService {
    * Evita fallar cuando el navegador no carga @supabase/supabase-js desde el CDN.
    */
   async requestPasswordRecovery(dto: RequestPasswordRecoveryDto) {
+    await this.turnstile.assertValid(dto.turnstileToken);
     this.assertDatabaseConfigured();
     if (!this.supabaseAdmin) {
       throw new ServiceUnavailableException(
