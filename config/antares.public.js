@@ -24,12 +24,29 @@
 (function () {
   "use strict";
   /**
-   * Aunque abra el portal en https://transportesantares.co o https://www.transportesantares.co ,
-   * aquí va la URL RAÍZ del servidor Nest (p. ej. Render), NO el dominio del sitio web público.
-   * Si igualara al dominio del portal sin tener proxy `/api` hacia Nest, vería 404 (Cannot POST /api/portal/…).
-   * Sin barra final; sin sufijo /api .
+   * URL RAÍZ del servidor Nest. NO incluye el sufijo /api (lo añade el cliente).
+   *
+   * Configuración por entorno:
+   *  - app.transportesantares.co (nuevo portal en Cloudflare Pages): API por Cloudflare Tunnel
+   *    en https://api.transportesantares.co.
+   *  - transportesantares.co / www.transportesantares.co (sitio público actual): mantiene Render
+   *    para no romper despliegues vigentes durante la migración.
+   *  - localhost / dev: vacío para que el portal caiga al modo offline o pueda sobreescribirse
+   *    con localStorage.antares_api_base.
    */
-  window.__ANTARES_API_BASE__ = "https://antares-nuevo.onrender.com";
+  function resolveDefaultApiBase() {
+    try {
+      var host = String(location.hostname || "").toLowerCase();
+      if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
+        return "";
+      }
+      if (host === "app.transportesantares.co") {
+        return "https://api.transportesantares.co";
+      }
+    } catch (_e) {}
+    return "https://antares-nuevo.onrender.com";
+  }
+  window.__ANTARES_API_BASE__ = resolveDefaultApiBase();
   /**
    * Origen público del portal (https://dominio, sin barra final). Debe coincidir con PORTAL_PUBLIC_URL en la API
    * y con una URL permitida en el proveedor de autenticación (redirects). Si no se define, el enlace de
