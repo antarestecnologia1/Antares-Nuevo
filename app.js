@@ -82,7 +82,9 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
-function moduleFleetHeroStrip(metrics) {
+function moduleFleetHeroStrip(metrics, hrVariant = "") {
+  const stripTone =
+    hrVariant === "payroll" ? " fleet-hero-strip--hr-payroll" : hrVariant === "hiring" ? " fleet-hero-strip--hr-hiring" : "";
   const inner = (metrics || [])
     .map(({ label, value, tone }) => {
       const extra =
@@ -90,7 +92,7 @@ function moduleFleetHeroStrip(metrics) {
       return `<div class="fleet-hero-metric${extra}"><span>${escapeHtml(String(label))}</span><strong>${escapeHtml(String(value))}</strong></div>`;
     })
     .join("");
-  return `<div class="fleet-hero-strip fleet-hero-strip--solo"><div class="fleet-hero-metrics">${inner}</div></div>`;
+  return `<div class="fleet-hero-strip fleet-hero-strip--solo${stripTone}"><div class="fleet-hero-metrics">${inner}</div></div>`;
 }
 
 function renderHrAlertCards(items = []) {
@@ -137,6 +139,30 @@ function hrWorkspaceTabIcon(iconKey) {
   if (!raw) return "";
   const svg = raw.replace(/class="btn-icon"/, 'class="hr-tab-icon-svg"');
   return `<span class="hr-workspace-tab-ico" aria-hidden="true">${svg}</span>`;
+}
+
+function hrModuleOverviewGuide(variant) {
+  const cls = variant === "payroll" ? "hr-overview-guide--payroll" : "hr-overview-guide--hiring";
+  if (variant === "payroll") {
+    return `<aside class="hr-overview-guide ${cls}" role="note">
+      <p class="hr-overview-guide-kicker">¿Qué puedes hacer aquí?</p>
+      <p class="hr-overview-guide-lead">Administra a tus empleados, calcula la nómina cada mes y registra ausencias o incapacidades. Usa las pestañas de arriba para moverte por las tres áreas:</p>
+      <ol class="hr-overview-guide-steps">
+        <li><span class="hr-overview-guide-step-num">1</span><div><strong>Inicio</strong> — bienvenida, resumen general y accesos rápidos.</div></li>
+        <li><span class="hr-overview-guide-step-num">2</span><div><strong>Nuevos registros</strong> — agrega empleados, calcula la nómina o registra ausencias.</div></li>
+        <li><span class="hr-overview-guide-step-num">3</span><div><strong>Información y reportes</strong> — consulta listas, filtros e historial. Exporta a CSV cuando lo necesites.</div></li>
+      </ol>
+    </aside>`;
+  }
+  return `<aside class="hr-overview-guide ${cls}" role="note">
+      <p class="hr-overview-guide-kicker">¿Qué puedes hacer aquí?</p>
+      <p class="hr-overview-guide-lead">Sigue el proceso completo de contratación: del cargo a la vacante, del candidato al contrato. Usa las pestañas de arriba para moverte por las tres áreas:</p>
+      <ol class="hr-overview-guide-steps">
+        <li><span class="hr-overview-guide-step-num">1</span><div><strong>Inicio</strong> — bienvenida, métricas del proceso y accesos rápidos.</div></li>
+        <li><span class="hr-overview-guide-step-num">2</span><div><strong>Proceso</strong> — define cargos, publica vacantes, evalúa candidatos y genera contratos.</div></li>
+        <li><span class="hr-overview-guide-step-num">3</span><div><strong>Resultados</strong> — alertas de plazos, embudo de candidatos y tablas detalladas.</div></li>
+      </ol>
+    </aside>`;
 }
 
 function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs }) {
@@ -8512,74 +8538,87 @@ function payrollHtml() {
     </form>`;
   const payrollHead = `<div class="ops-module-head ops-module-head--rich">
       <div class="ops-module-title">
-        <span class="ops-module-kicker">Recursos humanos</span>
-        <h2>Gestión humana y colaboradores</h2>
-        <p class="ops-module-subtitle">Liquidaciones, fichas y ausencias con trazabilidad para control interno y apoyo al área contable.</p>
+        <span class="ops-module-kicker">Personal · Recursos humanos</span>
+        <h2>Personal y nómina</h2>
+        <p class="ops-module-subtitle">Administra empleados, calcula la nómina del mes y registra ausencias o incapacidades. Todo queda con respaldo para tu equipo contable.</p>
       </div>
       <div class="ops-module-chips">
-        <span class="ops-chip"><strong>${employees.length}</strong> empleados</span>
-        <span class="ops-chip"><strong>${pending}</strong> pendientes</span>
-        <span class="ops-chip"><strong>${pendingAbsenceApprovals}</strong> por revisar</span>
+        <span class="ops-chip"><strong>${employees.length}</strong> colaboradores</span>
+        <span class="ops-chip"><strong>${pending}</strong> pagos pendientes</span>
+        <span class="ops-chip"><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
       </div>
     </div>`;
   const payrollActions = `<div class="ops-command-bar">
-      <div class="ops-command-group">
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-employee">${IC.userPlus} Nuevo empleado</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll">${IC.dollar} Nueva liquidación</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Nueva ausencia</button>
+      <div class="ops-command-cluster">
+        <p class="ops-command-cluster-label">Crear nuevo</p>
+        <div class="ops-command-group">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-employee">${IC.userPlus} Agregar empleado</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll">${IC.dollar} Calcular nómina</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Registrar ausencia</button>
+        </div>
       </div>
-      <div class="ops-command-group">
+      <div class="ops-command-cluster">
+        <p class="ops-command-cluster-label">Filtrar historial</p>
+        <div class="ops-command-group">
         <button class="btn btn-sm btn-outline ${filterStatus === "pending" ? "is-active" : ""}" type="button" data-action="payroll-focus-pending">${IC.alertTriangle} Solo pendientes</button>
         <button class="btn btn-sm btn-outline ${filterStatus === "all" ? "is-active" : ""}" type="button" data-action="payroll-focus-all">${IC.layers} Ver todo</button>
         <button class="btn btn-sm btn-outline ${runSort === "pending_first" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="pending_first">${IC.activity} Pendientes primero</button>
-        <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Neto mayor</button>
+        <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Mayor monto</button>
+        </div>
       </div>
     </div>`;
   const payrollExecutionBlock = `<section class="ops-block ops-block--payroll-flow">
       <header class="ops-block-head">
-        <h3>Registro, liquidaciones y novedades</h3>
-        <p class="ops-block-lead muted">Formularios colapsables para registrar personas, liquidar mes y cargar novedades.</p>
+        <h3>¿Qué deseas registrar?</h3>
+        <p class="ops-block-lead muted">Selecciona la tarjeta correspondiente: agregar un empleado, calcular la nómina del mes o cargar una ausencia.</p>
       </header>
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Registro de empleado", null, formEmp, "Registrar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Liquidación mensual", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Ausencias e incapacidades", null, formAbsence, "Registrar ausencia")}</div>
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Agregar empleado", null, formEmp, "Guardar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Calcular nómina del mes", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", null, formAbsence, "Guardar ausencia")}</div>
     </section>`;
   const payrollDataBlock = `<section class="ops-block ops-block--payroll-data">
       <header class="ops-block-head">
-        <h3>Control y trazabilidad</h3>
-        <p class="ops-block-lead muted">Empleados, ausencias e historial filtrable por periodo y estado.</p>
+        <h3>Información del personal</h3>
+        <p class="ops-block-lead muted">Listas de empleados, ausencias e historial de nóminas pagadas. Puedes filtrar por mes, empleado y estado.</p>
       </header>
       <div class="payroll-data-grid">
-        ${pcardWrap("user", "Empleados", employees.length + " registrados" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
-        ${pcardWrap("activity", "Ausencias e incapacidades", absences.length + " registros", absenceTable)}
-        ${pcardWrap("clock", "Historial de pagos", runs.length + " liquidaciones", runTable)}
+        ${pcardWrap("user", "Lista de empleados", employees.length + " colaboradores" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
+        ${pcardWrap("activity", "Ausencias registradas", absences.length + " registros", absenceTable)}
+        ${pcardWrap("clock", "Nóminas pagadas", runs.length + " liquidaciones", runTable)}
       </div>
     </section>`;
-  const payrollFleetHero = moduleFleetHeroStrip([
-    { label: "Empleados", value: employees.length },
-    { label: "Pagos pendientes", value: pending, tone: pending ? "warn" : undefined },
-    { label: "Neto liquidado (mes)", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}` },
-    {
-      label: "Ausencias por revisar",
-      value: pendingAbsenceApprovals,
-      tone: pendingAbsenceApprovals ? "warn" : undefined
-    }
-  ]);
+  const payrollFleetHero = moduleFleetHeroStrip(
+    [
+      { label: "Colaboradores", value: employees.length },
+      { label: "Pagos pendientes", value: pending, tone: pending ? "warn" : undefined },
+      { label: "Pagado este mes", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}` },
+      {
+        label: "Ausencias por revisar",
+        value: pendingAbsenceApprovals,
+        tone: pendingAbsenceApprovals ? "warn" : undefined
+      }
+    ],
+    "payroll"
+  );
   const payrollTabsNav = renderHrWorkspaceTabs({
     module: "payroll",
-    ariaLabel: "Secciones del módulo Gestión humana",
+    ariaLabel: "Secciones del módulo Personal y nómina",
     activeId: payrollWorkspace,
     tabs: [
-      { id: "overview", label: "Panorama", hint: "Métricas y contexto", icon: "compass" },
-      { id: "operate", label: "Registrar", hint: "Altas, liquidaciones, ausencias", icon: "userPlus" },
-      { id: "data", label: "Consultar", hint: "Filtros e historial", icon: "layers" }
+      { id: "overview", label: "Inicio", hint: "Bienvenida y resumen", icon: "compass" },
+      { id: "operate", label: "Nuevos registros", hint: "Empleado, nómina, ausencia", icon: "userPlus" },
+      { id: "data", label: "Información y reportes", hint: "Listas, filtros y CSV", icon: "layers" }
     ]
   });
   const payrollWorkspaceJumps = `<div class="hr-workspace-jumps">
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="operate">${IC.userPlus} Ir a Registrar</button>
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="data">${IC.layers} Ir a tablas y filtros</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="operate">${IC.userPlus} Crear nuevo registro</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="data">${IC.layers} Ver listas y reportes</button>
     </div>`;
   const payrollOverviewPanel = `<div class="hr-workspace-panel${payrollWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="overview">
       ${payrollHead}
-      ${payrollWorkspaceJumps}
+      ${hrModuleOverviewGuide("payroll")}
+      <div class="hr-workspace-quicknav">
+        <p class="hr-workspace-quicknav-label">Atajos para empezar</p>
+        ${payrollWorkspaceJumps}
+      </div>
     </div>`;
   const payrollOperatePanel = `<div class="hr-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
       ${payrollActions}
@@ -8588,10 +8627,10 @@ function payrollHtml() {
   const payrollDataPanel = `<div class="hr-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
       <section class="ops-block">
         <header class="ops-block-head">
-          <h3>Filtro operativo</h3>
-          <p class="ops-block-lead muted">Aplique criterios antes de exportar o auditar el historial.</p>
+          <h3>Buscar y filtrar</h3>
+          <p class="ops-block-lead muted">Aplica filtros antes de exportar o revisar los datos del personal y los pagos.</p>
         </header>
-        ${pcardWrap("filter", "Filtros de personal y pagos", null, filtersHtml)}
+        ${pcardWrap("filter", "Filtros disponibles", null, filtersHtml)}
       </section>
       ${payrollDataBlock}
     </div>`;
@@ -8912,85 +8951,110 @@ function hiringHtml() {
 
   const hiringHead = `<div class="ops-module-head ops-module-head-hiring ops-module-head--rich">
       <div class="ops-module-title">
-        <span class="ops-module-kicker">Recursos humanos</span>
-        <h2>Contratación y selección</h2>
-        <p class="ops-module-subtitle">Del cargo definido al contrato formal, con alertas de plazo que ayudan a anticipar cierres y renovaciones.</p>
+        <span class="ops-module-kicker">Selección · Recursos humanos</span>
+        <h2>Selección y contratación</h2>
+        <p class="ops-module-subtitle">Define cargos, publica vacantes, evalúa candidatos y formaliza contratos. Recibirás alertas cuando haya plazos por vencer.</p>
       </div>
       <div class="ops-module-chips">
-        <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes</span>
-        <span class="ops-chip"><strong>${activeCandidates.length}</strong> candidatos</span>
-        <span class="ops-chip"><strong>${contractsThisMonth.length}</strong> contratos mes</span>
+        <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes abiertas</span>
+        <span class="ops-chip"><strong>${activeCandidates.length}</strong> candidatos en proceso</span>
+        <span class="ops-chip"><strong>${contractsThisMonth.length}</strong> contratos del mes</span>
       </div>
     </div>`;
   const hiringActions = `<div class="ops-command-bar">
-      <div class="ops-command-group">
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-position">${IC.briefcase} Nuevo cargo</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-vacancy">${IC.plus} Nueva vacante</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Nuevo candidato</button>
+      <div class="ops-command-cluster">
+        <p class="ops-command-cluster-label">Crear nuevo</p>
+        <div class="ops-command-group">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-position">${IC.briefcase} Definir cargo</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-vacancy">${IC.plus} Publicar vacante</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Agregar candidato</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-contract">${IC.file} Generar contrato</button>
+        </div>
       </div>
-      <div class="ops-command-group">
-        <button class="btn btn-sm btn-outline ${candidateFilter === "active" ? "is-active" : ""}" type="button" data-action="hiring-candidates-active">${IC.activity} Candidatos activos</button>
-        <button class="btn btn-sm btn-outline ${candidateFilter === "all" ? "is-active" : ""}" type="button" data-action="hiring-candidates-all">${IC.layers} Todos candidatos</button>
+      <div class="ops-command-cluster">
+        <p class="ops-command-cluster-label">Filtrar resultados</p>
+        <div class="ops-command-group">
+        <button class="btn btn-sm btn-outline ${candidateFilter === "active" ? "is-active" : ""}" type="button" data-action="hiring-candidates-active">${IC.activity} Solo candidatos activos</button>
+        <button class="btn btn-sm btn-outline ${candidateFilter === "all" ? "is-active" : ""}" type="button" data-action="hiring-candidates-all">${IC.layers} Ver todos los candidatos</button>
         <button class="btn btn-sm btn-outline ${vacancyFilter === "open" ? "is-active" : ""}" type="button" data-action="hiring-vacancies-open">${IC.briefcase} Vacantes abiertas</button>
-        <button class="btn btn-sm btn-outline ${candidateSort === "pipeline" ? "is-active" : ""}" type="button" data-action="hiring-sort-candidates" data-sort="pipeline">${IC.filter} Orden pipeline</button>
+        <button class="btn btn-sm btn-outline ${candidateSort === "pipeline" ? "is-active" : ""}" type="button" data-action="hiring-sort-candidates" data-sort="pipeline">${IC.filter} Ordenar por etapa</button>
+        </div>
       </div>
     </div>`;
   const hiringExecutionBlock = `<section class="ops-block ops-block--hiring-flow">
       <header class="ops-block-head">
-        <h3>Operación de contratación</h3>
-        <p class="ops-block-lead muted">Defina cargos, publique vacantes y registre candidatos; luego entre vista y contrato formal.</p>
+        <h3>Pasos para contratar</h3>
+        <p class="ops-block-lead muted">Sigue el orden recomendado: primero busca al talento adecuado y luego evalúalo y formaliza el contrato.</p>
       </header>
-      <div class="hr-flow-block">
-        <h3>Cargos, vacantes y candidatos</h3>
-        <div class="hiring-actions-grid hiring-actions-row--three">${createCollapsibleCard("create-position", "briefcase", "Cargos", null, fPosition, "Crear cargo")}${createCollapsibleCard("create-vacancy", "plus", "Vacantes", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Candidatos", null, fCand, "Registrar candidato")}</div>
+      <div class="hr-flow-block hr-flow-block--step" data-flow-step="1">
+        <div class="hr-flow-step-head">
+          <span class="hr-flow-step-num" aria-hidden="true">1</span>
+          <div>
+            <h3>Busca al talento</h3>
+            <p class="hr-flow-step-lead muted">Define el cargo, abre la vacante y registra a los candidatos que se postulen.</p>
+          </div>
+        </div>
+        <div class="hiring-actions-grid hiring-actions-row--three">${createCollapsibleCard("create-position", "briefcase", "Definir cargo", null, fPosition, "Guardar cargo")}${createCollapsibleCard("create-vacancy", "plus", "Publicar vacante", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Agregar candidato", null, fCand, "Guardar candidato")}</div>
       </div>
-      <div class="hr-flow-block">
-        <h3>Entrevistas y contratos</h3>
-        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard("create-interview", "calendar", "Entrevistas", null, fInt, "Programar")}${createCollapsibleCard("create-contract", "file", "Contrato Word", null, fCon, "Generar contrato")}</div>
+      <div class="hr-flow-block hr-flow-block--step" data-flow-step="2">
+        <div class="hr-flow-step-head">
+          <span class="hr-flow-step-num" aria-hidden="true">2</span>
+          <div>
+            <h3>Evalúa y formaliza</h3>
+            <p class="hr-flow-step-lead muted">Programa entrevistas y, cuando estés listo, genera el contrato en Word.</p>
+          </div>
+        </div>
+        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", null, fInt, "Agendar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato (Word)", null, fCon, "Generar contrato")}</div>
       </div>
     </section>`;
   const hiringDataBlock = `<section class="ops-block ops-block--hiring-data">
       <header class="ops-block-head">
-        <h3>Seguimiento y resultados</h3>
-        <p class="ops-block-lead muted">Alertas, pipeline, vacantes, entrevistas y contratos en tarjetas independientes.</p>
+        <h3>Estado del proceso</h3>
+        <p class="ops-block-lead muted">Revisa alertas de plazos, candidatos en curso y los resultados consolidados.</p>
       </header>
       <div class="hiring-data-grid hiring-results-grid">
-        ${pcardWrap("activity", "Alertas", null, alertsBody)}
-        ${pcardWrap("activity", "Pipeline de candidatos", sortedCandidates.length + " visibles", tCand)}
-        ${pcardWrap("briefcase", "Vacantes", filteredVacancies.length + " visibles", tVac)}
-        ${pcardWrap("calendar", "Entrevistas", interviews.length + " programadas", tInt)}
-        ${pcardWrap("file", "Contratos generados", contracts.length + " contratos", tCon)}
-        ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+        ${pcardWrap("activity", "Alertas y plazos", null, alertsBody)}
+        ${pcardWrap("activity", "Embudo de candidatos", sortedCandidates.length + " en seguimiento", tCand)}
+        ${pcardWrap("briefcase", "Vacantes publicadas", filteredVacancies.length + " visibles", tVac)}
+        ${pcardWrap("calendar", "Entrevistas agendadas", interviews.length + " programadas", tInt)}
+        ${pcardWrap("file", "Contratos firmados", contracts.length + " contratos", tCon)}
+        ${pcardWrap("briefcase", "Cargos definidos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
       </div>
     </section>`;
-  const hiringFleetHero = moduleFleetHeroStrip([
-    { label: "Vacantes abiertas", value: openVacancies.length },
-    { label: "Candidatos activos", value: activeCandidates.length },
-    { label: "Contratos del mes", value: contractsThisMonth.length },
-    {
-      label: "Alertas / conversion",
-      value: `${urgentItems} · ${candidateConversion}%`,
-      tone: urgentItems ? "warn" : undefined
-    }
-  ]);
+  const hiringFleetHero = moduleFleetHeroStrip(
+    [
+      { label: "Vacantes abiertas", value: openVacancies.length },
+      { label: "Candidatos en proceso", value: activeCandidates.length },
+      { label: "Contratos del mes", value: contractsThisMonth.length },
+      {
+        label: "Alertas y conversión",
+        value: `${urgentItems} · ${candidateConversion}%`,
+        tone: urgentItems ? "warn" : undefined
+      }
+    ],
+    "hiring"
+  );
   const hiringTabsNav = renderHrWorkspaceTabs({
     module: "hiring",
-    ariaLabel: "Secciones del módulo Contratación",
+    ariaLabel: "Secciones del módulo Selección y contratación",
     activeId: hiringWorkspace,
     tabs: [
-      { id: "overview", label: "Panorama", hint: "Métricas y contexto", icon: "compass" },
-      { id: "operate", label: "Embudo", hint: "Cargos a contrato Word", icon: "briefcase" },
-      { id: "track", label: "Seguimiento", hint: "Alertas y tablas", icon: "activity" }
+      { id: "overview", label: "Inicio", hint: "Bienvenida y resumen", icon: "compass" },
+      { id: "operate", label: "Proceso", hint: "Cargo, vacante, candidato, contrato", icon: "briefcase" },
+      { id: "track", label: "Resultados", hint: "Alertas, embudo y tablas", icon: "activity" }
     ]
   });
   const hiringWorkspaceJumps = `<div class="hr-workspace-jumps">
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="operate">${IC.briefcase} Ir al embudo operativo</button>
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="track">${IC.activity} Ir a tablero de seguimiento</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="operate">${IC.briefcase} Empezar contratación</button>
+      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="track">${IC.activity} Ver estado y alertas</button>
     </div>`;
   const hiringOverviewPanel = `<div class="hr-workspace-panel${hiringWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="overview">
       ${hiringHead}
-      ${hiringWorkspaceJumps}
+      ${hrModuleOverviewGuide("hiring")}
+      <div class="hr-workspace-quicknav">
+        <p class="hr-workspace-quicknav-label">Atajos para empezar</p>
+        ${hiringWorkspaceJumps}
+      </div>
     </div>`;
   const hiringOperatePanel = `<div class="hr-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
       ${hiringActions}
