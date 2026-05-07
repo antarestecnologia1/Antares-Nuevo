@@ -4152,11 +4152,21 @@ function ensureTurnstileWidgets() {
           callback: (token) => {
             try {
               node.dataset.antaresToken = String(token || "");
+              node.dataset.antaresError = "";
             } catch (_e) {}
           },
+          /**
+           * Marcamos `data-antares-error="1"` para que `waitForTurnstileToken`
+           * pueda resolver de inmediato y no haga esperar al usuario hasta
+           * agotar el timeout (típicamente 4-6s). Esto evita que el login se
+           * "cuelgue" cuando el hostname no está permitido en el panel de
+           * Turnstile o cuando el script de Cloudflare está bloqueado por
+           * algún antivirus / red corporativa.
+           */
           "error-callback": () => {
             try {
               node.dataset.antaresToken = "";
+              node.dataset.antaresError = "1";
             } catch (_e) {}
           },
           "expired-callback": () => {
@@ -4180,8 +4190,19 @@ function ensureTurnstileWidgets() {
   }
 }
 
-/** Espera a que el widget Turnstile produzca un token (hasta `timeoutMs`). Devuelve la cadena vacía si nunca llega. */
-function waitForTurnstileToken(form, timeoutMs = 6000) {
+/**
+ * Espera a que el widget Turnstile produzca un token (hasta `timeoutMs`).
+ * Devuelve cadena vacía cuando:
+ *  - El formulario no tiene widget (sitekey ausente, dev sin captcha, etc.).
+ *  - El widget reportó error (`data-antares-error="1"`, p. ej. hostname no
+ *    permitido o script de Cloudflare bloqueado): no esperamos al timeout.
+ *  - Pasaron `timeoutMs` ms sin token.
+ *
+ * El backend tiene su propia guarda (`TurnstileService.assertValid`): si el
+ * token llega vacío y `CF_TURNSTILE_REQUIRED` está apagado, login pasa igual;
+ * si está encendido, responde 400 limpio en lugar de hacer esperar al usuario.
+ */
+function waitForTurnstileToken(form, timeoutMs = 4000) {
   return new Promise((resolve) => {
     if (!form) return resolve("");
     const widget = form.querySelector(".cf-turnstile");
@@ -4203,15 +4224,24 @@ function waitForTurnstileToken(form, timeoutMs = 6000) {
         return "";
       }
     };
+    const hasError = () => String(widget.dataset.antaresError || "") === "1";
     const immediate = readNow();
     if (immediate) return resolve(immediate);
+    if (hasError()) return resolve("");
     const start = Date.now();
     const timer = window.setInterval(() => {
       const now = readNow();
       if (now) {
         window.clearInterval(timer);
         resolve(now);
-      } else if (Date.now() - start > timeoutMs) {
+        return;
+      }
+      if (hasError()) {
+        window.clearInterval(timer);
+        resolve("");
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
         window.clearInterval(timer);
         resolve("");
       }
