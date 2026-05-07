@@ -40,7 +40,8 @@
       if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost")) {
         return "";
       }
-      if (host === "app.transportesantares.co") {
+      // Nuevo portal en Cloudflare Pages (subdominio definitivo + previews *.pages.dev).
+      if (host === "app.transportesantares.co" || host.endsWith(".pages.dev")) {
         return "https://api.transportesantares.co";
       }
     } catch (_e) {}
