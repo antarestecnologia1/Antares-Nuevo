@@ -229,6 +229,54 @@
     return out;
   }
 
+  /**
+   * Reemplaza un placeholder solo cuando ocupa por completo un nodo `<w:t>...</w:t>`
+   * (con espacios opcionales). Esto evita que palabras naturales del texto legal
+   * que coinciden con el nombre del placeholder (p.ej. "salario", "salarios") sean
+   * sustituidas por el valor del empleado.
+   *
+   * Cuando el placeholder NO se encuentra en su forma estricta (porque Word lo
+   * partió en runs distintos) y el nombre incluye guion bajo —es decir, es
+   * altamente improbable que colisione con texto natural— se aplica un fallback
+   * permisivo basado en string literal.
+   */
+  function applyMergeEntryStrict(xml, key, escapedValue) {
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const strictRe = new RegExp(`(<w:t[^>]*>)\\s*${escapedKey}\\s*(<\\/w:t>)`, "g");
+    let out = xml;
+    let strictReplaced = false;
+    out = out.replace(strictRe, (full, openTag, closeTag) => {
+      strictReplaced = true;
+      const tag = /xml:space="preserve"/i.test(openTag)
+        ? openTag
+        : openTag.replace(/<w:t/i, '<w:t xml:space="preserve"');
+      return `${tag}${escapedValue}${closeTag}`;
+    });
+    if (!strictReplaced && key.includes("_") && out.includes(key)) {
+      out = out.split(key).join(escapedValue);
+    }
+    return out;
+  }
+
+  /**
+   * Saneamiento de la plantilla "Termino fijo": el archivo trae un sueldo
+   * hardcodeado en el texto ("recibirá un salario mensual de 1.750.905 ...").
+   * Lo sustituimos por el monto real del empleado para evitar que el contrato
+   * salga con dos sueldos contradictorios.
+   */
+  function replaceHardcodedSalarySentence(xml, salaryNumber, salaryWords) {
+    if (!Number.isFinite(salaryNumber) || salaryNumber <= 0) return xml;
+    const salFmt = Math.round(salaryNumber).toLocaleString("es-CO");
+    const wordsTxt = String(salaryWords || "").trim();
+    return xml.replace(
+      /(recibir[\u00e1\u00c1aA]\s+un\s+salario\s+mensual\s+de\s+)([\d.,]+)(\s*\([^)]*\))?/gi,
+      (match, prefix) => {
+        const replacement = wordsTxt ? `${salFmt} (${escapeXml(wordsTxt)})` : salFmt;
+        return `${prefix}${replacement}`;
+      }
+    );
+  }
+
   async function generateEmployeeContractDocx(input) {
     const JSZipLib = await ensureJsZip();
 
@@ -247,6 +295,9 @@
     const mergeEntries = buildContractDocxMergeEntries(input);
     const ciudadFirma = mergeEntries.find((x) => x[0] === "ciudad_empleado")?.[1] || "";
     const cedulaVal = mergeEntries.find((x) => x[0] === "cedula_empleado")?.[1] || "";
+    const salaryWords =
+      mergeEntries.find((x) => x[0] === "salario_letras")?.[1] ||
+      formatSalarioLetrasPesos(salaryNumber);
 
     const zip = await JSZipLib.loadAsync(sourceBuffer);
     const wordEntries = Object.keys(zip.files).filter((name) => /^word\/.*\.xml$/i.test(name));
@@ -255,9 +306,10 @@
       wordEntries.map(async (entry) => {
         const xml = await zip.file(entry).async("string");
         let next = xml;
+        next = replaceHardcodedSalarySentence(next, salaryNumber, salaryWords);
         mergeEntries.forEach(([key, val]) => {
           const escaped = escapeXml(val);
-          next = next.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), escaped);
+          next = applyMergeEntryStrict(next, key, escaped);
         });
         next = replaceConstanciaParagraphs(next, ciudadFirma, input.signDate || "");
         next = injectCedulaAfterCcRuns(next, cedulaVal);
