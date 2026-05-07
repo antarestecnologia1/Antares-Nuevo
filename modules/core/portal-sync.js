@@ -1,6 +1,11 @@
 /**
- * Sincronización debounced hacia apps/api: POST /api/portal/sync-key
- * Tras cada write() en la proyección de datos del portal (p. ej. al persistir en local).
+ * POST /api/portal/sync-key tras cada cambio en la proyección en memoria (AntaresPersistence).
+ *
+ * Contrato operativo:
+ * - Los datos de dominio autoritativos viven en PostgreSQL (Nest + sync-key).
+ * - El navegador mantiene copia en memoria (RAM) para la vista; ya no usa localStorage masivo para negocio.
+ * - Esta capa despacha cada mutación sin retardo perceptible (`DEBOUNCE_MS = 0`) y expone `flushStorageKeyNow`
+ *   para esperar la confirmación del servidor en flujos críticos (modales guardar/borrar).
  */
 (function registerPortalSync() {
   /**
@@ -16,7 +21,8 @@
     }
   }
 
-  const DEBOUNCE_MS = 450;
+  /** Debounce mínimo: las mutaciones llegan casi ya a PostgreSQL; evita esperas de 450 ms del UX antiguo. */
+  const DEBOUNCE_MS = 0;
   const timers = {};
   const pending = {};
   let bootstrapDepth = 0;
@@ -62,7 +68,8 @@
     timers[storageKey] = setTimeout(() => {
       const data = pending[storageKey];
       delete pending[storageKey];
-      void flush(entity, data);
+      delete timers[storageKey];
+      void flush(entity, data).catch(() => {});
     }, DEBOUNCE_MS);
   }
 
@@ -114,12 +121,47 @@
       /* noop */
     }
     notifySyncFailureDebounced();
+    const msg =
+      lastErr &&
+      typeof lastErr === "object" &&
+      (lastErr.message || lastErr.errors)
+        ? String(lastErr.message || lastErr.errors)
+        : "sync-key rechazado";
+    throw typeof lastErr === "object" && lastErr instanceof Error ? lastErr : new Error(msg);
+  }
+
+  /**
+   * Cancela cualquier disparo aplazado de esta clave y envía YA el contenido desde memoria
+   * (`AntaresPersistence` o último pendiente). Usar tras `write()` cuando el flujo debe
+   * confirmar escritura antes de cerrar modal o refrescar vistas.
+   * @throws {Error} si fallan los reintentos al servidor y la sesión API está configurada.
+   */
+  async function flushStorageKeyNow(storageKey) {
+    if (bootstrapDepth > 0) return;
+    if (EXCLUDED_STORAGE_KEYS.has(storageKey)) return;
+    const entity = STORAGE_TO_ENTITY[storageKey];
+    if (!entity) return;
+
+    clearTimeout(timers[storageKey]);
+    delete timers[storageKey];
+
+    var data = pending[storageKey];
+    delete pending[storageKey];
+
+    const P = window.AntaresPersistence;
+    if (data === undefined && P && typeof P.read === "function") {
+      data = P.read(storageKey, null);
+    }
+    if (data === undefined || data === null) return;
+
+    await flush(entity, data);
   }
 
   window.AntaresPortalSync = {
     schedule,
     STORAGE_TO_ENTITY,
     EXCLUDED_STORAGE_KEYS,
+    flushStorageKeyNow,
     beginBootstrap() {
       bootstrapDepth += 1;
     },

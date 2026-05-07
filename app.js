@@ -568,15 +568,32 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
    */
   const confirmBtn = content.querySelector("#crud-confirm");
   let confirmConsumed = false;
-  confirmBtn.addEventListener("click", () => {
+  confirmBtn.addEventListener("click", async () => {
     if (confirmConsumed) return;
     confirmConsumed = true;
     confirmBtn.disabled = true;
     confirmBtn.setAttribute("aria-busy", "true");
     try {
-      onConfirm?.();
+      let out = onConfirm?.();
+      if (out && typeof out.then === "function") {
+        await out;
+      }
+    } catch (_e) {
+      try {
+        const msg =
+          _e && typeof _e === "object" && _e.message
+            ? String(_e.message)
+            : typeof _e === "string"
+              ? _e
+              : typeof userMessage === "function"
+                ? userMessage("genericError")
+                : "Error";
+        if (msg && typeof notify === "function") notify(msg, "error");
+      } catch (_) {}
     } finally {
       close();
+      confirmBtn.disabled = false;
+      confirmBtn.removeAttribute("aria-busy");
     }
   });
   modal.addEventListener(
@@ -1156,6 +1173,21 @@ function write(key, value) {
   }
 }
 
+/**
+ * Igual que `write` pero espera POST /portal/sync-key (PostgreSQL) cuando hay sesión API.
+ * En modo sólo navegador (sin URL de API/token) sólo persiste la proyección en memoria.
+ * @throws Las mismas errores que `AntaresPortalSync.flushStorageKeyNow` cuando el servidor rechaza tras reintentos.
+ */
+async function writeAwaitServer(storageKeyLike, value) {
+  write(storageKeyLike, value);
+  const api = window.AntaresApi;
+  const sync = window.AntaresPortalSync;
+  if (!sync || typeof sync.flushStorageKeyNow !== "function") return;
+  if (!api || typeof api.getBase !== "function" || !api.getBase()) return;
+  if (typeof api.getAccessToken !== "function" || !String(api.getAccessToken() || "").trim()) return;
+  await sync.flushStorageKeyNow(storageKeyLike);
+}
+
 function decodeJwtPayload(token) {
   try {
     const part = String(token || "").split(".")[1];
@@ -1624,6 +1656,12 @@ function reqWrite(next) {
   } else {
     write(KEYS.requests, next);
   }
+}
+
+/** Igual que `reqWrite` pero espera `sync-key` con la tabla `solicitudes_transporte` en PostgreSQL. */
+async function reqWriteAwait(next) {
+  reqWrite(next);
+  await writeAwaitServer(KEYS.requests, read(KEYS.requests, []));
 }
 
 if (typeof window.DomainModules?.requests?.attachStorage === "function") {
@@ -3490,7 +3528,7 @@ function ensureUsersAccountStatus() {
   if (changed) write(KEYS.users, updated);
 }
 
-function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
+async function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
     id: newUuidV4(),
@@ -3505,7 +3543,9 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
     reviewedBy: null,
     rejectionReason: ""
   });
-  write(KEYS.approvals, approvals);
+  try {
+    await writeAwaitServer(KEYS.approvals, approvals);
+  } catch (_e) {}
   const admins = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
   admins.forEach((admin) => {
     saveNotification({
@@ -3514,6 +3554,9 @@ function queueApproval({ type, title, payload, requestedByUserId, requestedByNam
       body: `${title} solicitada por ${requestedByName}.`
     });
   });
+  try {
+    await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+  } catch (_e) {}
 }
 
 /** Metadatos UI: cola de autorizaciones agrupada por ambito operativo (ver también queueApproval). */
@@ -5321,8 +5364,14 @@ function recalculateResourceAvailability() {
     return driver;
   });
 
-  if (vehiclesChanged) write(KEYS.vehicles, nextVehicles);
-  if (driversChanged) write(KEYS.drivers, nextDrivers);
+  if (vehiclesChanged || driversChanged) {
+    void (async () => {
+      try {
+        if (vehiclesChanged) await writeAwaitServer(KEYS.vehicles, nextVehicles);
+        if (driversChanged) await writeAwaitServer(KEYS.drivers, nextDrivers);
+      } catch (_e) {}
+    })();
+  }
 }
 
 function buildTripInvoice(request) {
@@ -5370,8 +5419,12 @@ function closeCompletedTripsAndGenerateInvoices() {
     };
   });
   if (changed) {
-    reqWrite(next);
-    recalculateResourceAvailability();
+    void (async () => {
+      try {
+        await reqWriteAwait(next);
+      } catch (_e) {}
+      recalculateResourceAvailability();
+    })();
   }
 }
 
@@ -5383,7 +5436,11 @@ function openTripInvoicePdf(requestId) {
   }
   const invoice = request.trip.invoice || buildTripInvoice(request);
   const requests = reqRead();
-  reqWrite(requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r)));
+  void (async () => {
+    try {
+      await reqWriteAwait(requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r)));
+    } catch (_e) {}
+  })();
 
   const html = `<!doctype html>
   <html lang="es">
@@ -5550,8 +5607,12 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
         }
       : request
   );
-  reqWrite(updated);
-  recalculateResourceAvailability();
+  void (async () => {
+    try {
+      await reqWriteAwait(updated);
+    } catch (_e) {}
+    recalculateResourceAvailability();
+  })();
   return true;
 }
 
@@ -5685,16 +5746,20 @@ function makeTripNumber(existingNumbers = new Set()) {
   return code;
 }
 
-function setVehicleAvailability(vehicleId, available) {
+async function setVehicleAvailability(vehicleId, available) {
   const vehicles = read(KEYS.vehicles, []);
   const next = vehicles.map((v) => (v.id === vehicleId ? { ...v, available } : v));
-  write(KEYS.vehicles, next);
+  try {
+    await writeAwaitServer(KEYS.vehicles, next);
+  } catch (_e) {}
 }
 
-function setDriverAvailability(driverId, available) {
+async function setDriverAvailability(driverId, available) {
   const drivers = read(KEYS.drivers, []);
   const next = drivers.map((d) => (d.id === driverId ? { ...d, available } : d));
-  write(KEYS.drivers, next);
+  try {
+    await writeAwaitServer(KEYS.drivers, next);
+  } catch (_e) {}
 }
 
 function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "", selectedTripValue = null) {
@@ -5705,33 +5770,39 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
 
   if (auto) {
     const systemTimerApprove = String(actorName || "").trim() === "Sistema";
-    reqWrite(
-      requests.map((r) =>
-        r.id === requestId
-          ? {
-              ...r,
-              status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
-              approvedAt: nowIso(),
-              approvedBy: actorName,
-              autoApproved: systemTimerApprove,
-              rejectionReason: ""
-            }
-          : r
-      )
+    const mapped = requests.map((r) =>
+      r.id === requestId
+        ? {
+            ...r,
+            status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
+            approvedAt: nowIso(),
+            approvedBy: actorName,
+            autoApproved: systemTimerApprove,
+            rejectionReason: ""
+          }
+        : r
     );
-    if (current.apiSynced && window.DomainModules?.requests?.approveViaApi) {
-      void window.DomainModules.requests.approveViaApi(requestId).catch(() => {});
-    }
-    const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
-    if (targetUser) {
-      saveNotification({
-        userId: targetUser.id,
-        title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
-        body: systemTimerApprove
-          ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
-          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
-      });
-    }
+    void (async () => {
+      try {
+        await reqWriteAwait(mapped);
+      } catch (_e) {}
+      if (current.apiSynced && window.DomainModules?.requests?.approveViaApi) {
+        void window.DomainModules.requests.approveViaApi(requestId).catch(() => {});
+      }
+      const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
+      if (targetUser) {
+        saveNotification({
+          userId: targetUser.id,
+          title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
+          body: systemTimerApprove
+            ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
+            : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
+        });
+        try {
+          await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+        } catch (_e) {}
+      }
+    })();
     return true;
   }
 
@@ -5791,26 +5862,34 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
         }
       : r
   );
-  reqWrite(next);
+  void (async () => {
+    try {
+      await reqWriteAwait(next);
+    } catch (_e) {}
 
-  const users = read(KEYS.users, []);
-  const target = users.find((u) => u.id === current.clientUserId);
-  if (target) {
-    saveNotification({
-      userId: target.id,
-      title: "Solicitud aprobada",
-      body: `Su solicitud ${current.requestNumber || current.id} fue aprobada${auto ? " automáticamente" : ""}. Viaje ${trip.tripNumber}.`
-    });
-    sendEmail({
-      to: target.email,
-      subject: "Solicitud aprobada",
-      body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
-    });
-  }
+    const users = read(KEYS.users, []);
+    const target = users.find((u) => u.id === current.clientUserId);
+    if (target) {
+      saveNotification({
+        userId: target.id,
+        title: "Solicitud aprobada",
+        body: `Su solicitud ${current.requestNumber || current.id} fue aprobada${auto ? " automáticamente" : ""}. Viaje ${trip.tripNumber}.`
+      });
+      sendEmail({
+        to: target.email,
+        subject: "Solicitud aprobada",
+        body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
+      });
+      try {
+        await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+      } catch (_e) {}
+    }
+  })();
   return true;
 }
 
-function rejectRequest(requestId, reason, actorName) {
+async function rejectRequest(requestId, reason, actorName) {
   const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   if (!current) return;
@@ -5819,12 +5898,16 @@ function rejectRequest(requestId, reason, actorName) {
       ? { ...r, status: STATUS.RECHAZADA, approvedAt: nowIso(), approvedBy: actorName, rejectionReason: reason }
       : r
   );
-  reqWrite(next);
+  await reqWriteAwait(next);
 
   const user = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
   if (user) {
     saveNotification({ userId: user.id, title: "Solicitud rechazada", body: `Su solicitud fue rechazada. Motivo: ${reason}` });
     sendEmail({ to: user.email, subject: "Solicitud rechazada", body: reason });
+    try {
+      await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+      await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+    } catch (_e) {}
   }
 }
 
@@ -8242,7 +8325,7 @@ function resolveDriverForEmployee(employee) {
   return drivers.find((d) => String(d.name || "").trim().toLowerCase() === name) || null;
 }
 
-function syncDriverFromEmployee(employee, extraDriverData = {}) {
+async function syncDriverFromEmployee(employee, extraDriverData = {}) {
   if (!employee || String(employee.workerRole || "") !== "conductor") return;
   const drivers = read(KEYS.drivers, []);
   const doc = String(employee.idDoc || "").trim();
@@ -8273,10 +8356,15 @@ function syncDriverFromEmployee(employee, extraDriverData = {}) {
     return;
   }
   if (existing) {
-    write(KEYS.drivers, drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d)));
+    const nextDrivers = drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d));
+    try {
+      await writeAwaitServer(KEYS.drivers, nextDrivers);
+    } catch (_e) {}
     return;
   }
-  write(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers]);
+  try {
+    await writeAwaitServer(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers]);
+  } catch (_e) {}
 }
 
 function contractDedupKey(row) {
@@ -8324,32 +8412,41 @@ function purgeDuplicateContracts() {
   }
 }
 
-function deleteEmployeesCascade(employeeIds = []) {
+async function deleteEmployeesCascade(employeeIds = []) {
   const ids = [...new Set(employeeIds.map((id) => String(id || "").trim()).filter(Boolean))];
   if (!ids.length) return 0;
   const employees = read(KEYS.payrollEmployees, []);
   const targets = employees.filter((employee) => ids.includes(String(employee.id)));
   const targetDocSet = new Set(targets.map((employee) => String(employee.idDoc || "").trim()).filter(Boolean));
-  write(KEYS.payrollEmployees, employees.filter((employee) => !ids.includes(String(employee.id))));
-  write(KEYS.payrollRuns, read(KEYS.payrollRuns, []).filter((run) => !ids.includes(String(run.employeeId || ""))));
-  write(KEYS.hrAbsences, read(KEYS.hrAbsences, []).filter((absence) => !ids.includes(String(absence.employeeId || ""))));
-  write(
-    KEYS.contracts,
-    read(KEYS.contracts, []).filter((contract) => {
-      const employeeId = String(contract.employeeId || "");
-      const doc = String(contract.employeeIdDoc || "").trim();
-      if (ids.includes(employeeId)) return false;
-      if (doc && targetDocSet.has(doc)) return false;
-      return true;
-    })
-  );
-  write(
-    KEYS.drivers,
-    read(KEYS.drivers, []).filter((driver) => {
-      const doc = String(driver.idDoc || "").trim();
-      return !targetDocSet.has(doc);
-    })
-  );
+
+  try {
+    await writeAwaitServer(
+      KEYS.payrollEmployees,
+      employees.filter((employee) => !ids.includes(String(employee.id)))
+    );
+    await writeAwaitServer(KEYS.payrollRuns, read(KEYS.payrollRuns, []).filter((run) => !ids.includes(String(run.employeeId || ""))));
+    await writeAwaitServer(
+      KEYS.hrAbsences,
+      read(KEYS.hrAbsences, []).filter((absence) => !ids.includes(String(absence.employeeId || "")))
+    );
+    await writeAwaitServer(
+      KEYS.contracts,
+      read(KEYS.contracts, []).filter((contract) => {
+        const employeeId = String(contract.employeeId || "");
+        const doc = String(contract.employeeIdDoc || "").trim();
+        if (ids.includes(employeeId)) return false;
+        if (doc && targetDocSet.has(doc)) return false;
+        return true;
+      })
+    );
+    await writeAwaitServer(
+      KEYS.drivers,
+      read(KEYS.drivers, []).filter((driver) => {
+        const doc = String(driver.idDoc || "").trim();
+        return !targetDocSet.has(doc);
+      })
+    );
+  } catch (_e) {}
   return targets.length;
 }
 
@@ -9741,10 +9838,11 @@ function profileHtml(user) {
     },
     { label: "Permisos", value: (user.permissions || []).length }
   ]);
+  const profileAvatarCss = employeeAvatarCssUrl(user.avatarUrl);
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
-      <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${user.avatarUrl ? "has-image" : ""}" style="${user.avatarUrl ? `background-image:url('${user.avatarUrl}');` : ""}" title="Cambiar foto de perfil">
-        <span class="profile-avatar-initial">${user.avatarUrl ? "" : (displayName || "U").charAt(0).toUpperCase()}</span>
+      <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${profileAvatarCss ? "has-image" : ""}" style="${profileAvatarCss ? `background-image:url('${profileAvatarCss}');` : ""}" title="Cambiar foto de perfil">
+        <span class="profile-avatar-initial">${profileAvatarCss ? "" : (displayName || "U").charAt(0).toUpperCase()}</span>
         <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
@@ -11139,13 +11237,11 @@ function bindDynamicEvents() {
         title: `${active ? "Desactivar" : "Activar"} empresa`,
         message: `Se va a ${verb} "${String(target.name || "").trim()}". Las empresas inactivas no aparecen al asignar usuarios nuevos.`,
         confirmText: active ? "Desactivar" : "Activar",
-        onConfirm: () => {
-          write(
-            KEYS.companies,
-            companies.map((c) =>
-              String(c.id) === companyId ? { ...c, active: !active } : c
-            )
+        onConfirm: async () => {
+          const next = companies.map((c) =>
+            String(c.id) === companyId ? { ...c, active: !active } : c
           );
+          await writeAwaitServer(KEYS.companies, next);
           notify(userMessage(active ? "companyDeactivated" : "companyActivated"), "success");
           renderPortalView();
         }
@@ -11177,10 +11273,8 @@ function bindDynamicEvents() {
             notify(String(err?.message || userMessage("genericError")), "error");
             return;
           }
-          write(
-            KEYS.companies,
-            read(KEYS.companies, []).filter((c) => String(c.id) !== companyId)
-          );
+          const rest = read(KEYS.companies, []).filter((c) => String(c.id) !== companyId);
+          await writeAwaitServer(KEYS.companies, rest);
           state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
           notify(userMessage("companyDeleted"), "success");
           renderPortalView();
@@ -11228,7 +11322,7 @@ function bindDynamicEvents() {
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
-        queueApproval({
+        await queueApproval({
           type: "create_user",
           title: `Creacion de usuario ${data.name}`,
           payload: { ...data, companyName: company.name, permissions },
@@ -11271,7 +11365,7 @@ function bindDynamicEvents() {
               ? permissions
               : defaultPermissionsForRole(data.role)
       });
-      write(KEYS.users, users);
+      await writeAwaitServer(KEYS.users, users);
       notify(userMessage("userCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
@@ -11329,22 +11423,7 @@ function bindDynamicEvents() {
         active: true,
         createdAt: nowIso()
       });
-      write(KEYS.companies, companies);
-      const api = window.AntaresApi;
-      if (api?.isConfigured?.() && typeof api.postJson === "function") {
-        try {
-          await api.postJson("/portal/sync-key", { key: "companies", data: read(KEYS.companies, []) });
-        } catch (err) {
-          notify(
-            String(
-              err?.message ||
-                "La empresa no se pudo guardar en el servidor (revise UUID y conexión). Corrija y reintente."
-            ),
-            "error"
-          );
-          return;
-        }
-      }
+      await writeAwaitServer(KEYS.companies, companies);
       notify(userMessage("companyCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
@@ -11402,35 +11481,23 @@ function bindDynamicEvents() {
         notify(userMessage("companyPhoneInvalid"), "error");
         return;
       }
-      write(
-        KEYS.companies,
-        companies.map((c) =>
-          String(c.id) === companyId
-            ? {
-                ...c,
-                name: nameTrim,
-                taxId: nitNorm,
-                nit: nitNorm,
-                phone: phoneStored,
-                companyKind: kind
-              }
-            : c
-        )
+      const nextCompanies = companies.map((c) =>
+        String(c.id) === companyId
+          ? {
+              ...c,
+              name: nameTrim,
+              taxId: nitNorm,
+              nit: nitNorm,
+              phone: phoneStored,
+              companyKind: kind
+            }
+          : c
       );
-      const api = window.AntaresApi;
-      if (api?.isConfigured?.() && typeof api.postJson === "function") {
-        try {
-          await api.postJson("/portal/sync-key", { key: "companies", data: read(KEYS.companies, []) });
-        } catch (err) {
-          notify(
-            String(
-              err?.message ||
-                "La empresa no se pudo guardar en el servidor (revise UUID y conexión). Corrija y reintente."
-            ),
-            "error"
-          );
-          return;
-        }
+      try {
+        await writeAwaitServer(KEYS.companies, nextCompanies);
+      } catch (err) {
+        notify(String(err?.message || "La empresa no se pudo guardar en el servidor."), "error");
+        return;
       }
       notify(userMessage("companyUpdated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
@@ -11440,7 +11507,7 @@ function bindDynamicEvents() {
 
   const adminUserPermissions = document.getElementById("form-admin-user-permissions");
   if (adminUserPermissions) {
-    adminUserPermissions.addEventListener("submit", (event) => {
+    adminUserPermissions.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(adminUserPermissions);
       const userId = String(form.get("userId") || "");
@@ -11452,20 +11519,22 @@ function bindDynamicEvents() {
         (input) => input.value
       );
       const users = read(KEYS.users, []);
-      write(
-        KEYS.users,
-        users.map((user) =>
-          user.id === userId
-            ? {
-                ...user,
-                permissions:
-                  user.role === ROLES.ADMIN
-                    ? [...ALL_PERMISSIONS]
-                    : permissions.filter((permission) => ALL_PERMISSIONS.includes(permission))
-              }
-            : user
-        )
+      const nextUsers = users.map((user) =>
+        user.id === userId
+          ? {
+              ...user,
+              permissions:
+                user.role === ROLES.ADMIN
+                  ? [...ALL_PERMISSIONS]
+                  : permissions.filter((permission) => ALL_PERMISSIONS.includes(permission))
+            }
+          : user
       );
+      try {
+        await writeAwaitServer(KEYS.users, nextUsers);
+      } catch (_) {
+        return;
+      }
       if (state.session?.userId === userId) {
         const refreshed = read(KEYS.users, []).find((item) => item.id === userId);
         if (refreshed && !hasPermission(refreshed, PERMISSIONS.USERS_MANAGE)) {
@@ -11543,53 +11612,55 @@ function bindDynamicEvents() {
       const gRaw = String(data.gender ?? "").trim();
       const genderStored = gRaw ? normalizeLatinUpperForDb(gRaw) : "";
       const registrationKindStored = normalizeRegistrationKindForDb(data.registrationKind);
-      write(
-        KEYS.users,
-        users.map((u) =>
-          u.id === userId
-            ? {
-                ...u,
-                name: resolvedFullName,
-                firstName: fn || undefined,
-                middleName: mn || undefined,
-                lastName: ln || undefined,
-                secondLastName: sln || undefined,
-                email: normalizeEmail(data.email),
-                password: nextPassword,
-                role: String(data.role || u.role),
-                documentType: String(data.documentType || u.documentType || "CC"),
-                personType: normalizePersonTypeForDb(String(data.personType || u.personType || "")),
-                documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
-                birthDate: birthStored,
-                gender: genderStored,
-                companyId: company.id,
-                company: normalizeLatinForDb(String(data.company || company.name).trim()),
-                taxId: String(data.taxId || "").trim(),
-                phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
-                city: normalizeLatinForDb(String(data.city || "").trim()),
-                department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
-                address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
-                position: normalizeLatinForDb(String(data.position ?? u.position ?? "").trim()),
-                workArea: normalizeLatinForDb(String(data.workArea ?? u.workArea ?? "").trim()),
-                registrationKind: registrationKindStored,
-                profileQualityChecklist: {
-                  ...(u.profileQualityChecklist && typeof u.profileQualityChecklist === "object"
-                    ? u.profileQualityChecklist
-                    : {}),
-                  registrationKind: registrationKindStored
-                },
-                twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
-                systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
-                permissions:
-                  String(data.role || u.role) === ROLES.ADMIN
-                    ? [...ALL_PERMISSIONS]
-                    : permissions.length
-                      ? permissions.filter((p) => ALL_PERMISSIONS.includes(p))
-                      : defaultPermissionsForRole(String(data.role || u.role))
-              }
-            : u
-        )
+      const nextEdited = users.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              name: resolvedFullName,
+              firstName: fn || undefined,
+              middleName: mn || undefined,
+              lastName: ln || undefined,
+              secondLastName: sln || undefined,
+              email: normalizeEmail(data.email),
+              password: nextPassword,
+              role: String(data.role || u.role),
+              documentType: String(data.documentType || u.documentType || "CC"),
+              personType: normalizePersonTypeForDb(String(data.personType || u.personType || "")),
+              documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
+              birthDate: birthStored,
+              gender: genderStored,
+              companyId: company.id,
+              company: normalizeLatinForDb(String(data.company || company.name).trim()),
+              taxId: String(data.taxId || "").trim(),
+              phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
+              city: normalizeLatinForDb(String(data.city || "").trim()),
+              department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
+              address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
+              position: normalizeLatinForDb(String(data.position ?? u.position ?? "").trim()),
+              workArea: normalizeLatinForDb(String(data.workArea ?? u.workArea ?? "").trim()),
+              registrationKind: registrationKindStored,
+              profileQualityChecklist: {
+                ...(u.profileQualityChecklist && typeof u.profileQualityChecklist === "object"
+                  ? u.profileQualityChecklist
+                  : {}),
+                registrationKind: registrationKindStored
+              },
+              twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
+              systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
+              permissions:
+                String(data.role || u.role) === ROLES.ADMIN
+                  ? [...ALL_PERMISSIONS]
+                  : permissions.length
+                    ? permissions.filter((p) => ALL_PERMISSIONS.includes(p))
+                    : defaultPermissionsForRole(String(data.role || u.role))
+            }
+          : u
       );
+      try {
+        await writeAwaitServer(KEYS.users, nextEdited);
+      } catch (_e) {
+        return;
+      }
       notify(userMessage("userUpdated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
@@ -11957,10 +12028,11 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
             return;
           }
-          write(
-            KEYS.users,
-            read(KEYS.users, []).filter((user) => user.id !== userId)
-          );
+          try {
+            await writeAwaitServer(KEYS.users, read(KEYS.users, []).filter((user) => user.id !== userId));
+          } catch (_e) {
+            return;
+          }
           notify(userMessage("userDeleted"), "success");
           renderPortalView();
         }
@@ -12004,6 +12076,11 @@ function bindDynamicEvents() {
               )
             );
           });
+          try {
+            await writeAwaitServer(KEYS.users, read(KEYS.users, []));
+          } catch (_e) {
+            return;
+          }
           notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
           renderPortalView();
         }
@@ -12144,7 +12221,12 @@ function bindDynamicEvents() {
         }
       }
       all.unshift(rowToSave);
-      reqWrite(all);
+      try {
+        await reqWriteAwait(all);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la solicitud en el servidor."), "error");
+        return;
+      }
 
       const adminUsers = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
       adminUsers.forEach((admin) => {
@@ -12159,6 +12241,10 @@ function bindDynamicEvents() {
           body: `Revisar solicitud ${requestNumber}`
         });
       });
+      try {
+        await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+      } catch (_e) {}
 
       const actingUser = currentUser();
       if (actingUser?.role === ROLES.ADMIN) {
@@ -12218,26 +12304,34 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const id = String(btn.dataset.id || "");
       const list = read(KEYS.notifications, []);
-      write(
-        KEYS.notifications,
-        list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
-      );
+      try {
+        await writeAwaitServer(
+          KEYS.notifications,
+          list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
+        );
+      } catch (_e) {
+        return;
+      }
       renderPortalView();
       updateNotificationBadge();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const list = read(KEYS.notifications, []);
       const ts = nowIso();
-      write(
-        KEYS.notifications,
-        list.map((n) => (n.readAt ? n : { ...n, readAt: ts }))
-      );
+      try {
+        await writeAwaitServer(
+          KEYS.notifications,
+          list.map((n) => (n.readAt ? n : { ...n, readAt: ts }))
+        );
+      } catch (_e) {
+        return;
+      }
       renderPortalView();
       updateNotificationBadge();
     });
@@ -12252,9 +12346,9 @@ function bindDynamicEvents() {
         title: "Eliminar notificación",
         message: "¿Quieres eliminar esta notificación de tu bandeja? Esta acción no se puede deshacer.",
         confirmText: "Eliminar",
-        onConfirm: () => {
+        onConfirm: async () => {
           const list = read(KEYS.notifications, []);
-          write(KEYS.notifications, list.filter((n) => n.id !== id));
+          await writeAwaitServer(KEYS.notifications, list.filter((n) => n.id !== id));
           notify("Notificación eliminada.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -12270,13 +12364,13 @@ function bindDynamicEvents() {
         title: "Eliminar leídas",
         message: "¿Eliminar todas las notificaciones ya leídas de tu bandeja?",
         confirmText: "Eliminar leídas",
-        onConfirm: () => {
+        onConfirm: async () => {
           const list = read(KEYS.notifications, []);
           const user = currentUser();
           const isOwn = (n) => user && (String(n.userId || "") === String(user.id || "") || user.role === ROLES.ADMIN);
           const remaining = list.filter((n) => !(n.readAt && isOwn(n)));
           const removed = list.length - remaining.length;
-          write(KEYS.notifications, remaining);
+          await writeAwaitServer(KEYS.notifications, remaining);
           notify(removed ? `${removed} notificaciones eliminadas.` : "No había notificaciones leídas.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -12292,13 +12386,13 @@ function bindDynamicEvents() {
         title: "Vaciar bandeja",
         message: "¿Eliminar todas las notificaciones (leídas y sin leer)? Esta acción no se puede deshacer.",
         confirmText: "Vaciar bandeja",
-        onConfirm: () => {
+        onConfirm: async () => {
           const list = read(KEYS.notifications, []);
           const user = currentUser();
           const isOwn = (n) => user && (String(n.userId || "") === String(user.id || "") || user.role === ROLES.ADMIN);
           const remaining = list.filter((n) => !isOwn(n));
           const removed = list.length - remaining.length;
-          write(KEYS.notifications, remaining);
+          await writeAwaitServer(KEYS.notifications, remaining);
           notify(removed ? `${removed} notificaciones eliminadas.` : "Bandeja ya estaba vacía.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -12413,10 +12507,15 @@ function bindDynamicEvents() {
         subtitle: req.requestNumber || req.id,
         submitText: "Guardar observaciones",
         fields: [{ name: "notes", label: "Observaciones", value: req.notes || "", required: false }],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
-          reqWrite(updated);
-  recalculateResourceAvailability();
+          try {
+            await reqWriteAwait(updated);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar las observaciones en el servidor."), "error");
+            return false;
+          }
+          recalculateResourceAvailability();
           notify(userMessage("observationsUpdated"), "success");
           renderPortalView();
           return true;
@@ -12426,12 +12525,17 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='cancel']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req || req.status !== STATUS.PENDIENTE) return;
       const updated = requests.map((r) => (r.id === req.id ? { ...r, status: STATUS.CANCELADA } : r));
-      reqWrite(updated);
+      try {
+        await reqWriteAwait(updated);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
+        return;
+      }
       renderPortalView();
     });
   });
@@ -12550,12 +12654,11 @@ function bindDynamicEvents() {
           const rates = { ...getTripRouteRatesNormalized() };
           delete rates[key];
           try {
-            await postPortalAuthorized("/portal/sync-key", { key: "tripRouteRates", data: rates });
+            await writeAwaitServer(KEYS.tripRouteRates, rates);
           } catch (err) {
             notify(String(err?.message || "No se pudo actualizar las tarifas en el servidor."), "error");
             return;
           }
-          write(KEYS.tripRouteRates, rates);
           notify(userMessage("routeRateDeleted"), "success");
           renderPortalView();
         }
@@ -12689,7 +12792,7 @@ function bindDynamicEvents() {
     if (destDept && destCity) {
       destDept.addEventListener("change", () => fillRouteRateCities(destDept, destCity));
     }
-    routeRateFormEl.addEventListener("submit", (event) => {
+    routeRateFormEl.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(routeRateFormEl).entries());
       const companyIds = [...new FormData(routeRateFormEl).getAll("rateClientCompanies")]
@@ -12712,7 +12815,12 @@ function bindDynamicEvents() {
       const normalized = getTripRouteRatesNormalized();
       const storageKey = tripRateStorageKey(routeKey, companyIds);
       const next = { ...normalized, [storageKey]: { value: tripRateCop, companyIds } };
-      write(KEYS.tripRouteRates, next);
+      try {
+        await writeAwaitServer(KEYS.tripRouteRates, next);
+      } catch (err) {
+        notify(String(err?.message || userMessage("genericError")), "error");
+        return;
+      }
       notify(userMessage("routeRateSaved"), "success");
       renderPortalView();
     });
@@ -12788,10 +12896,15 @@ function bindDynamicEvents() {
         subtitle: "Indica motivo para trazabilidad",
         submitText: "Rechazar solicitud",
         fields: [{ name: "reason", label: "Motivo", value: "", required: true }],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
-          rejectRequest(btn.dataset.id, reason, currentUser().name);
+          try {
+            await rejectRequest(btn.dataset.id, reason, currentUser().name);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el rechazo en el servidor."), "error");
+            return false;
+          }
           const rejectedReq = reqRead().find((r) => r.id === btn.dataset.id);
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(rejectedReq?.clientUserId);
           notify(userMessage("requestRejected"), "success");
@@ -12819,14 +12932,19 @@ function bindDynamicEvents() {
           { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDate, required: true },
           { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTime, required: true }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const newPickup = `${form.pickupDate}T${form.pickupTime}`;
           const newDelivery = `${form.deliveryDate}T${form.deliveryTime}`;
           if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
             notify(userMessage("requestScheduleInvalid"), "error");
             return false;
           }
-          reqWrite(requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r)));
+          try {
+            await reqWriteAwait(requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r)));
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
+            return false;
+          }
           notify(userMessage("requestUpdated"), "success");
           renderPortalView();
           return true;
@@ -12850,7 +12968,7 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
-          reqWrite(reqRead().filter((r) => String(r.id) !== requestId));
+          await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
           recalculateResourceAvailability();
           notify(userMessage("requestDeleted"), "success");
           renderPortalView();
@@ -12875,7 +12993,7 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible quitar el viaje en el servidor."), "error");
             return;
           }
-          reqWrite(
+          await reqWriteAwait(
             reqRead().map((request) =>
               request.id === requestId
                 ? {
@@ -12912,11 +13030,13 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el vehiculo en el servidor."), "error");
             return;
           }
-          write(
-            KEYS.vehicles,
-            read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId)
-          );
-          reqWrite(
+          const nextVehicleList = read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId);
+          try {
+            await writeAwaitServer(KEYS.vehicles, nextVehicleList);
+          } catch (_e) {
+            return;
+          }
+          await reqWriteAwait(
             reqRead().map((request) => {
               if (!request.trip || String(request.trip.vehicleId || "") !== vehicleId) return request;
               return {
@@ -12953,11 +13073,13 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el conductor en el servidor."), "error");
             return;
           }
-          write(
-            KEYS.drivers,
-            read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId)
-          );
-          reqWrite(
+          const nextDrivers = read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId);
+          try {
+            await writeAwaitServer(KEYS.drivers, nextDrivers);
+          } catch (_e) {
+            return;
+          }
+          await reqWriteAwait(
             reqRead().map((request) => {
               if (!request.trip || String(request.trip.driverId || "") !== driverId) return request;
               return {
@@ -12982,7 +13104,7 @@ function bindDynamicEvents() {
   const vehicleForm = document.getElementById("form-vehicle");
   if (vehicleForm) {
     bindVehicleDocExpiryAutoFill(vehicleForm);
-    vehicleForm.addEventListener("submit", (event) => {
+    vehicleForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
       const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -13037,7 +13159,12 @@ function bindDynamicEvents() {
         available: true,
         createdAt: nowIso()
       });
-      write(KEYS.vehicles, list);
+      try {
+        await writeAwaitServer(KEYS.vehicles, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el vehículo en el servidor."), "error");
+        return;
+      }
       notify(userMessage("vehicleRegistered"), "success");
       renderPortalView();
     });
@@ -13049,7 +13176,7 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
-    driverForm.addEventListener("submit", (event) => {
+    driverForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
@@ -13068,7 +13195,7 @@ function bindDynamicEvents() {
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
-        queueApproval({
+        await queueApproval({
           type: "create_driver",
           title: `Creacion de conductor ${data.name}`,
           payload: data,
@@ -13081,7 +13208,12 @@ function bindDynamicEvents() {
       }
       const list = read(KEYS.drivers, []);
       list.push({ id: newUuidV4(), ...data, available: true, hiredAt: nowIso() });
-      write(KEYS.drivers, list);
+      try {
+        await writeAwaitServer(KEYS.drivers, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
+        return;
+      }
       const employees = read(KEYS.payrollEmployees, []);
       const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(data.idDoc || ""));
       if (!existsEmployee) {
@@ -13102,7 +13234,11 @@ function bindDynamicEvents() {
           baseSalary: parseNum(data.baseSalary),
           startDate: data.startDate || nowIso().slice(0, 10)
         });
-        write(KEYS.payrollEmployees, employees);
+        try {
+          await writeAwaitServer(KEYS.payrollEmployees, employees);
+        } catch (err) {
+          notify(String(err?.message || "Conductor guardado; no fue posible crear el vínculo de empleado en el servidor."), "error");
+        }
       }
       notify(userMessage("driverCreated"), "success");
       renderPortalView();
@@ -13110,11 +13246,11 @@ function bindDynamicEvents() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-vehicle']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const all = read(KEYS.vehicles, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
-      setVehicleAvailability(target.id, !target.available);
+      await setVehicleAvailability(target.id, !target.available);
       renderPortalView();
     });
   });
@@ -13174,7 +13310,7 @@ function bindDynamicEvents() {
           { name: "ownerTaxId", label: "NIT/Cédula propietario", value: target.ownerTaxId || "" }
         ],
         afterMount: (formEl) => bindVehicleDocExpiryAutoFill(formEl),
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           let soatExpiryDate = form.soatExpiryDate || "";
           if (form.soatExpeditionDate && (!soatExpiryDate || !String(soatExpiryDate).trim())) {
             soatExpiryDate = addCalendarYearsIsoDate(form.soatExpeditionDate, 1) || soatExpiryDate;
@@ -13187,9 +13323,7 @@ function bindDynamicEvents() {
             techInspectionExpiryDate =
               addCalendarYearsIsoDate(form.techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
           }
-          write(
-            KEYS.vehicles,
-            all.map((v) =>
+          const nextVehicles = all.map((v) =>
               v.id === target.id
                 ? {
                     ...v,
@@ -13219,8 +13353,13 @@ function bindDynamicEvents() {
                     ownerTaxId: String(form.ownerTaxId || "").trim()
                   }
                 : v
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.vehicles, nextVehicles);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el vehículo en el servidor."), "error");
+            return false;
+          }
           notify(userMessage("vehicleUpdated"), "success");
           renderPortalView();
           return true;
@@ -13230,11 +13369,11 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-driver']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const all = read(KEYS.drivers, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
-      setDriverAvailability(target.id, !target.available);
+      await setDriverAvailability(target.id, !target.available);
       renderPortalView();
     });
   });
@@ -13281,15 +13420,13 @@ function bindDynamicEvents() {
           { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
           { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const expiryValue = String(form.licenseExpiry || "").trim();
           if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
             notify(userMessage("driverLicenseFutureEdit"), "error");
             return false;
           }
-          write(
-            KEYS.drivers,
-            all.map((d) =>
+          const nextDrivers = all.map((d) =>
               d.id === target.id
                 ? {
                     ...d,
@@ -13311,8 +13448,13 @@ function bindDynamicEvents() {
                     experienceYears: parseNum(form.experienceYears)
                   }
                 : d
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.drivers, nextDrivers);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
+            return false;
+          }
           notify(userMessage("driverUpdated"), "success");
           renderPortalView();
           return true;
@@ -13415,7 +13557,7 @@ function bindDynamicEvents() {
 
   const fuelLogForm = document.getElementById("form-fuel-log");
   if (fuelLogForm) {
-    fuelLogForm.addEventListener("submit", (event) => {
+    fuelLogForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(fuelLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
@@ -13447,7 +13589,12 @@ function bindDynamicEvents() {
         paidBy: String(data.paidBy || "empresa"),
         createdAt: nowIso()
       });
-      write(KEYS.fuelLogs, list);
+      try {
+        await writeAwaitServer(KEYS.fuelLogs, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el combustible en el servidor."), "error");
+        return;
+      }
       notify(userMessage("fuelLogged"), "success");
       renderPortalView();
     });
@@ -13455,7 +13602,7 @@ function bindDynamicEvents() {
 
   const technicalLogForm = document.getElementById("form-technical-log");
   if (technicalLogForm) {
-    technicalLogForm.addEventListener("submit", (event) => {
+    technicalLogForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(technicalLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
@@ -13476,7 +13623,12 @@ function bindDynamicEvents() {
         status: String(data.status || "Pendiente"),
         createdAt: nowIso()
       });
-      write(KEYS.vehicleTechnicalLogs, list);
+      try {
+        await writeAwaitServer(KEYS.vehicleTechnicalLogs, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el mantenimiento en el servidor."), "error");
+        return;
+      }
       notify(userMessage("technicalLogged"), "success");
       renderPortalView();
     });
@@ -13596,7 +13748,7 @@ function bindDynamicEvents() {
         }
         const payload = packed.payload;
         if (actor?.role !== ROLES.ADMIN) {
-          queueApproval({
+          await queueApproval({
             type: "create_employee",
             title: `Creacion de empleado ${payload.name}`,
             payload,
@@ -13619,8 +13771,13 @@ function bindDynamicEvents() {
         }
         const all = read(KEYS.payrollEmployees, []);
         all.push({ id: newUuidV4(), ...payload });
-        write(KEYS.payrollEmployees, all);
-        syncDriverFromEmployee(payload, {
+        try {
+          await writeAwaitServer(KEYS.payrollEmployees, all);
+        } catch (err) {
+          notify(String(err?.message || "No fue posible guardar el empleado en el servidor."), "error");
+          return;
+        }
+        await syncDriverFromEmployee(payload, {
           license: payload.license,
           licenseCategory: payload.licenseCategory,
           licenseExpiry: payload.licenseExpiry
@@ -13637,7 +13794,7 @@ function bindDynamicEvents() {
 
   const absenceForm = document.getElementById("form-hr-absence");
   if (absenceForm) {
-    absenceForm.addEventListener("submit", (event) => {
+    absenceForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(absenceForm).entries());
@@ -13668,7 +13825,7 @@ function bindDynamicEvents() {
         createdAt: nowIso()
       };
       if (requiresAdminHrApproval(actor?.role || "")) {
-        queueApproval({
+        await queueApproval({
           type: "register_hr_absence",
           title: `Registro de ausencia de ${employee.name}`,
           payload: absencePayload,
@@ -13680,7 +13837,12 @@ function bindDynamicEvents() {
         return;
       }
       list.unshift(absencePayload);
-      write(KEYS.hrAbsences, list);
+      try {
+        await writeAwaitServer(KEYS.hrAbsences, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible registrar la ausencia en el servidor."), "error");
+        return;
+      }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       state.createPanels = { ...(state.createPanels || {}), "create-hr-absence": false };
@@ -13787,9 +13949,7 @@ function bindDynamicEvents() {
               return false;
             }
           }
-          write(
-            KEYS.payrollEmployees,
-            all.map((empRow) =>
+          const nextEmployees = all.map((empRow) =>
               String(empRow.id) !== String(target.id)
                 ? empRow
                 : {
@@ -13801,10 +13961,15 @@ function bindDynamicEvents() {
                         ? nextAvatar.trim()
                         : empRow.avatarUrl || nextPayload.avatarUrl
                   }
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.payrollEmployees, nextEmployees);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el empleado en el servidor."), "error");
+            return false;
+          }
           const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
-          if (refreshed && refreshed.workerRole === "conductor") syncDriverFromEmployee(refreshed);
+          if (refreshed && refreshed.workerRole === "conductor") await syncDriverFromEmployee(refreshed);
           notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
           return true;
@@ -13828,7 +13993,7 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el empleado en el servidor."), "error");
             return;
           }
-          const removed = deleteEmployeesCascade([empId]);
+          const removed = await deleteEmployeesCascade([empId]);
           notify(
             removed ? userMessage("employeeDeletedCascade") : userMessage("employeeDeleteNotFound"),
             removed ? "success" : "error"
@@ -13877,7 +14042,7 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar un empleado en el servidor."), "error");
             return;
           }
-          const removed = deleteEmployeesCascade(selectedIds);
+          const removed = await deleteEmployeesCascade(selectedIds);
           notify(userMessage("employeesBulkRemoved", removed), "success");
           renderPortalView();
         }
@@ -13887,7 +14052,7 @@ function bindDynamicEvents() {
 
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
-    payrollForm.addEventListener("submit", (event) => {
+    payrollForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(payrollForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
@@ -13947,7 +14112,12 @@ function bindDynamicEvents() {
       };
       const runs = read(KEYS.payrollRuns, []);
       runs.unshift(run);
-      write(KEYS.payrollRuns, runs);
+      try {
+        await writeAwaitServer(KEYS.payrollRuns, runs);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la nómina en el servidor."), "error");
+        return;
+      }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       state.createPanels = { ...(state.createPanels || {}), "create-payroll": false };
@@ -14001,14 +14171,14 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='mark-payroll-paid']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const actor = currentUser();
       const id = String(btn.dataset.id || "");
       const all = read(KEYS.payrollRuns, []);
       const run = all.find((r) => r.id === id);
       if (!run || run.paid) return;
       if (requiresAdminHrApproval(actor?.role || "")) {
-        queueApproval({
+        await queueApproval({
           type: "mark_payroll_paid",
           title: `Aprobar pago de nomina ${run.employeeName} (${run.month})`,
           payload: { payrollRunId: run.id, employeeName: run.employeeName, month: run.month },
@@ -14023,11 +14193,16 @@ function bindDynamicEvents() {
         title: "Confirmar pago de nomina",
         message: `Marcar como pagada la liquidacion de ${run.employeeName} (${run.month}) por ${parseNum(run.net).toLocaleString("es-CO")} COP neto.`,
         confirmText: "Marcar pagado",
-        onConfirm: () => {
-          write(
-            KEYS.payrollRuns,
-            all.map((item) => (item.id === id ? { ...item, paid: true, paidAt: nowIso() } : item))
-          );
+        onConfirm: async () => {
+          try {
+            await writeAwaitServer(
+              KEYS.payrollRuns,
+              all.map((item) => (item.id === id ? { ...item, paid: true, paidAt: nowIso() } : item))
+            );
+          } catch (err) {
+            notify(String(err?.message || "No fue posible marcar el pago en el servidor."), "error");
+            return;
+          }
           notify(userMessage("payrollPaidMarked"), "success");
           renderPortalView();
         }
@@ -14071,11 +14246,15 @@ function bindDynamicEvents() {
         title: "Eliminar ausencia",
         message: "Se eliminara este registro de ausencia del expediente digital.",
         confirmText: "Eliminar",
-        onConfirm: () => {
-          write(
-            KEYS.hrAbsences,
-            read(KEYS.hrAbsences, []).filter((a) => String(a.id) !== id)
-          );
+        onConfirm: async () => {
+          try {
+            await writeAwaitServer(
+              KEYS.hrAbsences,
+              read(KEYS.hrAbsences, []).filter((a) => String(a.id) !== id)
+            );
+          } catch (_e) {
+            return;
+          }
           notify(userMessage("hrAbsenceDeleted"), "success");
           renderPortalView();
         }
@@ -14098,11 +14277,15 @@ function bindDynamicEvents() {
           ? `Eliminar el registro de liquidacion (${run.month} · ${run.employeeName}). Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
           : "Eliminar este registro de liquidacion.",
         confirmText: "Eliminar liquidacion",
-        onConfirm: () => {
-          write(
-            KEYS.payrollRuns,
-            read(KEYS.payrollRuns, []).filter((r) => String(r.id) !== id)
-          );
+        onConfirm: async () => {
+          try {
+            await writeAwaitServer(
+              KEYS.payrollRuns,
+              read(KEYS.payrollRuns, []).filter((r) => String(r.id) !== id)
+            );
+          } catch (_e) {
+            return;
+          }
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
         }
@@ -14145,7 +14328,7 @@ function bindDynamicEvents() {
       syncTitleFromPosition();
     }
 
-    vacancyForm.addEventListener("submit", (event) => {
+    vacancyForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
       const deadlineOk = (() => {
@@ -14184,7 +14367,12 @@ function bindDynamicEvents() {
         status: "Publicada",
         createdAt: nowIso()
       });
-      write(KEYS.vacancies, all);
+      try {
+        await writeAwaitServer(KEYS.vacancies, all);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
+        return;
+      }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.vacancyFilter = "open";
       state.hiringUi.workspace = "track";
@@ -14197,7 +14385,7 @@ function bindDynamicEvents() {
 
   const positionForm = document.getElementById("form-position");
   if (positionForm) {
-    positionForm.addEventListener("submit", (event) => {
+    positionForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(positionForm).entries());
       const minSalary = CO_HR_RULES.minMonthlySalary;
@@ -14216,7 +14404,12 @@ function bindDynamicEvents() {
         active: true,
         createdAt: nowIso()
       });
-      write(KEYS.positions, all);
+      try {
+        await writeAwaitServer(KEYS.positions, all);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el cargo en el servidor."), "error");
+        return;
+      }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -14227,23 +14420,32 @@ function bindDynamicEvents() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-position']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const all = read(KEYS.positions, []);
       const target = all.find((p) => p.id === btn.dataset.id);
       if (!target) return;
-      write(KEYS.positions, all.map((p) => (p.id === target.id ? { ...p, active: target.active === false } : p)));
+      const nextPositions = all.map((p) => (p.id === target.id ? { ...p, active: target.active === false } : p));
+      try {
+        await writeAwaitServer(KEYS.positions, nextPositions);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible actualizar el cargo en el servidor."), "error");
+        return;
+      }
       notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-vacancy']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const all = read(KEYS.vacancies, []);
-      write(
-        KEYS.vacancies,
-        all.map((v) => (v.id === btn.dataset.id ? { ...v, status: "Cerrada" } : v))
-      );
+      const nextVacancies = all.map((v) => (v.id === btn.dataset.id ? { ...v, status: "Cerrada" } : v));
+      try {
+        await writeAwaitServer(KEYS.vacancies, nextVacancies);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible cerrar la vacante en el servidor."), "error");
+        return;
+      }
       notify(userMessage("vacancyClosed"), "success");
       renderPortalView();
     });
@@ -14288,11 +14490,15 @@ function bindDynamicEvents() {
         message:
           "Se eliminara la vacante del listado. Esta accion no borra candidatos ya postulados en el pipeline, pero puede dejar registros con referencia huérfana.",
         confirmText: "Eliminar vacante",
-        onConfirm: () => {
-          write(
-            KEYS.vacancies,
-            read(KEYS.vacancies, []).filter((v) => String(v.id) !== id)
-          );
+        onConfirm: async () => {
+          try {
+            await writeAwaitServer(
+              KEYS.vacancies,
+              read(KEYS.vacancies, []).filter((v) => String(v.id) !== id)
+            );
+          } catch (_e) {
+            return;
+          }
           notify(userMessage("vacancyDeletedOk"), "success");
           renderPortalView();
         }
@@ -14347,7 +14553,7 @@ function bindDynamicEvents() {
       citySelector: "select[name='city']"
     });
     bindHrFormWizard(candidateForm);
-    candidateForm.addEventListener("submit", (event) => {
+    candidateForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(candidateForm).entries());
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
@@ -14396,8 +14602,16 @@ function bindDynamicEvents() {
         source: "Portal RRHH",
         createdAt: nowIso()
       });
-      write(KEYS.candidates, all);
+      try {
+        await writeAwaitServer(KEYS.candidates, all);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el candidato en el servidor."), "error");
+        return;
+      }
       sendEmail({ to: data.email, subject: "Registro recibido", body: "Gracias por aplicar." });
+      try {
+        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+      } catch (_e) {}
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "track";
@@ -14409,7 +14623,7 @@ function bindDynamicEvents() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='candidate-status']").forEach((select) => {
-    select.addEventListener("change", () => {
+    select.addEventListener("change", async () => {
       const all = read(KEYS.candidates, []);
       const currentCandidate = all.find((c) => c.id === select.dataset.id);
       if (!currentCandidate) return;
@@ -14420,7 +14634,13 @@ function bindDynamicEvents() {
         return;
       }
       const updated = all.map((c) => (c.id === select.dataset.id ? { ...c, status: select.value } : c));
-      write(KEYS.candidates, updated);
+      try {
+        await writeAwaitServer(KEYS.candidates, updated);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible actualizar el candidato en el servidor."), "error");
+        renderPortalView();
+        return;
+      }
       const current = updated.find((c) => c.id === select.dataset.id);
       if (current) {
         sendEmail({
@@ -14428,6 +14648,9 @@ function bindDynamicEvents() {
           subject: "Actualizacion de proceso",
           body: `Tu estado cambio a: ${current.status}`
         });
+        try {
+          await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+        } catch (_e) {}
       }
       notify(userMessage("candidateUpdated"), "success");
       renderPortalView();
@@ -14436,7 +14659,7 @@ function bindDynamicEvents() {
 
   const interviewForm = document.getElementById("form-interview");
   if (interviewForm) {
-    interviewForm.addEventListener("submit", (event) => {
+    interviewForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(interviewForm).entries());
       const interviewTs = new Date(String(data.when || "")).getTime();
@@ -14464,17 +14687,29 @@ function bindDynamicEvents() {
         locationOrLink: data.place || "",
         notes: data.notes || ""
       });
-      write(KEYS.interviews, all);
+      try {
+        await writeAwaitServer(KEYS.interviews, all);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la entrevista en el servidor."), "error");
+        return;
+      }
       const candidateList = read(KEYS.candidates, []);
-      write(
-        KEYS.candidates,
-        candidateList.map((item) =>
-          item.id === candidate.id && ["Recibido", "Preseleccionado"].includes(String(item.status || ""))
-            ? { ...item, status: "Entrevistado" }
-            : item
-        )
+      const nextCandidates = candidateList.map((item) =>
+        item.id === candidate.id && ["Recibido", "Preseleccionado"].includes(String(item.status || ""))
+          ? { ...item, status: "Entrevistado" }
+          : item
       );
+      try {
+        await writeAwaitServer(KEYS.candidates, nextCandidates);
+      } catch (err) {
+        notify(String(err?.message || "Entrevista guardada; no fue posible actualizar el estado del candidato en el servidor."), "error");
+        renderPortalView();
+        return;
+      }
       sendEmail({ to: candidate.email, subject: "Entrevista programada", body: `Fecha: ${data.when}` });
+      try {
+        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+      } catch (_e) {}
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -14608,11 +14843,16 @@ function bindDynamicEvents() {
           });
           notify(userMessage("contractWordSaved"), "success");
         }
-        write(KEYS.contracts, dedupContracts(all));
-        state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
-        state.hiringUi.workspace = "track";
-        persistHrWorkspace("hiring", "track");
-        state.createPanels = { ...(state.createPanels || {}), "create-contract": false };
+        const deduped = dedupContracts(all);
+        try {
+          await writeAwaitServer(KEYS.contracts, deduped);
+          state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+          state.hiringUi.workspace = "track";
+          persistHrWorkspace("hiring", "track");
+          state.createPanels = { ...(state.createPanels || {}), "create-contract": false };
+        } catch (persistErr) {
+          notify(String(persistErr?.message || "No fue posible guardar el contrato en el servidor."), "error");
+        }
       } catch (wordErr) {
         notify(userMessage("contractWordError", String(wordErr?.message || "error")), "error");
       } finally {
@@ -14624,7 +14864,7 @@ function bindDynamicEvents() {
 
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
-    sstComplianceForm.addEventListener("submit", (event) => {
+    sstComplianceForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(sstComplianceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
@@ -14651,7 +14891,12 @@ function bindDynamicEvents() {
         createdAt: nowIso(),
         createdBy: currentUser()?.name || "Sistema"
       });
-      write(KEYS.sstCompliance, list);
+      try {
+        await writeAwaitServer(KEYS.sstCompliance, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el registro SST en el servidor."), "error");
+        return;
+      }
       notify(userMessage("sstRecorded"), "success");
       renderPortalView();
     });
@@ -14667,62 +14912,83 @@ function bindDynamicEvents() {
         if (!f || !String(f.type || "").startsWith("image/")) return;
         const reader = new FileReader();
         reader.onload = () => {
-          const url = String(reader.result || "");
-          profileAvatarLabel.style.backgroundImage = url ? `url(${JSON.stringify(url)})` : "";
-          profileAvatarLabel.classList.toggle("has-image", Boolean(url));
+          const url = String(reader.result || "").trim();
+          const cssSafe = employeeAvatarCssUrl(url);
+          profileAvatarLabel.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+          profileAvatarLabel.classList.toggle("has-image", Boolean(cssSafe));
           const initial = profileAvatarLabel.querySelector(".profile-avatar-initial");
           if (initial) initial.textContent = "";
         };
         reader.readAsDataURL(f);
       });
     }
-    profileForm.addEventListener("submit", (event) => {
+    profileForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
       if (!actor) return;
       const data = Object.fromEntries(new FormData(profileForm).entries());
       const fileInput = profileForm.querySelector("input[name='avatarFile']");
       const file = fileInput?.files?.[0];
-      const applyProfile = (avatarUrlValue = "") => {
+      const persistProfile = async (avatarUrlValue = "") => {
         const users = read(KEYS.users, []);
         const company = getCompanyById(String(data.companyId || ""));
-        write(
-          KEYS.users,
-          users.map((u) =>
-            u.id === actor.id
-              ? {
-                  ...u,
-                  name: String(data.name || u.name).trim(),
-                  phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
-                  taxId: String(data.taxId || "").trim(),
-                  documentType: String(data.documentType || u.documentType || "CC"),
-                  birthDate: String(data.birthDate || "").trim(),
-                  emergencyContact: String(data.emergencyContact || "").trim(),
-                  emergencyPhone: String(data.emergencyPhone || "").trim(),
-                  emergencyRelation: String(data.emergencyRelation || "").trim(),
-                  emergencyRelationship: String(data.emergencyRelation || "").trim(),
-                  // La fecha de ingreso al sistema es solo lectura: se deriva
-                  // siempre de la fecha de creación del usuario en el registro
-                  // (createdAt). Si no existiera todavía en cache, respaldamos
-                  // con valores previos. Nunca se sobreescribe desde Mi perfil.
-                  systemJoinDate: profileSystemJoinDateValue(u),
-                  portalSince: profileSystemJoinDateValue(u),
-                  companyId: company?.id || u.companyId,
-                  company: company?.name || u.company,
-                  avatarUrl: avatarUrlValue || u.avatarUrl || ""
-                }
-              : u
-          )
+        const nextUsers = users.map((u) =>
+          u.id === actor.id
+            ? {
+                ...u,
+                name: String(data.name || u.name).trim(),
+                phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
+                taxId: String(data.taxId || "").trim(),
+                documentType: String(data.documentType || u.documentType || "CC"),
+                birthDate: String(data.birthDate || "").trim(),
+                emergencyContact: String(data.emergencyContact || "").trim(),
+                emergencyPhone: String(data.emergencyPhone || "").trim(),
+                emergencyRelation: String(data.emergencyRelation || "").trim(),
+                emergencyRelationship: String(data.emergencyRelation || "").trim(),
+                // La fecha de ingreso al sistema es solo lectura: se deriva
+                // siempre de la fecha de creación del usuario en el registro
+                // (createdAt). Si no existiera todavía en cache, respaldamos
+                // con valores previos. Nunca se sobreescribe desde Mi perfil.
+                systemJoinDate: profileSystemJoinDateValue(u),
+                portalSince: profileSystemJoinDateValue(u),
+                companyId: company?.id || u.companyId,
+                company: company?.name || u.company,
+                avatarUrl: avatarUrlValue || u.avatarUrl || ""
+              }
+            : u
         );
+        try {
+          await writeAwaitServer(KEYS.users, nextUsers);
+        } catch (err) {
+          notify(String(err?.message || "No fue posible guardar el perfil en el servidor."), "error");
+          return;
+        }
         notify(userMessage("profileUpdatedOk"), "success");
         renderPortal();
       };
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = () => applyProfile(String(reader.result || ""));
-        reader.readAsDataURL(file);
-      } else {
-        applyProfile("");
+      try {
+        if (file) {
+          let nextAvatar = "";
+          try {
+            nextAvatar = await resolveEmployeeAvatarUrl(file, String(actor.avatarUrl || "").trim());
+          } catch (presignErr) {
+            devWarn?.("profile-avatar-resolve", presignErr);
+            notify(String(presignErr?.message || "No fue posible subir la foto. Intente de nuevo."), "error");
+            return;
+          }
+          const trimmed = String(nextAvatar || "").trim();
+          if (!trimmed) {
+            notify("No se obtuvo una imagen válida para el perfil.", "error");
+            return;
+          }
+          await persistProfile(trimmed);
+        } else {
+          await persistProfile("");
+        }
+      } catch (err) {
+        if (err && String(err.message || err).trim()) {
+          notify(String(err.message || err), "error");
+        }
       }
     });
   }
@@ -14767,7 +15033,12 @@ function bindDynamicEvents() {
                 ? [...ALL_PERMISSIONS]
                 : (p.permissions || defaultPermissionsForRole(p.role))
           });
-          write(KEYS.users, users);
+          try {
+            await writeAwaitServer(KEYS.users, users);
+          } catch (err) {
+            notify(String(err?.message || userMessage("genericError")), "error");
+            return;
+          }
         }
       } else if (approval.type === "create_employee") {
         const employees = read(KEYS.payrollEmployees, []);
@@ -14779,11 +15050,21 @@ function bindDynamicEvents() {
           payload.contractType = payload.contractType || pos.contractTypeDefault || "Termino indefinido";
         }
         employees.push({ id: newUuidV4(), workerRole: payload.workerRole || "empleado", ...payload });
-        write(KEYS.payrollEmployees, employees);
+        try {
+          await writeAwaitServer(KEYS.payrollEmployees, employees);
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+          return;
+        }
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
         drivers.push({ id: newUuidV4(), ...approval.payload, available: true, hiredAt: nowIso() });
-        write(KEYS.drivers, drivers);
+        try {
+          await writeAwaitServer(KEYS.drivers, drivers);
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+          return;
+        }
         const employees = read(KEYS.payrollEmployees, []);
         const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(approval.payload.idDoc || ""));
         if (!existsEmployee) {
@@ -14804,7 +15085,12 @@ function bindDynamicEvents() {
             baseSalary: parseNum(approval.payload.baseSalary),
             startDate: approval.payload.startDate || nowIso().slice(0, 10)
           });
-          write(KEYS.payrollEmployees, employees);
+          try {
+            await writeAwaitServer(KEYS.payrollEmployees, employees);
+          } catch (err) {
+            notify(String(err?.message || userMessage("genericError")), "error");
+            return;
+          }
         }
       } else if (approval.type === "register_hr_absence") {
         const absences = read(KEYS.hrAbsences, []);
@@ -14814,7 +15100,12 @@ function bindDynamicEvents() {
           approvedBy: actor.name,
           approvedAt: nowIso()
         });
-        write(KEYS.hrAbsences, absences);
+        try {
+          await writeAwaitServer(KEYS.hrAbsences, absences);
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+          return;
+        }
       } else if (approval.type === "mark_payroll_paid") {
         const payrollRunId = String(approval.payload?.payrollRunId || "");
         if (!payrollRunId) {
@@ -14827,10 +15118,15 @@ function bindDynamicEvents() {
           notify(userMessage("settlementNotFound"), "error");
           return;
         }
-        write(
-          KEYS.payrollRuns,
-          runs.map((r) => (r.id === payrollRunId ? { ...r, paid: true, paidAt: nowIso(), paidApprovedBy: actor.name } : r))
-        );
+        try {
+          await writeAwaitServer(
+            KEYS.payrollRuns,
+            runs.map((r) => (r.id === payrollRunId ? { ...r, paid: true, paidAt: nowIso(), paidApprovedBy: actor.name } : r))
+          );
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+          return;
+        }
       } else if (approval.type === "approve_trip_request") {
         const requestId = String(approval.payload.requestId || "");
         const request = reqRead().find((item) => item.id === requestId);
@@ -14878,7 +15174,7 @@ function bindDynamicEvents() {
             },
             ...tripRateUi.fields
           ],
-          onSubmit: (form) => {
+          onSubmit: async (form) => {
             const vehicleId = String(form.vehicleId || "").trim();
             const driverId = String(form.driverId || "").trim();
             const tripValue = parseNum(form.tripValue);
@@ -14906,12 +15202,17 @@ function bindDynamicEvents() {
             }
 
             const latestApprovals = read(KEYS.approvals, []);
-            write(
-              KEYS.approvals,
-              latestApprovals.map((a) =>
-                a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
-              )
-            );
+            try {
+              await writeAwaitServer(
+                KEYS.approvals,
+                latestApprovals.map((a) =>
+                  a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
+                )
+              );
+            } catch (err) {
+              notify(String(err?.message || "No fue posible guardar la autorización en el servidor."), "error");
+              return false;
+            }
 
             suppressSelfInboxPollToastIfRecipientIsCurrentUser(request?.clientUserId);
             notify(
@@ -14919,17 +15220,23 @@ function bindDynamicEvents() {
               "success"
             );
             renderPortalView();
+            return true;
           }
         });
         return;
       }
 
-      write(
-        KEYS.approvals,
-        approvals.map((a) =>
-          a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
-        )
-      );
+      try {
+        await writeAwaitServer(
+          KEYS.approvals,
+          approvals.map((a) =>
+            a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
+          )
+        );
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la autorización en el servidor."), "error");
+        return;
+      }
       notify(userMessage("authApprovalOk"), "success");
       renderPortalView();
     });
@@ -14943,19 +15250,24 @@ function bindDynamicEvents() {
         subtitle: "Motivo obligatorio",
         submitText: "Rechazar",
         fields: [{ name: "reason", label: "Motivo", value: "", required: true }],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           const actor = currentUser();
           const approvals = read(KEYS.approvals, []);
-          write(
-            KEYS.approvals,
-            approvals.map((a) =>
-              a.id === id
-                ? { ...a, status: "rechazado", reviewedAt: nowIso(), reviewedBy: actor?.name || "Admin", rejectionReason: reason }
-                : a
-            )
-          );
+          try {
+            await writeAwaitServer(
+              KEYS.approvals,
+              approvals.map((a) =>
+                a.id === id
+                  ? { ...a, status: "rechazado", reviewedAt: nowIso(), reviewedBy: actor?.name || "Admin", rejectionReason: reason }
+                  : a
+              )
+            );
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el rechazo en el servidor."), "error");
+            return false;
+          }
           notify(userMessage("authRejectOk"), "success");
           renderPortalView();
           return true;
@@ -15815,15 +16127,13 @@ function bindExtendedViewEditHandlers() {
           },
           { name: "legalBasis", label: "Base legal", value: target.legalBasis || "CST art. 45-46 y normatividad laboral vigente" }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const baseSalary = parseNum(form.baseSalary);
           if (baseSalary < CO_HR_RULES.minMonthlySalary) {
             notify(userMessage("positionSalaryBaseMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
             return false;
           }
-          write(
-            KEYS.positions,
-            all.map((p) =>
+          const nextPos = all.map((p) =>
               String(p.id) !== String(target.id)
                 ? p
                 : {
@@ -15837,8 +16147,13 @@ function bindExtendedViewEditHandlers() {
                     integralSalary: String(form.integralSalary || "false") === "true",
                     legalBasis: String(form.legalBasis || "").trim()
                   }
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.positions, nextPos);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el cargo en el servidor."), "error");
+            return false;
+          }
           notify("Cargo actualizado.", "success");
           renderPortalView();
           return true;
@@ -15862,8 +16177,12 @@ function bindExtendedViewEditHandlers() {
         title: "Eliminar cargo",
         message: `Se eliminará permanentemente el cargo "${String(target.name || "")}" del catálogo. Esta acción no afecta empleados o contratos ya guardados.`,
         confirmText: "Eliminar cargo",
-        onConfirm: () => {
-          write(KEYS.positions, read(KEYS.positions, []).filter((p) => String(p.id) !== id));
+        onConfirm: async () => {
+          try {
+            await writeAwaitServer(KEYS.positions, read(KEYS.positions, []).filter((p) => String(p.id) !== id));
+          } catch (_e) {
+            return;
+          }
           notify("Cargo eliminado.", "success");
           renderPortalView();
         }
@@ -15959,7 +16278,7 @@ function bindExtendedViewEditHandlers() {
           { name: "status", label: "Estado pipeline", type: "select", value: target.status || PIPELINE[0], options: statusOpts },
           { name: "source", label: "Origen", value: target.source || "Portal RRHH" }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const docValidation = validateColombianDocument(form.documentType, form.idDoc);
           if (!docValidation.ok) {
             notify(docValidation.message, "error");
@@ -15978,9 +16297,7 @@ function bindExtendedViewEditHandlers() {
             notify(userMessage("hireSelectVacancy"), "error");
             return false;
           }
-          write(
-            KEYS.candidates,
-            all.map((c) =>
+          const nextCandidates = all.map((c) =>
               String(c.id) !== String(target.id)
                 ? c
                 : {
@@ -16001,8 +16318,13 @@ function bindExtendedViewEditHandlers() {
                     status: String(form.status || c.status || PIPELINE[0]),
                     source: String(form.source || "Portal RRHH")
                   }
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.candidates, nextCandidates);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el candidato en el servidor."), "error");
+            return false;
+          }
           notify("Candidato actualizado.", "success");
           renderPortalView();
           return true;
@@ -16022,10 +16344,20 @@ function bindExtendedViewEditHandlers() {
         title: "Eliminar candidato",
         message: `Se eliminará al candidato "${String(target.name || "")}" del pipeline${linkedInterviews ? ` y sus ${linkedInterviews} entrevista(s) asociada(s)` : ""}.`,
         confirmText: "Eliminar candidato",
-        onConfirm: () => {
-          write(KEYS.candidates, read(KEYS.candidates, []).filter((c) => String(c.id) !== id));
-          if (linkedInterviews > 0) {
-            write(KEYS.interviews, read(KEYS.interviews, []).filter((i) => String(i.candidateId || "") !== id));
+        onConfirm: async () => {
+          try {
+            await writeAwaitServer(
+              KEYS.candidates,
+              read(KEYS.candidates, []).filter((c) => String(c.id) !== id)
+            );
+            if (linkedInterviews > 0) {
+              await writeAwaitServer(
+                KEYS.interviews,
+                read(KEYS.interviews, []).filter((i) => String(i.candidateId || "") !== id)
+              );
+            }
+          } catch (_e) {
+            return;
           }
           notify("Candidato eliminado.", "success");
           renderPortalView();
@@ -16098,15 +16430,13 @@ function bindExtendedViewEditHandlers() {
           { name: "locationOrLink", label: "Lugar o enlace", value: target.locationOrLink || "" },
           { name: "notes", label: "Notas", type: "textarea", value: target.notes || "", rows: 3 }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const ts = new Date(String(form.when || "")).getTime();
           if (!Number.isFinite(ts)) {
             notify("Fecha y hora inválidas.", "error");
             return false;
           }
-          write(
-            KEYS.interviews,
-            all.map((i) =>
+          const nextInterviews = all.map((i) =>
               String(i.id) !== String(target.id)
                 ? i
                 : {
@@ -16117,8 +16447,13 @@ function bindExtendedViewEditHandlers() {
                     locationOrLink: String(form.locationOrLink || "").trim(),
                     notes: String(form.notes || "").trim()
                   }
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.interviews, nextInterviews);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar la entrevista en el servidor."), "error");
+            return false;
+          }
           notify("Entrevista actualizada.", "success");
           renderPortalView();
           return true;
@@ -16137,8 +16472,8 @@ function bindExtendedViewEditHandlers() {
         title: "Eliminar entrevista",
         message: `Se eliminará la entrevista de "${String(target.candidateName || "")}".`,
         confirmText: "Eliminar entrevista",
-        onConfirm: () => {
-          write(KEYS.interviews, read(KEYS.interviews, []).filter((i) => String(i.id) !== id));
+        onConfirm: async () => {
+          await writeAwaitServer(KEYS.interviews, read(KEYS.interviews, []).filter((i) => String(i.id) !== id));
           notify("Entrevista eliminada.", "success");
           renderPortalView();
         }
@@ -16203,8 +16538,8 @@ function bindExtendedViewEditHandlers() {
         title: "Eliminar contrato",
         message: `Se eliminará el registro del contrato de "${String(target.candidateName || target.employeeName || "")}". El archivo Word ya descargado no se borrará automáticamente.`,
         confirmText: "Eliminar contrato",
-        onConfirm: () => {
-          write(KEYS.contracts, read(KEYS.contracts, []).filter((c) => String(c.id) !== id));
+        onConfirm: async () => {
+          await writeAwaitServer(KEYS.contracts, read(KEYS.contracts, []).filter((c) => String(c.id) !== id));
           notify("Contrato eliminado.", "success");
           renderPortalView();
         }
@@ -16294,14 +16629,12 @@ function bindExtendedViewEditHandlers() {
           { name: "documentCode", label: "Código documental", value: target.documentCode || "" },
           { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           if (!form.dueDate) {
             notify(userMessage("sstDueDateRequired"), "error");
             return false;
           }
-          write(
-            KEYS.sstCompliance,
-            all.map((r) =>
+          const nextList = all.map((r) =>
               String(r.id) !== String(target.id)
                 ? r
                 : {
@@ -16313,8 +16646,13 @@ function bindExtendedViewEditHandlers() {
                     documentCode: String(form.documentCode || "").trim().toUpperCase(),
                     notes: String(form.notes || "").trim()
                   }
-            )
-          );
+            );
+          try {
+            await writeAwaitServer(KEYS.sstCompliance, nextList);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el control SST en el servidor."), "error");
+            return false;
+          }
           notify("Control SST actualizado.", "success");
           renderPortalView();
           return true;
@@ -16333,8 +16671,8 @@ function bindExtendedViewEditHandlers() {
         title: "Eliminar control SST",
         message: `Se eliminará el control "${String(target.recordType || "")}" del expediente.`,
         confirmText: "Eliminar control",
-        onConfirm: () => {
-          write(KEYS.sstCompliance, read(KEYS.sstCompliance, []).filter((r) => String(r.id) !== id));
+        onConfirm: async () => {
+          await writeAwaitServer(KEYS.sstCompliance, read(KEYS.sstCompliance, []).filter((r) => String(r.id) !== id));
           notify("Control SST eliminado.", "success");
           renderPortalView();
         }
@@ -16552,16 +16890,27 @@ function openPublicVacancyApplyModal(vacancy) {
         source: "Sitio web",
         createdAt: nowIso()
       });
-      write(KEYS.candidates, all);
+      try {
+        await writeAwaitServer(KEYS.candidates, all);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible registrar la postulación en el servidor."), "error");
+        return false;
+      }
       sendEmail({
         to: normalizeEmail(form.email),
         subject: "Postulacion recibida - Antares",
         body: `Hola ${form.name}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
       });
+      try {
+        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+      } catch (_e) {}
       notifyHrUsers(
         "Nueva postulacion (web)",
         `${form.name} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`
       );
+      try {
+        await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+      } catch (_e) {}
       notify(userMessage("candidacySentOk"), "success");
       return true;
     }
