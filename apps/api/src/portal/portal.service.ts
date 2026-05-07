@@ -1831,7 +1831,24 @@ export class PortalService implements OnModuleInit {
       paid: row.liquidacion_pagada,
       paidAt: row.fecha_pago ? new Date(row.fecha_pago).toISOString() : null,
       approvedBy: row.pago_aprobado_por,
-      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString()
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      payrollKind:
+        typeof row.tipo_registro === "string" && String(row.tipo_registro).trim()
+          ? String(row.tipo_registro).trim()
+          : "mensual",
+      payPrimaServicios: row.incluye_prima_servicios === true,
+      primaServiciosCop: Number(row.prima_servicios_cop ?? 0),
+      primaServiciosDays: row.prima_dias_semestre != null ? Number(row.prima_dias_semestre) : null,
+      settlementDetail:
+        row.liquidacion_terminacion_json &&
+        typeof row.liquidacion_terminacion_json === "object"
+          ? row.liquidacion_terminacion_json
+          : null,
+      payInteresesCesantias: row.incluye_intereses_cesantias === true,
+      interesesCesantiasCop: Number(row.intereses_cesantias_cop ?? 0),
+      cesantiasInterestBaseCop:
+        row.base_cesantias_interes_cop != null ? Number(row.base_cesantias_interes_cop) : null,
+      cesantiasInterestDays: row.dias_interes_cesantias != null ? Number(row.dias_interes_cesantias) : null
     }));
   }
 
@@ -2730,9 +2747,12 @@ export class PortalService implements OnModuleInit {
           viaticos_periodo, reembolso_combustible, viaticos_automaticos, reembolso_combustible_automatico,
           viaticos_manuales, reembolso_combustible_manual, horas_extras_cop, auxilios_nomina_formulario, bonificaciones_cop,
           cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
-          total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por
+          total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
+          tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json,
+          incluye_intereses_cesantias, intereses_cesantias_cop, base_cesantias_interes_cop, dias_interes_cesantias
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25
+          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
+          $26, $27, $28, $29, $30::jsonb, $31, $32, $33, $34
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -2758,7 +2778,16 @@ export class PortalService implements OnModuleInit {
           neto_a_pagar = EXCLUDED.neto_a_pagar,
           liquidacion_pagada = EXCLUDED.liquidacion_pagada,
           fecha_pago = EXCLUDED.fecha_pago,
-          pago_aprobado_por = EXCLUDED.pago_aprobado_por`,
+          pago_aprobado_por = EXCLUDED.pago_aprobado_por,
+          tipo_registro = EXCLUDED.tipo_registro,
+          incluye_prima_servicios = EXCLUDED.incluye_prima_servicios,
+          prima_servicios_cop = EXCLUDED.prima_servicios_cop,
+          prima_dias_semestre = EXCLUDED.prima_dias_semestre,
+          liquidacion_terminacion_json = EXCLUDED.liquidacion_terminacion_json,
+          incluye_intereses_cesantias = EXCLUDED.incluye_intereses_cesantias,
+          intereses_cesantias_cop = EXCLUDED.intereses_cesantias_cop,
+          base_cesantias_interes_cop = EXCLUDED.base_cesantias_interes_cop,
+          dias_interes_cesantias = EXCLUDED.dias_interes_cesantias`,
         [
           run.id,
           run.employeeId,
@@ -2784,7 +2813,34 @@ export class PortalService implements OnModuleInit {
           Number(run.net),
           Boolean(run.paid),
           run.paidAt || null,
-          run.approvedBy || null
+          run.approvedBy || null,
+          String((run as { payrollKind?: string }).payrollKind || "mensual").trim().slice(0, 24) || "mensual",
+          Boolean((run as { payPrimaServicios?: boolean }).payPrimaServicios),
+          Number((run as { primaServiciosCop?: number }).primaServiciosCop ?? 0),
+          (() => {
+            const d = (run as { primaServiciosDays?: number | null }).primaServiciosDays;
+            if (d === null || d === undefined) return null;
+            const n = Math.floor(Number(d));
+            return Number.isFinite(n) ? n : null;
+          })(),
+          (() => {
+            const sd = (run as { settlementDetail?: unknown }).settlementDetail;
+            return sd !== undefined && sd !== null && typeof sd === "object" ? sd : null;
+          })(),
+          Boolean((run as { payInteresesCesantias?: boolean }).payInteresesCesantias),
+          Number((run as { interesesCesantiasCop?: number }).interesesCesantiasCop ?? 0),
+          (() => {
+            const b = (run as { cesantiasInterestBaseCop?: number | null }).cesantiasInterestBaseCop;
+            if (b === null || b === undefined) return null;
+            const n = Number(b);
+            return Number.isFinite(n) ? n : null;
+          })(),
+          (() => {
+            const d = (run as { cesantiasInterestDays?: number | null }).cesantiasInterestDays;
+            if (d === null || d === undefined) return null;
+            const n = Math.floor(Number(d));
+            return Number.isFinite(n) ? n : null;
+          })()
         ]
       );
     }

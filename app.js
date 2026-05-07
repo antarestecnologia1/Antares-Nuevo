@@ -951,6 +951,198 @@ const CO_PAYROLL = {
   solidarityThresholdSmmlv: 4,
   smmlv: 1750905
 };
+
+/** Ley 52/1975: interés legal anual sobre cesantías (referencia normativa vigente). */
+const CO_CESANTIAS_INTERES_ANUAL_PCT = 12;
+
+/** Junio (06) o diciembre (12): periodo habitual semestral de prima de servicios. */
+function payrollMonthIsPrimaSemester(ym) {
+  const m = String(ym || "").trim();
+  return m.length >= 7 && (m.endsWith("-06") || m.endsWith("-12"));
+}
+
+/**
+ * Febrero: liquidación frecuente en nómina de intereses de cesantías del año anterior.
+ * Nota legal: la Ley 52/1975 prevé pago al trabajador en enero del año siguiente al causado;
+ * muchas empresas lo consignan o pagan en el ciclo de febrero — valide con contador.
+ */
+function payrollMonthIsCesantiasInterestMonth(ym) {
+  const m = String(ym || "").trim();
+  return m.length >= 7 && m.endsWith("-02");
+}
+
+/**
+ * Intereses sobre cesantías (referencia Ley 52/1975): 12% anual.
+ * Si `days360` > 0: proporcional (días/360). Si no, aplica tasa plena sobre la base (año completo orientativo).
+ */
+function calcColombiaInteresesCesantiasCop(baseCesantias, days360) {
+  const b = Math.max(0, parseNum(baseCesantias));
+  const d = Math.max(0, parseNum(days360));
+  const rate = CO_CESANTIAS_INTERES_ANUAL_PCT / 100;
+  if (d <= 0) return Math.round(b * rate);
+  return Math.round(b * rate * (Math.min(d, 360) / 360));
+}
+
+/**
+ * Prima de servicios semestral (referencia CST arts. 244–249): (salario mensual × días) ÷ 360.
+ * Validar siempre con contador y política interna de la empresa.
+ */
+function calcColombiaPrimaServiciosCop(salaryMonthly, daysInSemester) {
+  const s = Math.max(0, parseNum(salaryMonthly));
+  const d = Math.max(0, parseNum(daysInSemester));
+  return Math.round((s * d) / 360);
+}
+
+/**
+ * Liquidación contractual por terminación (referencia orientativa — CST y normativa salarial colombiana).
+ * Cesantías: salario × días ÷ 360. Intereses: 12% anual proporcional sobre cesantías calculadas (simplificado).
+ * Prima proporcional: (salario × días proporcionales) ÷ 360. Vacaciones: (salario × días compensar) ÷ 720 (uso frecuente en nómina).
+ */
+function calcColombiaTerminationLines({ baseSalary, days360Year, primaPropDays, vacationDays }) {
+  const base = Math.max(0, parseNum(baseSalary));
+  const d360 = Math.max(0, parseNum(days360Year));
+  const dPrima = Math.max(0, parseNum(primaPropDays));
+  const dVac = Math.max(0, parseNum(vacationDays));
+  const cesantias = Math.round((base * d360) / 360);
+  const interesesCesantias = Math.round(((cesantias * 12) / 100) * (Math.min(d360, 360) / 360));
+  const primaProporcional = Math.round((base * dPrima) / 360);
+  const vacaciones = Math.round((base * dVac) / 720);
+  return { cesantias, interesesCesantias, primaProporcional, vacaciones };
+}
+
+/** Rellena rubros del formulario de liquidación contractual a partir del salario y días ingresados. */
+function fillSettlementSuggestedAmounts(form) {
+  if (!form) return;
+  const employeeId = String(form.querySelector("[name='employeeId']")?.value || "");
+  const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === employeeId);
+  if (!employee) {
+    notify(userMessage("contractPickEmployee"), "error");
+    return;
+  }
+  const base = parseNum(employee.baseSalary);
+  const days360 = parseNum(form.querySelector("[name='days360Year']")?.value);
+  const primaPropDays = parseNum(form.querySelector("[name='primaPropDays']")?.value);
+  const vacationDays = parseNum(form.querySelector("[name='vacationDays']")?.value);
+  const lines = calcColombiaTerminationLines({ baseSalary: base, days360Year: days360, primaPropDays, vacationDays });
+  const c = form.querySelector("[name='cesantiasCop']");
+  const i = form.querySelector("[name='interesesCesantiasCop']");
+  const p = form.querySelector("[name='primaPropCop']");
+  const v = form.querySelector("[name='vacacionesCop']");
+  if (c) c.value = String(lines.cesantias);
+  if (i) i.value = String(lines.interesesCesantias);
+  if (p) p.value = String(lines.primaProporcional);
+  if (v) v.value = String(lines.vacaciones);
+}
+
+function wireMonthlyPayrollConcepts(form) {
+  if (!form || form.dataset.monthlyPayrollConceptsBound === "1") return;
+  form.dataset.monthlyPayrollConceptsBound = "1";
+  const monthEl = form.querySelector('[name="month"]');
+  const empEl = form.querySelector('[name="employeeId"]');
+  if (!monthEl || !empEl) return;
+
+  const fsP = form.querySelector("#payroll-prima-fieldset");
+  const cbP = form.querySelector("#payroll-pay-prima");
+  const daysP = form.querySelector('[name="primaServiciosDays"]');
+  const copP = form.querySelector('[name="primaServiciosCop"]');
+
+  const fsC = form.querySelector("#payroll-cesantias-int-fieldset");
+  const cbC = form.querySelector("#payroll-pay-int-cesantias");
+  const baseC = form.querySelector('[name="cesantiasInterestBaseCop"]');
+  const daysC = form.querySelector('[name="cesantiasInterestDays"]');
+  const copC = form.querySelector('[name="interesesCesantiasCopMonthly"]');
+
+  const applyPrima = () => {
+    if (!fsP || !cbP || !daysP || !copP) return;
+    const show = payrollMonthIsPrimaSemester(monthEl.value);
+    fsP.classList.toggle("hidden", !show);
+    fsP.setAttribute("aria-hidden", show ? "false" : "true");
+    if (!show) {
+      cbP.checked = false;
+      daysP.value = "";
+      copP.value = "";
+      delete copP.dataset.userEdited;
+    }
+    daysP.disabled = !(show && cbP.checked);
+    copP.disabled = !(show && cbP.checked);
+  };
+
+  const recalcPrimaCop = () => {
+    if (!cbP || !daysP || !copP) return;
+    if (!payrollMonthIsPrimaSemester(monthEl.value) || !cbP.checked) return;
+    if (copP.dataset.userEdited === "1") return;
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || ""));
+    const bs = emp ? parseNum(emp.baseSalary) : 0;
+    const d = parseNum(daysP.value);
+    if (d > 0) copP.value = String(calcColombiaPrimaServiciosCop(bs, d));
+    else copP.value = "";
+  };
+
+  const applyCesantias = () => {
+    if (!fsC || !cbC || !baseC || !daysC || !copC) return;
+    const show = payrollMonthIsCesantiasInterestMonth(monthEl.value);
+    fsC.classList.toggle("hidden", !show);
+    fsC.setAttribute("aria-hidden", show ? "false" : "true");
+    if (!show) {
+      cbC.checked = false;
+      baseC.value = "";
+      daysC.value = "360";
+      copC.value = "";
+      delete copC.dataset.userEdited;
+    }
+    baseC.disabled = !(show && cbC.checked);
+    daysC.disabled = !(show && cbC.checked);
+    copC.disabled = !(show && cbC.checked);
+  };
+
+  const recalcInteresesCop = () => {
+    if (!cbC || !baseC || !daysC || !copC) return;
+    if (!payrollMonthIsCesantiasInterestMonth(monthEl.value) || !cbC.checked) return;
+    if (copC.dataset.userEdited === "1") return;
+    const base = parseNum(baseC.value);
+    const d = parseNum(daysC.value) || 360;
+    if (base > 0) copC.value = String(calcColombiaInteresesCesantiasCop(base, d));
+    else copC.value = "";
+  };
+
+  const onMonthChange = () => {
+    applyPrima();
+    applyCesantias();
+    recalcPrimaCop();
+    recalcInteresesCop();
+  };
+
+  monthEl.addEventListener("change", onMonthChange);
+  empEl.addEventListener("change", () => {
+    recalcPrimaCop();
+    recalcInteresesCop();
+  });
+
+  if (cbP && daysP && copP) {
+    cbP.addEventListener("change", applyPrima);
+    daysP.addEventListener("input", recalcPrimaCop);
+    copP.addEventListener("input", () => {
+      copP.dataset.userEdited = parseNum(copP.value) > 0 ? "1" : "";
+    });
+  }
+  if (cbC && baseC && daysC && copC) {
+    cbC.addEventListener("change", applyCesantias);
+    baseC.addEventListener("input", recalcInteresesCop);
+    daysC.addEventListener("input", recalcInteresesCop);
+    copC.addEventListener("input", () => {
+      copC.dataset.userEdited = parseNum(copC.value) > 0 ? "1" : "";
+    });
+  }
+
+  onMonthChange();
+}
+
+function wireTerminationSettlementForm(form) {
+  if (!form || form.dataset.settlementWire === "1") return;
+  form.dataset.settlementWire = "1";
+  const btn = form.querySelector('[data-action="settlement-recalc"]');
+  if (btn) btn.addEventListener("click", () => fillSettlementSuggestedAmounts(form));
+}
 const CO_HR_RULES = {
   legalWeeklyHours: 46,
   minMonthlySalary: 1423500,
@@ -8739,8 +8931,19 @@ function payrollHtml() {
     .map((r) => {
       const state = r.paid ? "paid" : "pending";
       const monthLabel = String(r.month || "").trim();
+      const pk = String(r.payrollKind || "mensual");
+      const typeCell = (() => {
+        if (pk === "terminacion") return '<span class="status status-viaje_asignado">Terminación</span>';
+        const bits = [];
+        if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
+        if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
+        return bits.length
+          ? `<span class="muted">Nómina</span><br><span class="muted" style="font-size:0.76rem">${bits.join(" · ")} incl.</span>`
+          : `<span class="muted">Nómina</span>`;
+      })();
       return `<tr data-payroll-state="${state}">
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
+        <td>${typeCell}</td>
         <td>${escapeHtml(String(r.employeeName || "—"))}</td>
         <td>$${parseNum(r.gross).toLocaleString("es-CO")}</td>
         <td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td>
@@ -8923,6 +9126,40 @@ function payrollHtml() {
         <label>${fieldLabel(IC.calendar, "Mes a liquidar")}<input type="month" name="month" required /></label>
       </div>
     </fieldset>
+    <fieldset id="payroll-prima-fieldset" class="form-section form-section-amber full hidden" aria-hidden="true">
+      <legend>${IC.award} Prima de servicios (semestral)</legend>
+      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.65rem">
+        Junio y diciembre pueden incluir prima. Cálculo orientativo: (salario base × días trabajados en el semestre) ÷ 360 (CST). Revise siempre con contador antes de pagar.
+      </p>
+      <div class="form-section-grid">
+        <label class="full" style="align-items:flex-start;display:flex;gap:0.5rem;flex-wrap:wrap">
+          <input type="checkbox" name="payPrimaServicios" value="1" id="payroll-pay-prima" style="margin-top:0.2rem" />
+          <span>Sí, incluir prima de servicios en esta liquidación</span>
+        </label>
+        <label>${fieldLabel(IC.clock, "Días laborados en el semestre")}
+          <input type="number" name="primaServiciosDays" min="1" max="183" placeholder="Ej. 180" disabled /></label>
+        <label>${fieldLabel(IC.dollar, "Valor prima (COP)")}
+          <input type="number" name="primaServiciosCop" min="0" step="100" disabled /></label>
+      </div>
+    </fieldset>
+    <fieldset id="payroll-cesantias-int-fieldset" class="form-section form-section-violet full hidden" aria-hidden="true">
+      <legend>${IC.dollar} Intereses sobre cesantías (febrero)</legend>
+      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.65rem">
+        <strong>Ley 52 de 1975:</strong> el trabajador tiene derecho a intereses del <strong>12% anual</strong> sobre sus cesantías; el legislador prevé el pago al trabajador <strong>en enero</strong> del año siguiente al causado (y reglas especiales en retiros o ceses). Es frecuente liquidarlos junto con la <strong>nómina de febrero</strong> — coordine fecha y base con extracto del fondo o contador.
+      </p>
+      <div class="form-section-grid">
+        <label class="full" style="align-items:flex-start;display:flex;gap:0.5rem;flex-wrap:wrap">
+          <input type="checkbox" name="payInteresesCesantias" value="1" id="payroll-pay-int-cesantias" style="margin-top:0.2rem" />
+          <span>Incluir en esta liquidación el pago de intereses sobre cesantías</span>
+        </label>
+        <label>${fieldLabel(IC.dollar, "Base cesantías (COP)")}
+          <input type="number" name="cesantiasInterestBaseCop" min="0" step="100" placeholder="Saldo/consignación año referencia" disabled /></label>
+        <label>${fieldLabel(IC.clock, "Días (sobre 360 para proporcional)")}
+          <input type="number" name="cesantiasInterestDays" min="1" max="366" value="360" disabled /></label>
+        <label>${fieldLabel(IC.dollar, "Valor intereses (COP)")}
+          <input type="number" name="interesesCesantiasCopMonthly" min="0" step="100" disabled /></label>
+      </div>
+    </fieldset>
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.dollar} Pagos y deducciones variables</legend>
       <div class="form-section-grid">
@@ -8934,6 +9171,48 @@ function payrollHtml() {
       </div>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidación</button>
+  </form>`;
+  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}`;
+  const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.activity} Liquidación contractual (terminación)</legend>
+      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
+        Para renuncia, despido u otras causas de terminación. Montos orientativos (cesantías, intereses proporcionales, prima proporcional, vacaciones según ordenamiento laboral colombiano). Ajuste cada rubro y consolide con contabilidad y fondos.
+      </p>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required>${payrollEmpOptionsSettlement}</select></label>
+        <label>${fieldLabel(IC.calendar, "Mes de retiro (periodo)")}<input type="month" name="month" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de terminación")}<input type="date" name="terminationDate" required /></label>
+        <label>${fieldLabel(IC.file, "Motivo de terminación")}
+          <select name="terminationCause" required>
+            <option value="renuncia_voluntaria">Renuncia voluntaria</option>
+            <option value="despido_sin_justa">Despido sin justa causa</option>
+            <option value="despido_justa">Despido con justa causa</option>
+            <option value="mutuo_acuerdo">Mutuo acuerdo</option>
+            <option value="vencimiento_contrato">Vencimiento de contrato</option>
+            <option value="otro">Otro</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.clock} Referencias para el cálculo</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.clock, "Días (año 360 — cesantías)")}<input type="number" name="days360Year" min="0" max="360" value="360" /></label>
+        <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
+        <label>${fieldLabel(IC.calendar, "Días vacaciones a compensar (÷720)")}<input type="number" name="vacationDays" min="0" max="366" step="1" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Indemnización (COP)")}<input type="number" name="indemnization" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Otros conceptos (COP)")}<input type="number" name="otrosSettlement" min="0" value="0" /></label>
+        <div class="full toolbar" style="justify-content:flex-start">
+          <button type="button" class="btn btn-sm btn-outline" data-action="settlement-recalc">${IC.activity} Calcular rubros sugeridos</button>
+        </div>
+        <label>${fieldLabel(IC.dollar, "Cesantías (COP)")}<input type="number" name="cesantiasCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Intereses cesantías (COP)")}<input type="number" name="interesesCesantiasCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Prima proporcional (COP)")}<input type="number" name="primaPropCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Vacaciones (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.save} Registrar liquidación contractual</button>
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-violet full">
@@ -8986,7 +9265,7 @@ function payrollHtml() {
     ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runTable = runRows
-    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
+    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
     : emptyState("Sin liquidaciones registradas.");
   const employeeOpts = employees
     .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
@@ -9024,7 +9303,7 @@ function payrollHtml() {
         <p class="ops-command-cluster-label">Crear nuevo</p>
         <div class="ops-command-group">
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-employee">${IC.userPlus} Agregar empleado</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll">${IC.dollar} Calcular nómina</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll-settlement">${IC.file} Liquidación contractual</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Registrar ausencia</button>
         </div>
       </div>
@@ -9043,7 +9322,7 @@ function payrollHtml() {
         <h3>¿Qué deseas registrar?</h3>
         <p class="ops-block-lead muted">Selecciona la tarjeta correspondiente: agregar un empleado, calcular la nómina del mes o cargar una ausencia.</p>
       </header>
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Agregar empleado", null, formEmp, "Guardar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Calcular nómina del mes", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", null, formAbsence, "Guardar ausencia")}</div>
+      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Agregar empleado", null, formEmp, "Guardar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Calcular nómina del mes", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones (orientativo Ley colombiana).", formPayrollSettlement, "Abrir liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", null, formAbsence, "Guardar ausencia")}</div>
     </section>`;
   const payrollDataBlock = `<section class="ops-block ops-block--payroll-data">
       <header class="ops-block-head">
@@ -14052,6 +14331,7 @@ function bindDynamicEvents() {
 
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
+    wireMonthlyPayrollConcepts(payrollForm);
     payrollForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(payrollForm).entries());
@@ -14063,6 +14343,48 @@ function bindDynamicEvents() {
       if (!monthRange(data.month)) {
         notify(userMessage("payrollSelectMonth"), "error");
         return;
+      }
+      const payPrima = Boolean(data.payPrimaServicios);
+      if (payPrima && !payrollMonthIsPrimaSemester(data.month)) {
+        notify("La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).", "error");
+        return;
+      }
+      const payInteresesCesantias = Boolean(data.payInteresesCesantias);
+      if (payInteresesCesantias && !payrollMonthIsCesantiasInterestMonth(data.month)) {
+        notify(
+          "Los intereses sobre cesantías (Ley 52/1975) se parametrizan cuando el mes liquidado es febrero (02), donde suele acumularse lo causado para pago efectivo cercano al plazo de enero. Ajuste con su contador.",
+          "error"
+        );
+        return;
+      }
+      const primaDaysRounded = Math.floor(parseNum(data.primaServiciosDays));
+      let primaServiciosCop = payPrima ? Math.max(0, parseNum(data.primaServiciosCop)) : 0;
+      if (payPrima && (!Number.isFinite(primaDaysRounded) || primaDaysRounded < 1)) {
+        notify("Indique los días laborados en el semestre para calcular o validar la prima de servicios.", "error");
+        return;
+      }
+      if (payPrima && primaServiciosCop <= 0 && primaDaysRounded >= 1) {
+        primaServiciosCop = calcColombiaPrimaServiciosCop(parseNum(employee.baseSalary), primaDaysRounded);
+      }
+      let cesantiasInterestBaseCop = payInteresesCesantias ? Math.max(0, parseNum(data.cesantiasInterestBaseCop)) : 0;
+      const diasIntFloored = payInteresesCesantias ? Math.floor(parseNum(data.cesantiasInterestDays)) : null;
+      const cesantiasInterestDays = !payInteresesCesantias
+        ? null
+        : Number.isFinite(diasIntFloored) && diasIntFloored > 0
+          ? Math.min(366, diasIntFloored)
+          : 360;
+      let interesesCesantiasCop = payInteresesCesantias ? Math.max(0, parseNum(data.interesesCesantiasCopMonthly)) : 0;
+      if (payInteresesCesantias && cesantiasInterestBaseCop <= 0) {
+        notify("Indique la base en pesos de las cesantías (p. ej. consignaciones del año anterior) para calcular o registrar los intereses.", "error");
+        return;
+      }
+      if (
+        payInteresesCesantias &&
+        interesesCesantiasCop <= 0 &&
+        cesantiasInterestBaseCop > 0 &&
+        cesantiasInterestDays != null
+      ) {
+        interesesCesantiasCop = calcColombiaInteresesCesantiasCop(cesantiasInterestBaseCop, cesantiasInterestDays);
       }
       const linkedDriver = employee.workerRole === "conductor" ? resolveDriverForEmployee(employee) : null;
       const monthlyDriver = linkedDriver ? calculateDriverTripReport(linkedDriver.id, data.month) : null;
@@ -14080,7 +14402,11 @@ function bindDynamicEvents() {
       const extras = parseNum(data.extras);
       const aux = parseNum(data.aux);
       const bonus = parseNum(data.bonus);
-      const gross = baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement;
+      const grossMonthlyBase = baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement;
+      const gross =
+        grossMonthlyBase +
+        (payPrima ? primaServiciosCop : 0) +
+        (payInteresesCesantias ? interesesCesantiasCop : 0);
       const ibc = baseSalary + extras + bonus;
       const health = ibc * CO_PAYROLL.healthEmployeeRate;
       const pension = ibc * CO_PAYROLL.pensionEmployeeRate;
@@ -14108,7 +14434,16 @@ function bindDynamicEvents() {
         deductions,
         net,
         paid: false,
-        createdAt: nowIso()
+        createdAt: nowIso(),
+        payrollKind: "mensual",
+        payPrimaServicios: payPrima,
+        primaServiciosDays: payPrima ? primaDaysRounded : null,
+        primaServiciosCop: payPrima ? primaServiciosCop : 0,
+        payInteresesCesantias,
+        interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
+        cesantiasInterestBaseCop: payInteresesCesantias ? cesantiasInterestBaseCop : null,
+        cesantiasInterestDays: payInteresesCesantias ? cesantiasInterestDays : null,
+        settlementDetail: null
       };
       const runs = read(KEYS.payrollRuns, []);
       runs.unshift(run);
@@ -14126,6 +14461,104 @@ function bindDynamicEvents() {
     });
   }
 
+  const settlementForm = document.getElementById("form-payroll-settlement");
+  if (settlementForm) {
+    wireTerminationSettlementForm(settlementForm);
+    settlementForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(settlementForm).entries());
+      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
+      if (!employee) {
+        notify(userMessage("contractPickEmployee"), "error");
+        return;
+      }
+      if (!monthRange(data.month)) {
+        notify(userMessage("payrollSelectMonth"), "error");
+        return;
+      }
+      const termDate = String(data.terminationDate || "").trim();
+      if (!termDate) {
+        notify("Seleccione la fecha de terminación del contrato.", "error");
+        return;
+      }
+      const cesantias = Math.max(0, parseNum(data.cesantiasCop));
+      const interesesCesantias = Math.max(0, parseNum(data.interesesCesantiasCop));
+      const primaProp = Math.max(0, parseNum(data.primaPropCop));
+      const vacaciones = Math.max(0, parseNum(data.vacacionesCop));
+      const indemnization = Math.max(0, parseNum(data.indemnization));
+      const otrosSettlement = Math.max(0, parseNum(data.otrosSettlement));
+      const gross =
+        cesantias + interesesCesantias + primaProp + vacaciones + indemnization + otrosSettlement;
+      if (gross <= 0) {
+        notify("Ingrese valores en los rubros de liquidación; el total debe ser mayor que cero.", "error");
+        return;
+      }
+      const settlementDetail = {
+        terminationDate: termDate,
+        terminationCause: String(data.terminationCause || ""),
+        cesantias,
+        interesesCesantias,
+        primaProporcional: primaProp,
+        vacaciones,
+        indemnization,
+        otrosSettlement,
+        referenceDays360: parseNum(data.days360Year),
+        primaPropDaysReference: parseNum(data.primaPropDays),
+        vacationDaysReference: parseNum(data.vacationDays),
+        legalDisclaimer:
+          "Cálculos orientativos conforme prácticas usuales CST y normativa colombiana sobre cesantías, intereses proporcionales, prima y vacaciones. No sustituye asesoría legal ni contable."
+      };
+      const run = {
+        id: newUuidV4(),
+        employeeId: employee.id,
+        employeeName: employee.name,
+        month: data.month,
+        gross,
+        ibc: 0,
+        travelAllowance: 0,
+        fuelReimbursement: 0,
+        travelAllowanceAuto: 0,
+        fuelReimbursementAuto: 0,
+        travelAllowanceManual: 0,
+        fuelReimbursementManual: 0,
+        extras: 0,
+        aux: 0,
+        bonus: 0,
+        tripCount: 0,
+        interDepartmentTrips: 0,
+        health: 0,
+        pension: 0,
+        solidarity: 0,
+        deductions: 0,
+        net: gross,
+        paid: false,
+        createdAt: nowIso(),
+        payrollKind: "terminacion",
+        payPrimaServicios: false,
+        primaServiciosDays: null,
+        primaServiciosCop: 0,
+        payInteresesCesantias: false,
+        interesesCesantiasCop: 0,
+        cesantiasInterestBaseCop: null,
+        cesantiasInterestDays: null,
+        settlementDetail
+      };
+      const runs = read(KEYS.payrollRuns, []);
+      runs.unshift(run);
+      try {
+        await writeAwaitServer(KEYS.payrollRuns, runs);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la liquidación en el servidor."), "error");
+        return;
+      }
+      state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+      persistHrWorkspace("payroll", "data");
+      state.createPanels = { ...(state.createPanels || {}), "create-payroll-settlement": false };
+      notify("Liquidación contractual registrada. Revise montos antes de marcar pagado.", "success");
+      renderPortalView();
+    });
+  }
+
   nodes.viewRoot.querySelectorAll("[data-action='payslip']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const run = read(KEYS.payrollRuns, []).find((r) => r.id === btn.dataset.id);
@@ -14134,41 +14567,167 @@ function bindDynamicEvents() {
       const company = employee ? getCompanyById(employee.companyId) : null;
       const pop = window.open("", "_blank", "width=720,height=900");
       const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
+      const isTerm = String(run.payrollKind || "mensual") === "terminacion";
+      const causeLabels = {
+        renuncia_voluntaria: "Renuncia voluntaria",
+        despido_sin_justa: "Despido sin justa causa",
+        despido_justa: "Despido con justa causa",
+        mutuo_acuerdo: "Mutuo acuerdo",
+        vencimiento_contrato: "Vencimiento de contrato",
+        otro: "Otro"
+      };
+      const fmtPay = (v) => `$${parseNum(v).toLocaleString("es-CO")}`;
+      const cL = "padding:8px;border-bottom:1px solid #e9ecef";
+      const cR = "padding:8px;border-bottom:1px solid #e9ecef;text-align:right;font-variant-numeric:tabular-nums";
+      const theadP = `<thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>`;
+
+      let payslipBodyBlocks = "";
+      if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
+        const sd = run.settlementDetail;
+        const c = parseNum(sd.cesantias);
+        const ic = parseNum(sd.interesesCesantias);
+        const pp = parseNum(sd.primaProporcional);
+        const vac = parseNum(sd.vacaciones);
+        const ind = parseNum(sd.indemnization);
+        const otros = parseNum(sd.otrosSettlement);
+        const devRows =
+          `<tr><td style="${cL}"><strong>Cesantías definitivas / saldo a favor (referencia CST)</strong></td><td style="${cR}"><strong>${fmtPay(c)}</strong></td></tr>` +
+          `<tr><td style="${cL}">Intereses moratorios sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual — Ley 52/1975, orientativo)</td><td style="${cR}">${fmtPay(ic)}</td></tr>` +
+          `<tr><td style="${cL}">Prima de servicios proporcional (CST)</td><td style="${cR}">${fmtPay(pp)}</td></tr>` +
+          `<tr><td style="${cL}">Indemnización compensatoria de vacaciones u holgura (÷720 referencia)</td><td style="${cR}">${fmtPay(vac)}</td></tr>` +
+          (ind > 0
+            ? `<tr><td style="${cL}">Indemnización sustitutiva u otros (orden judicial / pacto)</td><td style="${cR}">${fmtPay(ind)}</td></tr>`
+            : "") +
+          (otros > 0
+            ? `<tr><td style="${cL}">Otros conceptos de finiquito</td><td style="${cR}">${fmtPay(otros)}</td></tr>`
+            : "") +
+          `<tr><td style="${cL}"><strong>Total devengos liquidación</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+
+        const ded = parseNum(run.deductions);
+        const dedRows =
+          ded > 0
+            ? `<tr><td style="${cL}">Retenciones y aportes asociados (detalle en nómina extraordinaria)</td><td style="${cR}">${fmtPay(ded)}</td></tr>`
+            : `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas en esta liquidación. Informe retención en la fuente, embargos u obligaciones con su contador.</td></tr>`;
+
+        payslipBodyBlocks = `
+          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidación)</h2>
+          <p style="margin:0 0 0.5rem;font-size:0.86rem;color:#495057">Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).</p>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRows}</tbody></table>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRows}</tbody></table>
+          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
+            <tr><td style="padding:12px 8px"><strong>Total neto a consignar / pagar</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
+          </tbody></table>`;
+      } else {
+        const ex = parseNum(run.extras);
+        const au = parseNum(run.aux);
+        const bo = parseNum(run.bonus);
+        const via = parseNum(run.travelAllowance);
+        const comb = parseNum(run.fuelReimbursement);
+        const prima = parseNum(run.primaServiciosCop);
+        const intCe = parseNum(run.interesesCesantiasCop);
+        const salarioBasicoDevengo = Math.max(
+          0,
+          parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe
+        );
+        const baseInt = parseNum(run.cesantiasInterestBaseCop);
+        const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "—";
+        const intLabel =
+          baseInt > 0
+            ? `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} días/360)`
+            : `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975)`;
+
+        const devRowsMes =
+          `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+          (ex > 0
+            ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
+            : "") +
+          `<tr><td style="${cL}">Auxilio legal de transporte (no constitutivo de salario)</td><td style="${cR}">${fmtPay(au)}</td></tr>` +
+          (bo > 0
+            ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
+            : "") +
+          `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
+          `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
+          (prima > 0
+            ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
+            : "") +
+          (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
+          `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+
+        const dedRowsMes =
+          `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
+          `<tr><td style="${cL}">Aporte obligatorio salud — empleado (4% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+          `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (4% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+          `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
+          `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
+
+        payslipBodyBlocks = `
+          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
+          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRowsMes}</tbody></table>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
+          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
+          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
+            <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
+          </tbody></table>`;
+      }
+      const docTitle =
+        isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
+          ? `Liquidacion contractual ${run.employeeName}`
+          : `Desprendible ${run.employeeName}`;
+      const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
+      let metaExtra = "";
+      if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
+        const sd = run.settlementDetail;
+        metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminación</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
+        metaExtra += `<tr><td style="padding:4px 0"><strong>Motivo</strong></td><td>${escapeHtml(String(causeLabels[sd.terminationCause] || sd.terminationCause || "-"))}</td></tr>`;
+      }
+      const disclaimerPieces = [];
+      if (!isTerm) {
+        if (parseNum(run.primaServiciosCop) > 0)
+          disclaimerPieces.push(
+            "Prima de servicios (CST): cálculo orientativo; validar política empresarial y contador."
+          );
+        if (parseNum(run.interesesCesantiasCop) > 0)
+          disclaimerPieces.push(
+            `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Acumular el pago con la liquidación de febrero es habitual en la práctica cuando se respeta ese cronograma — confirme con su contador y extracto del fondo.`
+          );
+      }
+      const disclaimer =
+        isTerm &&
+        run.settlementDetail &&
+        typeof run.settlementDetail === "object" &&
+        run.settlementDetail.legalDisclaimer
+          ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(String(run.settlementDetail.legalDisclaimer))}</p>`
+          : disclaimerPieces.length
+            ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(disclaimerPieces.join(" "))}</p>`
+            : "";
       pop.document.write(`
-        <html><head><meta charset="utf-8"/><title>Desprendible ${run.employeeName}</title></head>
+        <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
         <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
           <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px">
-            <h1 style="margin:0;font-size:1.35rem">Desprendible de nomina</h1>
+            <h1 style="margin:0;font-size:1.35rem">${escapeHtml(h1Title)}</h1>
           </div>
           <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
-            <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${company?.name || "Antares"}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Trabajador</strong></td><td>${run.employeeName}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${employee?.idDoc || "-"}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${employee?.position || "-"}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Periodo liquidado</strong></td><td>${run.month}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${escapeHtml(String(company?.name || "Antares"))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Trabajador</strong></td><td>${escapeHtml(String(run.employeeName || ""))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${escapeHtml(String(employee?.idDoc || "-"))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${escapeHtml(String(employee?.position || "-"))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
+            ${metaExtra}
             <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
           </table>
-          <h2 style="font-size:1rem;margin:1.2rem 0 0.5rem">Devengos y deducciones</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
-            <thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>
-            <tbody>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Total devengado</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.gross).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Viaticos</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.travelAllowance || 0).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Reembolso combustible</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.fuelReimbursement || 0).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">IBC</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.ibc).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte salud empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.health).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Aporte pension empleado (4%)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.pension).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd">Fondo de solidaridad pensional (si aplica)</td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">$${parseNum(run.solidarity).toLocaleString("es-CO")}</td></tr>
-              <tr><td style="padding:8px;border-bottom:1px solid #ddd"><strong>Total deducciones</strong></td><td style="padding:8px;border-bottom:1px solid #ddd;text-align:right"><strong>$${parseNum(run.deductions).toLocaleString("es-CO")}</strong></td></tr>
-              <tr><td style="padding:10px 8px"><strong>Neto a pagar</strong></td><td style="padding:10px 8px;text-align:right;font-size:1.05rem"><strong>${netStr}</strong></td></tr>
-            </tbody>
-          </table>
+          <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
+          ${payslipBodyBlocks}
+          ${disclaimer}
           <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
         </body></html>
       `);
       pop.document.close();
     });
   });
+
 
   nodes.viewRoot.querySelectorAll("[data-action='mark-payroll-paid']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -14297,8 +14856,42 @@ function bindDynamicEvents() {
   if (exportPayroll) {
     exportPayroll.addEventListener("click", () => {
       const rows = read(KEYS.payrollRuns, []);
-      const csv = ["Mes,Empleado,Devengado,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"]
-        .concat(rows.map((r) => `${r.month},${r.employeeName},${r.gross},${r.travelAllowance || 0},${r.fuelReimbursement || 0},${r.ibc || 0},${r.health || 0},${r.pension || 0},${r.solidarity || 0},${r.deductions},${r.net},${r.paid ? "Pagado" : "Pendiente"}`))
+      const csv = [
+        "Mes,Tipo,Empleado,Devengado,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
+      ]
+        .concat(
+          rows.map((r) => {
+            const tipo =
+              String(r.payrollKind || "mensual") === "terminacion" ? "terminacion" : "mensual";
+            const esc = (v) =>
+              `"${String(v ?? "")
+                .replace(/\\/g, "\\\\")
+                .replace(/"/g, '""')}"`;
+            return [
+              r.month,
+              tipo,
+              r.employeeName,
+              r.gross,
+              r.primaServiciosCop ?? 0,
+              r.interesesCesantiasCop ?? 0,
+              r.cesantiasInterestBaseCop ?? "",
+              r.cesantiasInterestDays ?? "",
+              r.travelAllowance || 0,
+              r.fuelReimbursement || 0,
+              r.ibc || 0,
+              r.health || 0,
+              r.pension || 0,
+              r.solidarity || 0,
+              r.deductions,
+              r.net,
+              r.paid ? "Pagado" : "Pendiente"
+            ]
+              .map((cell) =>
+                typeof cell === "number" ? cell : esc(cell)
+              )
+              .join(",");
+          })
+        )
         .join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
