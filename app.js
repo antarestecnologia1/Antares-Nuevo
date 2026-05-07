@@ -10134,6 +10134,49 @@ function describeContractDurationForDocx(data) {
 }
 
 /** Alta empleado (wizard): objeto listo para guardar Word o persistir (sin id). */
+/**
+ * Resuelve el avatar de un empleado: si Cloudflare R2 está disponible vía el
+ * backend (`POST /uploads/avatar/presign`) sube el archivo directo a R2 y
+ * devuelve la URL pública del bucket. Si no hay backend o el endpoint falla,
+ * regresa al método anterior basado en `FileReader` → `data:` URL.
+ *
+ * Devuelve la URL final (`https://...` o `data:image/...`) o cadena vacía si
+ * no hay archivo.
+ */
+async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
+  if (!file) return String(fallbackDataUrl || "").trim();
+  const api = window.AntaresApi;
+  const canUseBackend =
+    api && typeof api.postJson === "function" && typeof api.getBase === "function" && api.getBase();
+  if (canUseBackend) {
+    try {
+      const presign = await api.postJson("/uploads/avatar/presign", {
+        fileName: String(file.name || "avatar.jpg"),
+        contentType: String(file.type || "image/jpeg")
+      });
+      const uploadUrl = String(presign?.uploadUrl || "").trim();
+      const publicUrl = String(presign?.publicUrl || "").trim();
+      if (uploadUrl) {
+        const resp = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": String(file.type || "image/jpeg") },
+          body: file
+        });
+        if (!resp.ok) throw new Error(`R2 PUT respondió ${resp.status}`);
+        if (publicUrl) return publicUrl;
+      }
+    } catch (err) {
+      devWarn?.("avatar-upload-r2-failed", err);
+    }
+  }
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onerror = () => resolve(String(fallbackDataUrl || "").trim());
+    r.onload = () => resolve(String(r.result || "").trim());
+    r.readAsDataURL(file);
+  });
+}
+
 function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = {}) {
   const stripLargeAvatar = Boolean(avatarOpts.stripLargeAvatar);
   let merged = String(avatarOpts.avatarUrl ?? raw.avatarUrl ?? "").trim();
@@ -13179,9 +13222,19 @@ function bindDynamicEvents() {
         notify(docValidation.message, "error");
         return;
       }
-      const stripAvatar = actor?.role !== ROLES.ADMIN;
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
       const file = fileInput?.files?.[0];
+      const avatarBaseFromForm = String(raw.avatarUrl || "").trim();
+      let resolvedAvatar = avatarBaseFromForm;
+      try {
+        resolvedAvatar = await resolveEmployeeAvatarUrl(file, avatarBaseFromForm);
+      } catch (err) {
+        devWarn?.("avatar-upload-failed", err);
+      }
+      // Si el avatar terminó como `data:` URL (R2 no disponible), recortarlo
+      // para no-admin para evitar colmar localStorage.
+      const stripAvatar =
+        actor?.role !== ROLES.ADMIN && String(resolvedAvatar || "").startsWith("data:");
       const saveEmployee = async (avatarUrlValue) => {
         const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
           avatarUrl: avatarUrlValue,
@@ -13228,16 +13281,7 @@ function bindDynamicEvents() {
         notify(userMessage("employeeCreatedOk"), "success");
         renderPortalView();
       };
-      if (file) {
-        const reader = new FileReader();
-        reader.onerror = () => notify(userMessage("genericError"), "error");
-        reader.onload = async () => {
-          await saveEmployee(String(reader.result || ""));
-        };
-        reader.readAsDataURL(file);
-      } else {
-        await saveEmployee(String(raw.avatarUrl || "").trim());
-      }
+      await saveEmployee(resolvedAvatar);
     });
   }
 
@@ -13367,12 +13411,7 @@ function bindDynamicEvents() {
           try {
             const file = formEl?.querySelector?.("input[name='avatarFile']")?.files?.[0];
             if (file) {
-              nextAvatar = await new Promise((resolve, reject) => {
-                const r = new FileReader();
-                r.onerror = () => reject(new Error("No se pudo leer la imagen."));
-                r.onload = () => resolve(String(r.result || ""));
-                r.readAsDataURL(file);
-              });
+              nextAvatar = await resolveEmployeeAvatarUrl(file, nextAvatar);
             }
           } catch (err) {
             notify(String(err?.message || userMessage("genericError")), "error");

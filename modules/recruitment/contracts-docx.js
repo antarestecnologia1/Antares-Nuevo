@@ -5,7 +5,37 @@
     prestacion: "documentacion/CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
   };
 
+  const BACKEND_TEMPLATE_PATH = "/uploads/contract-template";
   const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+
+  /**
+   * Descarga el binario de la plantilla. Si hay backend con JWT (Cloudflare R2
+   * privado), pide la plantilla a `/uploads/contract-template/:kind`. Si no,
+   * usa el archivo estático local como fallback.
+   */
+  async function fetchTemplateBuffer(kind) {
+    const api = window.AntaresApi;
+    const base = api && typeof api.getBase === "function" ? api.getBase() : "";
+    const token =
+      api && typeof api.getAccessToken === "function" ? String(api.getAccessToken() || "").trim() : "";
+    if (base && token) {
+      const url = `${String(base).replace(/\/$/, "")}${BACKEND_TEMPLATE_PATH}/${encodeURIComponent(kind)}`;
+      try {
+        const res = await fetch(url, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) return res.arrayBuffer();
+      } catch (_) {
+        /* fallback a archivo local */
+      }
+    }
+    const localPath = TEMPLATE_BY_KIND[kind];
+    if (!localPath) throw new Error("No se encontro la plantilla de contrato seleccionada.");
+    const localRes = await fetch(localPath);
+    if (!localRes.ok) throw new Error(`No fue posible leer la plantilla: ${localPath}`);
+    return localRes.arrayBuffer();
+  }
 
   function inferTemplateKind(contractType, workerRole) {
     const wr = String(workerRole || "").toLowerCase();
@@ -284,12 +314,11 @@
     if (!TEMPLATE_BY_KIND[kind]) {
       kind = inferTemplateKind(input.contractType, input.workerRole);
     }
-    const templatePath = TEMPLATE_BY_KIND[kind];
-    if (!templatePath) throw new Error("No se encontro la plantilla de contrato seleccionada.");
+    if (!TEMPLATE_BY_KIND[kind]) {
+      throw new Error("No se encontro la plantilla de contrato seleccionada.");
+    }
 
-    const response = await fetch(templatePath);
-    if (!response.ok) throw new Error(`No fue posible leer la plantilla: ${templatePath}`);
-    const sourceBuffer = await response.arrayBuffer();
+    const sourceBuffer = await fetchTemplateBuffer(kind);
 
     const salaryNumber = Number(input.salario || 0);
     const mergeEntries = buildContractDocxMergeEntries(input);

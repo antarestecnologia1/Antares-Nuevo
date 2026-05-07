@@ -9,6 +9,7 @@ import { MailModule } from "./mail/mail.module";
 import { PayrollModule } from "./payroll/payroll.module";
 import { PortalModule } from "./portal/portal.module";
 import { B2bProspectModule } from "./b2b-prospect/b2b-prospect.module";
+import { UploadsModule } from "./uploads/uploads.module";
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { B2bProspectModule } from "./b2b-prospect/b2b-prospect.module";
     MailModule,
     PayrollModule,
     PortalModule,
-    B2bProspectModule
+    B2bProspectModule,
+    UploadsModule
   ],
   providers: [
     {
