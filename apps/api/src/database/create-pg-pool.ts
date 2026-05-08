@@ -92,28 +92,40 @@ async function resolveHostToIpv4(host: string): Promise<string | null> {
  */
 export async function createPgPoolFromEnv(connectionString: string): Promise<Pool> {
   if (!connectionString) {
-    return new Pool({ connectionString: "postgresql://127.0.0.1:5432/postgres", ...sharedPoolOptions });
+    const pool = new Pool({ connectionString: "postgresql://127.0.0.1:5432/postgres", ...sharedPoolOptions });
+    pool.on("connect", (c) => {
+      void c.query("SET TIME ZONE 'America/Bogota'");
+    });
+    return pool;
   }
 
   const parsed = parsePostgresConnectionUrl(connectionString);
   const hostNeedsIpv4 = parsed && hostLooksLikeSupabase(parsed.host);
 
   if (!parsed || !hostNeedsIpv4) {
-    return new Pool({
+    const pool = new Pool({
       connectionString,
       ssl: sslForDatabaseUrl(connectionString),
       ...sharedPoolOptions
     });
+    pool.on("connect", (c) => {
+      void c.query("SET TIME ZONE 'America/Bogota'");
+    });
+    return pool;
   }
 
   const address = await resolveHostToIpv4(parsed.host);
   if (!address) {
     log.warn(`Postgres: sin IPv4 (registro A) para ${parsed.host}, usando URI original`);
-    return new Pool({
+    const pool = new Pool({
       connectionString,
       ssl: sslForDatabaseUrl(connectionString),
       ...sharedPoolOptions
     });
+    pool.on("connect", (c) => {
+      void c.query("SET TIME ZONE 'America/Bogota'");
+    });
+    return pool;
   }
 
   const baseSsl = sslForDatabaseUrl(connectionString);
@@ -124,7 +136,7 @@ export async function createPgPoolFromEnv(connectionString: string): Promise<Poo
 
   log.log(`Postgres: resuelto ${parsed.host} -> IPv4 ${address} (TLS SNI ${parsed.host})`);
 
-  return new Pool({
+  const pool = new Pool({
     host: address,
     port: parsed.port,
     user: parsed.user,
@@ -133,4 +145,8 @@ export async function createPgPoolFromEnv(connectionString: string): Promise<Poo
     ssl,
     ...sharedPoolOptions
   });
+  pool.on("connect", (c) => {
+    void c.query("SET TIME ZONE 'America/Bogota'");
+  });
+  return pool;
 }

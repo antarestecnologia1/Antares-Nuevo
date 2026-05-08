@@ -949,6 +949,7 @@ const CO_PAYROLL = {
   pensionEmployeeRate: 0.04,
   solidarityRate: 0.01,
   solidarityThresholdSmmlv: 4,
+  // SMMLV 2026 orientativo (~ $1.750.905 COP — verificar decreto del año fiscal).
   smmlv: 1750905
 };
 
@@ -957,8 +958,7 @@ const CO_CESANTIAS_INTERES_ANUAL_PCT = 12;
 
 /** Junio (06) o diciembre (12): periodo habitual semestral de prima de servicios. */
 function payrollMonthIsPrimaSemester(ym) {
-  const m = String(ym || "").trim();
-  return m.length >= 7 && (m.endsWith("-06") || m.endsWith("-12"));
+  return /^(\d{4})-(06|12)(-|$)/.test(String(ym || "").trim());
 }
 
 /**
@@ -966,8 +966,7 @@ function payrollMonthIsPrimaSemester(ym) {
  * La ley señala pago **en el mes de enero** del año siguiente; muchas empresas lo registran en la planilla **01**, otras en **02** — valide con contador y fondo.
  */
 function payrollMonthIsCesantiasInterestMonth(ym) {
-  const m = String(ym || "").trim();
-  return m.length >= 7 && (m.endsWith("-01") || m.endsWith("-02"));
+  return /^(\d{4})-(01|02)(-|$)/.test(String(ym || "").trim());
 }
 
 /**
@@ -1162,7 +1161,7 @@ const CO_CATALOGS = {
   documentTypes: ["CC", "CE", "PAS", "PEP", "TI"],
   contractTypes: ["Termino indefinido", "Termino fijo", "Obra o labor", "Prestacion de servicios", "Aprendizaje SENA"],
   workSchedule: ["Diurna", "Nocturna", "Mixta", "Por turnos"],
-  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"],
+  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"], // mismo canon que apps/api/src/payroll/payroll-frequency.ts → periodicidad_pago
   contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
   banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
   accountTypes: ["Ahorros", "Corriente"],
@@ -8489,11 +8488,21 @@ function reportsHtml() {
 
 function monthRange(month) {
   const m = String(month || "").trim();
-  if (!/^\d{4}-\d{2}$/.test(m)) return null;
-  const [year, monthNum] = m.split("-").map(Number);
-  const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
-  const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
-  return { start, end };
+  if (/^\d{4}-\d{2}$/.test(m)) {
+    const [year, monthNum] = m.split("-").map(Number);
+    const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+  const ext = /^(\d{4})-(\d{2})(-.+)?$/.exec(m);
+  if (ext) {
+    const year = Number(ext[1]);
+    const monthNum = Number(ext[2]);
+    const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+  return null;
 }
 
 function dateInRange(value, range) {
@@ -8934,6 +8943,8 @@ function payrollHtml() {
       const typeCell = (() => {
         if (pk === "terminacion") return '<span class="status status-viaje_asignado">Terminación</span>';
         const bits = [];
+        const orig = String(r.liquidacionOrigin || r.origenLiquidacion || "manual").toLowerCase();
+        if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor (cron día 13)">Automática</span>');
         if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
         if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
         return bits.length
@@ -14684,6 +14695,17 @@ function bindDynamicEvents() {
       }
       const disclaimerPieces = [];
       if (!isTerm) {
+        const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
+        if (ori === "automatica") {
+          disclaimerPieces.push(
+            "Liquidación generada automáticamente en servidor (cron día 13, mes causación anterior Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
+          );
+          const nv = run.noveltiesDetail;
+          if (nv && typeof nv === "object" && Array.isArray(nv.disclaimers)) {
+            const top = nv.disclaimers.slice(0, 2).map((x) => String(x)).join(" ");
+            if (top) disclaimerPieces.push(top);
+          }
+        }
         if (parseNum(run.primaServiciosCop) > 0)
           disclaimerPieces.push(
             "Prima de servicios (CST): cálculo orientativo; validar política empresarial y contador."
@@ -15675,6 +15697,7 @@ function bindDynamicEvents() {
             emergencyPhone: approval.payload.emergencyPhone || "",
             companyId: approval.payload.companyId || "",
             baseSalary: parseNum(approval.payload.baseSalary),
+            payFrequency: "Mensual",
             startDate: approval.payload.startDate || nowIso().slice(0, 10)
           });
           try {

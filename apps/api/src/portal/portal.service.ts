@@ -12,7 +12,21 @@ import { createClient } from "@supabase/supabase-js";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import { PG_POOL } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
+import {
+  computeColombiaPayrollForPeriodCut,
+  monthUtcBounds,
+  parseSqlDate,
+  SMMLV_COP_REFERENCE_2026,
+  type AbsenceInput
+} from "../payroll/colombian-monthly-payroll";
+import {
+  bogotaCalendarPartsFromInstant,
+  liquidationCutIfClosingToday
+} from "../payroll/payroll-cut-bogota";
+import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
+import { LIQUIDACION_UPSERT } from "./liquidacion-upsert";
+import { randomUUID } from "node:crypto";
 
 type JwtRole = string;
 
@@ -93,6 +107,12 @@ export class PortalService implements OnModuleInit {
   private readonly logger = new Logger(PortalService.name);
   private readonly supabaseAdmin;
   private readonly supabaseEnabled: boolean;
+  /** Escaneo una vez por proceso: columnas opcionales en liquidaciones_nomina (migr. 20/21). */
+  private payrollLiquSchemaTier: 0 | 1 | 2 | undefined;
+  /** Escaneo una vez: condición médica en empleados_nomina (migr. 19). */
+  private payrollEmployeeSchemaTier: 0 | 1 | undefined;
+  /** Columnas origen_liquidacion / novedades_liquidacion_json (migr. 22). */
+  private payrollLiquNovedadesCols: boolean | undefined;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -1848,7 +1868,16 @@ export class PortalService implements OnModuleInit {
       interesesCesantiasCop: Number(row.intereses_cesantias_cop ?? 0),
       cesantiasInterestBaseCop:
         row.base_cesantias_interes_cop != null ? Number(row.base_cesantias_interes_cop) : null,
-      cesantiasInterestDays: row.dias_interes_cesantias != null ? Number(row.dias_interes_cesantias) : null
+      cesantiasInterestDays: row.dias_interes_cesantias != null ? Number(row.dias_interes_cesantias) : null,
+      liquidacionOrigin:
+        typeof row.origen_liquidacion === "string" && row.origen_liquidacion.trim()
+          ? String(row.origen_liquidacion).trim()
+          : "manual",
+      noveltiesDetail:
+        row.novedades_liquidacion_json &&
+        typeof row.novedades_liquidacion_json === "object"
+          ? row.novedades_liquidacion_json
+          : null
     }));
   }
 
@@ -2563,37 +2592,120 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /** Detecta columnas `tiene_condicion_medica` / `descripcion_condicion_medica` (migración 19). */
+  private async resolvePayrollEmployeeSchemaTier(c: PoolClient): Promise<0 | 1> {
+    if (this.payrollEmployeeSchemaTier !== undefined) return this.payrollEmployeeSchemaTier;
+    try {
+      const { rows } = await c.query<{ n19: string }>(
+        `SELECT COUNT(*) FILTER (WHERE column_name = 'tiene_condicion_medica')::text AS n19
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'empleados_nomina'`
+      );
+      const has19 = Number(rows[0]?.n19 ?? 0) > 0;
+      const t: 0 | 1 = has19 ? 1 : 0;
+      this.payrollEmployeeSchemaTier = t;
+      if (t === 0) {
+        this.logger.warn(
+          "empleados_nomina: sin columnas de condición médica (migr. 19). " +
+            "Ejecute BD/postgres/19_empleados_condicion_medica.sql. " +
+            "Hasta entonces ese dato solo quedará persistido en el navegador."
+        );
+      }
+      return t;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(
+        `empleados_nomina: no se pudo detectar columnas (${msg}); usando esquema sin migr. 19.`
+      );
+      this.payrollEmployeeSchemaTier = 0;
+      return 0;
+    }
+  }
+
   private async syncPayrollEmployees(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    const tier = await this.resolvePayrollEmployeeSchemaTier(c);
     await this.deleteRowsNotInIncomingList(c, "empleados_nomina", data);
-    for (const raw of data) {
-      const e = raw as Record<string, unknown>;
-      if (!e?.id || !e.companyId) continue;
-      if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
-      if (this.skipUnlessPersistUuid("syncPayrollEmployees.companyId", e.companyId)) continue;
-      const p = pickPortalField;
-      const name = String(e.name ?? "").trim() || "Empleado";
-      const docType = String(e.documentType || "CC");
-      const idDoc = String(e.idDoc || "0");
-      const city = String(p(e, "city") ?? "Bogota");
-      const address = String(p(e, "address") ?? "N/D");
-      const phone = String(p(e, "phone") ?? "3000000000");
-      const emContact = String(p(e, "emergencyContact") ?? "N/D");
-      const emPhone = String(p(e, "emergencyPhone") ?? "3000000000");
-      const emRel = String(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar");
-      const posText = String(p(e, "position") ?? "Empleado");
-      const contract = String(p(e, "contractType") ?? "Indefinido");
-      const start = String(p(e, "startDate") ?? new Date().toISOString().slice(0, 10));
-      const base = Number(p(e, "baseSalary")) || 0;
-      const bank = String(p(e, "bankName", "bank") ?? "Bancolombia");
-      const acctNum = String(p(e, "bankAccount", "accountNumber") ?? "0");
-      const acctType = String(p(e, "bankAccountType", "accountType") ?? "Ahorros");
-      const eps = String(p(e, "eps") ?? "Sura");
-      const pension = String(p(e, "pensionFund") ?? "Porvenir");
-      const arl = String(p(e, "arl") ?? "Sura");
-      const role = String(e.workerRole || "empleado").toLowerCase();
-      await c.query(
-        `INSERT INTO empleados_nomina (
+
+    const UPSERT_LEGACY = `INSERT INTO empleados_nomina (
+          id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
+          fecha_nacimiento, genero, estado_civil, tipo_sangre, nivel_educativo,
+          departamento, ciudad, direccion, telefono, correo_personal,
+          contacto_emergencia, telefono_emergencia, parentesco_emergencia,
+          nombre_cargo_texto, tipo_contrato, duracion_contrato_texto,
+          fecha_ingreso, salario_base, auxilio_transporte,
+          periodicidad_pago, centro_costos, tipo_cotizante, nivel_riesgo_arl, tipo_plantilla_contrato,
+          eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
+          banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
+          numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
+          fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo
+        ) VALUES (
+          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
+          $7::date, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16,
+          $17, $18, $19,
+          $20, $21, $22,
+          $23::date, $24, $25,
+          $26, $27, $28, $29, $30,
+          $31, $32, $33, $34, $35,
+          $36, $37, $38, $39,
+          $40, $41, $42,
+          $43::date, $44::date, $45,
+          $46, $47, $48, $49, $50
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          nombre_completo = EXCLUDED.nombre_completo,
+          tipo_documento = EXCLUDED.tipo_documento,
+          numero_documento = EXCLUDED.numero_documento,
+          fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+          genero = EXCLUDED.genero,
+          estado_civil = EXCLUDED.estado_civil,
+          tipo_sangre = EXCLUDED.tipo_sangre,
+          nivel_educativo = EXCLUDED.nivel_educativo,
+          departamento = EXCLUDED.departamento,
+          ciudad = EXCLUDED.ciudad,
+          direccion = EXCLUDED.direccion,
+          telefono = EXCLUDED.telefono,
+          correo_personal = EXCLUDED.correo_personal,
+          contacto_emergencia = EXCLUDED.contacto_emergencia,
+          telefono_emergencia = EXCLUDED.telefono_emergencia,
+          parentesco_emergencia = EXCLUDED.parentesco_emergencia,
+          nombre_cargo_texto = EXCLUDED.nombre_cargo_texto,
+          tipo_contrato = EXCLUDED.tipo_contrato,
+          duracion_contrato_texto = EXCLUDED.duracion_contrato_texto,
+          fecha_ingreso = EXCLUDED.fecha_ingreso,
+          salario_base = EXCLUDED.salario_base,
+          auxilio_transporte = EXCLUDED.auxilio_transporte,
+          periodicidad_pago = EXCLUDED.periodicidad_pago,
+          centro_costos = EXCLUDED.centro_costos,
+          tipo_cotizante = EXCLUDED.tipo_cotizante,
+          nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
+          tipo_plantilla_contrato = EXCLUDED.tipo_plantilla_contrato,
+          eps = EXCLUDED.eps,
+          fondo_pension = EXCLUDED.fondo_pension,
+          arl = EXCLUDED.arl,
+          fondo_cesantias = EXCLUDED.fondo_cesantias,
+          caja_compensacion = EXCLUDED.caja_compensacion,
+          banco = EXCLUDED.banco,
+          tipo_cuenta_bancaria = EXCLUDED.tipo_cuenta_bancaria,
+          numero_cuenta_bancaria = EXCLUDED.numero_cuenta_bancaria,
+          rol_trabajador = EXCLUDED.rol_trabajador,
+          numero_licencia = EXCLUDED.numero_licencia,
+          categoria_licencia = EXCLUDED.categoria_licencia,
+          fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
+          fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
+          fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
+          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          id_empresa = EXCLUDED.id_empresa,
+          id_cargo = EXCLUDED.id_cargo,
+          meses_prueba = EXCLUDED.meses_prueba,
+          fecha_fin_contrato = EXCLUDED.fecha_fin_contrato,
+          jornada_laboral = EXCLUDED.jornada_laboral,
+          correo_corporativo = EXCLUDED.correo_corporativo,
+          url_avatar = EXCLUDED.url_avatar`;
+
+    const UPSERT_M19 = `INSERT INTO empleados_nomina (
           id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
           fecha_nacimiento, genero, estado_civil, tipo_sangre, nivel_educativo,
           departamento, ciudad, direccion, telefono, correo_personal,
@@ -2673,177 +2785,521 @@ export class PortalService implements OnModuleInit {
           correo_corporativo = EXCLUDED.correo_corporativo,
           tiene_condicion_medica = EXCLUDED.tiene_condicion_medica,
           descripcion_condicion_medica = EXCLUDED.descripcion_condicion_medica,
-          url_avatar = EXCLUDED.url_avatar`,
-        [
-          e.id,
-          e.companyId,
-          e.positionId || null,
-          name,
-          docType,
-          idDoc,
-          portalDateOrNull(p(e, "birthDate")),
-          (p(e, "gender") as string) || null,
-          (p(e, "maritalStatus") as string) || null,
-          (p(e, "bloodType") as string) || null,
-          (p(e, "educationLevel") as string) || null,
-          (p(e, "department") as string) || null,
-          city,
-          address,
-          phone,
-          (p(e, "personalEmail") as string) || null,
-          emContact,
-          emPhone,
-          emRel,
-          posText,
-          contract,
-          (p(e, "contractDuration") as string) || null,
-          start,
-          base,
-          p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
-          (p(e, "payFrequency") as string) || null,
-          (p(e, "costCenter") as string) || null,
-          (p(e, "contributorType") as string) || null,
-          (p(e, "arlRiskLevel") as string) || null,
-          (p(e, "contractTemplateKind", "contractTemplate") as string) || null,
-          eps,
-          pension,
-          arl,
-          (p(e, "severanceFund") as string) || null,
-          (p(e, "compensationFund") as string) || null,
-          bank,
-          acctType,
-          acctNum,
-          role,
-          (p(e, "license", "licenseNumber") as string) || null,
-          (p(e, "licenseCategory") as string) || null,
-          portalDateOrNull(p(e, "licenseExpiry")),
-          portalDateOrNull(p(e, "psychoTestDate", "psychometricExamDate")),
-          portalDateOrNull(p(e, "psychoTestExpiry", "psychometricExpiry")),
-          (p(e, "defensiveCourse", "defensiveDrivingCourse") as string) || null,
-          p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
-          portalDateOrNull(p(e, "contractEndDate")),
-          (p(e, "workSchedule") as string) || null,
-          (p(e, "avatarUrl") as string) || null,
-          (p(e, "corporateEmail") as string) || null,
+          url_avatar = EXCLUDED.url_avatar`;
+
+    for (const raw of data) {
+      const e = raw as Record<string, unknown>;
+      if (!e?.id || !e.companyId) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollEmployees.companyId", e.companyId)) continue;
+      const p = pickPortalField;
+      const name = String(e.name ?? "").trim() || "Empleado";
+      const docType = String(e.documentType || "CC");
+      const idDoc = String(e.idDoc || "0");
+      const city = String(p(e, "city") ?? "Bogota");
+      const address = String(p(e, "address") ?? "N/D");
+      const phone = String(p(e, "phone") ?? "3000000000");
+      const emContact = String(p(e, "emergencyContact") ?? "N/D");
+      const emPhone = String(p(e, "emergencyPhone") ?? "3000000000");
+      const emRel = String(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar");
+      const posText = String(p(e, "position") ?? "Empleado");
+      const contract = String(p(e, "contractType") ?? "Indefinido");
+      const start = String(p(e, "startDate") ?? new Date().toISOString().slice(0, 10));
+      const base = Number(p(e, "baseSalary")) || 0;
+      const bank = String(p(e, "bankName", "bank") ?? "Bancolombia");
+      const acctNum = String(p(e, "bankAccount", "accountNumber") ?? "0");
+      const acctType = String(p(e, "bankAccountType", "accountType") ?? "Ahorros");
+      const eps = String(p(e, "eps") ?? "Sura");
+      const pension = String(p(e, "pensionFund") ?? "Porvenir");
+      const arl = String(p(e, "arl") ?? "Sura");
+      const role = String(e.workerRole || "empleado").toLowerCase();
+
+      const periodicidadRaw = p(
+        e,
+        "payFrequency",
+        "periodicidadPago",
+        "periodicidad_pago"
+      );
+      const periodicidadPago = canonicalPayFrequencyLabel(
+        periodicidadRaw != null ? String(periodicidadRaw) : undefined
+      );
+
+      const base50: unknown[] = [
+        e.id,
+        e.companyId,
+        e.positionId || null,
+        name,
+        docType,
+        idDoc,
+        portalDateOrNull(p(e, "birthDate")),
+        (p(e, "gender") as string) || null,
+        (p(e, "maritalStatus") as string) || null,
+        (p(e, "bloodType") as string) || null,
+        (p(e, "educationLevel") as string) || null,
+        (p(e, "department") as string) || null,
+        city,
+        address,
+        phone,
+        (p(e, "personalEmail") as string) || null,
+        emContact,
+        emPhone,
+        emRel,
+        posText,
+        contract,
+        (p(e, "contractDuration") as string) || null,
+        start,
+        base,
+        p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
+        periodicidadPago,
+        (p(e, "costCenter") as string) || null,
+        (p(e, "contributorType") as string) || null,
+        (p(e, "arlRiskLevel") as string) || null,
+        (p(e, "contractTemplateKind", "contractTemplate") as string) || null,
+        eps,
+        pension,
+        arl,
+        (p(e, "severanceFund") as string) || null,
+        (p(e, "compensationFund") as string) || null,
+        bank,
+        acctType,
+        acctNum,
+        role,
+        (p(e, "license", "licenseNumber") as string) || null,
+        (p(e, "licenseCategory") as string) || null,
+        portalDateOrNull(p(e, "licenseExpiry")),
+        portalDateOrNull(p(e, "psychoTestDate", "psychometricExamDate")),
+        portalDateOrNull(p(e, "psychoTestExpiry", "psychometricExpiry")),
+        (p(e, "defensiveCourse", "defensiveDrivingCourse") as string) || null,
+        p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
+        portalDateOrNull(p(e, "contractEndDate")),
+        (p(e, "workSchedule") as string) || null,
+        (p(e, "avatarUrl") as string) || null,
+        (p(e, "corporateEmail") as string) || null
+      ];
+
+      if (tier === 0) await c.query(UPSERT_LEGACY, base50);
+      else
+        await c.query(UPSERT_M19, [
+          ...base50,
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
             ? ((p(e, "illnessDescription") as string) || "").trim() || null
             : null
-        ]
-      );
+        ]);
     }
+  }
+
+  private syncPayrollNumeric(v: unknown, fallback = 0): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  private payrollRunBaseParams(run: Record<string, unknown>): unknown[] {
+    return [
+      run.id,
+      run.employeeId,
+      run.employeeName,
+      run.month,
+      this.syncPayrollNumeric(run.gross),
+      this.syncPayrollNumeric(run.ibc),
+      this.syncPayrollNumeric(run.travelAllowance),
+      this.syncPayrollNumeric(run.fuelReimbursement),
+      this.syncPayrollNumeric(run.travelAllowanceAuto ?? 0),
+      this.syncPayrollNumeric(run.fuelReimbursementAuto ?? 0),
+      this.syncPayrollNumeric(run.travelAllowanceManual ?? 0),
+      this.syncPayrollNumeric(run.fuelReimbursementManual ?? 0),
+      this.syncPayrollNumeric(run.extras ?? 0),
+      this.syncPayrollNumeric(run.aux ?? 0),
+      this.syncPayrollNumeric(run.bonus ?? 0),
+      this.syncPayrollNumeric(run.tripCount ?? 0),
+      this.syncPayrollNumeric(run.interDepartmentTrips ?? 0),
+      this.syncPayrollNumeric(run.health),
+      this.syncPayrollNumeric(run.pension),
+      this.syncPayrollNumeric(run.solidarity ?? 0),
+      this.syncPayrollNumeric(run.deductions),
+      this.syncPayrollNumeric(run.net),
+      Boolean(run.paid),
+      run.paidAt || null,
+      run.approvedBy || null
+    ];
+  }
+
+  private payrollRunExtM20(run: Record<string, unknown>): unknown[] {
+    const d = run.primaServiciosDays;
+    const primaDays =
+      d === null || d === undefined
+        ? null
+        : (() => {
+            const n = Math.floor(Number(d));
+            return Number.isFinite(n) ? n : null;
+          })();
+    const sd = run.settlementDetail;
+    const settlement = sd !== undefined && sd !== null && typeof sd === "object" ? sd : null;
+    return [
+      String((run.payrollKind as string) || "mensual").trim().slice(0, 24) || "mensual",
+      Boolean(run.payPrimaServicios),
+      this.syncPayrollNumeric(run.primaServiciosCop ?? 0),
+      primaDays,
+      settlement
+    ];
+  }
+
+  private payrollRunExtIntereses(run: Record<string, unknown>): unknown[] {
+    const b = run.cesantiasInterestBaseCop;
+    const base =
+      b === null || b === undefined
+        ? null
+        : (() => {
+            const n = Number(b);
+            return Number.isFinite(n) ? n : null;
+          })();
+    const d = run.cesantiasInterestDays;
+    const days =
+      d === null || d === undefined
+        ? null
+        : (() => {
+            const n = Math.floor(Number(d));
+            return Number.isFinite(n) ? n : null;
+          })();
+    return [
+      Boolean(run.payInteresesCesantias),
+      this.syncPayrollNumeric(run.interesesCesantiasCop ?? 0),
+      base,
+      days
+    ];
+  }
+
+  private async resolvePayrollLiquSchemaTier(c: PoolClient): Promise<0 | 1 | 2> {
+    if (this.payrollLiquSchemaTier !== undefined) return this.payrollLiquSchemaTier;
+    try {
+      const { rows } = await c.query<{ n20: string; n21: string }>(
+        `SELECT
+          COUNT(*) FILTER (WHERE column_name = 'tipo_registro')::text AS n20,
+          COUNT(*) FILTER (WHERE column_name = 'incluye_intereses_cesantias')::text AS n21
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'liquidaciones_nomina'`
+      );
+      const n20 = Number(rows[0]?.n20 ?? 0);
+      const n21 = Number(rows[0]?.n21 ?? 0);
+      const t: 0 | 1 | 2 = n20 > 0 && n21 > 0 ? 2 : n20 > 0 ? 1 : 0;
+      this.payrollLiquSchemaTier = t;
+      if (t < 2) {
+        this.logger.warn(
+          `liquidaciones_nomina: esquema nivel ${t}. ` +
+            (t === 0
+              ? "Ejecute en PostgreSQL BD/postgres/20_liquidaciones_nomina_prima_terminacion.sql y 21_liquidaciones_intereses_cesantias.sql."
+              : "Falta ejecutar BD/postgres/21_liquidaciones_intereses_cesantias.sql.") +
+            " Hasta entonces algunos rubros solo quedarán persistidos en el navegador."
+        );
+      }
+      return t;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`liquidaciones_nomina: no se pudo detectar columnas (${msg}); usando esquema base.`);
+      this.payrollLiquSchemaTier = 0;
+      return 0;
+    }
+  }
+
+  private payrollRunNovedadesParams(run: Record<string, unknown>): unknown[] {
+    const o =
+      pickPortalField(run, "liquidacionOrigin", "origenLiquidacion", "origen_liquidacion") ??
+      "manual";
+    const origin = String(o).trim().slice(0, 32) || "manual";
+    const raw = pickPortalField(run, "noveltiesDetail", "novedadesLiquidacion", "novedades_liquidacion_json");
+    const json =
+      raw !== undefined && raw !== null && typeof raw === "object" ? (raw as object) : null;
+    return [origin, json];
+  }
+
+  private async resolvePayrollLiquNovedadesCols(c: PoolClient): Promise<boolean> {
+    if (this.payrollLiquNovedadesCols !== undefined) return this.payrollLiquNovedadesCols;
+    try {
+      const { rows } = await c.query<{ n: string }>(
+        `SELECT COUNT(*) FILTER (WHERE column_name = 'origen_liquidacion')::text AS n
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'liquidaciones_nomina'`
+      );
+      const ok = Number(rows[0]?.n ?? 0) > 0;
+      this.payrollLiquNovedadesCols = ok;
+      if (!ok) {
+        this.logger.warn(
+          "liquidaciones_nomina: ejecute BD/postgres/22_liquidaciones_nomina_automatica.sql si desea registrar origen y detalle JSON de novedades."
+        );
+      }
+      return ok;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`liquidaciones_nomina: no se pudieron detectar columnas de novedades (${msg}).`);
+      this.payrollLiquNovedadesCols = false;
+      return false;
+    }
+  }
+
+  private async payrollUpsertLiquidacionNomina(
+    c: PoolClient,
+    tier: 0 | 1 | 2,
+    hasNov: boolean,
+    run: Record<string, unknown>
+  ) {
+    const base25 = this.payrollRunBaseParams(run);
+    const novExtra = hasNov ? this.payrollRunNovedadesParams(run) : [];
+    if (tier === 0) {
+      await c.query(hasNov ? LIQUIDACION_UPSERT.legacyNov : LIQUIDACION_UPSERT.legacy, [...base25, ...novExtra]);
+      return;
+    }
+    if (tier === 1) {
+      await c.query(hasNov ? LIQUIDACION_UPSERT.m20Nov : LIQUIDACION_UPSERT.m20, [
+        ...base25,
+        ...this.payrollRunExtM20(run),
+        ...novExtra
+      ]);
+      return;
+    }
+    await c.query(hasNov ? LIQUIDACION_UPSERT.fullNov : LIQUIDACION_UPSERT.full, [
+      ...base25,
+      ...this.payrollRunExtM20(run),
+      ...this.payrollRunExtIntereses(run),
+      ...novExtra
+    ]);
   }
 
   private async syncPayrollRuns(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    const tier = await this.resolvePayrollLiquSchemaTier(c);
+    const hasNov = await this.resolvePayrollLiquNovedadesCols(c);
     await this.deleteRowsNotInIncomingList(c, "liquidaciones_nomina", data);
-    for (const run of data) {
-      if (!run?.id || !run.employeeId) continue;
-      if (this.skipUnlessPersistUuid("syncPayrollRuns", run.id)) continue;
-      if (this.skipUnlessPersistUuid("syncPayrollRuns.employeeId", run.employeeId)) continue;
-      await c.query(
-        `INSERT INTO liquidaciones_nomina (
-          id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
-          viaticos_periodo, reembolso_combustible, viaticos_automaticos, reembolso_combustible_automatico,
-          viaticos_manuales, reembolso_combustible_manual, horas_extras_cop, auxilios_nomina_formulario, bonificaciones_cop,
-          cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
-          total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
-          tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json,
-          incluye_intereses_cesantias, intereses_cesantias_cop, base_cesantias_interes_cop, dias_interes_cesantias
-        ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
-          $26, $27, $28, $29, $30::jsonb, $31, $32, $33, $34
-        )
-        ON CONFLICT (id) DO UPDATE SET
-          id_empleado = EXCLUDED.id_empleado,
-          nombre_empleado = EXCLUDED.nombre_empleado,
-          periodo_mes = EXCLUDED.periodo_mes,
-          devengado_total = EXCLUDED.devengado_total,
-          base_cotizacion_ibc = EXCLUDED.base_cotizacion_ibc,
-          viaticos_periodo = EXCLUDED.viaticos_periodo,
-          reembolso_combustible = EXCLUDED.reembolso_combustible,
-          viaticos_automaticos = EXCLUDED.viaticos_automaticos,
-          reembolso_combustible_automatico = EXCLUDED.reembolso_combustible_automatico,
-          viaticos_manuales = EXCLUDED.viaticos_manuales,
-          reembolso_combustible_manual = EXCLUDED.reembolso_combustible_manual,
-          horas_extras_cop = EXCLUDED.horas_extras_cop,
-          auxilios_nomina_formulario = EXCLUDED.auxilios_nomina_formulario,
-          bonificaciones_cop = EXCLUDED.bonificaciones_cop,
-          cantidad_viajes_conductor = EXCLUDED.cantidad_viajes_conductor,
-          viajes_interdepartamentales = EXCLUDED.viajes_interdepartamentales,
-          deduccion_salud = EXCLUDED.deduccion_salud,
-          deduccion_pension = EXCLUDED.deduccion_pension,
-          fondo_solidaridad_pensional = EXCLUDED.fondo_solidaridad_pensional,
-          total_deducciones = EXCLUDED.total_deducciones,
-          neto_a_pagar = EXCLUDED.neto_a_pagar,
-          liquidacion_pagada = EXCLUDED.liquidacion_pagada,
-          fecha_pago = EXCLUDED.fecha_pago,
-          pago_aprobado_por = EXCLUDED.pago_aprobado_por,
-          tipo_registro = EXCLUDED.tipo_registro,
-          incluye_prima_servicios = EXCLUDED.incluye_prima_servicios,
-          prima_servicios_cop = EXCLUDED.prima_servicios_cop,
-          prima_dias_semestre = EXCLUDED.prima_dias_semestre,
-          liquidacion_terminacion_json = EXCLUDED.liquidacion_terminacion_json,
-          incluye_intereses_cesantias = EXCLUDED.incluye_intereses_cesantias,
-          intereses_cesantias_cop = EXCLUDED.intereses_cesantias_cop,
-          base_cesantias_interes_cop = EXCLUDED.base_cesantias_interes_cop,
-          dias_interes_cesantias = EXCLUDED.dias_interes_cesantias`,
-        [
-          run.id,
-          run.employeeId,
-          run.employeeName,
-          run.month,
-          Number(run.gross),
-          Number(run.ibc),
-          Number(run.travelAllowance),
-          Number(run.fuelReimbursement),
-          Number(run.travelAllowanceAuto ?? 0),
-          Number(run.fuelReimbursementAuto ?? 0),
-          Number(run.travelAllowanceManual ?? 0),
-          Number(run.fuelReimbursementManual ?? 0),
-          Number(run.extras ?? 0),
-          Number(run.aux ?? 0),
-          Number(run.bonus ?? 0),
-          Number(run.tripCount ?? 0),
-          Number(run.interDepartmentTrips ?? 0),
-          Number(run.health),
-          Number(run.pension),
-          Number(run.solidarity ?? 0),
-          Number(run.deductions),
-          Number(run.net),
-          Boolean(run.paid),
-          run.paidAt || null,
-          run.approvedBy || null,
-          String((run as { payrollKind?: string }).payrollKind || "mensual").trim().slice(0, 24) || "mensual",
-          Boolean((run as { payPrimaServicios?: boolean }).payPrimaServicios),
-          Number((run as { primaServiciosCop?: number }).primaServiciosCop ?? 0),
-          (() => {
-            const d = (run as { primaServiciosDays?: number | null }).primaServiciosDays;
-            if (d === null || d === undefined) return null;
-            const n = Math.floor(Number(d));
-            return Number.isFinite(n) ? n : null;
-          })(),
-          (() => {
-            const sd = (run as { settlementDetail?: unknown }).settlementDetail;
-            return sd !== undefined && sd !== null && typeof sd === "object" ? sd : null;
-          })(),
-          Boolean((run as { payInteresesCesantias?: boolean }).payInteresesCesantias),
-          Number((run as { interesesCesantiasCop?: number }).interesesCesantiasCop ?? 0),
-          (() => {
-            const b = (run as { cesantiasInterestBaseCop?: number | null }).cesantiasInterestBaseCop;
-            if (b === null || b === undefined) return null;
-            const n = Number(b);
-            return Number.isFinite(n) ? n : null;
-          })(),
-          (() => {
-            const d = (run as { cesantiasInterestDays?: number | null }).cesantiasInterestDays;
-            if (d === null || d === undefined) return null;
-            const n = Math.floor(Number(d));
-            return Number.isFinite(n) ? n : null;
-          })()
-        ]
+    for (const raw of data) {
+      const hit = raw as { id?: unknown; employeeId?: unknown };
+      if (!hit?.id || !hit.employeeId) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollRuns", hit.id)) continue;
+      if (this.skipUnlessPersistUuid("syncPayrollRuns.employeeId", hit.employeeId)) continue;
+      const run = raw as Record<string, unknown>;
+      await this.payrollUpsertLiquidacionNomina(c, tier, hasNov, run);
+    }
+  }
+
+  private pgDateUtc(d: Date): string {
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + 1;
+    const dom = d.getUTCDate();
+    return `${y}-${String(m).padStart(2, "0")}-${String(dom).padStart(2, "0")}`;
+  }
+
+  /**
+   * Inserta borradores según periodicidad de pago y **fecha civil Colombia (Bogotá)**:
+   * quincena 1–15 y 16–fin, catorcenal 1–14 y 15–fin, mensual fin de mes, semanal cortes de 7 días.
+   * Solo genera cuando `referenceDate` coincide con día de **cierre** del corte (`payroll-cut-bogota`).
+   */
+  async generateAutomaticLiquidacionesForReferenceDate(
+    reference: Date = new Date()
+  ): Promise<{ created: number; skipped: number; messages: string[] }> {
+    const { y: by, m0: bm0, dom: bdom } = bogotaCalendarPartsFromInstant(reference);
+
+    const smmlv = Math.max(
+      0,
+      Number(this.config.get<string>("PAYROLL_SMMLV_COP")) || SMMLV_COP_REFERENCE_2026
+    );
+    const cesBaseOptRaw = this.config.get<string>("PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP");
+    const cesBaseOpt =
+      cesBaseOptRaw !== undefined &&
+      cesBaseOptRaw !== null &&
+      String(cesBaseOptRaw).trim() !== ""
+        ? Math.max(0, Number(cesBaseOptRaw))
+        : undefined;
+
+    const messages: string[] = [];
+
+    const client = await this.pool.connect();
+    let created = 0;
+    let skipped = 0;
+    try {
+      await client.query("BEGIN");
+
+      const tier = await this.resolvePayrollLiquSchemaTier(client);
+      const hasNov = await this.resolvePayrollLiquNovedadesCols(client);
+
+      const empRes = await client.query(`
+        SELECT id, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso, COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
+               COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago
+        FROM empleados_nomina
+        ORDER BY fecha_creacion ASC
+      `);
+
+      for (const row of empRes.rows) {
+        const employeeId = String(row.id);
+        const hireDate = parseSqlDate(row.fecha_ingreso);
+        if (!hireDate) {
+          skipped += 1;
+          messages.push(`Empleado ${employeeId}: sin fecha ingreso válida`);
+          continue;
+        }
+
+        const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
+        const cut = liquidationCutIfClosingToday(freq, by, bm0, bdom);
+        if (!cut) {
+          skipped += 1;
+          continue;
+        }
+
+        const exists = await client.query(
+          `SELECT 1 FROM liquidaciones_nomina WHERE id_empleado = $1::uuid AND periodo_mes = $2 LIMIT 1`,
+          [employeeId, cut.periodKey]
+        );
+        if ((exists.rows?.length ?? 0) > 0) {
+          skipped += 1;
+          continue;
+        }
+
+        const abRes = await client.query(
+          `
+          SELECT id, id_empleado, tipo_ausencia, fecha_inicio::text AS fecha_inicio, fecha_fin::text AS fecha_fin, observaciones
+          FROM ausencias_laborales
+          WHERE id_empleado = $1::uuid AND fecha_fin >= $2::date AND fecha_inicio <= $3::date
+        `,
+          [employeeId, this.pgDateUtc(cut.periodStart), this.pgDateUtc(cut.periodEnd)]
+        );
+
+        const absList: AbsenceInput[] = [];
+        for (const a of abRes.rows) {
+          const fi = parseSqlDate(a.fecha_inicio);
+          const ff = parseSqlDate(a.fecha_fin);
+          if (!fi || !ff) continue;
+          absList.push({
+            id: String(a.id),
+            tipoAusencia: String(a.tipo_ausencia || ""),
+            fechaInicio: fi,
+            fechaFin: ff,
+            observaciones: typeof a.observaciones === "string" ? a.observaciones : null
+          });
+        }
+
+        let computed;
+        try {
+          computed = computeColombiaPayrollForPeriodCut({
+            periodStorageKey: cut.periodKey,
+            calendarMonthYm: cut.calendarMonthYm,
+            periodStart: cut.periodStart,
+            periodEnd: cut.periodEnd,
+            salarioMensual: Number(row.salario_base) || 0,
+            auxilioTransporteMes: Number(row.auxilio_transporte) || 0,
+            fechaIngresoEmpresa: hireDate,
+            ausenciasEnPeriodo: absList,
+            smmlv,
+            cesantiasBaseInteresOpcional: cesBaseOpt
+          });
+        } catch (ex) {
+          skipped += 1;
+          const m = ex instanceof Error ? ex.message : String(ex);
+          messages.push(`Empleado ${employeeId} (${row.nombre_completo}): ${m}`);
+          continue;
+        }
+
+        let payPrima = computed.payPrimaServicios;
+        let primaCop = computed.primaServiciosCop;
+        let primaDays = computed.primaDiasSemestre;
+        let payInt = computed.payInteresesCesantias;
+        let intCop = computed.interesesCesantiasCop;
+        let intBase = cesBaseOpt ?? null;
+        let intDays = computed.cesantiasInterestDays;
+
+        if (tier < 1 && payPrima) {
+          payPrima = false;
+          primaCop = 0;
+          primaDays = null;
+          messages.push(
+            `Empleado ${row.nombre_completo}: prima omitida (falta migración 20 — columnas tipo_registro / prima).`
+          );
+        }
+        if (tier < 2 && payInt) {
+          payInt = false;
+          intCop = 0;
+          intBase = null;
+          intDays = null;
+        }
+
+        const gross =
+          computed.salarioProporcionalCop +
+          computed.auxilioProporcionalCop +
+          (payPrima ? primaCop : 0) +
+          (payInt ? intCop : 0);
+
+        const noveltyObj = computed.novedadesJson as Record<string, unknown>;
+
+        const run: Record<string, unknown> = {
+          id: randomUUID(),
+          employeeId,
+          employeeName: String(row.nombre_completo || ""),
+          month: cut.periodKey,
+          gross,
+          ibc: computed.ibcOrientativo,
+          travelAllowance: 0,
+          fuelReimbursement: 0,
+          travelAllowanceAuto: 0,
+          fuelReimbursementAuto: 0,
+          travelAllowanceManual: 0,
+          fuelReimbursementManual: 0,
+          extras: 0,
+          aux: computed.auxilioProporcionalCop,
+          bonus: 0,
+          tripCount: 0,
+          interDepartmentTrips: 0,
+          health: computed.healthDeduction,
+          pension: computed.pensionDeduction,
+          solidarity: computed.solidarityDeduction,
+          deductions: computed.totalDeducciones,
+          net: gross - computed.totalDeducciones,
+          paid: false,
+          paidAt: null,
+          approvedBy: null,
+          payrollKind: "mensual",
+          payPrimaServicios: payPrima,
+          primaServiciosCop: payPrima ? primaCop : 0,
+          primaServiciosDays: payPrima ? primaDays : null,
+          settlementDetail: null,
+          payInteresesCesantias: payInt,
+          interesesCesantiasCop: payInt ? intCop : 0,
+          cesantiasInterestBaseCop: payInt ? intBase : null,
+          cesantiasInterestDays: payInt ? intDays : null,
+          liquidacionOrigin: "automatica",
+          noveltiesDetail: noveltyObj
+        };
+
+        await this.payrollUpsertLiquidacionNomina(client, tier, hasNov, run);
+        created += 1;
+      }
+
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    if (created > 0) {
+      this.logger.log(
+        `Liquidaciones automáticas (ref. Bogotá ${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}): insertadas ${created}; omitidas ${skipped}.`
       );
     }
+    return { created, skipped, messages };
+  }
+
+  /**
+   * Compatibilidad: simula cierre en el **último día calendario** del `YYYY-MM` (mensual útil sobre todo).
+   */
+  async generateAutomaticLiquidacionesForPeriod(
+    periodoYm: string
+  ): Promise<{ created: number; skipped: number; messages: string[] }> {
+    const ymRe = /^(\d{4})-(0[1-9]|1[0-2])$/;
+    const p = String(periodoYm || "").trim();
+    if (!ymRe.test(p)) {
+      throw new BadRequestException("periodoYm debe ser YYYY-MM");
+    }
+    const mb = monthUtcBounds(p);
+    if (!mb) throw new BadRequestException("periodoYm inválido");
+    const refDate = mb.monthEnd;
+    return this.generateAutomaticLiquidacionesForReferenceDate(refDate);
   }
 
   private async syncFuelLogs(c: PoolClient, data: unknown) {
