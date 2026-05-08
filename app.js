@@ -3160,9 +3160,36 @@ function daysUntil(dateValue) {
   return Math.floor((target - now) / 86400000);
 }
 
-function docExpiryStatus(expeditionDate) {
-  if (!expeditionDate) return { label: "Sin fecha", cls: "status-rechazada", days: -9999, expiresAt: null };
-  const expiresAt = addYears(expeditionDate, 1);
+/** Para inputs `type="date"` y datos desde API/pg (DATE, ISO con hora). */
+function normalizePortalDateYmd(raw) {
+  if (raw == null || raw === "") return "";
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const t = Date.parse(s);
+  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+  return "";
+}
+
+/**
+ * Estado de vigencia usando fecha de **vencimiento** si existe (`soatExpiryDate`),
+ * si no extrapola desde expedición + 1 año (compatibilidad registros antiguos).
+ */
+function docExpiryStatus(expeditionDate, expiryDate) {
+  const expYmd = expiryDate !== undefined ? normalizePortalDateYmd(expiryDate) : "";
+  const exdYmd = normalizePortalDateYmd(expeditionDate);
+  let expiresAt;
+  if (expYmd) {
+    expiresAt = new Date(`${expYmd}T12:00:00`);
+  } else if (exdYmd) {
+    expiresAt = addYears(new Date(`${exdYmd}T12:00:00`), 1);
+  } else {
+    return { label: "Sin fecha", cls: "status-rechazada", days: -9999, expiresAt: null };
+  }
+  if (Number.isNaN(expiresAt.getTime())) {
+    return { label: "Sin fecha", cls: "status-rechazada", days: -9999, expiresAt: null };
+  }
   const days = daysUntil(expiresAt);
   if (days < 0) return { label: `Vencido hace ${Math.abs(days)} dias`, cls: "status-rechazada", days, expiresAt };
   if (days <= 30) return { label: `Por vencer (${days} dias)`, cls: "status-pendiente", days, expiresAt };
@@ -3281,8 +3308,54 @@ function listTripRateOptionsForRequest(request) {
   return items;
 }
 
+function humanTripRateRouteLabelFromStorageKey(storageKey) {
+  const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
+  const routeOnly = sepIdx === -1 ? String(storageKey) : String(storageKey).slice(0, sepIdx);
+  const parts = String(routeOnly).split("->");
+  if (parts.length < 2) return routeOnly || String(storageKey);
+  const fmt = (chunk) => {
+    const [dep, city] = String(chunk || "").split("|");
+    const d = String(dep || "").trim();
+    const c = String(city || "").trim();
+    if (!d && !c) return "—";
+    return c ? `${d}, ${c}` : d || "—";
+  };
+  return `${fmt(parts[0])} → ${fmt(parts[1])}`;
+}
+
+/** Opciones por ruta; si no hay coincidencia, lista todo el catálogo para poder elegir tarifa manualmente. */
+function listTripRateOptionsWithFallback(request) {
+  const direct = listTripRateOptionsForRequest(request);
+  if (direct.length) return direct;
+  const rates = getTripRouteRatesNormalized();
+  const cid = String(request?.clientCompanyId || "").trim();
+  const items = [];
+  for (const [storageKey, entry] of Object.entries(rates)) {
+    const v = parseNum(entry.value);
+    if (v <= 0) continue;
+    const ids = Array.isArray(entry.companyIds) ? entry.companyIds.map(String).filter(Boolean) : [];
+    const scopeLabel = ids.length
+      ? ids.map((id) => getCompanyById(id)?.name || id).join(", ")
+      : "Todos los clientes";
+    const appliesToRequest = !ids.length || (cid && ids.includes(cid));
+    const routeHuman = humanTripRateRouteLabelFromStorageKey(storageKey);
+    items.push({
+      storageKey,
+      value: v,
+      scopeLabel: `${routeHuman} · ${scopeLabel}`,
+      appliesToRequest
+    });
+  }
+  items.sort((a, b) => {
+    if (a.appliesToRequest !== b.appliesToRequest) return a.appliesToRequest ? -1 : 1;
+    if (b.value !== a.value) return b.value - a.value;
+    return String(a.storageKey).localeCompare(String(b.storageKey));
+  });
+  return items;
+}
+
 function defaultTripRateStorageKeyForRequest(request) {
-  const items = listTripRateOptionsForRequest(request);
+  const items = listTripRateOptionsWithFallback(request);
   const pref = items.find((i) => i.appliesToRequest);
   return pref ? pref.storageKey : items.length ? items[0].storageKey : "";
 }
@@ -3324,38 +3397,31 @@ function slugStatus(value) {
 function buildTripRateModalFields(request, opts) {
   const o = opts && typeof opts === "object" ? opts : {};
   const required = !!o.required;
-  const items = listTripRateOptionsForRequest(request);
+  const items = listTripRateOptionsWithFallback(request);
   const defaultKey = defaultTripRateStorageKeyForRequest(request);
   const initial = initialTripValueForAssignment(request, defaultKey);
   const fallbackVal = initial > 0 ? initial : parseNum(request?.tripValue || 0);
 
-  if (!items.length) {
-    return {
-      fields: [
-        {
-          name: "tripValue",
-          label: "Precio del viaje (COP)",
-          type: "number",
-          required,
-          value: fallbackVal
-        }
+  const selectOptions = items.length
+    ? [
+        { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
+        ...items.map((i) => ({
+          value: i.storageKey,
+          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+        }))
       ]
-    };
-  }
-
-  const selectOptions = [
-    { value: "", label: "Manual / sin elegir tarifa del catalogo" },
-    ...items.map((i) => ({
-      value: i.storageKey,
-      label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otro cliente / alcance)"}`
-    }))
-  ];
+    : [
+        {
+          value: "",
+          label: "Sin tarifas guardadas — definalas en Viajes · Tarifas o indique solo el precio manual"
+        }
+      ];
 
   return {
     fields: [
       {
         name: "tripRateChoice",
-        label: "Tarifa por trayecto (opcional)",
+        label: items.length ? "Tarifa por trayecto (catalogo)" : "Tarifa por trayecto",
         type: "select",
         required: false,
         value: defaultKey || "",
@@ -5914,8 +5980,9 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
     if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
     if (requiresRefrigeration && !vehicle.refrigerated) return false;
-    if (docExpiryStatus(vehicle.soatExpeditionDate).days < 0) return false;
-    if (docExpiryStatus(vehicle.techInspectionExpeditionDate).days < 0) return false;
+    if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
+    if (docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days < 0)
+      return false;
     if (isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId)) return false;
     return true;
   });
@@ -5940,8 +6007,8 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
       return true;
     })
     .map((vehicle) => {
-      const soatDays = docExpiryStatus(vehicle.soatExpeditionDate).days;
-      const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate).days;
+      const soatDays = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days;
+      const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days;
       const busy = isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
       return {
         ...vehicle,
@@ -6842,15 +6909,15 @@ function vehiclesHtml() {
   const availableCount = vehicles.filter((v) => v.available).length;
   const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
   const documentRiskCount = vehicles.filter((v) => {
-    const soat = docExpiryStatus(v.soatExpeditionDate);
-    const tec = docExpiryStatus(v.techInspectionExpeditionDate);
+    const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+    const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
     return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
       ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
   }).length;
   const rows = vehicles
     .map((v) => {
-      const soat = docExpiryStatus(v.soatExpeditionDate);
-      const tecno = docExpiryStatus(v.techInspectionExpeditionDate);
+      const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+      const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
       const refrigeratedTag = v.refrigerated
         ? '<span class="status status-viaje_asignado">Termoking</span>'
         : '<span class="status status-espera_standby">Carga seca</span>';
@@ -6892,7 +6959,7 @@ function vehiclesHtml() {
         <label>${fieldLabel(IC.grid, "Línea / Modelo")}<input name="model" required placeholder="Ej: T800, NPR" /></label>
         <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej: ${new Date().getFullYear()}" /></label>
         <label>${fieldLabel(IC.palette, "Color")}<select name="color" required>${colorOptions}</select></label>
-        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Turbo</option><option>Tractomula</option><option>Bus</option></select></label>
+        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Camion</option><option>Turbo</option><option>Tractomula</option><option>Bus</option></select></label>
       </div>
     </fieldset>
 
@@ -8204,8 +8271,8 @@ function buildReportDataset(reportId, actor = currentUser()) {
       const trips = requests.filter((r) => r.trip?.vehicleId === vehicle.id);
       const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
       const utilizationPct = trips.length ? Number(((completed / trips.length) * 100).toFixed(1)) : 0;
-      const soatRisk = docExpiryStatus(vehicle.soatExpeditionDate);
-      const techRisk = docExpiryStatus(vehicle.techInspectionExpeditionDate);
+      const soatRisk = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate);
+      const techRisk = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate);
       return {
         plate: vehicle.plate,
         type: vehicle.type,
@@ -13075,7 +13142,7 @@ function bindDynamicEvents() {
               },
               ...vehicleCandidates.map((vehicle) => ({
               value: vehicle.id,
-              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
+              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
               }))
             ]
           },
@@ -13209,7 +13276,7 @@ function bindDynamicEvents() {
             options: compatibleVehicles.length
               ? compatibleVehicles.map((vehicle) => ({
                 value: vehicle.id,
-                label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate).label}`
+                label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label}`
               }))
               : [
                   {
@@ -13754,6 +13821,13 @@ function bindDynamicEvents() {
       const bodyOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bodyTypes.map((b) => ({ value: b, label: b }))];
       const fuelOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.fuelTypes.map((f) => ({ value: f, label: f }))];
       const axleOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.axleConfig.map((a) => ({ value: a, label: a }))];
+      const vehicleTypeOpts = [
+        { value: "", label: "Seleccione..." },
+        { value: "Camion", label: "Camión / rígido" },
+        { value: "Turbo", label: "Turbo" },
+        { value: "Tractomula", label: "Tractomula" },
+        { value: "Bus", label: "Bus" }
+      ];
       openEditModal({
         title: "Editar camión",
         subtitle: target.plate,
@@ -13763,6 +13837,14 @@ function bindDynamicEvents() {
           { name: "brand", label: "Marca", value: target.brand || "", required: true },
           { name: "model", label: "Línea/Modelo", value: target.model || "", required: true },
           { name: "year", label: "Año modelo", type: "number", value: target.year || "", required: true },
+          {
+            name: "type",
+            label: "Tipo",
+            type: "select",
+            required: true,
+            value: String(target.type || "").trim(),
+            options: vehicleTypeOpts
+          },
           { name: "color", label: "Color", type: "select", value: target.color || "", options: colorOpts },
           { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
           { name: "bodyType", label: "Carrocería", type: "select", value: target.bodyType || "", options: bodyOpts },
@@ -13781,13 +13863,35 @@ function bindDynamicEvents() {
               { value: "false", label: "No, carga seca" }
             ]
           },
-          { name: "soatExpeditionDate", label: "Expedición SOAT", type: "date", value: target.soatExpeditionDate, required: true },
-          { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: target.soatExpiryDate || "" },
-          { name: "techInspectionExpeditionDate", label: "Expedición tecnomecánica", type: "date", value: target.techInspectionExpeditionDate, required: true },
-          { name: "techInspectionExpiryDate", label: "Vence tecnomecánica", type: "date", value: target.techInspectionExpiryDate || "" },
+          {
+            name: "soatExpeditionDate",
+            label: "Expedición SOAT",
+            type: "date",
+            value: normalizePortalDateYmd(target.soatExpeditionDate),
+            required: true
+          },
+          { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: normalizePortalDateYmd(target.soatExpiryDate) },
+          {
+            name: "techInspectionExpeditionDate",
+            label: "Expedición tecnomecánica",
+            type: "date",
+            value: normalizePortalDateYmd(target.techInspectionExpeditionDate),
+            required: true
+          },
+          {
+            name: "techInspectionExpiryDate",
+            label: "Vence tecnomecánica",
+            type: "date",
+            value: normalizePortalDateYmd(target.techInspectionExpiryDate)
+          },
           { name: "rcPolicyContract", label: "Póliza RC contractual N°", value: target.rcPolicyContract || "" },
           { name: "rcPolicyExtra", label: "Póliza RC extracontractual N°", value: target.rcPolicyExtra || "" },
-          { name: "rcPolicyExpiry", label: "Vence pólizas RCP", type: "date", value: target.rcPolicyExpiry || "" },
+          {
+            name: "rcPolicyExpiry",
+            label: "Vence pólizas RCP",
+            type: "date",
+            value: normalizePortalDateYmd(target.rcPolicyExpiry)
+          },
           {
             name: "hasGps",
             label: "GPS satelital",
@@ -13829,6 +13933,7 @@ function bindDynamicEvents() {
                     engineNumber: String(form.engineNumber || "").trim(),
                     vin: String(form.vin || "").trim().toUpperCase(),
                     ownershipCard: String(form.ownershipCard || "").trim(),
+                    type: String(form.type || target.type || "Camion").trim(),
                     refrigerated: String(form.refrigerated || "false") === "true",
                     soatExpeditionDate: form.soatExpeditionDate,
                     soatExpiryDate,
@@ -16442,8 +16547,8 @@ function bindExtendedViewEditHandlers() {
   const fmtMoney = (val) => `$${parseNum(val).toLocaleString("es-CO")}`;
   const fmtBool = (val) => (val ? "Sí" : "No");
   const fmtDateOr = (val, fallback = "—") => {
-    const s = String(val || "").trim();
-    return s ? escapeHtml(s) : fallback;
+    const y = normalizePortalDateYmd(val);
+    return y ? escapeHtml(y) : fallback;
   };
 
   /** Postulación web (API/R2): adjuntos_json con kind cv_file | cv_blob | cv_filename · Local: solo nombres o cv_blob desde RRHH. */
@@ -16539,8 +16644,8 @@ function bindExtendedViewEditHandlers() {
         notify(userMessage("genericError"), "error");
         return;
       }
-      const soat = docExpiryStatus(v.soatExpeditionDate);
-      const tec = docExpiryStatus(v.techInspectionExpeditionDate);
+      const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+      const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
       const sections = [
         {
           icon: "truck",

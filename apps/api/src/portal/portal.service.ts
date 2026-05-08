@@ -1482,6 +1482,15 @@ export class PortalService implements OnModuleInit {
     };
   }
 
+  /** Fecha columna PostgreSQL DATE/TIMESTAMP → `YYYY-MM-DD` para inputs del portal. */
+  private sqlVehicleDateColumnToString(raw: unknown): string | null {
+    if (raw == null || raw === "") return null;
+    if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw.toISOString().slice(0, 10);
+    const s = String(raw).trim();
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : null;
+  }
+
   private async loadVehicles() {
     const r = await this.pool.query(`SELECT * FROM vehiculos ORDER BY placa`);
     return r.rows.map((v) => ({
@@ -1500,13 +1509,13 @@ export class PortalService implements OnModuleInit {
       engineNumber: v.numero_motor,
       vin: v.numero_chasis_vin,
       ownershipCard: v.numero_tarjeta_propiedad,
-      soatExpeditionDate: v.fecha_expedicion_soat,
-      soatExpiryDate: v.fecha_vencimiento_soat,
-      techInspectionExpeditionDate: v.fecha_expedicion_tecnomecanica,
-      techInspectionExpiryDate: v.fecha_vencimiento_tecnomecanica,
+      soatExpeditionDate: this.sqlVehicleDateColumnToString(v.fecha_expedicion_soat),
+      soatExpiryDate: this.sqlVehicleDateColumnToString(v.fecha_vencimiento_soat),
+      techInspectionExpeditionDate: this.sqlVehicleDateColumnToString(v.fecha_expedicion_tecnomecanica),
+      techInspectionExpiryDate: this.sqlVehicleDateColumnToString(v.fecha_vencimiento_tecnomecanica),
       rcPolicyContract: v.numero_poliza_rc_contractual || "",
       rcPolicyExtra: v.numero_poliza_rc_extracontractual || "",
-      rcPolicyExpiry: v.fecha_vencimiento_polizas_rc || "",
+      rcPolicyExpiry: this.sqlVehicleDateColumnToString(v.fecha_vencimiento_polizas_rc) || "",
       hasGps: v.tiene_gps,
       gpsProvider: v.proveedor_gps || "",
       ownerName: v.nombre_propietario || "",
