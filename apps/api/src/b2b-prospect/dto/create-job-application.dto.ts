@@ -1,11 +1,16 @@
+import { Type } from "class-transformer";
 import {
+  IsDateString,
   IsEmail,
   IsIn,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength
 } from "class-validator";
 
@@ -50,6 +55,17 @@ export class CreateJobApplicationDto {
   @MinLength(4)
   @MaxLength(2000)
   address!: string;
+
+  /** YYYY-MM-DD */
+  @IsDateString()
+  birthDate!: string;
+
+  /** Años de experiencia laboral en cargos similares al de la vacante. */
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(65)
+  experienceYears!: number;
 
   @IsString()
   @IsNotEmpty()

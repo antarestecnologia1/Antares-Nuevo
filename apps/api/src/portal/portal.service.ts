@@ -1682,7 +1682,13 @@ export class PortalService implements OnModuleInit {
       phone: c.telefono,
       documentType: c.tipo_documento,
       idDoc: c.numero_documento,
-      birthDate: c.fecha_nacimiento,
+      birthDate: (() => {
+        const f = c.fecha_nacimiento;
+        if (f == null || f === "") return null;
+        if (f instanceof Date) return f.toISOString().slice(0, 10);
+        const s = String(f);
+        return s.length >= 10 ? s.slice(0, 10) : s || null;
+      })(),
       educationLevel: c.nivel_educativo,
       department: c.departamento,
       city: c.ciudad,

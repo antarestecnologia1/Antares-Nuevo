@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
+import type { Express } from "express";
 import { B2bProspectService } from "./b2b-prospect.service";
 import { CreateB2bProspectDto } from "./dto/create-b2b-prospect.dto";
 import { CreateJobApplicationDto } from "./dto/create-job-application.dto";
+import { jobApplicationCvMultipart } from "./job-cv-multipart";
 
 @Controller("public")
 export class B2bProspectController {
@@ -23,7 +25,11 @@ export class B2bProspectController {
 
   @Throttle({ default: { ttl: 60_000, limit: 8 } })
   @Post("job-application")
-  apply(@Body() dto: CreateJobApplicationDto) {
-    return this.b2b.createJobApplication(dto);
+  @UseInterceptors(jobApplicationCvMultipart())
+  apply(
+    @Body() dto: CreateJobApplicationDto,
+    @UploadedFile() attachment?: Express.Multer.File
+  ) {
+    return this.b2b.createJobApplication(dto, attachment);
   }
 }

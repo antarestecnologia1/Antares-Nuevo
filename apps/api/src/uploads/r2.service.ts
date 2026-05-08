@@ -67,6 +67,32 @@ export class R2Service {
     return getSignedUrl(this.client, cmd, { expiresIn: expiresInSec });
   }
 
+  /** Subida servidor → objetos binarios del bucket `CF_R2_UPLOADS_BUCKET` (avatares, documentos auxiliares). */
+  async putUploadsObject(key: string, body: Buffer, contentType: string) {
+    if (!this.enabled || !this.client) {
+      throw new InternalServerErrorException(
+        "R2 no está configurado en el servidor."
+      );
+    }
+    const normalizedKey = key.replace(/^\/+/, "");
+    const cmd = new PutObjectCommand({
+      Bucket: this.uploadsBucket,
+      Key: normalizedKey,
+      Body: body,
+      ContentType: contentType || "application/octet-stream"
+    });
+    await this.client.send(cmd);
+    return { key: normalizedKey };
+  }
+
+  /**
+   * Hoja de vida de postulaciones públicas (mismo bucket que `putUploadsObject`).
+   * Prefijo habitual de key: `job-applications/<uuid>/...`.
+   */
+  putJobCv(key: string, body: Buffer, contentType: string) {
+    return this.putUploadsObject(key, body, contentType);
+  }
+
   publicUrl(key: string) {
     if (!this.publicBase) return "";
     return `${this.publicBase}/${key.replace(/^\/+/, "")}`;

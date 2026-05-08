@@ -438,7 +438,9 @@ function openEditModal({
         return `<div class="full modal-edit-custom-slot"${f.id ? ` id="${escapeAttr(f.id)}"` : ""}>${labelHtml}${f.html || ""}</div>`;
       }
       const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
-      return `<label><span>${escapeHtml(f.label)}</span><input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" ${f.required ? "required" : ""} /></label>`;
+      const minAttr = f.min != null ? ` min="${escapeAttr(String(f.min))}"` : "";
+      const maxAttr = f.max != null ? ` max="${escapeAttr(String(f.max))}"` : "";
+      return `<label><span>${escapeHtml(f.label)}</span><input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr} ${f.required ? "required" : ""} /></label>`;
     })
     .join("");
 
@@ -1647,6 +1649,9 @@ function __applyPortalBootstrapPayloadInner(p) {
           if (!avail && r.availableFrom != null) {
             const af = r.availableFrom;
             r.availabilityDate = typeof af === "string" ? af.slice(0, 10) : String(af).slice(0, 10);
+          }
+          if (r.birthDate != null && r.birthDate !== "") {
+            r.birthDate = String(r.birthDate).trim().slice(0, 10);
           }
           return r;
         })
@@ -8349,17 +8354,23 @@ function buildReportDataset(reportId, actor = currentUser()) {
   if (reportId === "hiring_pipeline") {
     const interviews = read(KEYS.interviews, []);
     const contracts = read(KEYS.contracts, []);
-    const rows = read(KEYS.candidates, []).map((candidate) => ({
-      name: candidate.name,
-      vacancy: candidate.vacancyTitle,
-      source: candidate.source || "-",
-      status: candidate.status,
-      expectedSalary: parseNum(candidate.expectedSalary || 0),
-      hasInterview: interviews.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
-      hasContract: contracts.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
-      stageAgeDays: Math.max(0, Math.floor((Date.now() - new Date(candidate.createdAt || nowIso()).getTime()) / 86400000)),
-      createdAt: fmtDate(candidate.createdAt)
-    }));
+    const rows = read(KEYS.candidates, []).map((candidate) => {
+      const ai = portalCandidateAgeFromBirthIso(candidate.birthDate);
+      return {
+        name: candidate.name,
+        vacancy: candidate.vacancyTitle,
+        source: candidate.source || "-",
+        status: candidate.status,
+        birthDate: ai.birthLabel === "—" ? "-" : ai.birthLabel,
+        ageYears: ai.age != null ? String(ai.age) : "-",
+        expCargoYears: parseNum(candidate.experienceYears || 0),
+        expectedSalary: parseNum(candidate.expectedSalary || 0),
+        hasInterview: interviews.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
+        hasContract: contracts.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
+        stageAgeDays: Math.max(0, Math.floor((Date.now() - new Date(candidate.createdAt || nowIso()).getTime()) / 86400000)),
+        createdAt: fmtDate(candidate.createdAt)
+      };
+    });
     return {
       title: "Reporte de contratacion y pipeline",
       columns: [
@@ -8367,6 +8378,9 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "vacancy", label: "Vacante" },
         { key: "source", label: "Fuente" },
         { key: "status", label: "Estado proceso" },
+        { key: "birthDate", label: "Fecha nacimiento" },
+        { key: "ageYears", label: "Edad" },
+        { key: "expCargoYears", label: "Años exp. cargo" },
         { key: "expectedSalary", label: "Aspiracion" },
         { key: "hasInterview", label: "Entrevista" },
         { key: "hasContract", label: "Contrato" },
@@ -9425,6 +9439,63 @@ function payrollHtml() {
     </section>`;
 }
 
+/** Tamaño máximo para incrustar CV en adjuntos_json sin R2 (coincide con API). */
+const HR_CANDIDATE_CV_INLINE_MAX_BYTES = 1_500_000;
+
+/** Convierte los archivos del formulario RRHH en objetos `cv_blob` para sync con API. */
+async function readCandidateHrAttachmentsFromInput(fileInput) {
+  if (!fileInput || !fileInput.files?.length) return [];
+  const max = HR_CANDIDATE_CV_INLINE_MAX_BYTES;
+  const out = [];
+  for (const f of [...fileInput.files]) {
+    if (f.size > max) {
+      notify(
+        `"${String(f.name)}" supera ${Math.round(max / 1024 / 1024)} MB. Adjunte un archivo más liviano o reduzca el tamaño.`,
+        "error"
+      );
+      return null;
+    }
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = () => reject(new Error("file"));
+        fr.readAsDataURL(f);
+      });
+      const m = typeof dataUrl === "string" ? dataUrl.match(/^data:([^;]+);base64,(.+)$/) : null;
+      if (!m) continue;
+      out.push({
+        kind: "cv_blob",
+        name: String(f.name || "archivo").trim().slice(0, 240),
+        mime: m[1],
+        data: m[2]
+      });
+    } catch (_e) {
+      notify("No se pudo leer un archivo adjunto. Reintente o use otro formato.", "error");
+      return null;
+    }
+  }
+  return out;
+}
+
+/** Edad cumplida desde fecha de nacimiento YYYY-MM-DD (null si inválida). */
+function portalCandidateAgeFromBirthIso(birthIso) {
+  const s = String(birthIso ?? "")
+    .trim()
+    .slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { age: null, birthLabel: "—" };
+  const [y, mo, d] = s.split("-").map((x) => Number(x));
+  const birth = new Date(y, mo - 1, d);
+  if (birth.getFullYear() !== y || birth.getMonth() !== mo - 1 || birth.getDate() !== d) {
+    return { age: null, birthLabel: s };
+  }
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  const md = today.getMonth() - (mo - 1);
+  if (md < 0 || (md === 0 && today.getDate() < d)) age -= 1;
+  return { age, birthLabel: s };
+}
+
 function hiringHtml() {
   const vacancies = read(KEYS.vacancies, []);
   const candidates = read(KEYS.candidates, []);
@@ -9520,11 +9591,15 @@ function hiringHtml() {
     .join("");
   const hiringAdminMutates = isAdminActor();
   const candRows = sortedCandidates
-    .map((c) => `<tr>
+    .map((c) => {
+      const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
+      const ageStr = ageInfo.age != null ? `${ageInfo.age} años` : "—";
+      const expCargo = parseNum(c.experienceYears || 0);
+      return `<tr>
       <td><strong>${escapeHtml(String(c.name || ""))}</strong></td>
       <td>${escapeHtml(String(c.email || ""))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></td>
       <td>${escapeHtml(String(c.vacancyTitle || "-"))}</td>
-      <td>${parseNum(c.experienceYears || 0)} años · Disp: ${escapeHtml(String(c.availabilityDate || "-"))}</td>
+      <td><strong>${expCargo} años</strong> en el cargo<br><span class="muted">Edad: ${escapeHtml(ageStr)} · Nac.: ${escapeHtml(ageInfo.birthLabel)}</span><br><span class="muted">Disp.: ${escapeHtml(String(c.availabilityDate || "-"))}</span></td>
       <td><span class="muted">${escapeHtml(String(c.source || "Portal"))}</span></td>
       <td><span class="status status-en_transito">${escapeHtml(String(c.status || ""))}</span></td>
       <td><select data-action="candidate-status" data-id="${escapeAttr(String(c.id))}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
@@ -9533,7 +9608,8 @@ function hiringHtml() {
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
-    </tr>`)
+    </tr>`;
+    })
     .join("");
   const interviewRows = interviews
     .map((i) => `<tr>
@@ -9635,7 +9711,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeCand}</select></label>
         <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required /></label>
@@ -9648,7 +9724,7 @@ function hiringHtml() {
       <legend>${IC.briefcase} Perfil profesional</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOptsCand}</select></label>
-        <label>${fieldLabel(IC.star, "Años de experiencia")}<input type="number" min="0" name="experienceYears" value="0" required /></label>
+        <label>${fieldLabel(IC.star, "Años de experiencia en el cargo")}<input type="number" min="0" step="1" name="experienceYears" value="0" required /></label>
         <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
         <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
         <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label>
@@ -9743,7 +9819,7 @@ function hiringHtml() {
 
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
-  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Perfil</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
   const alertsBody = renderHrAlertCards([
@@ -15200,12 +15276,27 @@ function bindDynamicEvents() {
         return;
       }
       data.idDoc = docValidation.normalized;
+      const birthRaw = String(data.birthDate || "").trim().slice(0, 10);
+      const candAgeInfo = portalCandidateAgeFromBirthIso(birthRaw);
+      if (candAgeInfo.age === null) {
+        notify("Indique una fecha de nacimiento válida.", "error");
+        return;
+      }
+      if (candAgeInfo.age < 18) {
+        notify("El candidato debe ser mayor de 18 años.", "error");
+        return;
+      }
       const vac = read(KEYS.vacancies, []).find((v) => v.id === data.vacancyId);
       if (!vac) {
         notify(userMessage("hireSelectVacancy"), "error");
         return;
       }
-      const files = [...candidateForm.querySelector("input[name='attachments']").files].map((f) => f.name);
+      const filesFromInput = await readCandidateHrAttachmentsFromInput(candidateForm.querySelector("input[name='attachments']"));
+      if (filesFromInput === null) return;
+      const attachmentList =
+        filesFromInput.length > 0
+          ? filesFromInput
+          : [...(candidateForm.querySelector("input[name='attachments']")?.files ?? [])].map((f) => f.name);
       const expectedSalary = parseNum(data.expectedSalary);
       if (expectedSalary < CO_HR_RULES.minMonthlySalary) {
         notify(
@@ -15227,6 +15318,7 @@ function bindDynamicEvents() {
         phone: data.phone,
         documentType: data.documentType,
         idDoc: data.idDoc,
+        birthDate: birthRaw,
         department: data.department || "",
         city: data.city,
         address: data.address,
@@ -15236,7 +15328,7 @@ function bindDynamicEvents() {
         vacancyId: vac.id,
         vacancyTitle: vac.title,
         status: PIPELINE[0],
-        attachments: files,
+        attachments: attachmentList,
         source: "Portal RRHH",
         createdAt: nowIso()
       });
@@ -16252,39 +16344,89 @@ function bindExtendedViewEditHandlers() {
     return s ? escapeHtml(s) : fallback;
   };
 
-  /** Postulación web (API): adjuntos_json es [{ kind, ... }]. Local: array de nombres de archivo. */
+  /** Postulación web (API/R2): adjuntos_json con kind cv_file | cv_blob | cv_filename · Local: solo nombres o cv_blob desde RRHH. */
   const parseCandidateAttachmentsForView = (raw) => {
-    const files = [];
     let experienceFromJson = "";
-    const pushFile = (name) => {
-      const n = String(name || "").trim();
-      if (n) files.push(n);
+    /** @type {string[]} */
+    const parts = [];
+
+    const safeHttps = (u) => {
+      const s = String(u || "").trim();
+      return /^https:\/\/.+/i.test(s) ? s : "";
     };
+    /** MIME permitido conservador para armar data: URL desde JSON almacenado. */
+    const safeMimeForDataUrl = (m) => {
+      const base = String(m || "application/octet-stream")
+        .split(";")[0]
+        ?.trim()
+        .toLowerCase();
+      if (/^[\w/+.-]+$/.test(base) && base.length < 96) return base;
+      return "application/octet-stream";
+    };
+
     const walk = (arr) => {
       if (!Array.isArray(arr)) return;
       for (const item of arr) {
         if (item == null) continue;
         if (typeof item === "string") {
-          pushFile(item);
+          const n = String(item).trim();
+          if (n) parts.push(`<span class="perm-tag" title="${escapeAttr(n)}">${IC.file}<span>${escapeHtml(n)}</span></span>`);
           continue;
         }
-        if (typeof item === "object") {
-          const k = String(item.kind || "");
-          if (k === "cv_filename" && item.name) pushFile(item.name);
-          else if (k === "experience_notes" && item.text) experienceFromJson = String(item.text || "").trim();
+        if (typeof item !== "object") continue;
+        const k = String(item.kind || "");
+        if (k === "experience_notes" && item.text) {
+          experienceFromJson = String(item.text || "").trim();
+          continue;
+        }
+        if (k === "cv_filename" && item.name) {
+          const n = escapeHtml(String(item.name).trim());
+          parts.push(`<span class="perm-tag">${IC.file}<span>${n}</span></span>`);
+          continue;
+        }
+        if (k === "cv_file") {
+          const displayName = escapeHtml(String(item.name || "Hoja de vida").trim());
+          const url = safeHttps(item.url);
+          if (url) {
+            parts.push(
+              `<a class="btn btn-sm btn-outline" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer" download>${IC.download} Ver / descargar</a> <span class="muted">${displayName}</span>`
+            );
+          } else if (item.storageKey) {
+            parts.push(
+              `<span class="perm-tag">${IC.file}<span>${displayName}</span></span> <span class="muted" title="${escapeAttr(String(item.storageKey))}">(objeto guardado sin URL publica configurada)</span>`
+            );
+          } else {
+            parts.push(`<span class="perm-tag">${IC.file}<span>${displayName}</span></span>`);
+          }
+          continue;
+        }
+        if (k === "cv_blob" && item.data && item.mime) {
+          const dn = escapeAttr(String(item.name || "hoja-de-vida").slice(0, 120));
+          const mime = safeMimeForDataUrl(item.mime);
+          const href = `data:${mime};base64,${String(item.data)}`;
+          parts.push(
+            `<a class="btn btn-sm btn-outline" href="${escapeAttr(href)}" download="${dn}">${IC.download} Descargar</a> <span class="muted">${escapeHtml(String(item.name || "Adjunto"))}</span>`
+          );
+          continue;
         }
       }
     };
+
     if (Array.isArray(raw)) walk(raw);
     else if (raw != null && typeof raw === "object" && typeof raw !== "bigint") walk([raw]);
     else if (typeof raw === "string" && raw.trim()) {
       try {
         walk(JSON.parse(raw));
       } catch (_e) {
-        pushFile(raw);
+        const n = raw.trim();
+        parts.push(`<span class="perm-tag">${escapeHtml(n)}</span>`);
       }
     }
-    return { files, experienceFromJson };
+
+    return {
+      attachmentsHtml: parts.filter(Boolean).join(" "),
+      experienceFromJson
+    };
   };
 
   /* ============= VEHÍCULO: VER ============= */
@@ -16870,16 +17012,13 @@ function bindExtendedViewEditHandlers() {
         notify(userMessage("genericError"), "error");
         return;
       }
-      const { files: attachmentFiles, experienceFromJson } = parseCandidateAttachmentsForView(c.attachments);
+      const { attachmentsHtml: attHtml, experienceFromJson } = parseCandidateAttachmentsForView(c.attachments);
       const experienceSummary = String(c.experienceNotes || experienceFromJson || "").trim();
-      const attachmentsHtml = attachmentFiles.length
-        ? attachmentFiles
-            .map(
-              (name) =>
-                `<span class="perm-tag" title="${escapeAttr(name)}">${IC.file}<span>${escapeHtml(name)}</span></span>`
-            )
-            .join(" ")
-        : `<span class="muted">Sin archivos adjuntos (solo nombre referencial si aplicó por web).</span>`;
+      const ageDisp = portalCandidateAgeFromBirthIso(c.birthDate);
+      const attachmentsInner =
+        String(attHtml || "").trim() !== ""
+          ? attHtml
+          : `<span class="muted">Sin archivos adjuntos registrados para este candidato.</span>`;
       const salaryShow = parseNum(c.expectedSalary ?? c.salaryExpectation ?? c.aspiration ?? 0);
       const availShow = String(c.availabilityDate || c.availableFrom || "").trim();
       const statusShow = String(c.status || c.pipelineStage || "").trim();
@@ -16887,7 +17026,7 @@ function bindExtendedViewEditHandlers() {
         ["Vacante", escapeHtml(String(c.vacancyTitle || "-"))],
         ["Estado", statusShow ? `<span class="status status-en_transito">${escapeHtml(statusShow)}</span>` : ""],
         ["Origen", escapeHtml(String(c.source || "Portal"))],
-        ["Años experiencia", String(parseNum(c.experienceYears || 0))]
+        ["Años de experiencia en el cargo", `${String(parseNum(c.experienceYears || 0))} años`]
       ];
       if (experienceSummary) {
         postulationRows.push(["Experiencia (resumen)", `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(experienceSummary)}</p>`]);
@@ -16904,6 +17043,8 @@ function bindExtendedViewEditHandlers() {
           rows: renderDetailRows([
             ["Nombre", `<strong>${escapeHtml(String(c.name || ""))}</strong>`],
             ["Documento", `${escapeHtml(String(c.documentType || "-"))} ${escapeHtml(String(c.idDoc || ""))}`],
+            ["Fecha de nacimiento", fmtDateOr(ageDisp.birthLabel === "—" ? "" : ageDisp.birthLabel)],
+            ["Edad", ageDisp.age != null ? `${String(ageDisp.age)} años` : "—"],
             ["Correo", escapeHtml(String(c.email || "-"))],
             ["Teléfono", escapeHtml(String(c.phone || "-"))],
             ["Ciudad", escapeHtml(String(c.city || "-"))],
@@ -16919,7 +17060,7 @@ function bindExtendedViewEditHandlers() {
         {
           icon: "file",
           title: "Adjuntos",
-          rows: `<div class="detail-perms-list">${attachmentsHtml}</div>`
+          rows: `<div class="detail-perms-list">${attachmentsInner}</div>`
         }
       ];
       openInfoModal({
@@ -16956,10 +17097,11 @@ function bindExtendedViewEditHandlers() {
           { name: "phone", label: "Teléfono", value: target.phone || "" },
           { name: "documentType", label: "Tipo documento", type: "select", value: target.documentType || "CC", options: docTypeOpts, required: true },
           { name: "idDoc", label: "N° documento", value: target.idDoc || "", required: true },
+          { name: "birthDate", label: "Fecha de nacimiento", type: "date", value: String(target.birthDate || "").slice(0, 10), required: true },
           { name: "city", label: "Ciudad", value: target.city || "" },
           { name: "department", label: "Departamento", value: target.department || "" },
           { name: "address", label: "Dirección", value: target.address || "" },
-          { name: "experienceYears", label: "Años experiencia", type: "number", value: parseNum(target.experienceYears || 0) },
+          { name: "experienceYears", label: "Años de experiencia en el cargo", type: "number", value: parseNum(target.experienceYears || 0), min: 0, max: 65, required: true },
           { name: "expectedSalary", label: "Aspiración salarial", type: "number", value: parseNum(target.expectedSalary || 0) },
           { name: "availabilityDate", label: "Disponibilidad", type: "date", value: target.availabilityDate || "" },
           { name: "vacancyId", label: "Vacante", type: "select", value: target.vacancyId || "", options: vacancyOpts, required: true },
@@ -16970,6 +17112,18 @@ function bindExtendedViewEditHandlers() {
           const docValidation = validateColombianDocument(form.documentType, form.idDoc);
           if (!docValidation.ok) {
             notify(docValidation.message, "error");
+            return false;
+          }
+          const birthCand = String(form.birthDate || "")
+            .trim()
+            .slice(0, 10);
+          const editAgeInfo = portalCandidateAgeFromBirthIso(birthCand);
+          if (editAgeInfo.age === null) {
+            notify("Indique una fecha de nacimiento válida.", "error");
+            return false;
+          }
+          if (editAgeInfo.age < 18) {
+            notify("El candidato debe ser mayor de 18 años.", "error");
             return false;
           }
           const expectedSalary = parseNum(form.expectedSalary);
@@ -16995,6 +17149,7 @@ function bindExtendedViewEditHandlers() {
                     phone: String(form.phone || "").trim(),
                     documentType: form.documentType,
                     idDoc: docValidation.normalized,
+                    birthDate: String(form.birthDate || "").trim().slice(0, 10),
                     city: String(form.city || "").trim(),
                     department: String(form.department || "").trim(),
                     address: String(form.address || "").trim(),
@@ -17504,6 +17659,16 @@ function openPublicVacancyApplyModal(vacancy) {
         ]
       },
       { name: "idDoc", label: "Numero de documento", required: true },
+      { name: "birthDate", label: "Fecha de nacimiento", type: "date", required: true },
+      {
+        name: "experienceYears",
+        label: "Años de experiencia en el cargo o similar",
+        type: "number",
+        value: "0",
+        min: 0,
+        max: 65,
+        required: true
+      },
       { name: "city", label: "Ciudad de residencia", required: true },
       { name: "address", label: "Direccion", required: true },
       {
@@ -17514,40 +17679,51 @@ function openPublicVacancyApplyModal(vacancy) {
         rows: 4
       },
       {
-        name: "attachments",
+        name: "attachment",
         label: "Hoja de vida (PDF, Word o imagen)",
         type: "file",
         accept: ".pdf,.doc,.docx,image/*",
         required: true
       }
     ],
-    onSubmit: async (form) => {
+    onSubmit: async (_payload, formEl) => {
+      if (!formEl) return false;
       const vac = vacancy;
       if (!vac || vac.status !== "Publicada") {
         notify(userMessage("vacancyPublicClosed"), "error");
         return false;
       }
-      const docValidation = validateColombianDocument(form.documentType, form.idDoc);
+      const fd = new FormData(formEl);
+      const docValidation = validateColombianDocument(String(fd.get("documentType") || ""), String(fd.get("idDoc") || ""));
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
         return false;
       }
-      const fileLabel = String(form.attachments || "").trim();
+      fd.set("idDoc", docValidation.normalized);
+      const birth = String(fd.get("birthDate") || "")
+        .trim()
+        .slice(0, 10);
+      const pubAgeInfo = portalCandidateAgeFromBirthIso(birth);
+      if (pubAgeInfo.age === null) {
+        notify("Indique una fecha de nacimiento válida.", "error");
+        return false;
+      }
+      if (pubAgeInfo.age < 18) {
+        notify("Debe tener al menos 18 años para postularse.", "error");
+        return false;
+      }
+      const expY = Math.min(65, Math.max(0, parseNum(String(fd.get("experienceYears") ?? "0"))));
+      fd.set("experienceYears", String(expY));
+      const attachInput = formEl.querySelector("input[name='attachment']");
+      if (!attachInput?.files?.[0]) {
+        notify("Adjunte la hoja de vida (PDF, Word o imagen).", "error");
+        return false;
+      }
+      fd.set("email", normalizeEmail(String(fd.get("email") || "")));
       const apiPub = window.AntaresApi;
-      if (apiPub?.hasBase?.()) {
+      if (apiPub?.hasBase?.() && typeof apiPub.postFormDataPublic === "function") {
         try {
-          await apiPub.postJsonPublic("/public/job-application", {
-            vacancyId: String(form.vacancyId || ""),
-            name: String(form.name || "").trim(),
-            email: normalizeEmail(form.email),
-            phone: String(form.phone || "").trim(),
-            documentType: form.documentType,
-            idDoc: docValidation.normalized,
-            city: String(form.city || "").trim(),
-            address: String(form.address || "").trim(),
-            experience: String(form.experience || "").trim(),
-            attachmentFileName: fileLabel || undefined
-          });
+          await apiPub.postFormDataPublic("/public/job-application", fd);
           notify(userMessage("candidacySentOk"), "success");
           return true;
         } catch (err) {
@@ -17555,26 +17731,33 @@ function openPublicVacancyApplyModal(vacancy) {
           return false;
         }
       }
-      const vacLocal = read(KEYS.vacancies, []).find((x) => x.id === form.vacancyId);
+      const vacancyIdFd = String(fd.get("vacancyId") || "");
+      const vacLocal = read(KEYS.vacancies, []).find((x) => String(x.id) === vacancyIdFd);
       if (!vacLocal || vacLocal.status !== "Publicada") {
         notify(userMessage("vacancyPublicClosed"), "error");
         return false;
       }
+      const nm = String(fd.get("name") || "").trim();
+      const attachName = attachInput.files[0].name;
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: newUuidV4(),
-        name: String(form.name || "").trim(),
-        email: normalizeEmail(form.email),
-        phone: String(form.phone || "").trim(),
-        documentType: form.documentType,
+        name: nm,
+        email: normalizeEmail(String(fd.get("email") || "")),
+        phone: String(fd.get("phone") || "").trim(),
+        documentType: String(fd.get("documentType") || ""),
         idDoc: docValidation.normalized,
-        city: String(form.city || "").trim(),
-        address: String(form.address || "").trim(),
+        birthDate: birth,
+        experienceYears: expY,
+        city: String(fd.get("city") || "").trim(),
+        address: String(fd.get("address") || "").trim(),
         vacancyId: vacLocal.id,
         vacancyTitle: vacLocal.title,
-        experienceNotes: String(form.experience || "").trim(),
+        experienceNotes: String(fd.get("experience") || "").trim(),
+        expectedSalary: 0,
+        availabilityDate: "",
         status: PIPELINE[0],
-        attachments: fileLabel ? [fileLabel] : [],
+        attachments: attachName ? [attachName] : [],
         source: "Sitio web",
         createdAt: nowIso()
       });
@@ -17585,16 +17768,16 @@ function openPublicVacancyApplyModal(vacancy) {
         return false;
       }
       sendEmail({
-        to: normalizeEmail(form.email),
+        to: normalizeEmail(String(fd.get("email") || "")),
         subject: "Postulacion recibida - Antares",
-        body: `Hola ${form.name}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
+        body: `Hola ${nm}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
       });
       try {
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
       notifyHrUsers(
         "Nueva postulacion (web)",
-        `${form.name} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`
+        `${nm} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`
       );
       try {
         await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
