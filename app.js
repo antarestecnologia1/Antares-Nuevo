@@ -9506,7 +9506,7 @@ function portalCandidateAgeFromBirthIso(birthIso) {
 
 function safeHttpsUrlForCandidateCv(u) {
   const s = String(u || "").trim();
-  return /^https:\/\/.+/i.test(s) ? s : "";
+  return /^https?:\/\/.+/i.test(s) ? s : "";
 }
 
 function safeMimeForCvBlobStored(m) {
@@ -9531,7 +9531,7 @@ function flattenCandidateAttachmentsForCv(raw) {
   return [];
 }
 
-/** Primera fuente descargable: cv_blob inline, si no cv_file con URL https. */
+/** Primera fuente descargable: cv_blob inline, si no cv_file con URL http(s) incl. prefirmadas. */
 function extractCandidateCvDownload(candidateLike) {
   const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
   for (const item of attachments) {
@@ -9575,8 +9575,8 @@ function installCandidateCvDownloadDelegation() {
   document.body.dataset.antaresCvDlBound = "1";
   document.body.addEventListener("click", (event) => {
     const btn = event.target instanceof Element ? event.target.closest("[data-action='download-candidate-cv']") : null;
-    if (!btn || btn.tagName.toUpperCase() !== "BUTTON") return;
-    if (btn.disabled) return;
+    if (!btn) return;
+    if (btn.hasAttribute("disabled") || btn.getAttribute("aria-disabled") === "true") return;
     const id = String(btn.dataset.id || "").trim();
     if (!id) return;
     event.preventDefault();
@@ -16454,7 +16454,7 @@ function bindExtendedViewEditHandlers() {
 
     const safeHttps = (u) => {
       const s = String(u || "").trim();
-      return /^https:\/\/.+/i.test(s) ? s : "";
+      return /^https?:\/\/.+/i.test(s) ? s : "";
     };
     /** MIME permitido conservador para armar data: URL desde JSON almacenado. */
     const safeMimeForDataUrl = (m) => {
@@ -17842,8 +17842,9 @@ function openPublicVacancyApplyModal(vacancy) {
         notify(userMessage("vacancyPublicClosed"), "error");
         return false;
       }
+      const cvPieces = await readCandidateHrAttachmentsFromInput(attachInput);
+      if (cvPieces === null) return false;
       const nm = String(fd.get("name") || "").trim();
-      const attachName = attachInput.files[0].name;
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: newUuidV4(),
@@ -17862,7 +17863,7 @@ function openPublicVacancyApplyModal(vacancy) {
         expectedSalary: 0,
         availabilityDate: "",
         status: PIPELINE[0],
-        attachments: attachName ? [attachName] : [],
+        attachments: cvPieces,
         source: "Sitio web",
         createdAt: nowIso()
       });

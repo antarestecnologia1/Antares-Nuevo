@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import { PG_POOL } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
+import { R2Service } from "../uploads/r2.service";
 import {
   computeColombiaPayrollForPeriodCut,
   monthUtcBounds,
@@ -117,7 +118,8 @@ export class PortalService implements OnModuleInit {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly config: ConfigService,
-    private readonly mail: MailService
+    private readonly mail: MailService,
+    private readonly r2: R2Service
   ) {
     const url = normalizeSupabaseProjectUrl(this.config.get<string>("SUPABASE_URL"));
     const key = (this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
@@ -1649,6 +1651,57 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
+  /** CV en R2 sin `CF_R2_PUBLIC_BASE`: añade URL prefirmada para que RH pueda descargar desde el portal. */
+  private async enrichCandidateAttachmentsForPortal(raw: unknown): Promise<unknown> {
+    if (!this.r2.isEnabled()) {
+      if (raw == null) return [];
+      return raw;
+    }
+    let arr: unknown[] = [];
+    if (Array.isArray(raw)) {
+      arr = raw;
+    } else if (typeof raw === "string" && raw.trim()) {
+      try {
+        const p = JSON.parse(raw) as unknown;
+        if (Array.isArray(p)) arr = p;
+        else return raw;
+      } catch {
+        return raw;
+      }
+    } else if (raw == null) {
+      return [];
+    } else {
+      return raw;
+    }
+
+    const out: unknown[] = [];
+    for (const item of arr) {
+      if (item == null || typeof item !== "object" || Array.isArray(item)) {
+        out.push(item);
+        continue;
+      }
+      const rec = item as Record<string, unknown>;
+      const kind = String(rec.kind || "");
+      const storageKey = String(rec.storageKey || "").trim();
+      const existingUrl = String(rec.url || "").trim();
+      if (
+        kind === "cv_file" &&
+        storageKey &&
+        !(existingUrl && /^https?:\/\//i.test(existingUrl))
+      ) {
+        try {
+          const signed = await this.r2.presignGetUploadsObject(storageKey, 7200);
+          out.push({ ...rec, url: signed });
+          continue;
+        } catch (e) {
+          this.logger.warn(`presign CV falló (${storageKey}): ${String((e as Error)?.message || e)}`);
+        }
+      }
+      out.push(rec);
+    }
+    return out;
+  }
+
   private async loadVacancies() {
     const r = await this.pool.query(`SELECT * FROM vacantes ORDER BY fecha_creacion DESC`);
     return r.rows.map((v) => ({
@@ -1674,36 +1727,38 @@ export class PortalService implements OnModuleInit {
 
   private async loadCandidates() {
     const r = await this.pool.query(`SELECT * FROM candidatos ORDER BY fecha_creacion DESC`);
-    return r.rows.map((c) => ({
-      id: c.id,
-      vacancyId: c.id_vacante,
-      name: c.nombre_completo,
-      email: c.correo_electronico,
-      phone: c.telefono,
-      documentType: c.tipo_documento,
-      idDoc: c.numero_documento,
-      birthDate: (() => {
-        const f = c.fecha_nacimiento;
-        if (f == null || f === "") return null;
-        if (f instanceof Date) return f.toISOString().slice(0, 10);
-        const s = String(f);
-        return s.length >= 10 ? s.slice(0, 10) : s || null;
-      })(),
-      educationLevel: c.nivel_educativo,
-      department: c.departamento,
-      city: c.ciudad,
-      address: c.direccion,
-      experienceYears: Number(c.anios_experiencia),
-      salaryExpectation: Number(c.aspiracion_salarial),
-      availableFrom: c.fecha_disponible_ingreso,
-      vacancyTitle: c.titulo_vacante_denorm,
-      pipelineStage: c.etapa_proceso,
-      attachments: c.adjuntos_json,
-      source: c.origen,
-      hiredAt: c.fecha_contratacion,
-      contractRegisteredAt: c.fecha_registro_contrato,
-      createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString()
-    }));
+    return Promise.all(
+      r.rows.map(async (c) => ({
+        id: c.id,
+        vacancyId: c.id_vacante,
+        name: c.nombre_completo,
+        email: c.correo_electronico,
+        phone: c.telefono,
+        documentType: c.tipo_documento,
+        idDoc: c.numero_documento,
+        birthDate: (() => {
+          const f = c.fecha_nacimiento;
+          if (f == null || f === "") return null;
+          if (f instanceof Date) return f.toISOString().slice(0, 10);
+          const s = String(f);
+          return s.length >= 10 ? s.slice(0, 10) : s || null;
+        })(),
+        educationLevel: c.nivel_educativo,
+        department: c.departamento,
+        city: c.ciudad,
+        address: c.direccion,
+        experienceYears: Number(c.anios_experiencia),
+        salaryExpectation: Number(c.aspiracion_salarial),
+        availableFrom: c.fecha_disponible_ingreso,
+        vacancyTitle: c.titulo_vacante_denorm,
+        pipelineStage: c.etapa_proceso,
+        attachments: await this.enrichCandidateAttachmentsForPortal(c.adjuntos_json),
+        source: c.origen,
+        hiredAt: c.fecha_contratacion,
+        contractRegisteredAt: c.fecha_registro_contrato,
+        createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString()
+      }))
+    );
   }
 
   private async loadInterviews() {

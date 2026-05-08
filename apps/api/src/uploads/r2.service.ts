@@ -98,6 +98,21 @@ export class R2Service {
     return `${this.publicBase}/${key.replace(/^\/+/, "")}`;
   }
 
+  /** GET prefirmado para descargar un objeto ya subido a `CF_R2_UPLOADS_BUCKET` (p. ej. CV sin dominio público configurado). */
+  async presignGetUploadsObject(key: string, expiresInSec = 7200) {
+    if (!this.enabled || !this.client) {
+      throw new InternalServerErrorException(
+        "R2 no está configurado en el servidor."
+      );
+    }
+    const normalizedKey = key.replace(/^\/+/, "");
+    const cmd = new GetObjectCommand({
+      Bucket: this.uploadsBucket,
+      Key: normalizedKey
+    });
+    return getSignedUrl(this.client, cmd, { expiresIn: expiresInSec });
+  }
+
   /** Lee una plantilla Word del bucket privado y devuelve el buffer. */
   async getContractTemplate(kind: string): Promise<{ buffer: Buffer; fileName: string }> {
     if (!this.enabled || !this.client) {
