@@ -607,7 +607,14 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   );
 }
 
-function openInfoModal({ title, subtitle = "", bodyHtml = "", wide = false, extraModalCardClass = "" }) {
+function openInfoModal({
+  title,
+  subtitle = "",
+  bodyHtml = "",
+  wide = false,
+  extraModalCardClass = "",
+  secondaryActionsHtml = ""
+}) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -631,7 +638,8 @@ function openInfoModal({ title, subtitle = "", bodyHtml = "", wide = false, extr
     </div>
     ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
     <div class="modal-info-body${wide ? " modal-info-body--profile" : ""}">${bodyHtml}</div>
-    <div class="modal-edit-actions" style="margin-top:1rem;">
+    <div class="modal-edit-actions">
+      ${secondaryActionsHtml}
       <button type="button" id="crud-ok" class="btn btn-primary">Cerrar</button>
     </div>
   `;
@@ -9496,6 +9504,96 @@ function portalCandidateAgeFromBirthIso(birthIso) {
   return { age, birthLabel: s };
 }
 
+function safeHttpsUrlForCandidateCv(u) {
+  const s = String(u || "").trim();
+  return /^https:\/\/.+/i.test(s) ? s : "";
+}
+
+function safeMimeForCvBlobStored(m) {
+  const base = String(m || "application/octet-stream")
+    .split(";")[0]
+    ?.trim()
+    .toLowerCase();
+  if (/^[\w/+.-]+$/.test(base) && base.length < 96) return base;
+  return "application/octet-stream";
+}
+
+function flattenCandidateAttachmentsForCv(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (raw != null && typeof raw === "object" && typeof raw !== "bigint") return [raw];
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const p = JSON.parse(raw);
+      if (Array.isArray(p)) return p;
+      if (p != null && typeof p === "object" && typeof p !== "bigint") return [p];
+    } catch (_e) {}
+  }
+  return [];
+}
+
+/** Primera fuente descargable: cv_blob inline, si no cv_file con URL https. */
+function extractCandidateCvDownload(candidateLike) {
+  const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
+  for (const item of attachments) {
+    if (item == null || typeof item !== "object") continue;
+    const k = String(item.kind || "");
+    if (k === "cv_blob" && item.data && item.mime) {
+      const mime = safeMimeForCvBlobStored(item.mime);
+      const href = `data:${mime};base64,${String(item.data)}`;
+      const fileName = String(item.name || "hoja-de-vida").trim() || "hoja-de-vida";
+      return { href, fileName };
+    }
+    if (k === "cv_file") {
+      const url = safeHttpsUrlForCandidateCv(item.url);
+      if (url) {
+        const fileName = String(item.name || "Hoja-de-vida").trim() || "Hoja-de-vida";
+        return { href: url, fileName };
+      }
+    }
+  }
+  return null;
+}
+
+function triggerCandidateCvDownload(href, fileNameFallback) {
+  const name = String(fileNameFallback || "cv").replace(/[\\/]/g, "_");
+  try {
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = name;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (_e) {
+    window.open(href, "_blank", "noopener,noreferrer");
+  }
+}
+
+function installCandidateCvDownloadDelegation() {
+  if (typeof document === "undefined" || !document.body) return;
+  if (document.body.dataset.antaresCvDlBound === "1") return;
+  document.body.dataset.antaresCvDlBound = "1";
+  document.body.addEventListener("click", (event) => {
+    const btn = event.target instanceof Element ? event.target.closest("[data-action='download-candidate-cv']") : null;
+    if (!btn || btn.tagName.toUpperCase() !== "BUTTON") return;
+    if (btn.disabled) return;
+    const id = String(btn.dataset.id || "").trim();
+    if (!id) return;
+    event.preventDefault();
+    const cand = read(KEYS.candidates, []).find((x) => String(x.id) === id);
+    if (!cand) {
+      notify(userMessage("genericError"), "error");
+      return;
+    }
+    const dl = extractCandidateCvDownload(cand);
+    if (!dl?.href) {
+      notify("No hay CV descargable para este candidato.", "info");
+      return;
+    }
+    triggerCandidateCvDownload(dl.href, dl.fileName);
+  });
+}
+
 function hiringHtml() {
   const vacancies = read(KEYS.vacancies, []);
   const candidates = read(KEYS.candidates, []);
@@ -9595,6 +9693,8 @@ function hiringHtml() {
       const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
       const ageStr = ageInfo.age != null ? `${ageInfo.age} años` : "—";
       const expCargo = parseNum(c.experienceYears || 0);
+      const cvDlRow = extractCandidateCvDownload(c);
+      const canDlCv = Boolean(cvDlRow?.href);
       return `<tr>
       <td><strong>${escapeHtml(String(c.name || ""))}</strong></td>
       <td>${escapeHtml(String(c.email || ""))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></td>
@@ -9605,6 +9705,7 @@ function hiringHtml() {
       <td><select data-action="candidate-status" data-id="${escapeAttr(String(c.id))}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+        <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar CV" : "Sin CV disponible"}">${IC.download} Descargar CV</button>
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
@@ -16315,6 +16416,7 @@ function initGlobalEvents() {
   });
 
   initRequiredFieldIndicators();
+  installCandidateCvDownloadDelegation();
   initB2BFormExperience();
 }
 
@@ -17063,11 +17165,14 @@ function bindExtendedViewEditHandlers() {
           rows: `<div class="detail-perms-list">${attachmentsInner}</div>`
         }
       ];
+      const cvDlModal = extractCandidateCvDownload(c);
+      const canDlCvModal = Boolean(cvDlModal?.href);
       openInfoModal({
         title: String(c.name || "Candidato"),
         subtitle: String(c.vacancyTitle || ""),
         bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        wide: true,
+        secondaryActionsHtml: `<button type="button" class="btn btn-action"${canDlCvModal ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCvModal ? "Descargar CV" : "Sin CV disponible"}">${IC.download} Descargar CV</button>`
       });
     });
   });
