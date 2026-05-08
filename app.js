@@ -962,13 +962,12 @@ function payrollMonthIsPrimaSemester(ym) {
 }
 
 /**
- * Febrero: liquidación frecuente en nómina de intereses de cesantías del año anterior.
- * Nota legal: la Ley 52/1975 prevé pago al trabajador en enero del año siguiente al causado;
- * muchas empresas lo consignan o pagan en el ciclo de febrero — valide con contador.
+ * Enero u febrero: ventana habitual en nómina para liquidar o pagar intereses de cesantías del año causado (Ley 52/1975).
+ * La ley señala pago **en el mes de enero** del año siguiente; muchas empresas lo registran en la planilla **01**, otras en **02** — valide con contador y fondo.
  */
 function payrollMonthIsCesantiasInterestMonth(ym) {
   const m = String(ym || "").trim();
-  return m.length >= 7 && m.endsWith("-02");
+  return m.length >= 7 && (m.endsWith("-01") || m.endsWith("-02"));
 }
 
 /**
@@ -9143,9 +9142,9 @@ function payrollHtml() {
       </div>
     </fieldset>
     <fieldset id="payroll-cesantias-int-fieldset" class="form-section form-section-violet full hidden" aria-hidden="true">
-      <legend>${IC.dollar} Intereses sobre cesantías (febrero)</legend>
+      <legend>${IC.dollar} Intereses sobre cesantías (enero o febrero)</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.65rem">
-        <strong>Ley 52 de 1975:</strong> el trabajador tiene derecho a intereses del <strong>12% anual</strong> sobre sus cesantías; el legislador prevé el pago al trabajador <strong>en enero</strong> del año siguiente al causado (y reglas especiales en retiros o ceses). Es frecuente liquidarlos junto con la <strong>nómina de febrero</strong> — coordine fecha y base con extracto del fondo o contador.
+        <strong>Ley 52 de 1975:</strong> el trabajador tiene derecho a intereses del <strong>12% anual</strong> sobre sus cesantías; el legislador prevé el pago al trabajador <strong>en enero</strong> del año siguiente al causado (y reglas especiales en retiros o ceses). Este bloque aparece si el mes liquidado es enero (01) o febrero (02): use enero para coincidir con el plazo habitual, o febrero solo si así lo acuerda política interna y contabilidad sin omitir cumplimiento. Coordine fecha y base con extracto del fondo o contador.
       </p>
       <div class="form-section-grid">
         <label class="full" style="align-items:flex-start;display:flex;gap:0.5rem;flex-wrap:wrap">
@@ -14352,7 +14351,7 @@ function bindDynamicEvents() {
       const payInteresesCesantias = Boolean(data.payInteresesCesantias);
       if (payInteresesCesantias && !payrollMonthIsCesantiasInterestMonth(data.month)) {
         notify(
-          "Los intereses sobre cesantías (Ley 52/1975) se parametrizan cuando el mes liquidado es febrero (02), donde suele acumularse lo causado para pago efectivo cercano al plazo de enero. Ajuste con su contador.",
+          "Los intereses sobre cesantías (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador.",
           "error"
         );
         return;
@@ -14691,7 +14690,7 @@ function bindDynamicEvents() {
           );
         if (parseNum(run.interesesCesantiasCop) > 0)
           disclaimerPieces.push(
-            `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Acumular el pago con la liquidación de febrero es habitual en la práctica cuando se respeta ese cronograma — confirme con su contador y extracto del fondo.`
+            `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
           );
       }
       const disclaimer =
