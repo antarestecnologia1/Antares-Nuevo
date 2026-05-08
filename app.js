@@ -1631,6 +1631,28 @@ function __applyPortalBootstrapPayloadInner(p) {
       write(KEYS.companies, merged);
       continue;
     }
+    if (prop === "candidates") {
+      const raw = Array.isArray(p.candidates) ? p.candidates : [];
+      write(
+        KEYS.candidates,
+        raw.map((row) => {
+          if (!row || typeof row !== "object") return row;
+          const r = { ...row };
+          const st = String(r.status || "").trim();
+          const ps = String(r.pipelineStage || "").trim();
+          if (!st && ps) r.status = ps;
+          if (r.expectedSalary == null && r.salaryExpectation != null)
+            r.expectedSalary = Number(r.salaryExpectation) || 0;
+          const avail = String(r.availabilityDate || "").trim();
+          if (!avail && r.availableFrom != null) {
+            const af = r.availableFrom;
+            r.availabilityDate = typeof af === "string" ? af.slice(0, 10) : String(af).slice(0, 10);
+          }
+          return r;
+        })
+      );
+      continue;
+    }
     write(key, p[prop]);
   }
 }
@@ -10788,6 +10810,8 @@ function renderPortalViewImpl() {
   applyManualModuleLayout();
   mountUniversalModuleFilters();
   bindDynamicEvents();
+  /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
+  bindExtendedViewEditHandlers();
   enforceColombianFormStandards();
   applyModuleMicroAnimations();
 }
@@ -16198,8 +16222,6 @@ function initGlobalEvents() {
     renderPortal();
   });
 
-  bindExtendedViewEditHandlers();
-
   initRequiredFieldIndicators();
   initB2BFormExperience();
 }
@@ -16228,6 +16250,41 @@ function bindExtendedViewEditHandlers() {
   const fmtDateOr = (val, fallback = "—") => {
     const s = String(val || "").trim();
     return s ? escapeHtml(s) : fallback;
+  };
+
+  /** Postulación web (API): adjuntos_json es [{ kind, ... }]. Local: array de nombres de archivo. */
+  const parseCandidateAttachmentsForView = (raw) => {
+    const files = [];
+    let experienceFromJson = "";
+    const pushFile = (name) => {
+      const n = String(name || "").trim();
+      if (n) files.push(n);
+    };
+    const walk = (arr) => {
+      if (!Array.isArray(arr)) return;
+      for (const item of arr) {
+        if (item == null) continue;
+        if (typeof item === "string") {
+          pushFile(item);
+          continue;
+        }
+        if (typeof item === "object") {
+          const k = String(item.kind || "");
+          if (k === "cv_filename" && item.name) pushFile(item.name);
+          else if (k === "experience_notes" && item.text) experienceFromJson = String(item.text || "").trim();
+        }
+      }
+    };
+    if (Array.isArray(raw)) walk(raw);
+    else if (raw != null && typeof raw === "object" && typeof raw !== "bigint") walk([raw]);
+    else if (typeof raw === "string" && raw.trim()) {
+      try {
+        walk(JSON.parse(raw));
+      } catch (_e) {
+        pushFile(raw);
+      }
+    }
+    return { files, experienceFromJson };
   };
 
   /* ============= VEHÍCULO: VER ============= */
@@ -16813,9 +16870,33 @@ function bindExtendedViewEditHandlers() {
         notify(userMessage("genericError"), "error");
         return;
       }
-      const attachmentsHtml = Array.isArray(c.attachments) && c.attachments.length
-        ? c.attachments.map((f) => `<span class="perm-tag">${escapeHtml(String(f))}</span>`).join(" ")
-        : `<span class="muted">Sin adjuntos.</span>`;
+      const { files: attachmentFiles, experienceFromJson } = parseCandidateAttachmentsForView(c.attachments);
+      const experienceSummary = String(c.experienceNotes || experienceFromJson || "").trim();
+      const attachmentsHtml = attachmentFiles.length
+        ? attachmentFiles
+            .map(
+              (name) =>
+                `<span class="perm-tag" title="${escapeAttr(name)}">${IC.file}<span>${escapeHtml(name)}</span></span>`
+            )
+            .join(" ")
+        : `<span class="muted">Sin archivos adjuntos (solo nombre referencial si aplicó por web).</span>`;
+      const salaryShow = parseNum(c.expectedSalary ?? c.salaryExpectation ?? c.aspiration ?? 0);
+      const availShow = String(c.availabilityDate || c.availableFrom || "").trim();
+      const statusShow = String(c.status || c.pipelineStage || "").trim();
+      const postulationRows = [
+        ["Vacante", escapeHtml(String(c.vacancyTitle || "-"))],
+        ["Estado", statusShow ? `<span class="status status-en_transito">${escapeHtml(statusShow)}</span>` : ""],
+        ["Origen", escapeHtml(String(c.source || "Portal"))],
+        ["Años experiencia", String(parseNum(c.experienceYears || 0))]
+      ];
+      if (experienceSummary) {
+        postulationRows.push(["Experiencia (resumen)", `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(experienceSummary)}</p>`]);
+      }
+      postulationRows.push(
+        ["Aspiración salarial", fmtMoney(salaryShow)],
+        ["Disponibilidad", fmtDateOr(availShow)],
+        ["Registrado", fmtDateOr(c.createdAt)]
+      );
       const sections = [
         {
           icon: "user",
@@ -16833,15 +16914,7 @@ function bindExtendedViewEditHandlers() {
         {
           icon: "briefcase",
           title: "Postulación",
-          rows: renderDetailRows([
-            ["Vacante", escapeHtml(String(c.vacancyTitle || "-"))],
-            ["Estado", `<span class="status status-en_transito">${escapeHtml(String(c.status || ""))}</span>`],
-            ["Origen", escapeHtml(String(c.source || "Portal"))],
-            ["Años experiencia", String(parseNum(c.experienceYears || 0))],
-            ["Aspiración salarial", fmtMoney(c.expectedSalary)],
-            ["Disponibilidad", fmtDateOr(c.availabilityDate)],
-            ["Registrado", fmtDateOr(c.createdAt)]
-          ])
+          rows: renderDetailRows(postulationRows)
         },
         {
           icon: "file",

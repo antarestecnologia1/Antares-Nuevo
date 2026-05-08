@@ -1,22 +1,158 @@
 # -*- coding: utf-8 -*-
-"""
-Genera Antares_Arquitectura_UI_UX.docx — arquitectura, modelo de datos,
-sistema de diseño y wireframes alineados al código en index.html, styles.css,
-app.js y apps/api + BD/postgres.
-"""
+"""Genera Antares_Arquitectura_UI_UX.docx (+ PDF opcional): portada institucional, diagramas matplotlib."""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
 from pathlib import Path
 
 from docx import Document
-from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt, RGBColor
+
+_DOCS = Path(__file__).resolve().parent
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_DOCS) not in sys.path:
+    sys.path.insert(0, str(_DOCS))
+from antares_diagrams_matplotlib import generate_all_diagrams
 
 
-def add_title(doc: Document, text: str, size_pt: int = 18):
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(text)
-    r.bold = True
-    r.font.size = Pt(size_pt)
+def _logo_path_candidates() -> list[Path]:
+    return [
+        _ROOT / "imagenes empresa" / "Logo.png",
+        _ROOT / "imagenes%20empresa" / "Logo.png",
+    ]
+
+
+def add_cover_page(doc: Document) -> Path | None:
+    """Primera página: logo corporativo centrado + título de entrega oficial."""
+    for _ in range(4):
+        doc.add_paragraph()
+    logo: Path | None = None
+    for p in _logo_path_candidates():
+        if p.is_file():
+            logo = p
+            break
+    if logo:
+        pg = doc.add_paragraph()
+        pg.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        pg.paragraph_format.space_after = Pt(12)
+        pg.add_run().add_picture(str(logo), width=Inches(3.95))
+
+    p0 = doc.add_paragraph()
+    p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r0 = p0.add_run("TRANSPORTES ANTARES S.A.S")
+    r0.bold = True
+    r0.font.size = Pt(22)
+
+    for text, pt, bold in [
+        ("Solución digital — Documento de arquitectura técnica (AS-IS)", 14.5, True),
+        ("Vistas contextuales, contenedores, despliegue, dominio datos y sistema de diseño UX/UI", 11.2, False),
+        ("Presentación institucional para validación cliente / equipo de arquitectura empresarial", 10.5, False),
+    ]:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        rr = p.add_run(text)
+        rr.bold = bold
+        rr.font.size = Pt(pt)
+
+    for _ in range(2):
+        doc.add_paragraph()
+    fb = doc.add_paragraph()
+    fb.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rfb = fb.add_run("CONFIDENCIAL — Uso corporativo por destinatarios autorizados")
+    rfb.bold = True
+    rfb.font.size = Pt(11)
+    rfb.font.color.rgb = RGBColor(0xD6, 0x28, 0x28)
+    fb2 = doc.add_paragraph()
+    fb2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    rf2 = fb2.add_run("Mayo de 2026 — Versión reproducible automatizada desde repositorio")
+    rf2.italic = True
+    rf2.font.size = Pt(10)
+
+    doc.add_page_break()
+    return logo
+
+
+def export_pdf_via_word(docx_path: Path, pdf_path: Path) -> tuple[bool, str]:
+    """Word de escritorio o docx2pdf — prioriza fidelidad WYSIWYG del DOCX."""
+    wd_pdf = 17
+    docx_abs = str(docx_path.resolve())
+    pdf_abs = str(pdf_path.resolve())
+    if pdf_path.is_file():
+        pdf_path.unlink()
+    trace = ""
+
+    try:
+        import win32com.client as win32
+
+        app = win32.DispatchEx("Word.Application")
+        app.Visible = False
+        app.DisplayAlerts = 0
+        d = None
+        try:
+            d = app.Documents.Open(docx_abs, ReadOnly=True)
+            d.SaveAs(pdf_abs, FileFormat=wd_pdf)
+        finally:
+            if d:
+                d.Close(SaveChanges=0)
+            app.Quit(SaveChanges=0)
+        if pdf_path.is_file():
+            return True, "PDF generado mediante Microsoft Word (motor de paginación nativo)."
+    except Exception as e:
+        trace = str(e)
+
+    try:
+        from docx2pdf import convert
+
+        convert(docx_abs, pdf_abs)
+        if pdf_path.is_file():
+            return True, "PDF generado mediante docx2pdf (requiere Word instalado)."
+    except Exception as e:
+        trace = f"{trace} · docx2pdf:{e}"
+
+    return False, trace
+
+
+def export_pdf_via_libreoffice(soffice: str | None, docx_path: Path, pdf_out_dir: Path) -> tuple[bool, str]:
+    """Si `soffice` existe, convierte DOCX→PDF sin depender de Microsoft Word."""
+    candidates = []
+    if soffice:
+        candidates.append(Path(soffice))
+    candidates.extend([
+        Path(r"C:\Program Files\LibreOffice\program\soffice.exe"),
+        Path(r"C:\Program Files (x86)\LibreOffice\program\soffice.exe"),
+    ])
+    exe = next((p for p in candidates if p.is_file()), None)
+    if not exe:
+        return False, ""
+
+    pdf_out_dir.mkdir(parents=True, exist_ok=True)
+    res = subprocess.run(
+        [
+            str(exe),
+            "--headless",
+            "--norestore",
+            "--nologo",
+            "--nolockcheck",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(pdf_out_dir.resolve()),
+            str(docx_path.resolve()),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=180,
+        shell=False,
+    )
+    pdf_name = docx_path.with_suffix(".pdf").name
+    target = pdf_out_dir / pdf_name
+    if target.is_file():
+        return True, f"PDF mediante LibreOffice headless ({exe.name}). Stderr ejemplo: {(res.stderr or '')[:200]}"
+    return False, res.stderr.strip()[:400] if res.stderr else ""
 
 
 def add_h(doc: Document, text: str, level: int = 1):
@@ -27,394 +163,310 @@ def add_p(doc: Document, text: str, bold: bool = False):
     p = doc.add_paragraph()
     run = p.add_run(text)
     run.bold = bold
-    run.font.size = Pt(11)
-    return p
 
 
-def add_mono(doc: Document, text: str, size: int = 9):
+def add_bullets(doc: Document, items: list[str]):
+    for item in items:
+        doc.add_paragraph(item, style="List Bullet")
+
+
+def add_mono(doc: Document, text: str, size_pt: int = 9):
     p = doc.add_paragraph()
     run = p.add_run(text)
     run.font.name = "Consolas"
-    run.font.size = Pt(size)
-    return p
+    run.font.size = Pt(size_pt)
 
 
-def add_table2(doc: Document, headers: list[str], rows: list[list[str]]):
+def add_table(doc: Document, headers: list[str], rows: list[list[str]], style: str = "Table Grid"):
     t = doc.add_table(rows=1 + len(rows), cols=len(headers))
-    t.style = "Table Grid"
+    t.style = style
     hdr = t.rows[0].cells
     for i, h in enumerate(headers):
-        hdr[i].text = h
+        hdr[i].text = str(h)
     for ri, row in enumerate(rows):
         cells = t.rows[ri + 1].cells
         for ci, val in enumerate(row):
-            cells[ci].text = val
+            cells[ci].text = str(val)
+
+
+def add_figure(doc: Document, image_path: Path, caption_es: str, width_in: float = 6.52):
+    if not image_path.is_file():
+        add_p(doc, f"[Diagrama ausente — {image_path.name}]", bold=True)
+        return
+    pg = doc.add_paragraph()
+    pg.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    pg.add_run().add_picture(str(image_path), width=Inches(width_in))
+    cap = doc.add_paragraph(caption_es)
+    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for r in cap.runs:
+        r.italic = True
+        r.font.size = Pt(9)
 
 
 def main():
-    root = Path(__file__).resolve().parents[1]
-    out = Path(__file__).resolve().parent / "Antares_Arquitectura_UI_UX.docx"
+    ap = argparse.ArgumentParser(description="Informe arquitectura Antares → DOCX (y PDF opcional, alta calidad).")
+    ap.add_argument("--no-pdf", action="store_true", help="Guardar sólo DOCX.")
+    ap.add_argument(
+        "--libreoffice-first",
+        action="store_true",
+        help="Intentar primero LibreOffice headless antes que Microsoft Word.",
+    )
+    ap.add_argument(
+        "--soffice",
+        default="",
+        metavar="RUTA",
+        help="Ruta explícita a soffice.exe (opcional si LibreOffice está en ubicación estándar).",
+    )
+    args = ap.parse_args()
+    fig_dir = _DOCS / "_diagramas_antares_build"
+    figs = generate_all_diagrams(fig_dir)
+    out = _DOCS / "Antares_Arquitectura_UI_UX.docx"
+    pdf_target = out.with_suffix(".pdf")
     doc = Document()
-    n = doc.styles["Normal"]
-    n.font.name = "Calibri"
-    n.font.size = Pt(11)
+    doc.styles["Normal"].font.name = "Calibri"
+    doc.styles["Normal"].font.size = Pt(11)
 
-    add_title(
-        doc,
-        "Transportes Antares S.A.S\nArquitectura de software — Sistema de diseño UI/UX\nModelo de datos y mockups de referencia",
-        17,
-    )
-    add_p(
-        doc,
-        "Documento descriptivo del estado actual del repositorio Antares Nuevo "
-        "(sitio público SPA, portal operativo integrado y API NestJS). "
-        f"Fuente código: `{root}`",
-    )
-    add_p(doc, "")
-    meta = doc.add_paragraph()
-    meta.add_run("Versión: 1.0 — referencia técnica y de producto para stakeholders y desarrollo.")
+    logo = add_cover_page(doc)
 
-    doc.add_page_break()
-
-    add_h(doc, "1. Alcance del producto", 1)
-    add_p(
+    add_h(doc, "Hoja de control documental", 1)
+    add_table(
         doc,
-        "Dos caras coherentes sobre la misma identidad corporativa: (a) página de marca y captación "
-        "B2B con formulario de contacto y contenido institucional; (b) portal autenticado para clientes "
-        "y equipo interno según rol, con flujos operativos (solicitudes de transporte, flota, nómina, RRHH "
-        "y aprobaciones). El front principal vive como aplicación contenida en `index.html`, `styles.css` "
-        "y `app.js` (~Vanilla JS) con tema claro/oscuro e internacionalización (ES/en). Una API opcional "
-        "en `apps/api` (NestJS) persiste contra PostgreSQL (Supabase/Render).",
-    )
-
-    add_h(doc, "2. Vista de arquitectura técnica", 1)
-
-    add_h(doc, "2.1 Diagrama lógico (componentes)", 2)
-    add_mono(
-        doc,
-        """  [Visitante / Usuario navegador]
-            |  HTTPS + CSP meta (Turnstile, fuentes Google)
-            v
-      +-----------+       JWT /cookies        +------------------+
-      | index.html | <----------------------> | NestJS api (4000)|
-      | app.js    |    /api/auth, /portal/... | AppModule       |
-      +-----------+                          +--------+---------+
-            | POST sync /bootstrap                      |
-            | localStorage KEYS.*                       | pg Pool
-            v                                           v
-      [localStorage borrador ]              [PostgreSQL - esquema public]
-                                                       Supabase opcional""",
-        10,
-    )
-    add_p(
-        doc,
-        "Los datos del portal pueden operar offline-first mediante `localStorage` y escritura al servidor cuando "
-        "la API está configurada (`writeAwaitServer`, bootstrap `/portal/sync`). PostgreSQL replica el modelo "
-        "de colecciones con comentarios `KEYS.<nombre>` en los scripts SQL.",
-    )
-
-    add_h(doc, "2.2 Módulos de la API (NestJS)", 2)
-    add_table2(
-        doc,
-        ["Módulo", "Propósito"],
+        ["Campo de control documental", "Valor"],
         [
-            ["ConfigModule / Throttler", "Variables `.env`; límite 80 req/min por IP."],
-            ["DatabaseModule + pg Pool", "Conexión Postgres; zona horaria de sesión `America/Bogota` donde aplica."],
-            ["AuthModule", "JWT (access token), bcrypt, Passport, Turnstile, correo recuperación/aprobación."],
-            ["PortalModule", "Bootstrap, sincronización de entidades (empresas, usuarios, nómina, viajes…)."],
-            ["PayrollModule", "Liquidación/colombiano, autocorte por periodicidad Bogotá, `@nestjs/schedule`."],
-            ["FilesModule / UploadsModule", "Documentos firmados/presigned (ej. R2/S3 según configuración)."],
-            ["MailModule", "Resend / alternativas."],
-            ["B2bProspectModule", "Prospectos formulario institucional."],
+            ["Clasificación sugerida", "Confidencial — uso cliente y socios tecnológicos bajo acuerdos de confidencialidad aplicables"],
+            ["Versión del entregable", "2.1 — portada institucional + vistas gráficas (PNG 220 dpi) + PDF opcional (Word/LibreOffice)"],
+            ["Alcance técnico", "Implementación repositorio “Antares Nuevo”"],
+            ["Identidad visual (portada)", f"Logo embebido desde {logo.resolve()}" if logo else "(No se ubicó `./imagenes empresa/Logo.png` — revise ruta antes de emitir)"],
+            ["Reproductibilidad diagramas / Word", str(_DOCS / "generar_arquitectura_uiux.py")],
         ],
     )
-
-    add_h(doc, "2.3 Seguridad y cabeceras", 2)
-    add_table2(
-        doc,
-        ["Capa", "Detalle"],
-        [
-            ["CORS", "Lista explícita dev + dominios prod Antares (*.vercel, pages.dev opcional); credenciales."],
-            ["API", "`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, Referrer-Policy."],
-            ["Front", "CSP en meta (base-uri, frame-ancestors, form-action), Turnstile anti-bot en auth."],
-            ["Validación", "ValidationPipe global Nest (whitelist, forbidNonWhitelisted)."],
-        ],
-    )
-
-    add_h(doc, "2.4 Front secundario", 2)
     add_p(
         doc,
-        "Existe `apps/web` (Next.js + Tailwind) con variables de marca alineadas en `globals.css`. "
-        "La experiencia principal documentada aquí corresponde al SPA raíz (`index.html` + `styles.css`).",
+        "El cuerpo del informe sintetiza arquitectura AS-IS observable en código fuente (`index.html` / `app.js` / `apps/api`). "
+        "Las figuras se generaron con Matplotlib para permitir auditoría reproducible ante comités de revisión tecnológica.",
     )
 
     doc.add_page_break()
-
-    add_h(doc, "3. Sistema de diseño UI", 1)
-    add_p(
+    add_h(doc, "Resumen ejecutivo", 1)
+    add_bullets(
         doc,
-        "Las variables CSS en `:root` y `body[data-theme=\"dark\"]` definen el sistema visual: paleta corporativa azul Antares, "
-        "elevación de tarjetas, radios y tipografía institucional. No hay librería de componentes tipo Material; los patrones son "
-        "clases CSS reutilizables (`.btn`, `.card`, `.glass-card`, secciones hero/section-soft).",
-    )
-
-    add_h(doc, "3.1 Tokens de color (modo claro — referencia `:root`)", 2)
-    add_table2(
-        doc,
-        ["Token CSS", "Hex / uso"],
         [
-            ["--brand-blue-deep / --primary", "#377CC0 · acento marca, enlaces fuertes, theme-color meta"],
-            ["--brand-blue-mid / --accent", "#83BEE9 · acentos suaves"],
-            ["--brand-blue-soft", "#CCE5F8 · fondos de módulos"],
-            ["--primary-dark / --primary-deeper", "#2A6399 · #1E4A73 · profundidad en gradientes"],
-            ["--text / --text-soft", "#0B2138 · #3A5A78"],
-            ["--line", "#B8D4EB · bordes"],
-            ["--success / --warning / --danger", "#1B8E5F · #F59F00 · #D62828"],
-            ["Hero gradient", "linear 135deg: #1E4A73 → #377CC0 → #83BEE9"],
-            ["Sombras tarjeta/botón", "rgba(primary-rgb) con radios 16px / 10px"],
-        ],
-    )
-
-    add_h(doc, "3.2 Modo oscuro", 2)
-    add_p(
-        doc,
-        "Al activar `data-theme=\"dark\"` en `body`, se invierten fondos (base #071824), texto claro, nav translúcida oscura, "
-        "y sombras más profundas. La preferencia persiste en `localStorage` (`antares_theme_v1`). El arranque del portal "
-        "oculta el sitio público brevemente si hay sesión válida para evitar parpadeo de tema.",
-    )
-
-    add_h(doc, "3.3 Tipografía", 2)
-    add_table2(
-        doc,
-        ["Rol", "Familia (Google Fonts)"],
-        [
-            ["Display / títulos", "Montserrat 600 — variable `--font-display`"],
-            ["Énfasis / CTA secundarios", "Poppins 600–700 — `--font-secondary`"],
-            ["Cuerpo / formularios", "Roboto 400–500 — `--font-body`"],
-        ],
-    )
-    add_p(doc, "Contenedor principal: `width: min(1180px, 92%)`; barra superior usa hasta 1360px.")
-
-    add_h(doc, "3.4 Componentes y patrones de interfaz", 2)
-    add_table2(
-        doc,
-        ["Patrón", "Comportamiento"],
-        [
-            ["Barra superior pública", "Sticky, blur, logo PNG, anclas a secciones, hamburguesa móvil, tema, idioma CO/US, CTA Portal"],
-            ["Hero", "Imagen de fondo, overlay, siluetas animadas, logo en panel glass, stats en glass-card, botones primary/ghost"],
-            ["Secciones", "Ondas SVG entre bloques, grids 2–3 columnas, cards con icono SVG stroke 2px"],
-            ["Botones", "`.btn-primary` con sombra de marca; `.btn-ghost-light` sobre hero oscuro"],
-            ["Portal", "Contenedor `#portal-app` reemplaza vista pública; backdrop de navegación móvil"],
-            ["Notificaciones", "Toasts/aviso coherentes con colores semánticos"],
-            ["Formularios RRHH/Nómina", "Catálogo `CO_CATALOGS` (selects coherentes país Colombia): periodicidad, EPS, contrato, etc."],
-        ],
-    )
-
-    add_h(doc, "3.5 Accesibilidad y UX aplicada", 2)
-    add_table2(
-        doc,
-        ["Tema", "Implementación observable"],
-        [
-            ["Aria", "Etiquetas en nav, aria-expanded en menú hamburguesa, tema e idioma con role group"],
-            ["Contraste", "Texto oscuro sobre fondos claros; en oscuro texto #E8F4FC sobre base profunda"],
-            ["Motion", "`scroll-behavior: smooth`; animaciones hero no bloqueantes con `prefers-*` donde aplica"],
-            ["Sesión portal", "`antares_session_v2` + `lastActivityAt`; boot guard contra flash UI"],
+            "Plataforma monolítica en el lado cliente (`index.html` + `styles.css` + `app.js`) combinando marca pública B2B y portal empresarial con roles.",
+            "API REST modular NestJS 10 (`/api`) orquestando autenticación, hidratación/sync de estado y reglas específicas Colombia (liquidación período Bogotá).",
+            "Relacional PostgreSQL como fuente autoritativa; contrato físico DDL versionado bajo `BD/postgres/` con opción RLS y Supabase cuando se proyecta.",
+            "Capas de seguridad transversales: JWT, hashing bcrypt, CORS parametrizado, cabeceras de endurecimiento, rate limiting y zona horaria de sesión BD `America/Bogota`.",
         ],
     )
 
     doc.add_page_break()
-
-    add_h(doc, "4. Mapa UX del sitio público (referencia `index.html`)", 1)
-    add_mono(
-        doc,
-        """[#hero]            Marca · propuesta valor · KPIs · CTA contacto / login
-[#about]           Quiénes somos · valores · estándar
-[#trusted]         Carrusel/logo pills aliados
-[#testimonials]    Experiencias
-[#services]        Servicios
-[#fleet]           Flota
-[#process]         Proceso operativo
-[#coverage]        Cobertura
-[#news]            Actualidad
-[#careers]         Carreras · formulario/contacto RH
-[#contact]         Formulario institucional B2B""",
-        9,
-    )
-
-    add_h(doc, "5. Mapa UX del portal (SPA `app.js`)", 1)
+    add_h(doc, "1. Propósito, audiencia y criterios de revisión", 1)
     add_p(
         doc,
-        "Las vistas renderizadas dependen del rol (`ROLES`): administración usa módulos ampliados; cliente ve solicitudes "
-        "y dashboards acotados. Los datos siguen colecciones lógicas mapeadas a tablas Postgres al sincronizar.",
+        "Dirigido a perfiles enterprise (arquitectos de solución, líder técnico, CISO funcionales, auditors de integración SaaS): "
+        "consolida vistas C4-lite, modelo de información y referencias DDL sin sustituir un ADR formales ni políticas corporativas del cliente.",
     )
-    add_table2(
+    add_h(doc, "1.1 Actores y preocupaciones transversales", 2)
+    add_table(
         doc,
-        ["Colección lógica (KEYS.*)", "Tabla Postgres principal"],
+        ["Actor / stakehol.", "Interés arquitectónico"],
         [
-            ["users → usuarios", "Perfil portal, estado cuenta, empresa"],
-            ["companies → empresas", "NIT, tipo relación, activo"],
-            ["requests → solicitudes_transporte", "Flujo cliente-operatorio"],
-            ["vehicles / drivers → vehiculos / conductores", "Capacidad, licencias, ocupación sistema"],
-            ["payrollEmployees → empleados_nomina", "Incl. periodicidad_pago homologada con formulario alta"],
-            ["payrollRuns → liquidaciones_nomina", "Conceptos legales CO, periodos YYYY-MM (+ sufijos cortes migr. 23)"],
-            ["hrAbsences → ausencias_laborales", ""],
-            ["vacancies → vacantes", ""],
-            ["candidates → candidatos", ""],
-            ["interviews → entrevistas", ""],
-            ["contracts → contratos", ""],
-            ["positions → cargos", ""],
-            ["approvals → solicitudes_autorizacion", ""],
-            ["notifications → notificaciones", ""],
-            ["tripRouteRates → tarifas_trayecto", ""],
+            ["Negocio logístico", "Continuidad operativa, trazabilidad transporte, cumplimiento cadena de frío."],
+            ["RRHH / Nómina", "Homologación periodicidad pago empleado ↔ motor liquidación; cumplimiento normativo CO."],
+            ["TI / Seguridad", "Minimizar superficie de ataque, secretos fuera del navegador, observabilidad."],
+            ["Marketing / Marca", "Consistencia visual tokens CSS, accesibilidad y rendimiento percepción."],
         ],
     )
 
     doc.add_page_break()
+    add_h(doc, "2. Marcos de referencia (lectura arquitectónica)", 1)
+    add_p(
+        doc,
+        "Las siguientes figuras adoptan el espíritu de modelado en capas (ISO/IEC/IEEE 42010 + prácticas C4 / arc42) sin pretender certificación: "
+        "sirven como punta de anclaje para walkthrough con un comité de arquitectura.",
+    )
+    add_h(doc, "2.1 Vista contextual (C4 Level 1 equivalente)", 2)
+    add_figure(
+        doc,
+        figs["fig_a_contexto_sistema"],
+        "Figura A — Actores humanos, sistema digital Antares y sistemas satélite (correo, CAPTCHA, base relacional, almacenamiento opcional).",
+    )
+    add_p(
+        doc,
+        "La frontera del sistema recoge explícitamente la dualidad sitio público + portal y el acoplamiento débil vía proveedores "
+        "(SMTP, objeto S3-compat, Postgres administrado).",
+    )
 
-    add_h(doc, "6. Modelo de datos (PostgreSQL — scripts `BD/postgres`)", 1)
-    add_p(
+    add_h(doc, "2.2 Vista de contenedores (lógicos)", 2)
+    add_figure(
         doc,
-        "Los módulos DDL están segregados por dominio. Tipos ENUM en `02_enums.sql`. RLS opcional (`09_rls_tablas.sql`, `10_rls_storage_supabase.sql`). "
-        "Comentarios en tablas relacionan cada entidad con la clave en el SPA.",
-    )
-    add_table2(
-        doc,
-        ["Archivo base", "Contenido resumido"],
-        [
-            ["01_extensions.sql", "Extensiones Postgres necesarias"],
-            ["02_enums.sql", "Roles, estados solicitud/aprobación, etc."],
-            ["03_nucleo_empresa_usuarios.sql", "empresas, usuarios, permisos_usuario, reglas_viatico, parametros_sistema"],
-            ["04_transporte.sql", "vehiculos, conductores, tarifas_trayecto, solicitudes_transporte, viajes_transporte, combustible/logs si aplica"],
-            ["05_rrhh.sql", "cargos, vacantes, candidatos, entrevistas, contratos, empleados_nomina, liquidaciones_nomina, ausencias, SST"],
-            ["06_sistema.sql", "notificaciones, correos_salida, prospectos B2B, contadores_secuencia, solicitudes_autorizacion, sesiones_usuario"],
-            ["Migraciones posteriores (15–23)", "Aprobaciones admin, empresa activo tipo relación, columnas usuarios/registro, liquidación automática, periodos extendidos, etc."],
-        ],
-    )
-    add_p(
-        doc,
-        "Nota: para `periodo_mes` extendido por periodicidad quincenal/semanal, aplicar migración 23 cuando corresponda; "
-        "el motor de cortes opera en America/Bogota.",
-        bold=False,
+        figs["fig_b_contenedores"],
+        "Figura B — Contenedor SPA, infraestructura estática CDN, runtime NestJS, persistencia y object storage opcional.",
     )
 
     doc.add_page_break()
-
-    add_h(doc, "7. Mockups tipo wireframe (basados en la interfaz vigente)", 1)
-    add_p(doc, "Texto monocolumna ASCII; pueden sustituirse en Word por capturas de pantalla reales del mismo layout.")
-
-    add_h(doc, "7.1 Barra pública desktop", 2)
-    add_mono(
+    add_h(doc, "2.3 Vista de despliegue físico / ambiente típico nube", 2)
+    add_figure(
         doc,
-        """ +-----------------------------------------------------------------------------+
- | [PNG Logo Antares …. ]   Inicio Nosotros … Contacto             ☀️ 🌙 🇨🇴 🇺🇸  [ Portal ]
- +-----------------------------------------------------------------------------+
- Fondo blur claro (#fff ~90% opacity), borde inferior sutil marca, links hover con fondo primary 9%.
-""",
-        9,
+        figs["fig_c_despliegue_nube"],
+        "Figura C — Separación perímetro público CDN/WAF versus runtime API segregado y cluster Postgres administrado.",
     )
-
-    add_h(doc, "7.2 Hero", 2)
-    add_mono(
+    add_p(
         doc,
-        """ +------------------------------------------------------------+
- | ████ foto ruta/flora blur + overlay gradiente marca          |
- |                                                               |
- |  [ Logo grande panel glass ]   Kicker ⚡ texto                |
- |                                 H1 dos líneas + acento cyan   |
- |                                 párrafo                       |
- |     [ Solicitar propuesta ]  [ Ingresar al portal ]          |
- |     +----------+ +----------+ +----------+
- |     | entregas | | cumpl.  | | < 12 min |   (glass cards)
- |     +----------+ +----------+ +----------+
- +----------------------------------------------------------------+""",
-        9,
-    )
-
-    add_h(doc, "7.3 Sección institucional (grid 3 cards)", 2)
-    add_mono(
-        doc,
-        """ +-----------------+  +-----------------+  +-----------------+
- | [icon línea]    |  | [icon corazón]  |  | [icon escudo]   |
- | H2 Quiénes …    |  | H2 Valores      |  | H2 Estándar     |
- | texto/markdown  |  | lista bullets   |  | párrafo         |
- +-----------------+  +-----------------+  +-----------------+""",
-        9,
-    )
-
-    add_h(doc, "7.4 Portal autenticado (shell)", 2)
-    add_mono(
-        doc,
-        """ +----------------------------------------------------------+
- | Barra contextual portal (nombre usuario, empresa, logout) |
- +----------+-----------------------------------------------+
- | Nav      | Area contenido: solicitudes | nómina | flota …     |
- | (rol)    | dentro de .module-card / tablas responsive        |
- |          | acciones btn-primary header                       |
- +----------+-----------------------------------------------+
- En móvil: backdrop oscuro cuando nav lateral / drawer abierto.""",
-        9,
-    )
-
-    add_h(doc, "7.5 Formulario alta empleado (fragmento RRHH)", 2)
-    add_mono(
-        doc,
-        """ +-------------------------------------------------------+
- | Datos personales                                      |
- | nombre | tipo doc | N° doc | fecha nacimiento …       |
- | cargo (select cargos activos) | contrato …            |
- | …                                                      |
- | Nómina: salario | auxilio transporte | Periodicidad ◄──┐
- |    [ Mensual ▼ ][ Quincenal ][ Semanal ][ Catorcenal ]  │
- | EPS | Pensión | ARL | Cesantías | …                    |
- +-------------------------------------------------------+
- El valor canonico en BD tras sync: periodicidad_pago = mismo texto catálogo.
-""",
-        9,
+        "Este patrón es coherente con despliegues documentados auxiliares (`BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`): "
+        "edge estático, API stateful detrás del perímetro aplicativo y Postgres como servicio administrado.",
     )
 
     doc.add_page_break()
-
-    add_h(doc, "8. Flujos destacados desde UX", 1)
-    add_table2(
+    add_h(doc, "2.4 Vista de componentes — backend NestJS", 2)
+    add_figure(
         doc,
-        ["Flujo", "Puntos UI"],
+        figs["fig_d_componentes_api"],
+        "Figura D — Descomposición AppModule NestJS incluyendo módulos de dominio y cross-cutting infraestructura.",
+    )
+
+    add_h(doc, "2.5 Contextos dominio / modelo de información persistido", 2)
+    add_figure(
+        doc,
+        figs["fig_e_contextos_datos"],
+        "Figura E — Bounded contexts agrupados según DDL (03–06_*). FKs garantizan coherencia inter-contexto.",
+    )
+
+    doc.add_page_break()
+    add_h(doc, "2.6 Capas seguridad — defensa en profundidad", 2)
+    add_figure(doc, figs["fig_f_capas_seguridad"], "Figura F — Controles distribuidos de borde hasta integridad datos en BD.")
+
+    doc.add_page_break()
+    add_h(doc, "3. Atributos de calidad observables en código AS-IS", 1)
+    add_table(
+        doc,
+        ["Atributo ISO 25010 (referencia)", "Evidencias en repos"],
         [
-            ["Registro cliente", "Form auth + Turnstile; checklist términos; posible cuenta pendiente de aprobación"],
-            ["Nueva solicitud transporte", "Wizard fechas/ciudades/tonelaje; cliente ve estados Pendiente/Aprobado…"],
-            ["Aprobación admin", "`solicitudes_autorizacion` + vistas cola bandeja portal"],
-            ["Nómina automática", "Cron Bogotá; cortes por periodicidad desde `empleados_nomina.periodicidad_pago`"],
-            ["Tema idioma", "Toggle persistente antes de cargar vistas"],
+            ["Seguridad", "JWT, bcrypt; Turnstile; CSP; DENY iframe; TZ sesión Postgres Bogotá; Throttler 80 rpm."],
+            ["Compatibilidad / i18n", "Toggle ES/en; formato fechas/monetary adaptación regional."],
+            ["Mantenibilidad modular API", "Inyección Nest, módulos separados Payroll/Portal/Mail..."],
+            ["Portabilidad", "Node PostgreSQL estándares; DDL scriptable migrations."],
         ],
     )
 
-    add_h(doc, "9. Roadmap técnico sugerido (no implementado fuera de código)", 1)
+    doc.add_page_break()
+    add_h(doc, "4. Sistema de diseño UI/UX institucional", 1)
+    add_p(doc, "`styles.css` materializa paleta marca #377CC0 derivados claros/obscuros (`:root`) y modo oscuro vía `data-theme`.")
+    add_table(
+        doc,
+        ["Rol tipográfico", "Implementación"],
+        [
+            ["Títulos", "Montserrat 600 (--font-display)"],
+            ["CTA destacados", "Poppins (--font-secondary)"],
+            ["Cuerpo/UI", "Roboto (--font-body)"],
+        ],
+    )
+    add_h(doc, "4.1 Arquitectura de información — página pública", 2)
+    add_figure(
+        doc,
+        figs["fig_g_ia_sitio_publico"],
+        "Figura G — Secuencia de anclas sitio marca (orden scroll coherente con menú navegación). Anchors `services` antes `fleet`.",
+        width_in=6.92,
+    )
     add_p(
         doc,
-        "(1) Unificar totalmente SPA y `apps/web` o documentar públicamente cuál es canónico. "
-        "(2) Storybook o guía CSS de tokens exportados desde `styles.css`. "
-        "(3) Capturas profesionales en este documento. "
-        "(4) Diagrama ER automatizado desde migraciones. ",
+        "Los patrones táctico UI (hero gradient, glass-cards, navegación sticky blur, portal overlay con backdrop móvil) "
+        "se implementan mediante clases reutilizables — no mediante kit de UI comercial cerrado.",
     )
 
-    add_h(doc, "10. Glosario", 1)
-    add_table2(
+    doc.add_page_break()
+    add_h(doc, "5. Sincronización datos portal ↔ servidor", 1)
+    add_table(
         doc,
-        ["Término", "Significado en Antares"],
+        ["Colección lógica (KEYS.*)", "Persistencia física Postgres"],
         [
-            ["KEYS.* / localStorage", "Sincronización con filas servidor y caché local"],
-            ["Bootstrap portal", "Hidratación inicial desde API después del login"],
-            ["periodicity / payFrequency / periodicidad_pago", "Misma nómina: etiquetas Mensual–Catorcenal"],
-            ["periodo_mes", "clave periodo fiscal de liquidación incl. sufijos cortes cuando migración 23 aplique"],
-            ["Glass card", "Panel semitranslúcido con blur ligero en hero/estadística"],
+            ["users", "usuarios"],
+            ["companies", "empresas"],
+            ["requests", "solicitudes_transporte"],
+            ["vehicles / drivers", "vehiculos / conductores"],
+            ["payrollEmployees", "empleados_nomina.periodicidad_pago canónico `payFrequency`"],
+            ["payrollRuns", "liquidaciones_nomina (periodos extendidos migr.23)"],
+            ["approvals", "solicitudes_autorizacion"],
+        ],
+    )
+    add_p(
+        doc,
+        "`PortalService.syncPayrollEmployees` normaliza etiquetas periodicidad mediante `canonicalPayFrequencyLabel` "
+        "(archivo TS `apps/api/src/payroll/payroll-frequency.ts`) garantizando trazabilidad negocio↔motor liquidación.",
+    )
+
+    doc.add_page_break()
+    add_h(doc, "6. Modelo físico DDL (extracto)", 1)
+    add_bullets(
+        doc,
+        [
+            "01_extensions.sql … 06_sistema.sql: núcleo, transporte, RRHH & sistema.",
+            "Migraciones 15–23: registro empresa, políticas cuenta, automatización líquidos, períodos extendidos nómina.",
+            "Opcional Supabase — RLS políticas declaradas pero activación dependiente de ambiente cliente.",
         ],
     )
 
-    add_p(doc, "")
-    add_p(doc, f"Archivo generado automáticamente por `docs/generar_arquitectura_uiux.py` → `{out.name}`.")
+    doc.add_page_break()
+    add_h(doc, "7. Supuestos, limitaciones conocidas", 1)
+    add_bullets(
+        doc,
+        [
+            "Se documenta SPA raíz dominante (`index.html`): `apps/web` Next coexist sin ser la experiencia canónica hoy día.",
+            "Diagramas sintéticos: no muestran despliegue multi-región/geo-HA hasta que proyecto lo compre.",
+            "No sustituye pruebas carga PEN nor formal threat modeling — son insumos de arranque comité técnico.",
+        ],
+    )
+
+    add_h(doc, "8. Glosario", 1)
+    add_table(
+        doc,
+        ["Término", "Sentido proyecto"],
+        [
+            ["AS-IS / TO-BE", "AS-IS = snapshot fuente disponible."],
+            ["KEYS.*", "Estructuras JSON colección UI cache localStorage antes sync."],
+            ["Bootstrap portal", "`/portal/bootstrap` hidratar usuario y listas servidor."],
+        ],
+    )
+
+    add_mono(
+        doc,
+        f"DOCX: {out.resolve()}\nFIGURAS: {fig_dir.resolve()}\nScript: {_DOCS.resolve() / 'generar_arquitectura_uiux.py'} — PDF se intenta después de cerrar DOCX.",
+        size_pt=8,
+    )
 
     doc.save(out)
-    print(out)
+    print(f"DOCX -> {out.resolve()}")
 
+    if args.no_pdf:
+        print("PDF omitido (--no-pdf).")
+        return
+
+    slo = args.soffice.strip() or None
+    msgs: list[str] = []
+
+    def run_word() -> bool:
+        ok, m = export_pdf_via_word(out, pdf_target)
+        msgs.append(f"Word:{ok}::{m}")
+        return ok and pdf_target.is_file()
+
+    def run_lo() -> bool:
+        ok, m = export_pdf_via_libreoffice(slo, out, out.parent)
+        msgs.append(f"LibreOffice:{ok}::{m}")
+        return ok and pdf_target.is_file()
+
+    if args.libreoffice_first:
+        if not run_lo():
+            run_word()
+    else:
+        if not run_word():
+            run_lo()
+
+    if pdf_target.is_file():
+        print(f"PDF  -> {pdf_target.resolve()} ({pdf_target.stat().st_size // 1024} KB)")
+    else:
+        print("PDF no generado. Opciones habituales en Windows:")
+        print("   pip install pywin32")
+        print("   o bien instalar LibreOffice (soffice) y ejecutar de nuevo con --libreoffice-first")
+    print("; ".join(msgs))
 
 if __name__ == "__main__":
     main()

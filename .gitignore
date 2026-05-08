@@ -9,4 +9,5 @@ coverage
 /apps/api/.env
 /apps/web/.env.local
 /apps/web/.env
-/config/antares.local.js
+# Artefactos generados documentación
+/docs/_diagramas_antares_build/
