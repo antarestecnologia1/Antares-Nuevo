@@ -1311,7 +1311,7 @@ let state = {
   },
   createPanels: {},
   calendarFocus: null,
-  calendarFilters: { driver: "", vehicle: "", status: "" },
+  calendarFilters: { driver: "", vehicle: "", status: "", kind: "" },
   payrollFilters: {
     period: "all",
     employee: "",
@@ -7803,16 +7803,74 @@ function transportTripsHtml() {
 }
 
 function transportCalendarHtml() {
-  const filters = state.calendarFilters || { driver: "", vehicle: "", status: "" };
+  const filters = state.calendarFilters || { driver: "", vehicle: "", status: "", kind: "" };
   const allTrips = reqRead().filter((r) => r.trip);
-  const requests = allTrips
+  const interviews = read(KEYS.interviews, []);
+  const absences = read(KEYS.hrAbsences, []);
+  const trips = allTrips
     .filter((r) => {
       if (filters.driver && String(r.trip.driverId || "") !== filters.driver) return false;
       if (filters.vehicle && String(r.trip.vehicleId || "") !== filters.vehicle) return false;
       if (filters.status && String(r.status || "") !== filters.status) return false;
       return true;
     })
-    .sort((a, b) => new Date(a.trip.etaPickup).getTime() - new Date(b.trip.etaPickup).getTime());
+    .sort((a, b) => new Date(a.trip?.etaPickup || "").getTime() - new Date(b.trip?.etaPickup || "").getTime());
+
+  const interviewEvents = interviews
+    .map((i) => {
+      const ts = new Date(String(i.when || "")).getTime();
+      if (!Number.isFinite(ts)) return null;
+      return {
+        kind: "interview",
+        id: String(i.id || ""),
+        start: new Date(ts),
+        dot: "dot-interview",
+        title: `Entrevista · ${String(i.candidateName || "Candidato")}`,
+        subtitle: String(i.interviewer || "-")
+      };
+    })
+    .filter(Boolean);
+  const absenceEvents = absences
+    .map((a) => {
+      const ts = new Date(`${String(a.startDate || "")}T12:00:00`).getTime();
+      if (!Number.isFinite(ts)) return null;
+      const typeLabel =
+        a.absenceType === "incapacidad"
+          ? "Incapacidad"
+          : a.absenceType === "vacaciones"
+            ? "Vacaciones"
+            : a.absenceType === "licencia"
+              ? "Licencia"
+              : "Novedad";
+      return {
+        kind: "absence",
+        id: String(a.id || ""),
+        start: new Date(ts),
+        dot: "dot-absence",
+        title: `${typeLabel} · ${String(a.employeeName || "Colaborador")}`,
+        subtitle: `${String(a.startDate || "-")} → ${String(a.endDate || "-")}`
+      };
+    })
+    .filter(Boolean);
+  const tripEvents = trips
+    .map((r) => {
+      const ts = new Date(rSafePickup(r)).getTime();
+      if (!Number.isFinite(ts)) return null;
+      return {
+        kind: "trip",
+        id: String(r.id || ""),
+        start: new Date(ts),
+        dot: "dot-trip",
+        title: `${String(r.trip?.tripNumber || "-")} · ${String(r.clientName || "")}`,
+        subtitle: `${String(r.trip?.driverName || "-")} · ${String(r.trip?.vehiclePlate || "-")}`,
+        request: r
+      };
+    })
+    .filter(Boolean);
+
+  const allEvents = [...tripEvents, ...interviewEvents, ...absenceEvents]
+    .filter((evt) => !filters.kind || evt.kind === filters.kind)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
 
   const driversList = read(KEYS.drivers, []);
   const vehiclesList = read(KEYS.vehicles, []);
@@ -7833,12 +7891,11 @@ function transportCalendarHtml() {
   const daysInPrevMonth = new Date(year, month, 0).getDate();
 
   const eventsByDay = new Map();
-  requests.forEach((r) => {
-    const d = new Date(r.trip.etaPickup);
-    if (Number.isNaN(d.getTime())) return;
+  allEvents.forEach((evt) => {
+    const d = evt.start;
     const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     if (!eventsByDay.has(key)) eventsByDay.set(key, []);
-    eventsByDay.get(key).push(r);
+    eventsByDay.get(key).push(evt);
   });
 
   const monthLabel = focus.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
@@ -7851,15 +7908,13 @@ function transportCalendarHtml() {
     const dayEvents = eventsByDay.get(key) || [];
     const isOther = monthOffset !== 0;
     const isToday = cellDate.getTime() === today.getTime();
-    const dotPalette = ["dot-blue", "dot-teal", "dot-violet", "dot-orange"];
     const eventList = dayEvents
       .slice(0, 3)
-      .map((r, idx) => {
-        const time = new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
-        const dot = dotPalette[idx % dotPalette.length];
-        return `<button type="button" class="cal-event ${dot}" data-action="cal-event" data-id="${r.id}">
+      .map((evt) => {
+        const time = evt.start.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+        return `<button type="button" class="cal-event ${evt.dot}" data-action="cal-event" data-kind="${escapeAttr(evt.kind)}" data-id="${escapeAttr(evt.id)}">
           <span class="cal-event-time">${time}</span>
-          <span class="cal-event-title">${r.trip.tripNumber || "-"} · ${r.clientName || ""}</span>
+          <span class="cal-event-title">${escapeHtml(String(evt.title || "-"))}</span>
         </button>`;
       })
       .join("");
@@ -7887,44 +7942,54 @@ function transportCalendarHtml() {
 
   const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   const todayEvents = eventsByDay.get(todayKey) || [];
-  const upcoming = requests
-    .filter((r) => new Date(r.trip.etaPickup).getTime() >= today.getTime())
+  const upcoming = allEvents
+    .filter((evt) => evt.start.getTime() >= today.getTime())
     .slice(0, 8);
 
   const todayList = todayEvents.length
     ? todayEvents
-        .map((r) => {
-          const time = new Date(r.trip.etaPickup).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+        .map((evt) => {
+          const time = evt.start.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+          const statusCell =
+            evt.kind === "trip"
+              ? prettyStatus(evt.request?.status, "trip")
+              : evt.kind === "interview"
+                ? '<span class="status status-en_transito">Entrevista</span>'
+                : '<span class="status status-espera_standby">Novedad</span>';
           return `<div class="cal-day-event">
             <div class="cal-day-event-time">${time}</div>
             <div class="cal-day-event-info">
-              <strong>${r.trip.tripNumber || "-"}</strong>
-              <span class="muted">${r.trip.driverName || "-"} · ${r.trip.vehiclePlate || "-"}</span>
-              <span class="muted">${r.trip.route || formatRoute(r)}</span>
+              <strong>${escapeHtml(String(evt.title || "-"))}</strong>
+              <span class="muted">${escapeHtml(String(evt.subtitle || "-"))}</span>
             </div>
-            <div class="cal-day-event-status">${prettyStatus(r.status, "trip")}</div>
+            <div class="cal-day-event-status">${statusCell}</div>
           </div>`;
         })
         .join("")
-    : `<p class="muted">Sin viajes para hoy.</p>`;
+    : `<p class="muted">Sin eventos para hoy.</p>`;
 
   const upcomingList = upcoming.length
     ? upcoming
-        .map((r) => {
-          const date = new Date(r.trip.etaPickup);
+        .map((evt) => {
+          const date = evt.start;
           const dateLabel = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
           const time = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+          const badge =
+            evt.kind === "trip"
+              ? prettyStatus(evt.request?.status, "trip")
+              : evt.kind === "interview"
+                ? '<span class="status status-en_transito">Entrevista</span>'
+                : '<span class="status status-espera_standby">Novedad</span>';
           return `<div class="cal-upcoming-item">
             <div class="cal-upcoming-date">
               <strong>${dateLabel}</strong>
               <span class="muted">${time}</span>
             </div>
             <div class="cal-upcoming-info">
-              <strong>${r.trip.tripNumber || "-"}</strong>
-              <span class="muted">${r.clientName || "-"}</span>
-              <span class="muted">${r.trip.driverName || "-"} · ${r.trip.vehiclePlate || "-"}</span>
+              <strong>${escapeHtml(String(evt.title || "-"))}</strong>
+              <span class="muted">${escapeHtml(String(evt.subtitle || "-"))}</span>
             </div>
-            <div>${prettyStatus(r.status, "trip")}</div>
+            <div>${badge}</div>
           </div>`;
         })
         .join("")
@@ -7945,13 +8010,13 @@ function transportCalendarHtml() {
       <label>${fieldLabel(IC.user, "Conductor")}<select name="driver"><option value="">Todos</option>${driversList.map((d) => `<option value="${d.id}" ${filters.driver === d.id ? "selected" : ""}>${d.name}</option>`).join("")}</select></label>
       <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicle"><option value="">Todos</option>${vehiclesList.map((v) => `<option value="${v.id}" ${filters.vehicle === v.id ? "selected" : ""}>${v.plate} · ${v.type}</option>`).join("")}</select></label>
       <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${statusList.map((s) => `<option value="${s}" ${filters.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.calendar, "Tipo")}<select name="kind"><option value="">Todos</option><option value="trip" ${filters.kind === "trip" ? "selected" : ""}>Viaje</option><option value="interview" ${filters.kind === "interview" ? "selected" : ""}>Entrevista</option><option value="absence" ${filters.kind === "absence" ? "selected" : ""}>Novedad</option></select></label>
       <button type="button" class="btn btn-sm btn-action" data-action="cal-clear-filters">${IC.x} Limpiar</button>
     </form>
     <div class="calendar-legend">
-      <span class="cal-legend-item"><span class="cal-dot dot-blue"></span>En curso</span>
-      <span class="cal-legend-item"><span class="cal-dot dot-teal"></span>Programado</span>
-      <span class="cal-legend-item"><span class="cal-dot dot-violet"></span>Asignado</span>
-      <span class="cal-legend-item"><span class="cal-dot dot-orange"></span>Otros</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-trip"></span>Viajes</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-interview"></span>Entrevistas</span>
+      <span class="cal-legend-item"><span class="cal-dot dot-absence"></span>Novedades</span>
     </div>
     <div class="calendar-grid">
       <div class="cal-weekdays">${weekdayHeaders}</div>
@@ -7965,7 +8030,9 @@ function transportCalendarHtml() {
 
   const calHero = moduleFleetHeroStrip([
     { label: "Viajes en sistema", value: allTrips.length },
-    { label: "Tras filtros", value: requests.length },
+    { label: "Entrevistas", value: interviewEvents.length },
+    { label: "Novedades", value: absenceEvents.length },
+    { label: "Tras filtros", value: allEvents.length },
     { label: "Hoy", value: todayEvents.length },
     { label: "Proximos", value: upcoming.length }
   ]);
@@ -13610,7 +13677,7 @@ function bindDynamicEvents() {
   if (calendarFiltersForm) {
     calendarFiltersForm.querySelectorAll("select").forEach((select) => {
       select.addEventListener("change", () => {
-        state.calendarFilters = state.calendarFilters || { driver: "", vehicle: "", status: "" };
+        state.calendarFilters = state.calendarFilters || { driver: "", vehicle: "", status: "", kind: "" };
         const key = String(select.name || "");
         if (!key) return;
         state.calendarFilters[key] = String(select.value || "");
@@ -13621,7 +13688,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='cal-clear-filters']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.calendarFilters = { driver: "", vehicle: "", status: "" };
+      state.calendarFilters = { driver: "", vehicle: "", status: "", kind: "" };
       renderPortalView();
     });
   });
@@ -13649,18 +13716,63 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='cal-event']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
-      const req = reqRead().find((r) => r.id === id);
-      if (!req?.trip) return;
+      const kind = String(btn.dataset.kind || "trip");
+      if (kind === "trip") {
+        const req = reqRead().find((r) => r.id === id);
+        if (!req?.trip) return;
+        openInfoModal({
+          title: `Viaje ${req.trip.tripNumber || ""}`,
+          subtitleHtml: `${escapeHtml(req.clientName || "")}${req.clientName ? " · " : ""}${prettyStatus(req.status, "trip")}`,
+          bodyHtml: `<div class="dash-grid">
+            <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
+            <div><strong>Ruta:</strong> ${req.trip.route || formatRoute(req)}</div>
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            <div><strong>Camión:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
+            <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+          </div>`
+        });
+        return;
+      }
+      if (kind === "interview") {
+        const interview = read(KEYS.interviews, []).find((i) => String(i.id) === id);
+        if (!interview) return;
+        openInfoModal({
+          title: `Entrevista · ${escapeHtml(String(interview.candidateName || "Candidato"))}`,
+          subtitle: String(interview.when || ""),
+          bodyHtml: `<div class="dash-grid">
+            <div><strong>Candidato:</strong> ${escapeHtml(String(interview.candidateName || "-"))}</div>
+            <div><strong>Fecha:</strong> ${fmtDate(interview.when)}</div>
+            <div><strong>Entrevistador:</strong> ${escapeHtml(String(interview.interviewer || "-"))}</div>
+            <div><strong>Modalidad:</strong> ${escapeHtml(String(interview.modality || "-"))}</div>
+            <div class="full"><strong>Lugar / enlace:</strong> ${escapeHtml(String(interview.locationOrLink || "-"))}</div>
+            <div class="full"><strong>Notas:</strong> ${escapeHtml(String(interview.notes || "-"))}</div>
+          </div>`
+        });
+        return;
+      }
+      const absence = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
+      if (!absence) return;
+      const typeLabel =
+        absence.absenceType === "incapacidad"
+          ? "Incapacidad"
+          : absence.absenceType === "vacaciones"
+            ? "Vacaciones"
+            : absence.absenceType === "licencia"
+              ? "Licencia"
+              : "Novedad";
       openInfoModal({
-        title: `Viaje ${req.trip.tripNumber || ""}`,
-        subtitleHtml: `${escapeHtml(req.clientName || "")}${req.clientName ? " · " : ""}${prettyStatus(req.status, "trip")}`,
+        title: `${typeLabel} · ${escapeHtml(String(absence.employeeName || "Colaborador"))}`,
+        subtitle: `${escapeHtml(String(absence.startDate || "-"))} → ${escapeHtml(String(absence.endDate || "-"))}`,
         bodyHtml: `<div class="dash-grid">
-          <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
-          <div><strong>Ruta:</strong> ${req.trip.route || formatRoute(req)}</div>
-          <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
-          <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
-          <div><strong>Camión:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
-          <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+          <div><strong>Empleado:</strong> ${escapeHtml(String(absence.employeeName || "-"))}</div>
+          <div><strong>Tipo:</strong> ${escapeHtml(typeLabel)}</div>
+          <div><strong>Desde:</strong> ${escapeHtml(String(absence.startDate || "-"))}</div>
+          <div><strong>Hasta:</strong> ${escapeHtml(String(absence.endDate || "-"))}</div>
+          <div><strong>Días:</strong> ${parseNum(absence.days).toLocaleString("es-CO")}</div>
+          <div><strong>Soporte:</strong> ${escapeHtml(String(absence.supportNumber || "-"))}</div>
+          <div class="full"><strong>Entidad:</strong> ${escapeHtml(String(absence.epsEntity || "-"))}</div>
+          <div class="full"><strong>Notas:</strong> ${escapeHtml(String(absence.notes || "-"))}</div>
         </div>`
       });
     });
