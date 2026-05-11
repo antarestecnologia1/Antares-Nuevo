@@ -3132,6 +3132,126 @@ body[data-theme="dark"] .modal-edit-section-title {
   font-size: 0.86rem;
 }
 
+/* Crear viaje (módulo): panel resumen al estilo solicitud */
+.create-trip-summary-panel {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--primary) 5%, var(--white));
+  min-height: 3.5rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.create-trip-summary-panel--active {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  box-shadow: 0 4px 18px rgba(var(--primary-rgb), 0.08);
+}
+
+.create-trip-summary-placeholder {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.create-trip-summary-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.create-trip-summary-ref {
+  display: inline-block;
+  padding: 0.28rem 0.7rem;
+  font-weight: 800;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-dark, #0d3f78);
+  background: color-mix(in srgb, var(--primary) 12%, var(--white));
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.create-trip-tk-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.create-trip-tk-badge--yes {
+  background: color-mix(in srgb, #0ea5e9 14%, var(--white));
+  color: #0369a1;
+  border: 1px solid color-mix(in srgb, #0ea5e9 35%, var(--line));
+}
+
+.create-trip-tk-badge--no {
+  background: color-mix(in srgb, var(--muted) 10%, var(--white));
+  color: var(--text-main);
+  border: 1px solid var(--line);
+}
+
+.create-trip-summary-route {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+  color: var(--text-main);
+}
+
+.create-trip-summary-route .btn-icon {
+  flex-shrink: 0;
+  margin-top: 0.08rem;
+  color: var(--primary);
+}
+
+.create-trip-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.6rem 1rem;
+}
+
+.create-trip-summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.create-trip-summary-cell--wide {
+  grid-column: 1 / -1;
+}
+
+.create-trip-sk {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #5a7a96);
+}
+
+.create-trip-sv {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-main);
+}
+
+body[data-theme="dark"] .create-trip-summary-panel {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+body[data-theme="dark"] .create-trip-tk-badge--yes {
+  color: #7dd3fc;
+}
+
 .modal {
   position: fixed;
   inset: 0;

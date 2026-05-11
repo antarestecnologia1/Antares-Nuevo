@@ -3263,29 +3263,6 @@ function formatRoute(request) {
   return `${origin} → ${destination}`;
 }
 
-/** Resumen visual al asignar viaje desde el módulo Transporte (no desde aprobación). */
-function buildTripAssignmentFriendlyIntroHtml(request, needsTermoking) {
-  const route = escapeHtml(formatRoute(request));
-  const client = escapeHtml(String(request.clientName || "-"));
-  const kg = parseNum(request.weightKg).toLocaleString("es-CO");
-  const pickup = fmtDate(request.pickupAt);
-  const svc = escapeHtml(String(request.serviceType || "").trim() || "—");
-  const tkNote = needsTermoking
-    ? `<p class="trip-assign-tk-banner">Esta solicitud requiere <strong>Termoking</strong>. Solo aparecen <strong>camiones, turbos y tractomulas</strong> con refrigeración; en cada opción se indica si tiene Termoking.</p>`
-    : `<p class="trip-assign-tk-banner trip-assign-tk-banner--dry">Solo se listan <strong>camiones, turbos y tractomulas</strong> compatibles con peso y ventana de tiempo.</p>`;
-  return `
-    <div class="trip-assign-friendly-intro" role="region" aria-label="Resumen de la solicitud">
-      <div class="trip-assign-friendly-route">${IC.mapPin}<span>${route}</span></div>
-      <div class="trip-assign-friendly-grid">
-        <div class="trip-assign-friendly-cell">${IC.building}<span class="trip-assign-lbl">Cliente</span><strong>${client}</strong></div>
-        <div class="trip-assign-friendly-cell">${IC.briefcase}<span class="trip-assign-lbl">Servicio</span><strong>${svc}</strong></div>
-        <div class="trip-assign-friendly-cell">${IC.scale}<span class="trip-assign-lbl">Peso</span><strong>${kg} kg</strong></div>
-        <div class="trip-assign-friendly-cell">${IC.clock}<span class="trip-assign-lbl">Recogida</span><strong>${pickup}</strong></div>
-      </div>
-      ${tkNote}
-    </div>`;
-}
-
 /** Hero del modal al aprobar desde tabla de solicitudes o desde Autorizaciones. */
 function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
   const route = escapeHtml(formatRoute(request));
@@ -3293,7 +3270,6 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
   const ref = escapeHtml(String(request.requestNumber || request.id || ""));
   const kg = parseNum(request.weightKg).toLocaleString("es-CO");
   const pickup = fmtDate(request.pickupAt);
-  const svc = escapeHtml(String(request.serviceType || "").trim() || "—");
   const cargo = escapeHtml(String(request.cargoDescription || "—").trim().slice(0, 120));
   const srcBadge =
     variant === "auth"
@@ -3313,7 +3289,6 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
       <div class="approve-trip-hero-route">${IC.mapPin}<span>${route}</span></div>
       <div class="approve-trip-hero-grid">
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Cliente</span><span class="approve-trip-meta-v">${client}</span></div>
-        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Servicio</span><span class="approve-trip-meta-v">${svc}</span></div>
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Peso</span><span class="approve-trip-meta-v">${kg} kg</span></div>
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Recogida</span><span class="approve-trip-meta-v">${pickup}</span></div>
       </div>
@@ -3556,6 +3531,141 @@ function buildTripRateModalFields(request, opts) {
     ],
     afterMount: (formEl) => wireTripRateChoiceSelect(formEl)
   };
+}
+
+/** Mismos campos de tarifa que el modal, para formulario inline (crear viaje desde módulo). */
+function buildTripRateInlineFieldsHtml(request, opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const required = !!o.required;
+  const items = listTripRateOptionsWithFallback(request);
+  const defaultKey = defaultTripRateStorageKeyForRequest(request);
+  const initial = initialTripValueForAssignment(request, defaultKey);
+  const fallbackVal = initial > 0 ? initial : parseNum(request?.tripValue || 0);
+
+  const optRows = items.length
+    ? [
+        { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
+        ...items.map((i) => ({
+          value: i.storageKey,
+          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+        }))
+      ]
+    : [
+        {
+          value: "",
+          label: "Sin tarifas guardadas — definalas en Viajes · Tarifas o indique solo el precio manual"
+        }
+      ];
+
+  const optionsHtml = optRows
+    .map((row) => {
+      const v = escapeAttr(String(row.value ?? ""));
+      const sel = String(row.value) === String(defaultKey || "") ? " selected" : "";
+      return `<option value="${v}"${sel}>${escapeHtml(row.label)}</option>`;
+    })
+    .join("");
+
+  return `
+    <label class="full">${fieldLabel(IC.dollar, items.length ? "Tarifa por trayecto (catalogo)" : "Tarifa por trayecto")}
+      <select name="tripRateChoice" id="create-trip-rate-choice">${optionsHtml}</select>
+    </label>
+    <label class="full">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
+      <input type="number" name="tripValue" id="create-trip-trip-value" min="0" step="1" placeholder="Ej: 4200000" ${required ? "required" : ""} value="${escapeAttr(String(fallbackVal))}" />
+    </label>`;
+}
+
+/** Sincroniza resumen, listas de flota y tarifas al elegir solicitud (formulario crear viaje). */
+function refreshCreateTripModuleForm(formEl) {
+  if (!formEl) return;
+  const selReq = formEl.querySelector("select[name='requestId']");
+  const requestId = String(selReq?.value || "").trim();
+  const preview = formEl.querySelector("#trip-request-preview");
+  const vehSel = formEl.querySelector("select[name='vehicleId']");
+  const drvSel = formEl.querySelector("select[name='driverId']");
+  const rateMount = formEl.querySelector("#create-trip-rate-fields");
+  const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
+
+  if (!request) {
+    if (preview) {
+      preview.innerHTML = `<p class="muted create-trip-summary-placeholder">Seleccione una solicitud pendiente para ver el resumen y habilitar vehículo, conductor y precio.</p>`;
+      preview.classList.remove("create-trip-summary-panel--active");
+    }
+    if (vehSel) {
+      vehSel.innerHTML = `<option value="">— Elija solicitud primero —</option>`;
+      vehSel.disabled = true;
+    }
+    if (drvSel) {
+      drvSel.innerHTML = `<option value="">— Elija solicitud primero —</option>`;
+      drvSel.disabled = true;
+    }
+    if (rateMount) {
+      rateMount.innerHTML = `<p class="muted" style="margin:0">Seleccione una solicitud para cargar tarifas sugeridas.</p>`;
+    }
+    return;
+  }
+
+  const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
+  const vehicles = getCompatibleVehiclesForRequest(request, requestId, { moduleCreateTrip: true });
+  const drivers = getCompatibleDriversForRequest(request, requestId);
+
+  if (preview) {
+    preview.classList.add("create-trip-summary-panel--active");
+    const tkBadge = needsTermoking
+      ? `<span class="create-trip-tk-badge create-trip-tk-badge--yes">Termoking</span>`
+      : `<span class="create-trip-tk-badge create-trip-tk-badge--no">Sin Termoking</span>`;
+    const cargo = String(request.cargoDescription || "-").trim();
+    const cargoShort = cargo.length > 100 ? `${escapeHtml(cargo.slice(0, 100))}…` : escapeHtml(cargo);
+    preview.innerHTML = `
+      <div class="create-trip-summary-top">
+        <span class="create-trip-summary-ref">${escapeHtml(String(request.requestNumber || request.id))}</span>
+        ${tkBadge}
+      </div>
+      <div class="create-trip-summary-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
+      <div class="create-trip-summary-grid">
+        <div class="create-trip-summary-cell"><span class="create-trip-sk">Cliente</span><span class="create-trip-sv">${escapeHtml(String(request.clientName || "-"))}</span></div>
+        <div class="create-trip-summary-cell"><span class="create-trip-sk">Solicita</span><span class="create-trip-sv">${escapeHtml(String(request.requestedByName || "-"))}</span></div>
+        <div class="create-trip-summary-cell"><span class="create-trip-sk">Peso</span><span class="create-trip-sv">${parseNum(request.weightKg).toLocaleString("es-CO")} kg</span></div>
+        <div class="create-trip-summary-cell"><span class="create-trip-sk">Recogida</span><span class="create-trip-sv">${fmtDate(request.pickupAt)}</span></div>
+        <div class="create-trip-summary-cell create-trip-summary-cell--wide"><span class="create-trip-sk">Carga</span><span class="create-trip-sv">${cargoShort}</span></div>
+      </div>`;
+  }
+
+  if (vehSel) {
+    vehSel.disabled = false;
+    if (!vehicles.length) {
+      vehSel.innerHTML = `<option value="">${needsTermoking ? "No hay vehículos con Termoking disponibles" : "No hay vehículos disponibles para capacidad y horario"}</option>`;
+    } else {
+      vehSel.innerHTML =
+        `<option value="">Seleccione vehículo…</option>` +
+        vehicles
+          .map((v) => {
+            const lab = tripAssignmentVehicleOptionLabel(v, { needsTermoking });
+            return `<option value="${escapeAttr(v.id)}">${escapeHtml(lab)}</option>`;
+          })
+          .join("");
+    }
+  }
+
+  if (drvSel) {
+    drvSel.disabled = false;
+    if (!drivers.length) {
+      drvSel.innerHTML = `<option value="">No hay conductores disponibles</option>`;
+    } else {
+      drvSel.innerHTML =
+        `<option value="">Seleccione conductor…</option>` +
+        drivers
+          .map((d) => {
+            const lab = `${d.name} · Lic ${d.license || "-"} · vence ${d.licenseExpiry || "-"}`;
+            return `<option value="${escapeAttr(d.id)}">${escapeHtml(lab)}</option>`;
+          })
+          .join("");
+    }
+  }
+
+  if (rateMount) {
+    rateMount.innerHTML = `<div class="form-section-grid">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
+    wireTripRateChoiceSelect(formEl);
+  }
 }
 
 function prettyStatus(status, scope = "general") {
@@ -6052,7 +6162,7 @@ function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = nu
   });
 }
 
-function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
+function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
   const requiresRefrigeration = Boolean(options.requiresRefrigeration);
   const vehicles = read(KEYS.vehicles, []);
   const matchesThermal = (v) => !requiresRefrigeration || v.refrigerated;
@@ -6061,7 +6171,6 @@ function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentR
       v.available &&
       isVehicleEligibleForTripAssignment(v) &&
       matchesThermal(v) &&
-      (!requiredType || vehicleMatchesRequestedVehicleTypeField(v, requiredType)) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
   );
   const pick =
@@ -6072,7 +6181,6 @@ function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentR
         v.available &&
         isVehicleEligibleForTripAssignment(v) &&
         matchesThermal(v) &&
-        (!requiredType || vehicleMatchesRequestedVehicleTypeField(v, requiredType)) &&
         !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
     ) ||
     null;
@@ -6098,10 +6206,21 @@ function serviceTypeRequiresRefrigeration(serviceType) {
   );
 }
 
-/**
- * `tipo_vehiculo_solicitado` describe carrocería; `vehicle.type` es categoría (Camion, Turbo…).
- * Asignación de viaje solo usa Camion / Turbo / Tractomula (`TRIP_ASSIGNMENT_FLEET_TYPES`).
- */
+/** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
+function requestTermokingClientLabel(request) {
+  if (!String(request?.serviceType || "").trim()) return "—";
+  return serviceTypeRequiresRefrigeration(request.serviceType) ? "Con Termoking" : "Sin Termoking";
+}
+
+/** Columna historial: preferencia Termoking del cliente + tipo de flota si ya hay viaje asignado. */
+function historyVehicleColumn(request) {
+  const tk = requestTermokingClientLabel(request);
+  const assigned = String(request?.trip?.vehicleType || "").trim();
+  if (assigned) return `${tk} · ${assigned}`;
+  return tk;
+}
+
+/** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud no fija carrocería; solo Termoking sí/no vía `serviceType`. */
 const TRIP_ASSIGNMENT_FLEET_TYPES = new Set(["Camion", "Turbo", "Tractomula"]);
 
 function isVehicleEligibleForTripAssignment(vehicle) {
@@ -6127,26 +6246,17 @@ function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
   return `${vehicle.plate} · ${vehicle.type} · ${cap}${thermal}${tail}`;
 }
 
-function vehicleMatchesRequestedVehicleTypeField(vehicle, solicitedType) {
-  const wanted = String(solicitedType || "").trim();
-  if (!wanted || /^por definir$/i.test(wanted)) return true;
-  const fleetKinds = new Set([...TRIP_ASSIGNMENT_FLEET_TYPES, "Bus"]);
-  if (fleetKinds.has(wanted)) return String(vehicle.type || "").trim() === wanted;
-  const body = String(vehicle.bodyType || "").trim();
-  if (body) return body === wanted;
-  const wantsRef = /refrigerad|termoking|thermo\s*king/i.test(wanted);
-  const wantsDry = /\bseco\b/i.test(wanted) && !wantsRef;
-  if (wantsRef) return Boolean(vehicle.refrigerated);
-  if (wantsDry) return !vehicle.refrigerated;
-  return true;
-}
-
-function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
+function getCompatibleVehiclesForRequest(request, currentRequestId = null, compatOpts = {}) {
+  const moduleCreate = !!(compatOpts && compatOpts.moduleCreateTrip);
   const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (!vehicle.available) return false;
-    if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
-    if (request?.vehicleType && !vehicleMatchesRequestedVehicleTypeField(vehicle, request.vehicleType)) return false;
+    if (moduleCreate) {
+      // Asistente en Viajes: listar toda la flota compatible (sin filtrar por carrocería
+      // solicitada ni limitar a camión/turbo/tractomula).
+    } else {
+      if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
+    }
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
     if (requiresRefrigeration && !vehicle.refrigerated) return false;
     if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
@@ -6171,7 +6281,6 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
   return read(KEYS.vehicles, [])
     .filter((vehicle) => {
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
-      if (request?.vehicleType && !vehicleMatchesRequestedVehicleTypeField(vehicle, request.vehicleType)) return false;
       if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
       if (requiresRefrigeration && !vehicle.refrigerated) return false;
       return true;
@@ -6274,7 +6383,6 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
   const vehicle = selectedVehicleId
     ? compatibleVehicles.find((item) => item.id === selectedVehicleId) || null
     : selectBestVehicle(
-      current.vehicleType,
       parseNum(current.weightKg),
       current.pickupAt,
       current.etaDelivery || current.pickupAt,
@@ -6298,7 +6406,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     tripNumber: makeTripNumber(usedTripNumbers),
     vehicleId: vehicle.id,
     vehiclePlate: vehicle ? vehicle.plate : "SIN-DISP",
-    vehicleType: vehicle ? vehicle.type : current.vehicleType,
+    vehicleType: vehicle ? vehicle.type : "Por definir",
     driverId: driver.id,
     driverName: driver ? driver.name : "Por definir",
     driverPhone: driver ? driver.phone : "-",
@@ -6853,21 +6961,18 @@ function renderKpis() {
 function viewDashboard() {
   const user = currentUser();
   const list = getVisibleRequestsForUser(user);
-  const byVehicle = {};
+  const byThermoking = {};
   list.forEach((r) => {
-    const key = r.vehicleType?.trim() || r.trip?.vehicleType?.trim() || "Sin tipo";
-    byVehicle[key] = (byVehicle[key] || 0) + 1;
+    const key = requestTermokingClientLabel(r);
+    byThermoking[key] = (byThermoking[key] || 0) + 1;
   });
-  const colors = {
-    Turbo: "#F59F00",
-    Tractomula: "#1B8E5F",
-    Bus: "#377cc0",
-    Camion: "#377cc0",
-    Tractocamion: "#1B8E5F",
-    "Sin tipo": "#94A3B8"
+  const thermokingColors = {
+    "Con Termoking": "#0EA5E9",
+    "Sin Termoking": "#94A3B8",
+    "—": "#CBD5E1"
   };
-  const vehicleStats = Object.entries(byVehicle)
-    .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="dash-stat-dot" style="background:${colors[k] || '#94A3B8'}"></span>${k}</div><div class="dash-stat-value">${v}</div></div>`)
+  const vehicleStats = Object.entries(byThermoking)
+    .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="dash-stat-dot" style="background:${thermokingColors[k] || '#94A3B8'}"></span>${k}</div><div class="dash-stat-value">${v}</div></div>`)
     .join("");
 
   const byStatus = {};
@@ -6933,7 +7038,7 @@ function viewDashboard() {
   ]);
 
   return `${dashHero}<div class="dash-grid">
-    ${pcardWrap("truck", "Por tipo de vehiculo", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos de vehiculos aun"))}
+    ${pcardWrap("truck", "Por Termoking (solicitud)", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos aun"))}
     ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
     ${qualityCard}
   </div>`;
@@ -7022,7 +7127,7 @@ function requestFormHtml() {
       <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
-        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional con termoking</option><option>Transporte nacional sin termoking</option><option>Transporte entre sedes del cliente</option></select></label>
+        <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
         <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
         <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
       </div>
@@ -7371,20 +7476,37 @@ function transportTripsHtml() {
   const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.compass} Solicitud</legend>
-      <label class="full">${fieldLabel(IC.compass, "Solicitud pendiente de asignacion")}
-        <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
-          <option value="">${pendingForTrip.length ? "Seleccione..." : "No hay solicitudes pendientes"}</option>
-          ${pendingSelectOpts}
-        </select>
-      </label>
-      <div id="trip-request-preview" class="trip-preview full">
-        <p><strong>Solicitante:</strong> <span data-preview="createdBy">-</span></p>
-        <p><strong>Cliente:</strong> <span data-preview="company">-</span></p>
-        <p><strong>Ruta:</strong> <span data-preview="route">-</span></p>
+      <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.compass, "Solicitud pendiente de asignación", { required: true })}
+          <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
+            <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : "No hay solicitudes pendientes"}</option>
+            ${pendingSelectOpts}
+          </select>
+        </label>
+        <div id="trip-request-preview" class="create-trip-summary-panel full">
+          <p class="muted create-trip-summary-placeholder">Seleccione una solicitud pendiente para ver el resumen y habilitar vehículo, conductor y precio.</p>
+        </div>
       </div>
     </fieldset>
-    <p class="muted full">${pendingForTrip.length ? "Al enviar se abrira el selector de camion, conductor y precio del viaje." : "Apruebe solicitudes desde Transporte · Solicitudes o aguarde la aprobacion automatica por tiempo de respuesta (si esta configurada)."}</p>
-    <button class="btn btn-primary full" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje desde solicitud</button>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.truck} Asignación de flota</legend>
+      <div class="form-section-grid">
+        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran <strong>todos los vehículos</strong> disponibles con capacidad y refrigeración adecuadas y documentos vigentes. Si la carga es Termoking, el listado solo incluye unidades refrigeradas.</p>
+        <label class="full">${fieldLabel(IC.truck, "Vehículo", { required: true })}
+          <select name="vehicleId" id="create-trip-vehicle-select" disabled><option value="">— Elija solicitud primero —</option></select>
+        </label>
+        <label class="full">${fieldLabel(IC.user, "Conductor", { required: true })}
+          <select name="driverId" id="create-trip-driver-select" disabled><option value="">— Elija solicitud primero —</option></select>
+        </label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-violet full">
+      <legend>${IC.dollar} Tarifa y precio</legend>
+      <div id="create-trip-rate-fields">
+        <p class="muted" style="margin:0">Seleccione una solicitud para cargar tarifas sugeridas.</p>
+      </div>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje y asignar</button>
   </form>`;
 
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
@@ -7397,7 +7519,7 @@ function transportTripsHtml() {
     </div>`;
 
   const actionGrid = `<div class="dash-grid trips-actions-row--two">
-    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Asigna camión y conductor a una solicitud aprobada", createTripForm, "Asignar viaje")}
+    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona solicitud, vehículo, conductor y precio de forma guiada (mismo estilo que nueva solicitud)", createTripForm, "Asignar viaje")}
     ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
   </div>`;
 
@@ -8125,9 +8247,9 @@ function historyHtml() {
   const renderHistoryRow = (r) => {
     const number = String(r.requestNumber || r.id || "").trim();
     const client = String(r.clientName || "").trim();
-    const vehicle = String(r.vehicleType || r.trip?.vehicleType || "—").trim();
+    const vehicle = historyVehicleColumn(r);
     const trip = String(r.trip?.tripNumber || "").trim();
-    const haystack = `${number} ${client} ${vehicle} ${trip}`.toLowerCase();
+    const haystack = `${number} ${client} ${vehicle} ${trip} ${r.serviceType || ""}`.toLowerCase();
     return `<tr data-history-row data-haystack="${escapeAttr(haystack)}">
       <td>${fmtDate(r.createdAt)}</td>
       <td><strong>${escapeHtml(number)}</strong></td>
@@ -8143,7 +8265,7 @@ function historyHtml() {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.filter} Periodo y criterios</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.search || IC.filter, "Búsqueda libre")}<input type="search" name="q" placeholder="Buscar por número de solicitud, cliente, viaje o vehículo..." autocomplete="off" /></label>
+        <label class="full">${fieldLabel(IC.search || IC.filter, "Búsqueda libre")}<input type="search" name="q" placeholder="Buscar por solicitud, cliente, Termoking, tipo asignado, viaje..." autocomplete="off" /></label>
         <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
         <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
         <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${options}</select></label>
@@ -8221,7 +8343,7 @@ function historyHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Vehiculo</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Termoking / asignado</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
     : emptyState("Sin registros.");
   const reportBody = `<div class="dash-grid history-insights-grid">
     ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
@@ -8250,7 +8372,7 @@ function topClients(requests) {
 function topVehicles(requests) {
   const acc = {};
   requests.forEach((r) => {
-    const key = r.vehicleType?.trim() || r.trip?.vehicleType?.trim() || "Sin tipo";
+    const key = r.trip?.vehicleType?.trim() || "Sin viaje asignado";
     acc[key] = (acc[key] || 0) + 1;
   });
   return Object.entries(acc)
@@ -12897,8 +13019,19 @@ function bindDynamicEvents() {
         siteContactPhone,
         boxes,
         notes,
+        requiresThermoking,
         ...payloadRest
       } = data;
+      const serviceType =
+        String(requiresThermoking || "") === "yes"
+          ? "Transporte nacional con termoking"
+          : String(requiresThermoking || "") === "no"
+            ? "Transporte nacional sin termoking"
+            : "";
+      if (!serviceType) {
+        notify("Indique si el envío requiere Termoking o es carga seca.", "error");
+        return;
+      }
       payloadRest.tripValue = 0;
       const contactName = String(siteContactName ?? "").trim();
       const contactPhone = String(siteContactPhone ?? "").trim();
@@ -12917,6 +13050,7 @@ function bindDynamicEvents() {
         clientCompanyId: reqCompany.id,
         requestedByName: user.name,
         ...payloadRest,
+        serviceType,
         contactName,
         contactPhone,
         siteContactName: contactName,
@@ -13226,8 +13360,6 @@ function bindDynamicEvents() {
             <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
             <div class="dash-grid">
               <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
-              <div><strong>Tipo de servicio</strong><br /><span class="muted">${escapeHtml(String(req.serviceType || "-"))}</span></div>
-              <div><strong>Vehículo solicitado</strong><br /><span class="muted">${escapeHtml(String(req.vehicleType || "Por definir"))}</span></div>
               <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
               <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
               ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
@@ -13347,8 +13479,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Camiones, turbos y tractomulas con Termoking indicado en la lista. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Camiones, turbos y tractomulas compatibles. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: camiones, turbos y tractomulas; la carga no exige Termoking. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
@@ -13362,8 +13494,8 @@ function bindDynamicEvents() {
                 label: vehicleCandidates.length
                   ? "Sin asignar por ahora"
                   : needsTermoking
-                    ? "No hay vehículos Termoking disponibles para tipo / peso / fecha"
-                    : "No hay vehículos compatibles para el tipo / peso"
+                    ? "No hay vehículos con Termoking para capacidad, documentos u horario"
+                    : "No hay vehículos para capacidad, documentos u horario"
               },
               ...vehicleCandidates.map((vehicle) => ({
                 value: vehicle.id,
@@ -13461,24 +13593,10 @@ function bindDynamicEvents() {
 
   const createTripForm = document.getElementById("form-create-trip");
   if (createTripForm) {
-    const select = createTripForm.querySelector("select[name='requestId']");
-    const preview = createTripForm.querySelector("#trip-request-preview");
-    const setPreview = () => {
-      const option = select?.selectedOptions?.[0];
-      if (!option || !preview) return;
-      const createdBy = option.getAttribute("data-createdby") || "-";
-      const company = option.getAttribute("data-company") || "-";
-      const route = option.getAttribute("data-route") || "-";
-      const createdByNode = preview.querySelector("[data-preview='createdBy']");
-      const companyNode = preview.querySelector("[data-preview='company']");
-      const routeNode = preview.querySelector("[data-preview='route']");
-      if (createdByNode) createdByNode.textContent = createdBy;
-      if (companyNode) companyNode.textContent = company;
-      if (routeNode) routeNode.textContent = route;
-    };
-    if (select) {
-      select.addEventListener("change", setPreview);
-      setPreview();
+    const selectReq = createTripForm.querySelector("select[name='requestId']");
+    if (selectReq) {
+      selectReq.addEventListener("change", () => refreshCreateTripModuleForm(createTripForm));
+      refreshCreateTripModuleForm(createTripForm);
     }
 
     createTripForm.addEventListener("submit", (event) => {
@@ -13494,78 +13612,39 @@ function bindDynamicEvents() {
         notify(userMessage("bulkRequestMissing"), "error");
         return;
       }
-      const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
-      const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
+      const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId, { moduleCreateTrip: true });
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
-      const tripRateUi = buildTripRateModalFields(request, { required: true });
-      const friendlyIntro = buildTripAssignmentFriendlyIntroHtml(request, needsTermoking);
-      openEditModal({
-        title: "Nuevo viaje para la solicitud",
-        subtitle: `${request.requestNumber || request.id} — confirme vehículo, conductor y valor`,
-        introHtml: friendlyIntro,
-        extraModalCardClass: "modal-card-edit--trip-assign-friendly",
-        submitText: "Crear viaje",
-        afterMount: tripRateUi.afterMount,
-        fields: [
-          {
-            name: "vehicleId",
-            label: needsTermoking ? "1. Vehículo con Termoking" : "1. Vehículo (camión, turbo o tractomula)",
-            type: "select",
-            required: true,
-            options: compatibleVehicles.length
-              ? compatibleVehicles.map((vehicle) => ({
-                value: vehicle.id,
-                label: tripAssignmentVehicleOptionLabel(vehicle, { needsTermoking })
-              }))
-              : [
-                  {
-                    value: "",
-                    label: needsTermoking
-                      ? "No hay camiones Termoking disponibles"
-                      : "No hay camiones compatibles disponibles"
-                  }
-                ]
-          },
-          {
-            name: "driverId",
-            label: "2. Conductor",
-            type: "select",
-            required: true,
-            options: compatibleDrivers.length
-              ? compatibleDrivers.map((driver) => ({
-                value: driver.id,
-                label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}`
-              }))
-              : [{ value: "", label: "No hay conductores compatibles disponibles" }]
-          },
-          ...tripRateUi.fields
-        ],
-        onSubmit: (form) => {
-          if (!compatibleVehicles.length || !compatibleDrivers.length) {
-            notify(userMessage("tripAssignNoMatch"), "error");
-            return false;
-          }
-          const tripValue = parseNum(form.tripValue);
-          if (tripValue <= 0) {
-            notify(userMessage("assignPriceRequired"), "error");
-            return false;
-          }
-          const ok = approveRequest(
-            requestId,
-            currentUser()?.name || "Administrador",
-            false,
-            String(form.vehicleId || ""),
-            String(form.driverId || ""),
-            tripValue
-          );
-          if (!ok) return false;
-          suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
-          notify(userMessage("tripCreatedAssigned"), "success");
-          renderPortalView();
-          return true;
-        }
-      });
-      return;
+      const vehicleId = String(data.vehicleId || "").trim();
+      const driverId = String(data.driverId || "").trim();
+      if (!compatibleVehicles.length || !compatibleDrivers.length) {
+        notify(userMessage("tripAssignNoMatch"), "error");
+        return;
+      }
+      if (!vehicleId || !driverId) {
+        notify(userMessage("assignSelectResources"), "error");
+        return;
+      }
+      if (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId)) {
+        notify(userMessage("assignResourcesBusy"), "error");
+        return;
+      }
+      const tripValue = parseNum(data.tripValue);
+      if (tripValue <= 0) {
+        notify(userMessage("assignPriceRequired"), "error");
+        return;
+      }
+      const ok = approveRequest(
+        requestId,
+        currentUser()?.name || "Administrador",
+        false,
+        vehicleId,
+        driverId,
+        tripValue
+      );
+      if (!ok) return;
+      suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
+      notify(userMessage("tripCreatedAssigned"), "success");
+      renderPortalView();
     });
   }
 
@@ -14280,8 +14359,8 @@ function bindDynamicEvents() {
   if (historyFilter) {
     /**
      * Filtrado del módulo Historial: combina criterios estructurados (cliente, estado, rango de
-     * fechas) con búsqueda libre (`q`) sobre número de solicitud, cliente, viaje y tipo de
-     * vehículo. Mantiene los pills de estado (`prettyStatus`) para conservar la UX.
+     * fechas) con búsqueda libre (`q`) sobre número de solicitud, cliente, Termoking, tipo de
+     * flota asignado y viaje. Mantiene los pills de estado (`prettyStatus`) para conservar la UX.
      */
     const filterRows = () => {
       const data = Object.fromEntries(new FormData(historyFilter).entries());
@@ -14293,7 +14372,7 @@ function bindDynamicEvents() {
       if (data.to) items = items.filter((i) => new Date(i.createdAt) <= new Date(`${data.to}T23:59`));
       if (q) {
         items = items.filter((i) => {
-          const hay = `${i.requestNumber || i.id || ""} ${i.clientName || ""} ${i.vehicleType || i.trip?.vehicleType || ""} ${i.trip?.tripNumber || ""}`.toLowerCase();
+          const hay = `${i.requestNumber || i.id || ""} ${i.clientName || ""} ${historyVehicleColumn(i)} ${i.trip?.tripNumber || ""} ${i.serviceType || ""}`.toLowerCase();
           return hay.includes(q);
         });
       }
@@ -14304,7 +14383,7 @@ function bindDynamicEvents() {
             .map((r) => {
               const number = String(r.requestNumber || r.id || "").trim();
               const client = String(r.clientName || "").trim();
-              const vehicle = String(r.vehicleType || r.trip?.vehicleType || "—").trim();
+              const vehicle = historyVehicleColumn(r);
               const trip = String(r.trip?.tripNumber || "").trim();
               return `<tr>
                 <td>${fmtDate(r.createdAt)}</td>

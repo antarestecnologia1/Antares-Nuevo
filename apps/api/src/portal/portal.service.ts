@@ -2331,17 +2331,8 @@ export class PortalService implements OnModuleInit {
         );
       }
       const boxesNum = Math.max(0, Number(req.boxesCount ?? req.boxes ?? 0) || 0);
-      let vehicleType = String(req.vehicleType || "").trim();
-      if (!vehicleType) {
-        const st = String(req.serviceType || "").toLowerCase();
-        vehicleType =
-          st.includes("termoking") || st.includes("refriger")
-            ? "Furgon refrigerado (Termoking)"
-            : st.includes("sin termoking") || st.includes("seco")
-              ? "Furgon seco"
-              : "Por definir";
-      }
-      if (vehicleType.length > 40) vehicleType = vehicleType.slice(0, 40);
+      /** El cliente no define carrocería; operaciones asigna vehículo. Columna NOT NULL en BD. */
+      const vehicleType = "Por definir";
       const observations =
         String(req.observations ?? req.notes ?? "").trim() || null;
 

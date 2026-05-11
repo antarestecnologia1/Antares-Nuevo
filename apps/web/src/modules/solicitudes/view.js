@@ -51,7 +51,7 @@
       <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
-        <label>${fieldLabel(IC.briefcase, "Tipo de servicio")}<select name="serviceType" required><option value="">Seleccione...</option><option>Transporte nacional con termoking</option><option>Transporte nacional sin termoking</option><option>Transporte entre sedes del cliente</option></select></label>
+        <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
         <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
         <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
       </div>
