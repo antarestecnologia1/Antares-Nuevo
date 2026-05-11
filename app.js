@@ -424,7 +424,8 @@ function openEditModal({
           .map((opt) => {
             const v = escapeAttr(String(opt.value ?? ""));
             const sel = String(opt.value) === String(f.value ?? "") ? "selected" : "";
-            return `<option value="${v}" ${sel}>${escapeHtml(opt.label)}</option>`;
+            const dis = opt.disabled ? "disabled" : "";
+            return `<option value="${v}" ${sel} ${dis}>${escapeHtml(opt.label)}</option>`;
           })
           .join("");
         const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
@@ -3605,8 +3606,10 @@ function refreshCreateTripModuleForm(formEl) {
   }
 
   const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
-  const vehicles = getCompatibleVehiclesForRequest(request, requestId);
-  const drivers = getCompatibleDriversForRequest(request, requestId);
+  const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
+  const driverCandidates = getDriverCandidatesForRequest(request, requestId);
+  const vehicles = vehicleCandidates.filter((v) => !v.isBusy && !v.hasExpiredDocs);
+  const drivers = driverCandidates.filter((d) => !d.isBusy && !d.hasExpiredDocs);
 
   if (preview) {
     preview.classList.add("create-trip-summary-panel--active");
@@ -3632,15 +3635,20 @@ function refreshCreateTripModuleForm(formEl) {
 
   if (vehSel) {
     vehSel.disabled = false;
-    if (!vehicles.length) {
-      vehSel.innerHTML = `<option value="">${needsTermoking ? "No hay vehículos con Termoking disponibles" : "No hay vehículos disponibles para capacidad y horario"}</option>`;
+    if (!vehicleCandidates.length) {
+      vehSel.innerHTML = `<option value="">${needsTermoking ? "No hay vehículos con Termoking para esta solicitud" : "No hay vehículos para capacidad y ruta"}</option>`;
     } else {
       vehSel.innerHTML =
-        `<option value="">Seleccione vehículo…</option>` +
-        vehicles
+        `<option value="">${vehicles.length ? "Seleccione vehículo…" : "Sin vehículo asignable ahora (revise banderas)"}</option>` +
+        vehicleCandidates
           .map((v) => {
-            const lab = tripAssignmentVehicleOptionLabel(v, { needsTermoking });
-            return `<option value="${escapeAttr(v.id)}">${escapeHtml(lab)}</option>`;
+            const lab = tripAssignmentVehicleOptionLabel(v, {
+              needsTermoking,
+              isBusy: v.isBusy,
+              hasExpiredDocs: v.hasExpiredDocs
+            });
+            const disabled = v.isBusy || v.hasExpiredDocs ? " disabled" : "";
+            return `<option value="${escapeAttr(v.id)}"${disabled}>${escapeHtml(lab)}</option>`;
           })
           .join("");
     }
@@ -3648,15 +3656,16 @@ function refreshCreateTripModuleForm(formEl) {
 
   if (drvSel) {
     drvSel.disabled = false;
-    if (!drivers.length) {
-      drvSel.innerHTML = `<option value="">No hay conductores disponibles</option>`;
+    if (!driverCandidates.length) {
+      drvSel.innerHTML = `<option value="">No hay conductores registrados</option>`;
     } else {
       drvSel.innerHTML =
-        `<option value="">Seleccione conductor…</option>` +
-        drivers
+        `<option value="">${drivers.length ? "Seleccione conductor…" : "Sin conductor asignable ahora (revise banderas)"}</option>` +
+        driverCandidates
           .map((d) => {
-            const lab = `${d.name} · Lic ${d.license || "-"} · vence ${d.licenseExpiry || "-"}`;
-            return `<option value="${escapeAttr(d.id)}">${escapeHtml(lab)}</option>`;
+            const lab = `${d.name} · Lic ${d.license || "-"} · vence ${d.licenseExpiry || "-"} · ${d.phone || "-"}${d.isBusy ? " · OCUPADO" : ""}${d.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`;
+            const disabled = d.isBusy || d.hasExpiredDocs ? " disabled" : "";
+            return `<option value="${escapeAttr(d.id)}"${disabled}>${escapeHtml(lab)}</option>`;
           })
           .join("");
     }
@@ -7491,7 +7500,7 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Asignación de flota</legend>
       <div class="form-section-grid">
-        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, documentos vigentes y sin cruce de horario. Si la carga es Termoking, el listado solo incluye unidades refrigeradas.</p>
+        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Si una opción está ocupada o con documento vencido, se marca con bandera para identificarla rápido.</p>
         <label class="full">${fieldLabel(IC.truck, "Vehículo", { required: true })}
           <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
         </label>
@@ -13499,6 +13508,7 @@ function bindDynamicEvents() {
               },
               ...vehicleCandidates.map((vehicle) => ({
                 value: vehicle.id,
+                disabled: Boolean(vehicle.isBusy || vehicle.hasExpiredDocs),
                 label: tripAssignmentVehicleOptionLabel(vehicle, {
                   needsTermoking,
                   isBusy: vehicle.isBusy,
@@ -13517,6 +13527,7 @@ function bindDynamicEvents() {
               { value: "", label: driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores registrados" },
               ...driverCandidates.map((driver) => ({
                 value: driver.id,
+                disabled: Boolean(driver.isBusy || driver.hasExpiredDocs),
                 label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
               }))
             ]
@@ -16399,6 +16410,7 @@ function bindDynamicEvents() {
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...vehicleCandidates.map((vehicle) => ({
                   value: vehicle.id,
+                  disabled: Boolean(vehicle.isBusy || vehicle.hasExpiredDocs),
                   label: tripAssignmentVehicleOptionLabel(vehicle, {
                     needsTermoking,
                     isBusy: vehicle.isBusy,
@@ -16416,6 +16428,7 @@ function bindDynamicEvents() {
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...driverCandidates.map((driver) => ({
                   value: driver.id,
+                  disabled: Boolean(driver.isBusy || driver.hasExpiredDocs),
                   label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
                 }))
               ]
