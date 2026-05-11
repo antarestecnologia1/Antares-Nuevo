@@ -601,7 +601,8 @@ export class AuthService {
 
     const jwtRole = String(user.rol || "client").toLowerCase();
     const tokens = await this.generateTokens(user.id, user.correo_electronico, jwtRole);
-    await this.storeRefreshToken(user.id, tokens.refreshToken);
+    const refreshHash = await this.storeRefreshToken(user.id, tokens.refreshToken);
+    await this.persistUserSession(user.id, refreshHash, tokens.refreshToken);
     return tokens;
   }
 
@@ -624,7 +625,8 @@ export class AuthService {
 
     const jwtRole = String(user.rol || "client").toLowerCase();
     const tokens = await this.generateTokens(user.id, user.correo_electronico, jwtRole);
-    await this.storeRefreshToken(user.id, tokens.refreshToken);
+    const refreshHash = await this.storeRefreshToken(user.id, tokens.refreshToken);
+    await this.persistUserSession(user.id, refreshHash, tokens.refreshToken);
     return tokens;
   }
 
@@ -859,6 +861,53 @@ export class AuthService {
       hash,
       userId
     ]);
+    return hash;
+  }
+
+  private refreshTokenExpiryFromJwt(refreshToken: string): Date {
+    const decoded = this.jwt.decode(refreshToken) as { exp?: number } | null;
+    if (decoded?.exp && Number.isFinite(decoded.exp)) {
+      return new Date(Number(decoded.exp) * 1000);
+    }
+    return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  private async ensureSessionsTable(): Promise<void> {
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS sesiones_usuario (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        id_usuario UUID NOT NULL REFERENCES usuarios (id) ON DELETE CASCADE,
+        hash_token TEXT NOT NULL,
+        fecha_expiracion TIMESTAMPTZ NOT NULL,
+        fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT uq_sesiones_hash_token UNIQUE (hash_token)
+      )
+    `);
+  }
+
+  private async persistUserSession(userId: string, refreshHash: string, refreshToken: string): Promise<void> {
+    const expiry = this.refreshTokenExpiryFromJwt(refreshToken);
+    try {
+      await this.pool.query(
+        `INSERT INTO sesiones_usuario (id_usuario, hash_token, fecha_expiracion)
+         VALUES ($1::uuid, $2, $3::timestamptz)`,
+        [userId, refreshHash, expiry.toISOString()]
+      );
+      await this.pool.query(
+        `DELETE FROM sesiones_usuario
+         WHERE id_usuario = $1::uuid
+           AND fecha_expiracion < now()`,
+        [userId]
+      );
+    } catch (err: any) {
+      if (String(err?.code || "") !== "42P01") throw err;
+      await this.ensureSessionsTable();
+      await this.pool.query(
+        `INSERT INTO sesiones_usuario (id_usuario, hash_token, fecha_expiracion)
+         VALUES ($1::uuid, $2, $3::timestamptz)`,
+        [userId, refreshHash, expiry.toISOString()]
+      );
+    }
   }
 
   /** Correo de bienvenida según `estado_cuenta` en BD (pendiente vs aprobado). No debe hacer fallar el registro. */

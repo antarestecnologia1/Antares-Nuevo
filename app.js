@@ -3502,7 +3502,7 @@ function buildTripRateModalFields(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
@@ -3548,7 +3548,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
@@ -3608,8 +3608,8 @@ function refreshCreateTripModuleForm(formEl) {
   const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
   const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
   const driverCandidates = getDriverCandidatesForRequest(request, requestId);
-  const vehicles = vehicleCandidates.filter((v) => !v.isBusy && !v.hasExpiredDocs);
-  const drivers = driverCandidates.filter((d) => !d.isBusy && !d.hasExpiredDocs);
+  const vehicles = vehicleCandidates.filter((v) => !v.isBusy && !v.isUnavailable && !v.hasExpiredDocs);
+  const drivers = driverCandidates.filter((d) => !d.isBusy && !d.isUnavailable && !d.hasExpiredDocs);
 
   if (preview) {
     preview.classList.add("create-trip-summary-panel--active");
@@ -3645,9 +3645,10 @@ function refreshCreateTripModuleForm(formEl) {
             const lab = tripAssignmentVehicleOptionLabel(v, {
               needsTermoking,
               isBusy: v.isBusy,
+              isUnavailable: v.isUnavailable,
               hasExpiredDocs: v.hasExpiredDocs
             });
-            const disabled = v.isBusy || v.hasExpiredDocs ? " disabled" : "";
+            const disabled = v.isBusy || v.isUnavailable || v.hasExpiredDocs ? " disabled" : "";
             return `<option value="${escapeAttr(v.id)}"${disabled}>${escapeHtml(lab)}</option>`;
           })
           .join("");
@@ -3663,8 +3664,12 @@ function refreshCreateTripModuleForm(formEl) {
         `<option value="">${drivers.length ? "Seleccione conductor…" : "Sin conductor asignable ahora (revise banderas)"}</option>` +
         driverCandidates
           .map((d) => {
-            const lab = `${d.name} · Lic ${d.license || "-"} · vence ${d.licenseExpiry || "-"} · ${d.phone || "-"}${d.isBusy ? " · OCUPADO" : ""}${d.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`;
-            const disabled = d.isBusy || d.hasExpiredDocs ? " disabled" : "";
+            const lab = tripAssignmentDriverOptionLabel(d, {
+              isBusy: d.isBusy,
+              isUnavailable: d.isUnavailable,
+              hasExpiredDocs: d.hasExpiredDocs
+            });
+            const disabled = d.isBusy || d.isUnavailable || d.hasExpiredDocs ? " disabled" : "";
             return `<option value="${escapeAttr(d.id)}"${disabled}>${escapeHtml(lab)}</option>`;
           })
           .join("");
@@ -6240,6 +6245,7 @@ function isVehicleEligibleForTripAssignment(vehicle) {
 function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
   const needsTermoking = Boolean(options.needsTermoking);
   const isBusy = Boolean(options.isBusy);
+  const isUnavailable = Boolean(options.isUnavailable);
   const hasExpiredDocs = Boolean(options.hasExpiredDocs);
   const cap = `${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg`;
   const soat = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label;
@@ -6250,9 +6256,21 @@ function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
       : " · Termoking: no"
     : ` · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}`;
   let tail = ` · SOAT ${soat} · Tec ${tec}`;
-  if (isBusy) tail += " · OCUPADO";
-  if (hasExpiredDocs) tail += " · DOCUMENTOS VENCIDOS";
+  if (isBusy) tail += " · 🟠 OCUPADO";
+  if (isUnavailable) tail += " · 🟡 NO DISPONIBLE";
+  if (hasExpiredDocs) tail += " · 🔴 DOCUMENTOS VENCIDOS";
   return `${vehicle.plate} · ${vehicle.type} · ${cap}${thermal}${tail}`;
+}
+
+function tripAssignmentDriverOptionLabel(driver, options = {}) {
+  const isBusy = Boolean(options.isBusy);
+  const isUnavailable = Boolean(options.isUnavailable);
+  const hasExpiredDocs = Boolean(options.hasExpiredDocs);
+  let tail = `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || "-"}`;
+  if (isBusy) tail += " · 🟠 OCUPADO";
+  if (isUnavailable) tail += " · 🟡 NO DISPONIBLE";
+  if (hasExpiredDocs) tail += " · 🔴 LICENCIA VENCIDA";
+  return tail;
 }
 
 function getCompatibleVehiclesForRequest(request, currentRequestId = null, compatOpts = {}) {
@@ -6297,10 +6315,17 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
     .map((vehicle) => {
       const soatDays = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days;
       const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days;
-      const busy = isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
+      const busyBySchedule = isVehicleBusyAtHour(
+        vehicle,
+        request?.pickupAt,
+        request?.etaDelivery || request?.pickupAt,
+        currentRequestId
+      );
+      const unavailableManual = !vehicle.available && !vehicle.autoBusy;
       return {
         ...vehicle,
-        isBusy: busy || !vehicle.available,
+        isBusy: busyBySchedule,
+        isUnavailable: unavailableManual,
         hasExpiredDocs: soatDays < 0 || techDays < 0
       };
     });
@@ -6309,10 +6334,17 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
 function getDriverCandidatesForRequest(request, currentRequestId = null) {
   return read(KEYS.drivers, []).map((driver) => {
     const expiredLicense = daysUntil(driver.licenseExpiry) < 0;
-    const busy = isDriverBusyAtHour(driver, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId);
+    const busyBySchedule = isDriverBusyAtHour(
+      driver,
+      request?.pickupAt,
+      request?.etaDelivery || request?.pickupAt,
+      currentRequestId
+    );
+    const unavailableManual = !driver.available && !driver.autoBusy;
     return {
       ...driver,
-      isBusy: busy || !driver.available,
+      isBusy: busyBySchedule,
+      isUnavailable: unavailableManual,
       hasExpiredDocs: expiredLicense
     };
   });
@@ -7189,8 +7221,16 @@ function requestListClientHtml(user) {
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const isAdmin = isAdminActor();
+  const activeTrips = getActiveTrips();
+  const activeTripByVehicleId = new Map(
+    activeTrips
+      .filter((r) => r.trip?.vehicleId)
+      .map((r) => [String(r.trip.vehicleId), r])
+  );
   const totalCount = vehicles.length;
-  const availableCount = vehicles.filter((v) => v.available).length;
+  const availableCount = vehicles.filter((v) => v.available && !activeTripByVehicleId.has(String(v.id))).length;
+  const occupiedCount = vehicles.filter((v) => activeTripByVehicleId.has(String(v.id))).length;
+  const offlineCount = vehicles.filter((v) => !v.available && !activeTripByVehicleId.has(String(v.id))).length;
   const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
   const documentRiskCount = vehicles.filter((v) => {
     const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
@@ -7205,9 +7245,15 @@ function vehiclesHtml() {
       const refrigeratedTag = v.refrigerated
         ? '<span class="status status-viaje_asignado">Termoking</span>'
         : '<span class="status status-espera_standby">Carga seca</span>';
-      const availabilityTag = v.available
-        ? '<span class="status status-viaje_asignado">Disponible</span>'
-        : '<span class="status status-rechazada">Ocupado</span>';
+      const activeTrip = activeTripByVehicleId.get(String(v.id));
+      const availabilityTag = activeTrip
+        ? `<span class="status status-en_transito">🟠 Ocupado</span>`
+        : v.available
+          ? '<span class="status status-viaje_asignado">🟢 Disponible</span>'
+          : '<span class="status status-pendiente">🟡 No disponible</span>';
+      const occupancyDetail = activeTrip
+        ? `<strong>${escapeHtml(String(activeTrip.trip?.tripNumber || "-"))}</strong><br><span class="muted">${escapeHtml(String(activeTrip.clientName || "-"))}</span>`
+        : '<span class="muted">Sin viaje activo</span>';
       return `<tr>
         <td>
           <div class="vehicle-cell">
@@ -7221,6 +7267,7 @@ function vehiclesHtml() {
         <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
         <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
         <td>${availabilityTag}</td>
+        <td>${occupancyDetail}</td>
         <td><div class="toolbar">
           <button class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${v.id}">${IC.eye} Ver</button>
           <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
@@ -7287,12 +7334,14 @@ function vehiclesHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Viaje activo</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay vehículos registrados.");
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
       <div class="fleet-hero-metrics">
         <div class="fleet-hero-metric"><span>Total flota</span><strong>${totalCount}</strong></div>
         <div class="fleet-hero-metric"><span>Disponibles</span><strong>${availableCount}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Ocupados</span><strong>${occupiedCount}</strong></div>
+        <div class="fleet-hero-metric"><span>No disponibles</span><strong>${offlineCount}</strong></div>
         <div class="fleet-hero-metric"><span>Termoking</span><strong>${thermokingCount}</strong></div>
         <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Docs. en riesgo</span><strong>${documentRiskCount}</strong></div>
       </div>
@@ -7305,8 +7354,16 @@ function vehiclesHtml() {
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
   const isAdmin = isAdminActor();
+  const activeTrips = getActiveTrips();
+  const activeTripByDriverId = new Map(
+    activeTrips
+      .filter((r) => r.trip?.driverId)
+      .map((r) => [String(r.trip.driverId), r])
+  );
   const totalDrivers = drivers.length;
-  const availableDrivers = drivers.filter((d) => d.available).length;
+  const availableDrivers = drivers.filter((d) => d.available && !activeTripByDriverId.has(String(d.id))).length;
+  const occupiedDrivers = drivers.filter((d) => activeTripByDriverId.has(String(d.id))).length;
+  const offlineDrivers = drivers.filter((d) => !d.available && !activeTripByDriverId.has(String(d.id))).length;
   const expiringSoon = drivers.filter((d) => {
     if (!d.licenseExpiry) return false;
     const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
@@ -7323,9 +7380,12 @@ function driversHtml() {
         .map((p) => p.charAt(0).toUpperCase())
         .slice(0, 2)
         .join("");
-      const statusTag = d.available
-        ? '<span class="status status-viaje_asignado">Disponible</span>'
-        : '<span class="status status-rechazada">Ocupado</span>';
+      const activeTrip = activeTripByDriverId.get(String(d.id));
+      const statusTag = activeTrip
+        ? '<span class="status status-en_transito">🟠 Ocupado</span>'
+        : d.available
+          ? '<span class="status status-viaje_asignado">🟢 Disponible</span>'
+          : '<span class="status status-pendiente">🟡 No disponible</span>';
       const licStatus = (() => {
         if (!d.licenseExpiry) return '<span class="status status-pendiente">Sin fecha</span>';
         const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
@@ -7345,6 +7405,7 @@ function driversHtml() {
         <div class="driver-card-body">
           <div class="driver-info-row"><span>${IC.phone}</span><span>${d.phone || "-"}</span></div>
           <div class="driver-info-row"><span>${IC.file}</span><span>${d.license || "-"} · ${d.licenseCategory || "-"}</span></div>
+          <div class="driver-info-row"><span>${IC.truck}</span><span>${activeTrip ? `Viaje ${escapeHtml(String(activeTrip.trip?.tripNumber || "-"))}` : "Sin viaje activo"}</span></div>
           <div class="driver-info-row"><span>${IC.calendar}</span><span>Vence: ${d.licenseExpiry || "-"} ${licStatus}</span></div>
         </div>
         <footer class="driver-card-actions">
@@ -7359,6 +7420,8 @@ function driversHtml() {
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: totalDrivers },
     { label: "Disponibles", value: availableDrivers },
+    { label: "Ocupados", value: occupiedDrivers, tone: occupiedDrivers ? "warn" : undefined },
+    { label: "No disponibles", value: offlineDrivers },
     { label: "Lic. 60 d", value: expiringSoon, tone: expiringSoon ? "warn" : undefined },
     { label: "Vencidas", value: expired, tone: expired ? "alert" : undefined }
   ]);
@@ -7500,7 +7563,8 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Asignación de flota</legend>
       <div class="form-section-grid">
-        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Si una opción está ocupada o con documento vencido, se marca con bandera para identificarla rápido.</p>
+        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+        <p class="create-trip-flag-legend full"><span class="create-trip-flag create-trip-flag--busy">🟠 Ocupado</span><span class="create-trip-flag create-trip-flag--offline">🟡 No disponible</span><span class="create-trip-flag create-trip-flag--expired">🔴 Documentación vencida</span></p>
         <label class="full">${fieldLabel(IC.truck, "Vehículo", { required: true })}
           <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
         </label>
@@ -8568,17 +8632,25 @@ function buildReportDataset(reportId, actor = currentUser()) {
     };
   }
   if (reportId === "fleet_summary") {
+    const activeTrips = getActiveTrips();
+    const busyVehicleIds = new Set(activeTrips.map((r) => String(r.trip?.vehicleId || "")).filter(Boolean));
     const rows = read(KEYS.vehicles, []).map((vehicle) => {
       const trips = requests.filter((r) => r.trip?.vehicleId === vehicle.id);
       const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
       const utilizationPct = trips.length ? Number(((completed / trips.length) * 100).toFixed(1)) : 0;
       const soatRisk = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate);
       const techRisk = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate);
+      const occupancy =
+        busyVehicleIds.has(String(vehicle.id))
+          ? "Ocupado (viaje activo)"
+          : vehicle.available
+            ? "Disponible"
+            : "No disponible";
       return {
         plate: vehicle.plate,
         type: vehicle.type,
         capacityKg: parseNum(vehicle.capacityKg),
-        available: vehicle.available ? "Disponible" : "Ocupado",
+        available: occupancy,
         trips: trips.length,
         completedTrips: completed,
         utilizationPct: `${utilizationPct}%`,
@@ -13508,10 +13580,11 @@ function bindDynamicEvents() {
               },
               ...vehicleCandidates.map((vehicle) => ({
                 value: vehicle.id,
-                disabled: Boolean(vehicle.isBusy || vehicle.hasExpiredDocs),
+                disabled: Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs),
                 label: tripAssignmentVehicleOptionLabel(vehicle, {
                   needsTermoking,
                   isBusy: vehicle.isBusy,
+                  isUnavailable: vehicle.isUnavailable,
                   hasExpiredDocs: vehicle.hasExpiredDocs
                 })
               }))
@@ -13527,8 +13600,12 @@ function bindDynamicEvents() {
               { value: "", label: driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores registrados" },
               ...driverCandidates.map((driver) => ({
                 value: driver.id,
-                disabled: Boolean(driver.isBusy || driver.hasExpiredDocs),
-                label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
+                disabled: Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs),
+                label: tripAssignmentDriverOptionLabel(driver, {
+                  isBusy: driver.isBusy,
+                  isUnavailable: driver.isUnavailable,
+                  hasExpiredDocs: driver.hasExpiredDocs
+                })
               }))
             ]
           },
@@ -16410,10 +16487,11 @@ function bindDynamicEvents() {
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...vehicleCandidates.map((vehicle) => ({
                   value: vehicle.id,
-                  disabled: Boolean(vehicle.isBusy || vehicle.hasExpiredDocs),
+                  disabled: Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs),
                   label: tripAssignmentVehicleOptionLabel(vehicle, {
                     needsTermoking,
                     isBusy: vehicle.isBusy,
+                    isUnavailable: vehicle.isUnavailable,
                     hasExpiredDocs: vehicle.hasExpiredDocs
                   })
                 }))
@@ -16428,8 +16506,12 @@ function bindDynamicEvents() {
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...driverCandidates.map((driver) => ({
                   value: driver.id,
-                  disabled: Boolean(driver.isBusy || driver.hasExpiredDocs),
-                  label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
+                  disabled: Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs),
+                  label: tripAssignmentDriverOptionLabel(driver, {
+                    isBusy: driver.isBusy,
+                    isUnavailable: driver.isUnavailable,
+                    hasExpiredDocs: driver.hasExpiredDocs
+                  })
                 }))
               ]
             },

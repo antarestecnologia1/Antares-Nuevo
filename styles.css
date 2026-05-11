@@ -3249,6 +3249,39 @@ body[data-theme="dark"] .modal-edit-section-title {
   max-width: 100%;
 }
 
+.create-trip-flag-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 0.15rem;
+}
+
+.create-trip-flag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.58rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--line);
+}
+
+.create-trip-flag--busy {
+  background: color-mix(in srgb, #f59e0b 16%, var(--white));
+  color: #8a4b00;
+}
+
+.create-trip-flag--offline {
+  background: color-mix(in srgb, #eab308 16%, var(--white));
+  color: #805f00;
+}
+
+.create-trip-flag--expired {
+  background: color-mix(in srgb, #ef4444 14%, var(--white));
+  color: #9f1239;
+}
+
 body[data-theme="dark"] .create-trip-summary-panel {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
