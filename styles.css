@@ -3282,6 +3282,30 @@ body[data-theme="dark"] .modal-edit-section-title {
   color: #9f1239;
 }
 
+.trip-rate-choice-select {
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-rate-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: -0.05rem;
+}
+
+.trip-rate-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.26rem 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-main);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--primary) 8%, var(--white));
+}
+
 body[data-theme="dark"] .create-trip-summary-panel {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }

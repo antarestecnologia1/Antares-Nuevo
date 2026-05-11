@@ -1293,6 +1293,9 @@ let state = {
   session: null,
   currentView: "dashboard",
   portalContacts: [],
+  adminUserSessions: [],
+  adminUserSessionsLoading: false,
+  adminUserSessionsError: null,
   theme: "light",
   publicLang: "es",
   authTab: "login",
@@ -1877,6 +1880,25 @@ async function refreshContactB2bProspectsFromApi() {
     return true;
   } catch (err) {
     devWarn("Portal: GET /portal/contact-b2b-prospects fallo.", err?.message || err);
+    return false;
+  }
+}
+
+/** Solo administración/usuarios: sesiones activas e históricas desde API (tabla sesiones_usuario). */
+async function refreshAdminUserSessionsFromApi() {
+  if (!portalCanRefreshFromApi()) return false;
+  const user = currentUser();
+  if (!user || !hasPermission(user, PERMISSIONS.USERS_MANAGE)) return false;
+  const api = window.AntaresApi;
+  try {
+    const rows = await api.getJson("/portal/user-sessions");
+    state.adminUserSessions = Array.isArray(rows) ? rows : [];
+    state.adminUserSessionsError = null;
+    return true;
+  } catch (err) {
+    state.adminUserSessionsError = String(
+      err?.message || "No fue posible consultar sesiones de usuarios en el servidor."
+    );
     return false;
   }
 }
@@ -3404,14 +3426,24 @@ function listTripRateOptionsForRequest(request) {
 }
 
 function humanTripRateRouteLabelFromStorageKey(storageKey) {
+  const toSmartTitle = (value) => {
+    const raw = String(value || "").trim().replace(/\s+/g, " ");
+    if (!raw) return "";
+    return raw
+      .toLowerCase()
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  };
   const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
   const routeOnly = sepIdx === -1 ? String(storageKey) : String(storageKey).slice(0, sepIdx);
   const parts = String(routeOnly).split("->");
   if (parts.length < 2) return routeOnly || String(storageKey);
   const fmt = (chunk) => {
     const [dep, city] = String(chunk || "").split("|");
-    const d = String(dep || "").trim();
-    const c = String(city || "").trim();
+    const d = toSmartTitle(dep);
+    const c = toSmartTitle(city);
     if (!d && !c) return "—";
     return c ? `${d}, ${c}` : d || "—";
   };
@@ -3470,14 +3502,70 @@ function initialTripValueForAssignment(request, preferredStorageKey) {
 function wireTripRateChoiceSelect(formEl) {
   const sel = formEl.querySelector("select[name='tripRateChoice']");
   const num = formEl.querySelector("input[name='tripValue']");
+  const meta = formEl.querySelector("[data-trip-rate-meta]");
   if (!sel || !num) return;
+  const renderMeta = (storageKey = "") => {
+    if (!meta) return;
+    if (!storageKey) {
+      meta.innerHTML = `<span class="muted">Seleccione una tarifa para ver ruta y alcance de aplicación.</span>`;
+      return;
+    }
+    const rates = getTripRouteRatesNormalized();
+    const entry = rates[storageKey];
+    if (!entry) {
+      meta.innerHTML = `<span class="muted">Tarifa no disponible en catálogo.</span>`;
+      return;
+    }
+    const ids = Array.isArray(entry.companyIds) ? entry.companyIds.map(String).filter(Boolean) : [];
+    const clientsLabel = ids.length
+      ? ids.map((id) => getCompanyById(id)?.name || id).join(", ")
+      : "Todos los clientes";
+    meta.innerHTML = `<span class="trip-rate-meta-chip"><strong>Ruta:</strong> ${escapeHtml(humanTripRateRouteLabelFromStorageKey(storageKey))}</span>
+      <span class="trip-rate-meta-chip"><strong>Alcance:</strong> ${escapeHtml(clientsLabel)}</span>
+      <span class="trip-rate-meta-chip"><strong>Valor:</strong> $${parseNum(entry.value).toLocaleString("es-CO")}</span>`;
+  };
   sel.addEventListener("change", () => {
     const key = String(sel.value || "").trim();
-    if (!key) return;
+    if (!key) {
+      renderMeta("");
+      return;
+    }
     const rates = getTripRouteRatesNormalized();
     const entry = rates[key];
     if (entry && parseNum(entry.value) > 0) num.value = String(parseNum(entry.value));
+    renderMeta(key);
   });
+  renderMeta(String(sel.value || "").trim());
+}
+
+function setTripAssignmentFieldsDisabled(formEl, disabled) {
+  if (!formEl) return;
+  [
+    "select[name='vehicleId']",
+    "select[name='driverId']",
+    "select[name='tripRateChoice']",
+    "input[name='tripValue']"
+  ].forEach((selector) => {
+    const el = formEl.querySelector(selector);
+    if (!el) return;
+    if (disabled) {
+      el.setAttribute("disabled", "disabled");
+    } else {
+      el.removeAttribute("disabled");
+    }
+  });
+}
+
+function wireTripApprovalModeFields(formEl) {
+  if (!formEl) return;
+  const modeSel = formEl.querySelector("select[name='mode']");
+  if (!modeSel) return;
+  const apply = () => {
+    const assignNow = String(modeSel.value || "") === "assign_now";
+    setTripAssignmentFieldsDisabled(formEl, !assignNow);
+  };
+  modeSel.addEventListener("change", apply);
+  apply();
 }
 
 function slugStatus(value) {
@@ -3502,7 +3590,7 @@ function buildTripRateModalFields(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
@@ -3516,11 +3604,16 @@ function buildTripRateModalFields(request, opts) {
     fields: [
       {
         name: "tripRateChoice",
-        label: items.length ? "Tarifa por trayecto (catalogo)" : "Tarifa por trayecto",
+        label: items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto",
         type: "select",
         required: false,
         value: defaultKey || "",
         options: selectOptions
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<div class="trip-rate-meta" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver ruta y alcance de aplicación.</span></div>`
       },
       {
         name: "tripValue",
@@ -3548,7 +3641,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `$${parseNum(i.value).toLocaleString("es-CO")} · ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
@@ -3567,9 +3660,10 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     .join("");
 
   return `
-    <label class="full">${fieldLabel(IC.dollar, items.length ? "Tarifa por trayecto (catalogo)" : "Tarifa por trayecto")}
-      <select name="tripRateChoice" id="create-trip-rate-choice">${optionsHtml}</select>
+    <label class="full">${fieldLabel(IC.dollar, items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto")}
+      <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select">${optionsHtml}</select>
     </label>
+    <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver ruta y alcance de aplicación.</span></div>
     <label class="full">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
       <input type="number" name="tripValue" id="create-trip-trip-value" min="0" step="1" placeholder="Ej: 4200000" ${required ? "required" : ""} value="${escapeAttr(String(fallbackVal))}" />
     </label>`;
@@ -4618,6 +4712,9 @@ function clearSession() {
   localStorage.removeItem(KEYS.session);
   state.session = null;
   state.portalContacts = [];
+  state.adminUserSessions = [];
+  state.adminUserSessionsLoading = false;
+  state.adminUserSessionsError = null;
   if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
     window.AntaresPersistence.clearServerBackedMemory();
   }
@@ -5853,6 +5950,26 @@ function intervalsOverlap(startA, endA, startB, endB) {
   return aStart < bEnd && bStart < aEnd;
 }
 
+function isManuallyUnavailable(resource) {
+  return Boolean(resource && resource.available === false && resource.autoBusy !== true);
+}
+
+function parseTripWindowRange(trip) {
+  const start = new Date(trip?.etaPickup || "").getTime();
+  const endRaw = new Date(trip?.etaDelivery || trip?.etaPickup || "").getTime();
+  if (![start, endRaw].every(Number.isFinite)) return null;
+  const end = endRaw > start ? endRaw : start + 60 * 1000;
+  return { start, end };
+}
+
+function describeTripTimingVsNow(trip, nowTs = Date.now()) {
+  const range = parseTripWindowRange(trip);
+  if (!range) return { timing: "unknown", minutes: null };
+  if (nowTs < range.start) return { timing: "upcoming", minutes: Math.ceil((range.start - nowTs) / 60000) };
+  if (nowTs >= range.end) return { timing: "past", minutes: Math.ceil((nowTs - range.end) / 60000) };
+  return { timing: "ongoing", minutes: Math.ceil((range.end - nowTs) / 60000) };
+}
+
 function activeTripStatuses() {
   return [STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY];
 }
@@ -6182,7 +6299,7 @@ function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = nul
   const matchesThermal = (v) => !requiresRefrigeration || v.refrigerated;
   const filtered = vehicles.filter(
     (v) =>
-      v.available &&
+      !isManuallyUnavailable(v) &&
       isVehicleEligibleForTripAssignment(v) &&
       matchesThermal(v) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
@@ -6192,7 +6309,7 @@ function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = nul
     filtered[0] ||
     vehicles.find(
       (v) =>
-        v.available &&
+        !isManuallyUnavailable(v) &&
         isVehicleEligibleForTripAssignment(v) &&
         matchesThermal(v) &&
         !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
@@ -6204,7 +6321,7 @@ function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = nul
 function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   const drivers = read(KEYS.drivers, []);
   return (
-    drivers.find((d) => d.available && !isDriverBusyAtHour(d, pickupAt, etaDelivery, currentRequestId)) ||
+    drivers.find((d) => !isManuallyUnavailable(d) && !isDriverBusyAtHour(d, pickupAt, etaDelivery, currentRequestId)) ||
     null
   );
 }
@@ -6277,7 +6394,7 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null, compa
   const moduleCreate = !!(compatOpts && compatOpts.moduleCreateTrip);
   const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, []).filter((vehicle) => {
-    if (!vehicle.available) return false;
+    if (isManuallyUnavailable(vehicle)) return false;
     if (moduleCreate) {
       // Asistente en Viajes: listar toda la flota compatible (sin filtrar por carrocería
       // solicitada ni limitar a camión/turbo/tractomula).
@@ -6297,7 +6414,7 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null, compa
 function getCompatibleDriversForRequest(request, currentRequestId = null) {
   return read(KEYS.drivers, []).filter(
     (driver) =>
-      driver.available &&
+      !isManuallyUnavailable(driver) &&
       daysUntil(driver.licenseExpiry) >= 0 &&
       !isDriverBusyAtHour(driver, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId)
   );
@@ -6321,7 +6438,7 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
         request?.etaDelivery || request?.pickupAt,
         currentRequestId
       );
-      const unavailableManual = !vehicle.available && !vehicle.autoBusy;
+      const unavailableManual = isManuallyUnavailable(vehicle);
       return {
         ...vehicle,
         isBusy: busyBySchedule,
@@ -6340,7 +6457,7 @@ function getDriverCandidatesForRequest(request, currentRequestId = null) {
       request?.etaDelivery || request?.pickupAt,
       currentRequestId
     );
-    const unavailableManual = !driver.available && !driver.autoBusy;
+    const unavailableManual = isManuallyUnavailable(driver);
     return {
       ...driver,
       isBusy: busyBySchedule,
@@ -7222,15 +7339,55 @@ function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const isAdmin = isAdminActor();
   const activeTrips = getActiveTrips();
-  const activeTripByVehicleId = new Map(
-    activeTrips
-      .filter((r) => r.trip?.vehicleId)
-      .map((r) => [String(r.trip.vehicleId), r])
-  );
+  const activeTripsByVehicleId = new Map();
+  activeTrips.forEach((r) => {
+    const key = String(r.trip?.vehicleId || "").trim();
+    if (!key) return;
+    if (!activeTripsByVehicleId.has(key)) activeTripsByVehicleId.set(key, []);
+    activeTripsByVehicleId.get(key).push(r);
+  });
+  const nowTs = Date.now();
+  const resolveVehicleOccupancy = (vehicleId) => {
+    const list = activeTripsByVehicleId.get(String(vehicleId)) || [];
+    if (!list.length) return { tone: "available", trip: null, detail: "Sin viaje activo" };
+    const ongoing = list.find((r) => describeTripTimingVsNow(r.trip, nowTs).timing === "ongoing") || null;
+    if (ongoing) {
+      const left = describeTripTimingVsNow(ongoing.trip, nowTs).minutes;
+      return {
+        tone: "busy",
+        trip: ongoing,
+        detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+      };
+    }
+    const upcoming = list
+      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .filter((x) => x.info.timing === "upcoming")
+      .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+    if (upcoming) {
+      return {
+        tone: "scheduled",
+        trip: upcoming.r,
+        detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+      };
+    }
+    const latestPast = list
+      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .filter((x) => x.info.timing === "past")
+      .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+    if (latestPast) {
+      return {
+        tone: "available",
+        trip: latestPast.r,
+        detail: `Último viaje terminó hace ${latestPast.info.minutes} min`
+      };
+    }
+    return { tone: "available", trip: list[0] || null, detail: "Sin cruce horario activo" };
+  };
   const totalCount = vehicles.length;
-  const availableCount = vehicles.filter((v) => v.available && !activeTripByVehicleId.has(String(v.id))).length;
-  const occupiedCount = vehicles.filter((v) => activeTripByVehicleId.has(String(v.id))).length;
-  const offlineCount = vehicles.filter((v) => !v.available && !activeTripByVehicleId.has(String(v.id))).length;
+  const availableCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "available" && !isManuallyUnavailable(v)).length;
+  const occupiedCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "busy").length;
+  const scheduledCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "scheduled").length;
+  const offlineCount = vehicles.filter((v) => isManuallyUnavailable(v)).length;
   const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
   const documentRiskCount = vehicles.filter((v) => {
     const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
@@ -7245,15 +7402,17 @@ function vehiclesHtml() {
       const refrigeratedTag = v.refrigerated
         ? '<span class="status status-viaje_asignado">Termoking</span>'
         : '<span class="status status-espera_standby">Carga seca</span>';
-      const activeTrip = activeTripByVehicleId.get(String(v.id));
-      const availabilityTag = activeTrip
-        ? `<span class="status status-en_transito">🟠 Ocupado</span>`
-        : v.available
-          ? '<span class="status status-viaje_asignado">🟢 Disponible</span>'
-          : '<span class="status status-pendiente">🟡 No disponible</span>';
-      const occupancyDetail = activeTrip
-        ? `<strong>${escapeHtml(String(activeTrip.trip?.tripNumber || "-"))}</strong><br><span class="muted">${escapeHtml(String(activeTrip.clientName || "-"))}</span>`
-        : '<span class="muted">Sin viaje activo</span>';
+      const occupancy = resolveVehicleOccupancy(v.id);
+      const availabilityTag = isManuallyUnavailable(v)
+        ? '<span class="status status-pendiente">🟡 No disponible</span>'
+        : occupancy.tone === "busy"
+          ? `<span class="status status-en_transito">🟠 Ocupado</span>`
+          : occupancy.tone === "scheduled"
+            ? `<span class="status status-espera_standby">🟣 Reservado</span>`
+            : '<span class="status status-viaje_asignado">🟢 Disponible</span>';
+      const occupancyDetail = occupancy.trip
+        ? `<strong>${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}</strong><br><span class="muted">${escapeHtml(String(occupancy.trip.clientName || "-"))}</span><br><span class="muted">${escapeHtml(String(occupancy.detail || ""))}</span>`
+        : `<span class="muted">${escapeHtml(String(occupancy.detail || "Sin viaje activo"))}</span>`;
       return `<tr>
         <td>
           <div class="vehicle-cell">
@@ -7341,6 +7500,7 @@ function vehiclesHtml() {
         <div class="fleet-hero-metric"><span>Total flota</span><strong>${totalCount}</strong></div>
         <div class="fleet-hero-metric"><span>Disponibles</span><strong>${availableCount}</strong></div>
         <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Ocupados</span><strong>${occupiedCount}</strong></div>
+        <div class="fleet-hero-metric"><span>Reservados</span><strong>${scheduledCount}</strong></div>
         <div class="fleet-hero-metric"><span>No disponibles</span><strong>${offlineCount}</strong></div>
         <div class="fleet-hero-metric"><span>Termoking</span><strong>${thermokingCount}</strong></div>
         <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Docs. en riesgo</span><strong>${documentRiskCount}</strong></div>
@@ -7355,15 +7515,55 @@ function driversHtml() {
   const drivers = read(KEYS.drivers, []);
   const isAdmin = isAdminActor();
   const activeTrips = getActiveTrips();
-  const activeTripByDriverId = new Map(
-    activeTrips
-      .filter((r) => r.trip?.driverId)
-      .map((r) => [String(r.trip.driverId), r])
-  );
+  const activeTripsByDriverId = new Map();
+  activeTrips.forEach((r) => {
+    const key = String(r.trip?.driverId || "").trim();
+    if (!key) return;
+    if (!activeTripsByDriverId.has(key)) activeTripsByDriverId.set(key, []);
+    activeTripsByDriverId.get(key).push(r);
+  });
+  const nowTs = Date.now();
+  const resolveDriverOccupancy = (driverId) => {
+    const list = activeTripsByDriverId.get(String(driverId)) || [];
+    if (!list.length) return { tone: "available", trip: null, detail: "Sin viaje activo" };
+    const ongoing = list.find((r) => describeTripTimingVsNow(r.trip, nowTs).timing === "ongoing") || null;
+    if (ongoing) {
+      const left = describeTripTimingVsNow(ongoing.trip, nowTs).minutes;
+      return {
+        tone: "busy",
+        trip: ongoing,
+        detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+      };
+    }
+    const upcoming = list
+      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .filter((x) => x.info.timing === "upcoming")
+      .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+    if (upcoming) {
+      return {
+        tone: "scheduled",
+        trip: upcoming.r,
+        detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+      };
+    }
+    const latestPast = list
+      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .filter((x) => x.info.timing === "past")
+      .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+    if (latestPast) {
+      return {
+        tone: "available",
+        trip: latestPast.r,
+        detail: `Último viaje terminó hace ${latestPast.info.minutes} min`
+      };
+    }
+    return { tone: "available", trip: list[0] || null, detail: "Sin cruce horario activo" };
+  };
   const totalDrivers = drivers.length;
-  const availableDrivers = drivers.filter((d) => d.available && !activeTripByDriverId.has(String(d.id))).length;
-  const occupiedDrivers = drivers.filter((d) => activeTripByDriverId.has(String(d.id))).length;
-  const offlineDrivers = drivers.filter((d) => !d.available && !activeTripByDriverId.has(String(d.id))).length;
+  const availableDrivers = drivers.filter((d) => resolveDriverOccupancy(d.id).tone === "available" && !isManuallyUnavailable(d)).length;
+  const occupiedDrivers = drivers.filter((d) => resolveDriverOccupancy(d.id).tone === "busy").length;
+  const scheduledDrivers = drivers.filter((d) => resolveDriverOccupancy(d.id).tone === "scheduled").length;
+  const offlineDrivers = drivers.filter((d) => isManuallyUnavailable(d)).length;
   const expiringSoon = drivers.filter((d) => {
     if (!d.licenseExpiry) return false;
     const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
@@ -7380,12 +7580,14 @@ function driversHtml() {
         .map((p) => p.charAt(0).toUpperCase())
         .slice(0, 2)
         .join("");
-      const activeTrip = activeTripByDriverId.get(String(d.id));
-      const statusTag = activeTrip
-        ? '<span class="status status-en_transito">🟠 Ocupado</span>'
-        : d.available
-          ? '<span class="status status-viaje_asignado">🟢 Disponible</span>'
-          : '<span class="status status-pendiente">🟡 No disponible</span>';
+      const occupancy = resolveDriverOccupancy(d.id);
+      const statusTag = isManuallyUnavailable(d)
+        ? '<span class="status status-pendiente">🟡 No disponible</span>'
+        : occupancy.tone === "busy"
+          ? '<span class="status status-en_transito">🟠 Ocupado</span>'
+          : occupancy.tone === "scheduled"
+            ? '<span class="status status-espera_standby">🟣 Reservado</span>'
+            : '<span class="status status-viaje_asignado">🟢 Disponible</span>';
       const licStatus = (() => {
         if (!d.licenseExpiry) return '<span class="status status-pendiente">Sin fecha</span>';
         const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
@@ -7405,7 +7607,7 @@ function driversHtml() {
         <div class="driver-card-body">
           <div class="driver-info-row"><span>${IC.phone}</span><span>${d.phone || "-"}</span></div>
           <div class="driver-info-row"><span>${IC.file}</span><span>${d.license || "-"} · ${d.licenseCategory || "-"}</span></div>
-          <div class="driver-info-row"><span>${IC.truck}</span><span>${activeTrip ? `Viaje ${escapeHtml(String(activeTrip.trip?.tripNumber || "-"))}` : "Sin viaje activo"}</span></div>
+          <div class="driver-info-row"><span>${IC.truck}</span><span>${occupancy.trip ? `Viaje ${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}` : escapeHtml(String(occupancy.detail || "Sin viaje activo"))}</span></div>
           <div class="driver-info-row"><span>${IC.calendar}</span><span>Vence: ${d.licenseExpiry || "-"} ${licStatus}</span></div>
         </div>
         <footer class="driver-card-actions">
@@ -7421,6 +7623,7 @@ function driversHtml() {
     { label: "Total", value: totalDrivers },
     { label: "Disponibles", value: availableDrivers },
     { label: "Ocupados", value: occupiedDrivers, tone: occupiedDrivers ? "warn" : undefined },
+    { label: "Reservados", value: scheduledDrivers },
     { label: "No disponibles", value: offlineDrivers },
     { label: "Lic. 60 d", value: expiringSoon, tone: expiringSoon ? "warn" : undefined },
     { label: "Vencidas", value: expired, tone: expired ? "alert" : undefined }
@@ -8236,6 +8439,7 @@ function adminUsersHtml(current) {
       <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
       <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
       <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
+      <button class="btn btn-outline btn-sm" data-action="refresh-user-sessions">${IC.activity} Actualizar sesiones</button>
     </div>
   </div>`;
 
@@ -8283,6 +8487,35 @@ function adminUsersHtml(current) {
       `<div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div>`
     );
   }
+
+  const sessions = Array.isArray(state.adminUserSessions) ? state.adminUserSessions : [];
+  const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
+  const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
+  const sessionsRows = sessions
+    .map((s) => {
+      const status = String(s.status || "").toLowerCase() === "activa"
+        ? '<span class="status status-viaje_asignado">Activa</span>'
+        : '<span class="status status-rechazada">Expirada</span>';
+      return `<tr>
+        <td><strong>${escapeHtml(String(s.userName || "Usuario"))}</strong><br><span class="muted">${escapeHtml(String(s.userEmail || "-"))}</span></td>
+        <td>${escapeHtml(String(s.userRole || "-"))}</td>
+        <td>${fmtDate(s.createdAt)}</td>
+        <td>${fmtDate(s.expiresAt)}</td>
+        <td>${status}</td>
+      </tr>`;
+    })
+    .join("");
+  const sessionsIntro = `
+    <div class="toolbar" style="justify-content:flex-start;gap:0.45rem;margin-bottom:0.65rem">
+      <span class="status status-viaje_asignado">Activas: ${activeSessions}</span>
+      <span class="status status-pendiente">Expiradas: ${expiredSessions}</span>
+      ${state.adminUserSessionsLoading ? `<span class="muted">Sincronizando...</span>` : ""}
+      ${state.adminUserSessionsError ? `<span class="status status-rechazada">${escapeHtml(String(state.adminUserSessionsError))}</span>` : ""}
+    </div>`;
+  const sessionsBody = sessionsRows
+    ? `${sessionsIntro}<div class="table-wrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Creada</th><th>Expira</th><th>Estado</th></tr></thead><tbody>${sessionsRows}</tbody></table></div>`
+    : `${sessionsIntro}${emptyState("No hay sesiones registradas todavía. Inicie sesión en el portal para empezar a ver actividad.")}`;
+  html += pcardWrap("activity", "Sesiones de usuarios", `${sessions.length} registro${sessions.length === 1 ? "" : "s"}`, sessionsBody);
 
   return html;
 }
@@ -11399,6 +11632,21 @@ function renderPortalViewImpl() {
       state.contactLeadsLoading = false;
     }
   }
+  if (view === "admin-users" && hasPermission(user, PERMISSIONS.USERS_MANAGE)) {
+    const canSync = portalCanRefreshFromApi();
+    if (prevPortalView !== "admin-users" && canSync) {
+      state.adminUserSessionsLoading = true;
+      state.adminUserSessionsError = null;
+      void refreshAdminUserSessionsFromApi()
+        .catch(() => {})
+        .finally(() => {
+          state.adminUserSessionsLoading = false;
+          scheduleRenderPortalView();
+        });
+    } else if (prevPortalView !== "admin-users") {
+      state.adminUserSessionsLoading = false;
+    }
+  }
   const viewTitle = PortalArch.getTitle(view);
   nodes.viewTitle.textContent = viewTitle;
   const content = PortalRendererCore.safeResolve({
@@ -12119,6 +12367,21 @@ function bindDynamicEvents() {
         editCompanyId: ""
       };
       renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='refresh-user-sessions']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
+      state.adminUserSessionsLoading = true;
+      state.adminUserSessionsError = null;
+      renderPortalView();
+      void refreshAdminUserSessionsFromApi()
+        .catch(() => {})
+        .finally(() => {
+          state.adminUserSessionsLoading = false;
+          renderPortalView();
+        });
     });
   });
 
@@ -13529,7 +13792,10 @@ function bindDynamicEvents() {
         introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "table"),
         extraModalCardClass: "modal-card-edit--approve-trip",
         submitText: "Confirmar aprobación",
-        afterMount: tripRateUi.afterMount,
+        afterMount: (formEl) => {
+          if (typeof tripRateUi.afterMount === "function") tripRateUi.afterMount(formEl);
+          wireTripApprovalModeFields(formEl);
+        },
         fields: [
           {
             type: "section",
@@ -13560,8 +13826,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: camiones, turbos y tractomulas; la carga no exige Termoking. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: camiones, turbos y tractomulas. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
@@ -16470,13 +16736,16 @@ function bindDynamicEvents() {
           introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "auth"),
           extraModalCardClass: "modal-card-edit--approve-trip",
           submitText: "Aprobar",
-          afterMount: tripRateUi.afterMount,
+          afterMount: (formEl) => {
+            if (typeof tripRateUi.afterMount === "function") tripRateUi.afterMount(formEl);
+          },
           fields: [
             {
               type: "section",
               id: "auth-approve-hint",
               title: "Asignación opcional",
               hint: "Deje vehículo y conductor en «sin asignar» para solo aprobar la solicitud. Si completa ambos, deberá indicar el precio del viaje."
+              + " Estados en listado: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación/licencia vencida."
             },
             {
               name: "vehicleId",

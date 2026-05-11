@@ -1605,6 +1605,16 @@ export class PortalService implements OnModuleInit {
     return (r.rowCount ?? 0) > 0;
   }
 
+  private async hasUsersManagePermission(userId: string): Promise<boolean> {
+    const uid = String(userId || "").trim();
+    if (!PG_UUID_V4_RE.test(uid)) return false;
+    const r = await this.pool.query(
+      `SELECT 1 AS ok FROM permisos_usuario WHERE id_usuario = $1::uuid AND permiso = $2 LIMIT 1`,
+      [uid, "users_manage"]
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private mapProspectLeadRows(rows: any[]): Array<Record<string, unknown>> {
     return rows.map((c) => ({
@@ -1641,6 +1651,42 @@ export class PortalService implements OnModuleInit {
     const ok = admin || (await this.hasContactB2bViewPermission(userId));
     if (!ok) throw new ForbiddenException("Sin permiso para ver prospectos de contacto web");
     return this.fetchProspectLeadsLimited();
+  }
+
+  async getUserSessions(userId: string, role: JwtRole) {
+    const admin = this.isAdmin(role);
+    const ok = admin || (await this.hasUsersManagePermission(userId));
+    if (!ok) throw new ForbiddenException("Sin permiso para consultar sesiones de usuarios");
+    try {
+      const r = await this.pool.query(
+        `SELECT
+            s.id::text AS id,
+            s.id_usuario::text AS user_id,
+            u.nombre_completo AS user_name,
+            u.correo_electronico AS user_email,
+            u.rol::text AS user_role,
+            s.fecha_creacion AS created_at,
+            s.fecha_expiracion AS expires_at,
+            CASE WHEN s.fecha_expiracion > now() THEN 'activa' ELSE 'expirada' END AS status
+         FROM sesiones_usuario s
+         LEFT JOIN usuarios u ON u.id = s.id_usuario
+         ORDER BY s.fecha_creacion DESC
+         LIMIT 1000`
+      );
+      return r.rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        userName: row.user_name || "Usuario",
+        userEmail: row.user_email || "",
+        userRole: row.user_role || "",
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+        expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+        status: String(row.status || "").toLowerCase() === "activa" ? "activa" : "expirada"
+      }));
+    } catch (err: any) {
+      if (String(err?.code || "") === "42P01") return [];
+      throw err;
+    }
   }
 
   private async loadPositions() {

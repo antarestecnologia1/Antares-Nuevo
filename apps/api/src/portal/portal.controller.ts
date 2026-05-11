@@ -46,6 +46,12 @@ export class PortalController {
     return this.portal.getContactB2bProspects(req.user.userId, req.user.role);
   }
 
+  /** Administración: sesiones registradas por usuario (tabla sesiones_usuario). */
+  @Get("user-sessions")
+  userSessions(@Req() req: { user: ReqUser }) {
+    return this.portal.getUserSessions(req.user.userId, req.user.role);
+  }
+
   @Post("sync-key")
   syncKey(@Req() req: { user: ReqUser }, @Body() dto: SyncKeyDto) {
     return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role);
