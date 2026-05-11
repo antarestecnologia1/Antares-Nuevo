@@ -11932,6 +11932,34 @@ body[data-theme="dark"] .btn-primary.hr-workspace-jump-btn:hover {
   margin-top: 0.55rem;
 }
 
+.solicitud-detail-heading {
+  margin: 0 0 0.65rem;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: var(--primary-dark, #0d3f78);
+}
+
+.solicitud-detail-section .dash-grid {
+  gap: 0.7rem 1.1rem;
+}
+
+.solicitud-detail-notes {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--line);
+}
+
+.solicitud-trip-summary {
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--primary) 8%, var(--white));
+}
+
+body[data-theme="dark"] .solicitud-trip-summary {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
 .employee-profile-card {
   display: grid;
   gap: 1rem;

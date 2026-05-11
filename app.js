@@ -5982,14 +5982,18 @@ function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentR
     (v) =>
       v.available &&
       matchesThermal(v) &&
-      (!requiredType || v.type === requiredType) &&
+      (!requiredType || vehicleMatchesRequestedVehicleTypeField(v, requiredType)) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
   );
   const pick =
     filtered.find((v) => v.capacityKg >= weight) ||
     filtered[0] ||
     vehicles.find(
-      (v) => v.available && matchesThermal(v) && !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
+      (v) =>
+        v.available &&
+        matchesThermal(v) &&
+        (!requiredType || vehicleMatchesRequestedVehicleTypeField(v, requiredType)) &&
+        !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
     ) ||
     null;
   return pick || null;
@@ -13081,33 +13085,64 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req) return;
+      const thermokingReq = serviceTypeRequiresRefrigeration(req.serviceType);
+      const boxes = parseNum(req.boxes ?? req.boxesCount);
+      const obs = String(req.notes || req.observations || "").trim();
+      const origAddr = String(req.originAddress || "").trim();
+      const destAddr = String(req.destinationAddress || "").trim();
       const tripDetail = req.trip
-        ? `<div class="dash-grid" style="margin-top:0.6rem">
-            <div><strong>Viaje:</strong> ${req.trip.tripNumber}</div>
-            <div><strong>Camion:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
-            <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
-            <div><strong>Asignado por:</strong> ${req.trip.assignedBy || req.approvedBy || "-"}</div>
+        ? `<div class="dash-grid solicitud-trip-summary" style="margin-top:0.5rem">
+            <div class="full"><strong>Resumen del viaje asignado</strong></div>
+            <div><strong>Código:</strong> ${escapeHtml(String(req.trip.tripNumber || ""))}</div>
+            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
+            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
             <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
             <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
           </div>`
-        : `<p class="muted">Aun no tiene viaje asignado.</p>`;
+        : `<p class="muted" style="margin:0.35rem 0 0">Aún no tiene viaje asignado.</p>`;
       openInfoModal({
         title: `Solicitud ${req.requestNumber || req.id}`,
         subtitleHtml: prettyStatus(req.status, "request"),
+        wide: true,
+        secondaryActionsHtml: req.trip
+          ? `<button type="button" class="btn btn-action" id="solicitud-modal-ver-viaje">${IC.truck} Ver ficha del viaje</button>`
+          : "",
+        afterMount: req.trip
+          ? (contentEl) => {
+              contentEl.querySelector("#solicitud-modal-ver-viaje")?.addEventListener("click", () => {
+                openAssignedTripInfoModal(req);
+              });
+            }
+          : undefined,
         bodyHtml: `
-          <div class="dash-grid">
-            <div><strong>Ruta:</strong> ${formatRoute(req)}</div>
-            <div><strong>Creada por:</strong> ${req.requestedByName || "-"}</div>
-            <div><strong>Carga:</strong> ${req.cargoDescription}</div>
-            <div><strong>Peso/Volumen:</strong> ${parseNum(req.weightKg).toLocaleString("es-CO")} kg · ${parseNum(req.boxes).toLocaleString("es-CO")} cajas</div>
-            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</div>
-            <div><strong>Adjuntos:</strong> ${(req.attachments || []).join(", ") || "Ninguno"}</div>
-            ${parseNum(req.standbyChargeTotal) > 0 ? `<div><strong>Standby:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</div>` : ""}
-            ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo:</strong> ${req.rejectionReason}</div>` : ""}
-          </div>
-          <hr style="border:0;border-top:1px solid var(--line);margin:0.8rem 0;" />
-          <h3 style="margin:0 0 0.4rem;">Detalle del viaje</h3>
-          ${tripDetail}
+          <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
+            <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
+            <div class="dash-grid">
+              <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
+              <div><strong>Tipo de servicio</strong><br /><span class="muted">${escapeHtml(String(req.serviceType || "-"))}</span></div>
+              <div><strong>Vehículo solicitado</strong><br /><span class="muted">${escapeHtml(String(req.vehicleType || "Por definir"))}</span></div>
+              <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
+              <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
+              ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
+              ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${escapeHtml(destAddr)}</span></div>` : ""}
+              <div><strong>Recogida programada</strong><br /><span class="muted">${fmtDate(req.pickupAt)}</span></div>
+              <div><strong>Entrega estimada</strong><br /><span class="muted">${fmtDate(req.etaDelivery)}</span></div>
+              <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
+              <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.contactName || "-"))} · ${escapeHtml(String(req.contactPhone || "-"))}</span></div>
+              <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
+              <div><strong>Peso / cajas</strong><br /><span class="muted">${parseNum(req.weightKg).toLocaleString("es-CO")} kg · ${boxes.toLocaleString("es-CO")} cajas</span></div>
+              <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
+              <div><strong>Adjuntos</strong><br /><span class="muted">${escapeHtml((req.attachments || []).join(", ") || "Ninguno")}</span></div>
+              ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
+              ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
+            </div>
+            ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
+          </section>
+          <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
+          <section aria-label="Viaje asignado">
+            <h3 class="solicitud-detail-heading">Detalle del viaje</h3>
+            ${tripDetail}
+          </section>
         `
       });
     });
@@ -13446,28 +13481,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req || !req.trip) return;
-      openInfoModal({
-        title: `Viaje ${req.trip.tripNumber}`,
-        subtitleHtml: prettyStatus(req.status, "trip"),
-        bodyHtml: `
-          <div class="dash-grid">
-            <div><strong>Solicitud:</strong> ${req.requestNumber || req.id}</div>
-            <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
-            <div><strong>Ruta:</strong> ${formatRoute(req)}</div>
-            <div><strong>Carga:</strong> ${req.cargoDescription || "-"} · ${parseNum(req.weightKg).toLocaleString("es-CO")} kg</div>
-            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || 0).toLocaleString("es-CO")}</div>
-            <div><strong>Camion:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
-            <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
-            <div><strong>Asignado por:</strong> ${req.trip.assignedBy || req.approvedBy || "-"}</div>
-            <div><strong>Fecha asignacion:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
-            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
-            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
-            ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
-            ${req.trip.invoice ? `<div><strong>Factura:</strong> ${req.trip.invoice.number} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}</div>` : ""}
-          </div>
-          ${parseNum(req.standbyChargeTotal) > 0 ? `<p><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
-        `
-      });
+      openAssignedTripInfoModal(req);
     });
   });
 
