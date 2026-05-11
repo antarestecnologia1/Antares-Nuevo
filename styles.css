@@ -3244,6 +3244,11 @@ body[data-theme="dark"] .modal-edit-section-title {
   color: var(--text-main);
 }
 
+.create-trip-resource-select {
+  width: 100%;
+  max-width: 100%;
+}
+
 body[data-theme="dark"] .create-trip-summary-panel {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
@@ -10842,7 +10847,11 @@ body[data-theme="dark"] .portal-main .btn-action {
   }
 }
 
-@media (min-width: 900px) {
+.portal-main .dash-grid.trips-actions-row--two {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1400px) {
   .portal-main .dash-grid.trips-actions-row--two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -12383,6 +12392,12 @@ body[data-theme="dark"] .trip-assign-tk-banner--dry {
   border-radius: var(--radius);
   border: 1px solid var(--line);
   background: color-mix(in srgb, var(--primary) 8%, var(--white));
+}
+
+.solicitud-trip-summary-actions {
+  margin-top: 0.2rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--line);
 }
 
 body[data-theme="dark"] .solicitud-trip-summary {

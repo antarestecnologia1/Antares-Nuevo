@@ -3605,7 +3605,7 @@ function refreshCreateTripModuleForm(formEl) {
   }
 
   const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
-  const vehicles = getCompatibleVehiclesForRequest(request, requestId, { moduleCreateTrip: true });
+  const vehicles = getCompatibleVehiclesForRequest(request, requestId);
   const drivers = getCompatibleDriversForRequest(request, requestId);
 
   if (preview) {
@@ -7491,12 +7491,12 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Asignación de flota</legend>
       <div class="form-section-grid">
-        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran <strong>todos los vehículos</strong> disponibles con capacidad y refrigeración adecuadas y documentos vigentes. Si la carga es Termoking, el listado solo incluye unidades refrigeradas.</p>
+        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, documentos vigentes y sin cruce de horario. Si la carga es Termoking, el listado solo incluye unidades refrigeradas.</p>
         <label class="full">${fieldLabel(IC.truck, "Vehículo", { required: true })}
-          <select name="vehicleId" id="create-trip-vehicle-select" disabled><option value="">— Elija solicitud primero —</option></select>
+          <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
         </label>
         <label class="full">${fieldLabel(IC.user, "Conductor", { required: true })}
-          <select name="driverId" id="create-trip-driver-select" disabled><option value="">— Elija solicitud primero —</option></select>
+          <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
         </label>
       </div>
     </fieldset>
@@ -13332,30 +13332,35 @@ function bindDynamicEvents() {
       const origAddr = String(req.originAddress || "").trim();
       const destAddr = String(req.destinationAddress || "").trim();
       const tripDetail = req.trip
-        ? `<div class="dash-grid solicitud-trip-summary" style="margin-top:0.5rem">
+        ? `<div class="dash-grid solicitud-trip-summary">
             <div class="full"><strong>Resumen del viaje asignado</strong></div>
             <div><strong>Código:</strong> ${escapeHtml(String(req.trip.tripNumber || ""))}</div>
             <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
             <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
             <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
             <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            <div class="full solicitud-trip-summary-actions">
+              <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
+            </div>
           </div>`
         : `<p class="muted" style="margin:0.35rem 0 0">Aún no tiene viaje asignado.</p>`;
       openInfoModal({
         title: `Solicitud ${req.requestNumber || req.id}`,
         subtitleHtml: prettyStatus(req.status, "request"),
         wide: true,
-        secondaryActionsHtml: req.trip
-          ? `<button type="button" class="btn btn-action" id="solicitud-modal-ver-viaje">${IC.truck} Ver ficha del viaje</button>`
-          : "",
         afterMount: req.trip
           ? (contentEl) => {
-              contentEl.querySelector("#solicitud-modal-ver-viaje")?.addEventListener("click", () => {
+              contentEl.querySelector("[data-action='solicitud-trip-open']")?.addEventListener("click", () => {
                 openAssignedTripInfoModal(req);
               });
             }
           : undefined,
         bodyHtml: `
+          <section aria-label="Viaje asignado principal">
+            <h3 class="solicitud-detail-heading">Viaje asignado</h3>
+            ${tripDetail}
+          </section>
+          <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
           <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
             <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
             <div class="dash-grid">
@@ -13376,11 +13381,6 @@ function bindDynamicEvents() {
               ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
             </div>
             ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
-          </section>
-          <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
-          <section aria-label="Viaje asignado">
-            <h3 class="solicitud-detail-heading">Detalle del viaje</h3>
-            ${tripDetail}
           </section>
         `
       });
@@ -13612,7 +13612,7 @@ function bindDynamicEvents() {
         notify(userMessage("bulkRequestMissing"), "error");
         return;
       }
-      const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId, { moduleCreateTrip: true });
+      const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleId = String(data.vehicleId || "").trim();
       const driverId = String(data.driverId || "").trim();
