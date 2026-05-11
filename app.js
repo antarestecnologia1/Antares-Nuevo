@@ -387,6 +387,7 @@ function userMessage(key, ...args) {
 function openEditModal({
   title,
   subtitle = "",
+  introHtml = "",
   fields = [],
   submitText = "Guardar",
   onSubmit,
@@ -409,7 +410,15 @@ function openEditModal({
   }
   const content = modal.querySelector("#crud-modal-content");
   const fieldsHtml = fields
-    .map((f) => {
+    .map((f, fieldIdx) => {
+      if (f.type === "section") {
+        const sid = escapeAttr(String(f.id || `approve-section-${fieldIdx}`));
+        const hint = f.hint ? `<p class="modal-form-section-hint">${escapeHtml(f.hint)}</p>` : "";
+        return `<div class="modal-form-section full" role="group" aria-labelledby="${sid}">
+    <h3 class="modal-form-section-title" id="${sid}">${escapeHtml(f.title || "")}</h3>
+    ${hint}
+  </div>`;
+      }
       if (f.type === "select") {
         const options = (f.options || [])
           .map((opt) => {
@@ -418,7 +427,12 @@ function openEditModal({
             return `<option value="${v}" ${sel}>${escapeHtml(opt.label)}</option>`;
           })
           .join("");
-        return `<label><span>${escapeHtml(f.label)}</span><select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
+        const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
+        const labelWrap = f.labelHtml
+          ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
+          : `<span>${labelInner}</span>`;
+        const fullCls = f.full ? "full" : "";
+        return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
       }
       if (f.type === "hidden") {
         return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
@@ -440,7 +454,12 @@ function openEditModal({
       const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
       const minAttr = f.min != null ? ` min="${escapeAttr(String(f.min))}"` : "";
       const maxAttr = f.max != null ? ` max="${escapeAttr(String(f.max))}"` : "";
-      return `<label><span>${escapeHtml(f.label)}</span><input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr} ${f.required ? "required" : ""} /></label>`;
+      const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
+      const labelWrap = f.labelHtml
+        ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
+        : `<span>${labelInner}</span>`;
+      const fullCls = f.full ? "full" : "";
+      return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr} ${f.required ? "required" : ""} /></label>`;
     })
     .join("");
 
@@ -450,6 +469,7 @@ function openEditModal({
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
     ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
+    ${introHtml || ""}
     <form id="crud-form" class="p-form modal-edit-form">
       ${fieldsHtml}
       <div class="modal-edit-actions">
@@ -3243,6 +3263,64 @@ function formatRoute(request) {
   return `${origin} → ${destination}`;
 }
 
+/** Resumen visual al asignar viaje desde el módulo Transporte (no desde aprobación). */
+function buildTripAssignmentFriendlyIntroHtml(request, needsTermoking) {
+  const route = escapeHtml(formatRoute(request));
+  const client = escapeHtml(String(request.clientName || "-"));
+  const kg = parseNum(request.weightKg).toLocaleString("es-CO");
+  const pickup = fmtDate(request.pickupAt);
+  const svc = escapeHtml(String(request.serviceType || "").trim() || "—");
+  const tkNote = needsTermoking
+    ? `<p class="trip-assign-tk-banner">Esta solicitud requiere <strong>Termoking</strong>. Solo aparecen <strong>camiones, turbos y tractomulas</strong> con refrigeración; en cada opción se indica si tiene Termoking.</p>`
+    : `<p class="trip-assign-tk-banner trip-assign-tk-banner--dry">Solo se listan <strong>camiones, turbos y tractomulas</strong> compatibles con peso y ventana de tiempo.</p>`;
+  return `
+    <div class="trip-assign-friendly-intro" role="region" aria-label="Resumen de la solicitud">
+      <div class="trip-assign-friendly-route">${IC.mapPin}<span>${route}</span></div>
+      <div class="trip-assign-friendly-grid">
+        <div class="trip-assign-friendly-cell">${IC.building}<span class="trip-assign-lbl">Cliente</span><strong>${client}</strong></div>
+        <div class="trip-assign-friendly-cell">${IC.briefcase}<span class="trip-assign-lbl">Servicio</span><strong>${svc}</strong></div>
+        <div class="trip-assign-friendly-cell">${IC.scale}<span class="trip-assign-lbl">Peso</span><strong>${kg} kg</strong></div>
+        <div class="trip-assign-friendly-cell">${IC.clock}<span class="trip-assign-lbl">Recogida</span><strong>${pickup}</strong></div>
+      </div>
+      ${tkNote}
+    </div>`;
+}
+
+/** Hero del modal al aprobar desde tabla de solicitudes o desde Autorizaciones. */
+function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
+  const route = escapeHtml(formatRoute(request));
+  const client = escapeHtml(String(request.clientName || "-"));
+  const ref = escapeHtml(String(request.requestNumber || request.id || ""));
+  const kg = parseNum(request.weightKg).toLocaleString("es-CO");
+  const pickup = fmtDate(request.pickupAt);
+  const svc = escapeHtml(String(request.serviceType || "").trim() || "—");
+  const cargo = escapeHtml(String(request.cargoDescription || "—").trim().slice(0, 120));
+  const srcBadge =
+    variant === "auth"
+      ? `<span class="approve-trip-source-badge">${IC.inbox}<span>Bandeja de autorizaciones</span></span>`
+      : `<span class="approve-trip-source-badge approve-trip-source-badge--portal">${IC.compass}<span>Módulo solicitudes</span></span>`;
+  const tkPill = needsTermoking
+    ? `<span class="approve-trip-pill approve-trip-pill--tk">Termoking</span>`
+    : `<span class="approve-trip-pill approve-trip-pill--dry">Sin Termoking</span>`;
+  return `
+    <div class="approve-trip-hero" role="region" aria-label="Resumen de la solicitud">
+      <div class="approve-trip-hero-top">
+        ${srcBadge}
+        ${tkPill}
+      </div>
+      <p class="approve-trip-hero-kicker">Revise los datos y confirme la aprobación</p>
+      <p class="approve-trip-hero-ref"><span class="approve-trip-ref-pill">${ref}</span></p>
+      <div class="approve-trip-hero-route">${IC.mapPin}<span>${route}</span></div>
+      <div class="approve-trip-hero-grid">
+        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Cliente</span><span class="approve-trip-meta-v">${client}</span></div>
+        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Servicio</span><span class="approve-trip-meta-v">${svc}</span></div>
+        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Peso</span><span class="approve-trip-meta-v">${kg} kg</span></div>
+        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Recogida</span><span class="approve-trip-meta-v">${pickup}</span></div>
+      </div>
+      <p class="approve-trip-hero-cargo"><strong>Carga:</strong> ${cargo}${String(request.cargoDescription || "").trim().length > 120 ? "…" : ""}</p>
+    </div>`;
+}
+
 function toInputDate(isoDate) {
   if (!isoDate) return "";
   const p = getColombiaDateParts(new Date(isoDate));
@@ -5981,6 +6059,7 @@ function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentR
   const filtered = vehicles.filter(
     (v) =>
       v.available &&
+      isVehicleEligibleForTripAssignment(v) &&
       matchesThermal(v) &&
       (!requiredType || vehicleMatchesRequestedVehicleTypeField(v, requiredType)) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
@@ -5991,6 +6070,7 @@ function selectBestVehicle(requiredType, weight, pickupAt, etaDelivery, currentR
     vehicles.find(
       (v) =>
         v.available &&
+        isVehicleEligibleForTripAssignment(v) &&
         matchesThermal(v) &&
         (!requiredType || vehicleMatchesRequestedVehicleTypeField(v, requiredType)) &&
         !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
@@ -6019,13 +6099,38 @@ function serviceTypeRequiresRefrigeration(serviceType) {
 }
 
 /**
- * `tipo_vehiculo_solicitado` en la solicitud describe carrocería (Furgon seco, Furgon refrigerado…);
- * en flota, `vehicle.type` es categoría (Camion, Turbo…). Comparar contra `vehicle.bodyType`.
+ * `tipo_vehiculo_solicitado` describe carrocería; `vehicle.type` es categoría (Camion, Turbo…).
+ * Asignación de viaje solo usa Camion / Turbo / Tractomula (`TRIP_ASSIGNMENT_FLEET_TYPES`).
  */
+const TRIP_ASSIGNMENT_FLEET_TYPES = new Set(["Camion", "Turbo", "Tractomula"]);
+
+function isVehicleEligibleForTripAssignment(vehicle) {
+  return TRIP_ASSIGNMENT_FLEET_TYPES.has(String(vehicle?.type || "").trim());
+}
+
+/** Etiqueta unificada en selects de asignación; con Termoking en solicitud muestra bandera explícita. */
+function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
+  const needsTermoking = Boolean(options.needsTermoking);
+  const isBusy = Boolean(options.isBusy);
+  const hasExpiredDocs = Boolean(options.hasExpiredDocs);
+  const cap = `${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg`;
+  const soat = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label;
+  const tec = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label;
+  const thermal = needsTermoking
+    ? vehicle.refrigerated
+      ? " · Termoking: sí"
+      : " · Termoking: no"
+    : ` · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}`;
+  let tail = ` · SOAT ${soat} · Tec ${tec}`;
+  if (isBusy) tail += " · OCUPADO";
+  if (hasExpiredDocs) tail += " · DOCUMENTOS VENCIDOS";
+  return `${vehicle.plate} · ${vehicle.type} · ${cap}${thermal}${tail}`;
+}
+
 function vehicleMatchesRequestedVehicleTypeField(vehicle, solicitedType) {
   const wanted = String(solicitedType || "").trim();
   if (!wanted || /^por definir$/i.test(wanted)) return true;
-  const fleetKinds = new Set(["Camion", "Turbo", "Tractomula", "Bus"]);
+  const fleetKinds = new Set([...TRIP_ASSIGNMENT_FLEET_TYPES, "Bus"]);
   if (fleetKinds.has(wanted)) return String(vehicle.type || "").trim() === wanted;
   const body = String(vehicle.bodyType || "").trim();
   if (body) return body === wanted;
@@ -6040,6 +6145,7 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
   const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (!vehicle.available) return false;
+    if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
     if (request?.vehicleType && !vehicleMatchesRequestedVehicleTypeField(vehicle, request.vehicleType)) return false;
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
     if (requiresRefrigeration && !vehicle.refrigerated) return false;
@@ -6064,6 +6170,7 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
   const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, [])
     .filter((vehicle) => {
+      if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
       if (request?.vehicleType && !vehicleMatchesRequestedVehicleTypeField(vehicle, request.vehicleType)) return false;
       if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
       if (requiresRefrigeration && !vehicle.refrigerated) return false;
@@ -13204,56 +13311,91 @@ function bindDynamicEvents() {
       const driverCandidates = getDriverCandidatesForRequest(request, requestId);
       const tripRateUi = buildTripRateModalFields(request, { required: false });
       openEditModal({
-        title: "Aprobar solicitud",
-        subtitle: `${request.requestNumber || request.id} · ${parseNum(request.weightKg).toLocaleString("es-CO")} kg`,
-        submitText: "Confirmar aprobacion",
+        title: "Aprobar solicitud de viaje",
+        subtitle: "",
+        introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "table"),
+        extraModalCardClass: "modal-card-edit--approve-trip",
+        submitText: "Confirmar aprobación",
         afterMount: tripRateUi.afterMount,
         fields: [
           {
+            type: "section",
+            id: "approve-decision",
+            title: "1. Modo de aprobación",
+            hint: "Puede dejar la solicitud lista para asignación posterior o cerrar el circuito ahora con vehículo y conductor."
+          },
+          {
             name: "mode",
-            label: "Modo de aprobacion",
+            label: "Seleccione una opción",
             type: "select",
             required: true,
+            full: true,
             value: "pending",
             options: [
-              { value: "pending", label: "Aprobar y dejar pendiente asignacion manual" },
-              { value: "assign_now", label: "Aprobar y asignar camion + conductor ahora" }
+              {
+                value: "pending",
+                label: "Solo aprobar — queda pendiente asignar camión y conductor"
+              },
+              {
+                value: "assign_now",
+                label: "Aprobar y asignar ahora — elija vehículo, conductor y precio abajo"
+              }
             ]
           },
           {
+            type: "section",
+            id: "approve-resources",
+            title: "2. Vehículo y conductor",
+            hint: needsTermoking
+              ? "Camiones, turbos y tractomulas con Termoking indicado en la lista. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Camiones, turbos y tractomulas compatibles. Si eligió «solo aprobar», puede dejar sin asignar."
+          },
+          {
             name: "vehicleId",
-            label: needsTermoking ? "Camion con Termoking (refrigerado)" : "Selecciona camion compatible",
+            labelHtml: `${IC.truck}<span>Vehículo</span>`,
             type: "select",
             required: false,
+            full: true,
             options: [
               {
                 value: "",
                 label: vehicleCandidates.length
                   ? "Sin asignar por ahora"
                   : needsTermoking
-                    ? "No hay camiones Termoking disponibles para tipo/peso/fecha"
-                    : "No hay camiones compatibles para el tipo/peso"
+                    ? "No hay vehículos Termoking disponibles para tipo / peso / fecha"
+                    : "No hay vehículos compatibles para el tipo / peso"
               },
               ...vehicleCandidates.map((vehicle) => ({
-              value: vehicle.id,
-              label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
+                value: vehicle.id,
+                label: tripAssignmentVehicleOptionLabel(vehicle, {
+                  needsTermoking,
+                  isBusy: vehicle.isBusy,
+                  hasExpiredDocs: vehicle.hasExpiredDocs
+                })
               }))
             ]
           },
           {
             name: "driverId",
-            label: "Selecciona conductor disponible",
+            labelHtml: `${IC.user}<span>Conductor</span>`,
             type: "select",
             required: false,
+            full: true,
             options: [
               { value: "", label: driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores registrados" },
               ...driverCandidates.map((driver) => ({
-              value: driver.id,
-              label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
+                value: driver.id,
+                label: `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || ""}${driver.isBusy ? " · OCUPADO" : ""}${driver.hasExpiredDocs ? " · LICENCIA VENCIDA" : ""}`
               }))
             ]
           },
-          ...tripRateUi.fields
+          {
+            type: "section",
+            id: "approve-price",
+            title: "3. Precio del viaje",
+            hint: "Obligatorio si asigna vehículo y conductor. Si solo aprueba pendiente, puede dejar el valor en 0 o una referencia."
+          },
+          ...tripRateUi.fields.map((tf) => ({ ...tf, full: true }))
         ],
         onSubmit: (form) => {
           const selectedMode = String(form.mode || "pending");
@@ -13356,21 +13498,24 @@ function bindDynamicEvents() {
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const tripRateUi = buildTripRateModalFields(request, { required: true });
+      const friendlyIntro = buildTripAssignmentFriendlyIntroHtml(request, needsTermoking);
       openEditModal({
-        title: "Asignar viaje",
-        subtitle: `${request.requestNumber || request.id} · ${String(request.serviceType || "").trim() || "Servicio"}`,
+        title: "Nuevo viaje para la solicitud",
+        subtitle: `${request.requestNumber || request.id} — confirme vehículo, conductor y valor`,
+        introHtml: friendlyIntro,
+        extraModalCardClass: "modal-card-edit--trip-assign-friendly",
         submitText: "Crear viaje",
         afterMount: tripRateUi.afterMount,
         fields: [
           {
             name: "vehicleId",
-            label: needsTermoking ? "Camion (solo Termoking / refrigerado)" : "Camion",
+            label: needsTermoking ? "1. Vehículo con Termoking" : "1. Vehículo (camión, turbo o tractomula)",
             type: "select",
             required: true,
             options: compatibleVehicles.length
               ? compatibleVehicles.map((vehicle) => ({
                 value: vehicle.id,
-                label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"} · SOAT ${docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label} · Tec ${docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label}`
+                label: tripAssignmentVehicleOptionLabel(vehicle, { needsTermoking })
               }))
               : [
                   {
@@ -13383,7 +13528,7 @@ function bindDynamicEvents() {
           },
           {
             name: "driverId",
-            label: "Conductor",
+            label: "2. Conductor",
             type: "select",
             required: true,
             options: compatibleDrivers.length
@@ -16154,26 +16299,40 @@ function bindDynamicEvents() {
 
         openEditModal({
           title: "Aprobar solicitud de viaje",
-          subtitle: "Puede asignar camión y conductor ahora, o dejar pendiente para asignación manual.",
+          subtitle: "",
+          introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "auth"),
+          extraModalCardClass: "modal-card-edit--approve-trip",
           submitText: "Aprobar",
           afterMount: tripRateUi.afterMount,
           fields: [
             {
+              type: "section",
+              id: "auth-approve-hint",
+              title: "Asignación opcional",
+              hint: "Deje vehículo y conductor en «sin asignar» para solo aprobar la solicitud. Si completa ambos, deberá indicar el precio del viaje."
+            },
+            {
               name: "vehicleId",
-              label: needsTermoking ? "Camion con Termoking (opcional)" : "Camion (opcional)",
+              labelHtml: `${IC.truck}<span>Vehículo</span>`,
               type: "select",
+              full: true,
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...vehicleCandidates.map((vehicle) => ({
                   value: vehicle.id,
-                  label: `${vehicle.plate} · ${vehicle.type} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}${vehicle.isBusy ? " · OCUPADO" : ""}${vehicle.hasExpiredDocs ? " · DOCUMENTOS VENCIDOS" : ""}`
+                  label: tripAssignmentVehicleOptionLabel(vehicle, {
+                    needsTermoking,
+                    isBusy: vehicle.isBusy,
+                    hasExpiredDocs: vehicle.hasExpiredDocs
+                  })
                 }))
               ]
             },
             {
               name: "driverId",
-              label: "Conductor (opcional)",
+              labelHtml: `${IC.user}<span>Conductor</span>`,
               type: "select",
+              full: true,
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...driverCandidates.map((driver) => ({
@@ -16182,7 +16341,13 @@ function bindDynamicEvents() {
                 }))
               ]
             },
-            ...tripRateUi.fields
+            {
+              type: "section",
+              id: "auth-approve-price",
+              title: "Precio del viaje",
+              hint: "Requerido solo si asigna vehículo y conductor."
+            },
+            ...tripRateUi.fields.map((tf) => ({ ...tf, full: true }))
           ],
           onSubmit: async (form) => {
             const vehicleId = String(form.vehicleId || "").trim();
