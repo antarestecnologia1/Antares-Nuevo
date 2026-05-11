@@ -962,6 +962,60 @@ const STATUS_TRANSITIONS = {
   [STATUS.RECHAZADA]: []
 };
 
+function statusIconEmoji(status) {
+  switch (String(status || "").trim()) {
+    case STATUS.PENDIENTE:
+      return "🕒";
+    case STATUS.APROBADA_PENDIENTE_ASIGNACION:
+      return "📥";
+    case STATUS.VIAJE_ASIGNADO:
+      return "🟢";
+    case STATUS.EN_TRANSITO:
+      return "🚚";
+    case STATUS.ESPERA_STANDBY:
+      return "⏸️";
+    case STATUS.COMPLETADA:
+      return "✅";
+    case STATUS.CERRADA:
+      return "📦";
+    case STATUS.CANCELADA:
+      return "⛔";
+    case STATUS.RECHAZADA:
+      return "❌";
+    default:
+      return "•";
+  }
+}
+
+function tripStatusOptionLabel(status) {
+  return `${statusIconEmoji(status)} ${String(status || "").trim()}`;
+}
+
+function tripStatusCorporateClass(status) {
+  switch (String(status || "").trim()) {
+    case STATUS.PENDIENTE:
+      return "trip-state-pill--pending";
+    case STATUS.APROBADA_PENDIENTE_ASIGNACION:
+      return "trip-state-pill--approved-pending";
+    case STATUS.VIAJE_ASIGNADO:
+      return "trip-state-pill--assigned";
+    case STATUS.EN_TRANSITO:
+      return "trip-state-pill--transit";
+    case STATUS.ESPERA_STANDBY:
+      return "trip-state-pill--standby";
+    case STATUS.COMPLETADA:
+      return "trip-state-pill--completed";
+    case STATUS.CERRADA:
+      return "trip-state-pill--closed";
+    case STATUS.CANCELADA:
+      return "trip-state-pill--cancelled";
+    case STATUS.RECHAZADA:
+      return "trip-state-pill--rejected";
+    default:
+      return "trip-state-pill--default";
+  }
+}
+
 const ACCOUNT_STATUS = {
   PENDIENTE: "pendiente",
   APROBADO: "aprobado",
@@ -7712,9 +7766,9 @@ function transportTripsHtml() {
       <td>
         <div class="trip-actions-stack">
           <label class="trip-status-control">
-            <span>Estado operativo</span>
-            <select data-action="trip-status" data-id="${r.id}">
-              ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
+            <span class="trip-state-pill ${tripStatusCorporateClass(currentStatus)}">${statusIconEmoji(currentStatus)} ${escapeHtml(String(currentStatus || "Estado operativo"))}</span>
+            <select class="trip-status-select" data-action="trip-status" data-id="${r.id}">
+              ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
             </select>
           </label>
           <div class="toolbar trip-actions-toolbar">
@@ -7728,7 +7782,7 @@ function transportTripsHtml() {
     })
     .join("");
   const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap trips-table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
 
   const formatRateRowLabel = (storageKey) => {
