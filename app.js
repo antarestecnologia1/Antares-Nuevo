@@ -610,10 +610,12 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
 function openInfoModal({
   title,
   subtitle = "",
+  subtitleHtml = "",
   bodyHtml = "",
   wide = false,
   extraModalCardClass = "",
-  secondaryActionsHtml = ""
+  secondaryActionsHtml = "",
+  afterMount
 }) {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
@@ -631,12 +633,17 @@ function openInfoModal({
     card.className = `modal-card modal-card-edit${extra ? ` ${extra}` : ""}`;
   }
   const content = modal.querySelector("#crud-modal-content");
+  const subtitleOut = subtitleHtml
+    ? subtitleHtml
+    : subtitle
+      ? escapeHtml(subtitle)
+      : "";
   content.innerHTML = `
     <div class="modal-head">
       <h2>${escapeHtml(title)}</h2>
       <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
     </div>
-    ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
+    ${subtitleOut ? `<p class="muted">${subtitleOut}</p>` : ""}
     <div class="modal-info-body${wide ? " modal-info-body--profile" : ""}">${bodyHtml}</div>
     <div class="modal-edit-actions">
       ${secondaryActionsHtml}
@@ -654,6 +661,40 @@ function openInfoModal({
     },
     { once: true }
   );
+  if (typeof afterMount === "function") {
+    try {
+      afterMount(content);
+    } catch (err) {
+      devWarn("openInfoModal afterMount", err);
+    }
+  }
+}
+
+/** Modal de ficha de viaje (misma vista que Transporte → Detalle). */
+function openAssignedTripInfoModal(req) {
+  if (!req?.trip) return;
+  openInfoModal({
+    title: `Viaje ${req.trip.tripNumber}`,
+    subtitleHtml: prettyStatus(req.status, "trip"),
+    bodyHtml: `
+          <div class="dash-grid">
+            <div><strong>Solicitud:</strong> ${escapeHtml(String(req.requestNumber || req.id))}</div>
+            <div><strong>Cliente:</strong> ${escapeHtml(String(req.clientName || "-"))}</div>
+            <div><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
+            <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${parseNum(req.weightKg).toLocaleString("es-CO")} kg</div>
+            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || 0).toLocaleString("es-CO")}</div>
+            <div><strong>Camion:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
+            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
+            <div><strong>Asignado por:</strong> ${escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))}</div>
+            <div><strong>Fecha asignacion:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
+            ${req.trip.invoice ? `<div><strong>Factura:</strong> ${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}</div>` : ""}
+          </div>
+          ${parseNum(req.standbyChargeTotal) > 0 ? `<p><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
+        `
+  });
 }
 
 function validateColombianDocument(docType, rawValue) {
@@ -5973,11 +6014,29 @@ function serviceTypeRequiresRefrigeration(serviceType) {
   );
 }
 
+/**
+ * `tipo_vehiculo_solicitado` en la solicitud describe carrocería (Furgon seco, Furgon refrigerado…);
+ * en flota, `vehicle.type` es categoría (Camion, Turbo…). Comparar contra `vehicle.bodyType`.
+ */
+function vehicleMatchesRequestedVehicleTypeField(vehicle, solicitedType) {
+  const wanted = String(solicitedType || "").trim();
+  if (!wanted || /^por definir$/i.test(wanted)) return true;
+  const fleetKinds = new Set(["Camion", "Turbo", "Tractomula", "Bus"]);
+  if (fleetKinds.has(wanted)) return String(vehicle.type || "").trim() === wanted;
+  const body = String(vehicle.bodyType || "").trim();
+  if (body) return body === wanted;
+  const wantsRef = /refrigerad|termoking|thermo\s*king/i.test(wanted);
+  const wantsDry = /\bseco\b/i.test(wanted) && !wantsRef;
+  if (wantsRef) return Boolean(vehicle.refrigerated);
+  if (wantsDry) return !vehicle.refrigerated;
+  return true;
+}
+
 function getCompatibleVehiclesForRequest(request, currentRequestId = null) {
   const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (!vehicle.available) return false;
-    if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
+    if (request?.vehicleType && !vehicleMatchesRequestedVehicleTypeField(vehicle, request.vehicleType)) return false;
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
     if (requiresRefrigeration && !vehicle.refrigerated) return false;
     if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
@@ -6001,7 +6060,7 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
   const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
   return read(KEYS.vehicles, [])
     .filter((vehicle) => {
-      if (request?.vehicleType && vehicle.type !== request.vehicleType) return false;
+      if (request?.vehicleType && !vehicleMatchesRequestedVehicleTypeField(vehicle, request.vehicleType)) return false;
       if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
       if (requiresRefrigeration && !vehicle.refrigerated) return false;
       return true;
@@ -13005,7 +13064,7 @@ function bindDynamicEvents() {
       if (!req?.trip) return;
       openInfoModal({
         title: `Viaje ${req.trip.tripNumber || ""}`,
-        subtitle: `${req.clientName || ""} · ${prettyStatus(req.status, "trip")}`,
+        subtitleHtml: `${escapeHtml(req.clientName || "")}${req.clientName ? " · " : ""}${prettyStatus(req.status, "trip")}`,
         bodyHtml: `<div class="dash-grid">
           <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
           <div><strong>Ruta:</strong> ${req.trip.route || formatRoute(req)}</div>
@@ -13034,7 +13093,7 @@ function bindDynamicEvents() {
         : `<p class="muted">Aun no tiene viaje asignado.</p>`;
       openInfoModal({
         title: `Solicitud ${req.requestNumber || req.id}`,
-        subtitle: `${prettyStatus(req.status, "request")}`,
+        subtitleHtml: prettyStatus(req.status, "request"),
         bodyHtml: `
           <div class="dash-grid">
             <div><strong>Ruta:</strong> ${formatRoute(req)}</div>
@@ -13389,7 +13448,7 @@ function bindDynamicEvents() {
       if (!req || !req.trip) return;
       openInfoModal({
         title: `Viaje ${req.trip.tripNumber}`,
-        subtitle: prettyStatus(req.status, "trip"),
+        subtitleHtml: prettyStatus(req.status, "trip"),
         bodyHtml: `
           <div class="dash-grid">
             <div><strong>Solicitud:</strong> ${req.requestNumber || req.id}</div>
