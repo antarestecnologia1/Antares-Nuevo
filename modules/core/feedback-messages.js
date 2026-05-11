@@ -104,6 +104,8 @@
     assignSelectResources: "Seleccione camión y conductor para asignar.",
     assignPriceRequired: "Indique el valor del viaje (COP) para poder asignar.",
     assignResourcesBusy: "No puede asignar recursos ocupados o no disponibles en ese horario.",
+    assignPastRequestDate:
+      "No se puede asignar el viaje: la solicitud tiene fecha de recogida vencida. Solo se permite para el mismo día o fechas futuras.",
     assignBulkPartial: (ok, fail) =>
       `Asignación masiva: ${ok} correctas${fail ? `, ${fail} omitidas por conflicto o datos incompletos.` : "."}`,
     routeRateDeleted: "Tarifa de trayecto eliminada.",

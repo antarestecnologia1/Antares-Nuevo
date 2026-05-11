@@ -3249,6 +3249,44 @@ body[data-theme="dark"] .modal-edit-section-title {
   max-width: 100%;
 }
 
+.create-trip-surface {
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line));
+  border-radius: 12px;
+  padding: 0.72rem;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 7%, var(--white)), var(--white));
+}
+
+.create-trip-surface--premium {
+  border-color: color-mix(in srgb, #6d28d9 26%, var(--line));
+  background: linear-gradient(150deg, color-mix(in srgb, #8b5cf6 10%, var(--white)), color-mix(in srgb, #0ea5e9 5%, var(--white)));
+}
+
+.create-trip-assign-intro {
+  margin: 0 0 0.35rem;
+  line-height: 1.45;
+}
+
+.create-trip-eligibility-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.58rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--line);
+}
+
+.create-trip-eligibility-badge--ok {
+  color: #0f766e;
+  background: color-mix(in srgb, #10b981 17%, var(--white));
+}
+
+.create-trip-eligibility-badge--blocked {
+  color: #9f1239;
+  background: color-mix(in srgb, #ef4444 14%, var(--white));
+}
+
 .create-trip-flag-legend {
   display: flex;
   flex-wrap: wrap;
@@ -3286,6 +3324,37 @@ body[data-theme="dark"] .modal-edit-section-title {
   font-variant-numeric: tabular-nums;
 }
 
+.trip-actions-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.52rem;
+  min-width: 240px;
+}
+
+.trip-status-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.26rem;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.trip-status-control select {
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0.42rem 0.62rem;
+}
+
+.trip-actions-toolbar {
+  justify-content: flex-start;
+  gap: 0.34rem;
+}
+
 .trip-rate-meta {
   display: flex;
   flex-wrap: wrap;
@@ -3306,12 +3375,40 @@ body[data-theme="dark"] .modal-edit-section-title {
   background: color-mix(in srgb, var(--primary) 8%, var(--white));
 }
 
+.create-trip-price-field input {
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+.create-trip-rate-guard {
+  border: 1px dashed color-mix(in srgb, #ef4444 40%, var(--line));
+  border-radius: 10px;
+  padding: 0.7rem 0.78rem;
+  background: color-mix(in srgb, #ef4444 6%, var(--white));
+}
+
+.create-trip-rate-guard-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.52rem;
+  border: 1px solid color-mix(in srgb, #ef4444 40%, var(--line));
+  background: color-mix(in srgb, #ef4444 14%, var(--white));
+  color: #9f1239;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
 body[data-theme="dark"] .create-trip-summary-panel {
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 body[data-theme="dark"] .create-trip-tk-badge--yes {
   color: #7dd3fc;
+}
+
+body[data-theme="dark"] .create-trip-rate-guard {
+  background: color-mix(in srgb, #ef4444 11%, transparent);
 }
 
 .modal {

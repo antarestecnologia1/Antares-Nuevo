@@ -1491,9 +1491,53 @@ export class PortalService implements OnModuleInit {
     return m ? m[1] : null;
   }
 
+  private async loadLiveTransportOccupancySets(now = new Date()) {
+    const busyVehicleIds = new Set<string>();
+    const busyDriverIds = new Set<string>();
+    const activeStatuses = ["Viaje asignado", "En transito", "Espera standby"];
+    let r;
+    try {
+      r = await this.pool.query(
+        `SELECT v.id_vehiculo::text AS vehicle_id, v.id_conductor::text AS driver_id
+         FROM viajes_transporte v
+         JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+         WHERE s.estado::text = ANY($1::text[])
+           AND tstzrange(
+                 v.fecha_hora_recogida_programada,
+                 COALESCE(v.fecha_hora_entrega_programada, v.fecha_hora_recogida_programada + interval '1 minute'),
+                 '[)'
+               ) @> $2::timestamptz`,
+        [activeStatuses, now.toISOString()]
+      );
+    } catch (err: any) {
+      if (String(err?.code || "") === "42P01") {
+        return { busyVehicleIds, busyDriverIds };
+      }
+      throw err;
+    }
+    for (const row of r.rows) {
+      const vid = String((row as { vehicle_id?: unknown }).vehicle_id || "").trim();
+      const did = String((row as { driver_id?: unknown }).driver_id || "").trim();
+      if (vid) busyVehicleIds.add(vid);
+      if (did) busyDriverIds.add(did);
+    }
+    return { busyVehicleIds, busyDriverIds };
+  }
+
   private async loadVehicles() {
+    const { busyVehicleIds } = await this.loadLiveTransportOccupancySets();
     const r = await this.pool.query(`SELECT * FROM vehiculos ORDER BY placa`);
     return r.rows.map((v) => ({
+      // "ocupado" en portal debe depender del cruce vivo con viajes vigentes, no de flags estancados.
+      ...(() => {
+        const id = String(v.id || "").trim();
+        const busyNow = id ? busyVehicleIds.has(id) : false;
+        const manualUnavailable = v.disponible === false && v.ocupado_por_sistema !== true;
+        return {
+          available: manualUnavailable ? false : !busyNow,
+          autoBusy: busyNow
+        };
+      })(),
       id: v.id,
       plate: v.placa,
       brand: v.marca,
@@ -1520,15 +1564,23 @@ export class PortalService implements OnModuleInit {
       gpsProvider: v.proveedor_gps || "",
       ownerName: v.nombre_propietario || "",
       ownerTaxId: v.nit_cedula_propietario || "",
-      available: v.disponible,
-      autoBusy: v.ocupado_por_sistema,
       createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString()
     }));
   }
 
   private async loadDrivers() {
+    const { busyDriverIds } = await this.loadLiveTransportOccupancySets();
     const r = await this.pool.query(`SELECT * FROM conductores ORDER BY nombre_completo`);
     return r.rows.map((d) => ({
+      ...(() => {
+        const id = String(d.id || "").trim();
+        const busyNow = id ? busyDriverIds.has(id) : false;
+        const manualUnavailable = d.disponible === false && d.ocupado_por_sistema !== true;
+        return {
+          available: manualUnavailable ? false : !busyNow,
+          autoBusy: busyNow
+        };
+      })(),
       id: d.id,
       companyId: d.id_empresa,
       name: d.nombre_completo,
@@ -1549,8 +1601,6 @@ export class PortalService implements OnModuleInit {
       contractType: d.tipo_contrato,
       baseSalary: d.salario_base != null ? Number(d.salario_base) : 0,
       startDate: d.fecha_inicio,
-      available: d.disponible,
-      autoBusy: d.ocupado_por_sistema,
       hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null
     }));
   }
@@ -1658,6 +1708,12 @@ export class PortalService implements OnModuleInit {
     const ok = admin || (await this.hasUsersManagePermission(userId));
     if (!ok) throw new ForbiddenException("Sin permiso para consultar sesiones de usuarios");
     try {
+      const sessionsTable = (await this.tableExists("sesiones_usuario"))
+        ? "sesiones_usuario"
+        : (await this.tableExists("sesiones_usuarios"))
+          ? "sesiones_usuarios"
+          : null;
+      if (!sessionsTable) return [];
       const r = await this.pool.query(
         `SELECT
             s.id::text AS id,
@@ -1668,12 +1724,12 @@ export class PortalService implements OnModuleInit {
             s.fecha_creacion AS created_at,
             s.fecha_expiracion AS expires_at,
             CASE WHEN s.fecha_expiracion > now() THEN 'activa' ELSE 'expirada' END AS status
-         FROM sesiones_usuario s
+         FROM ${sessionsTable} s
          LEFT JOIN usuarios u ON u.id = s.id_usuario
          ORDER BY s.fecha_creacion DESC
          LIMIT 1000`
       );
-      return r.rows.map((row) => ({
+      const fromSessions = r.rows.map((row) => ({
         id: row.id,
         userId: row.user_id,
         userName: row.user_name || "Usuario",
@@ -1682,6 +1738,31 @@ export class PortalService implements OnModuleInit {
         createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
         expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
         status: String(row.status || "").toLowerCase() === "activa" ? "activa" : "expirada"
+      }));
+      if (fromSessions.length > 0) return fromSessions;
+      const fallback = await this.pool.query(
+        `SELECT
+            u.id::text AS user_id,
+            u.nombre_completo AS user_name,
+            u.correo_electronico AS user_email,
+            u.rol::text AS user_role,
+            u.fecha_actualizacion AS updated_at
+         FROM usuarios u
+         WHERE u.refresh_token_hash IS NOT NULL
+         ORDER BY u.fecha_actualizacion DESC
+         LIMIT 1000`
+      );
+      return fallback.rows.map((row) => ({
+        id: `legacy-refresh-${String((row as { user_id?: unknown }).user_id || "")}`,
+        userId: (row as { user_id?: unknown }).user_id || "",
+        userName: (row as { user_name?: unknown }).user_name || "Usuario",
+        userEmail: (row as { user_email?: unknown }).user_email || "",
+        userRole: (row as { user_role?: unknown }).user_role || "",
+        createdAt: (row as { updated_at?: unknown }).updated_at
+          ? new Date(String((row as { updated_at?: unknown }).updated_at)).toISOString()
+          : null,
+        expiresAt: null,
+        status: "activa"
       }));
     } catch (err: any) {
       if (String(err?.code || "") === "42P01") return [];

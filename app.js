@@ -3590,7 +3590,7 @@ function buildTripRateModalFields(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `Trayecto: ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
@@ -3613,7 +3613,7 @@ function buildTripRateModalFields(request, opts) {
       {
         type: "custom",
         full: true,
-        html: `<div class="trip-rate-meta" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver ruta y alcance de aplicación.</span></div>`
+        html: `<div class="trip-rate-meta" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>`
       },
       {
         name: "tripValue",
@@ -3641,7 +3641,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `Trayecto: ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
@@ -3663,8 +3663,8 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     <label class="full">${fieldLabel(IC.dollar, items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto")}
       <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select">${optionsHtml}</select>
     </label>
-    <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver ruta y alcance de aplicación.</span></div>
-    <label class="full">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
+    <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>
+    <label class="full create-trip-price-field">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
       <input type="number" name="tripValue" id="create-trip-trip-value" min="0" step="1" placeholder="Ej: 4200000" ${required ? "required" : ""} value="${escapeAttr(String(fallbackVal))}" />
     </label>`;
 }
@@ -3700,6 +3700,7 @@ function refreshCreateTripModuleForm(formEl) {
   }
 
   const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
+  const assignableByDate = isRequestPickupSameDayOrFuture(request);
   const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
   const driverCandidates = getDriverCandidatesForRequest(request, requestId);
   const vehicles = vehicleCandidates.filter((v) => !v.isBusy && !v.isUnavailable && !v.hasExpiredDocs);
@@ -3710,12 +3711,16 @@ function refreshCreateTripModuleForm(formEl) {
     const tkBadge = needsTermoking
       ? `<span class="create-trip-tk-badge create-trip-tk-badge--yes">Termoking</span>`
       : `<span class="create-trip-tk-badge create-trip-tk-badge--no">Sin Termoking</span>`;
+    const dateBadge = assignableByDate
+      ? `<span class="create-trip-eligibility-badge create-trip-eligibility-badge--ok">🟢 Asignable hoy</span>`
+      : `<span class="create-trip-eligibility-badge create-trip-eligibility-badge--blocked">🔴 Fecha vencida (solo misma fecha o futura)</span>`;
     const cargo = String(request.cargoDescription || "-").trim();
     const cargoShort = cargo.length > 100 ? `${escapeHtml(cargo.slice(0, 100))}…` : escapeHtml(cargo);
     preview.innerHTML = `
       <div class="create-trip-summary-top">
         <span class="create-trip-summary-ref">${escapeHtml(String(request.requestNumber || request.id))}</span>
         ${tkBadge}
+        ${dateBadge}
       </div>
       <div class="create-trip-summary-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
       <div class="create-trip-summary-grid">
@@ -3725,6 +3730,21 @@ function refreshCreateTripModuleForm(formEl) {
         <div class="create-trip-summary-cell"><span class="create-trip-sk">Recogida</span><span class="create-trip-sv">${fmtDate(request.pickupAt)}</span></div>
         <div class="create-trip-summary-cell create-trip-summary-cell--wide"><span class="create-trip-sk">Carga</span><span class="create-trip-sv">${cargoShort}</span></div>
       </div>`;
+  }
+
+  if (!assignableByDate) {
+    if (vehSel) {
+      vehSel.innerHTML = `<option value="">Solicitud vencida: no se puede asignar viaje en fecha anterior</option>`;
+      vehSel.disabled = true;
+    }
+    if (drvSel) {
+      drvSel.innerHTML = `<option value="">Solicitud vencida: no se puede asignar viaje en fecha anterior</option>`;
+      drvSel.disabled = true;
+    }
+    if (rateMount) {
+      rateMount.innerHTML = `<div class="create-trip-rate-guard"><span class="create-trip-rate-guard-pill">🔒 Asignación bloqueada por fecha</span><p class="muted" style="margin:0.45rem 0 0">La solicitud tiene fecha de recogida anterior al día actual. Solo se permite asignar viajes para hoy o fechas futuras.</p></div>`;
+    }
+    return;
   }
 
   if (vehSel) {
@@ -5974,6 +5994,22 @@ function activeTripStatuses() {
   return [STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY];
 }
 
+function requestPickupIsoDate(request) {
+  const raw = String(request?.pickupAt || "").trim();
+  const inline = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (inline) return inline[1];
+  const ts = new Date(raw).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const p = getColombiaDateParts(new Date(ts));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+function isRequestPickupSameDayOrFuture(request, todayIso = colombiaTodayIsoDate()) {
+  const pickupIso = requestPickupIsoDate(request);
+  if (!pickupIso) return false;
+  return pickupIso >= String(todayIso || "");
+}
+
 function getActiveTrips() {
   const requests = reqRead();
   return requests.filter((r) => r.trip && activeTripStatuses().includes(r.status));
@@ -6496,6 +6532,10 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
   const current = requests.find((r) => r.id === requestId);
   const canAssignTrip = current && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(current.status);
   if (!current || !canAssignTrip) return false;
+  if (!auto && !isRequestPickupSameDayOrFuture(current)) {
+    notify(userMessage("assignPastRequestDate"), "error");
+    return false;
+  }
 
   if (auto) {
     const systemTimerApprove = String(actorName || "").trim() === "Sistema";
@@ -7648,9 +7688,11 @@ function transportTripsHtml() {
   const rateEntries = Object.entries(rates)
     .map(([storageKey, entry]) => ({ storageKey, ...entry, value: parseNum(entry.value) }))
     .sort((a, b) => String(a.storageKey).localeCompare(String(b.storageKey)));
-  const pendingForTrip = reqRead().filter(
+  const pendingRaw = reqRead().filter(
     (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
   );
+  const pendingForTrip = pendingRaw.filter((r) => isRequestPickupSameDayOrFuture(r));
+  const pendingExpired = pendingRaw.filter((r) => !isRequestPickupSameDayOrFuture(r));
   const trips = reqRead().filter((r) => r.trip);
   const activeOps = trips.filter((r) => activeTripStatuses().includes(r.status)).length;
   const departmentsOpts = departmentOptions();
@@ -7667,9 +7709,21 @@ function transportTripsHtml() {
       <td>${r.trip.driverName}<br><span class="muted">Asignado por: ${r.trip.assignedBy || r.approvedBy || "-"}</span></td>
       <td>${fmtDate(r.trip.etaPickup)}</td>
       <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
-      <td><div class="toolbar"><select data-action="trip-status" data-id="${r.id}" style="padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">
-        ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
-      </select><button class="btn btn-sm btn-action" data-action="trip-detail" data-id="${r.id}">${IC.eye} Detalle</button>${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores">${IC.trash} Eliminar viaje</button>` : ""}${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}</div></td>
+      <td>
+        <div class="trip-actions-stack">
+          <label class="trip-status-control">
+            <span>Estado operativo</span>
+            <select data-action="trip-status" data-id="${r.id}">
+              ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}
+            </select>
+          </label>
+          <div class="toolbar trip-actions-toolbar">
+            <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}">${IC.eye} Ver detalle</button>
+            ${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}
+            ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores">${IC.trash} Eliminar viaje</button>` : ""}
+          </div>
+        </div>
+      </td>
     </tr>`;
     })
     .join("");
@@ -7748,14 +7802,21 @@ function transportTripsHtml() {
         `<option value="${escapeAttr(r.id)}" data-createdby="${escapeAttr(r.requestedByName || "-")}" data-route="${escapeAttr(`${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}`)}" data-company="${escapeAttr(r.clientName || "-")}">${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${escapeHtml(r.originCity || "")} → ${escapeHtml(r.destinationCity || "")}</option>`
     )
     .join("");
+  const expiredPendingOpts = pendingExpired
+    .map((r) => {
+      const pickup = requestPickupIsoDate(r) || "sin fecha";
+      return `<option value="${escapeAttr(r.id)}" disabled>${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${pickup} · 🔴 fecha vencida</option>`;
+    })
+    .join("");
   const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.compass} Solicitud</legend>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.compass, "Solicitud pendiente de asignación", { required: true })}
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
-            <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : "No hay solicitudes pendientes"}</option>
+            <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : pendingExpired.length ? "No hay solicitudes asignables hoy (hay vencidas)" : "No hay solicitudes pendientes"}</option>
             ${pendingSelectOpts}
+            ${expiredPendingOpts ? `<optgroup label="No asignables hoy (fecha vencida)">${expiredPendingOpts}</optgroup>` : ""}
           </select>
         </label>
         <div id="trip-request-preview" class="create-trip-summary-panel full">
@@ -7765,8 +7826,8 @@ function transportTripsHtml() {
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Asignación de flota</legend>
-      <div class="form-section-grid">
-        <p class="muted full" style="margin:0 0 0.35rem;line-height:1.45">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+      <div class="form-section-grid create-trip-surface">
+        <p class="muted full create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
         <p class="create-trip-flag-legend full"><span class="create-trip-flag create-trip-flag--busy">🟠 Ocupado</span><span class="create-trip-flag create-trip-flag--offline">🟡 No disponible</span><span class="create-trip-flag create-trip-flag--expired">🔴 Documentación vencida</span></p>
         <label class="full">${fieldLabel(IC.truck, "Vehículo", { required: true })}
           <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
@@ -7778,7 +7839,7 @@ function transportTripsHtml() {
     </fieldset>
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.dollar} Tarifa y precio</legend>
-      <div id="create-trip-rate-fields">
+      <div id="create-trip-rate-fields" class="create-trip-rate-surface create-trip-surface create-trip-surface--premium">
         <p class="muted" style="margin:0">Seleccione una solicitud para cargar tarifas sugeridas.</p>
       </div>
     </fieldset>
@@ -7790,6 +7851,7 @@ function transportTripsHtml() {
         <div class="fleet-hero-metric"><span>Viajes</span><strong>${trips.length}</strong></div>
         <div class="fleet-hero-metric"><span>En operacion</span><strong>${activeOps}</strong></div>
         <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Sin asignar</span><strong>${pendingForTrip.length}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Pendientes vencidas</span><strong>${pendingExpired.length}</strong></div>
         <div class="fleet-hero-metric"><span>Tarifas trayecto</span><strong>${rateEntries.length}</strong></div>
       </div>
     </div>`;
@@ -14001,6 +14063,10 @@ function bindDynamicEvents() {
           const driverId = String(form.driverId || "").trim();
           const tripValue = parseNum(form.tripValue);
           const mode = vehicleId && driverId ? "assign_now" : selectedMode;
+          if (mode === "assign_now" && !isRequestPickupSameDayOrFuture(request)) {
+            notify(userMessage("assignPastRequestDate"), "error");
+            return false;
+          }
           if (mode === "assign_now" && (!vehicleId || !driverId)) {
             notify(userMessage("assignSelectResources"), "error");
             return false;
@@ -14076,6 +14142,10 @@ function bindDynamicEvents() {
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) {
         notify(userMessage("bulkRequestMissing"), "error");
+        return;
+      }
+      if (!isRequestPickupSameDayOrFuture(request)) {
+        notify(userMessage("assignPastRequestDate"), "error");
         return;
       }
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
