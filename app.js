@@ -991,31 +991,6 @@ function tripStatusOptionLabel(status) {
   return `${statusIconEmoji(status)} ${String(status || "").trim()}`;
 }
 
-function tripStatusCorporateClass(status) {
-  switch (String(status || "").trim()) {
-    case STATUS.PENDIENTE:
-      return "trip-state-pill--pending";
-    case STATUS.APROBADA_PENDIENTE_ASIGNACION:
-      return "trip-state-pill--approved-pending";
-    case STATUS.VIAJE_ASIGNADO:
-      return "trip-state-pill--assigned";
-    case STATUS.EN_TRANSITO:
-      return "trip-state-pill--transit";
-    case STATUS.ESPERA_STANDBY:
-      return "trip-state-pill--standby";
-    case STATUS.COMPLETADA:
-      return "trip-state-pill--completed";
-    case STATUS.CERRADA:
-      return "trip-state-pill--closed";
-    case STATUS.CANCELADA:
-      return "trip-state-pill--cancelled";
-    case STATUS.RECHAZADA:
-      return "trip-state-pill--rejected";
-    default:
-      return "trip-state-pill--default";
-  }
-}
-
 const ACCOUNT_STATUS = {
   PENDIENTE: "pendiente",
   APROBADO: "aprobado",
@@ -7766,9 +7741,9 @@ function transportTripsHtml() {
       <td>
         <div class="trip-actions-stack">
           <label class="trip-status-control">
-            <span class="trip-state-pill ${tripStatusCorporateClass(currentStatus)}">${statusIconEmoji(currentStatus)} ${escapeHtml(String(currentStatus || "Estado operativo"))}</span>
-            <select class="trip-status-select" data-action="trip-status" data-id="${r.id}">
-              ${transitions.map((s) => `<option ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
+            <span>${IC.activity} Estado operativo</span>
+            <select class="trip-status-select trip-status-select--${escapeAttr(slugStatus(currentStatus))}" data-action="trip-status" data-id="${r.id}">
+              ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
             </select>
           </label>
           <div class="toolbar trip-actions-toolbar">
@@ -7806,7 +7781,7 @@ function transportTripsHtml() {
           <td><strong>${formatRateRowLabel(storageKey)}</strong></td>
           <td>${formatRateClientsLabel(companyIds)}</td>
           <td><strong>$${parseNum(val).toLocaleString("es-CO")}</strong></td>
-          <td>${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Solo administradores">${IC.trash} Quitar</button>` : '<span class="muted">—</span>'}</td>
+          <td>${isAdmin ? `<div class="toolbar" style="gap:0.3rem;justify-content:flex-start"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar tarifa">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Solo administradores">${IC.trash} Quitar</button></div>` : '<span class="muted">—</span>'}</td>
         </tr>`;
         })
         .join("")
@@ -7816,6 +7791,7 @@ function transportTripsHtml() {
     : emptyState("No hay tarifas por trayecto. Define rutas para autocompletar precios al asignar.");
 
   const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored">
+    <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.mapPin} Origen del trayecto</legend>
       <div class="form-section-grid">
@@ -7845,9 +7821,13 @@ function transportTripsHtml() {
           </select>
         </label>
         <p class="muted full" style="margin:0;line-height:1.45">Sin seleccionar ninguno: la tarifa vale para <strong>todos</strong> los clientes. Con una o varias empresas: solo autocompleta precio cuando la solicitud es de esa empresa. Use Ctrl o Cmd para elegir varios.</p>
+        <p class="muted full" id="route-rate-editing-hint" style="margin:0;display:none">Modo edición activo. Al guardar se actualizará la tarifa seleccionada.</p>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
+    <div class="toolbar full" style="justify-content:flex-start;gap:0.5rem">
+      <button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
+      <button class="btn btn-outline" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>
+    </div>
   </form>`;
 
   const pendingSelectOpts = pendingForTrip
@@ -14244,6 +14224,10 @@ function bindDynamicEvents() {
     const originCity = routeRateFormEl.querySelector("#route-rate-origin-city");
     const destDept = routeRateFormEl.querySelector("#route-rate-dest-dept");
     const destCity = routeRateFormEl.querySelector("#route-rate-dest-city");
+    const editingKeyInput = routeRateFormEl.querySelector("#route-rate-editing-key");
+    const submitBtn = routeRateFormEl.querySelector("#route-rate-submit-btn");
+    const cancelEditBtn = routeRateFormEl.querySelector("#route-rate-cancel-edit");
+    const editingHint = routeRateFormEl.querySelector("#route-rate-editing-hint");
     const fillRouteRateCities = (departmentSelect, citySelect) => {
       const department = String(departmentSelect?.value || "");
       const cities = COLOMBIA_LOCATIONS[department] || [];
@@ -14251,6 +14235,78 @@ function bindDynamicEvents() {
         .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
         .join("")}`;
     };
+    const setSelectValueInsensitive = (selectEl, rawValue) => {
+      if (!selectEl) return;
+      const target = String(rawValue || "").trim().toLowerCase();
+      if (!target) {
+        selectEl.value = "";
+        return;
+      }
+      const options = [...selectEl.options];
+      const hit = options.find((opt) => String(opt.value || "").trim().toLowerCase() === target);
+      selectEl.value = hit ? hit.value : "";
+    };
+    const resetRateEditMode = () => {
+      if (editingKeyInput) editingKeyInput.value = "";
+      if (submitBtn) submitBtn.textContent = `${IC.plus} Guardar tarifa de trayecto`;
+      if (cancelEditBtn) cancelEditBtn.style.display = "none";
+      if (editingHint) editingHint.style.display = "none";
+    };
+    const parseStorageKeyToRouteParts = (storageKey) => {
+      const raw = String(storageKey || "");
+      const sepIdx = raw.lastIndexOf(TRIP_RATE_SCOPE_SEP);
+      const routeOnly = sepIdx === -1 ? raw : raw.slice(0, sepIdx);
+      const [orig, dest] = String(routeOnly).split("->");
+      const [od, oc] = String(orig || "").split("|");
+      const [dd, dc] = String(dest || "").split("|");
+      return {
+        originDepartment: od || "",
+        originCity: oc || "",
+        destinationDepartment: dd || "",
+        destinationCity: dc || ""
+      };
+    };
+    nodes.viewRoot.querySelectorAll("[data-action='edit-route-rate']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const encoded = String(btn.dataset.rateKey || "");
+        const key = decodeURIComponent(encoded);
+        if (!key) return;
+        const entry = getTripRouteRatesNormalized()[key];
+        if (!entry) return;
+        const parts = parseStorageKeyToRouteParts(key);
+        setSelectValueInsensitive(originDept, parts.originDepartment);
+        if (originDept && originCity) fillRouteRateCities(originDept, originCity);
+        setSelectValueInsensitive(originCity, parts.originCity);
+        setSelectValueInsensitive(destDept, parts.destinationDepartment);
+        if (destDept && destCity) fillRouteRateCities(destDept, destCity);
+        setSelectValueInsensitive(destCity, parts.destinationCity);
+        const inputCop = routeRateFormEl.querySelector("input[name='tripRateCop']");
+        if (inputCop) inputCop.value = String(parseNum(entry.value));
+        const selectedCompanyIds = new Set(
+          (Array.isArray(entry.companyIds) ? entry.companyIds : []).map((id) => String(id).trim()).filter(Boolean)
+        );
+        const companiesSelect = routeRateFormEl.querySelector("#route-rate-clients");
+        if (companiesSelect) {
+          [...companiesSelect.options].forEach((opt) => {
+            opt.selected = selectedCompanyIds.has(String(opt.value || "").trim());
+          });
+        }
+        if (editingKeyInput) editingKeyInput.value = key;
+        if (submitBtn) submitBtn.textContent = `${IC.save} Actualizar tarifa de trayecto`;
+        if (cancelEditBtn) cancelEditBtn.style.display = "";
+        if (editingHint) editingHint.style.display = "";
+        const panelBtn = nodes.viewRoot.querySelector("[data-action='toggle-create-panel'][data-panel='create-route-rate']");
+        if (panelBtn && !state.createPanels?.["create-route-rate"]) panelBtn.click();
+      });
+    });
+    if (cancelEditBtn) {
+      cancelEditBtn.addEventListener("click", () => {
+        routeRateFormEl.reset();
+        if (originCity) originCity.innerHTML = `<option value="">Seleccione departamento...</option>`;
+        if (destCity) destCity.innerHTML = `<option value="">Seleccione departamento...</option>`;
+        resetRateEditMode();
+      });
+    }
     if (originDept && originCity) {
       originDept.addEventListener("change", () => fillRouteRateCities(originDept, originCity));
     }
@@ -14279,14 +14335,17 @@ function bindDynamicEvents() {
       const routeKey = buildTripRouteRateKey(od, oc, dd, dc);
       const normalized = getTripRouteRatesNormalized();
       const storageKey = tripRateStorageKey(routeKey, companyIds);
+      const editingKey = String(data.editingRateKey || "").trim();
       const next = { ...normalized, [storageKey]: { value: tripRateCop, companyIds } };
+      if (editingKey && editingKey !== storageKey) delete next[editingKey];
       try {
         await writeAwaitServer(KEYS.tripRouteRates, next);
       } catch (err) {
         notify(String(err?.message || userMessage("genericError")), "error");
         return;
       }
-      notify(userMessage("routeRateSaved"), "success");
+      notify(editingKey ? "Tarifa por trayecto actualizada." : userMessage("routeRateSaved"), "success");
+      resetRateEditMode();
       renderPortalView();
     });
   }
@@ -14328,6 +14387,12 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='trip-status']").forEach((select) => {
     select.addEventListener("change", () => {
       const actor = currentUser();
+      const selectedStatus = String(select.value || "");
+      const nextClass = `trip-status-select--${slugStatus(selectedStatus)}`;
+      [...select.classList]
+        .filter((cls) => cls.startsWith("trip-status-select--"))
+        .forEach((cls) => select.classList.remove(cls));
+      select.classList.add(nextClass);
       transitionRequestStatus(select.dataset.id, select.value, actor?.name || "Operación");
       renderPortalView();
     });

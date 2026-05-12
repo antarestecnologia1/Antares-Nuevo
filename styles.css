@@ -3328,83 +3328,18 @@ body[data-theme="dark"] .modal-edit-section-title {
   display: flex;
   flex-direction: column;
   gap: 0.52rem;
-  min-width: 240px;
+  min-width: 0;
 }
 
 .trip-status-control {
   display: flex;
   flex-direction: column;
   gap: 0.26rem;
-  color: var(--muted);
-}
-
-.trip-state-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.32rem;
-  width: fit-content;
-  border-radius: 999px;
-  padding: 0.24rem 0.68rem;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
   text-transform: uppercase;
-  border: 1px solid var(--line);
-}
-
-.trip-state-pill--pending {
-  color: var(--primary-deeper);
-  background: color-mix(in srgb, var(--brand-blue-soft) 78%, var(--white) 22%);
-  border-color: color-mix(in srgb, var(--brand-blue-mid) 52%, var(--line));
-}
-
-.trip-state-pill--approved-pending {
-  color: #ffffff;
-  background: linear-gradient(135deg, var(--primary-deeper), var(--primary-dark));
-  border-color: color-mix(in srgb, var(--primary) 40%, var(--line));
-}
-
-.trip-state-pill--assigned {
-  color: #ffffff;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  border-color: color-mix(in srgb, var(--primary) 50%, var(--line));
-}
-
-.trip-state-pill--transit {
-  color: #ffffff;
-  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
-  border-color: color-mix(in srgb, var(--primary) 55%, var(--line));
-}
-
-.trip-state-pill--standby {
-  color: var(--primary-deeper);
-  background: color-mix(in srgb, var(--brand-blue-mid) 36%, var(--white) 64%);
-  border-color: color-mix(in srgb, var(--brand-blue-deep) 45%, var(--line));
-}
-
-.trip-state-pill--completed {
-  color: #ffffff;
-  background: linear-gradient(135deg, #2a6399, #377cc0);
-  border-color: color-mix(in srgb, var(--primary-deeper) 45%, var(--line));
-}
-
-.trip-state-pill--closed {
-  color: #ffffff;
-  background: linear-gradient(135deg, #1e4a73, #2a6399);
-  border-color: color-mix(in srgb, var(--primary-deeper) 50%, var(--line));
-}
-
-.trip-state-pill--cancelled,
-.trip-state-pill--rejected {
-  color: #ffffff;
-  background: linear-gradient(135deg, #315f8b, #2a6399);
-  border-color: color-mix(in srgb, var(--primary-deeper) 48%, var(--line));
-}
-
-.trip-state-pill--default {
-  color: var(--primary-deeper);
-  background: color-mix(in srgb, var(--brand-blue-soft) 68%, var(--white) 32%);
-  border-color: color-mix(in srgb, var(--brand-blue-mid) 45%, var(--line));
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 
 .trip-status-control select {
@@ -3420,9 +3355,27 @@ body[data-theme="dark"] .modal-edit-section-title {
   box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.12);
 }
 
+.trip-status-select--pendiente {
+  border-color: color-mix(in srgb, var(--brand-blue-mid) 56%, var(--line));
+}
+
+.trip-status-select--aprobada_pendiente_asignacion,
+.trip-status-select--viaje_asignado,
+.trip-status-select--en_transito,
+.trip-status-select--espera_standby,
+.trip-status-select--completada,
+.trip-status-select--cerrada,
+.trip-status-select--cancelada,
+.trip-status-select--rechazada {
+  color: #ffffff;
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--line));
+  background: linear-gradient(135deg, var(--primary-deeper), var(--primary-dark));
+}
+
 .trip-actions-toolbar {
   justify-content: flex-start;
   gap: 0.34rem;
+  flex-wrap: wrap;
 }
 
 .trips-table-wrap {
@@ -3433,13 +3386,16 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 .trips-table-wrap table {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
+  font-size: 0.9rem;
 }
 
 .trips-table-wrap table thead th,
 .trips-table-wrap table tbody td {
   white-space: normal;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  padding: 0.55rem 0.48rem;
 }
 
 .trip-rate-meta {
@@ -3498,19 +3454,31 @@ body[data-theme="dark"] .create-trip-rate-guard {
   background: color-mix(in srgb, #ef4444 11%, transparent);
 }
 
-body[data-theme="dark"] .trip-state-pill--pending {
+body[data-theme="dark"] .trip-status-select--pendiente {
   color: var(--brand-blue-soft);
   background: color-mix(in srgb, var(--brand-blue-deep) 35%, #0f1f34 65%);
 }
 
-body[data-theme="dark"] .trip-state-pill--standby {
-  color: #d7ebfb;
-  background: color-mix(in srgb, var(--brand-blue-mid) 30%, #0f1f34 70%);
+body[data-theme="dark"] .trip-status-select--aprobada_pendiente_asignacion,
+body[data-theme="dark"] .trip-status-select--viaje_asignado,
+body[data-theme="dark"] .trip-status-select--en_transito,
+body[data-theme="dark"] .trip-status-select--espera_standby,
+body[data-theme="dark"] .trip-status-select--completada,
+body[data-theme="dark"] .trip-status-select--cerrada,
+body[data-theme="dark"] .trip-status-select--cancelada,
+body[data-theme="dark"] .trip-status-select--rechazada {
+  color: #ffffff;
+  background: linear-gradient(135deg, #244f79, #326ea8);
 }
 
-body[data-theme="dark"] .trip-state-pill--default {
-  color: var(--brand-blue-soft);
-  background: color-mix(in srgb, var(--brand-blue-deep) 32%, #0f1f34 68%);
+@media (max-width: 1280px) {
+  .trips-table-wrap table {
+    font-size: 0.84rem;
+  }
+  .trip-actions-toolbar .btn {
+    padding: 0.36rem 0.52rem;
+    font-size: 0.74rem;
+  }
 }
 
 .modal {
