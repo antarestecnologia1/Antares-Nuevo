@@ -1338,6 +1338,9 @@ let state = {
     editUserId: "",
     editCompanyId: ""
   },
+  requestsUi: {
+    companyId: ""
+  },
   createPanels: {},
   calendarFocus: null,
   calendarFilters: { driver: "", vehicle: "", status: "", kind: "" },
@@ -7339,10 +7342,15 @@ function buildRequestCompanySelectHtml(user) {
     }
     const c = getCompanyById(cid);
     const label = c?.name || user.company || "Mi empresa";
+    const logoUrl = String(c?.logoUrl || "").trim();
+    const logoPreview = logoUrl
+      ? `<span class="request-company-logo" role="img" aria-label="Logo de ${escapeAttr(label)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(label)}" loading="lazy" /></span>`
+      : `<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">${escapeHtml(String(label || "E").charAt(0).toUpperCase())}</span>`;
     return `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada", { required: true })}
       <select name="companyId" id="request-company-id" required>
         <option value="${escapeAttr(cid)}">${escapeHtml(label)}</option>
       </select>
+      <div class="request-company-preview">${logoPreview}<div><strong>${escapeHtml(label)}</strong><p class="muted">Empresa asociada al usuario autenticado.</p></div></div>
     </label>`;
   }
   if (!companies.length) {
@@ -7354,7 +7362,7 @@ function buildRequestCompanySelectHtml(user) {
   const opts = companies
     .map((c) => {
       const id = String(c.id || "");
-      return `<option value="${escapeAttr(id)}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
+      return `<option value="${escapeAttr(id)}" data-company-logo="${escapeAttr(String(c.logoUrl || ""))}" data-company-name="${escapeAttr(String(c.name || ""))}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
     })
     .join("");
   return `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada", { required: true })}
@@ -7362,6 +7370,7 @@ function buildRequestCompanySelectHtml(user) {
       <option value="">Seleccione empresa...</option>
       ${opts}
     </select>
+    <div class="request-company-preview" id="request-company-preview"><span class="request-company-logo request-company-logo--fallback" aria-hidden="true">?</span><div><strong>Sin empresa seleccionada</strong><p class="muted">Seleccione una empresa para cargar su imagen en la solicitud.</p></div></div>
   </label>`;
 }
 
@@ -8352,6 +8361,10 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
     const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
+    const logoUrl = String(c.logoUrl || "").trim();
+    const avatarCompany = logoUrl
+      ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
+      : `<div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>`;
     const nit = String(c.taxId || c.nit || "").trim();
     const subtitle = nit
       ? `${IC.badge} NIT ${escapeHtml(nit)}`
@@ -8370,13 +8383,16 @@ function adminUsersHtml(current) {
       phoneDisp
         ? `${IC.phone} ${escapeHtml(phoneDisp)}`
         : `<span class="muted">${IC.phone} Sin teléfono</span>`,
+      c.email
+        ? `${IC.mail} ${escapeHtml(String(c.email))}`
+        : `<span class="muted">${IC.mail} Sin correo</span>`,
       `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
     ];
     const kindForUi =
       patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
     return `<div class="user-card user-card--company${active ? "" : " user-card--company-inactive"}">
       <div class="user-card-top">
-        <div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>
+        ${avatarCompany}
         <div class="user-card-info">
           <h4>${escapeHtml(String(c.name || ""))}</h4>
           <p class="muted">${subtitle}</p>
@@ -8495,7 +8511,7 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
       <p class="muted full" style="margin:0 0 0.85rem;line-height:1.45">
-        Razón social o nombre legal, NIT único en el sistema y teléfono de contacto opcional.
+        Registre datos legales, contacto principal y ubicación operativa para habilitar trazabilidad comercial por empresa.
       </p>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.shield, "Clasificación de la empresa")}
@@ -8526,6 +8542,18 @@ function adminUsersHtml(current) {
           </span>
           <input name="phone" maxlength="15" inputmode="tel" autocomplete="tel" placeholder="Ej. 6011234567" />
         </label>
+        <label>
+          ${fieldLabel(IC.mail, "Correo empresarial")}
+          <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
+            Opcional · recomendado para comunicaciones de operación
+          </span>
+          <input type="email" name="email" maxlength="120" autocomplete="email" placeholder="operaciones@empresa.com" />
+        </label>
+        <label>${fieldLabel(IC.user, "Contacto principal")}<input name="contactName" maxlength="120" placeholder="Nombre del contacto en la empresa" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department"><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city"><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" placeholder="Dirección de cargue/descargue o sede principal" /></label>
+        <label class="full">${fieldLabel(IC.upload, "Logo de la empresa", { required: true })}<input type="file" name="logoFile" accept="image/*" required /></label>
       </div>
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
     </fieldset>
@@ -8555,6 +8583,18 @@ function adminUsersHtml(current) {
         <label>
           ${fieldLabel(IC.phone, "Teléfono")}
           <input name="phone" maxlength="32" inputmode="tel" autocomplete="tel" placeholder="+57 300 000 0000" value="${escapeAttr(String(editingCompany.phone ?? ""))}" />
+        </label>
+        <label>
+          ${fieldLabel(IC.mail, "Correo empresarial")}
+          <input type="email" name="email" maxlength="120" autocomplete="email" value="${escapeAttr(String(editingCompany.email ?? ""))}" />
+        </label>
+        <label>${fieldLabel(IC.user, "Contacto principal")}<input name="contactName" maxlength="120" value="${escapeAttr(String(editingCompany.contactName ?? ""))}" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompany.department || "")}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompany.department || "", editingCompany.city || "")}</select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
+        <label class="full">${fieldLabel(IC.upload, "Logo de la empresa")}
+          <input type="file" name="logoFile" accept="image/*" />
+          <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
         </label>
       </div>
     </fieldset>
@@ -12644,6 +12684,23 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='request-company-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const companyId = String(btn.dataset.companyId || "");
+      state.requestsUi = { ...(state.requestsUi || {}), companyId };
+      if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = companyId;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='request-company-clear']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.requestsUi = { ...(state.requestsUi || {}), companyId: "" };
+      if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = "";
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='refresh-user-sessions']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
@@ -12841,9 +12898,21 @@ function bindDynamicEvents() {
 
   const adminCompanyCreate = document.getElementById("form-admin-company-create");
   if (adminCompanyCreate) {
+    const depSelect = adminCompanyCreate.querySelector("select[name='department']");
+    const citySelect = adminCompanyCreate.querySelector("select[name='city']");
+    if (depSelect && citySelect) {
+      depSelect.addEventListener("change", () => {
+        citySelect.innerHTML = cityOptionsFromDepartment(String(depSelect.value || ""), "");
+      });
+    }
     adminCompanyCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
+      const logoFile = adminCompanyCreate.querySelector("input[name='logoFile']")?.files?.[0] || null;
+      if (!logoFile) {
+        notify("Debe cargar el logo de la empresa.", "error");
+        return;
+      }
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
         notify(userMessage("companyNitInvalid", nitValidation.message), "error");
@@ -12862,6 +12931,24 @@ function bindDynamicEvents() {
       const phoneDigits = phoneStored.replace(/\D/g, "");
       if (phoneStored && phoneDigits.length < 7) {
         notify(userMessage("companyPhoneInvalid"), "error");
+        return;
+      }
+      const emailStored = normalizeEmail(String(data.email || ""));
+      if (emailStored && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStored)) {
+        notify("Ingrese un correo empresarial válido.", "error");
+        return;
+      }
+      if (!phoneStored && !emailStored) {
+        notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
+        return;
+      }
+      const contactName = normalizeLatinForDb(String(data.contactName || ""));
+      const department = normalizeLatinForDb(String(data.department || ""));
+      const city = normalizeLatinForDb(String(data.city || ""));
+      const address = normalizeLatinForDb(String(data.address || ""));
+      const logoUrl = await resolveEmployeeAvatarUrl(logoFile, "");
+      if (!String(logoUrl || "").trim()) {
+        notify("No fue posible procesar el logo de la empresa. Intente de nuevo.", "error");
         return;
       }
       const companies = read(KEYS.companies, []);
@@ -12886,6 +12973,12 @@ function bindDynamicEvents() {
         taxId: nitNorm,
         nit: nitNorm,
         phone: phoneStored,
+        email: emailStored,
+        contactName,
+        department,
+        city,
+        address,
+        logoUrl: String(logoUrl || "").trim(),
         companyKind: kind,
         active: true,
         createdAt: nowIso()
@@ -12899,9 +12992,25 @@ function bindDynamicEvents() {
 
   const adminCompanyEdit = document.getElementById("form-admin-company-edit");
   if (adminCompanyEdit) {
+    const depSelectEdit = adminCompanyEdit.querySelector("select[name='department']");
+    const citySelectEdit = adminCompanyEdit.querySelector("select[name='city']");
+    if (depSelectEdit && citySelectEdit) {
+      depSelectEdit.addEventListener("change", () => {
+        citySelectEdit.innerHTML = cityOptionsFromDepartment(String(depSelectEdit.value || ""), "");
+      });
+    }
     adminCompanyEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
+      const logoFile = adminCompanyEdit.querySelector("input[name='logoFile']")?.files?.[0] || null;
+      let logoUrlResolved = String(data.logoUrlExisting || "").trim();
+      if (logoFile) {
+        logoUrlResolved = String(await resolveEmployeeAvatarUrl(logoFile, logoUrlResolved || "") || "").trim();
+      }
+      if (!logoUrlResolved) {
+        notify("La empresa debe tener un logo cargado.", "error");
+        return;
+      }
       const companyId = String(data.id || "");
       if (!companyId) return;
       const companies = read(KEYS.companies, []);
@@ -12948,6 +13057,19 @@ function bindDynamicEvents() {
         notify(userMessage("companyPhoneInvalid"), "error");
         return;
       }
+      const emailStored = normalizeEmail(String(data.email || ""));
+      if (emailStored && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStored)) {
+        notify("Ingrese un correo empresarial válido.", "error");
+        return;
+      }
+      if (!phoneStored && !emailStored) {
+        notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
+        return;
+      }
+      const contactName = normalizeLatinForDb(String(data.contactName || ""));
+      const department = normalizeLatinForDb(String(data.department || ""));
+      const city = normalizeLatinForDb(String(data.city || ""));
+      const address = normalizeLatinForDb(String(data.address || ""));
       const nextCompanies = companies.map((c) =>
         String(c.id) === companyId
           ? {
@@ -12956,6 +13078,12 @@ function bindDynamicEvents() {
               taxId: nitNorm,
               nit: nitNorm,
               phone: phoneStored,
+              email: emailStored,
+              contactName,
+              department,
+              city,
+              address,
+              logoUrl: logoUrlResolved,
               companyKind: kind
             }
           : c
@@ -13565,6 +13693,8 @@ function bindDynamicEvents() {
     const pickupTime = requestForm.querySelector("#pickup-time");
     const deliveryDate = requestForm.querySelector("#delivery-date");
     const deliveryTime = requestForm.querySelector("#delivery-time");
+    const requestCompanySelect = requestForm.querySelector("#request-company-id");
+    const requestCompanyPreview = requestForm.querySelector("#request-company-preview");
 
     const fillCityOptions = (departmentSelect, citySelect) => {
       const department = String(departmentSelect?.value || "");
@@ -13584,6 +13714,25 @@ function bindDynamicEvents() {
       const today = colombiaTodayIsoDate();
       pickupDate.min = today;
       if (deliveryDate) deliveryDate.min = today;
+    }
+    if (requestCompanySelect && requestCompanyPreview) {
+      const refreshCompanyPreview = () => {
+        const selectedOption = requestCompanySelect.options[requestCompanySelect.selectedIndex] || null;
+        const name = String(selectedOption?.dataset.companyName || selectedOption?.textContent || "").trim();
+        const logoUrl = String(selectedOption?.dataset.companyLogo || "").trim();
+        if (!requestCompanySelect.value || !name) {
+          requestCompanyPreview.innerHTML =
+            '<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">?</span><div><strong>Sin empresa seleccionada</strong><p class="muted">Seleccione una empresa para cargar su imagen en la solicitud.</p></div>';
+          return;
+        }
+        const initial = escapeHtml(String(name || "E").charAt(0).toUpperCase());
+        const logoHtml = logoUrl
+          ? `<span class="request-company-logo" role="img" aria-label="Logo de ${escapeAttr(name)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(name)}" loading="lazy" /></span>`
+          : `<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">${initial}</span>`;
+        requestCompanyPreview.innerHTML = `${logoHtml}<div><strong>${escapeHtml(name)}</strong><p class="muted">${logoUrl ? "Logo cargado automáticamente para esta empresa." : "Empresa sin logo registrado."}</p></div>`;
+      };
+      requestCompanySelect.addEventListener("change", refreshCompanyPreview);
+      refreshCompanyPreview();
     }
 
     requestForm.addEventListener("submit", async (event) => {

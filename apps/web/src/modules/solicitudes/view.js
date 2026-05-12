@@ -2,6 +2,73 @@
   if (!window.AppModules) window.AppModules = {};
   if (!window.AppModules.solicitudes) window.AppModules.solicitudes = {};
 
+  function requestRowsHtml(requests, user) {
+    return requests
+      .map((r) => {
+        const allowEdit = canClientManageRequest(r);
+        const trip = r.trip
+          ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
+          : '<span class="muted">-</span>';
+        return `<tr>
+          <td><strong>${r.requestNumber || r.id}</strong></td>
+          <td>${formatRoute(r)}<br><span class="muted">Creada por: ${r.requestedByName || r.clientName}</span></td>
+          <td>${prettyStatus(r.status, "request")}</td>
+          <td>${trip}</td>
+          <td><div class="toolbar">
+            <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
+            ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
+            ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
+            ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
+          </div></td>
+        </tr>`;
+      })
+      .join("");
+  }
+
+  function requestAdminCompanyHubHtml(requests, selectedCompanyId) {
+    const companies = read(KEYS.companies, []);
+    const grouped = requests.reduce((acc, req) => {
+      const cid = String(req.clientCompanyId || "");
+      if (!cid) return acc;
+      if (!acc[cid]) acc[cid] = [];
+      acc[cid].push(req);
+      return acc;
+    }, {});
+    const cards = Object.entries(grouped)
+      .map(([companyId, list]) => {
+        const company = companies.find((c) => String(c.id) === companyId) || null;
+        const name = company?.name || list[0]?.clientName || "Empresa sin nombre";
+        const logoUrl = String(company?.logoUrl || "").trim();
+        const logoHtml = logoUrl
+          ? `<span class="request-company-hub-logo" role="img" aria-label="Logo de ${escapeAttr(name)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(name)}" loading="lazy" /></span>`
+          : `<span class="request-company-hub-logo request-company-hub-logo--fallback" aria-hidden="true">${escapeHtml(String(name || "E").charAt(0).toUpperCase())}</span>`;
+        const pending = list.filter((r) =>
+          [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
+        ).length;
+        const active = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+        const isSelected = String(selectedCompanyId || "") === String(companyId);
+        return `<article class="request-company-hub-card${isSelected ? " is-active" : ""}">
+          <header>
+            <div class="request-company-hub-head">${logoHtml}<h4>${escapeHtml(name)}</h4></div>
+            <span class="status ${pending ? "status-pendiente" : "status-viaje_asignado"}">${pending ? `${pending} pendientes` : "Al día"}</span>
+          </header>
+          <div class="request-company-hub-metrics">
+            <span><strong>${list.length}</strong><small>Solicitudes</small></span>
+            <span><strong>${active}</strong><small>En operación</small></span>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-sm ${isSelected ? "btn-primary" : "btn-outline"}" data-action="request-company-filter" data-company-id="${escapeAttr(companyId)}">
+              ${IC.briefcase} ${isSelected ? "Viendo" : "Ver"}
+            </button>
+          </div>
+        </article>`;
+      })
+      .join("");
+    return cards
+      ? `<div class="request-company-hub-grid">${cards}</div>`
+      : `<p class="muted">No hay solicitudes agrupables por empresa todavía.</p>`;
+  }
+
   function requestFormHtml() {
     const user = currentUser();
     const list = getVisibleRequestsForUser(user);
@@ -72,28 +139,27 @@
 
   function requestListClientHtml(user) {
     const requests = getVisibleRequestsForUser(user);
-    const rows = requests
-      .map((r) => {
-        const allowEdit = canClientManageRequest(r);
-        const trip = r.trip
-          ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
-          : '<span class="muted">-</span>';
-        return `<tr>
-          <td><strong>${r.requestNumber || r.id}</strong></td>
-          <td>${formatRoute(r)}<br><span class="muted">Creada por: ${r.requestedByName || r.clientName}</span></td>
-          <td>${prettyStatus(r.status, "request")}</td>
-          <td>${trip}</td>
-          <td><div class="toolbar">
-            <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
-            ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
-            ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
-            ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
-          </div></td>
-        </tr>`;
-      })
-      .join("");
+    if (user?.role === ROLES.ADMIN) {
+      const selectedCompanyId = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "");
+      const companies = read(KEYS.companies, []);
+      const selectedCompany = companies.find((c) => String(c.id) === selectedCompanyId) || null;
+      const filtered = selectedCompanyId
+        ? requests.filter((r) => String(r.clientCompanyId || "") === selectedCompanyId)
+        : requests;
+      const rows = requestRowsHtml(filtered, user);
+      const hub = requestAdminCompanyHubHtml(requests, selectedCompanyId);
+      const headToolbar = `<div class="toolbar request-admin-toolbar">
+        <span class="muted">${selectedCompany ? `Empresa seleccionada: ${escapeHtml(selectedCompany.name || "Cliente")}` : "Vista general multiempresa"}</span>
+        <button class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Ver todas</button>
+      </div>`;
+      const body = rows
+        ? `${headToolbar}<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : emptyState(selectedCompany ? "No hay solicitudes para esta empresa." : "Aun no hay solicitudes creadas.");
+      return `${pcardWrap("briefcase", "Panel de solicitudes por cliente", `${requests.length} solicitudes totales`, hub)}${pcardWrap("file", selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes", `${filtered.length} registradas`, body)}`;
+    }
+    const rows = requestRowsHtml(requests, user);
     const body = rows
-      ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      ? `<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
       : emptyState("Aun no hay solicitudes creadas.");
     return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
   }
