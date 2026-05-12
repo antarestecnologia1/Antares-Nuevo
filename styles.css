@@ -52,10 +52,11 @@
   --public-toggle-fg: #234e73;
   --public-toggle-active-bg: rgba(var(--primary-rgb), 0.16);
 
-  /* Tipografía corporativa: Montserrat (títulos) · Poppins (énfasis/CTA) · Roboto (cuerpo) */
-  --font-display: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Tipografía corporativa: Principal Montserrat · Secundaria Poppins · Terciaria Roboto/Lato */
+  --font-body: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-secondary: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-body: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-tertiary: "Roboto", "Lato", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 body[data-theme="light"] {
@@ -115,6 +116,20 @@ h5,
 h6 {
   font-family: var(--font-display);
   font-weight: 600;
+}
+
+button,
+.btn {
+  font-family: var(--font-secondary);
+  font-weight: 700;
+}
+
+input,
+select,
+textarea,
+table,
+.muted {
+  font-family: var(--font-tertiary);
 }
 
 body[data-theme="dark"] {
@@ -2273,9 +2288,9 @@ tbody tr:last-child td { border-bottom: none; }
   color: #ffffff;
   font-size: 0.8rem;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.15;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
-  white-space: normal;
+  white-space: nowrap;
   text-align: center;
   max-width: 100%;
 }
@@ -3347,15 +3362,17 @@ body[data-theme="dark"] .modal-edit-section-title {
 }
 
 .trip-status-control select {
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 600;
   border-radius: 12px;
   border: 1px solid var(--line);
-  padding: 0.5rem 0.72rem;
-  min-height: 2.32rem;
+  padding: 0.45rem 0.6rem;
+  min-height: 2.14rem;
   letter-spacing: 0.01em;
   width: 100%;
   max-width: 100%;
+  color: #0b2138;
+  text-overflow: ellipsis;
 }
 
 .trip-status-select option {
@@ -3365,61 +3382,58 @@ body[data-theme="dark"] .modal-edit-section-title {
 }
 
 .trip-status-select {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--white)), var(--white));
+  background: linear-gradient(135deg, #f3f9ff, #ffffff);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--line));
   box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.12);
 }
 
 .trip-status-select--pendiente {
-  color: #a16207;
-  border-color: #f5cb7d;
-  background: linear-gradient(135deg, #fff5db, #ffefc2);
-}
-
-.trip-status-select--espera_standby,
-.trip-status-select--aprobada_pendiente_asignacion,
-.trip-status-select--viaje_asignado,
-.trip-status-select--en_transito,
-.trip-status-select--completada,
-.trip-status-select--cerrada,
-.trip-status-select--cancelada,
-.trip-status-select--rechazada {
-  color: #ffffff;
+  color: #8a5b00;
+  border-color: #e7bf66;
+  background: linear-gradient(135deg, #fff8df, #fff1bf);
 }
 
 .trip-status-select--aprobada_pendiente_asignacion {
-  border-color: #4f8bce;
-  background: linear-gradient(135deg, #1f5f9f, #3278c0);
+  color: #1f4f8c;
+  border-color: #9ec8e8;
+  background: linear-gradient(135deg, #e9f4fd, #d6ebfa);
 }
 
 .trip-status-select--viaje_asignado {
-  border-color: #2f9c76;
-  background: linear-gradient(135deg, #17744f, #1f9262);
+  color: #136041;
+  border-color: #8cd9b5;
+  background: linear-gradient(135deg, #e8f8ef, #d7f2e4);
 }
 
 .trip-status-select--en_transito {
-  border-color: #3f8ed4;
-  background: linear-gradient(135deg, #1f5d99, #2f79bf);
+  color: #1f4f8c;
+  border-color: #9ec8e8;
+  background: linear-gradient(135deg, #edf6fe, #dceefe);
 }
 
 .trip-status-select--espera_standby {
-  border-color: #9f6a1f;
-  background: linear-gradient(135deg, #8a5b00, #6d4800);
+  color: #875800;
+  border-color: #e7bf66;
+  background: linear-gradient(135deg, #fff8df, #ffefc7);
 }
 
 .trip-status-select--completada {
-  border-color: #21889c;
-  background: linear-gradient(135deg, #0f728c, #0c5f74);
+  color: #0d5f74;
+  border-color: #8cc9d6;
+  background: linear-gradient(135deg, #e4f6fb, #d5eef7);
 }
 
 .trip-status-select--cerrada {
-  border-color: #49596c;
-  background: linear-gradient(135deg, #334155, #1e293b);
+  color: #334155;
+  border-color: #b6c2cf;
+  background: linear-gradient(135deg, #f1f5f9, #e5ebf1);
 }
 
 .trip-status-select--cancelada,
 .trip-status-select--rechazada {
-  border-color: #cb5e5e;
-  background: linear-gradient(135deg, #c53030, #9f1f1f);
+  color: #9f1f1f;
+  border-color: #e6a4a4;
+  background: linear-gradient(135deg, #fde8e8, #fad9d9);
 }
 
 .trip-actions-toolbar {
@@ -3430,16 +3444,18 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 .trip-actions-stack {
   width: 100%;
+  min-width: 11.8rem;
 }
 
 .trips-table-wrap {
-  overflow-x: visible;
+  overflow-x: auto;
   margin: 0;
   padding: 0;
 }
 
 .trips-table-wrap table {
   width: 100%;
+  min-width: 74rem;
   table-layout: auto;
   font-size: 0.9rem;
 }
@@ -3450,6 +3466,16 @@ body[data-theme="dark"] .modal-edit-section-title {
   word-break: normal;
   overflow-wrap: anywhere;
   padding: 0.55rem 0.48rem;
+}
+
+.trips-table-wrap table thead th:nth-child(8),
+.trips-table-wrap table tbody td:nth-child(8) {
+  min-width: 11rem;
+}
+
+.trips-table-wrap table thead th:nth-child(9),
+.trips-table-wrap table tbody td:nth-child(9) {
+  min-width: 13rem;
 }
 
 .trip-rate-meta {
@@ -3510,8 +3536,8 @@ body[data-theme="dark"] .create-trip-rate-guard {
 
 body[data-theme="dark"] .trip-status-select--pendiente {
   color: #fde68a;
-  border-color: #d4a447;
-  background: linear-gradient(135deg, #5c430f, #7c5a16);
+  border-color: #c09039;
+  background: linear-gradient(135deg, #5b4317, #6b4f17);
 }
 
 body[data-theme="dark"] .trip-status-select--aprobada_pendiente_asignacion,
@@ -3522,43 +3548,43 @@ body[data-theme="dark"] .trip-status-select--completada,
 body[data-theme="dark"] .trip-status-select--cerrada,
 body[data-theme="dark"] .trip-status-select--cancelada,
 body[data-theme="dark"] .trip-status-select--rechazada {
-  color: #ffffff;
+  color: #e8f4fc;
 }
 
 body[data-theme="dark"] .trip-status-select--aprobada_pendiente_asignacion {
   border-color: #3e88ca;
-  background: linear-gradient(135deg, #18426e, #245f99);
+  background: linear-gradient(135deg, #173755, #1f4a72);
 }
 
 body[data-theme="dark"] .trip-status-select--viaje_asignado {
   border-color: #2f9c76;
-  background: linear-gradient(135deg, #13563b, #1a704f);
+  background: linear-gradient(135deg, #124533, #1a6147);
 }
 
 body[data-theme="dark"] .trip-status-select--en_transito {
   border-color: #3e82ca;
-  background: linear-gradient(135deg, #18426e, #245f99);
+  background: linear-gradient(135deg, #173755, #1f4a72);
 }
 
 body[data-theme="dark"] .trip-status-select--espera_standby {
   border-color: #a5712a;
-  background: linear-gradient(135deg, #69450a, #7d540d);
+  background: linear-gradient(135deg, #5d4319, #6f4f1d);
 }
 
 body[data-theme="dark"] .trip-status-select--completada {
   border-color: #228da4;
-  background: linear-gradient(135deg, #105567, #126277);
+  background: linear-gradient(135deg, #124555, #165868);
 }
 
 body[data-theme="dark"] .trip-status-select--cerrada {
   border-color: #4a5d72;
-  background: linear-gradient(135deg, #253244, #1b2635);
+  background: linear-gradient(135deg, #273346, #1e2837);
 }
 
 body[data-theme="dark"] .trip-status-select--cancelada,
 body[data-theme="dark"] .trip-status-select--rechazada {
   border-color: #c35d5d;
-  background: linear-gradient(135deg, #7e1f1f, #9f2a2a);
+  background: linear-gradient(135deg, #6b2222, #7e2b2b);
 }
 
 body[data-theme="dark"] .trip-status-select option {
