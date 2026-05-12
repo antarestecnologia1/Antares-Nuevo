@@ -6033,6 +6033,12 @@ function requestPickupIsoDate(request) {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+function rSafePickup(request) {
+  const pickup = String(request?.trip?.etaPickup || request?.pickupAt || "").trim();
+  if (pickup) return pickup;
+  return String(request?.createdAt || nowIso());
+}
+
 function isRequestPickupSameDayOrFuture(request, todayIso = colombiaTodayIsoDate()) {
   const pickupIso = requestPickupIsoDate(request);
   if (!pickupIso) return false;
@@ -7438,17 +7444,21 @@ function requestListClientHtml(user) {
         <td>${formatRoute(r)}<br><span class="muted">Creada por: ${r.requestedByName || r.clientName}</span></td>
         <td>${prettyStatus(r.status, "request")}</td>
         <td>${trip}</td>
-        <td><div class="toolbar">
-          <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
-          ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
-          ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
-          ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
-        </div></td>
+        <td>
+          <div class="trip-actions-stack request-actions-stack">
+            <div class="toolbar trip-actions-toolbar request-actions-toolbar">
+              <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
+              ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
+              ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
+              ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
+            </div>
+          </div>
+        </td>
       </tr>`;
     })
     .join("");
   const body = rows
-    ? `<div class="table-wrap transport-exec-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("Aun no hay solicitudes creadas.");
   return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
 }
@@ -7611,7 +7621,7 @@ function vehiclesHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap transport-exec-table-wrap vehicles-table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Viaje activo</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap trips-table-wrap vehicles-table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Viaje activo</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay vehículos registrados.");
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
       <div class="fleet-hero-metrics">
@@ -9414,17 +9424,17 @@ function buildReportDataset(reportId, actor = currentUser()) {
 function reportsHtml() {
   const user = currentUser();
   const cards = [
-    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo" },
-    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)" },
-    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización" },
-    { id: "trips_operations", icon: "compass", title: "Viajes operativos" },
-    { id: "requests_lifecycle", icon: "file", title: "Solicitudes" },
-    { id: "drivers_performance", icon: "user", title: "Conductores" },
-    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada" },
-    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline" },
-    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST" },
-    { id: "users_access", icon: "shield", title: "Usuarios y accesos" },
-    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones" }
+    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", subtitle: "Vista integral de operación y desempeño." },
+    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", subtitle: "Cumplimiento de tiempos y calidad del servicio." },
+    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", subtitle: "Disponibilidad, ocupación y rendimiento de flota." },
+    { id: "trips_operations", icon: "compass", title: "Viajes operativos", subtitle: "Seguimiento consolidado de viajes y estados." },
+    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", subtitle: "Ciclo completo desde creación hasta cierre." },
+    { id: "drivers_performance", icon: "user", title: "Conductores", subtitle: "Actividad y desempeño operativo por conductor." },
+    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada", subtitle: "Resumen financiero y novedades de gestión humana." },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline", subtitle: "Evolución del embudo de contratación." },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Indicadores de control normativo y SST." },
+    { id: "users_access", icon: "shield", title: "Usuarios y accesos", subtitle: "Trazabilidad de permisos y seguridad de acceso." },
+    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", subtitle: "Seguimiento de solicitudes y aprobaciones." }
   ];
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
   const reportsHero = moduleFleetHeroStrip([
@@ -9437,12 +9447,18 @@ function reportsHtml() {
     ? `<div class="dash-grid">
     ${visibleCards
       .map((card) => `
-      <article class="p-card">
+      <article class="p-card reports-card-pro">
         <div class="p-card-header">
-          <div class="p-card-header-left"><div class="p-card-icon">${IC[card.icon] || IC.activity}</div><div><h2>${card.title}</h2></div></div>
+          <div class="p-card-header-left">
+            <div class="p-card-icon">${IC[card.icon] || IC.activity}</div>
+            <div>
+              <h2>${card.title}</h2>
+              <p class="reports-card-subtitle">${card.subtitle}</p>
+            </div>
+          </div>
         </div>
         <div class="p-card-body">
-          <div class="toolbar">
+          <div class="toolbar reports-card-actions">
             <button class="btn btn-sm btn-action" data-action="generate-report" data-report="${card.id}" data-format="pdf">${IC.file} PDF</button>
             <button class="btn btn-sm btn-approve" data-action="generate-report" data-report="${card.id}" data-format="excel">${IC.download} Excel</button>
           </div>
@@ -11592,7 +11608,14 @@ function contactLeadsHtml() {
     })
     .join("");
 
-  const mosaic = `<div class="b2b-leads-mosaic">${cards}</div>`;
+  const leadsToolbar = `<div class="b2b-leads-toolbar">
+    <div class="b2b-leads-toolbar-hint">
+      <strong>Bandeja comercial</strong>
+      <span class="muted">Prioriza por fecha y contacta prospectos desde correo o teléfono.</span>
+    </div>
+    <span class="b2b-leads-live-pill ${apiLive ? "b2b-leads-live-pill--ok" : ""}">${apiLive ? "Sincronización activa" : "Sin conexión API"}</span>
+  </div>`;
+  const mosaic = `${leadsToolbar}<div class="b2b-leads-mosaic">${cards}</div>`;
   const subtitle = `${list.length} prospecto${list.length === 1 ? "" : "s"} · vista enriquecida`;
   return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", subtitle, mosaic);
 }
@@ -15252,12 +15275,12 @@ function bindDynamicEvents() {
         </tr>`)
         .join("");
       output.innerHTML = `
-        <div class="dash-grid">
-          <div class="p-card"><h4 style="margin:0 0 0.4rem">Viajes del mes</h4><strong>${report.tripCount}</strong></div>
-          <div class="p-card"><h4 style="margin:0 0 0.4rem">Interdepartamentales</h4><strong>${report.interDepartmentTrips}</strong></div>
-          <div class="p-card"><h4 style="margin:0 0 0.4rem">Viaticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
-          <div class="p-card"><h4 style="margin:0 0 0.4rem">Combustible registrado</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
-          <div class="p-card"><h4 style="margin:0 0 0.4rem">Costo tecnico flota asociada</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
+        <div class="dash-grid driver-report-kpi-grid">
+          <div class="p-card driver-report-kpi"><h4>Viajes del mes</h4><strong>${report.tripCount}</strong></div>
+          <div class="p-card driver-report-kpi"><h4>Interdepartamentales</h4><strong>${report.interDepartmentTrips}</strong></div>
+          <div class="p-card driver-report-kpi"><h4>Viáticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
+          <div class="p-card driver-report-kpi"><h4>Combustible registrado</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
+          <div class="p-card driver-report-kpi"><h4>Costo técnico flota asociada</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
         </div>
         ${rows
           ? `<div class="table-wrap transport-exec-table-wrap history-report-table-wrap"><table><thead><tr><th>Viaje</th><th>Fecha cierre</th><th>Ruta departamentos</th><th>Camion</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
