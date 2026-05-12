@@ -3856,7 +3856,7 @@ function prettyStatus(status, scope = "general") {
   const iconMap = {
     pendiente: IC.clock,
     aprobada_pendiente_asignacion: IC.inbox,
-    viaje_asignado: scope === "request" ? IC.truck : IC.check,
+    viaje_asignado: IC.truck,
     en_transito: IC.truck,
     espera_standby: IC.clock,
     completada: IC.check,
@@ -3865,7 +3865,14 @@ function prettyStatus(status, scope = "general") {
     rechazada: IC.x
   };
   const icon = iconMap[key] || IC.activity;
-  const road = scope === "request" && (key === "viaje_asignado" || key === "en_transito");
+  /**
+   * Animación de "ruta" debajo del badge: aplica tanto al ver una solicitud con
+   * viaje en curso como cuando se gestiona directamente el viaje. Mejora la
+   * legibilidad rápida en módulos de operación (un viaje vivo se distingue
+   * visualmente de uno cerrado/pendiente).
+   */
+  const movingScopes = scope === "request" || scope === "trip";
+  const road = movingScopes && (key === "viaje_asignado" || key === "en_transito");
   return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${status}</span></span>`;
 }
 
@@ -7592,7 +7599,7 @@ function vehiclesHtml() {
     return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
       ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
   }).length;
-  const rows = vehicles
+  const vehicleCards = vehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
@@ -7608,29 +7615,40 @@ function vehiclesHtml() {
             ? `<span class="status status-espera_standby">🟣 Reservado</span>`
             : '<span class="status status-viaje_asignado">🟢 Disponible</span>';
       const occupancyDetail = occupancy.trip
-        ? `<strong>${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}</strong><br><span class="muted">${escapeHtml(String(occupancy.trip.clientName || "-"))}</span><br><span class="muted">${escapeHtml(String(occupancy.detail || ""))}</span>`
+        ? `<strong>${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}</strong> · <span class="muted">${escapeHtml(String(occupancy.trip.clientName || "-"))}</span>`
         : `<span class="muted">${escapeHtml(String(occupancy.detail || "Sin viaje activo"))}</span>`;
-      return `<tr>
-        <td>
-          <div class="vehicle-cell">
-            <span class="vehicle-plate">${v.plate}</span>
-            <span class="muted">${v.brand || "-"} · ${v.model || "-"} · ${v.year || "-"}</span>
+      const occupancySlug = isManuallyUnavailable(v)
+        ? "no-disponible"
+        : occupancy.tone === "busy"
+          ? "ocupado"
+          : occupancy.tone === "scheduled"
+            ? "reservado"
+            : "disponible";
+      const plate = String(v.plate || "—").toUpperCase();
+      const typeLabel = String(v.type || "Vehículo").trim() || "Vehículo";
+      const brandModel = `${String(v.brand || "").trim()}${v.brand && v.model ? " · " : ""}${String(v.model || "").trim()}${v.year ? ` · ${v.year}` : ""}`.trim() || "Sin marca/modelo";
+      return `<article class="trip-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${occupancySlug}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
+        <header class="trip-ops-card-head">
+          <div class="trip-ops-card-head-info">
+            <p class="trip-ops-card-kicker">${escapeHtml(typeLabel)} · ${escapeHtml(brandModel)}</p>
+            <h4 class="trip-ops-card-title vehicle-plate-title" title="${escapeAttr(plate)}">${escapeHtml(plate)}</h4>
           </div>
-        </td>
-        <td>${v.type}</td>
-        <td><strong>${parseNum(v.capacityKg).toLocaleString("es-CO")}</strong> <span class="muted">kg</span></td>
-        <td>${refrigeratedTag}</td>
-        <td><span class="muted">${v.soatExpeditionDate || "-"}</span><br><span class="status ${soat.cls}">${soat.label}</span></td>
-        <td><span class="muted">${v.techInspectionExpeditionDate || "-"}</span><br><span class="status ${tecno.cls}">${tecno.label}</span></td>
-        <td>${availabilityTag}</td>
-        <td>${occupancyDetail}</td>
-        <td><div class="toolbar">
-          <button class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${v.id}">${IC.eye} Ver</button>
-          <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}">${IC.edit} Editar</button>
-          <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}">${IC.toggle} Estado</button>
+          ${availabilityTag}
+        </header>
+        <dl class="trip-ops-card-grid">
+          <div class="trip-ops-card-item"><dt>${IC.scale}<span>Capacidad</span></dt><dd><strong>${parseNum(v.capacityKg).toLocaleString("es-CO")}</strong> kg</dd></div>
+          <div class="trip-ops-card-item"><dt>${IC.activity}<span>Equipo</span></dt><dd>${refrigeratedTag}</dd></div>
+          <div class="trip-ops-card-item"><dt>${IC.shield}<span>SOAT</span></dt><dd><span class="status ${soat.cls}">${soat.label}</span><br><span class="muted vehicle-doc-date">${v.soatExpeditionDate || "-"}</span></dd></div>
+          <div class="trip-ops-card-item"><dt>${IC.shield}<span>Tecnomec.</span></dt><dd><span class="status ${tecno.cls}">${tecno.label}</span><br><span class="muted vehicle-doc-date">${v.techInspectionExpeditionDate || "-"}</span></dd></div>
+        </dl>
+        <p class="trip-ops-card-standby vehicle-occupancy-note">${IC.truck}<span>${occupancyDetail}</span></p>
+        <div class="toolbar trip-ops-card-actions">
+          <button class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${v.id}" title="Ver ficha del vehículo">${IC.eye} Ver</button>
+          <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}" title="Editar datos del vehículo">${IC.edit} Editar</button>
+          <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>
           ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-        </div></td>
-      </tr>`;
+        </div>
+      </article>`;
     })
     .join("");
   const bodyTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bodyTypes);
@@ -7689,8 +7707,8 @@ function vehiclesHtml() {
 
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
-  const tableBody = rows
-    ? `<div class="table-wrap trips-table-wrap vehicles-table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Viaje activo</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+  const tableBody = vehicleCards
+    ? `<div class="trip-ops-cards vehicle-ops-cards">${vehicleCards}</div>`
     : emptyState("No hay vehículos registrados.");
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
       <div class="fleet-hero-metrics">
