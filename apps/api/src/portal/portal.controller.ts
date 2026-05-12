@@ -8,6 +8,7 @@ import { AdminVehicleDeleteDto } from "./dto/admin-vehicle-delete.dto";
 import { AdminDriverDeleteDto } from "./dto/admin-driver-delete.dto";
 import { AdminClearTripDto } from "./dto/admin-clear-trip.dto";
 import { AdminEmployeeDeleteDto } from "./dto/admin-employee-delete.dto";
+import { AdminUserCredentialsDto } from "./dto/admin-user-credentials.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { PortalService } from "./portal.service";
@@ -74,6 +75,18 @@ export class PortalController {
   @Post("admin-user-status")
   adminUserStatus(@Req() req: { user: ReqUser }, @Body() dto: AdminUserStatusDto) {
     return this.portal.adminSetUserStatus(req.user.userId, req.user.role, dto.userId, dto.status);
+  }
+
+  /** Solo admin: actualiza correo y/o contraseña de usuario. */
+  @Post("admin-user-credentials")
+  adminUserCredentials(@Req() req: { user: ReqUser }, @Body() dto: AdminUserCredentialsDto) {
+    return this.portal.adminUpdateUserCredentials(
+      req.user.userId,
+      req.user.role,
+      dto.userId,
+      dto.email,
+      dto.password
+    );
   }
 
   /** Solo admin: elimina usuario si no tiene referencias operativas críticas. */

@@ -3015,6 +3015,20 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function isDataUrl(value) {
+  return /^data:/i.test(String(value || "").trim());
+}
+
+function normalizeCompaniesForSync(companies) {
+  const list = Array.isArray(companies) ? companies : [];
+  if (!window.AntaresApi?.isConfigured?.()) return list;
+  return list.map((company) => {
+    const logoUrl = String(company?.logoUrl || "").trim();
+    if (!isDataUrl(logoUrl)) return company;
+    return { ...company, logoUrl: "" };
+  });
+}
+
 /** Para persistencia en BD/sincronización: sin tildes; ñ → n (ASCII estable). */
 function normalizeLatinForDb(value) {
   if (value == null) return "";
@@ -12968,6 +12982,13 @@ function bindDynamicEvents() {
         notify("No fue posible procesar el logo de la empresa. Intente de nuevo.", "error");
         return;
       }
+      if (window.AntaresApi?.isConfigured?.() && isDataUrl(logoUrl)) {
+        notify(
+          "No se pudo subir el logo al servidor (R2). Configure uploads o reintente; en modo servidor no se admite logo embebido.",
+          "error"
+        );
+        return;
+      }
       const companies = read(KEYS.companies, []);
       const nitNorm = nitValidation.normalized;
       const nameLc = nameTrim.toLowerCase();
@@ -13000,7 +13021,17 @@ function bindDynamicEvents() {
         active: true,
         createdAt: nowIso()
       });
-      await writeAwaitServer(KEYS.companies, companies);
+      try {
+        await writeAwaitServer(KEYS.companies, normalizeCompaniesForSync(companies));
+      } catch (err) {
+        const raw = String(err?.message || "");
+        const msg =
+          /too large|413|payload/i.test(raw)
+            ? "El logo es demasiado grande para sincronizar. Cargue una imagen más liviana (ideal: PNG/JPG optimizado)."
+            : "La empresa no se pudo guardar en el servidor.";
+        notify(msg, "error");
+        return;
+      }
       notify(userMessage("companyCreated"), "success");
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
       renderPortalView();
@@ -13026,6 +13057,13 @@ function bindDynamicEvents() {
       }
       if (!logoUrlResolved) {
         notify("La empresa debe tener un logo cargado.", "error");
+        return;
+      }
+      if (window.AntaresApi?.isConfigured?.() && isDataUrl(logoUrlResolved)) {
+        notify(
+          "El logo actual está embebido y no se puede sincronizar con el servidor. Vuelva a cargarlo para subirlo correctamente.",
+          "error"
+        );
         return;
       }
       const companyId = String(data.id || "");
@@ -13106,7 +13144,7 @@ function bindDynamicEvents() {
           : c
       );
       try {
-        await writeAwaitServer(KEYS.companies, nextCompanies);
+        await writeAwaitServer(KEYS.companies, normalizeCompaniesForSync(nextCompanies));
       } catch (err) {
         notify(String(err?.message || "La empresa no se pudo guardar en el servidor."), "error");
         return;
@@ -13199,13 +13237,31 @@ function bindDynamicEvents() {
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
       let nextPassword = existing.password;
+      const nextEmail = normalizeEmail(data.email);
+      const passwordPlain = String(data.password || "").trim();
       if (String(data.password || "").trim()) {
         const pp = validatePasswordPolicy(data.password);
         if (!pp.ok) {
           notify(userMessage(pp.key), "error");
           return;
         }
-        nextPassword = await hashPassword(String(data.password || "").trim());
+        nextPassword = await hashPassword(passwordPlain);
+      }
+      if (window.AntaresApi?.isConfigured?.()) {
+        const emailChanged = nextEmail !== normalizeEmail(existing.email);
+        const passwordChanged = Boolean(passwordPlain);
+        if (emailChanged || passwordChanged) {
+          try {
+            await postPortalAuthorized("/portal/admin-user-credentials", {
+              userId,
+              email: emailChanged ? nextEmail : undefined,
+              password: passwordChanged ? passwordPlain : undefined
+            });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible actualizar las credenciales del usuario en el servidor."), "error");
+            return;
+          }
+        }
       }
       const fn = normalizeLatinForDb(String(data.firstName ?? "").trim());
       const mn = normalizeLatinForDb(String(data.middleName ?? "").trim());
@@ -13233,7 +13289,7 @@ function bindDynamicEvents() {
               middleName: mn || undefined,
               lastName: ln || undefined,
               secondLastName: sln || undefined,
-              email: normalizeEmail(data.email),
+              email: nextEmail,
               password: nextPassword,
               role: String(data.role || u.role),
               documentType: String(data.documentType || u.documentType || "CC"),

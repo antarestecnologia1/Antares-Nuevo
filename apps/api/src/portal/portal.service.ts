@@ -9,6 +9,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import type { Pool, PoolClient } from "pg";
 import { createClient } from "@supabase/supabase-js";
+import * as bcrypt from "bcrypt";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import { PG_POOL } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
@@ -831,6 +832,70 @@ export class PortalService implements OnModuleInit {
       [tid, accountStatus]
     );
     return { ok: true, userId: tid, status: accountStatus };
+  }
+
+  async adminUpdateUserCredentials(
+    actorUserId: string,
+    actorRole: JwtRole,
+    targetUserId: string,
+    emailRaw?: string,
+    passwordRaw?: string
+  ) {
+    void actorUserId;
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    const tid = String(targetUserId || "").trim();
+    if (!tid) throw new BadRequestException("Usuario objetivo obligatorio");
+
+    const email = String(emailRaw || "").trim().toLowerCase();
+    const password = String(passwordRaw || "").trim();
+    if (!email && !password) {
+      throw new BadRequestException("Debe indicar correo y/o contraseña.");
+    }
+
+    if (password) {
+      if (password.length < 10) throw new BadRequestException("La contraseña debe tener al menos 10 caracteres.");
+      if (!/[a-z]/.test(password)) throw new BadRequestException("La contraseña debe incluir una letra minúscula.");
+      if (!/[A-Z]/.test(password)) throw new BadRequestException("La contraseña debe incluir una letra mayúscula.");
+      if (!/[0-9]/.test(password)) throw new BadRequestException("La contraseña debe incluir un número.");
+      if (!/[^A-Za-z0-9]/.test(password)) throw new BadRequestException("La contraseña debe incluir un símbolo.");
+    }
+
+    const targetRes = await this.pool.query<{ id: string }>(
+      `SELECT id::text FROM usuarios WHERE id = $1::uuid`,
+      [tid]
+    );
+    if (!targetRes.rows[0]) throw new BadRequestException("Usuario no encontrado.");
+
+    try {
+      if (email) {
+        await this.pool.query(
+          `UPDATE usuarios
+           SET correo_electronico = $2,
+               refresh_token_hash = NULL
+           WHERE id = $1::uuid`,
+          [tid, email]
+        );
+      }
+
+      if (password) {
+        const passwordHash = await bcrypt.hash(password, 10);
+        await this.pool.query(
+          `UPDATE usuarios
+           SET hash_contrasena = $2,
+               refresh_token_hash = NULL
+           WHERE id = $1::uuid`,
+          [tid, passwordHash]
+        );
+      }
+    } catch (err) {
+      const code = (err as { code?: string } | null)?.code || "";
+      if (code === "23505") {
+        throw new BadRequestException("El correo ya está en uso por otro usuario.");
+      }
+      throw err;
+    }
+
+    return { ok: true, userId: tid, emailUpdated: Boolean(email), passwordUpdated: Boolean(password) };
   }
 
   async adminDeleteUser(actorUserId: string, actorRole: JwtRole, targetUserId: string) {
