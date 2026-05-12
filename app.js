@@ -2115,6 +2115,15 @@ const PUBLIC_ES_EN_DICT = {
   "Somos una compania con enfoque B2B especializada en logistica de": "We are a B2B-focused company specialized in logistics for",
   "flor. Integramos tecnologia, experiencia operativa y servicio al": "flowers. We combine technology, operational experience, and customer",
   "cliente para garantizar entregas puntuales y seguras.": "service to ensure on-time, secure deliveries.",
+  "Somos un operador logistico B2B especializado en transporte de carga terrestre para el sector floricultor, comercializador y exportador. Integramos tecnologia, disciplina operativa y servicio cercano para garantizar entregas puntuales y confiables.":
+    "We are a B2B logistics operator specialized in land freight transportation for the floriculture, trading, and export sectors. We combine technology, operational discipline, and close customer service to ensure punctual and reliable deliveries.",
+  "Misión": "Mission",
+  "Mision": "Mission",
+  "Visión": "Vision",
+  "En Transportes Antares ofrecemos servicios de transporte terrestre de carga refrigerada y seca con un compromiso firme con la calidad, la seguridad y la puntualidad. Brindamos soluciones logísticas confiables y eficientes, trabajando con disciplina y enfoque en la mejora continua para fortalecer la confianza de nuestros clientes y aportar al desarrollo del sector.":
+    "At Transportes Antares we provide refrigerated and dry land freight transportation services with a firm commitment to quality, safety, and punctuality. We deliver reliable and efficient logistics solutions, working with discipline and a focus on continuous improvement to strengthen our clients' trust and contribute to the development of the sector.",
+  "En Transportes Antares proyectamos consolidarnos como una empresa líder a nivel nacional en transporte de carga terrestre, especializada en soluciones logísticas con altos estándares de calidad, trazabilidad y seguridad. Buscamos fortalecer nuestra operación mediante la mejora continua y alcanzar la certificación BASC como respaldo de nuestro compromiso con la excelencia y la confianza en la cadena logística.":
+    "At Transportes Antares we project ourselves to consolidate as a national leader in land freight transportation, specialized in logistics solutions with the highest standards of quality, traceability, and safety. We aim to strengthen our operations through continuous improvement and to earn the BASC certification as a hallmark of our commitment to excellence and trust in the logistics chain.",
   Valores: "Values",
   "Compromiso con tiempos de entrega.": "Commitment to delivery times.",
   "Calidad operativa y trazabilidad.": "Operational quality and traceability.",
@@ -7869,25 +7878,46 @@ function transportTripsHtml() {
     ? `<div class="trip-ops-cards">${opsTrips
         .map((r) => {
           const standby = parseNum(r.standbyChargeTotal);
-          return `<article class="trip-ops-card">
+          const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
+          const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
+          const statusSlug = slugStatus(r.status);
+          const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+          const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
+          const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
+          const pickupLabel = fmtDate(r.trip?.etaPickup || "") || "Sin fecha";
+          const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
+          const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
+          return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
             <header class="trip-ops-card-head">
-              <div>
-                <p class="trip-ops-card-kicker">${escapeHtml(String(r.trip?.tripNumber || "-"))} · ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
-                <h4>${escapeHtml(String(r.clientName || "Cliente"))}</h4>
+              <div class="trip-ops-card-head-info">
+                <p class="trip-ops-card-kicker">Viaje ${escapeHtml(String(r.trip?.tripNumber || "-"))} · Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
+                <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
               </div>
-              <span class="trip-ops-card-status">${prettyStatus(r.status, "trip")}</span>
+              <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "trip")}</span>
             </header>
-            <p class="trip-ops-card-route">${IC.mapPin}<span>${escapeHtml(formatRoute(r))}</span></p>
-            <div class="trip-ops-card-grid">
-              <span><strong>Camión:</strong> ${escapeHtml(String(r.trip?.vehiclePlate || "-"))}</span>
-              <span><strong>Conductor:</strong> ${escapeHtml(String(r.trip?.driverName || "-"))}</span>
-              <span><strong>Recogida:</strong> ${escapeHtml(fmtDate(r.trip?.etaPickup || ""))}</span>
-              <span><strong>Tarifa:</strong> $${parseNum(r.tripValue || 0).toLocaleString("es-CO")}</span>
+            <div class="trip-ops-card-route">
+              <span class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
+                <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+                <span class="trip-ops-card-route-label">Origen</span>
+                <strong>${escapeHtml(originCity)}</strong>
+              </span>
+              <span class="trip-ops-card-route-arrow" aria-hidden="true">→</span>
+              <span class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
+                <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+                <span class="trip-ops-card-route-label">Destino</span>
+                <strong>${escapeHtml(destinationCity)}</strong>
+              </span>
             </div>
-            ${standby > 0 ? `<p class="trip-ops-card-standby">Standby acumulado: $${standby.toLocaleString("es-CO")}</p>` : ""}
+            <dl class="trip-ops-card-grid">
+              <div class="trip-ops-card-item"><dt>${IC.truck}<span>Camión</span></dt><dd title="${escapeAttr(plate)}">${escapeHtml(plate)}</dd></div>
+              <div class="trip-ops-card-item"><dt>${IC.user}<span>Conductor</span></dt><dd title="${escapeAttr(driverName)}">${escapeHtml(driverName)}</dd></div>
+              <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd title="${escapeAttr(pickupLabel)}">${escapeHtml(pickupLabel)}</dd></div>
+              <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Tarifa</span></dt><dd>${tripValueFmt}</dd></div>
+            </dl>
+            ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
             <div class="toolbar trip-ops-card-actions">
               <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}">${IC.eye} Ver detalle</button>
-              ${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}
+              ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura</button>` : ""}
             </div>
           </article>`;
         })
