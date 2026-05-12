@@ -96,6 +96,16 @@ export class PortalController {
     return this.portal.adminClearUserSessions(req.user.userId, req.user.role, dto.userId);
   }
 
+  /**
+   * Cierra la sesión del usuario autenticado: invalida refresh_token_hash y
+   * borra filas en sesiones_usuario para que el siguiente refresh devuelva 401
+   * y la cuenta no quede "fantasma" activa en BD tras logout.
+   */
+  @Post("logout")
+  logout(@Req() req: { user: ReqUser }) {
+    return this.portal.logoutSelf(req.user.userId);
+  }
+
   /** Solo admin: elimina usuario si no tiene referencias operativas críticas. */
   @Post("admin-user-delete")
   adminUserDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminUserDeleteDto) {

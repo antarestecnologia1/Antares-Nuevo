@@ -915,6 +915,26 @@ export class PortalService implements OnModuleInit {
     return { ok: true, scope: "all" };
   }
 
+  /**
+   * Cierre de sesión del propio usuario: invalida `refresh_token_hash` y borra
+   * filas en `sesiones_usuario`. Tolera ausencia de la tabla (entornos nuevos)
+   * y SIEMPRE limpia el hash en `usuarios`, para que el próximo `/api/auth/refresh`
+   * con el token desechado devuelva 401 en lugar de aceptar reintentos.
+   */
+  async logoutSelf(userId: string) {
+    const uid = String(userId || "").trim();
+    if (!uid || !PG_UUID_V4_RE.test(uid)) {
+      throw new BadRequestException("Usuario inválido para cierre de sesión.");
+    }
+    try {
+      await this.pool.query(`DELETE FROM sesiones_usuario WHERE id_usuario = $1::uuid`, [uid]);
+    } catch (err: any) {
+      if (String(err?.code || "") !== "42P01") throw err;
+    }
+    await this.pool.query(`UPDATE usuarios SET refresh_token_hash = NULL WHERE id = $1::uuid`, [uid]);
+    return { ok: true, userId: uid };
+  }
+
   async adminDeleteUser(actorUserId: string, actorRole: JwtRole, targetUserId: string) {
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
     const tid = String(targetUserId || "").trim();

@@ -4709,32 +4709,54 @@ function checkSessionIdleAndLogout() {
   renderPortal();
 }
 
+/**
+ * Intenta renovar el JWT contra POST /api/auth/refresh.
+ * Devuelve:
+ *   - { status: "ok" } cuando rota el access token (y opcionalmente el refresh).
+ *   - { status: "invalid" } cuando el servidor responde 401/403 → el refresh token ya no sirve
+ *     (rotado por otra pestaña, sesión invalidada por admin, contraseña cambiada).
+ *   - { status: "network" } ante errores transitorios (sin conexión, 5xx) — la sesión local
+ *     se conserva para reintentar luego sin expulsar al usuario.
+ *   - { status: "skipped" } cuando no hay sesión/URL/refresh para usar.
+ */
 async function tryApiRefreshBridge() {
   const api = window.AntaresApi;
   const session = getSession();
-  if (!api?.getBase?.() || !session?.userId || !session?.refreshToken) return;
+  if (!api?.getBase?.() || !session?.userId || !session?.refreshToken) {
+    return { status: "skipped" };
+  }
   const base = String(api.getBase()).replace(/\/+$/, "");
+  let res;
   try {
-    const res = await fetch(`${base}/api/auth/refresh`, {
+    res = await fetch(`${base}/api/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ userId: session.userId, refreshToken: session.refreshToken })
     });
-    if (!res.ok) return;
-    const body = await res.json();
-    if (!body?.accessToken) return;
-    api.setAccessToken(body.accessToken);
-    const now = Date.now();
-    setSession({
-      ...session,
-      accessToken: body.accessToken,
-      refreshToken: body.refreshToken || session.refreshToken,
-      lastActivityAt: now
-    });
-    syncSessionProfileSnapshotFromCache();
-  } catch (_e) {
-    /* API opcional */
+  } catch (_netErr) {
+    return { status: "network" };
   }
+  if (res.status === 401 || res.status === 403) {
+    return { status: "invalid", httpStatus: res.status };
+  }
+  if (!res.ok) return { status: "network", httpStatus: res.status };
+  let body = null;
+  try {
+    body = await res.json();
+  } catch (_jsonErr) {
+    return { status: "network" };
+  }
+  if (!body?.accessToken) return { status: "network" };
+  api.setAccessToken(body.accessToken);
+  const now = Date.now();
+  setSession({
+    ...session,
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken || session.refreshToken,
+    lastActivityAt: now
+  });
+  syncSessionProfileSnapshotFromCache();
+  return { status: "ok" };
 }
 
 function refreshClientSessionTokenIfDue() {
@@ -7857,7 +7879,8 @@ function transportTripsHtml() {
             </select>
           </label>
           <div class="toolbar trip-actions-toolbar">
-            <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}">${IC.eye} Ver detalle</button>
+            <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje">${IC.truck} Viaje</button>
+            <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud">${IC.eye} Solicitud</button>
             ${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}
             ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores">${IC.trash} Eliminar viaje</button>` : ""}
           </div>
@@ -7916,8 +7939,9 @@ function transportTripsHtml() {
             </dl>
             ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
             <div class="toolbar trip-ops-card-actions">
-              <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}">${IC.eye} Ver detalle</button>
-              ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura</button>` : ""}
+              <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje: vehiculo, conductor, horarios y standby">${IC.truck} Viaje</button>
+              <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud asociada">${IC.eye} Solicitud</button>
+              ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Generar factura PDF del viaje">${IC.file} Factura</button>` : ""}
             </div>
           </article>`;
         })
@@ -18028,7 +18052,25 @@ function initGlobalEvents() {
     renderPortalView();
   });
 
-  nodes.logout?.addEventListener("click", () => {
+  nodes.logout?.addEventListener("click", async () => {
+    /**
+     * Cierre de sesión completo: pedimos al servidor que invalide el refresh token
+     * (POST /portal/logout) ANTES de borrar la sesión local. Si no hay conexión o el
+     * servidor responde fuera de tiempo, igual seguimos con `clearSession()` para no
+     * dejar al usuario atrapado en el portal. El timeout corto evita que el botón
+     * "Cerrar sesión" se sienta colgado cuando el API está caído.
+     */
+    try {
+      const api = window.AntaresApi;
+      if (api?.getBase?.() && portalCanRefreshFromApi()) {
+        await Promise.race([
+          api.postJson("/portal/logout", {}),
+          new Promise((resolve) => setTimeout(resolve, 2500))
+        ]);
+      }
+    } catch (_e) {
+      /* best-effort: el clearSession local debe seguir aunque el server no responda. */
+    }
     clearSession();
     state.currentView = "dashboard";
     history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -19782,14 +19824,47 @@ void (async function bootApplicationFromDatabaseThenUi() {
     devWarn("renderPortal síncrono falló al arrancar:", err);
   }
 
-  /** Tras F5 el access JWT puede estar vencido; sin refresh /portal/bootstrap devuelve 401 y se vacía la proyección en RAM. */
+  /**
+   * Tras F5 el access JWT casi siempre está vencido (TTL corto). Renovamos antes de bootstrap.
+   * - Si el refresh es inválido (401/403) → la sesión local ya no sirve: limpiamos y vamos al sitio
+   *   público para que el usuario vuelva a iniciar sesión, en lugar de quedarse con el portal vacío
+   *   "sin conexión". Esto pasa cuando otra pestaña/dispositivo rotó el refresh o un admin cerró
+   *   sesiones.
+   * - Si es error de red (servidor caído, sin internet) → mantenemos la sesión y seguimos con caché;
+   *   la siguiente actividad reintentará.
+   */
+  let refreshOutcome = { status: "skipped" };
   try {
     const s0 = getSession();
     if (s0?.refreshToken && window.AntaresApi?.getBase?.()) {
-      await tryApiRefreshBridge();
+      refreshOutcome = (await tryApiRefreshBridge()) || { status: "skipped" };
     }
   } catch (_e) {
-    /* tryApiRefreshBridge ya tolera fallos */
+    refreshOutcome = { status: "network" };
+  }
+  if (refreshOutcome.status === "invalid") {
+    /** Refresh token persistido en BD ya no coincide: forzamos logout local y al sitio público. */
+    try {
+      clearSession();
+    } catch (_e) {
+      /* noop */
+    }
+    state.currentView = "dashboard";
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    try {
+      renderPortal();
+    } catch (_e) {
+      /* noop */
+    }
+    try {
+      notify(
+        "Tu sesion en el servidor expiro (otra pestana o dispositivo refresco el token). Vuelve a iniciar sesion.",
+        "info"
+      );
+    } catch (_e) {
+      /* noop */
+    }
+    return;
   }
   try {
     await startPortalBootstrapForInteractiveSession();
