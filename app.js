@@ -6265,13 +6265,62 @@ function hasUnsavedPortalFormData() {
   });
 }
 
-function applyStandbyCharge(request, actorName) {
-  const hoursRaw = prompt("Horas en standby:", "1");
-  if (!hoursRaw) return null;
-  const rateRaw = prompt("Valor por hora standby:", "50000");
-  if (!rateRaw) return null;
-  const hours = Math.max(1, parseNum(hoursRaw));
-  const rate = Math.max(0, parseNum(rateRaw));
+function requestStandbyChargeInput() {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    openEditModal({
+      title: "Registrar standby",
+      subtitle: "Define las horas y tarifa para este evento de espera.",
+      submitText: "Guardar standby",
+      fields: [
+        { name: "hours", label: `${IC.clock} Horas en standby`, type: "number", value: "1", min: "1", required: true },
+        { name: "rate", label: `${IC.coins} Valor por hora (COP)`, type: "number", value: "50000", min: "0", required: true }
+      ],
+      onSubmit: (form) => {
+        const hours = Math.max(1, parseNum(form.hours));
+        const rate = Math.max(0, parseNum(form.rate));
+        if (!Number.isFinite(hours) || hours <= 0) {
+          notify("Ingresa una cantidad valida de horas (minimo 1).", "error");
+          return false;
+        }
+        if (!Number.isFinite(rate) || rate < 0) {
+          notify("Ingresa una tarifa valida por hora.", "error");
+          return false;
+        }
+        settle({ hours, rate });
+        return true;
+      }
+    });
+    const modal = document.getElementById("crud-modal");
+    if (!modal) {
+      settle(null);
+      return;
+    }
+    const abort = () => settle(null);
+    const closeBtn = modal.querySelector("#crud-close");
+    const cancelBtn = modal.querySelector("#crud-cancel");
+    closeBtn?.addEventListener("click", abort, { once: true });
+    cancelBtn?.addEventListener("click", abort, { once: true });
+    modal.addEventListener(
+      "click",
+      (event) => {
+        if (event.target === modal) abort();
+      },
+      { once: true }
+    );
+  });
+}
+
+async function applyStandbyCharge(request, actorName) {
+  const input = await requestStandbyChargeInput();
+  if (!input) return null;
+  const hours = input.hours;
+  const rate = input.rate;
   const value = hours * rate;
   const currentTotal = parseNum(request.standbyChargeTotal);
   const event = {
@@ -6288,7 +6337,7 @@ function applyStandbyCharge(request, actorName) {
   };
 }
 
-function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
+async function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
   const requests = reqRead();
   const target = requests.find((request) => request.id === requestId);
   if (!target) return false;
@@ -6300,7 +6349,7 @@ function transitionRequestStatus(requestId, nextStatus, actorName = "Sistema") {
 
   let extra = {};
   if (nextStatus === STATUS.ESPERA_STANDBY) {
-    const standbyData = applyStandbyCharge(target, actorName);
+    const standbyData = await applyStandbyCharge(target, actorName);
     if (!standbyData) return false;
     extra = standbyData;
   }
@@ -7742,7 +7791,7 @@ function transportTripsHtml() {
         <div class="trip-actions-stack">
           <label class="trip-status-control">
             <span>${IC.activity} Estado operativo</span>
-            <select class="trip-status-select trip-status-select--${escapeAttr(slugStatus(currentStatus))}" data-action="trip-status" data-id="${r.id}">
+            <select class="trip-status-select trip-status-select--${escapeAttr(slugStatus(currentStatus))}" data-action="trip-status" data-id="${r.id}" data-current-status="${escapeAttr(String(currentStatus || ""))}">
               ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
             </select>
           </label>
@@ -14385,15 +14434,25 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='trip-status']").forEach((select) => {
-    select.addEventListener("change", () => {
+    select.addEventListener("change", async () => {
       const actor = currentUser();
+      const previousStatus = String(select.dataset.currentStatus || "");
       const selectedStatus = String(select.value || "");
       const nextClass = `trip-status-select--${slugStatus(selectedStatus)}`;
       [...select.classList]
         .filter((cls) => cls.startsWith("trip-status-select--"))
         .forEach((cls) => select.classList.remove(cls));
       select.classList.add(nextClass);
-      transitionRequestStatus(select.dataset.id, select.value, actor?.name || "Operación");
+      const changed = await transitionRequestStatus(select.dataset.id, select.value, actor?.name || "Operación");
+      if (!changed) {
+        const fallbackStatus = previousStatus || selectedStatus;
+        const fallbackClass = `trip-status-select--${slugStatus(fallbackStatus)}`;
+        select.value = fallbackStatus;
+        [...select.classList]
+          .filter((cls) => cls.startsWith("trip-status-select--"))
+          .forEach((cls) => select.classList.remove(cls));
+        select.classList.add(fallbackClass);
+      }
       renderPortalView();
     });
   });
