@@ -1270,7 +1270,7 @@ body[data-theme="light"] .lang-option.active {
   top: -0.8rem;
   font-size: 6rem;
   color: rgba(var(--primary-rgb), 0.08);
-  line-height: 1;
+  line-height: 1.2;
   font-family: Georgia, serif;
 }
 
@@ -2275,7 +2275,9 @@ tbody tr:last-child td { border-bottom: none; }
   font-weight: 700;
   line-height: 1;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  max-width: 100%;
 }
 
 .status-pretty {
@@ -3352,6 +3354,14 @@ body[data-theme="dark"] .modal-edit-section-title {
   padding: 0.5rem 0.72rem;
   min-height: 2.32rem;
   letter-spacing: 0.01em;
+  width: 100%;
+  max-width: 100%;
+}
+
+.trip-status-select option {
+  color: #0f172a;
+  background: #ffffff;
+  font-weight: 600;
 }
 
 .trip-status-select {
@@ -3416,6 +3426,10 @@ body[data-theme="dark"] .modal-edit-section-title {
   justify-content: flex-start;
   gap: 0.34rem;
   flex-wrap: wrap;
+}
+
+.trip-actions-stack {
+  width: 100%;
 }
 
 .trips-table-wrap {
@@ -3545,6 +3559,11 @@ body[data-theme="dark"] .trip-status-select--cancelada,
 body[data-theme="dark"] .trip-status-select--rechazada {
   border-color: #c35d5d;
   background: linear-gradient(135deg, #7e1f1f, #9f2a2a);
+}
+
+body[data-theme="dark"] .trip-status-select option {
+  color: #e2e8f0;
+  background: #0f172a;
 }
 
 @media (max-width: 1280px) {
@@ -10599,6 +10618,177 @@ body[data-theme="dark"] .auth-hub-sync-spinner {
   min-height: 7rem;
   width: 100%;
   max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, var(--line));
+  background: color-mix(in srgb, #ffffff 92%, var(--primary) 8%);
+  padding: 0.3rem;
+}
+
+.route-rate-clients-select:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.route-rate-clients-toolbar {
+  justify-content: flex-start;
+  gap: 0.4rem;
+}
+
+.route-rate-company-count-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  padding: 0.55rem 0.72rem;
+  background: color-mix(in srgb, #ffffff 85%, var(--brand-blue-soft) 15%);
+}
+
+.route-rate-company-count-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #1f4f8c;
+}
+
+.route-rate-company-count-value {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.route-rate-scope-help {
+  border-radius: 10px;
+  padding: 0.56rem 0.68rem;
+  border: 1px dashed color-mix(in srgb, var(--primary) 25%, var(--line));
+  background: color-mix(in srgb, #ffffff 84%, var(--brand-blue-soft) 16%);
+}
+
+.route-rates-table-wrap {
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, #ffffff 94%, var(--brand-blue-soft) 6%);
+}
+
+.route-rates-table tbody td {
+  vertical-align: middle;
+}
+
+.route-rate-route-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.route-rate-route-leg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.route-rate-route-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.route-rate-route-arrow {
+  font-size: 1.05rem;
+  color: var(--primary-dark);
+  font-weight: 800;
+}
+
+.route-rate-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.24rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.route-rate-scope-badge--all {
+  color: #1f4f8c;
+  background: color-mix(in srgb, #bfdbfe 58%, #ffffff 42%);
+  border: 1px solid #93c5fd;
+}
+
+.route-rate-scope-badge--specific {
+  color: #065f46;
+  background: color-mix(in srgb, #bbf7d0 62%, #ffffff 38%);
+  border: 1px solid #86efac;
+}
+
+.route-rate-client-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.route-rate-client-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--line));
+  background: color-mix(in srgb, #ffffff 88%, var(--brand-blue-soft) 12%);
+  color: #1f3550;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.2rem 0.54rem;
+}
+
+.route-rate-value {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.route-rate-actions {
+  gap: 0.34rem;
+  justify-content: flex-start;
+}
+
+body[data-theme="dark"] .route-rate-company-count-wrap,
+body[data-theme="dark"] .route-rate-scope-help,
+body[data-theme="dark"] .route-rates-table-wrap {
+  border-color: color-mix(in srgb, var(--primary) 35%, #233044);
+  background: color-mix(in srgb, #0f172a 84%, var(--primary) 16%);
+}
+
+body[data-theme="dark"] .route-rate-company-count-label {
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .route-rate-company-count-value,
+body[data-theme="dark"] .route-rate-value {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .route-rate-route-arrow {
+  color: #7dd3fc;
+}
+
+body[data-theme="dark"] .route-rate-scope-badge--all {
+  color: #bfdbfe;
+  border-color: #3b82f6;
+  background: color-mix(in srgb, #1d4ed8 28%, transparent);
+}
+
+body[data-theme="dark"] .route-rate-scope-badge--specific {
+  color: #bbf7d0;
+  border-color: #22c55e;
+  background: color-mix(in srgb, #15803d 30%, transparent);
+}
+
+body[data-theme="dark"] .route-rate-client-chip {
+  color: #dbeafe;
+  border-color: color-mix(in srgb, var(--primary) 40%, #243041);
+  background: color-mix(in srgb, #0f172a 70%, var(--primary) 30%);
+}
+
+body[data-theme="dark"] .route-rate-clients-select {
+  border-color: color-mix(in srgb, var(--primary) 35%, #2b3749);
+  background: color-mix(in srgb, #0f172a 85%, var(--primary) 15%);
 }
 
 body[data-theme="dark"] .auth-tab-btn.is-active {
