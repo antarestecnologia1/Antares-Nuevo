@@ -1200,6 +1200,91 @@ body[data-theme="light"] .lang-option.active {
   padding: 0.35rem 0.45rem;
 }
 
+/**
+ * Carrusel automático de logos de clientes (sección "Empresas que confían en
+ * nosotros"). Se duplica la imagen-strip 2 veces y se traslada el track
+ * -50% (= ancho de UNA copia) en bucle infinito. Resulta en un scroll
+ * continuo sin saltos. El máscara horizontal (mask-image) suaviza los
+ * bordes para que los logos parezcan "entrar" y "salir" en fade.
+ */
+.clients-strip {
+  margin: 1.4rem 0 1.6rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #ffffff 0%, #fbfdff 100%);
+  padding: 1.1rem 0;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 32px rgba(13, 63, 121, 0.05), 0 1px 2px rgba(13, 63, 121, 0.04);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+
+.clients-strip-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 0;
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+
+.clients-strip:hover .clients-strip-track {
+  animation-play-state: paused;
+}
+
+.clients-strip-image {
+  height: 70px;
+  width: auto;
+  max-width: none;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+  padding: 0 1.2rem;
+  box-sizing: content-box;
+  /* Filtro suave para que el strip se mezcle con el fondo claro */
+  filter: saturate(1.02);
+}
+
+@media (max-width: 1024px) {
+  .clients-strip-image {
+    height: 56px;
+    padding: 0 0.8rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .clients-strip-image {
+    height: 44px;
+    padding: 0 0.6rem;
+  }
+  .clients-strip-track {
+    animation-duration: 22s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clients-strip-track {
+    animation: none;
+    justify-content: center;
+    width: 100%;
+  }
+  .clients-strip-track .clients-strip-image:nth-child(n+2) {
+    display: none;
+  }
+}
+
+body[data-theme="dark"] .clients-strip {
+  background: linear-gradient(135deg, #0f1c2f 0%, #142640 100%);
+  border-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .clients-strip-image {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 0.45rem 1.2rem;
+}
+
 .logo-track {
   width: 100%;
   display: flex;

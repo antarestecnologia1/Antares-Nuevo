@@ -28,7 +28,7 @@
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&amp;family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260512-cards-unified-filters" />
+    <link rel="stylesheet" href="./styles.css?v=20260512-clients-marquee" />
     <script>
       // Site key del widget Turnstile (gestionado en panel Cloudflare → Turnstile).
       // Es público por diseño; el dominio queda atado a los hostnames del widget.
@@ -291,20 +291,17 @@
               priorizan puntualidad y conservacion de cadena de frio.
             </p>
           </div>
-          <div class="logo-marquee" aria-label="Empresas aliadas">
-            <div class="logo-track">
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba FloraExport SAS" /><span class="ally-name">FloraExport SAS</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Andes Bloom Group" /><span class="ally-name">Andes Bloom Group</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Verde Alto Trading" /><span class="ally-name">Verde Alto Trading</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Rosas del Norte" /><span class="ally-name">Rosas del Norte</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba BioFlora Logistics" /><span class="ally-name">BioFlora Logistics</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Cali Fresh Flowers" /><span class="ally-name">Cali Fresh Flowers</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba FloraExport SAS" /><span class="ally-name">FloraExport SAS</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Andes Bloom Group" /><span class="ally-name">Andes Bloom Group</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Verde Alto Trading" /><span class="ally-name">Verde Alto Trading</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Rosas del Norte" /><span class="ally-name">Rosas del Norte</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba BioFlora Logistics" /><span class="ally-name">BioFlora Logistics</span></article>
-              <article class="logo-pill"><img class="ally-logo" src="./client-logo-placeholder.svg" alt="Logo de prueba Cali Fresh Flowers" /><span class="ally-name">Cali Fresh Flowers</span></article>
+          <!--
+            Carrusel automático de clientes. Se duplica la tira de logos dos
+            veces dentro del track para lograr un loop sin "salto": al
+            trasladar el track -50% (un copia completa), la segunda copia
+            queda exactamente en la misma posición que la primera.
+            La animación se detiene al pasar el cursor (UX para leer logos).
+          -->
+          <div class="clients-strip" aria-label="Clientes que confían en nosotros">
+            <div class="clients-strip-track" aria-hidden="false">
+              <img class="clients-strip-image" src="./imagenes empresa/clientes-strip.png" alt="Clientes: CREG · LRG Solutions S.A.S · MEDIREZ S.A.S · Instituto Nacional de Cancerología · AMT Avaluos" loading="lazy" />
+              <img class="clients-strip-image" src="./imagenes empresa/clientes-strip.png" alt="" aria-hidden="true" loading="lazy" />
             </div>
           </div>
           <div class="grid-3 trusted-grid">
