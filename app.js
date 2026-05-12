@@ -1341,6 +1341,13 @@ let state = {
   requestsUi: {
     companyId: ""
   },
+  /**
+   * Filtros rápidos persistentes para los paneles operativos. Permiten
+   * mantener la selección del usuario al re-render (cambio de estado,
+   * edición, eliminación, etc.).
+   */
+  tripsFilter: "active",
+  requestsFilter: "all",
   createPanels: {},
   calendarFocus: null,
   calendarFilters: { driver: "", vehicle: "", status: "", kind: "" },
@@ -7875,96 +7882,95 @@ function transportTripsHtml() {
   const todayIso = colombiaTodayIsoDate();
   const todaysTrips = trips.filter((r) => requestPickupIsoDate(r) === todayIso).length;
   const departmentsOpts = departmentOptions();
-  const rows = trips
-    .map((r) => {
-      const currentStatus = r.status;
-      const transitions = [currentStatus, ...(STATUS_TRANSITIONS[currentStatus] || [])];
-      return `<tr>
-      <td><strong>${r.trip.tripNumber}</strong></td>
-      <td>${r.requestNumber || r.id}</td>
-      <td>${r.clientName}</td>
-      <td>${formatRoute(r)}<br><span class="muted">${r.cargoDescription || "-"} · $${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}</span></td>
-      <td>${r.trip.vehiclePlate}</td>
-      <td>${r.trip.driverName}<br><span class="muted">Asignado por: ${r.trip.assignedBy || r.approvedBy || "-"}</span></td>
-      <td>${fmtDate(r.trip.etaPickup)}</td>
-      <td>${prettyStatus(r.status, "trip")}${parseNum(r.standbyChargeTotal) > 0 ? `<br><span class="muted" style="font-size:0.78rem">Standby: $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}</span>` : ""}</td>
-      <td>
-        <div class="trip-actions-stack">
-          <label class="trip-status-control">
-            <span>${IC.activity} Estado operativo</span>
-            <select class="trip-status-select trip-status-select--${escapeAttr(slugStatus(currentStatus))}" data-action="trip-status" data-id="${r.id}" data-current-status="${escapeAttr(String(currentStatus || ""))}">
-              ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
-            </select>
-          </label>
-          <div class="toolbar trip-actions-toolbar">
-            <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje">${IC.truck} Viaje</button>
-            <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud">${IC.eye} Solicitud</button>
-            ${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}
-            ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores">${IC.trash} Eliminar viaje</button>` : ""}
-          </div>
-        </div>
-      </td>
-    </tr>`;
-    })
-    .join("");
-  const body = rows
-    ? `<div class="table-wrap trips-table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-    : emptyState("No hay viajes asignados.");
 
-  const opsTrips = trips
-    .filter((r) => activeTripStatuses().includes(r.status))
-    .sort((a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime())
-    .slice(0, 8);
-  const opsCards = opsTrips.length
-    ? `<div class="trip-ops-cards">${opsTrips
-        .map((r) => {
-          const standby = parseNum(r.standbyChargeTotal);
-          const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
-          const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
-          const statusSlug = slugStatus(r.status);
-          const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
-          const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
-          const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
-          const pickupLabel = fmtDate(r.trip?.etaPickup || "") || "Sin fecha";
-          const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
-          const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
-          return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
-            <header class="trip-ops-card-head">
-              <div class="trip-ops-card-head-info">
-                <p class="trip-ops-card-kicker">Viaje ${escapeHtml(String(r.trip?.tripNumber || "-"))} · Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
-                <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
-              </div>
-              <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "trip")}</span>
-            </header>
-            <div class="trip-ops-card-route">
-              <span class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
-                <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
-                <span class="trip-ops-card-route-label">Origen</span>
-                <strong>${escapeHtml(originCity)}</strong>
-              </span>
-              <span class="trip-ops-card-route-arrow" aria-hidden="true">→</span>
-              <span class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
-                <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
-                <span class="trip-ops-card-route-label">Destino</span>
-                <strong>${escapeHtml(destinationCity)}</strong>
-              </span>
-            </div>
-            <dl class="trip-ops-card-grid">
-              <div class="trip-ops-card-item"><dt>${IC.truck}<span>Camión</span></dt><dd title="${escapeAttr(plate)}">${escapeHtml(plate)}</dd></div>
-              <div class="trip-ops-card-item"><dt>${IC.user}<span>Conductor</span></dt><dd title="${escapeAttr(driverName)}">${escapeHtml(driverName)}</dd></div>
-              <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd title="${escapeAttr(pickupLabel)}">${escapeHtml(pickupLabel)}</dd></div>
-              <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Tarifa</span></dt><dd>${tripValueFmt}</dd></div>
-            </dl>
-            ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
-            <div class="toolbar trip-ops-card-actions">
-              <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje: vehiculo, conductor, horarios y standby">${IC.truck} Viaje</button>
-              <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud asociada">${IC.eye} Solicitud</button>
-              ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Generar factura PDF del viaje">${IC.file} Factura</button>` : ""}
-            </div>
-          </article>`;
-        })
-        .join("")}</div>`
-    : emptyState("No hay viajes en operación ahora.");
+  /**
+   * Filtros rápidos del módulo: dejamos una sola vista (tarjetas) reemplazando
+   * la antigua tabla densa. El usuario puede saltar entre "Activos", "Hoy",
+   * "Cerrados" y "Todos" sin perder contexto.
+   */
+  const filter = String(state?.tripsFilter || "active");
+  const filteredTrips = (() => {
+    if (filter === "today") return trips.filter((r) => requestPickupIsoDate(r) === todayIso);
+    if (filter === "closed") return trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status));
+    if (filter === "standby") return trips.filter((r) => parseNum(r.standbyChargeTotal) > 0);
+    if (filter === "all") return trips;
+    return trips.filter((r) => activeTripStatuses().includes(r.status));
+  })();
+  const sortedFilteredTrips = filteredTrips
+    .slice()
+    .sort((a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime());
+
+  const buildTripOpsCard = (r) => {
+    const standby = parseNum(r.standbyChargeTotal);
+    const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
+    const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
+    const statusSlug = slugStatus(r.status);
+    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
+    const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
+    const pickupLabel = fmtDate(r.trip?.etaPickup || "") || "Sin fecha";
+    const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
+    const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
+    const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
+    const statusSelectHtml = transitions.length > 1
+      ? `<label class="trip-status-control trip-ops-card-status-control">
+          <span>${IC.activity} Cambiar estado</span>
+          <select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${escapeAttr(String(r.id || ""))}" data-current-status="${escapeAttr(String(r.status || ""))}">
+            ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
+          </select>
+        </label>`
+      : "";
+    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
+      <header class="trip-ops-card-head">
+        <div class="trip-ops-card-head-info">
+          <p class="trip-ops-card-kicker">Viaje ${escapeHtml(String(r.trip?.tripNumber || "-"))} · Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
+          <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+        </div>
+        <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "trip")}</span>
+      </header>
+      <div class="trip-ops-card-route">
+        <span class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
+          <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+          <span class="trip-ops-card-route-label">Origen</span>
+          <strong>${escapeHtml(originCity)}</strong>
+        </span>
+        <span class="trip-ops-card-route-arrow" aria-hidden="true">→</span>
+        <span class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
+          <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+          <span class="trip-ops-card-route-label">Destino</span>
+          <strong>${escapeHtml(destinationCity)}</strong>
+        </span>
+      </div>
+      <dl class="trip-ops-card-grid">
+        <div class="trip-ops-card-item"><dt>${IC.truck}<span>Camión</span></dt><dd title="${escapeAttr(plate)}">${escapeHtml(plate)}</dd></div>
+        <div class="trip-ops-card-item"><dt>${IC.user}<span>Conductor</span></dt><dd title="${escapeAttr(driverName)}">${escapeHtml(driverName)}</dd></div>
+        <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd title="${escapeAttr(pickupLabel)}">${escapeHtml(pickupLabel)}</dd></div>
+        <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Tarifa</span></dt><dd>${tripValueFmt}</dd></div>
+      </dl>
+      ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
+      ${statusSelectHtml}
+      <div class="toolbar trip-ops-card-actions">
+        <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje: vehículo, conductor, horarios y standby">${IC.truck} Viaje</button>
+        <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud asociada">${IC.eye} Solicitud</button>
+        ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Generar factura PDF del viaje">${IC.file} Factura</button>` : ""}
+        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores: eliminar el viaje">${IC.trash} Eliminar</button>` : ""}
+      </div>
+    </article>`;
+  };
+
+  const filterPill = (key, label, count) =>
+    `<button type="button" class="ops-filter-pill${filter === key ? " is-active" : ""}" data-action="trips-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
+  const opsFiltersBar = `<div class="ops-filters-bar">
+    ${filterPill("active", "Activos", activeOps)}
+    ${filterPill("today", "Hoy", todaysTrips)}
+    ${filterPill("standby", "Standby", standbyTrips)}
+    ${filterPill("closed", "Cerrados", completedTrips)}
+    ${filterPill("all", "Todos", trips.length)}
+  </div>`;
+
+  const opsCards = sortedFilteredTrips.length
+    ? `${opsFiltersBar}<div class="trip-ops-cards">${sortedFilteredTrips.map(buildTripOpsCard).join("")}</div>`
+    : `${opsFiltersBar}${emptyState("No hay viajes para el filtro seleccionado.")}`;
 
   const formatRateRouteCell = (storageKey) => {
     const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
@@ -8143,7 +8149,7 @@ function transportTripsHtml() {
     ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
   </div>`;
 
-  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${opsTrips.length} viajes activos priorizados`, opsCards)}${actionGrid}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}`;
+  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}`;
 }
 
 function transportCalendarHtml() {
@@ -12852,11 +12858,24 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='request-company-filter']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    const apply = () => {
       const companyId = String(btn.dataset.companyId || "");
-      state.requestsUi = { ...(state.requestsUi || {}), companyId };
-      if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = companyId;
+      const isToggleOff = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "") === companyId;
+      const nextId = isToggleOff ? "" : companyId;
+      state.requestsUi = { ...(state.requestsUi || {}), companyId: nextId };
+      if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = nextId;
       renderPortalView();
+    };
+    btn.addEventListener("click", apply);
+    /**
+     * Accesibilidad: si el "card" (article role=button) recibe foco por
+     * teclado, Enter o Space deben activarlo igual que un botón.
+     */
+    btn.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        apply();
+      }
     });
   });
 
@@ -12864,6 +12883,30 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.requestsUi = { ...(state.requestsUi || {}), companyId: "" };
       if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = "";
+      renderPortalView();
+    });
+  });
+
+  /**
+   * Filtros rápidos del panel operativo de viajes. Persistimos la opción
+   * elegida en `state.tripsFilter` para que sobreviva al re-render local
+   * (cambio de estado, edición, etc.).
+   */
+  nodes.viewRoot.querySelectorAll("[data-action='trips-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const filterKey = String(btn.dataset.filter || "active");
+      state.tripsFilter = filterKey;
+      renderPortalView();
+    });
+  });
+
+  /**
+   * Filtros rápidos del panel operativo de solicitudes. Mismo patrón que viajes.
+   */
+  nodes.viewRoot.querySelectorAll("[data-action='requests-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const filterKey = String(btn.dataset.filter || "active");
+      state.requestsFilter = filterKey;
       renderPortalView();
     });
   });

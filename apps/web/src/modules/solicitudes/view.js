@@ -2,40 +2,78 @@
   if (!window.AppModules) window.AppModules = {};
   if (!window.AppModules.solicitudes) window.AppModules.solicitudes = {};
 
-  function requestRowsHtml(requests, user) {
-    return requests
-      .map((r) => {
-        const allowEdit = canClientManageRequest(r);
-        const trip = r.trip
-          ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
-          : '<span class="muted">-</span>';
-        return `<tr>
-          <td><strong>${r.requestNumber || r.id}</strong></td>
-          <td>${formatRoute(r)}<br><span class="muted">Creada por: ${r.requestedByName || r.clientName}</span></td>
-          <td>${prettyStatus(r.status, "request")}</td>
-          <td>${trip}</td>
-          <td><div class="toolbar">
-            <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
-            ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
-            ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
-            ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
-          </div></td>
-        </tr>`;
-      })
-      .join("");
+  /**
+   * Convierte una solicitud en una tarjeta moderna del panel operativo.
+   * Esta tarjeta es ahora la vista única del módulo: incluye todas las
+   * acciones (detalle, editar, cancelar, eliminar) — ya no hay tabla densa
+   * duplicando información.
+   */
+  function buildRequestOpsCard(r, user) {
+    const allowEdit = canClientManageRequest(r);
+    const isAdmin = user?.role === ROLES.ADMIN;
+    const companies = read(KEYS.companies, []);
+    const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
+    const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
+    const statusSlug = typeof slugStatus === "function" ? slugStatus(r.status) : String(r.status || "").replace(/\W+/g, "-").toLowerCase();
+    const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
+    const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
+    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupDate || "") || "Sin fecha";
+    const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
+    const weight = parseNum(r.weightKg).toLocaleString("es-CO");
+    const boxes = parseNum(r.boxes ?? r.boxesCount).toLocaleString("es-CO");
+    const insuredValue = parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO");
+    const requestedBy = String(r.requestedByName || "").trim();
+    const tripBadge = r.trip
+      ? `<p class="trip-ops-card-standby request-ops-card-trip"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))} · <span class="muted">${escapeHtml(String(r.trip.driverName || "-"))}</span></span></p>`
+      : "";
+    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)} request-ops-card" data-request-id="${escapeAttr(String(r.id || ""))}">
+      <header class="trip-ops-card-head">
+        <div class="trip-ops-card-head-info">
+          <p class="trip-ops-card-kicker">Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}${requestedBy ? ` · ${escapeHtml(requestedBy)}` : ""}</p>
+          <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+        </div>
+        <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span>
+      </header>
+      <div class="trip-ops-card-route">
+        <span class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
+          <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+          <span class="trip-ops-card-route-label">Origen</span>
+          <strong>${escapeHtml(originCity)}</strong>
+        </span>
+        <span class="trip-ops-card-route-arrow" aria-hidden="true">→</span>
+        <span class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
+          <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+          <span class="trip-ops-card-route-label">Destino</span>
+          <strong>${escapeHtml(destinationCity)}</strong>
+        </span>
+      </div>
+      <dl class="trip-ops-card-grid">
+        <div class="trip-ops-card-item"><dt>${IC.file}<span>Carga</span></dt><dd title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoLabel)}</dd></div>
+        <div class="trip-ops-card-item"><dt>${IC.scale}<span>Peso/Cajas</span></dt><dd>${weight} kg · ${boxes}</dd></div>
+        <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd>${escapeHtml(pickupLabel)}</dd></div>
+        <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Valor</span></dt><dd>$${insuredValue}</dd></div>
+      </dl>
+      ${tripBadge}
+      <div class="toolbar trip-ops-card-actions">
+        <button class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle completo de la solicitud">${IC.eye} Detalle</button>
+        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit" data-id="${escapeAttr(String(r.id || ""))}" title="Editar la solicitud">${IC.edit} Editar</button>` : ""}
+        ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${escapeAttr(String(r.id || ""))}" title="Cancelar la solicitud">${IC.x} Cancelar</button>` : ""}
+        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Solo administradores: eliminar definitivamente">${IC.trash} Eliminar</button>` : ""}
+      </div>
+    </article>`;
   }
 
   /**
-   * Panel operativo de solicitudes: replica el look de "Panel operativo de viajes" para
-   * que las solicitudes vigentes (pendientes, aprobadas, con viaje activo) se vean en
-   * tarjetas modernas — sin desbordes — antes de la tabla densa. Comparte estilos con
-   * `.trip-ops-card*` para mantener consistencia visual entre módulos.
+   * Renderiza el grid completo de solicitudes como tarjetas (vista única).
+   * @param {Array} requests lista ya filtrada
+   * @param {Object} user usuario actual
    */
   function requestOpsCardsHtml(requests, user) {
-    const activeStatuses = new Set([STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION]);
-    const tripActive = typeof activeTripStatuses === "function" ? new Set(activeTripStatuses()) : new Set();
-    const opsRequests = requests
-      .filter((r) => activeStatuses.has(r.status) || (r.trip && tripActive.has(r.status)))
+    if (!requests.length) {
+      return emptyState("No hay solicitudes para el filtro seleccionado.");
+    }
+    const sorted = requests
+      .slice()
       .sort((a, b) => {
         const ta = new Date(
           a?.trip?.etaPickup || a?.pickupDate || a?.createdAt || 0
@@ -43,65 +81,49 @@
         const tb = new Date(
           b?.trip?.etaPickup || b?.pickupDate || b?.createdAt || 0
         ).getTime();
-        return ta - tb;
-      })
-      .slice(0, 8);
-    if (!opsRequests.length) {
-      return emptyState("No hay solicitudes activas para mostrar en panel.");
+        return tb - ta; // Más recientes/próximas primero
+      });
+    return `<div class="trip-ops-cards request-ops-cards">${sorted.map((r) => buildRequestOpsCard(r, user)).join("")}</div>`;
+  }
+
+  /**
+   * Construye las pills de filtros rápidos sobre estado de la solicitud.
+   */
+  function requestFiltersBarHtml(allRequests, activeFilter) {
+    const tripActive = typeof activeTripStatuses === "function" ? new Set(activeTripStatuses()) : new Set();
+    const counts = {
+      all: allRequests.length,
+      pending: allRequests.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip).length,
+      active: allRequests.filter((r) => r.trip && tripActive.has(r.status)).length,
+      closed: allRequests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length,
+      cancelled: allRequests.filter((r) => [STATUS.CANCELADA, STATUS.RECHAZADA].includes(r.status)).length
+    };
+    const pill = (key, label, count) =>
+      `<button type="button" class="ops-filter-pill${activeFilter === key ? " is-active" : ""}" data-action="requests-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
+    return `<div class="ops-filters-bar">
+      ${pill("all", "Todas", counts.all)}
+      ${pill("pending", "Pendientes", counts.pending)}
+      ${pill("active", "En operación", counts.active)}
+      ${pill("closed", "Cerradas", counts.closed)}
+      ${pill("cancelled", "Canceladas", counts.cancelled)}
+    </div>`;
+  }
+
+  function applyRequestFilter(requests, filterKey) {
+    const tripActive = typeof activeTripStatuses === "function" ? new Set(activeTripStatuses()) : new Set();
+    switch (filterKey) {
+      case "pending":
+        return requests.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip);
+      case "active":
+        return requests.filter((r) => r.trip && tripActive.has(r.status));
+      case "closed":
+        return requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status));
+      case "cancelled":
+        return requests.filter((r) => [STATUS.CANCELADA, STATUS.RECHAZADA].includes(r.status));
+      case "all":
+      default:
+        return requests;
     }
-    const companies = read(KEYS.companies, []);
-    const cards = opsRequests
-      .map((r) => {
-        const allowEdit = canClientManageRequest(r);
-        const isAdmin = user?.role === ROLES.ADMIN;
-        const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
-        const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
-        const statusSlug = typeof slugStatus === "function" ? slugStatus(r.status) : String(r.status || "").replace(/\W+/g, "-").toLowerCase();
-        const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
-        const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
-        const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupDate || "") || "Sin fecha";
-        const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
-        const weight = parseNum(r.weightKg).toLocaleString("es-CO");
-        const boxes = parseNum(r.boxes ?? r.boxesCount).toLocaleString("es-CO");
-        const insuredValue = parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO");
-        const tripBadge = r.trip
-          ? `<p class="trip-ops-card-standby" style="background:linear-gradient(135deg, rgba(16,185,129,0.18), rgba(16,185,129,0.08));border-color:rgba(5,150,105,0.35);color:#0a6b3a">${IC.truck}<span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))}</span></p>`
-          : "";
-        return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-request-id="${escapeAttr(String(r.id || ""))}">
-          <header class="trip-ops-card-head">
-            <div class="trip-ops-card-head-info">
-              <p class="trip-ops-card-kicker">Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}${r.requestedByName ? ` · ${escapeHtml(String(r.requestedByName))}` : ""}</p>
-              <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
-            </div>
-            <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span>
-          </header>
-          <div class="trip-ops-card-route">
-            <span class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
-              <span class="trip-ops-card-route-label">Origen</span>
-              <strong>${escapeHtml(originCity)}</strong>
-            </span>
-            <span class="trip-ops-card-route-arrow" aria-hidden="true">→</span>
-            <span class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
-              <span class="trip-ops-card-route-label">Destino</span>
-              <strong>${escapeHtml(destinationCity)}</strong>
-            </span>
-          </div>
-          <dl class="trip-ops-card-grid">
-            <div class="trip-ops-card-item"><dt>${IC.file}<span>Carga</span></dt><dd title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoLabel)}</dd></div>
-            <div class="trip-ops-card-item"><dt>${IC.scale}<span>Peso/Cajas</span></dt><dd>${weight} kg · ${boxes}</dd></div>
-            <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd>${escapeHtml(pickupLabel)}</dd></div>
-            <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Valor</span></dt><dd>$${insuredValue}</dd></div>
-          </dl>
-          ${tripBadge}
-          <div class="toolbar trip-ops-card-actions">
-            <button class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle completo de la solicitud">${IC.eye} Detalle</button>
-            ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit" data-id="${escapeAttr(String(r.id || ""))}" title="Editar la solicitud">${IC.edit} Editar</button>` : ""}
-            ${isAdmin && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${escapeAttr(String(r.id || ""))}" title="Cancelar la solicitud">${IC.x} Cancelar</button>` : ""}
-          </div>
-        </article>`;
-      })
-      .join("");
-    return `<div class="trip-ops-cards request-ops-cards">${cards}</div>`;
   }
 
   function requestAdminCompanyHubHtml(requests, selectedCompanyId) {
@@ -125,8 +147,14 @@
           [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
         ).length;
         const active = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+        const closed = list.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
         const isSelected = String(selectedCompanyId || "") === String(companyId);
-        return `<article class="request-company-hub-card${isSelected ? " is-active" : ""}">
+        /**
+         * Toda el área del card (logo + nombre + métricas) actúa como botón
+         * — `data-action="request-company-filter"`. Esto cumple con el pedido
+         * del usuario: hacer click en el logo del cliente filtra al instante.
+         */
+        return `<article class="request-company-hub-card${isSelected ? " is-active" : ""}" data-action="request-company-filter" data-company-id="${escapeAttr(companyId)}" role="button" tabindex="0" aria-pressed="${isSelected ? "true" : "false"}" title="Ver solo solicitudes de ${escapeAttr(name)}">
           <header>
             <div class="request-company-hub-head">${logoHtml}<h4>${escapeHtml(name)}</h4></div>
             <span class="status ${pending ? "status-pendiente" : "status-viaje_asignado"}">${pending ? `${pending} pendientes` : "Al día"}</span>
@@ -134,12 +162,9 @@
           <div class="request-company-hub-metrics">
             <span><strong>${list.length}</strong><small>Solicitudes</small></span>
             <span><strong>${active}</strong><small>En operación</small></span>
+            <span><strong>${closed}</strong><small>Cerradas</small></span>
           </div>
-          <div class="toolbar">
-            <button class="btn btn-sm ${isSelected ? "btn-primary" : "btn-outline"}" data-action="request-company-filter" data-company-id="${escapeAttr(companyId)}">
-              ${IC.briefcase} ${isSelected ? "Viendo" : "Ver"}
-            </button>
-          </div>
+          <p class="request-company-hub-cta">${isSelected ? `${IC.check} Filtro activo` : `${IC.eye} Click para filtrar`}</p>
         </article>`;
       })
       .join("");
@@ -218,50 +243,38 @@
 
   function requestListClientHtml(user) {
     const requests = getVisibleRequestsForUser(user);
+    /**
+     * Lectura defensiva de state.requestsFilter: ambos scripts comparten el
+     * mismo script-scope (classic <script>), pero protegemos con try/catch
+     * por si en algún flujo se llama antes de inicializar el state.
+     */
+    let activeFilter = "all";
+    try { activeFilter = String((typeof state !== "undefined" && state?.requestsFilter) || "all"); } catch (_) { /* noop */ }
     if (user?.role === ROLES.ADMIN) {
       const selectedCompanyId = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "");
       const companies = read(KEYS.companies, []);
       const selectedCompany = companies.find((c) => String(c.id) === selectedCompanyId) || null;
-      const filtered = selectedCompanyId
+      const byCompany = selectedCompanyId
         ? requests.filter((r) => String(r.clientCompanyId || "") === selectedCompanyId)
         : requests;
-      const rows = requestRowsHtml(filtered, user);
+      const afterFilter = applyRequestFilter(byCompany, activeFilter);
       const hub = requestAdminCompanyHubHtml(requests, selectedCompanyId);
-      const opsCards = requestOpsCardsHtml(filtered, user);
+      const filtersBar = requestFiltersBarHtml(byCompany, activeFilter);
+      const opsCards = requestOpsCardsHtml(afterFilter, user);
       const headToolbar = `<div class="toolbar request-admin-toolbar">
-        <span class="muted">${selectedCompany ? `Empresa seleccionada: ${escapeHtml(selectedCompany.name || "Cliente")}` : "Vista general multiempresa"}</span>
-        <button class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Ver todas</button>
+        <span class="request-admin-toolbar-status">${selectedCompany ? `${IC.briefcase} Filtrando por: <strong>${escapeHtml(selectedCompany.name || "Cliente")}</strong>` : `${IC.briefcase} Vista general multiempresa`}</span>
+        <button class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Ver todas las empresas</button>
       </div>`;
-      const tableBody = rows
-        ? `${headToolbar}<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-        : emptyState(selectedCompany ? "No hay solicitudes para esta empresa." : "Aun no hay solicitudes creadas.");
-      const opsPanel = pcardWrap(
-        "activity",
-        "Panel operativo de solicitudes",
-        `${Math.min(filtered.length, 8)} solicitudes priorizadas`,
-        opsCards
-      );
-      const tablePanel = pcardWrap(
-        "file",
-        selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes",
-        `${filtered.length} registradas`,
-        tableBody
-      );
-      return `${pcardWrap("briefcase", "Panel de solicitudes por cliente", `${requests.length} solicitudes totales`, hub)}${opsPanel}${tablePanel}`;
+      const opsTitle = selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes";
+      const opsSubtitle = `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}`;
+      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${opsCards}`);
+      return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
     }
-    const rows = requestRowsHtml(requests, user);
-    const opsCards = requestOpsCardsHtml(requests, user);
-    const tableBody = rows
-      ? `<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
-      : emptyState("Aun no hay solicitudes creadas.");
-    const opsPanel = pcardWrap(
-      "activity",
-      "Panel operativo de solicitudes",
-      `${Math.min(requests.length, 8)} solicitudes priorizadas`,
-      opsCards
-    );
-    const tablePanel = pcardWrap("file", "Mis solicitudes", requests.length + " registradas", tableBody);
-    return `${opsPanel}${tablePanel}`;
+    const filtered = applyRequestFilter(requests, activeFilter);
+    const filtersBar = requestFiltersBarHtml(requests, activeFilter);
+    const opsCards = requestOpsCardsHtml(filtered, user);
+    const opsPanel = pcardWrap("activity", "Mis solicitudes", `${filtered.length} de ${requests.length} registradas`, `${filtersBar}${opsCards}`);
+    return opsPanel;
   }
 
   window.AppModules.solicitudes.requestFormHtml = requestFormHtml;

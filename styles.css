@@ -3648,6 +3648,13 @@ body[data-theme="dark"] .modal-edit-section-title {
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   min-width: 0;
   overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+}
+
+.request-company-hub-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
 }
 
 .request-company-hub-card::before {
@@ -3734,8 +3741,38 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 .request-company-hub-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.request-company-hub-cta {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 10px;
+  border: 1px dashed color-mix(in srgb, var(--primary) 28%, var(--line));
+  background: color-mix(in srgb, var(--primary) 7%, #ffffff);
+  color: var(--primary-dark);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: center;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.request-company-hub-card.is-active .request-company-hub-cta {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #ffffff;
+  border-color: transparent;
+  border-style: solid;
+}
+
+.request-company-hub-cta svg,
+.request-company-hub-cta .btn-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .request-company-hub-metrics span {
@@ -3771,6 +3808,194 @@ body[data-theme="dark"] .modal-edit-section-title {
   .request-company-hub-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/**
+ * Barra de filtros rápidos: pills compactas con badge de count, usadas en
+ * "Panel operativo de viajes" y "Panel operativo de solicitudes".
+ * Comparten look para mantener coherencia entre módulos.
+ */
+.ops-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.9rem;
+  padding: 0.3rem 0;
+  align-items: center;
+}
+
+.ops-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  background: color-mix(in srgb, #ffffff 92%, var(--primary) 8%);
+  color: var(--primary-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+  white-space: nowrap;
+}
+
+.ops-filter-pill:hover {
+  border-color: color-mix(in srgb, var(--primary) 44%, var(--line));
+  background: color-mix(in srgb, #ffffff 82%, var(--primary) 18%);
+}
+
+.ops-filter-pill:active {
+  transform: scale(0.97);
+}
+
+.ops-filter-pill strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 14%, #ffffff);
+  color: var(--primary-deeper);
+  font-size: 0.74rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-filter-pill.is-active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.32);
+}
+
+.ops-filter-pill.is-active strong {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+body[data-theme="dark"] .ops-filter-pill {
+  background: color-mix(in srgb, var(--primary) 14%, #0f172a);
+  color: #dbeafe;
+  border-color: color-mix(in srgb, var(--primary) 28%, #2a3f56);
+}
+
+body[data-theme="dark"] .ops-filter-pill:hover {
+  background: color-mix(in srgb, var(--primary) 28%, #0f172a);
+  border-color: color-mix(in srgb, var(--primary) 44%, #2a3f56);
+}
+
+body[data-theme="dark"] .ops-filter-pill strong {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e0ecff;
+}
+
+body[data-theme="dark"] .ops-filter-pill.is-active strong {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/**
+ * Toolbar superior del admin en módulo Solicitudes: muestra contexto de
+ * filtro por empresa + botón de limpiar. Es la barra que aparece justo
+ * encima de los filtros de estado cuando se selecciona una empresa.
+ */
+.request-admin-toolbar {
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 7%, #ffffff), color-mix(in srgb, var(--primary) 14%, #ffffff));
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  margin-bottom: 0.7rem;
+}
+
+.request-admin-toolbar-status {
+  font-size: 0.86rem;
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.request-admin-toolbar-status strong {
+  color: var(--primary-deeper);
+  font-weight: 800;
+}
+
+body[data-theme="dark"] .request-admin-toolbar {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 22%, #0f172a), color-mix(in srgb, var(--primary) 12%, #0f172a));
+  border-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .request-admin-toolbar-status {
+  color: #dbeafe;
+}
+
+/**
+ * Tarjeta de solicitud: hereda el look de trip-ops-card pero con un acento
+ * más cálido en la cabecera y mejor jerarquía del bloque de viaje asociado.
+ */
+.request-ops-card .request-ops-card-trip {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.08));
+  border-color: rgba(5, 150, 105, 0.35);
+  color: #0a6b3a;
+  font-weight: 600;
+}
+
+.request-ops-card .request-ops-card-trip-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(5, 150, 105, 0.16);
+  color: #047857;
+  flex-shrink: 0;
+}
+
+.request-ops-card .request-ops-card-trip strong {
+  color: #064c2d;
+  font-weight: 800;
+}
+
+body[data-theme="dark"] .request-ops-card .request-ops-card-trip {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(16, 185, 129, 0.08));
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
+  color: #a7f3d0;
+}
+
+/**
+ * Select de cambio de estado dentro de trip-ops-card: queda ligeramente
+ * destacado (label + select de 100% ancho).
+ */
+.trip-ops-card-status-control {
+  margin-top: 0.1rem;
+}
+
+.trip-ops-card-status-control > span {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.trip-ops-card-status-control select {
+  width: 100%;
 }
 
 /**
