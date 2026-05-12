@@ -6287,8 +6287,22 @@ function requestStandbyChargeInput() {
       subtitle: "Define las horas y tarifa para este evento de espera.",
       submitText: "Guardar standby",
       fields: [
-        { name: "hours", label: `${IC.clock} Horas en standby`, type: "number", value: "1", min: "1", required: true },
-        { name: "rate", label: `${IC.coins} Valor por hora (COP)`, type: "number", value: "50000", min: "0", required: true }
+        {
+          name: "hours",
+          labelHtml: fieldLabel(IC.clock, "Horas en standby", { required: true }),
+          type: "number",
+          value: "1",
+          min: "1",
+          required: true
+        },
+        {
+          name: "rate",
+          labelHtml: fieldLabel(IC.dollar || IC.file, "Valor por hora (COP)", { required: true }),
+          type: "number",
+          value: "50000",
+          min: "0",
+          required: true
+        }
       ],
       onSubmit: (form) => {
         const hours = Math.max(1, parseNum(form.hours));
@@ -8386,6 +8400,9 @@ function adminUsersHtml(current) {
       c.email
         ? `${IC.mail} ${escapeHtml(String(c.email))}`
         : `<span class="muted">${IC.mail} Sin correo</span>`,
+      c.logoUrl
+        ? `${IC.check} Logo configurado`
+        : `<span class="muted">${IC.upload} Sin logo</span>`,
       `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
     ];
     const kindForUi =
@@ -18092,6 +18109,10 @@ function bindExtendedViewEditHandlers() {
       }
       const usersCount = read(KEYS.users, []).filter((u) => String(u.companyId || "") === String(c.id)).length;
       const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
+      const logoUrl = String(c.logoUrl || "").trim();
+      const logoBlock = logoUrl
+        ? `<div class="company-logo-preview-wrap"><span class="company-logo-preview"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(String(c.name || "Empresa"))}" loading="lazy" /></span><p class="muted">Logo corporativo registrado</p></div>`
+        : `<div class="company-logo-preview-wrap"><span class="company-logo-preview company-logo-preview--fallback" aria-hidden="true">${escapeHtml(String(c.name || "E").charAt(0).toUpperCase())}</span><p class="muted">Sin logo cargado</p></div>`;
       const sections = [
         {
           icon: "briefcase",
@@ -18102,6 +18123,11 @@ function bindExtendedViewEditHandlers() {
             ["Tipo", escapeHtml(String(companyKindLabel(c.companyKind) || c.companyKind || "-"))],
             ["Estado", isCompanyRecordActive(c) ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>']
           ])
+        },
+        {
+          icon: "upload",
+          title: "Imagen de marca",
+          rows: renderDetailRows([["Logo", logoBlock]])
         },
         {
           icon: "mapPin",
