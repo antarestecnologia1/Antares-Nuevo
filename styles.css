@@ -3733,6 +3733,75 @@ body[data-theme="dark"] .modal-edit-section-title {
   font-weight: 800;
 }
 
+.trip-ops-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 0.75rem;
+}
+
+.trip-ops-card {
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--line));
+  border-radius: 14px;
+  padding: 0.72rem;
+  background: linear-gradient(145deg, rgba(var(--primary-rgb), 0.09), rgba(255, 255, 255, 0.96));
+  display: grid;
+  gap: 0.55rem;
+}
+
+.trip-ops-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.trip-ops-card-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: #335d8e;
+}
+
+.trip-ops-card-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #0d3f79;
+}
+
+.trip-ops-card-status {
+  max-width: 11rem;
+}
+
+.trip-ops-card-route {
+  margin: 0;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.trip-ops-card-grid {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.trip-ops-card-grid span {
+  font-size: 0.79rem;
+  color: var(--text-main);
+}
+
+.trip-ops-card-standby {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #8a4b00;
+}
+
+.trip-ops-card-actions {
+  justify-content: flex-start;
+  gap: 0.42rem;
+}
+
 .company-logo-preview-wrap {
   display: grid;
   justify-items: start;
@@ -12823,6 +12892,24 @@ body[data-theme="dark"] .notif-card-unread {
   box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
 }
 
+#form-admin-user-edit .form-section-grid > label {
+  min-height: 100%;
+}
+
+#form-admin-user-edit .form-section-grid input,
+#form-admin-user-edit .form-section-grid select {
+  min-height: 2.35rem;
+}
+
+#form-admin-user-edit .auth-password-row {
+  align-items: stretch;
+}
+
+#form-admin-user-edit .auth-password-row .btn {
+  min-height: 2.5rem;
+  white-space: nowrap;
+}
+
 .form-section-blue {
   background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.09), rgba(var(--primary-rgb), 0.04));
   border-color: rgba(var(--primary-rgb), 0.28);
@@ -13762,6 +13849,23 @@ body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody td:f
 
 body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody td:last-child {
   border-right-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .trip-ops-card {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 16%, #0f172a), #111c2b);
+  border-color: color-mix(in srgb, var(--primary) 34%, #2a3f56);
+}
+
+body[data-theme="dark"] .trip-ops-card-kicker {
+  color: #9fc3e6;
+}
+
+body[data-theme="dark"] .trip-ops-card-head h4 {
+  color: #dbeafe;
+}
+
+body[data-theme="dark"] .trip-ops-card-grid span {
+  color: #d0e4ff;
 }
 
 /* Modo portal sin scroll lateral: tablas y tarjetas fluidas */

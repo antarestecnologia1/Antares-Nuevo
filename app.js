@@ -7821,6 +7821,10 @@ function transportTripsHtml() {
   const pendingExpired = pendingRaw.filter((r) => !isRequestPickupSameDayOrFuture(r));
   const trips = reqRead().filter((r) => r.trip);
   const activeOps = trips.filter((r) => activeTripStatuses().includes(r.status)).length;
+  const completedTrips = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+  const standbyTrips = trips.filter((r) => parseNum(r.standbyChargeTotal) > 0).length;
+  const todayIso = colombiaTodayIsoDate();
+  const todaysTrips = trips.filter((r) => requestPickupIsoDate(r) === todayIso).length;
   const departmentsOpts = departmentOptions();
   const rows = trips
     .map((r) => {
@@ -7856,6 +7860,39 @@ function transportTripsHtml() {
   const body = rows
     ? `<div class="table-wrap trips-table-wrap"><table><thead><tr><th>Viaje</th><th>Solicitud</th><th>Cliente</th><th>Ruta y carga</th><th>Camion</th><th>Conductor</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay viajes asignados.");
+
+  const opsTrips = trips
+    .filter((r) => activeTripStatuses().includes(r.status))
+    .sort((a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime())
+    .slice(0, 8);
+  const opsCards = opsTrips.length
+    ? `<div class="trip-ops-cards">${opsTrips
+        .map((r) => {
+          const standby = parseNum(r.standbyChargeTotal);
+          return `<article class="trip-ops-card">
+            <header class="trip-ops-card-head">
+              <div>
+                <p class="trip-ops-card-kicker">${escapeHtml(String(r.trip?.tripNumber || "-"))} · ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
+                <h4>${escapeHtml(String(r.clientName || "Cliente"))}</h4>
+              </div>
+              <span class="trip-ops-card-status">${prettyStatus(r.status, "trip")}</span>
+            </header>
+            <p class="trip-ops-card-route">${IC.mapPin}<span>${escapeHtml(formatRoute(r))}</span></p>
+            <div class="trip-ops-card-grid">
+              <span><strong>Camión:</strong> ${escapeHtml(String(r.trip?.vehiclePlate || "-"))}</span>
+              <span><strong>Conductor:</strong> ${escapeHtml(String(r.trip?.driverName || "-"))}</span>
+              <span><strong>Recogida:</strong> ${escapeHtml(fmtDate(r.trip?.etaPickup || ""))}</span>
+              <span><strong>Tarifa:</strong> $${parseNum(r.tripValue || 0).toLocaleString("es-CO")}</span>
+            </div>
+            ${standby > 0 ? `<p class="trip-ops-card-standby">Standby acumulado: $${standby.toLocaleString("es-CO")}</p>` : ""}
+            <div class="toolbar trip-ops-card-actions">
+              <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}">${IC.eye} Ver detalle</button>
+              ${[STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status) ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}">${IC.file} Factura PDF</button>` : ""}
+            </div>
+          </article>`;
+        })
+        .join("")}</div>`
+    : emptyState("No hay viajes en operación ahora.");
 
   const formatRateRouteCell = (storageKey) => {
     const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
@@ -8020,7 +8057,10 @@ function transportTripsHtml() {
       <div class="fleet-hero-metrics">
         <div class="fleet-hero-metric"><span>Viajes</span><strong>${trips.length}</strong></div>
         <div class="fleet-hero-metric"><span>En operacion</span><strong>${activeOps}</strong></div>
+        <div class="fleet-hero-metric"><span>Programados hoy</span><strong>${todaysTrips}</strong></div>
+        <div class="fleet-hero-metric"><span>Completados</span><strong>${completedTrips}</strong></div>
         <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Sin asignar</span><strong>${pendingForTrip.length}</strong></div>
+        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Con standby</span><strong>${standbyTrips}</strong></div>
         <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Pendientes vencidas</span><strong>${pendingExpired.length}</strong></div>
         <div class="fleet-hero-metric"><span>Tarifas trayecto</span><strong>${rateEntries.length}</strong></div>
       </div>
@@ -8031,7 +8071,7 @@ function transportTripsHtml() {
     ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
   </div>`;
 
-  return `${heroStrip}${actionGrid}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}`;
+  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${opsTrips.length} viajes activos priorizados`, opsCards)}${actionGrid}${pcardWrap("compass", "Viajes operativos", `${trips.length} viajes`, body)}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}`;
 }
 
 function transportCalendarHtml() {
@@ -8690,7 +8730,7 @@ function adminUsersHtml(current) {
       <legend>${IC.mail} Acceso y rol</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" value="${escapeAttr(String(editingUser.email || ""))}" required autocomplete="email" /></label>
-        <label>${fieldLabel(IC.lock, "Contraseña")}
+        <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field auth-password-row">
             <div class="auth-input-row auth-input-row--grow">
               <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
@@ -12657,6 +12697,20 @@ function bindDynamicEvents() {
       nodes.viewRoot.addEventListener("change", portalNonAdminRestrictedCaptureChange, true);
     }
   }
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-password']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetForm = String(btn.dataset.target || "");
+      let input = null;
+      if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
+      else if (targetForm === "admin-edit") input = document.querySelector("#form-admin-user-edit input[name='password']");
+      else if (targetForm === "register") input = document.querySelector("#form-register input[name='password']");
+      if (!input) return;
+      const visible = input.type === "text";
+      input.type = visible ? "password" : "text";
+      btn.textContent = `${IC.eye} ${visible ? "Mostrar" : "Ocultar"}`;
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-create-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
