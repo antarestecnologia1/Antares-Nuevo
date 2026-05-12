@@ -898,6 +898,23 @@ export class PortalService implements OnModuleInit {
     return { ok: true, userId: tid, emailUpdated: Boolean(email), passwordUpdated: Boolean(password) };
   }
 
+  async adminClearUserSessions(actorUserId: string, actorRole: JwtRole, targetUserId?: string) {
+    void actorUserId;
+    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    const tid = String(targetUserId || "").trim();
+    if (tid && !PG_UUID_V4_RE.test(tid)) throw new BadRequestException("Usuario objetivo inválido.");
+
+    if (tid) {
+      await this.pool.query(`DELETE FROM sesiones_usuario WHERE id_usuario = $1::uuid`, [tid]);
+      await this.pool.query(`UPDATE usuarios SET refresh_token_hash = NULL WHERE id = $1::uuid`, [tid]);
+      return { ok: true, scope: "user", userId: tid };
+    }
+
+    await this.pool.query(`DELETE FROM sesiones_usuario`);
+    await this.pool.query(`UPDATE usuarios SET refresh_token_hash = NULL WHERE refresh_token_hash IS NOT NULL`);
+    return { ok: true, scope: "all" };
+  }
+
   async adminDeleteUser(actorUserId: string, actorRole: JwtRole, targetUserId: string) {
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
     const tid = String(targetUserId || "").trim();

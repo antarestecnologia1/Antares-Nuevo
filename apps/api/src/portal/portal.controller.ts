@@ -8,6 +8,7 @@ import { AdminVehicleDeleteDto } from "./dto/admin-vehicle-delete.dto";
 import { AdminDriverDeleteDto } from "./dto/admin-driver-delete.dto";
 import { AdminClearTripDto } from "./dto/admin-clear-trip.dto";
 import { AdminEmployeeDeleteDto } from "./dto/admin-employee-delete.dto";
+import { AdminClearUserSessionsDto } from "./dto/admin-clear-user-sessions.dto";
 import { AdminUserCredentialsDto } from "./dto/admin-user-credentials.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
@@ -87,6 +88,12 @@ export class PortalController {
       dto.email,
       dto.password
     );
+  }
+
+  /** Solo admin: finaliza sesiones (global o por usuario). */
+  @Post("admin-clear-user-sessions")
+  adminClearUserSessions(@Req() req: { user: ReqUser }, @Body() dto: AdminClearUserSessionsDto) {
+    return this.portal.adminClearUserSessions(req.user.userId, req.user.role, dto.userId);
   }
 
   /** Solo admin: elimina usuario si no tiene referencias operativas críticas. */

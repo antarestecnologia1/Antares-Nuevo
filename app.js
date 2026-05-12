@@ -5360,6 +5360,7 @@ function bindAuthForms() {
       let input = null;
       if (targetForm === "register") input = register?.querySelector("input[name='password']");
       else if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
+      else if (targetForm === "admin-edit") input = document.querySelector("#form-admin-user-edit input[name='password']");
       else if (targetForm === "recover-complete")
         input = document.querySelector("#form-recover-complete input[name='password']");
       else if (targetForm === "recover-complete-c")
@@ -8689,7 +8690,15 @@ function adminUsersHtml(current) {
       <legend>${IC.mail} Acceso y rol</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.mail, "Correo")}<input type="email" name="email" value="${escapeAttr(String(editingUser.email || ""))}" required autocomplete="email" /></label>
-        <label>${fieldLabel(IC.lock, "Contraseña")}<input type="password" name="password" placeholder="Dejar vacío para conservar" autocomplete="new-password" /></label>
+        <label>${fieldLabel(IC.lock, "Contraseña")}
+          <div class="password-field auth-password-row">
+            <div class="auth-input-row auth-input-row--grow">
+              <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+              <input type="password" name="password" placeholder="Dejar vacío para conservar" autocomplete="new-password" />
+            </div>
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-edit">${IC.eye} Mostrar</button>
+          </div>
+        </label>
         <label>${fieldLabel(IC.shield, "Rol")}
           <select name="role" required>
             <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
@@ -8841,6 +8850,7 @@ function adminUsersHtml(current) {
     <div class="toolbar" style="justify-content:flex-start;gap:0.45rem;margin-bottom:0.65rem">
       <span class="status status-viaje_asignado">Activas: ${activeSessions}</span>
       <span class="status status-pendiente">Expiradas: ${expiredSessions}</span>
+      <button type="button" class="btn btn-sm btn-outline" data-action="clear-user-sessions-all">${IC.x} Finalizar sesiones (raíz)</button>
       ${state.adminUserSessionsLoading ? `<span class="muted">Sincronizando...</span>` : ""}
       ${state.adminUserSessionsError ? `<span class="status status-rechazada">${escapeHtml(String(state.adminUserSessionsError))}</span>` : ""}
     </div>`;
@@ -12744,6 +12754,36 @@ function bindDynamicEvents() {
           state.adminUserSessionsLoading = false;
           renderPortalView();
         });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='clear-user-sessions-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
+      openConfirmModal({
+        title: "Finalizar sesiones",
+        message:
+          "Se cerrarán las sesiones de usuarios desde el módulo raíz. Los usuarios deberán iniciar sesión nuevamente.",
+        confirmText: "Finalizar sesiones",
+        onConfirm: async () => {
+          try {
+            await postPortalAuthorized("/portal/admin-clear-user-sessions", {});
+          } catch (err) {
+            notify(String(err?.message || "No fue posible finalizar sesiones en el servidor."), "error");
+            return;
+          }
+          notify("Sesiones finalizadas correctamente.", "success");
+          state.adminUserSessionsLoading = true;
+          state.adminUserSessionsError = null;
+          renderPortalView();
+          void refreshAdminUserSessionsFromApi()
+            .catch(() => {})
+            .finally(() => {
+              state.adminUserSessionsLoading = false;
+              renderPortalView();
+            });
+        }
+      });
     });
   });
 
