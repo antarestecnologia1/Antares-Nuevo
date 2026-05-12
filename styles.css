@@ -3438,13 +3438,18 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 .trip-actions-toolbar {
   justify-content: flex-start;
-  gap: 0.34rem;
+  gap: 0.46rem;
   flex-wrap: wrap;
+}
+
+.trip-actions-toolbar .btn {
+  border-radius: 10px;
 }
 
 .trip-actions-stack {
   width: 100%;
   min-width: 11.8rem;
+  gap: 0.62rem;
 }
 
 .trips-table-wrap {
@@ -3457,7 +3462,9 @@ body[data-theme="dark"] .modal-edit-section-title {
   width: 100%;
   min-width: 74rem;
   table-layout: auto;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  border-collapse: separate;
+  border-spacing: 0 0.4rem;
 }
 
 .trips-table-wrap table thead th,
@@ -3465,7 +3472,45 @@ body[data-theme="dark"] .modal-edit-section-title {
   white-space: normal;
   word-break: normal;
   overflow-wrap: anywhere;
-  padding: 0.55rem 0.48rem;
+  padding: 0.72rem 0.62rem;
+}
+
+.trips-table-wrap table thead th {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #3f5f82;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.trips-table-wrap table tbody tr {
+  background: color-mix(in srgb, #ffffff 92%, var(--brand-blue-soft) 8%);
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.08);
+}
+
+.trips-table-wrap table tbody tr td:first-child {
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.trips-table-wrap table tbody tr td:last-child {
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.trips-table-wrap table tbody td {
+  border-top: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+.trips-table-wrap table tbody td:first-child {
+  border-left: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+.trips-table-wrap table tbody td:last-child {
+  border-right: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
 }
 
 .trips-table-wrap table thead th:nth-child(8),
@@ -3590,6 +3635,29 @@ body[data-theme="dark"] .trip-status-select--rechazada {
 body[data-theme="dark"] .trip-status-select option {
   color: #e2e8f0;
   background: #0f172a;
+}
+
+body[data-theme="dark"] .trips-table-wrap table thead th {
+  color: #9fc3e6;
+  border-bottom-color: color-mix(in srgb, var(--primary) 32%, #2a3f56);
+}
+
+body[data-theme="dark"] .trips-table-wrap table tbody tr {
+  background: color-mix(in srgb, #0f172a 88%, var(--primary) 12%);
+  box-shadow: 0 4px 16px rgba(2, 8, 20, 0.45);
+}
+
+body[data-theme="dark"] .trips-table-wrap table tbody td {
+  border-top-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+  border-bottom-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .trips-table-wrap table tbody td:first-child {
+  border-left-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
+  border-right-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
 }
 
 @media (max-width: 1280px) {
@@ -13238,4 +13306,120 @@ body[data-theme="dark"] .detail-pre {
   background: rgba(15, 23, 42, 0.55);
   border-color: rgba(148, 163, 184, 0.25);
   color: #e2e8f0;
+}
+
+/* Transporte — tabla ejecutiva uniforme (solicitudes/vehículos) */
+.portal-main .transport-exec-table-wrap {
+  overflow-x: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.portal-main .transport-exec-table-wrap table {
+  width: 100%;
+  min-width: 66rem;
+  border-collapse: separate;
+  border-spacing: 0 0.36rem;
+  font-size: 0.91rem;
+}
+
+.portal-main .transport-exec-table-wrap table thead th {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #3f5f82;
+  padding: 0.42rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+}
+
+.portal-main .transport-exec-table-wrap table tbody td {
+  padding: 0.68rem 0.62rem;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+.portal-main .transport-exec-table-wrap table tbody tr {
+  background: color-mix(in srgb, #ffffff 93%, var(--brand-blue-soft) 7%);
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.08);
+}
+
+.portal-main .transport-exec-table-wrap table tbody td:first-child {
+  border-left: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.portal-main .transport-exec-table-wrap table tbody td:last-child {
+  border-right: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.portal-main .requests-table-wrap table {
+  min-width: 58rem;
+}
+
+.portal-main .requests-table-wrap table thead th:nth-child(5),
+.portal-main .requests-table-wrap table tbody td:nth-child(5) {
+  min-width: 12rem;
+}
+
+.portal-main .vehicles-table-wrap table thead th:nth-child(9),
+.portal-main .vehicles-table-wrap table tbody td:nth-child(9) {
+  min-width: 13rem;
+}
+
+.portal-main .vehicles-table-wrap table thead th:nth-child(8),
+.portal-main .vehicles-table-wrap table tbody td:nth-child(8) {
+  min-width: 12rem;
+}
+
+.portal-main .history-table-wrap table {
+  min-width: 60rem;
+}
+
+.portal-main .history-table-wrap table thead th:nth-child(4),
+.portal-main .history-table-wrap table tbody td:nth-child(4) {
+  min-width: 12rem;
+}
+
+.portal-main .history-report-table-wrap {
+  margin-top: 0.7rem;
+}
+
+.portal-main .history-report-table-wrap table {
+  min-width: 52rem;
+}
+
+/* Conductores (cards) con misma línea ejecutiva */
+.portal-main .drivers-grid .driver-card {
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--line));
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.1);
+}
+
+.portal-main .drivers-grid .driver-card-head {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.11), rgba(var(--brand-blue-soft-rgb), 0.42));
+}
+
+body[data-theme="dark"] .portal-main .transport-exec-table-wrap table thead th {
+  color: #9fc3e6;
+  border-bottom-color: color-mix(in srgb, var(--primary) 32%, #2a3f56);
+}
+
+body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody tr {
+  background: color-mix(in srgb, #0f172a 88%, var(--primary) 12%);
+  box-shadow: 0 4px 16px rgba(2, 8, 20, 0.45);
+}
+
+body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody td {
+  border-top-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+  border-bottom-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody td:first-child {
+  border-left-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody td:last-child {
+  border-right-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
 }

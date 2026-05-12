@@ -7448,7 +7448,7 @@ function requestListClientHtml(user) {
     })
     .join("");
   const body = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap transport-exec-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("Aun no hay solicitudes creadas.");
   return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
 }
@@ -7611,7 +7611,7 @@ function vehiclesHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Viaje activo</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    ? `<div class="table-wrap transport-exec-table-wrap vehicles-table-wrap"><table><thead><tr><th>Placa</th><th>Tipo</th><th>Capacidad</th><th>Equipo</th><th>SOAT</th><th>Tecnomecánica</th><th>Estado</th><th>Viaje activo</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("No hay vehículos registrados.");
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
       <div class="fleet-hero-metrics">
@@ -8900,7 +8900,7 @@ function historyHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
   </form>`;
   const tableBody = rows
-    ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Termoking / asignado</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
+    ? `<div class="table-wrap transport-exec-table-wrap history-table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Termoking / asignado</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
     : emptyState("Sin registros.");
   const reportBody = `<div class="dash-grid history-insights-grid">
     ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
@@ -15260,7 +15260,7 @@ function bindDynamicEvents() {
           <div class="p-card"><h4 style="margin:0 0 0.4rem">Costo tecnico flota asociada</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
         </div>
         ${rows
-          ? `<div class="table-wrap" style="margin-top:0.7rem"><table><thead><tr><th>Viaje</th><th>Fecha cierre</th><th>Ruta departamentos</th><th>Camion</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          ? `<div class="table-wrap transport-exec-table-wrap history-report-table-wrap"><table><thead><tr><th>Viaje</th><th>Fecha cierre</th><th>Ruta departamentos</th><th>Camion</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : `<p class="muted">No hay viajes finalizados para ese periodo.</p>`}
       `;
     });
