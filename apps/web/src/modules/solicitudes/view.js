@@ -21,7 +21,7 @@
     const statusSlug = typeof slugStatus === "function" ? slugStatus(r.status) : String(r.status || "").replace(/\W+/g, "-").toLowerCase();
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
     const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
-    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupDate || "") || "Sin fecha";
+    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || "") || "Sin fecha";
     const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
     const weight = parseNum(r.weightKg).toLocaleString("es-CO");
     const boxes = parseNum(r.boxes ?? r.boxesCount).toLocaleString("es-CO");
@@ -63,7 +63,11 @@
         ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}" title="Editar la solicitud">${IC.edit} Editar</button>` : ""}
         ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}" title="Marcar solicitud como cancelada">${IC.x} Cancelar</button>` : ""}
         ${allowClientHardDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar solicitud antes de aprobacion">${IC.trash} Eliminar</button>` : ""}
-        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Solo administradores: eliminar definitivamente">${IC.trash} Eliminar</button>` : ""}
+        ${isAdmin
+          ? r.trip
+            ? `<button class="btn btn-sm btn-reject" type="button" disabled title="Elimine primero el viaje en Transporte · Viajes">${IC.trash} Eliminar</button>`
+            : `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Solo administradores: eliminar definitivamente">${IC.trash} Eliminar</button>`
+          : ""}
       </div>
     </article>`;
   }
@@ -80,12 +84,8 @@
     const sorted = requests
       .slice()
       .sort((a, b) => {
-        const ta = new Date(
-          a?.trip?.etaPickup || a?.pickupDate || a?.createdAt || 0
-        ).getTime();
-        const tb = new Date(
-          b?.trip?.etaPickup || b?.pickupDate || b?.createdAt || 0
-        ).getTime();
+        const ta = new Date(a?.trip?.etaPickup || a?.pickupAt || a?.pickupDate || a?.createdAt || 0).getTime();
+        const tb = new Date(b?.trip?.etaPickup || b?.pickupAt || b?.pickupDate || b?.createdAt || 0).getTime();
         return tb - ta; // Más recientes/próximas primero
       });
     return `<div class="trip-ops-cards request-ops-cards">${sorted.map((r) => buildRequestOpsCard(r, user)).join("")}</div>`;
@@ -273,7 +273,11 @@
       const opsTitle = selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes";
       const opsSubtitle = `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}`;
       const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${opsCards}`);
-      return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
+      const delLog =
+        typeof window.AppLegacyViews?.deletedTransportRequestsLogSection === "function"
+          ? window.AppLegacyViews.deletedTransportRequestsLogSection()
+          : "";
+      return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}${delLog}`;
     }
     const filtered = applyRequestFilter(requests, activeFilter);
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);

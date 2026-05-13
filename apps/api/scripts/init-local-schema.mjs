@@ -25,7 +25,8 @@ const FILES = [
   "13_usuarios_nit_empresa.sql",
   "14_contacto_web_b2b.sql",
   "15_usuario_aprobacion_admin.sql",
-  "16_usuarios_tipo_vinculo_registro.sql"
+  "16_usuarios_tipo_vinculo_registro.sql",
+  "25_transporte_auditoria_eliminados.sql"
 ];
 
 function loadEnvFile() {

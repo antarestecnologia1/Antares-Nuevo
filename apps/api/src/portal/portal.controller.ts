@@ -119,16 +119,16 @@ export class PortalController {
     return this.portal.adminDeleteCompany(req.user.userId, req.user.role, dto.companyId);
   }
 
-  /** Solo admin: borra solicitud en BD (el viaje asociado cae en CASCADE). */
+  /** Solo admin: borra solicitud en BD tras registrar motivo y comprobar que no quede viaje asignado. */
   @Post("admin-request-delete")
   adminRequestDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminRequestDeleteDto) {
-    return this.portal.adminDeleteTransportRequest(req.user.userId, req.user.role, dto.requestId);
+    return this.portal.adminDeleteTransportRequest(req.user.userId, req.user.role, dto.requestId, dto.motivo);
   }
 
   /** Cliente: borra solicitud pendiente de su empresa (antes de aprobación). */
   @Post("client-request-delete")
   clientRequestDelete(@Req() req: { user: ReqUser }, @Body() dto: ClientRequestDeleteDto) {
-    return this.portal.clientDeletePendingTransportRequest(req.user.userId, req.user.role, dto.requestId);
+    return this.portal.clientDeletePendingTransportRequest(req.user.userId, req.user.role, dto.requestId, dto.motivo);
   }
 
   @Post("admin-vehicle-delete")
@@ -143,7 +143,7 @@ export class PortalController {
 
   @Post("admin-clear-trip")
   adminClearTrip(@Req() req: { user: ReqUser }, @Body() dto: AdminClearTripDto) {
-    return this.portal.adminClearTripForRequest(req.user.userId, req.user.role, dto.requestId);
+    return this.portal.adminClearTripForRequest(req.user.userId, req.user.role, dto.requestId, dto.motivo);
   }
 
   @Post("admin-employee-delete")

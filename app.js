@@ -206,9 +206,18 @@ function hrWizardStepValid(stepEl) {
   return true;
 }
 
-/** Muestra cantidad u “otro” según la unidad de duración del contrato (alta o edición empleado). */
+/**
+ * Solo **Término fijo** y **Prestación de servicios** requieren texto de plazo/duración.
+ * Contrato indefinido u otros tipos: no se solicita (se guarda vacío en BD).
+ */
+function contractTypeRequiresDurationPlazo(contractType) {
+  const t = String(contractType || "").trim();
+  return t === "Termino fijo" || t === "Prestacion de servicios";
+}
+
+/** Muestra cantidad u “otro” según la unidad de duración (solo cuando aplica plazo). */
 function wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherEl }) {
-  if (!unitSel || !qtyWrap || !otherWrap) return;
+  if (!unitSel || !qtyWrap || !otherWrap) return () => {};
   const sync = () => {
     const u = String(unitSel.value || "").trim().toLowerCase();
     const showQty = u === "meses" || u === "anios";
@@ -232,8 +241,50 @@ function wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherE
       }
     }
   };
-  unitSel.addEventListener("change", sync);
-  sync();
+  if (unitSel.dataset.contractDurBranchWired !== "1") {
+    unitSel.dataset.contractDurBranchWired = "1";
+    unitSel.addEventListener("change", sync);
+  }
+  return sync;
+}
+
+/**
+ * Muestra u oculta el bloque de duración según tipo de contrato; limpia campos si no aplica.
+ * @returns {() => void} función `sync` para llamar tras cambiar cargo (tipo contrato por defecto).
+ */
+function setupContractDurationPlazoVisibility(root, cfg) {
+  const contractSel = root.querySelector(cfg.contractSelect);
+  const block = root.querySelector(cfg.block);
+  const unitSel = root.querySelector(cfg.unit);
+  const qtyWrap = root.querySelector(cfg.qtyWrap);
+  const otherWrap = root.querySelector(cfg.otherWrap);
+  const amtEl = root.querySelector(cfg.amount);
+  const otherEl = root.querySelector(cfg.otherText);
+  if (!contractSel || !block) return () => {};
+  const syncBranch = wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherEl });
+  const sync = () => {
+    const need = contractTypeRequiresDurationPlazo(String(contractSel.value || ""));
+    block.classList.toggle("hidden", !need);
+    block.toggleAttribute("hidden", !need);
+    if (unitSel) {
+      if (need) unitSel.setAttribute("required", "required");
+      else {
+        unitSel.removeAttribute("required");
+        unitSel.value = "";
+        if (amtEl) {
+          amtEl.removeAttribute("required");
+          amtEl.value = "";
+        }
+        if (otherEl) {
+          otherEl.removeAttribute("required");
+          otherEl.value = "";
+        }
+      }
+    }
+    syncBranch();
+  };
+  contractSel.addEventListener("change", sync);
+  return sync;
 }
 
 function bindHrFormWizard(form) {
@@ -658,6 +709,94 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   );
 }
 
+/**
+ * Confirmación con campo obligatorio de motivo (eliminaciones de transporte con auditoría).
+ * @param {{ title: string, message: string, confirmText?: string, onConfirm: (motivo: string) => void|Promise<void> }} opts
+ */
+function openConfirmReasonModal({ title, message, confirmText = "Confirmar", onConfirm }) {
+  let modal = document.getElementById("crud-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "crud-modal";
+    modal.className = "modal hidden";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
+    document.body.appendChild(modal);
+  }
+  const card = modal.querySelector(".modal-card");
+  if (card) card.className = "modal-card modal-card-edit";
+  const content = modal.querySelector("#crud-modal-content");
+  content.innerHTML = `
+    <div class="modal-head">
+      <h2>${escapeHtml(title)}</h2>
+      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
+    </div>
+    <p>${escapeHtml(message)}</p>
+    <label class="full" style="display:block;margin-top:0.75rem;">
+      <span class="muted" style="display:block;margin-bottom:0.35rem;">Motivo (obligatorio, mínimo 3 caracteres)</span>
+      <textarea id="crud-delete-reason" rows="4" class="full" style="width:100%;box-sizing:border-box;" required></textarea>
+    </label>
+    <div class="modal-edit-actions" style="margin-top:1rem;">
+      <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
+      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>
+    </div>
+  `;
+  const close = () => modal.classList.add("hidden");
+  modal.classList.remove("hidden");
+  content.querySelector("#crud-close").addEventListener("click", close);
+  content.querySelector("#crud-cancel").addEventListener("click", close);
+  const ta = content.querySelector("#crud-delete-reason");
+  const confirmBtn = content.querySelector("#crud-confirm");
+  let confirmConsumed = false;
+  confirmBtn.addEventListener("click", async () => {
+    if (confirmConsumed) return;
+    const motivo = String(ta?.value || "").trim();
+    if (motivo.length < 3) {
+      notify("Indique el motivo (mínimo 3 caracteres).", "error");
+      ta?.focus();
+      return;
+    }
+    confirmConsumed = true;
+    confirmBtn.disabled = true;
+    confirmBtn.setAttribute("aria-busy", "true");
+    try {
+      let out = onConfirm?.(motivo);
+      if (out && typeof out.then === "function") {
+        await out;
+      }
+    } catch (_e) {
+      try {
+        const msg =
+          _e && typeof _e === "object" && _e.message
+            ? String(_e.message)
+            : typeof _e === "string"
+              ? _e
+              : typeof userMessage === "function"
+                ? userMessage("genericError")
+                : "Error";
+        if (msg && typeof notify === "function") notify(msg, "error");
+      } catch (_) {}
+    } finally {
+      close();
+      confirmBtn.disabled = false;
+      confirmBtn.removeAttribute("aria-busy");
+    }
+  });
+  modal.addEventListener(
+    "click",
+    (event) => {
+      if (event.target === modal) close();
+    },
+    { once: true }
+  );
+  setTimeout(() => {
+    try {
+      ta?.focus();
+    } catch (_) {}
+  }, 50);
+}
+
 function openInfoModal({
   title,
   subtitle = "",
@@ -973,6 +1112,8 @@ const KEYS = {
   sstCompliance: "antares_sst_compliance_v2",
   tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
+  deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",
+  deletedTransportRequestLogs: "antares_deleted_transport_request_logs_v1",
   session: "antares_session_v2"
 };
 
@@ -1879,6 +2020,8 @@ function __applyPortalBootstrapPayloadInner(p) {
     ["companies", KEYS.companies],
     ["counters", KEYS.counters],
     ["requests", KEYS.requests],
+    ["deletedTransportTripLogs", KEYS.deletedTransportTripLogs],
+    ["deletedTransportRequestLogs", KEYS.deletedTransportRequestLogs],
     ["vehicles", KEYS.vehicles],
     ["drivers", KEYS.drivers],
     ["notifications", KEYS.notifications],
@@ -1923,6 +2066,21 @@ function __applyPortalBootstrapPayloadInner(p) {
         })
       );
       write(KEYS.companies, merged);
+      continue;
+    }
+    if (prop === "payrollEmployees") {
+      const raw = Array.isArray(p.payrollEmployees) ? p.payrollEmployees : [];
+      write(
+        KEYS.payrollEmployees,
+        raw.map((row) => {
+          if (!row || typeof row !== "object") return row;
+          const o = { ...row };
+          if (!String(o.contractDuration || "").trim() && String(o.contractDurationText || "").trim()) {
+            o.contractDuration = String(o.contractDurationText).trim();
+          }
+          return o;
+        })
+      );
       continue;
     }
     if (prop === "candidates") {
@@ -6267,7 +6425,7 @@ function activeTripStatuses() {
 }
 
 function requestPickupIsoDate(request) {
-  const raw = String(request?.pickupAt || "").trim();
+  const raw = String(request?.trip?.etaPickup || request?.pickupAt || "").trim();
   const inline = raw.match(/^(\d{4}-\d{2}-\d{2})/);
   if (inline) return inline[1];
   const ts = new Date(raw).getTime();
@@ -7756,7 +7914,13 @@ function requestListClientHtml(user) {
               ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit-request" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
               ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
               ${allowClientDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
-              ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
+              ${
+                user?.role === ROLES.ADMIN
+                  ? r.trip
+                    ? `<button class="btn btn-sm btn-reject" type="button" disabled title="Elimine primero el viaje en Transporte · Viajes">${IC.trash} Eliminar</button>`
+                    : `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>`
+                  : ""
+              }
             </div>
           </div>
         </td>
@@ -7766,7 +7930,8 @@ function requestListClientHtml(user) {
   const body = rows
     ? `<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("Aun no hay solicitudes creadas.");
-  return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
+  const delLog = user?.role === ROLES.ADMIN ? buildDeletedTransportRequestsLogSection() : "";
+  return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body) + delLog;
 }
 
 function vehiclesHtml() {
@@ -8088,6 +8253,57 @@ function driversHtml() {
   return heroStrip + pcardWrap("user", "Conductores", drivers.length + " registrados", info + grid);
 }
 
+/** Tabla de auditoría: viajes quitados (solo datos en caché desde bootstrap). */
+function buildDeletedTransportTripsLogSection() {
+  const rows = read(KEYS.deletedTransportTripLogs, []);
+  if (!rows.length) {
+    return pcardWrap(
+      "trash",
+      "Viajes eliminados o desasignados",
+      "Registro de auditoría",
+      `<p class="muted">Aún no hay registros. Al eliminar un viaje asignado se guardará motivo, fecha y usuario.</p>`
+    );
+  }
+  const body = `<div class="table-wrap trips-table-wrap"><table><thead><tr>
+    <th>Fecha</th><th>Solicitud</th><th>Viaje</th><th>Motivo</th><th>Usuario</th>
+  </tr></thead><tbody>${rows
+    .map((row) => {
+      const when = fmtDate(row.deletedAt || "");
+      const reqN = escapeHtml(String(row.requestNumber || row.requestId || "-"));
+      const tripN = escapeHtml(String(row.tripNumber || "-"));
+      const reason = escapeHtml(String(row.reason || "").slice(0, 500));
+      const who = escapeHtml(String(row.deletedByEmail || "—"));
+      return `<tr><td>${when}</td><td>${reqN}</td><td>${tripN}</td><td>${reason}</td><td class="muted">${who}</td></tr>`;
+    })
+    .join("")}</tbody></table></div>`;
+  return pcardWrap("trash", "Viajes eliminados o desasignados", `${rows.length} en historial`, body);
+}
+
+/** Tabla de auditoría: solicitudes borradas físicamente. */
+function buildDeletedTransportRequestsLogSection() {
+  const rows = read(KEYS.deletedTransportRequestLogs, []);
+  if (!rows.length) {
+    return pcardWrap(
+      "file",
+      "Solicitudes eliminadas",
+      "Registro de auditoría",
+      `<p class="muted">Aún no hay registros. Al eliminar una solicitud se guardará motivo, fecha y usuario.</p>`
+    );
+  }
+  const body = `<div class="table-wrap trips-table-wrap"><table><thead><tr>
+    <th>Fecha</th><th>Número</th><th>Motivo</th><th>Usuario</th>
+  </tr></thead><tbody>${rows
+    .map((row) => {
+      const when = fmtDate(row.deletedAt || "");
+      const reqN = escapeHtml(String(row.requestNumber || row.requestId || "-"));
+      const reason = escapeHtml(String(row.reason || "").slice(0, 500));
+      const who = escapeHtml(String(row.deletedByEmail || "—"));
+      return `<tr><td>${when}</td><td>${reqN}</td><td>${reason}</td><td class="muted">${who}</td></tr>`;
+    })
+    .join("")}</tbody></table></div>`;
+  return pcardWrap("file", "Solicitudes eliminadas", `${rows.length} en historial`, body);
+}
+
 function transportTripsHtml() {
   const isAdmin = isAdminActor();
   const rates = getTripRouteRatesNormalized();
@@ -8139,7 +8355,7 @@ function transportTripsHtml() {
     const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
     const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
     const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
-    const pickupLabel = fmtDate(r.trip?.etaPickup || "") || "Sin fecha";
+    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || "") || "Sin fecha";
     const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
@@ -8401,7 +8617,7 @@ function transportTripsHtml() {
     ${createCollapsibleCard("create-route-rate", "dollar", "Configurar nueva tarifa por trayecto", "Define el precio sugerido para una ruta. Al crear un viaje con esa misma ruta, este valor se autocompletará en la asignación.", routeRateForm, "Configurar tarifa")}
   </div>`;
 
-  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}`;
+  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}${isAdmin ? buildDeletedTransportTripsLogSection() : ""}`;
 }
 
 function transportCalendarHtml() {
@@ -8416,7 +8632,7 @@ function transportCalendarHtml() {
       if (filters.status && String(r.status || "") !== filters.status) return false;
       return true;
     })
-    .sort((a, b) => new Date(a.trip?.etaPickup || "").getTime() - new Date(b.trip?.etaPickup || "").getTime());
+    .sort((a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime());
 
   const interviewEvents = interviews
     .map((i) => {
@@ -10487,19 +10703,18 @@ function payrollHtml() {
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
         <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
-        <div class="full" style="grid-column:1/-1">
-          <label class="full" style="display:block;margin-bottom:0.25rem">${fieldLabel(IC.calendar, "Duración del contrato")}</label>
-          <p class="muted" style="font-size:0.82rem;line-height:1.45;margin:0 0 0.55rem">Indique en qué unidad mide el plazo: <strong>meses</strong>, <strong>años</strong>, <strong>indefinido</strong> u <strong>otro</strong> (texto libre, p. ej. obra o labor).</p>
+        <div id="emp-contract-duration-block" class="full hidden" style="grid-column:1/-1" hidden>
+          <label class="full" style="display:block;margin-bottom:0.25rem">${fieldLabel(IC.calendar, "Plazo o duración del contrato")}</label>
+          <p class="muted" style="font-size:0.82rem;line-height:1.45;margin:0 0 0.55rem">Obligatorio solo para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. Elija meses, años o texto libre (otro).</p>
           <div class="form-section-grid">
-            <label>${fieldLabel(IC.calendar, "Unidad de tiempo")}<select name="contractDurationUnit" id="emp-contract-duration-unit" required>
-              <option value="">Seleccione...</option>
-              <option value="meses">Meses</option>
-              <option value="anios">Años</option>
-              <option value="indefinido">Indefinido</option>
-              <option value="otro">Otro (texto libre)</option>
+            <label>${fieldLabel(IC.calendar, "Unidad de tiempo")}<select name="contractDurationUnit" id="emp-contract-duration-unit">
+              <option value="">${escapeHtml("Seleccione...")}</option>
+              <option value="meses">${escapeHtml("Meses")}</option>
+              <option value="anios">${escapeHtml("Años")}</option>
+              <option value="otro">${escapeHtml("Otro (texto libre)")}</option>
             </select></label>
             <label id="emp-contract-duration-qty-wrap" class="hidden">${fieldLabel(IC.hash, "Cantidad")}<input type="number" name="contractDurationAmount" id="emp-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" /></label>
-            <label id="emp-contract-duration-other-wrap" class="full hidden">${fieldLabel(IC.file, "Describa la duración")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto; periodo de prueba; etc."></textarea></label>
+            <label id="emp-contract-duration-other-wrap" class="full hidden">${fieldLabel(IC.file, "Describa la duración")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: plazo legal o alcance del encargo"></textarea></label>
           </div>
         </div>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
@@ -12439,7 +12654,7 @@ function parseContractDurationFields(text) {
   const t = String(text || "").trim();
   if (!t) return { unit: "", amount: "", other: "" };
   const lower = t.toLowerCase();
-  if (/^ind/i.test(lower) || /indefinid/i.test(lower)) return { unit: "indefinido", amount: "", other: "" };
+  if (/^ind/i.test(lower) || /indefinid/i.test(lower)) return { unit: "otro", amount: "", other: t };
   const mMes = t.match(/^(\d+)\s*mes(es)?\s*$/i);
   if (mMes) {
     const n = parseInt(mMes[1], 10);
@@ -12453,14 +12668,13 @@ function parseContractDurationFields(text) {
   return { unit: "otro", amount: "", other: t };
 }
 
-/** Arma el texto único `contractDuration` a partir de unidad + cantidad / indefinido / otro. */
+/** Arma el texto único `contractDuration` a partir de unidad + cantidad u “otro” (texto libre). */
 function composeContractDurationText(raw) {
   const unit = String(raw.contractDurationUnit || "").trim().toLowerCase();
   const parsedAmt = parseInt(String(raw.contractDurationAmount ?? "").trim(), 10);
   const amount = Number.isFinite(parsedAmt) ? Math.floor(parsedAmt) : NaN;
   const other = String(raw.contractDurationOther || "").trim();
   const legacy = String(raw.contractDuration || "").trim();
-  if (unit === "indefinido") return "Indefinido";
   if (unit === "otro") return other;
   if (unit === "meses" && Number.isFinite(amount) && amount >= 1) {
     return `${amount} ${amount === 1 ? "mes" : "meses"}`;
@@ -12554,15 +12768,19 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       msg: userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO"))
     };
   }
-  const unitDur = String(raw.contractDurationUnit || "").trim().toLowerCase();
-  const composedDur = composeContractDurationText(raw);
-  if (!String(composedDur || "").trim()) {
+  const effectiveContractType = String(
+    raw.contractType || position.contractTypeDefault || "Termino indefinido"
+  ).trim();
+  const needsDurationPlazo = contractTypeRequiresDurationPlazo(effectiveContractType);
+  const composedDur = needsDurationPlazo ? composeContractDurationText(raw) : "";
+  if (needsDurationPlazo && !String(composedDur || "").trim()) {
+    const unitDur = String(raw.contractDurationUnit || "").trim().toLowerCase();
     const msg =
       unitDur === "otro"
-        ? "Describa la duración en el campo de texto libre o elija otra unidad."
+        ? "Describa la duración en el campo de texto libre o elija meses/años."
         : unitDur === "meses" || unitDur === "anios"
           ? "Indique la cantidad (número) de meses o de años."
-          : "Seleccione la unidad de duración del contrato (meses, años, indefinido u otro).";
+          : "Complete la duración del contrato: unidad (meses o años) o texto en “Otro”.";
     return { ok: false, msg };
   }
   return {
@@ -12585,7 +12803,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       positionId: position.id,
       position: position.name,
       workerRole: position.workerRole || "empleado",
-      contractType: raw.contractType || position.contractTypeDefault || "Termino indefinido",
+      contractType: effectiveContractType,
       city: String(raw.city || "").trim(),
       department: String(raw.department || "").trim(),
       address: String(raw.address || "").trim(),
@@ -12606,7 +12824,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       baseSalary,
       transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
       contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
-      contractDuration: composeContractDurationText(raw),
+      contractDuration: composedDur,
       bankName: String(raw.bankName || "").trim(),
       bankAccount: String(raw.bankAccount || "").trim(),
       bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
@@ -12630,7 +12848,9 @@ function validateEmployeeContractDocFields(emp) {
   if (!String(emp.bankName || "").trim()) miss.push("banco");
   if (!String(emp.bankAccount || "").trim()) miss.push("numero de cuenta");
   if (parseNum(emp.baseSalary) < CO_HR_RULES.minMonthlySalary) miss.push("salario base (minimo legal)");
-  if (!String(emp.contractDuration || "").trim()) miss.push("duracion del contrato");
+  if (contractTypeRequiresDurationPlazo(emp.contractType) && !String(emp.contractDuration || "").trim()) {
+    miss.push("duracion del contrato");
+  }
   if (!String(emp.contractType || "").trim()) miss.push("tipo de contrato");
   const pos = getPositionById(String(emp.positionId || ""));
   if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
@@ -12715,7 +12935,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Laboral</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Empresa", companyName)}
       ${employeeProfileKvRow("Fecha ingreso", emp.startDate)}
-      ${employeeProfileKvRow("Duración contrato", emp.contractDuration)}
+      ${employeeProfileKvRow("Duración contrato", emp.contractDuration || emp.contractDurationText)}
       ${employeeProfileKvRow("Centro costos", emp.costCenter)}
       ${employeeProfileKvRow("Periodicidad", emp.payFrequency)}
       ${employeeProfileKvRow("Aux. transporte (COP)", emp.transportAllowance != null ? parseNum(emp.transportAllowance).toLocaleString("es-CO") : "")}
@@ -12800,7 +13020,10 @@ function buildPayrollEmployeeEditModalFields(emp) {
   const tplKind = escapeAttr(String(e.contractTemplateKind || "oficina").toLowerCase());
   const defCourse = escapeAttr(String(e.defensiveCourse || ""));
   const existingAvatar = escapeAttr(String(e.avatarUrl || ""));
-  const dur = parseContractDurationFields(e.contractDuration || "");
+  const dur = parseContractDurationFields(
+    String(e.contractDuration || e.contractDurationText || "").trim()
+  );
+  const showPlazoBlockInit = contractTypeRequiresDurationPlazo(String(e.contractType || "").trim());
   return [
     {
       type: "hidden",
@@ -12846,19 +13069,20 @@ function buildPayrollEmployeeEditModalFields(emp) {
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
 <label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
-<label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" required>${contractSel}</select></label>
-<label class="full"><span>${escapeHtml("Duración del contrato")}</span></label>
-<p class="full muted modal-field-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Elija la unidad (meses, años, indefinido) o “otro” para texto libre; el valor se refleja en contratos y PDF.</p>
+<label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" id="employee-modal-contract-type" required>${contractSel}</select></label>
+<div id="emp-edit-contract-duration-block" class="full${showPlazoBlockInit ? "" : " hidden"}" style="grid-column:1/-1"${showPlazoBlockInit ? "" : " hidden"}>
+<label class="full"><span>${escapeHtml("Plazo o duración del contrato")}</span></label>
+<p class="full muted modal-field-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Obligatorio para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. En contrato indefinido u otros tipos no aplica.</p>
 <div class="form-section-grid employee-edit-grid" style="grid-column:1/-1">
-<label><span>${escapeHtml("Unidad de tiempo")}</span><select name="contractDurationUnit" id="emp-edit-contract-duration-unit" required>
+<label><span>${escapeHtml("Unidad de tiempo")}</span><select name="contractDurationUnit" id="emp-edit-contract-duration-unit">
 <option value="">${escapeHtml("Seleccione...")}</option>
 <option value="meses" ${dur.unit === "meses" ? "selected" : ""}>${escapeHtml("Meses")}</option>
 <option value="anios" ${dur.unit === "anios" ? "selected" : ""}>${escapeHtml("Años")}</option>
-<option value="indefinido" ${dur.unit === "indefinido" ? "selected" : ""}>${escapeHtml("Indefinido")}</option>
 <option value="otro" ${dur.unit === "otro" ? "selected" : ""}>${escapeHtml("Otro (texto libre)")}</option>
 </select></label>
 <label id="emp-edit-contract-duration-qty-wrap" class="${dur.unit === "meses" || dur.unit === "anios" ? "" : "hidden"}"><span>${escapeHtml("Cantidad")}</span><input type="number" name="contractDurationAmount" id="emp-edit-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" value="${escapeAttr(dur.amount)}" /></label>
 <label id="emp-edit-contract-duration-other-wrap" class="full ${dur.unit === "otro" ? "" : "hidden"}"><span>${escapeHtml("Describa la duración")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto">${escapeHtml(dur.other)}</textarea></label>
+</div>
 </div>
 <label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(e.startDate || "")}" /></label>
 <label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
@@ -12947,7 +13171,7 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
     salario: base,
     salario_letras: wordsSalary,
     duracion_contrato:
-      String(employee.contractDuration || "").trim() ||
+      String(employee.contractDuration || employee.contractDurationText || "").trim() ||
       describeContractDurationForDocx({ contractType: ct, startDate: signDate, endDate: employee.endDate || "" }),
     cargo_empleado: positionName,
     signDate
@@ -15583,19 +15807,34 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       if (abortIfNotAdmin()) return;
       const requestId = String(btn.dataset.id || "");
-      openConfirmModal({
+      if (!requestId) return;
+      const req = reqRead().find((r) => String(r.id) === requestId);
+      if (req?.trip) {
+        notify(
+          "Esta solicitud tiene un viaje asignado. Elimine primero el viaje en Transporte · Viajes (se registrara el motivo) y luego podra eliminar la solicitud.",
+          "error"
+        );
+        return;
+      }
+      openConfirmReasonModal({
         title: "Eliminar solicitud",
-        message: "Se eliminara la solicitud seleccionada.",
+        message:
+          "Se eliminara la solicitud seleccionada del sistema. Indique el motivo; quedara guardado en el historial de eliminados.",
         confirmText: "Eliminar",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/admin-request-delete", { requestId });
+            await postPortalAuthorized("/portal/admin-request-delete", { requestId, motivo });
           } catch (err) {
             notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
           await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
           recalculateResourceAvailability();
+          try {
+            await applyPortalBootstrapFromApi();
+          } catch (_e) {
+            /* el listado de eliminados se actualizara en el proximo bootstrap */
+          }
           notify(userMessage("requestDeleted"), "success");
           renderPortalView();
         }
@@ -15613,19 +15852,30 @@ function bindDynamicEvents() {
         notify("Solo puede eliminar solicitudes pendientes de aprobación de su empresa.", "error");
         return;
       }
-      openConfirmModal({
+      if (req.trip) {
+        notify(
+          "No puede eliminar esta solicitud porque ya tiene un viaje asignado. Solicite a operaciones que quite el viaje primero.",
+          "error"
+        );
+        return;
+      }
+      openConfirmReasonModal({
         title: "Eliminar solicitud",
-        message: "Se eliminara definitivamente esta solicitud. Solo es posible cuando aun no ha sido aprobada.",
+        message:
+          "Se eliminara definitivamente esta solicitud. Solo es posible cuando aun no ha sido aprobada. Indique el motivo.",
         confirmText: "Eliminar",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/client-request-delete", { requestId });
+            await postPortalAuthorized("/portal/client-request-delete", { requestId, motivo });
           } catch (err) {
             notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
           await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
           recalculateResourceAvailability();
+          try {
+            await applyPortalBootstrapFromApi();
+          } catch (_e) {}
           notify("Solicitud eliminada.", "success");
           renderPortalView();
         }
@@ -15638,13 +15888,14 @@ function bindDynamicEvents() {
       if (abortIfNotAdmin()) return;
       const requestId = String(btn.dataset.id || "");
       if (!requestId) return;
-      openConfirmModal({
+      openConfirmReasonModal({
         title: "Eliminar viaje",
-        message: "La solicitud quedara aprobada pendiente de asignacion manual.",
+        message:
+          "Se quitara la asignacion de camion y conductor. La solicitud volvera a estado aprobada pendiente de asignacion. El motivo quedara registrado.",
         confirmText: "Eliminar viaje",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/admin-clear-trip", { requestId });
+            await postPortalAuthorized("/portal/admin-clear-trip", { requestId, motivo });
           } catch (err) {
             notify(String(err?.message || "No fue posible quitar el viaje en el servidor."), "error");
             return;
@@ -15663,6 +15914,9 @@ function bindDynamicEvents() {
             )
           );
           recalculateResourceAvailability();
+          try {
+            await applyPortalBootstrapFromApi();
+          } catch (_e) {}
           notify(userMessage("tripRemoved"), "success");
           renderPortalView();
         }
@@ -16391,16 +16645,30 @@ function bindDynamicEvents() {
     const empPosSelect = employeeForm.querySelector("#emp-position-select");
     const empSalary = employeeForm.querySelector("#emp-base-salary");
     const empContract = employeeForm.querySelector("#emp-contract-type");
+    const syncPlazoVisibility = setupContractDurationPlazoVisibility(employeeForm, {
+      contractSelect: "#emp-contract-type",
+      block: "#emp-contract-duration-block",
+      unit: "#emp-contract-duration-unit",
+      qtyWrap: "#emp-contract-duration-qty-wrap",
+      otherWrap: "#emp-contract-duration-other-wrap",
+      amount: "#emp-contract-duration-amount",
+      otherText: "#emp-contract-duration-other"
+    });
     const syncEmpFromPosition = () => {
       const position = getPositionById(String(empPosSelect?.value || ""));
-      if (!position || !empSalary || !empContract) return;
+      if (!position || !empSalary || !empContract) {
+        syncPlazoVisibility();
+        return;
+      }
       empSalary.value = String(parseNum(position.baseSalary));
       empContract.value = position.contractTypeDefault || "Termino indefinido";
+      syncPlazoVisibility();
     };
     if (empPosSelect) {
       empPosSelect.addEventListener("change", syncEmpFromPosition);
       syncEmpFromPosition();
     }
+    syncPlazoVisibility();
     const empIllnessSelect = employeeForm.querySelector("#emp-has-illness");
     const empIllnessDetailLabel = employeeForm.querySelector("#emp-illness-detail-label");
     const empIllnessDetail = employeeForm.querySelector("#emp-illness-detail");
@@ -16420,13 +16688,6 @@ function bindDynamicEvents() {
       empIllnessSelect.addEventListener("change", syncIllnessVisibility);
       syncIllnessVisibility();
     }
-    wireContractDurationBranch({
-      unitSel: employeeForm.querySelector("#emp-contract-duration-unit"),
-      qtyWrap: employeeForm.querySelector("#emp-contract-duration-qty-wrap"),
-      otherWrap: employeeForm.querySelector("#emp-contract-duration-other-wrap"),
-      amtEl: employeeForm.querySelector("#emp-contract-duration-amount"),
-      otherEl: employeeForm.querySelector("#emp-contract-duration-other")
-    });
     bindHrFormWizard(employeeForm);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -16642,12 +16903,25 @@ function bindDynamicEvents() {
           });
           const pos = formEl.querySelector("#employee-modal-position");
           const salary = formEl.querySelector("#employee-modal-salary");
-          const contract = formEl.querySelector("select[name='contractType']");
+          const contract = formEl.querySelector("#employee-modal-contract-type");
+          const syncPlazoEdit = setupContractDurationPlazoVisibility(formEl, {
+            contractSelect: "#employee-modal-contract-type",
+            block: "#emp-edit-contract-duration-block",
+            unit: "#emp-edit-contract-duration-unit",
+            qtyWrap: "#emp-edit-contract-duration-qty-wrap",
+            otherWrap: "#emp-edit-contract-duration-other-wrap",
+            amount: "#emp-edit-contract-duration-amount",
+            otherText: "#emp-edit-contract-duration-other"
+          });
           const syncFromPos = () => {
             const p = getPositionById(String(pos?.value || ""));
-            if (!p || !salary) return;
+            if (!p || !salary) {
+              syncPlazoEdit();
+              return;
+            }
             salary.value = String(parseNum(p.baseSalary));
             if (contract && p.contractTypeDefault) contract.value = p.contractTypeDefault;
+            syncPlazoEdit();
           };
           pos?.addEventListener("change", syncFromPos);
           const illnessSel = formEl.querySelector("[data-emp-edit-illness]");
@@ -16667,13 +16941,7 @@ function bindDynamicEvents() {
           };
           illnessSel?.addEventListener("change", syncIllness);
           syncIllness();
-          wireContractDurationBranch({
-            unitSel: formEl.querySelector("#emp-edit-contract-duration-unit"),
-            qtyWrap: formEl.querySelector("#emp-edit-contract-duration-qty-wrap"),
-            otherWrap: formEl.querySelector("#emp-edit-contract-duration-other-wrap"),
-            amtEl: formEl.querySelector("#emp-edit-contract-duration-amount"),
-            otherEl: formEl.querySelector("#emp-edit-contract-duration-other")
-          });
+          syncPlazoEdit();
         },
         onSubmit: async (payload, formEl) => {
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
@@ -20418,7 +20686,9 @@ window.AppLegacyViews = {
   authorizationsHtml,
   profileHtml,
   notificationsHtml,
-  contactLeadsHtml
+  contactLeadsHtml,
+  deletedTransportTripsLogSection: buildDeletedTransportTripsLogSection,
+  deletedTransportRequestsLogSection: buildDeletedTransportRequestsLogSection
 };
 
 /** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */

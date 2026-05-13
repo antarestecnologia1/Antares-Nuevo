@@ -601,7 +601,9 @@ export class PortalService implements OnModuleInit {
       this.loadUsers(admin, userId, empresaId, role),
       this.loadRequests(admin, userId, empresaId, transport),
       rrhh || admin ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
-      this.loadApprovals(admin, userId, empresaId)
+      this.loadApprovals(admin, userId, empresaId),
+      transport ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
+      transport ? this.loadDeletedTransportRequestLogs() : Promise.resolve([])
     ]);
 
     const [independent, dependent] = await Promise.all([independentPromise, dependentPromise]);
@@ -628,7 +630,8 @@ export class PortalService implements OnModuleInit {
       sstCompliance
     ] = independent;
 
-    const [users, requests, payrollEmployees, approvals] = dependent;
+    const [users, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs] =
+      dependent;
 
     return {
       users,
@@ -653,7 +656,9 @@ export class PortalService implements OnModuleInit {
       hrAbsences,
       sstCompliance,
       tripRouteRates,
-      approvals
+      approvals,
+      deletedTransportTripLogs,
+      deletedTransportRequestLogs
     };
   }
 
@@ -1022,25 +1027,61 @@ export class PortalService implements OnModuleInit {
     return { ok: true, companyId: cid };
   }
 
-  async adminDeleteTransportRequest(actorUserId: string, actorRole: JwtRole, requestId: string) {
+  async adminDeleteTransportRequest(
+    actorUserId: string,
+    actorRole: JwtRole,
+    requestId: string,
+    motivo: string
+  ) {
     void actorUserId;
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
     const rid = String(requestId || "").trim();
     if (!rid || !PG_UUID_V4_RE.test(rid)) {
       throw new BadRequestException("ID de solicitud invalido");
     }
+    const motivoTrim = String(motivo || "").trim();
+    if (motivoTrim.length < 3) {
+      throw new BadRequestException("Indique el motivo de eliminacion (minimo 3 caracteres).");
+    }
+
+    const client = await this.pool.connect();
     try {
-      const del = await this.pool.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
-      if ((del.rowCount ?? 0) === 0) {
+      await client.query("BEGIN");
+      const tripCheck = await client.query(
+        `SELECT 1 FROM viajes_transporte WHERE id_solicitud = $1::uuid LIMIT 1`,
+        [rid]
+      );
+      if ((tripCheck.rowCount ?? 0) > 0) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException(
+          "Esta solicitud tiene un viaje asignado. Elimine primero el viaje en Transporte · Viajes (con motivo registrado) y luego podra eliminar la solicitud."
+        );
+      }
+      const reqRes = await client.query(`SELECT * FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
+      if ((reqRes.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
         throw new BadRequestException("Solicitud no encontrada.");
       }
+      const srow = reqRes.rows[0];
+      if (await this.tableExists("auditoria_solicitudes_eliminadas")) {
+        await client.query(
+          `INSERT INTO auditoria_solicitudes_eliminadas (id_solicitud, numero_solicitud, motivo, datos_json, eliminado_por)
+           VALUES ($1::uuid, $2, $3, $4::jsonb, $5::uuid)`,
+          [rid, srow.numero_solicitud, motivoTrim, JSON.stringify(srow), actorUserId]
+        );
+      }
+      await client.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
+      await client.query("COMMIT");
     } catch (e) {
+      await client.query("ROLLBACK").catch(() => null);
       if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
       if (/violates foreign key|foreign key constraint/i.test(msg)) {
         throw new BadRequestException("No se puede eliminar esta solicitud por datos vinculados.");
       }
       throw e;
+    } finally {
+      client.release();
     }
     return { ok: true, requestId: rid };
   }
@@ -1052,18 +1093,36 @@ export class PortalService implements OnModuleInit {
   async clientDeletePendingTransportRequest(
     actorUserId: string,
     actorRole: JwtRole,
-    requestId: string
+    requestId: string,
+    motivo: string
   ): Promise<{ ok: true; requestId: string }> {
     if (String(actorRole || "").toLowerCase() !== "client") throw new ForbiddenException();
     const rid = String(requestId || "").trim();
     if (!rid || !PG_UUID_V4_RE.test(rid)) {
       throw new BadRequestException("ID de solicitud invalido");
     }
+    const motivoTrim = String(motivo || "").trim();
+    if (motivoTrim.length < 3) {
+      throw new BadRequestException("Indique el motivo de eliminacion (minimo 3 caracteres).");
+    }
     const companyRaw = String((await this.getUserCompany(actorUserId)) ?? "").trim();
     const companyId = PG_UUID_V4_RE.test(companyRaw) ? companyRaw : null;
+
+    const client = await this.pool.connect();
     try {
-      const del = await this.pool.query(
-        `DELETE FROM solicitudes_transporte s
+      await client.query("BEGIN");
+      const tripCheck = await client.query(
+        `SELECT 1 FROM viajes_transporte WHERE id_solicitud = $1::uuid LIMIT 1`,
+        [rid]
+      );
+      if ((tripCheck.rowCount ?? 0) > 0) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException(
+          "No se puede eliminar: la solicitud tiene un viaje asignado. Solicite a operaciones que quite el viaje primero."
+        );
+      }
+      const reqRes = await client.query(
+        `SELECT * FROM solicitudes_transporte s
          WHERE s.id = $1::uuid
            AND s.estado = 'Pendiente'::estado_solicitud_transporte
            AND (
@@ -1072,18 +1131,32 @@ export class PortalService implements OnModuleInit {
            )`,
         [rid, companyId, actorUserId]
       );
-      if ((del.rowCount ?? 0) === 0) {
+      if ((reqRes.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
         throw new BadRequestException(
           "No se pudo eliminar: debe estar pendiente de aprobación y estar asociada a su empresa."
         );
       }
+      const srow = reqRes.rows[0];
+      if (await this.tableExists("auditoria_solicitudes_eliminadas")) {
+        await client.query(
+          `INSERT INTO auditoria_solicitudes_eliminadas (id_solicitud, numero_solicitud, motivo, datos_json, eliminado_por)
+           VALUES ($1::uuid, $2, $3, $4::jsonb, $5::uuid)`,
+          [rid, srow.numero_solicitud, motivoTrim, JSON.stringify(srow), actorUserId]
+        );
+      }
+      await client.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
+      await client.query("COMMIT");
     } catch (e) {
+      await client.query("ROLLBACK").catch(() => null);
       if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
       if (/violates foreign key|foreign key constraint/i.test(msg)) {
         throw new BadRequestException("No se puede eliminar esta solicitud por datos vinculados.");
       }
       throw e;
+    } finally {
+      client.release();
     }
     return { ok: true, requestId: rid };
   }
@@ -1130,22 +1203,76 @@ export class PortalService implements OnModuleInit {
     return { ok: true, driverId: did };
   }
 
-  async adminClearTripForRequest(actorUserId: string, actorRole: JwtRole, requestId: string) {
+  async adminClearTripForRequest(
+    actorUserId: string,
+    actorRole: JwtRole,
+    requestId: string,
+    motivo: string
+  ) {
     void actorUserId;
     if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
     const rid = String(requestId || "").trim();
     if (!rid || !PG_UUID_V4_RE.test(rid)) throw new BadRequestException("Solicitud invalida");
-    await this.pool.query(`DELETE FROM viajes_transporte WHERE id_solicitud = $1::uuid`, [rid]);
-    const up = await this.pool.query(
-      `UPDATE solicitudes_transporte
-       SET estado = 'Aprobada pendiente asignacion'::estado_solicitud_transporte,
-           fecha_entrega_efectiva = NULL,
-           fecha_cierre = NULL,
-           fecha_actualizacion = now()
-       WHERE id = $1::uuid`,
-      [rid]
-    );
-    if ((up.rowCount ?? 0) === 0) throw new BadRequestException("Solicitud no encontrada.");
+    const motivoTrim = String(motivo || "").trim();
+    if (motivoTrim.length < 3) {
+      throw new BadRequestException("Indique el motivo de eliminacion (minimo 3 caracteres).");
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const tripRes = await client.query(
+        `SELECT v.*, s.numero_solicitud AS sol_numero_solicitud
+         FROM viajes_transporte v
+         JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+         WHERE v.id_solicitud = $1::uuid`,
+        [rid]
+      );
+      if ((tripRes.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException("Esta solicitud no tiene viaje asignado.");
+      }
+      const row = tripRes.rows[0] as Record<string, unknown> & { sol_numero_solicitud?: string };
+      if (await this.tableExists("auditoria_viajes_eliminados")) {
+        const snap = { ...row };
+        delete snap.sol_numero_solicitud;
+        await client.query(
+          `INSERT INTO auditoria_viajes_eliminados (
+            id_solicitud, id_viaje, numero_solicitud, numero_viaje, motivo, datos_json, eliminado_por
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7::uuid)`,
+          [
+            rid,
+            row.id,
+            row.sol_numero_solicitud || null,
+            row.numero_viaje,
+            motivoTrim,
+            JSON.stringify(snap),
+            actorUserId
+          ]
+        );
+      }
+      await client.query(`DELETE FROM viajes_transporte WHERE id_solicitud = $1::uuid`, [rid]);
+      const up = await client.query(
+        `UPDATE solicitudes_transporte
+         SET estado = 'Aprobada pendiente asignacion'::estado_solicitud_transporte,
+             fecha_entrega_efectiva = NULL,
+             fecha_cierre = NULL,
+             fecha_actualizacion = now()
+         WHERE id = $1::uuid`,
+        [rid]
+      );
+      if ((up.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException("Solicitud no encontrada.");
+      }
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => null);
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      throw e;
+    } finally {
+      client.release();
+    }
     return { ok: true, requestId: rid };
   }
 
@@ -1579,8 +1706,16 @@ export class PortalService implements OnModuleInit {
             driverName: row.trip_driverName,
             driverPhone: row.trip_driverPhone,
             route: row.trip_route,
-            etaPickup: row.trip_etaPickup ? new Date(row.trip_etaPickup as string).toISOString() : null,
-            etaDelivery: row.trip_etaDelivery ? new Date(row.trip_etaDelivery as string).toISOString() : null,
+            etaPickup: row.trip_etaPickup
+              ? new Date(row.trip_etaPickup as string).toISOString()
+              : row.pickupAt
+                ? new Date(row.pickupAt as string).toISOString()
+                : null,
+            etaDelivery: row.trip_etaDelivery
+              ? new Date(row.trip_etaDelivery as string).toISOString()
+              : row.etaDelivery
+                ? new Date(row.etaDelivery as string).toISOString()
+                : null,
             assignedBy: row.trip_assignedBy,
             assignedAt: row.trip_assignedAt ? new Date(row.trip_assignedAt as string).toISOString() : null,
             realtimeStatus: row.trip_realtimeStatus,
@@ -1625,6 +1760,49 @@ export class PortalService implements OnModuleInit {
       trip,
       apiSynced: true
     };
+  }
+
+  private async loadDeletedTransportTripLogs(): Promise<Record<string, unknown>[]> {
+    if (!(await this.tableExists("auditoria_viajes_eliminados"))) return [];
+    const r = await this.pool.query(
+      `SELECT l.id::text,
+              l.id_solicitud::text AS "requestId",
+              l.numero_solicitud AS "requestNumber",
+              l.numero_viaje AS "tripNumber",
+              l.motivo AS "reason",
+              l.eliminado_en AS "deletedAt",
+              u.correo_electronico AS "deletedByEmail",
+              l.datos_json AS "snapshot"
+       FROM auditoria_viajes_eliminados l
+       LEFT JOIN usuarios u ON u.id = l.eliminado_por
+       ORDER BY l.eliminado_en DESC
+       LIMIT 400`
+    );
+    return r.rows.map((row) => ({
+      ...row,
+      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null
+    }));
+  }
+
+  private async loadDeletedTransportRequestLogs(): Promise<Record<string, unknown>[]> {
+    if (!(await this.tableExists("auditoria_solicitudes_eliminadas"))) return [];
+    const r = await this.pool.query(
+      `SELECT l.id::text,
+              l.id_solicitud::text AS "requestId",
+              l.numero_solicitud AS "requestNumber",
+              l.motivo AS "reason",
+              l.eliminado_en AS "deletedAt",
+              u.correo_electronico AS "deletedByEmail",
+              l.datos_json AS "snapshot"
+       FROM auditoria_solicitudes_eliminadas l
+       LEFT JOIN usuarios u ON u.id = l.eliminado_por
+       ORDER BY l.eliminado_en DESC
+       LIMIT 400`
+    );
+    return r.rows.map((row) => ({
+      ...row,
+      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null
+    }));
   }
 
   /** Fecha columna PostgreSQL DATE/TIMESTAMP → `YYYY-MM-DD` para inputs del portal. */
@@ -2130,6 +2308,11 @@ export class PortalService implements OnModuleInit {
       emergencyRelationship: e.parentesco_emergencia,
       position: e.nombre_cargo_texto,
       contractType: e.tipo_contrato,
+      /** Alias del formulario portal; misma columna BD `duracion_contrato_texto`. */
+      contractDuration:
+        e.duracion_contrato_texto != null && String(e.duracion_contrato_texto).trim() !== ""
+          ? String(e.duracion_contrato_texto).trim()
+          : "",
       contractDurationText: e.duracion_contrato_texto,
       startDate: e.fecha_ingreso,
       baseSalary: Number(e.salario_base),
@@ -3241,7 +3424,7 @@ export class PortalService implements OnModuleInit {
         emRel,
         posText,
         contract,
-        (p(e, "contractDuration") as string) || null,
+        ((p(e, "contractDuration", "contractDurationText") as string) || "").trim() || null,
         start,
         base,
         p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
