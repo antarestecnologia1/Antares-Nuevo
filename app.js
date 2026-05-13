@@ -580,6 +580,8 @@ function openEditModal({
       devWarn("openEditModal afterMount", err);
     }
   }
+  scrollIntoViewSmoothBlockStart(formEl);
+  scrollOpenCrudModalIntoView();
   /**
    * Misma guardia de idempotencia que en `openConfirmModal`: si el submit del
    * modal de edición se llegara a disparar dos veces (doble click rápido al
@@ -707,6 +709,7 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
     },
     { once: true }
   );
+  scrollOpenCrudModalIntoView();
 }
 
 /**
@@ -790,6 +793,7 @@ function openConfirmReasonModal({ title, message, confirmText = "Confirmar", onC
     },
     { once: true }
   );
+  scrollOpenCrudModalIntoView();
   setTimeout(() => {
     try {
       ta?.focus();
@@ -858,6 +862,7 @@ function openInfoModal({
       devWarn("openInfoModal afterMount", err);
     }
   }
+  scrollOpenCrudModalIntoView();
 }
 
 /**
@@ -1719,6 +1724,8 @@ let state = {
   adminUserSessions: [],
   adminUserSessionsLoading: false,
   adminUserSessionsError: null,
+  /** Administración · Usuarios: tarjeta «Sesiones» colapsada para ganar espacio vertical. */
+  adminSessionsLogMinimized: true,
   theme: "light",
   publicLang: "es",
   authTab: "login",
@@ -4392,6 +4399,53 @@ function attachDepartmentCitySelects(form, {
   deptSelect.addEventListener("change", () => fill(deptSelect.value, ""));
 }
 
+/** `requestAnimationFrame` + `scrollIntoView` suave; útil tras `renderPortalView()` o al abrir modales con formulario largo. */
+function scrollIntoViewSmoothBlockStart(target) {
+  if (!target) return;
+  requestAnimationFrame(() => {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+    } catch (_e) {
+      try {
+        target.scrollIntoView(true);
+      } catch (__e) {}
+    }
+  });
+}
+
+/** `#crud-modal` (ediciones, fichas, confirmaciones): acerca la tarjeta al viewport. */
+function scrollOpenCrudModalIntoView() {
+  const modal = document.getElementById("crud-modal");
+  if (!modal || modal.classList.contains("hidden")) return;
+  const card = modal.querySelector(".modal-card");
+  scrollIntoViewSmoothBlockStart(card || modal);
+}
+
+/**
+ * Paneles colapsables (`createCollapsibleCard` / `data-create-panel`): al abrir,
+ * acerca el formulario para no quedar abajo del listado u otras tarjetas.
+ */
+function scrollToCreatePanelForm(panelId) {
+  const id = String(panelId || "").trim();
+  if (!id) return;
+  const esc = typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const wrap = document.querySelector(`[data-create-panel="${esc}"]`);
+      if (!wrap) return;
+      const formEl = wrap.querySelector("form");
+      scrollIntoViewSmoothBlockStart(formEl || wrap);
+    });
+  });
+}
+
+/** Cierra un panel de alta (`createCollapsibleCard`, `data-create-panel`) tras guardado exitoso. */
+function collapseCreatePanel(panelId) {
+  const id = String(panelId || "").trim();
+  if (!id) return;
+  state.createPanels = { ...(state.createPanels || {}), [id]: false };
+}
+
 /**
  * Administración · Usuarios: acerca el scroll al formulario visible (edición,
  * creación de usuario/empresa o permisos) para no quedar abajo del listado.
@@ -4403,16 +4457,7 @@ function scrollToAdminUsersFocusedForm() {
     document.getElementById("form-admin-user-create") ||
     document.getElementById("form-admin-company-create") ||
     document.getElementById("form-admin-user-permissions");
-  if (!target) return;
-  requestAnimationFrame(() => {
-    try {
-      target.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
-    } catch (_e) {
-      try {
-        target.scrollIntoView(true);
-      } catch (__e) {}
-    }
-  });
+  scrollIntoViewSmoothBlockStart(target);
 }
 
 /** Alta/edición empresa (admin): cascada departamento→ciudad y valores iniciales coherentes con el catálogo. */
@@ -5392,6 +5437,7 @@ function clearSession() {
   state.adminUserSessions = [];
   state.adminUserSessionsLoading = false;
   state.adminUserSessionsError = null;
+  state.adminSessionsLogMinimized = true;
   if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
     window.AntaresPersistence.clearServerBackedMemory();
   }
@@ -9802,7 +9848,24 @@ function adminUsersHtml(current) {
   const sessionsBody = sessionsRows
     ? `${sessionsIntro}<div class="table-wrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Creada</th><th>Expira</th><th>Estado</th></tr></thead><tbody>${sessionsRows}</tbody></table></div>`
     : `${sessionsIntro}${emptyState("No hay sesiones registradas todavía. Inicie sesión en el portal para empezar a ver actividad.")}`;
-  html += pcardWrap("activity", "Sesiones de usuarios", `${sessions.length} registro${sessions.length === 1 ? "" : "s"}`, sessionsBody);
+  const sessionsLogMinimized = Boolean(state.adminSessionsLogMinimized);
+  const sessionsLogExpanded = !sessionsLogMinimized;
+  const sessionsLogToggleText = sessionsLogExpanded ? "Ocultar registro de sesiones" : "Mostrar registro de sesiones";
+  const sessionsCardBody = `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
+    <button type="button" class="btn btn-sm btn-action" data-action="toggle-admin-sessions-log" aria-expanded="${sessionsLogExpanded ? "true" : "false"}">
+      ${sessionsLogExpanded ? IC.x : IC.plus} ${escapeHtml(sessionsLogToggleText)}
+    </button>
+  </div>
+  <div class="${sessionsLogExpanded ? "" : "hidden"}" data-admin-sessions-log-panel>
+    ${sessionsBody}
+  </div>`;
+  html += pcardWrap(
+    "activity",
+    "Sesiones de usuarios",
+    `${sessions.length} registro${sessions.length === 1 ? "" : "s"}`,
+    sessionsCardBody,
+    sessionsLogExpanded ? "p-card--expanded" : "p-card--collapsed"
+  );
 
   return html;
 }
@@ -13854,6 +13917,9 @@ function bindDynamicEvents() {
         persistHrWorkspace("hiring", "operate");
       }
       renderPortalView();
+      if (nextOpen) {
+        scrollToCreatePanelForm(panelId);
+      }
     });
   });
 
@@ -13942,6 +14008,14 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const filterKey = String(btn.dataset.filter || "active");
       state.requestsFilter = filterKey;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-sessions-log']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
+      state.adminSessionsLogMinimized = !Boolean(state.adminSessionsLogMinimized);
       renderPortalView();
     });
   });
@@ -14131,6 +14205,7 @@ function bindDynamicEvents() {
           requestedByName: actor?.name || "Usuario"
         });
         notify(userMessage("userApprovalQueued"), "info");
+        state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
         renderPortalView();
         return;
       }
@@ -15218,6 +15293,7 @@ function bindDynamicEvents() {
         suppressSelfInboxPollToastIfRecipientIsCurrentUser(actingUser.id);
       }
       notify(userMessage("requestCreated"), "success");
+      collapseCreatePanel("create-request");
       renderPortalView();
     });
   }
@@ -15997,6 +16073,7 @@ function bindDynamicEvents() {
       if (!ok) return;
       suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
       notify(userMessage("tripCreatedAssigned"), "success");
+      collapseCreatePanel("create-trip");
       renderPortalView();
     });
   }
@@ -16195,6 +16272,7 @@ function bindDynamicEvents() {
       }
       notify(editingKey ? "Tarifa por trayecto actualizada." : userMessage("routeRateSaved"), "success");
       resetRateEditMode();
+      collapseCreatePanel("create-route-rate");
       renderPortalView();
     });
   }
@@ -16607,6 +16685,7 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("vehicleRegistered"), "success");
+      collapseCreatePanel("create-vehicle");
       renderPortalView();
     });
   }
@@ -17142,6 +17221,7 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("fuelLogged"), "success");
+      collapseCreatePanel("create-fuel-log");
       renderPortalView();
     });
   }
@@ -17176,6 +17256,7 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("technicalLogged"), "success");
+      collapseCreatePanel("create-technical-log");
       renderPortalView();
     });
   }
@@ -17329,6 +17410,7 @@ function bindDynamicEvents() {
             requestedByName: actor?.name || "Usuario"
           });
           notify(userMessage("employeeRequestQueued"), "info");
+          collapseCreatePanel("create-employee");
           renderPortalView();
           return;
         }
@@ -17357,7 +17439,7 @@ function bindDynamicEvents() {
         });
         state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
         persistHrWorkspace("payroll", "data");
-        state.createPanels = { ...(state.createPanels || {}), "create-employee": false };
+        collapseCreatePanel("create-employee");
         notify(userMessage("employeeCreatedOk"), "success");
         renderPortalView();
       };
@@ -17406,6 +17488,7 @@ function bindDynamicEvents() {
           requestedByName: actor?.name || "Usuario"
         });
         notify(userMessage("absenceApprovalQueued"), "info");
+        collapseCreatePanel("create-hr-absence");
         renderPortalView();
         return;
       }
@@ -17418,7 +17501,7 @@ function bindDynamicEvents() {
       }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
-      state.createPanels = { ...(state.createPanels || {}), "create-hr-absence": false };
+      collapseCreatePanel("create-hr-absence");
       notify(userMessage("absenceRecorded"), "success");
       renderPortalView();
     });
@@ -17777,7 +17860,7 @@ function bindDynamicEvents() {
       }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
-      state.createPanels = { ...(state.createPanels || {}), "create-payroll": false };
+      collapseCreatePanel("create-payroll");
       notify(userMessage("payrollSaved"), "success");
       renderPortalView();
     });
@@ -17875,7 +17958,7 @@ function bindDynamicEvents() {
       }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
-      state.createPanels = { ...(state.createPanels || {}), "create-payroll-settlement": false };
+      collapseCreatePanel("create-payroll-settlement");
       notify("Liquidación contractual registrada. Revise montos antes de marcar pagado.", "success");
       renderPortalView();
     });
@@ -18303,7 +18386,7 @@ function bindDynamicEvents() {
       state.hiringUi.vacancyFilter = "open";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
-      state.createPanels = { ...(state.createPanels || {}), "create-vacancy": false };
+      collapseCreatePanel("create-vacancy");
       notify(userMessage("vacancyPublishedOk"), "success");
       renderPortalView();
     });
@@ -18339,7 +18422,7 @@ function bindDynamicEvents() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
-      state.createPanels = { ...(state.createPanels || {}), "create-position": false };
+      collapseCreatePanel("create-position");
       notify(userMessage("positionCreatedOk"), "success");
       renderPortalView();
     });
@@ -18558,7 +18641,7 @@ function bindDynamicEvents() {
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
-      state.createPanels = { ...(state.createPanels || {}), "create-candidate": false };
+      collapseCreatePanel("create-candidate");
       notify(userMessage("candidateRegisteredOk"), "success");
       renderPortalView();
     });
@@ -18655,7 +18738,7 @@ function bindDynamicEvents() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
-      state.createPanels = { ...(state.createPanels || {}), "create-interview": false };
+      collapseCreatePanel("create-interview");
       notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
     });
@@ -18791,7 +18874,7 @@ function bindDynamicEvents() {
           state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
           state.hiringUi.workspace = "track";
           persistHrWorkspace("hiring", "track");
-          state.createPanels = { ...(state.createPanels || {}), "create-contract": false };
+          collapseCreatePanel("create-contract");
         } catch (persistErr) {
           notify(String(persistErr?.message || "No fue posible guardar el contrato en el servidor."), "error");
         }
@@ -18840,6 +18923,7 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("sstRecorded"), "success");
+      collapseCreatePanel("create-sst-control");
       renderPortalView();
     });
   }
