@@ -1460,22 +1460,47 @@ export class PortalService implements OnModuleInit {
               fecha_creacion AS "createdAt"
        FROM empresas ORDER BY nombre`
     );
-    return r.rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      nit: row.nit,
-      taxId: row.nit,
-      phone: row.phone || "",
-      email: String((row as { email?: unknown }).email ?? "").trim(),
-      contactName: String((row as { contactName?: unknown }).contactName ?? "").trim(),
-      department: String((row as { department?: unknown }).department ?? "").trim(),
-      city: String((row as { city?: unknown }).city ?? "").trim(),
-      address: String((row as { address?: unknown }).address ?? "").trim(),
-      logoUrl: String((row as { logoUrl?: unknown }).logoUrl ?? "").trim(),
-      companyKind: row.companyKind || "cliente",
-      active: row.activo !== false,
-      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
-    }));
+    return r.rows.map((row) => {
+      const rec = row as Record<string, unknown>;
+      const id = String(rec.id ?? "").trim();
+      const name = String(pickPortalField(rec, "name", "nombre") ?? rec.name ?? rec.nombre ?? "").trim();
+      const nit = String(pickPortalField(rec, "nit", "taxId") ?? rec.nit ?? "").trim();
+      const phoneVal = pickPortalField(rec, "phone", "telefono");
+      const phone = phoneVal == null ? "" : String(phoneVal).trim();
+      const emailVal = pickPortalField(rec, "email", "correo_empresarial", "correo");
+      const email = emailVal == null ? "" : String(emailVal).trim();
+      const contactVal = pickPortalField(rec, "contactName", "nombre_contacto");
+      const contactName = contactVal == null ? "" : String(contactVal).trim();
+      const deptVal = pickPortalField(rec, "department", "departamento");
+      const department = deptVal == null ? "" : String(deptVal).trim();
+      const cityVal = pickPortalField(rec, "city", "ciudad");
+      const city = cityVal == null ? "" : String(cityVal).trim();
+      const addrVal = pickPortalField(rec, "address", "direccion_operativa", "direccion");
+      const address = addrVal == null ? "" : String(addrVal).trim();
+      const logoVal = pickPortalField(rec, "logoUrl", "url_logo", "urlLogo");
+      const logoUrl = logoVal == null ? "" : String(logoVal).trim();
+      const kindVal = pickPortalField(rec, "companyKind", "company_kind", "tipo_relacion_empresa");
+      const companyKindRaw = kindVal == null ? "" : String(kindVal).trim().toLowerCase();
+      const companyKind =
+        companyKindRaw === "tercero" ? "tercero" : companyKindRaw === "propia" ? "propia" : "cliente";
+      const createdAt = rec.createdAt;
+      return {
+        id,
+        name,
+        nit,
+        taxId: nit,
+        phone,
+        email,
+        contactName,
+        department,
+        city,
+        address,
+        logoUrl,
+        companyKind,
+        active: rec.activo !== false,
+        createdAt: createdAt ? new Date(createdAt as string | number | Date).toISOString() : new Date().toISOString()
+      };
+    });
   }
 
   private async loadUsers(admin: boolean, userId: string, empresaId: string | null, viewerRole: JwtRole) {
@@ -1828,7 +1853,7 @@ export class PortalService implements OnModuleInit {
       refrigeracionTermoking:
         typeof (row as { refrigeracionTermoking?: unknown }).refrigeracionTermoking === "boolean"
           ? Boolean((row as { refrigeracionTermoking?: boolean }).refrigeracionTermoking)
-          : this.solicitudRefrigeracionFromPayload({ serviceType: row.serviceType } as Record<string, unknown>),
+          : this.solicitudRefrigeracionFromPayload({ serviceType: row.serviceType }),
       boxesCount: row.boxesCount,
       weightKg: row.weightKg,
       contactName: row.contactName,
@@ -2908,11 +2933,27 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /** Campos mínimos para derivar `tipo_servicio` y `refrigeracion_termoking` (lectura segura con índice). */
+  private solicitudThermoPayloadSlice(req: unknown): {
+    serviceType?: unknown;
+    refrigeracionTermoking?: unknown;
+    requiresThermoking?: unknown;
+  } {
+    if (!req || typeof req !== "object") return {};
+    const o = req as Record<string, unknown>;
+    return {
+      serviceType: o["serviceType"],
+      refrigeracionTermoking: o["refrigeracionTermoking"],
+      requiresThermoking: o["requiresThermoking"]
+    };
+  }
+
   /**
    * `tipo_servicio` en BD = solo modo: nacional o entre sedes (sin mezclar Termoking).
    */
-  private solicitudModoTransporteFromPayload(req: Record<string, unknown>): string {
-    const raw = String(req.serviceType ?? "").trim();
+  private solicitudModoTransporteFromPayload(req: unknown): string {
+    const { serviceType } = this.solicitudThermoPayloadSlice(req);
+    const raw = String(serviceType ?? "").trim();
     const allowed = new Set(["Transporte nacional", "Transporte entre sedes del cliente"]);
     if (allowed.has(raw)) return raw;
     const lower = raw.toLowerCase();
@@ -2926,15 +2967,16 @@ export class PortalService implements OnModuleInit {
    * Bandera Termoking en `refrigeracion_termoking`. Prioriza boolean explícito del portal;
    * si no, `requiresThermoking` (yes/no) o texto legacy en `serviceType`.
    */
-  private solicitudRefrigeracionFromPayload(req: Record<string, unknown>): boolean {
-    if (typeof req.refrigeracionTermoking === "boolean") return req.refrigeracionTermoking;
-    const rt = req.refrigeracionTermoking;
+  private solicitudRefrigeracionFromPayload(req: unknown): boolean {
+    const { serviceType, refrigeracionTermoking, requiresThermoking } = this.solicitudThermoPayloadSlice(req);
+    if (typeof refrigeracionTermoking === "boolean") return refrigeracionTermoking;
+    const rt = refrigeracionTermoking;
     if (rt === true || rt === 1 || rt === "1") return true;
     if (rt === false || rt === 0 || rt === "0") return false;
-    const formTk = String((req as { requiresThermoking?: unknown }).requiresThermoking ?? "").toLowerCase();
+    const formTk = String(requiresThermoking ?? "").toLowerCase();
     if (formTk === "yes" || formTk === "si" || formTk === "true" || formTk === "1") return true;
     if (formTk === "no" || formTk === "false" || formTk === "0") return false;
-    const s = String(req.serviceType ?? "").toLowerCase();
+    const s = String(serviceType ?? "").toLowerCase();
     if (!s) return false;
     if (s === "dry" || s.includes("sin termoking") || s.includes("without thermo")) return false;
     if (s === "refrigerated") return true;
@@ -2977,8 +3019,8 @@ export class PortalService implements OnModuleInit {
       const vehicleType = "Por definir";
       const observations =
         String(req.observations ?? req.notes ?? "").trim() || null;
-      const tipoServicio = this.solicitudModoTransporteFromPayload(req as Record<string, unknown>);
-      const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req as Record<string, unknown>);
+      const tipoServicio = this.solicitudModoTransporteFromPayload(req);
+      const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req);
 
       await c.query(
         `INSERT INTO solicitudes_transporte (

@@ -1344,6 +1344,63 @@ function normalizePortalBootstrapUserRow(u) {
   return out;
 }
 
+/**
+ * Una sola forma camelCase para el front (formularios, tarjetas). PostgreSQL/sync pueden
+ * exponer `correo_empresarial`, `nombre_contacto`, etc.
+ */
+function normalizePortalBootstrapCompanyRow(c) {
+  if (!c || typeof c !== "object") return c;
+  const r = c;
+  const name = String(r.name ?? r.nombre ?? "").trim();
+  const taxId = String(r.taxId ?? r.nit ?? "").trim();
+  return {
+    ...r,
+    ...(name ? { name } : {}),
+    taxId: taxId || String(r.taxId ?? "").trim(),
+    nit: taxId || String(r.nit ?? "").trim(),
+    phone: String(r.phone ?? r.telefono ?? "").trim(),
+    email: String(r.email ?? r.correo_empresarial ?? r.correo ?? "").trim(),
+    contactName: String(r.contactName ?? r.nombre_contacto ?? "").trim(),
+    department: String(r.department ?? r.departamento ?? "").trim(),
+    city: String(r.city ?? r.ciudad ?? "").trim(),
+    address: String(r.address ?? r.direccion_operativa ?? r.direccion ?? "").trim(),
+    logoUrl: String(r.logoUrl ?? r.url_logo ?? r.urlLogo ?? "").trim()
+  };
+}
+
+/** Alinea texto guardado con la clave exacta del catálogo COLOMBIA_LOCATIONS (tildes, espacios, mayúsculas). */
+function matchColombiaDepartmentToCatalogKey(departmentRaw) {
+  const raw = String(departmentRaw || "").trim();
+  if (!raw) return "";
+  if (Object.prototype.hasOwnProperty.call(COLOMBIA_LOCATIONS, raw)) return raw;
+  const norm = (s) =>
+    normalizeLatinForDb(String(s || ""))
+      .replace(/[_\s]+/g, "")
+      .toLowerCase();
+  const target = norm(raw);
+  for (const key of Object.keys(COLOMBIA_LOCATIONS)) {
+    if (norm(key) === target) return key;
+  }
+  return "";
+}
+
+function matchColombiaCityInDepartment(deptKey, cityRaw) {
+  const d = String(deptKey || "").trim();
+  const raw = String(cityRaw || "").trim();
+  if (!d || !raw) return raw;
+  const cities = COLOMBIA_LOCATIONS[d] || [];
+  if (cities.includes(raw)) return raw;
+  const norm = (s) =>
+    normalizeLatinForDb(String(s || ""))
+      .replace(/[_\s]+/g, "")
+      .toLowerCase();
+  const t = norm(raw);
+  for (const city of cities) {
+    if (norm(city) === t) return city;
+  }
+  return raw;
+}
+
 /** Origen del registro pendiente: BD `usuarios` vs solo Supabase Auth (huérfano). */
 function pendingUserOrigin(user) {
   const raw = String(user?.source || "").trim().toLowerCase();
@@ -2056,15 +2113,17 @@ function __applyPortalBootstrapPayloadInner(p) {
       const prevMap = new Map(prev.map((c) => [String(c.id ?? ""), c]));
       const merged = patchOperatorCompanyKindIfNeeded(
         raw.map((c) => {
-          const id = String(c?.id ?? "");
+          const base = normalizePortalBootstrapCompanyRow(c);
+          const row = base && typeof base === "object" ? base : c;
+          const id = String(row?.id ?? "");
           const old = id ? prevMap.get(id) : null;
           const explicitInactive =
-            c.active === false ||
-            String(c.active ?? "").toLowerCase() === "false" ||
-            String((c.activeCompany ?? c.companyActive) ?? "").toLowerCase() === "false";
+            row.active === false ||
+            String(row.active ?? "").toLowerCase() === "false" ||
+            String((row.activeCompany ?? row.companyActive) ?? "").toLowerCase() === "false";
           const active =
             explicitInactive ? false : old && typeof old.active === "boolean" ? old.active : true;
-          return { ...c, active };
+          return { ...row, active };
         })
       );
       write(KEYS.companies, merged);
@@ -4153,7 +4212,11 @@ function refreshCreateTripModuleForm(formEl) {
   if (vehSel) {
     vehSel.disabled = false;
     if (!vehicleCandidates.length) {
-      vehSel.innerHTML = `<option value="">${needsTermoking ? "No hay vehículos con Termoking para esta solicitud" : "No hay vehículos para capacidad y ruta"}</option>`;
+      vehSel.innerHTML = `<option value="">${
+        needsTermoking
+          ? "No hay vehículos con Termoking para esta solicitud"
+          : "No hay vehículos secos (sin Termoking) para esta capacidad y ruta"
+      }</option>`;
     } else {
       vehSel.innerHTML =
         `<option value="">${vehicles.length ? "Seleccione vehículo…" : "Sin vehículo asignable ahora (revise banderas)"}</option>` +
@@ -4240,8 +4303,13 @@ function departmentOptions(selected = "") {
 
 function cityOptionsFromDepartment(department = "", selectedCity = "") {
   const cities = COLOMBIA_LOCATIONS[String(department || "")] || [];
-  return cities
-    .map((city) => `<option value="${city}" ${city === selectedCity ? "selected" : ""}>${city}</option>`)
+  const sel = String(selectedCity || "").trim();
+  const list = sel && !cities.includes(sel) ? [...cities, sel] : cities;
+  return list
+    .map(
+      (city) =>
+        `<option value="${escapeAttr(city)}" ${city === sel ? "selected" : ""}>${escapeHtml(city)}</option>`
+    )
     .join("");
 }
 
@@ -4258,8 +4326,10 @@ function attachDepartmentCitySelects(form, {
 
   const fill = (dept, preferredCity = "") => {
     const cities = COLOMBIA_LOCATIONS[String(dept || "")] || [];
-    citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
-      .map((c) => `<option value="${c}" ${c === preferredCity ? "selected" : ""}>${c}</option>`)
+    const pref = String(preferredCity || "").trim();
+    const list = pref && !cities.includes(pref) ? [...cities, pref] : cities;
+    citySelect.innerHTML = `<option value="">Seleccione...</option>${list
+      .map((c) => `<option value="${escapeAttr(c)}" ${c === pref ? "selected" : ""}>${escapeHtml(c)}</option>`)
       .join("")}`;
   };
 
@@ -4271,6 +4341,35 @@ function attachDepartmentCitySelects(form, {
     citySelect.innerHTML = `<option value="">Seleccione un departamento...</option>`;
   }
   deptSelect.addEventListener("change", () => fill(deptSelect.value, ""));
+}
+
+/** Alta/edición empresa (admin): cascada departamento→ciudad y valores iniciales coherentes con el catálogo. */
+function wireAdminCompanyLocationSelects() {
+  const createForm = document.getElementById("form-admin-company-create");
+  if (createForm) {
+    attachDepartmentCitySelects(createForm, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']",
+      initialDepartment: "",
+      initialCity: ""
+    });
+  }
+  const editForm = document.getElementById("form-admin-company-edit");
+  if (editForm) {
+    const ui = state.adminUsersUi || {};
+    const cid = String(ui.editCompanyId || "");
+    const companies = read(KEYS.companies, []);
+    const raw = cid ? companies.find((c) => String(c.id) === cid) : null;
+    const row = raw ? normalizePortalBootstrapCompanyRow(raw) : null;
+    const idept = row ? matchColombiaDepartmentToCatalogKey(row.department || "") : "";
+    const icity = row ? matchColombiaCityInDepartment(idept, row.city || "") : "";
+    attachDepartmentCitySelects(editForm, {
+      departmentSelector: "select[name='department']",
+      citySelector: "select[name='city']",
+      initialDepartment: idept,
+      initialCity: icity
+    });
+  }
 }
 
 function saveNotification({ userId, title, body }) {
@@ -6875,7 +6974,9 @@ function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = nu
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
   const requiresRefrigeration = Boolean(options.requiresRefrigeration);
   const vehicles = read(KEYS.vehicles, []);
-  const matchesThermal = (v) => !requiresRefrigeration || vehicleHasTermokingEquipment(v);
+  /** Con Termoking en solicitud → solo unidades con equipo; sin Termoking → solo secas (excluye refrigerados). */
+  const matchesThermal = (v) =>
+    requiresRefrigeration ? vehicleHasTermokingEquipment(v) : !vehicleHasTermokingEquipment(v);
   const filtered = vehicles.filter(
     (v) =>
       !isManuallyUnavailable(v) &&
@@ -7030,6 +7131,7 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null, compa
     }
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
     if (requiresRefrigeration && !vehicleHasTermokingEquipment(vehicle)) return false;
+    if (!requiresRefrigeration && vehicleHasTermokingEquipment(vehicle)) return false;
     if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
     if (docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days < 0)
       return false;
@@ -7054,6 +7156,7 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
       if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
       if (requiresRefrigeration && !vehicleHasTermokingEquipment(vehicle)) return false;
+      if (!requiresRefrigeration && vehicleHasTermokingEquipment(vehicle)) return false;
       return true;
     })
     .map((vehicle) => {
@@ -8927,7 +9030,15 @@ function adminUsersHtml(current) {
   const companies = read(KEYS.companies, []);
   const ui = state.adminUsersUi || { panel: "", editUserId: "", editCompanyId: "" };
   const editingUser = ui.editUserId ? users.find((u) => u.id === ui.editUserId) : null;
-  const editingCompany = ui.editCompanyId ? companies.find((c) => String(c.id) === String(ui.editCompanyId)) : null;
+  const editingCompanyRaw = ui.editCompanyId ? companies.find((c) => String(c.id) === String(ui.editCompanyId)) : null;
+  const editingCompany = editingCompanyRaw ? normalizePortalBootstrapCompanyRow(editingCompanyRaw) : null;
+  const editingCompanyDeptKey = editingCompany
+    ? matchColombiaDepartmentToCatalogKey(editingCompany.department || "")
+    : "";
+  const editingCompanyCityCanon = editingCompany
+    ? matchColombiaCityInDepartment(editingCompanyDeptKey, editingCompany.city || "")
+    : "";
+  const editingCompanyLogoUrl = editingCompany ? String(editingCompany.logoUrl || "").trim() : "";
 
   const companiesAssignable = companies.filter((c) => isCompanyRecordActive(c));
 
@@ -9275,10 +9386,15 @@ function adminUsersHtml(current) {
           <input type="email" name="email" maxlength="120" autocomplete="email" value="${escapeAttr(String(editingCompany.email ?? ""))}" />
         </label>
         <label>${fieldLabel(IC.user, "Contacto principal")}<input name="contactName" maxlength="120" value="${escapeAttr(String(editingCompany.contactName ?? ""))}" /></label>
-        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompany.department || "")}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompany.department || "", editingCompany.city || "")}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompanyDeptKey)}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompanyDeptKey, editingCompanyCityCanon)}</select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
         <label class="full">${fieldLabel(IC.upload, "Logo de la empresa")}
+          ${
+            editingCompanyLogoUrl
+              ? `<div class="company-logo-preview-wrap" role="group" aria-label="Logo actual"><span class="company-logo-preview"><img src="${escapeAttr(editingCompanyLogoUrl)}" alt="" loading="lazy" /></span><p class="muted" style="margin:0">Logo registrado. Elija otra imagen solo si desea reemplazarlo.</p></div>`
+              : ""
+          }
           <input type="file" name="logoFile" accept="image/*" />
           <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
         </label>
@@ -12725,6 +12841,7 @@ function renderPortalViewImpl() {
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
   enforceColombianFormStandards();
+  wireAdminCompanyLocationSelects();
   applyModuleMicroAnimations();
 }
 
@@ -13833,13 +13950,6 @@ function bindDynamicEvents() {
 
   const adminCompanyCreate = document.getElementById("form-admin-company-create");
   if (adminCompanyCreate) {
-    const depSelect = adminCompanyCreate.querySelector("select[name='department']");
-    const citySelect = adminCompanyCreate.querySelector("select[name='city']");
-    if (depSelect && citySelect) {
-      depSelect.addEventListener("change", () => {
-        citySelect.innerHTML = cityOptionsFromDepartment(String(depSelect.value || ""), "");
-      });
-    }
     adminCompanyCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
@@ -13944,13 +14054,6 @@ function bindDynamicEvents() {
 
   const adminCompanyEdit = document.getElementById("form-admin-company-edit");
   if (adminCompanyEdit) {
-    const depSelectEdit = adminCompanyEdit.querySelector("select[name='department']");
-    const citySelectEdit = adminCompanyEdit.querySelector("select[name='city']");
-    if (depSelectEdit && citySelectEdit) {
-      depSelectEdit.addEventListener("change", () => {
-        citySelectEdit.innerHTML = cityOptionsFromDepartment(String(depSelectEdit.value || ""), "");
-      });
-    }
     adminCompanyEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
@@ -19436,7 +19539,8 @@ function bindExtendedViewEditHandlers() {
   /* ============= EMPRESA: VER ============= */
   nodes.viewRoot.querySelectorAll("[data-action='view-company']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const c = read(KEYS.companies, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      const cRaw = read(KEYS.companies, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      const c = cRaw ? normalizePortalBootstrapCompanyRow(cRaw) : null;
       if (!c) {
         notify(userMessage("genericError"), "error");
         return;
