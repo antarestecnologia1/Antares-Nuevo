@@ -3797,8 +3797,43 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
 
 function toInputDate(isoDate) {
   if (!isoDate) return "";
-  const p = getColombiaDateParts(new Date(isoDate));
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = getColombiaDateParts(d);
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/**
+ * ISO de recogida para precargar edición: bootstrap/API envían `pickupAt`; filas antiguas o
+ * caché pueden tener solo `pickupDate`/`pickupTime` o, con viaje, `trip.etaPickup`.
+ */
+function requestPickupIsoForEdit(req) {
+  const direct = String(req?.pickupAt ?? "").trim();
+  if (direct) return direct;
+  const trip = String(req?.trip?.etaPickup ?? "").trim();
+  if (trip) return trip;
+  const pd = String(req?.pickupDate ?? "").trim();
+  const pt = String(req?.pickupTime ?? "").trim();
+  if (pd && pt) {
+    const built = buildColombiaOffsetDateTime(pd, pt);
+    if (built) return built;
+  }
+  return "";
+}
+
+/** ISO de entrega estimada para edición: `etaDelivery`, luego viaje, luego campos de formulario. */
+function requestDeliveryIsoForEdit(req) {
+  const direct = String(req?.etaDelivery ?? "").trim();
+  if (direct) return direct;
+  const trip = String(req?.trip?.etaDelivery ?? "").trim();
+  if (trip) return trip;
+  const dd = String(req?.deliveryDate ?? "").trim();
+  const dt = String(req?.deliveryTime ?? "").trim();
+  if (dd && dt) {
+    const built = buildColombiaOffsetDateTime(dd, dt);
+    if (built) return built;
+  }
+  return requestPickupIsoForEdit(req);
 }
 
 function routeRateKeyFromRequest(request) {
@@ -15404,7 +15439,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='edit-request']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const requests = reqRead();
-      const req = requests.find((r) => r.id === btn.dataset.id);
+      const req = requests.find((r) => String(r.id) === String(btn.dataset.id));
       if (!req) return;
       const actor = currentUser();
       if (!canPortalUserEditTransportRequest(req, actor)) {
@@ -15414,9 +15449,9 @@ function bindDynamicEvents() {
       const departmentsOpts = departmentOptions();
       const originCityOpts = cityOptionsFromDepartment(req.originDepartment || "", req.originCity || "");
       const destinationCityOpts = cityOptionsFromDepartment(req.destinationDepartment || "", req.destinationCity || "");
-      /** BD `fecha_hora_recogida` / `fecha_hora_entrega_estimada` → `pickupAt` / `etaDelivery` (ISO); no existen `pickupDate`/`pickupTime` en fila API. */
-      const [pickupDateInit, pickupTimeInit] = String(toInputDate(req.pickupAt) || "").split("T");
-      const [deliveryDateInit, deliveryTimeInit] = String(toInputDate(req.etaDelivery || req.pickupAt) || "").split("T");
+      /** ISO desde API (`pickupAt`/`etaDelivery`), caché legacy (fecha+hora) o ventanas del viaje (`trip`). */
+      const [pickupDateInit, pickupTimeInit] = String(toInputDate(requestPickupIsoForEdit(req)) || "").split("T");
+      const [deliveryDateInit, deliveryTimeInit] = String(toInputDate(requestDeliveryIsoForEdit(req)) || "").split("T");
       openEditModal({
         title: "Editar solicitud de viaje",
         subtitle: `${req.requestNumber || req.id} · ${req.clientName || ""}`,
@@ -16161,10 +16196,10 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='edit-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const requests = reqRead();
-      const req = requests.find((r) => r.id === btn.dataset.id);
+      const req = requests.find((r) => String(r.id) === String(btn.dataset.id));
       if (!req) return;
-      const [pickupDate, pickupTime] = String(toInputDate(req.pickupAt) || "").split("T");
-      const [deliveryDate, deliveryTime] = String(toInputDate(req.etaDelivery || req.pickupAt) || "").split("T");
+      const [pickupDate, pickupTime] = String(toInputDate(requestPickupIsoForEdit(req)) || "").split("T");
+      const [deliveryDate, deliveryTime] = String(toInputDate(requestDeliveryIsoForEdit(req)) || "").split("T");
       openEditModal({
         title: "Editar solicitud",
         subtitle: req.requestNumber || req.id,

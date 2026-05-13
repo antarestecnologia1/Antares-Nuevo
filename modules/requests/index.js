@@ -50,6 +50,11 @@ window.DomainModules = window.DomainModules || {};
         ? row.pickupAt
         : new Date(row.pickupAt).toISOString()
       : null;
+    const etaIso = row.etaDelivery
+      ? typeof row.etaDelivery === "string"
+        ? row.etaDelivery
+        : new Date(row.etaDelivery).toISOString()
+      : null;
     const createdAt = row.createdAt
       ? typeof row.createdAt === "string"
         ? row.createdAt
@@ -73,7 +78,7 @@ window.DomainModules = window.DomainModules || {};
           : existing?.refrigeracionTermoking,
       weightKg: row.weightKg,
       pickupAt: pickupIso || existing?.pickupAt,
-      etaDelivery: existing?.etaDelivery || pickupIso,
+      etaDelivery: etaIso || existing?.etaDelivery || pickupIso,
       status: mapApiStatus(row.status),
       createdAt: existing?.createdAt || createdAt,
       requestNumber: existing?.requestNumber || String(row.id || "").slice(0, 10)

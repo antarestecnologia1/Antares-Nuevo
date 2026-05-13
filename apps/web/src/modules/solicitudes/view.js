@@ -39,7 +39,10 @@
     const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
     const weight = parseNum(r.weightKg).toLocaleString("es-CO");
     const boxes = parseNum(r.boxes ?? r.boxesCount).toLocaleString("es-CO");
-    const insuredValue = parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO");
+    const tripAssigned = Boolean(r.trip);
+    const valueDd = tripAssigned
+      ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
+      : `<span class="muted">${escapeHtml("Pendiente")}</span>`;
     const requestedBy = String(r.requestedByName || "").trim();
     const tripBadge = r.trip
       ? `<p class="trip-ops-card-standby request-ops-card-trip"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))} · <span class="muted">${escapeHtml(String(r.trip.driverName || "-"))}</span></span></p>`
@@ -72,7 +75,7 @@
         <div class="trip-ops-card-item"><dt>${IC.file}<span>Carga</span></dt><dd title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoLabel)}</dd></div>
         <div class="trip-ops-card-item"><dt>${IC.scale}<span>Peso/Cajas</span></dt><dd>${weight} kg · ${boxes}</dd></div>
         <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd>${escapeHtml(pickupLabel)}</dd></div>
-        <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Valor</span></dt><dd>$${insuredValue}</dd></div>
+        <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Valor</span></dt><dd>${valueDd}</dd></div>
       </dl>
       ${tripBadge}
       <div class="toolbar trip-ops-card-actions">
