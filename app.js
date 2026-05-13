@@ -9552,6 +9552,20 @@ function adminUsersHtml(current) {
   const fEdit = editingUser
     ? `<form id="form-admin-user-edit" class="p-form p-form-colored">
     <input type="hidden" name="id" value="${escapeAttr(String(editingUser.id || ""))}" />
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.upload} Foto de perfil</legend>
+      <div class="full hr-employee-avatar-row hr-employee-avatar-row--lead" style="grid-column:1/-1">
+        <div class="hr-employee-avatar-inner">
+          <label for="admin-edit-user-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario">
+            <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
+            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
+          </label>
+          <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto del usuario" />
+          <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
+          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. La foto se muestra completa sin recorte; si no cambia el archivo, se conserva la actual.</p>
+        </div>
+      </div>
+    </fieldset>
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Nombre y datos del registro</legend>
       <div class="form-section-grid">
@@ -9638,20 +9652,6 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.user, "Cargo (registro)")}<input name="position" value="${escapeAttr(String(editingUser.position ?? ""))}" placeholder="Ej. Gerente comercial" /></label>
         <label>${fieldLabel(IC.briefcase, "Área de trabajo")}<input name="workArea" value="${escapeAttr(String(editingUser.workArea ?? ""))}" /></label>
         <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial / razón corta")}<input name="company" value="${escapeAttr(String(editingUser.company ?? ""))}" /></label>
-      </div>
-    </fieldset>
-    <fieldset class="form-section form-section-amber full">
-      <legend>${IC.upload} Avatar</legend>
-      <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
-        <div class="hr-employee-avatar-inner">
-          <label for="admin-edit-user-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario">
-            <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
-            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
-          </label>
-          <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto del usuario" />
-          <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
-          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. Si no cambia el archivo, se conserva la foto actual.</p>
-        </div>
       </div>
     </fieldset>
     <fieldset class="full perm-fieldset">
@@ -10496,6 +10496,46 @@ function resolveDriverForEmployee(employee) {
   const name = String(employee.name || "").trim().toLowerCase();
   if (!name) return null;
   return drivers.find((d) => String(d.name || "").trim().toLowerCase() === name) || null;
+}
+
+/**
+ * Fila de conductor lista para modales de edición: fechas en YYYY-MM-DD, alias API↔portal
+ * y campos que solo viven en RRHH (tipo sangre, EPS, ARL) si el documento coincide.
+ */
+function normalizeDriverRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const d = { ...raw };
+  const psychoD = d.psychoTestDate ?? d.psychometricExamDate;
+  const psychoE = d.psychoTestExpiry ?? d.psychometricExpiry;
+  const defPick =
+    d.defensiveCourse != null && String(d.defensiveCourse).trim() !== ""
+      ? d.defensiveCourse
+      : d.defensiveDrivingCourse;
+  d.psychoTestDate = normalizePortalDateYmd(psychoD);
+  d.psychoTestExpiry = normalizePortalDateYmd(psychoE);
+  d.defensiveCourse = String(defPick || "").trim();
+  d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
+  d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
+  const idDoc = String(d.idDoc || "").trim();
+  if (idDoc) {
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.idDoc || "").trim() === idDoc);
+    if (emp && typeof emp === "object") {
+      const fill = (key) => {
+        const cur = d[key];
+        const empty = cur == null || (typeof cur === "string" && !String(cur).trim());
+        if (empty && emp[key] != null && String(emp[key]).trim() !== "") d[key] = emp[key];
+      };
+      fill("bloodType");
+      fill("eps");
+      fill("arl");
+      fill("comparendos");
+      fill("experienceYears");
+      fill("defensiveCourseExpiry");
+      fill("emergencyContact");
+      fill("emergencyPhone");
+    }
+  }
+  return d;
 }
 
 async function syncDriverFromEmployee(employee, extraDriverData = {}) {
@@ -13086,19 +13126,26 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
 /** Vista previa local en el óvalo (misma lógica que perfil de usuario). */
 function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
   if (!fileInput || !labelEl) return;
+  let previewBlobUrl = "";
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
     if (!f || !String(f.type || "").startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result || "").trim();
-      const cssSafe = employeeAvatarCssUrl(url);
-      labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
-      labelEl.classList.toggle("has-image", Boolean(cssSafe));
-      const initial = labelEl.querySelector(".profile-avatar-initial");
-      if (initial) initial.textContent = "";
-    };
-    reader.readAsDataURL(f);
+    if (previewBlobUrl && previewBlobUrl.startsWith("blob:")) {
+      try {
+        URL.revokeObjectURL(previewBlobUrl);
+      } catch (_e) {}
+      previewBlobUrl = "";
+    }
+    try {
+      previewBlobUrl = URL.createObjectURL(f);
+    } catch (_e) {
+      previewBlobUrl = "";
+    }
+    const cssSafe = previewBlobUrl ? previewBlobUrl.replace(/'/g, "\\'") : "";
+    labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+    labelEl.classList.toggle("has-image", Boolean(cssSafe));
+    const initial = labelEl.querySelector(".profile-avatar-initial");
+    if (initial) initial.textContent = "";
   });
 }
 
@@ -16747,7 +16794,8 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='toggle-driver']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const all = read(KEYS.drivers, []);
-      const target = all.find((v) => v.id === btn.dataset.id);
+      const did = String(btn.dataset.id || "").trim();
+      const target = all.find((v) => String(v.id || "") === did);
       if (!target) return;
       await setDriverAvailability(target.id, !target.available);
       renderPortalView();
@@ -16757,7 +16805,9 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='edit-driver']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const all = read(KEYS.drivers, []);
-      const target = all.find((v) => v.id === btn.dataset.id);
+      const did = String(btn.dataset.id || "").trim();
+      const rawTarget = all.find((v) => String(v.id || "") === did);
+      const target = normalizeDriverRowForEditor(rawTarget);
       if (!target) return;
       const initials = String(target.name || "C")
         .split(/\s+/)
@@ -16856,7 +16906,7 @@ function bindDynamicEvents() {
               : "";
 
           const nextDrivers = all.map((d) =>
-            d.id === target.id
+            String(d.id || "") === String(target.id || "")
               ? {
                   ...d,
                   name: getVal("name"),

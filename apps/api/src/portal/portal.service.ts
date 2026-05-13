@@ -2015,39 +2015,52 @@ export class PortalService implements OnModuleInit {
   private async loadDrivers() {
     const { busyDriverIds } = await this.loadLiveTransportOccupancySets();
     const r = await this.pool.query(`SELECT * FROM conductores ORDER BY nombre_completo`);
-    return r.rows.map((d) => ({
-      ...(() => {
-        const id = String(d.id || "").trim();
-        const busyNow = id ? busyDriverIds.has(id) : false;
-        const manualUnavailable = d.disponible === false && d.ocupado_por_sistema !== true;
-        return {
-          available: manualUnavailable ? false : !busyNow,
-          autoBusy: busyNow
-        };
-      })(),
-      id: d.id,
-      companyId: d.id_empresa,
-      name: d.nombre_completo,
-      documentType: d.tipo_documento,
-      idDoc: d.numero_documento,
-      phone: d.telefono,
-      department: d.departamento,
-      city: d.ciudad,
-      address: d.direccion,
-      license: d.numero_licencia,
-      licenseCategory: d.categoria_licencia,
-      licenseExpiry: d.fecha_vencimiento_licencia,
-      psychometricExamDate: d.fecha_examen_psicosensometrico,
-      psychometricExpiry: d.fecha_vencimiento_psicosensometrico,
-      defensiveDrivingCourse: d.curso_conduccion_defensiva,
-      emergencyContact: d.contacto_emergencia,
-      emergencyPhone: d.telefono_emergencia,
-      contractType: d.tipo_contrato,
-      baseSalary: d.salario_base != null ? Number(d.salario_base) : 0,
-      startDate: d.fecha_inicio,
-      hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null,
-      photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim()
-    }));
+    return r.rows.map((d) => {
+      const licEx = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_licencia) || "";
+      const psychoD = this.sqlVehicleDateColumnToString(d.fecha_examen_psicosensometrico) || "";
+      const psychoE = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_psicosensometrico) || "";
+      const defCourse =
+        d.curso_conduccion_defensiva != null && String(d.curso_conduccion_defensiva).trim() !== ""
+          ? String(d.curso_conduccion_defensiva).trim()
+          : "";
+      return {
+        ...(() => {
+          const id = String(d.id || "").trim();
+          const busyNow = id ? busyDriverIds.has(id) : false;
+          const manualUnavailable = d.disponible === false && d.ocupado_por_sistema !== true;
+          return {
+            available: manualUnavailable ? false : !busyNow,
+            autoBusy: busyNow
+          };
+        })(),
+        id: d.id,
+        companyId: d.id_empresa,
+        name: d.nombre_completo != null ? String(d.nombre_completo).trim() : "",
+        documentType: d.tipo_documento,
+        idDoc: d.numero_documento != null ? String(d.numero_documento).trim() : "",
+        phone: d.telefono != null ? String(d.telefono).trim() : "",
+        department: d.departamento,
+        city: d.ciudad,
+        address: d.direccion,
+        license: d.numero_licencia != null ? String(d.numero_licencia).trim() : "",
+        licenseCategory: d.categoria_licencia != null ? String(d.categoria_licencia).trim() : "",
+        licenseExpiry: licEx,
+        psychometricExamDate: psychoD,
+        psychometricExpiry: psychoE,
+        /** Alias usados por formularios del portal (mismo dato que psychometric*). */
+        psychoTestDate: psychoD,
+        psychoTestExpiry: psychoE,
+        defensiveDrivingCourse: defCourse,
+        defensiveCourse: defCourse,
+        emergencyContact: d.contacto_emergencia,
+        emergencyPhone: d.telefono_emergencia,
+        contractType: d.tipo_contrato,
+        baseSalary: d.salario_base != null ? Number(d.salario_base) : 0,
+        startDate: d.fecha_inicio,
+        hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null,
+        photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim()
+      };
+    });
   }
 
   private async loadNotifications(userId: string, admin: boolean) {
@@ -3311,9 +3324,9 @@ export class PortalService implements OnModuleInit {
           d.license || "N",
           d.licenseCategory || "C2",
           d.licenseExpiry || new Date().toISOString().slice(0, 10),
-          portalDateOrNull(p(d, "psychometricExamDate")),
-          portalDateOrNull(p(d, "psychometricExpiry")),
-          (p(d, "defensiveDrivingCourse") as string) || null,
+          portalDateOrNull(p(d, "psychometricExamDate", "psychoTestDate")),
+          portalDateOrNull(p(d, "psychometricExpiry", "psychoTestExpiry")),
+          (p(d, "defensiveDrivingCourse", "defensiveCourse") as string) || null,
           (p(d, "emergencyContact") as string) || null,
           (p(d, "emergencyPhone") as string) || null,
           d.available !== false,
