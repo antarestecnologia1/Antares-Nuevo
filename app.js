@@ -82,19 +82,6 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
-/** Tras abrir edición en Usuarios y accesos, lleva la vista al formulario superior (p-card). */
-function scrollAdminUsersEditFormIntoView() {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const el =
-        document.getElementById("form-admin-user-edit") ||
-        document.getElementById("form-admin-company-edit");
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-}
-
 function moduleFleetHeroStrip(metrics, hrVariant = "") {
   const stripTone =
     hrVariant === "payroll" ? " fleet-hero-strip--hr-payroll" : hrVariant === "hiring" ? " fleet-hero-strip--hr-hiring" : "";
@@ -937,7 +924,7 @@ function openAssignedTripInfoModal(req) {
  */
 function openRequestDetailModal(req) {
   if (!req) return;
-  const thermokingReq = requestRequiresRefrigeracionTermoking(req);
+  const thermokingReq = requestRequiresRefrigeration(req);
   const boxes = parseNum(req.boxes ?? req.boxesCount);
   const obs = String(req.notes || req.observations || "").trim();
   const origAddr = String(req.originAddress || "").trim();
@@ -4115,7 +4102,7 @@ function refreshCreateTripModuleForm(formEl) {
     return;
   }
 
-  const needsTermoking = requestRequiresRefrigeracionTermoking(request);
+  const needsTermoking = requestRequiresTermoking(request);
   const assignableByDate = isRequestPickupSameDayOrFuture(request);
   const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
   const driverCandidates = getDriverCandidatesForRequest(request, requestId);
@@ -6936,29 +6923,22 @@ function serviceTypeRequiresRefrigeration(serviceType) {
   );
 }
 
-/** Valores permitidos para `tipo_servicio` (modo de transporte) en solicitudes. */
-const SOLICITUD_TIPO_TRANSPORTE_NACIONAL = "Transporte nacional";
-const SOLICITUD_TIPO_TRANSPORTE_ENTRE_SEDES = "Transporte entre sedes del cliente";
+const TRANSPORT_MODOS_SERVICIO = new Set(["Transporte nacional", "Transporte entre sedes del cliente"]);
 
-function normalizeSolicitudTipoServicio(serviceType) {
-  const lower = String(serviceType || "").trim().toLowerCase();
+function normalizeRequestTransportMode(serviceType) {
+  const raw = String(serviceType || "").trim();
+  if (TRANSPORT_MODOS_SERVICIO.has(raw)) return raw;
+  const lower = raw.toLowerCase();
   if (lower.includes("entre sedes") || lower.includes("sedes del cliente")) {
-    return SOLICITUD_TIPO_TRANSPORTE_ENTRE_SEDES;
+    return "Transporte entre sedes del cliente";
   }
-  return SOLICITUD_TIPO_TRANSPORTE_NACIONAL;
+  return "Transporte nacional";
 }
 
-/** Termoking requerido: bandera explícita `refrigeracionTermoking` o inferencia legacy desde `serviceType`. */
-function requestRequiresRefrigeracionTermoking(request) {
-  if (!request || typeof request !== "object") return false;
-  if (typeof request.refrigeracionTermoking === "boolean") return request.refrigeracionTermoking;
-  const legacySvc = request.serviceType;
-  return serviceTypeRequiresRefrigeration(legacySvc);
-}
-
-/** Modo de transporte para UI (sin mezclar Termoking). */
-function requestTransportModeFromRequest(req) {
-  return normalizeSolicitudTipoServicio(req?.serviceType);
+/** Termoking: columna `refrigeracionTermoking` si existe; si no, inferencia legacy desde `serviceType`. */
+function requestRequiresTermoking(request) {
+  if (request && typeof request.refrigeracionTermoking === "boolean") return request.refrigeracionTermoking;
+  return serviceTypeRequiresRefrigeration(request?.serviceType);
 }
 
 /** BD `vehiculos.refrigerado_termoking` ↔ portal `refrigerated`; tolera strings legacy en sincronización. */
@@ -6975,11 +6955,12 @@ function vehicleHasTermokingEquipment(vehicle) {
 
 /** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
 function requestTermokingClientLabel(request) {
-  if (!request || typeof request !== "object") return "—";
-  const hasExplicit = typeof request.refrigeracionTermoking === "boolean";
-  const st = String(request.serviceType || "").trim();
-  if (!hasExplicit && !st) return "—";
-  return requestRequiresRefrigeracionTermoking(request) ? "Con Termoking" : "Sin Termoking";
+  if (!request) return "—";
+  if (typeof request.refrigeracionTermoking === "boolean") {
+    return request.refrigeracionTermoking ? "Con Termoking" : "Sin Termoking";
+  }
+  if (!String(request.serviceType || "").trim()) return "—";
+  return serviceTypeRequiresRefrigeration(request.serviceType) ? "Con Termoking" : "Sin Termoking";
 }
 
 /** Columna historial: preferencia Termoking del cliente + tipo de flota si ya hay viaje asignado. */
@@ -6990,7 +6971,7 @@ function historyVehicleColumn(request) {
   return tk;
 }
 
-/** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud no fija carrocería; solo Termoking sí/no vía `serviceType`. */
+/** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud no fija carrocería; Termoking vía `refrigeracionTermoking` o legacy en `serviceType`. */
 const TRIP_ASSIGNMENT_FLEET_TYPES = new Set(["Camion", "Turbo", "Tractomula"]);
 
 function normalizeFleetTypeForTripAssignment(type) {
@@ -7038,7 +7019,7 @@ function tripAssignmentDriverOptionLabel(driver, options = {}) {
 
 function getCompatibleVehiclesForRequest(request, currentRequestId = null, compatOpts = {}) {
   const moduleCreate = !!(compatOpts && compatOpts.moduleCreateTrip);
-  const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
+  const requiresRefrigeration = requestRequiresTermoking(request);
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (isManuallyUnavailable(vehicle)) return false;
     if (moduleCreate) {
@@ -7067,7 +7048,7 @@ function getCompatibleDriversForRequest(request, currentRequestId = null) {
 }
 
 function getVehicleCandidatesForRequest(request, currentRequestId = null) {
-  const requiresRefrigeration = serviceTypeRequiresRefrigeration(request?.serviceType);
+  const requiresRefrigeration = requestRequiresTermoking(request);
   return read(KEYS.vehicles, [])
     .filter((vehicle) => {
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
@@ -7195,7 +7176,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
       current.pickupAt,
       current.etaDelivery || current.pickupAt,
       requestId,
-      { requiresRefrigeration: serviceTypeRequiresRefrigeration(current.serviceType) }
+      { requiresRefrigeration: requestRequiresTermoking(current) }
     );
   const driver = selectedDriverId
     ? compatibleDrivers.find((item) => item.id === selectedDriverId) || null
@@ -7940,6 +7921,7 @@ function requestFormHtml() {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
+        <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
         <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
         <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
@@ -9031,10 +9013,9 @@ function adminUsersHtml(current) {
         </div>`;
     const avatarUrlRaw = String(u.avatarUrl || "").trim();
     const avatarCss = employeeAvatarCssUrl(u.avatarUrl);
-    const letterClass = isPending ? "user-avatar pending-avatar" : "user-avatar";
     const userAvatarBlock = avatarCss
-      ? `<div class="${letterClass} user-avatar--with-photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" /></div>`
-      : `<div class="${letterClass}">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>`;
+      ? `<div class="user-avatar user-avatar--with-photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" /></div>`
+      : `<div class="user-avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>`;
     return `<div class="user-card${isPending ? " user-card--pending" : ""}">
       <div class="user-card-top">
         ${userAvatarBlock}
@@ -9063,10 +9044,9 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
     const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
-    const logoUrlRaw = String(c.logoUrl || "").trim();
-    const logoCss = employeeAvatarCssUrl(c.logoUrl);
-    const avatarCompany = logoCss
-      ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrlRaw)}" alt="" loading="lazy" /></div>`
+    const logoUrl = String(c.logoUrl || "").trim();
+    const avatarCompany = logoUrl
+      ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
       : `<div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>`;
     const nit = String(c.taxId || c.nit || "").trim();
     const subtitle = nit
@@ -9089,7 +9069,7 @@ function adminUsersHtml(current) {
       c.email
         ? `${IC.mail} ${escapeHtml(String(c.email))}`
         : `<span class="muted">${IC.mail} Sin correo</span>`,
-      logoCss
+      c.logoUrl
         ? `${IC.check} Logo configurado`
         : `<span class="muted">${IC.upload} Sin logo</span>`,
       `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
@@ -9213,13 +9193,6 @@ function adminUsersHtml(current) {
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
   </form>`;
 
-  const adminEditCompanyLogoExisting = escapeAttr(String(editingCompany?.logoUrl ?? ""));
-  const adminEditCompanyLogoCss = editingCompany ? employeeAvatarCssUrl(editingCompany.logoUrl) : "";
-  const adminEditCompanyLogoHasImage = Boolean(adminEditCompanyLogoCss);
-  const adminEditCompanyLogoInitial = editingCompany
-    ? escapeHtml(String((editingCompany.name || "?").trim().charAt(0).toUpperCase() || "?"))
-    : "";
-
   const fComp = `<form id="form-admin-company-create" class="p-form">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
@@ -9275,20 +9248,6 @@ function adminUsersHtml(current) {
   const fCompanyEdit = editingCompany
     ? `<form id="form-admin-company-edit" class="p-form p-form-colored">
     <input type="hidden" name="id" value="${escapeAttr(String(editingCompany.id || ""))}" />
-    <fieldset class="form-section form-section-amber full">
-      <legend>${IC.upload} Logo de la empresa</legend>
-      <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
-        <div class="hr-employee-avatar-inner">
-          <label for="admin-edit-company-logo-input" class="profile-avatar profile-avatar-lg profile-avatar-upload profile-avatar--logo-contain${adminEditCompanyLogoHasImage ? " has-image" : ""}" id="admin-edit-company-logo-label" style="${adminEditCompanyLogoHasImage ? `background-image:url('${adminEditCompanyLogoCss}');` : ""}" title="Logo">
-            <span class="profile-avatar-initial">${adminEditCompanyLogoHasImage ? "" : adminEditCompanyLogoInitial}</span>
-            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditCompanyLogoHasImage ? escapeHtml("Cambiar logo") : escapeHtml("Subir logo")}</span></span></span>
-          </label>
-          <input type="file" id="admin-edit-company-logo-input" name="logoFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar logo de la empresa" />
-          <input type="hidden" name="logoUrlExisting" value="${adminEditCompanyLogoExisting}" />
-          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. Si no cambia el archivo, se conserva el logo actual.</p>
-        </div>
-      </div>
-    </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
       <div class="form-section-grid">
@@ -9319,6 +9278,10 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompany.department || "")}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompany.department || "", editingCompany.city || "")}</select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
+        <label class="full">${fieldLabel(IC.upload, "Logo de la empresa")}
+          <input type="file" name="logoFile" accept="image/*" />
+          <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
+        </label>
       </div>
     </fieldset>
     <div class="toolbar full">
@@ -9352,20 +9315,6 @@ function adminUsersHtml(current) {
   const fEdit = editingUser
     ? `<form id="form-admin-user-edit" class="p-form p-form-colored">
     <input type="hidden" name="id" value="${escapeAttr(String(editingUser.id || ""))}" />
-    <fieldset class="form-section form-section-amber full">
-      <legend>${IC.upload} Foto de perfil</legend>
-      <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
-        <div class="hr-employee-avatar-inner">
-          <label for="admin-edit-user-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario">
-            <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
-            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
-          </label>
-          <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto del usuario" />
-          <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
-          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. Si no cambia el archivo, se conserva la foto actual.</p>
-        </div>
-      </div>
-    </fieldset>
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Nombre y datos del registro</legend>
       <div class="form-section-grid">
@@ -9452,6 +9401,20 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.user, "Cargo (registro)")}<input name="position" value="${escapeAttr(String(editingUser.position ?? ""))}" placeholder="Ej. Gerente comercial" /></label>
         <label>${fieldLabel(IC.briefcase, "Área de trabajo")}<input name="workArea" value="${escapeAttr(String(editingUser.workArea ?? ""))}" /></label>
         <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial / razón corta")}<input name="company" value="${escapeAttr(String(editingUser.company ?? ""))}" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.upload} Avatar</legend>
+      <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
+        <div class="hr-employee-avatar-inner">
+          <label for="admin-edit-user-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario">
+            <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
+            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
+          </label>
+          <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto del usuario" />
+          <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
+          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. Si no cambia el archivo, se conserva la foto actual.</p>
+        </div>
       </div>
     </fieldset>
     <fieldset class="full perm-fieldset">
@@ -13694,7 +13657,6 @@ function bindDynamicEvents() {
       if (!id) return;
       state.adminUsersUi = { panel: "", editUserId: id, editCompanyId: "" };
       renderPortalView();
-      scrollAdminUsersEditFormIntoView();
     });
   });
 
@@ -13711,7 +13673,6 @@ function bindDynamicEvents() {
       if (!id) return;
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: id };
       renderPortalView();
-      scrollAdminUsersEditFormIntoView();
     });
   });
 
@@ -13990,9 +13951,6 @@ function bindDynamicEvents() {
         citySelectEdit.innerHTML = cityOptionsFromDepartment(String(depSelectEdit.value || ""), "");
       });
     }
-    const adminEditCompanyLogoInput = document.getElementById("admin-edit-company-logo-input");
-    const adminEditCompanyLogoLabel = document.getElementById("admin-edit-company-logo-label");
-    bindEmployeeAvatarFilePreview(adminEditCompanyLogoInput, adminEditCompanyLogoLabel);
     adminCompanyEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
@@ -14835,18 +14793,20 @@ function bindDynamicEvents() {
         boxes,
         notes,
         requiresThermoking,
+        serviceType: modoTransporte,
         ...payloadRest
       } = data;
-      const serviceType =
-        String(requiresThermoking || "") === "yes"
-          ? "Transporte nacional con termoking"
-          : String(requiresThermoking || "") === "no"
-            ? "Transporte nacional sin termoking"
-            : "";
-      if (!serviceType) {
+      const serviceType = String(modoTransporte || "").trim();
+      if (!TRANSPORT_MODOS_SERVICIO.has(serviceType)) {
+        notify("Seleccione un modo de transporte válido (nacional o entre sedes del cliente).", "error");
+        return;
+      }
+      const tk = String(requiresThermoking || "").trim();
+      if (tk !== "yes" && tk !== "no") {
         notify("Indique si el envío requiere Termoking o es carga seca.", "error");
         return;
       }
+      const refrigeracionTermoking = tk === "yes";
       payloadRest.tripValue = 0;
       const contactName = String(siteContactName ?? "").trim();
       const contactPhone = String(siteContactPhone ?? "").trim();
@@ -14866,6 +14826,7 @@ function bindDynamicEvents() {
         requestedByName: user.name,
         ...payloadRest,
         serviceType,
+        refrigeracionTermoking,
         contactName,
         contactPhone,
         siteContactName: contactName,
@@ -15186,7 +15147,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req) return;
-      const thermokingReq = serviceTypeRequiresRefrigeration(req.serviceType);
+      const thermokingReq = requestRequiresTermoking(req);
       const boxes = parseNum(req.boxes ?? req.boxesCount);
       const obs = String(req.notes || req.observations || "").trim();
       const origAddr = String(req.originAddress || "").trim();
@@ -15225,6 +15186,7 @@ function bindDynamicEvents() {
             <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
             <div class="dash-grid">
               <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
+              <div><strong>Modo de transporte</strong><br /><span class="muted">${escapeHtml(normalizeRequestTransportMode(req.serviceType))}</span></div>
               <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
               <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
               ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
@@ -15315,12 +15277,24 @@ function bindDynamicEvents() {
           { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: req.deliveryDate || "", required: true },
           { name: "deliveryTime", label: "Hora de entrega", type: "time", value: req.deliveryTime || "", required: true },
           { type: "section", id: "edit-req-cargo", title: "Carga y servicio", hint: "Características del envío." },
+          {
+            name: "serviceType",
+            label: "Modo de transporte",
+            type: "select",
+            value: normalizeRequestTransportMode(req.serviceType),
+            required: true,
+            options: [
+              { value: "", label: "Seleccione..." },
+              { value: "Transporte nacional", label: "Transporte nacional" },
+              { value: "Transporte entre sedes del cliente", label: "Transporte entre sedes del cliente" }
+            ]
+          },
           { name: "cargoDescription", label: "Descripción de carga", value: req.cargoDescription || "", required: true, full: true },
           {
             name: "requiresThermoking",
             label: "Refrigeración Termoking",
             type: "select",
-            value: serviceTypeRequiresRefrigeration(req.serviceType) ? "yes" : "no",
+            value: requestRequiresTermoking(req) ? "yes" : "no",
             required: true,
             options: [
               { value: "yes", label: "Sí, requiere equipo Termoking" },
@@ -15354,10 +15328,12 @@ function bindDynamicEvents() {
           });
         },
         onSubmit: async (form) => {
-          const newServiceType =
-            form.requiresThermoking === "yes"
-              ? "Transporte nacional con termoking"
-              : "Transporte nacional sin termoking";
+          const modo = String(form.serviceType || "").trim();
+          if (!TRANSPORT_MODOS_SERVICIO.has(modo)) {
+            notify("Seleccione un modo de transporte válido.", "error");
+            return false;
+          }
+          const refrigeracionTermoking = form.requiresThermoking === "yes";
           const updates = {
             originDepartment: String(form.originDepartment || "").trim(),
             originCity: String(form.originCity || "").trim(),
@@ -15370,7 +15346,8 @@ function bindDynamicEvents() {
             deliveryDate: String(form.deliveryDate || "").trim(),
             deliveryTime: String(form.deliveryTime || "").trim(),
             cargoDescription: String(form.cargoDescription || "").trim(),
-            serviceType: newServiceType,
+            serviceType: modo,
+            refrigeracionTermoking,
             boxes: parseNum(form.boxes),
             boxesCount: parseNum(form.boxes),
             weightKg: parseNum(form.weightKg),
@@ -15437,7 +15414,7 @@ function bindDynamicEvents() {
       const requestId = String(btn.dataset.id || "");
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) return;
-      const needsTermoking = requestRequiresRefrigeracionTermoking(request);
+      const needsTermoking = requestRequiresTermoking(request);
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
@@ -18716,7 +18693,7 @@ function bindDynamicEvents() {
           return;
         }
 
-        const needsTermoking = requestRequiresRefrigeracionTermoking(request);
+        const needsTermoking = requestRequiresTermoking(request);
         const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
         const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);

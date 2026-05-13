@@ -336,7 +336,22 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureEmpresasSchema: ADD COLUMN url_logo fallo (no fatal): ${msg}`);
     }
-    this.logger.log("empresas: esquema tipo_relacion_empresa, activo y url_logo verificado.");
+    const empresasContactAlters = [
+      `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS correo_empresarial VARCHAR(120)`,
+      `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS nombre_contacto VARCHAR(255)`,
+      `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS departamento VARCHAR(120)`,
+      `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS ciudad VARCHAR(120)`,
+      `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS direccion_operativa TEXT`
+    ];
+    for (const sql of empresasContactAlters) {
+      try {
+        await this.pool.query(sql);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureEmpresasSchema: ${sql.slice(0, 60)}… fallo (no fatal): ${msg}`);
+      }
+    }
+    this.logger.log("empresas: esquema tipo_relacion_empresa, activo, url_logo y contacto verificado.");
   }
 
   /** Columna `refrigeracion_termoking` en solicitudes (migr. `26_solicitudes_refrigeracion_termoking.sql`). */
@@ -1434,6 +1449,11 @@ export class PortalService implements OnModuleInit {
   private async loadCompanies() {
     const r = await this.pool.query(
       `SELECT id::text, nombre AS name, nit, telefono AS phone,
+              correo_empresarial AS email,
+              nombre_contacto AS "contactName",
+              departamento AS department,
+              ciudad AS city,
+              direccion_operativa AS address,
               url_logo AS "logoUrl",
               tipo_relacion_empresa::text AS "companyKind",
               COALESCE(activo, true) AS activo,
@@ -1446,6 +1466,11 @@ export class PortalService implements OnModuleInit {
       nit: row.nit,
       taxId: row.nit,
       phone: row.phone || "",
+      email: String((row as { email?: unknown }).email ?? "").trim(),
+      contactName: String((row as { contactName?: unknown }).contactName ?? "").trim(),
+      department: String((row as { department?: unknown }).department ?? "").trim(),
+      city: String((row as { city?: unknown }).city ?? "").trim(),
+      address: String((row as { address?: unknown }).address ?? "").trim(),
       logoUrl: String((row as { logoUrl?: unknown }).logoUrl ?? "").trim(),
       companyKind: row.companyKind || "cliente",
       active: row.activo !== false,
@@ -1460,7 +1485,7 @@ export class PortalService implements OnModuleInit {
     const sql = admin
       ? `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
               u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
-              e.nombre AS company,
+              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
               u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
               u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
               u.numero_identificacion AS "personalDoc",
@@ -1471,6 +1496,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
@@ -1478,7 +1504,7 @@ export class PortalService implements OnModuleInit {
          ORDER BY u.correo_electronico`
       : `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
               u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
-              e.nombre AS company,
+              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
               u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
               u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
               u.numero_identificacion AS "personalDoc",
@@ -1489,6 +1515,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
@@ -1516,7 +1543,7 @@ export class PortalService implements OnModuleInit {
     const r = await this.pool.query(
       `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
               u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
-              e.nombre AS company,
+              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
               u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
               u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
               u.numero_identificacion AS "personalDoc",
@@ -1527,6 +1554,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
@@ -1551,7 +1579,7 @@ export class PortalService implements OnModuleInit {
     if (!this.isAdmin(role)) return [];
     const sql = `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
               u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
-              e.nombre AS company,
+              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
               u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
               u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
               u.numero_identificacion AS "personalDoc",
@@ -1562,6 +1590,7 @@ export class PortalService implements OnModuleInit {
               u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
               u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
@@ -2656,7 +2685,8 @@ export class PortalService implements OnModuleInit {
           genero = COALESCE(NULLIF(trim(COALESCE($20::text, '')), ''), genero),
           fecha_nacimiento = COALESCE($21::date, fecha_nacimiento),
           tipo_documento = COALESCE(NULLIF(trim(COALESCE($22::text, '')), ''), tipo_documento),
-          numero_identificacion = COALESCE(NULLIF(trim(COALESCE($23::text, '')), ''), numero_identificacion)
+          numero_identificacion = COALESCE(NULLIF(trim(COALESCE($23::text, '')), ''), numero_identificacion),
+          nombre_empresa_texto_legacy = COALESCE(NULLIF(trim(COALESCE($24::text, '')), ''), nombre_empresa_texto_legacy)
         WHERE id = $1::uuid`,
         [
           u.id,
@@ -2681,9 +2711,20 @@ export class PortalService implements OnModuleInit {
           String(rec.gender ?? "").trim() || null,
           fechaNacimiento,
           String(rec.documentType ?? "").trim() || null,
-          String(rec.taxId ?? rec.personalDoc ?? "").trim() || null
+          String(rec.taxId ?? rec.personalDoc ?? "").trim() || null,
+          String(rec.company ?? "").trim() || null
         ]
       );
+      if (admin && rec.twoFactorEnabled !== undefined && rec.twoFactorEnabled !== null) {
+        const on =
+          rec.twoFactorEnabled === true ||
+          rec.twoFactorEnabled === 1 ||
+          String(rec.twoFactorEnabled).trim().toLowerCase() === "true";
+        await c.query(`UPDATE usuarios SET autenticacion_dos_factores = $2::boolean WHERE id = $1::uuid`, [
+          u.id,
+          on
+        ]);
+      }
       if (admin && Array.isArray(u.permissions)) {
         await c.query(`DELETE FROM permisos_usuario WHERE id_usuario = $1::uuid`, [u.id]);
         for (const perm of u.permissions) {
@@ -2754,17 +2795,60 @@ export class PortalService implements OnModuleInit {
         logoPick === undefined || logoPick === null || String(logoPick).trim() === ""
           ? null
           : String(logoPick).trim();
+      const emailPick = pickPortalField(rec, "email", "correo_empresarial", "correo");
+      const correoEmp =
+        emailPick === undefined || emailPick === null || String(emailPick).trim() === ""
+          ? null
+          : String(emailPick).trim().slice(0, 120);
+      const contactPick = pickPortalField(rec, "contactName", "nombre_contacto");
+      const nombreContacto =
+        contactPick === undefined || contactPick === null || String(contactPick).trim() === ""
+          ? null
+          : String(contactPick).trim().slice(0, 255);
+      const deptPick = pickPortalField(rec, "department", "departamento");
+      const departamento =
+        deptPick === undefined || deptPick === null || String(deptPick).trim() === ""
+          ? null
+          : String(deptPick).trim().slice(0, 120);
+      const cityPick = pickPortalField(rec, "city", "ciudad");
+      const ciudad =
+        cityPick === undefined || cityPick === null || String(cityPick).trim() === ""
+          ? null
+          : String(cityPick).trim().slice(0, 120);
+      const addrPick = pickPortalField(rec, "address", "direccion_operativa", "direccion");
+      const direccionOp =
+        addrPick === undefined || addrPick === null || String(addrPick).trim() === ""
+          ? null
+          : String(addrPick).trim();
       await c.query(
-        `INSERT INTO empresas (id, nombre, nit, telefono, tipo_relacion_empresa, activo, url_logo)
-         VALUES ($1::uuid, $2, $3, $4, $5::tipo_relacion_empresa, $6, $7)
+        `INSERT INTO empresas (id, nombre, nit, telefono, correo_empresarial, nombre_contacto, departamento, ciudad, direccion_operativa, tipo_relacion_empresa, activo, url_logo)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::tipo_relacion_empresa, $11, $12)
          ON CONFLICT (id) DO UPDATE SET
            nombre = EXCLUDED.nombre,
            nit = EXCLUDED.nit,
            telefono = EXCLUDED.telefono,
+           correo_empresarial = EXCLUDED.correo_empresarial,
+           nombre_contacto = EXCLUDED.nombre_contacto,
+           departamento = EXCLUDED.departamento,
+           ciudad = EXCLUDED.ciudad,
+           direccion_operativa = EXCLUDED.direccion_operativa,
            tipo_relacion_empresa = EXCLUDED.tipo_relacion_empresa,
            activo = EXCLUDED.activo,
            url_logo = EXCLUDED.url_logo`,
-        [id, String(nombre).trim(), String(nit).trim(), telefono, tipoRelacion, activo, urlLogo]
+        [
+          id,
+          String(nombre).trim(),
+          String(nit).trim(),
+          telefono,
+          correoEmp,
+          nombreContacto,
+          departamento,
+          ciudad,
+          direccionOp,
+          tipoRelacion,
+          activo,
+          urlLogo
+        ]
       );
     }
   }
@@ -2824,21 +2908,32 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  /** `tipo_servicio` en BD: solo nacional o entre sedes (Termoking va en `refrigeracion_termoking`). */
-  private normalizeSolicitudTipoServicioParaDb(raw: unknown): string {
-    const s = String(raw ?? "").trim().toLowerCase();
-    if (s.includes("entre sedes") || s.includes("sedes del cliente")) {
+  /**
+   * `tipo_servicio` en BD = solo modo: nacional o entre sedes (sin mezclar Termoking).
+   */
+  private solicitudModoTransporteFromPayload(req: Record<string, unknown>): string {
+    const raw = String(req.serviceType ?? "").trim();
+    const allowed = new Set(["Transporte nacional", "Transporte entre sedes del cliente"]);
+    if (allowed.has(raw)) return raw;
+    const lower = raw.toLowerCase();
+    if (lower.includes("entre sedes") || lower.includes("sedes del cliente")) {
       return "Transporte entre sedes del cliente";
     }
     return "Transporte nacional";
   }
 
   /**
-   * Bandera Termoking persistida en `refrigeracion_termoking`. Si el cliente aún manda solo
-   * `tipo_servicio` legacy (texto con/sin termoking), se infiere aquí al sincronizar.
+   * Bandera Termoking en `refrigeracion_termoking`. Prioriza boolean explícito del portal;
+   * si no, `requiresThermoking` (yes/no) o texto legacy en `serviceType`.
    */
   private solicitudRefrigeracionFromPayload(req: Record<string, unknown>): boolean {
     if (typeof req.refrigeracionTermoking === "boolean") return req.refrigeracionTermoking;
+    const rt = req.refrigeracionTermoking;
+    if (rt === true || rt === 1 || rt === "1") return true;
+    if (rt === false || rt === 0 || rt === "0") return false;
+    const formTk = String((req as { requiresThermoking?: unknown }).requiresThermoking ?? "").toLowerCase();
+    if (formTk === "yes" || formTk === "si" || formTk === "true" || formTk === "1") return true;
+    if (formTk === "no" || formTk === "false" || formTk === "0") return false;
     const s = String(req.serviceType ?? "").toLowerCase();
     if (!s) return false;
     if (s === "dry" || s.includes("sin termoking") || s.includes("without thermo")) return false;
@@ -2882,8 +2977,8 @@ export class PortalService implements OnModuleInit {
       const vehicleType = "Por definir";
       const observations =
         String(req.observations ?? req.notes ?? "").trim() || null;
+      const tipoServicio = this.solicitudModoTransporteFromPayload(req as Record<string, unknown>);
       const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req as Record<string, unknown>);
-      const tipoServicioDb = this.normalizeSolicitudTipoServicioParaDb((req as { serviceType?: unknown }).serviceType);
 
       await c.query(
         `INSERT INTO solicitudes_transporte (
@@ -2949,7 +3044,7 @@ export class PortalService implements OnModuleInit {
           req.etaDelivery,
           vehicleType,
           req.cargoDescription,
-          tipoServicioDb,
+          tipoServicio,
           refrigeracionTermoking,
           boxesNum,
           Number(req.weightKg) || 0,

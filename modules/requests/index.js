@@ -66,6 +66,11 @@ window.DomainModules = window.DomainModules || {};
       destinationDepartment: existing?.destinationDepartment || "",
       destinationCity: existing?.destinationCity || row.destination || "",
       vehicleType: row.vehicleType,
+      serviceType: row.serviceType != null ? row.serviceType : existing?.serviceType,
+      refrigeracionTermoking:
+        typeof row.refrigeracionTermoking === "boolean"
+          ? row.refrigeracionTermoking
+          : existing?.refrigeracionTermoking,
       weightKg: row.weightKg,
       pickupAt: pickupIso || existing?.pickupAt,
       etaDelivery: existing?.etaDelivery || pickupIso,
