@@ -6872,7 +6872,7 @@ function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = nu
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
   const requiresRefrigeration = Boolean(options.requiresRefrigeration);
   const vehicles = read(KEYS.vehicles, []);
-  const matchesThermal = (v) => !requiresRefrigeration || v.refrigerated;
+  const matchesThermal = (v) => !requiresRefrigeration || vehicleHasTermokingEquipment(v);
   const filtered = vehicles.filter(
     (v) =>
       !isManuallyUnavailable(v) &&
@@ -6902,15 +6902,34 @@ function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   );
 }
 
-/** Solicitud con Thermo King o valores legacy que implican refrigeración. */
+/**
+ * Solicitud con equipo refrigerado (Termoking) o equivalentes legacy.
+ * Importante: "Transporte nacional sin termoking" contiene la subcadena "termoking";
+ * hay que excluir explícitamente el caso seco antes de buscar "termoking".
+ */
 function serviceTypeRequiresRefrigeration(serviceType) {
-  const s = String(serviceType || "").toLowerCase();
+  const s = String(serviceType || "").toLowerCase().trim();
+  if (!s) return false;
+  if (s === "dry" || s.includes("sin termoking") || s.includes("without thermo")) return false;
+  if (s === "refrigerated") return true;
   return (
     s.includes("termoking") ||
     s.includes("thermo king") ||
     s.includes("refrigerada") ||
     s.includes("refrigerado")
   );
+}
+
+/** BD `vehiculos.refrigerado_termoking` ↔ portal `refrigerated`; tolera strings legacy en sincronización. */
+function vehicleHasTermokingEquipment(vehicle) {
+  if (!vehicle || typeof vehicle !== "object") return false;
+  const r = vehicle.refrigerated ?? vehicle.refrigerado_termoking;
+  if (r === true || r === 1) return true;
+  if (typeof r === "string") {
+    const t = r.trim().toLowerCase();
+    return t === "true" || t === "t" || t === "1" || t === "si" || t === "yes";
+  }
+  return false;
 }
 
 /** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
@@ -6930,8 +6949,15 @@ function historyVehicleColumn(request) {
 /** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud no fija carrocería; solo Termoking sí/no vía `serviceType`. */
 const TRIP_ASSIGNMENT_FLEET_TYPES = new Set(["Camion", "Turbo", "Tractomula"]);
 
+function normalizeFleetTypeForTripAssignment(type) {
+  return String(type || "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 function isVehicleEligibleForTripAssignment(vehicle) {
-  return TRIP_ASSIGNMENT_FLEET_TYPES.has(String(vehicle?.type || "").trim());
+  return TRIP_ASSIGNMENT_FLEET_TYPES.has(normalizeFleetTypeForTripAssignment(vehicle?.type));
 }
 
 /** Etiqueta unificada en selects de asignación; con Termoking en solicitud muestra bandera explícita. */
@@ -6944,10 +6970,10 @@ function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
   const soat = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label;
   const tec = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label;
   const thermal = needsTermoking
-    ? vehicle.refrigerated
+    ? vehicleHasTermokingEquipment(vehicle)
       ? " · Termoking: sí"
       : " · Termoking: no"
-    : ` · ${vehicle.refrigerated ? "Refrigerado" : "Seco"}`;
+    : ` · ${vehicleHasTermokingEquipment(vehicle) ? "Refrigerado" : "Seco"}`;
   let tail = ` · SOAT ${soat} · Tec ${tec}`;
   if (isBusy) tail += " · 🟠 OCUPADO";
   if (isUnavailable) tail += " · 🟡 NO DISPONIBLE";
@@ -6978,7 +7004,7 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null, compa
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
     }
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
-    if (requiresRefrigeration && !vehicle.refrigerated) return false;
+    if (requiresRefrigeration && !vehicleHasTermokingEquipment(vehicle)) return false;
     if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
     if (docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days < 0)
       return false;
@@ -7002,7 +7028,7 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
     .filter((vehicle) => {
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
       if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
-      if (requiresRefrigeration && !vehicle.refrigerated) return false;
+      if (requiresRefrigeration && !vehicleHasTermokingEquipment(vehicle)) return false;
       return true;
     })
     .map((vehicle) => {
@@ -7987,7 +8013,7 @@ function vehiclesHtml() {
   const occupiedCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "busy").length;
   const scheduledCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "scheduled").length;
   const offlineCount = vehicles.filter((v) => isManuallyUnavailable(v)).length;
-  const thermokingCount = vehicles.filter((v) => v.refrigerated).length;
+  const thermokingCount = vehicles.filter((v) => vehicleHasTermokingEquipment(v)).length;
   const documentRiskCount = vehicles.filter((v) => {
     const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
     const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
@@ -7998,7 +8024,7 @@ function vehiclesHtml() {
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
-      const refrigeratedTag = v.refrigerated
+      const refrigeratedTag = vehicleHasTermokingEquipment(v)
         ? '<span class="status status-viaje_asignado">Termoking</span>'
         : '<span class="status status-espera_standby">Carga seca</span>';
       const occupancy = resolveVehicleOccupancy(v.id);
@@ -15160,7 +15186,10 @@ function bindDynamicEvents() {
           });
         },
         onSubmit: async (form) => {
-          const newServiceType = form.requiresThermoking === "yes" ? "refrigerated" : "dry";
+          const newServiceType =
+            form.requiresThermoking === "yes"
+              ? "Transporte nacional con termoking"
+              : "Transporte nacional sin termoking";
           const updates = {
             originDepartment: String(form.originDepartment || "").trim(),
             originCity: String(form.originCity || "").trim(),
