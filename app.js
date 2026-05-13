@@ -15414,6 +15414,9 @@ function bindDynamicEvents() {
       const departmentsOpts = departmentOptions();
       const originCityOpts = cityOptionsFromDepartment(req.originDepartment || "", req.originCity || "");
       const destinationCityOpts = cityOptionsFromDepartment(req.destinationDepartment || "", req.destinationCity || "");
+      /** BD `fecha_hora_recogida` / `fecha_hora_entrega_estimada` → `pickupAt` / `etaDelivery` (ISO); no existen `pickupDate`/`pickupTime` en fila API. */
+      const [pickupDateInit, pickupTimeInit] = String(toInputDate(req.pickupAt) || "").split("T");
+      const [deliveryDateInit, deliveryTimeInit] = String(toInputDate(req.etaDelivery || req.pickupAt) || "").split("T");
       openEditModal({
         title: "Editar solicitud de viaje",
         subtitle: `${req.requestNumber || req.id} · ${req.clientName || ""}`,
@@ -15464,10 +15467,10 @@ function bindDynamicEvents() {
           },
           { name: "destinationAddress", label: "Dirección destino", value: req.destinationAddress || "", full: true, required: true },
           { type: "section", id: "edit-req-window", title: "Ventanas de servicio", hint: "Fechas y horas estimadas de recogida y entrega." },
-          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: req.pickupDate || "", required: true },
-          { name: "pickupTime", label: "Hora de recogida", type: "time", value: req.pickupTime || "", required: true },
-          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: req.deliveryDate || "", required: true },
-          { name: "deliveryTime", label: "Hora de entrega", type: "time", value: req.deliveryTime || "", required: true },
+          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDateInit || "", required: true },
+          { name: "pickupTime", label: "Hora de recogida", type: "time", value: pickupTimeInit || "", required: true },
+          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDateInit || "", required: true },
+          { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTimeInit || "", required: true },
           { type: "section", id: "edit-req-cargo", title: "Carga y servicio", hint: "Características del envío." },
           {
             name: "serviceType",
@@ -15525,6 +15528,28 @@ function bindDynamicEvents() {
             notify("Seleccione un modo de transporte válido.", "error");
             return false;
           }
+          const pickupDateValue = String(form.pickupDate || "").trim();
+          const pickupTimeValue = String(form.pickupTime || "").trim();
+          const deliveryDateValue = String(form.deliveryDate || "").trim();
+          const deliveryTimeValue = String(form.deliveryTime || "").trim();
+          if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
+            notify(userMessage("requestDatetimeMissing"), "error");
+            return false;
+          }
+          const pickupAtBuilt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
+          const etaDeliveryBuilt = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
+          if (!pickupAtBuilt || !etaDeliveryBuilt) {
+            notify(userMessage("requestDatetimeMissing"), "error");
+            return false;
+          }
+          const pickupDateTime = new Date(pickupAtBuilt);
+          const deliveryDateTime = new Date(etaDeliveryBuilt);
+          if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
+            notify(userMessage("requestDeliveryAfterPickup"), "error");
+            return false;
+          }
+          const pickupAtIso = pickupDateTime.toISOString();
+          const etaDeliveryIso = deliveryDateTime.toISOString();
           const refrigeracionTermoking = form.requiresThermoking === "yes";
           const updates = {
             originDepartment: String(form.originDepartment || "").trim(),
@@ -15533,10 +15558,12 @@ function bindDynamicEvents() {
             destinationDepartment: String(form.destinationDepartment || "").trim(),
             destinationCity: String(form.destinationCity || "").trim(),
             destinationAddress: String(form.destinationAddress || "").trim(),
-            pickupDate: String(form.pickupDate || "").trim(),
-            pickupTime: String(form.pickupTime || "").trim(),
-            deliveryDate: String(form.deliveryDate || "").trim(),
-            deliveryTime: String(form.deliveryTime || "").trim(),
+            pickupDate: pickupDateValue,
+            pickupTime: pickupTimeValue,
+            deliveryDate: deliveryDateValue,
+            deliveryTime: deliveryTimeValue,
+            pickupAt: pickupAtIso,
+            etaDelivery: etaDeliveryIso,
             cargoDescription: String(form.cargoDescription || "").trim(),
             serviceType: modo,
             refrigeracionTermoking,
