@@ -4,6 +4,7 @@ import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
 import { AdminUserDeleteDto } from "./dto/admin-user-delete.dto";
 import { AdminCompanyDeleteDto } from "./dto/admin-company-delete.dto";
 import { AdminRequestDeleteDto } from "./dto/admin-request-delete.dto";
+import { ClientRequestDeleteDto } from "./dto/client-request-delete.dto";
 import { AdminVehicleDeleteDto } from "./dto/admin-vehicle-delete.dto";
 import { AdminDriverDeleteDto } from "./dto/admin-driver-delete.dto";
 import { AdminClearTripDto } from "./dto/admin-clear-trip.dto";
@@ -122,6 +123,12 @@ export class PortalController {
   @Post("admin-request-delete")
   adminRequestDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminRequestDeleteDto) {
     return this.portal.adminDeleteTransportRequest(req.user.userId, req.user.role, dto.requestId);
+  }
+
+  /** Cliente: borra solicitud pendiente de su empresa (antes de aprobación). */
+  @Post("client-request-delete")
+  clientRequestDelete(@Req() req: { user: ReqUser }, @Body() dto: ClientRequestDeleteDto) {
+    return this.portal.clientDeletePendingTransportRequest(req.user.userId, req.user.role, dto.requestId);
   }
 
   @Post("admin-vehicle-delete")

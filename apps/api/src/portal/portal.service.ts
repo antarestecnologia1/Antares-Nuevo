@@ -1045,6 +1045,49 @@ export class PortalService implements OnModuleInit {
     return { ok: true, requestId: rid };
   }
 
+  /**
+   * Cliente: elimina físicamente una solicitud solo en estado **Pendiente** de su empresa
+   * (o creada por el mismo usuario) y sin que haya sido aprobada.
+   */
+  async clientDeletePendingTransportRequest(
+    actorUserId: string,
+    actorRole: JwtRole,
+    requestId: string
+  ): Promise<{ ok: true; requestId: string }> {
+    if (String(actorRole || "").toLowerCase() !== "client") throw new ForbiddenException();
+    const rid = String(requestId || "").trim();
+    if (!rid || !PG_UUID_V4_RE.test(rid)) {
+      throw new BadRequestException("ID de solicitud invalido");
+    }
+    const companyRaw = String((await this.getUserCompany(actorUserId)) ?? "").trim();
+    const companyId = PG_UUID_V4_RE.test(companyRaw) ? companyRaw : null;
+    try {
+      const del = await this.pool.query(
+        `DELETE FROM solicitudes_transporte s
+         WHERE s.id = $1::uuid
+           AND s.estado = 'Pendiente'::estado_solicitud_transporte
+           AND (
+             s.id_usuario_solicitante = $3::uuid
+             OR ($2::uuid IS NOT NULL AND s.id_empresa_cliente = $2::uuid)
+           )`,
+        [rid, companyId, actorUserId]
+      );
+      if ((del.rowCount ?? 0) === 0) {
+        throw new BadRequestException(
+          "No se pudo eliminar: debe estar pendiente de aprobación y estar asociada a su empresa."
+        );
+      }
+    } catch (e) {
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/violates foreign key|foreign key constraint/i.test(msg)) {
+        throw new BadRequestException("No se puede eliminar esta solicitud por datos vinculados.");
+      }
+      throw e;
+    }
+    return { ok: true, requestId: rid };
+  }
+
   async adminDeleteVehicle(actorUserId: string, actorRole: JwtRole, vehicleId: string) {
     void actorUserId;
     if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
@@ -1703,7 +1746,8 @@ export class PortalService implements OnModuleInit {
       contractType: d.tipo_contrato,
       baseSalary: d.salario_base != null ? Number(d.salario_base) : 0,
       startDate: d.fecha_inicio,
-      hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null
+      hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null,
+      photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim()
     }));
   }
 
@@ -2788,16 +2832,23 @@ export class PortalService implements OnModuleInit {
           ? new Date(String(hiredRaw))
           : null;
       const hiredOk = hiredTs && !Number.isNaN(hiredTs.getTime()) ? hiredTs : null;
+      const rawPhotoUrl = pickPortalField(d, "photoUrl", "avatarUrl", "foto", "photo");
+      let urlFotoSql: string | null = rawPhotoUrl != null ? String(rawPhotoUrl).trim() : "";
+      if (!urlFotoSql || urlFotoSql.startsWith("data:") || urlFotoSql.length > 2048) {
+        urlFotoSql = null;
+      }
+
       await c.query(
         `INSERT INTO conductores (
           id, id_empresa, nombre_completo, tipo_documento, numero_documento, telefono, departamento, ciudad, direccion,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
           contacto_emergencia, telefono_emergencia,
-          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion
+          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
-          $13::date, $14::date, $15, $16, $17, $18, $19, $20, $21, $22::date, $23::timestamptz
+          $13::date, $14::date, $15, $16, $17, $18, $19, $20, $21, $22::date, $23::timestamptz,
+          $24
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
@@ -2821,7 +2872,8 @@ export class PortalService implements OnModuleInit {
           tipo_contrato = EXCLUDED.tipo_contrato,
           salario_base = EXCLUDED.salario_base,
           fecha_inicio = EXCLUDED.fecha_inicio,
-          fecha_contratacion = EXCLUDED.fecha_contratacion`,
+          fecha_contratacion = EXCLUDED.fecha_contratacion,
+          url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto)`,
         [
           d.id,
           d.companyId || null,
@@ -2845,26 +2897,79 @@ export class PortalService implements OnModuleInit {
           d.contractType || null,
           d.baseSalary != null ? Number(d.baseSalary) : null,
           portalDateOrNull(d.startDate),
-          hiredOk
+          hiredOk,
+          urlFotoSql
         ]
       );
     }
   }
 
+  /**
+   * Sincroniza notificaciones: UPSERT más **poda** — las filas que ya no llegan desde el navegador
+   * para cada destinatario se eliminan, para que al recargar no reaparezcan.
+   */
   private async syncNotifications(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
-    for (const n of data) {
+    type NotifRow = { id?: unknown; userId?: unknown; title?: unknown; body?: unknown; readAt?: unknown };
+    const rows = data as NotifRow[];
+
+    for (const n of rows) {
       if (!n?.id) continue;
-      if (this.skipUnlessPersistUuid("syncNotifications", n.id)) continue;
+      if (this.skipUnlessPersistUuid("syncNotifications", String(n.id))) continue;
       if (!admin && String(n.userId) !== userId) throw new ForbiddenException();
-      if (this.skipUnlessPersistUuid("syncNotifications.targetUserId", n.userId)) continue;
+      if (this.skipUnlessPersistUuid("syncNotifications.targetUserId", String(n.userId))) continue;
       await c.query(
         `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz)
          ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo, fecha_lectura = EXCLUDED.fecha_lectura`,
-        [n.id, n.userId, n.title, n.body, n.readAt || null]
+        [n.id, n.userId, n.title, n.body, (n.readAt ?? null) as string | Date | null]
       );
+    }
+
+    if (!admin) {
+      const ids = rows
+        .map((n) => String(n?.id ?? "").trim())
+        .filter((id) => PG_UUID_V4_RE.test(id));
+      if (!ids.length) {
+        await c.query(`DELETE FROM notificaciones WHERE id_usuario = $1::uuid`, [userId]);
+      } else {
+        await c.query(
+          `DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND NOT (id::text = ANY($2::text[]))`,
+          [userId, ids]
+        );
+      }
+      return;
+    }
+
+    if (rows.length === 0) {
+      /** Coherente con “vaciar bandeja” del admin cuando el navegador queda sin entradas. */
+      await c.query(`DELETE FROM notificaciones`);
+      return;
+    }
+
+    const byUid = new Map<string, string[]>();
+    for (const n of rows) {
+      const nid = String(n?.id ?? "").trim();
+      const uid = String(n?.userId ?? "").trim();
+      if (!PG_UUID_V4_RE.test(nid) || !PG_UUID_V4_RE.test(uid)) continue;
+      let arr = byUid.get(uid);
+      if (!arr) {
+        arr = [];
+        byUid.set(uid, arr);
+      }
+      if (!arr.includes(nid)) arr.push(nid);
+    }
+
+    for (const [targetUid, keepIds] of byUid.entries()) {
+      if (!keepIds.length) {
+        await c.query(`DELETE FROM notificaciones WHERE id_usuario = $1::uuid`, [targetUid]);
+      } else {
+        await c.query(
+          `DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND NOT (id::text = ANY($2::text[]))`,
+          [targetUid, keepIds]
+        );
+      }
     }
   }
 

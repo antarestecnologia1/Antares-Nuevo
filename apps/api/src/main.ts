@@ -1,4 +1,5 @@
 import "./bootstrap-dns";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
@@ -67,9 +68,11 @@ function buildCorsOriginHandler(config: ConfigService) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   app.setGlobalPrefix("api");
+  app.useBodyParser("json", { limit: "25mb" });
+  app.useBodyParser("urlencoded", { extended: true, limit: "25mb" });
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");

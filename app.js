@@ -6457,20 +6457,37 @@ function canTransitionStatus(currentStatus, nextStatus) {
 }
 
 /**
- * Determina si el usuario actual puede editar/cancelar una solicitud.
- *
- * Reglas de negocio (consolidadas):
- *   - Solo administradores pueden editar campos de la solicitud.
- *   - El admin puede editar mientras la solicitud no esté ya cerrada,
- *     completada, cancelada o rechazada (estados "finales" inmutables).
- *   - Cualquier otro rol (cliente, operador, etc.) NO puede editar — solo
- *     ve el detalle de las solicitudes que le corresponden a su empresa.
+ * Administrador: puede editar/cancelar solicitud mientras no esté en estado final.
  */
-function canClientManageRequest(request) {
+function canAdminEditTransportRequestFields(request) {
   if (!request) return false;
   if (currentUser()?.role !== ROLES.ADMIN) return false;
   const finalStatuses = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.CANCELADA, STATUS.RECHAZADA];
   return !finalStatuses.includes(request.status);
+}
+
+/**
+ * Cliente: solo mientras la solicitud sigue en **Pendiente** (no aprobada aún) y sin viaje.
+ */
+function canClientEditOwnPendingTransportRequest(request, actor) {
+  const user = actor || currentUser();
+  if (!request || !user || user.role !== ROLES.CLIENT) return false;
+  if (request.trip) return false;
+  return request.status === STATUS.PENDIENTE;
+}
+
+/**
+ * Puede abrir el formulario de edición de solicitud (admin con reglas amplias, cliente solo pendiente).
+ */
+function canPortalUserEditTransportRequest(request, actor) {
+  return canAdminEditTransportRequestFields(request) || canClientEditOwnPendingTransportRequest(request, actor);
+}
+
+/**
+ * @deprecated Nombre histórico; equivale a {@link canAdminEditTransportRequestFields}.
+ */
+function canClientManageRequest(request) {
+  return canAdminEditTransportRequestFields(request);
 }
 
 /**
@@ -7692,7 +7709,8 @@ function requestListClientHtml(user) {
   const requests = getVisibleRequestsForUser(user);
   const rows = requests
     .map((r) => {
-      const allowEdit = canClientManageRequest(r);
+      const allowEdit = canPortalUserEditTransportRequest(r, user);
+      const allowClientDeletePending = canClientEditOwnPendingTransportRequest(r, user);
       const trip = r.trip
         ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
         : '<span class="muted">-</span>';
@@ -7705,8 +7723,9 @@ function requestListClientHtml(user) {
           <div class="trip-actions-stack request-actions-stack">
             <div class="toolbar trip-actions-toolbar request-actions-toolbar">
               <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
-              ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
-              ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
+              ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit-request" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
+              ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
+              ${allowClientDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
               ${user?.role === ROLES.ADMIN ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
             </div>
           </div>
@@ -7976,6 +7995,14 @@ function driversHtml() {
         .map((p) => p.charAt(0).toUpperCase())
         .slice(0, 2)
         .join("");
+      const photoUrlDriver = String(d.photoUrl || "").trim();
+      const hasDriverPhoto = Boolean(
+        photoUrlDriver && (/^https?:\/\//i.test(photoUrlDriver) || /^data:image\//i.test(photoUrlDriver))
+      );
+      const avatarInner = hasDriverPhoto
+        ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
+        : initials;
+      const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
       const occupancy = resolveDriverOccupancy(d.id);
       const statusTag = isManuallyUnavailable(d)
         ? '<span class="status status-pendiente">🟡 No disponible</span>'
@@ -7993,7 +8020,7 @@ function driversHtml() {
       })();
       return `<article class="driver-card">
         <header class="driver-card-head">
-          <div class="driver-avatar">${initials}</div>
+          <div class="${avatarClass}">${avatarInner}</div>
           <div class="driver-card-title">
             <h4>${d.name || "Conductor"}</h4>
             <p class="muted">${getCompanyById(d.companyId)?.name || "-"}</p>
@@ -10430,7 +10457,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
         <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
-        <label>${fieldLabel(IC.calendar, "Duración del contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses, indefinido" /></label>
+        <label>${fieldLabel(IC.calendar, "Duración del contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses, 24 meses (2 años) o indefinido" title="Indique meses y/o años, o texto 'indefinido' cuando aplique contrato indefinido." /></label>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
         <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
@@ -12704,7 +12731,9 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
 <label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
 <label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" required>${contractSel}</select></label>
-<label class="full"><span>${escapeHtml("Duración del contrato")}</span><input name="contractDuration" required value="${escapeAttr(e.contractDuration || "")}" /></label>
+<label class="full"><span>${escapeHtml(
+      "Duración del contrato (texto para el PDF: meses, años o indefinido)"
+    )}</span><input name="contractDuration" required value="${escapeAttr(e.contractDuration || "")}" title="Ej.: 12 meses, 1 año, o indefinido." /></label>
 <label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(e.startDate || "")}" /></label>
 <label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
 <label><span>${escapeHtml("Auxilio transporte")}</span><input type="number" name="transportAllowance" min="0" value="${escapeAttr(parseNum(e.transportAllowance) || CO_HR_RULES.transportAllowance)}" /></label>
@@ -12872,8 +12901,6 @@ function mountAuthorizationsTabs() {
 
 /** Acciones que los usuarios que no son administrador no pueden ejecutar (listeners capture en `viewRoot`, una sola vez). */
 const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
-  "edit",
-  "cancel",
   "approve",
   "reject",
   "edit-admin",
@@ -14676,17 +14703,14 @@ function bindDynamicEvents() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='edit']").forEach((btn) => {
+  nodes.viewRoot.querySelectorAll("[data-action='edit-request']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req) return;
-      /**
-       * Defensa en profundidad: aunque el botón solo se renderiza para
-       * administradores con solicitud editable, validamos aquí también.
-       */
-      if (!canClientManageRequest(req)) {
-        notify("Solo un administrador puede editar esta solicitud.", "error");
+      const actor = currentUser();
+      if (!canPortalUserEditTransportRequest(req, actor)) {
+        notify("No tiene permiso para editar esta solicitud en su estado actual.", "error");
         return;
       }
       const departmentsOpts = departmentOptions();
@@ -14811,7 +14835,7 @@ function bindDynamicEvents() {
             notes: String(form.notes || "").trim(),
             observations: String(form.notes || "").trim(),
             updatedAt: nowIso(),
-            updatedBy: currentUser()?.name || "Admin"
+            updatedBy: actor?.name || (actor?.role === ROLES.CLIENT ? "Cliente" : "Usuario")
           };
           const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
           try {
@@ -14829,21 +14853,26 @@ function bindDynamicEvents() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='cancel']").forEach((btn) => {
+  nodes.viewRoot.querySelectorAll("[data-action='cancel-request']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
       if (!req) return;
-      /**
-       * Defensa en profundidad: cancelar requiere permiso de admin Y que la
-       * solicitud no esté ya con viaje asignado. La UI ya esconde el botón
-       * en otros casos, pero validamos aquí también.
-       */
-      if (!canClientManageRequest(req) || req.trip) {
-        notify("Solo un administrador puede cancelar esta solicitud y debe estar sin viaje asignado.", "error");
+      const actor = currentUser();
+      if (!actor || req.trip || !canPortalUserEditTransportRequest(req, actor)) {
+        notify("No puede cancelar esta solicitud en el estado actual o ya tiene viaje asignado.", "error");
         return;
       }
-      const updated = requests.map((r) => (r.id === req.id ? { ...r, status: STATUS.CANCELADA, updatedAt: nowIso(), updatedBy: currentUser()?.name || "Admin" } : r));
+      const updated = requests.map((r) =>
+        r.id === req.id
+          ? {
+              ...r,
+              status: STATUS.CANCELADA,
+              updatedAt: nowIso(),
+              updatedBy: actor?.name || (actor.role === ROLES.CLIENT ? "Cliente" : "Usuario")
+            }
+          : r
+      );
       try {
         await reqWriteAwait(updated);
       } catch (err) {
@@ -15448,6 +15477,36 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='delete-client-request']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const actor = currentUser();
+      const requestId = String(btn.dataset.id || "");
+      if (!requestId || !actor) return;
+      const req = reqRead().find((r) => String(r.id) === requestId);
+      if (!req || !canClientEditOwnPendingTransportRequest(req, actor)) {
+        notify("Solo puede eliminar solicitudes pendientes de aprobación de su empresa.", "error");
+        return;
+      }
+      openConfirmModal({
+        title: "Eliminar solicitud",
+        message: "Se eliminara definitivamente esta solicitud. Solo es posible cuando aun no ha sido aprobada.",
+        confirmText: "Eliminar",
+        onConfirm: async () => {
+          try {
+            await postPortalAuthorized("/portal/client-request-delete", { requestId });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
+            return;
+          }
+          await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
+          recalculateResourceAvailability();
+          notify("Solicitud eliminada.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='delete-trip']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (abortIfNotAdmin()) return;
@@ -15892,6 +15951,20 @@ function bindDynamicEvents() {
       const all = read(KEYS.drivers, []);
       const target = all.find((v) => v.id === btn.dataset.id);
       if (!target) return;
+      const initials = String(target.name || "C")
+        .split(/\s+/)
+        .map((p) => p.charAt(0).toUpperCase())
+        .slice(0, 2)
+        .join("");
+      const existingPhoto = String(target.photoUrl || "").trim();
+      const hasEditPhoto =
+        Boolean(existingPhoto && (/^https?:\/\//i.test(existingPhoto) || /^data:image\//i.test(existingPhoto)));
+      const photoOvalInner = hasEditPhoto
+        ? `<img src="${escapeAttr(existingPhoto)}" alt="" />`
+        : `<span class="driver-edit-photo-oval--placeholder" aria-hidden="true">${escapeHtml(
+            initials.slice(0, 1) || "C"
+          )}</span>`;
+
       const licenseCatOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))];
       const bloodOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))];
       const epsOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))];
@@ -15901,6 +15974,21 @@ function bindDynamicEvents() {
         subtitle: target.name,
         submitText: "Actualizar conductor",
         fields: [
+          {
+            type: "custom",
+            id: "driver-edit-photo-slot",
+            html: `<div class="driver-edit-photo-block full">
+              <div class="driver-edit-photo-oval">${photoOvalInner}</div>
+              <label class="full driver-edit-photo-hint">
+                <span>Foto del conductor</span>
+                <input type="file" name="driverPhotoFile" accept="image/*" />
+                <input type="hidden" name="photoUrlExisting" value="${escapeAttr(existingPhoto)}" />
+              </label>
+              <p class="full muted modal-field-hint" style="text-align:center;font-size:0.8rem;margin:0">
+                JPG o PNG preferiblemente. Si no elige archivo, se conserva la foto actual.
+              </p>
+            </div>`
+          },
           { name: "name", label: "Nombre completo", value: target.name, required: true },
           { name: "phone", label: "Teléfono celular", value: target.phone, required: true, placeholder: "Ej: 3001234567" },
           { name: "emergencyContact", label: "Contacto de emergencia", value: target.emergencyContact || "" },
@@ -15929,35 +16017,60 @@ function bindDynamicEvents() {
           { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
           { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 }
         ],
-        onSubmit: async (form) => {
-          const expiryValue = String(form.licenseExpiry || "").trim();
+        onSubmit: async (_form, formEl) => {
+          const expiryValue = String(formEl?.querySelector?.("input[name='licenseExpiry']")?.value ?? "").trim();
           if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
             notify(userMessage("driverLicenseFutureEdit"), "error");
             return false;
           }
+
+          let photoUrl = String(formEl?.querySelector?.("input[name='photoUrlExisting']")?.value ?? "").trim();
+          const photoFile = formEl?.querySelector?.("input[name='driverPhotoFile']")?.files?.[0];
+          if (photoFile) {
+            try {
+              photoUrl = await resolveEmployeeAvatarUrl(photoFile, photoUrl);
+            } catch (_e) {
+              notify("No se pudo subir la imagen seleccionada.", "error");
+              return false;
+            }
+            if (/^data:image\//i.test(photoUrl)) {
+              notify(
+                "Sin almacenamiento de fotos en el servidor (R2 / CF_R2_*), la imagen es demasiado grande para persistir aquí.",
+                "error"
+              );
+              return false;
+            }
+          }
+
+          const getVal = (name) =>
+            formEl instanceof HTMLFormElement
+              ? String(new FormData(formEl).get(name) ?? "").trim()
+              : "";
+
           const nextDrivers = all.map((d) =>
-              d.id === target.id
-                ? {
-                    ...d,
-                    name: String(form.name || "").trim(),
-                    phone: String(form.phone || "").trim(),
-                    emergencyContact: String(form.emergencyContact || "").trim(),
-                    emergencyPhone: String(form.emergencyPhone || "").trim(),
-                    bloodType: String(form.bloodType || "").trim(),
-                    license: String(form.license || "").trim(),
-                    licenseCategory: String(form.licenseCategory || "").trim(),
-                    licenseExpiry: expiryValue,
-                    psychoTestDate: form.psychoTestDate || "",
-                    psychoTestExpiry: form.psychoTestExpiry || "",
-                    defensiveCourse: String(form.defensiveCourse || "").trim(),
-                    defensiveCourseExpiry: form.defensiveCourseExpiry || "",
-                    eps: String(form.eps || "").trim(),
-                    arl: String(form.arl || "").trim(),
-                    comparendos: parseNum(form.comparendos),
-                    experienceYears: parseNum(form.experienceYears)
-                  }
-                : d
-            );
+            d.id === target.id
+              ? {
+                  ...d,
+                  name: getVal("name"),
+                  phone: getVal("phone"),
+                  emergencyContact: getVal("emergencyContact"),
+                  emergencyPhone: getVal("emergencyPhone"),
+                  bloodType: getVal("bloodType"),
+                  license: getVal("license"),
+                  licenseCategory: getVal("licenseCategory"),
+                  licenseExpiry: expiryValue,
+                  psychoTestDate: getVal("psychoTestDate"),
+                  psychoTestExpiry: getVal("psychoTestExpiry"),
+                  defensiveCourse: getVal("defensiveCourse"),
+                  defensiveCourseExpiry: getVal("defensiveCourseExpiry"),
+                  eps: getVal("eps"),
+                  arl: getVal("arl"),
+                  comparendos: parseNum(getVal("comparendos")),
+                  experienceYears: parseNum(getVal("experienceYears")),
+                  photoUrl
+                }
+              : d
+          );
           try {
             await writeAwaitServer(KEYS.drivers, nextDrivers);
           } catch (err) {

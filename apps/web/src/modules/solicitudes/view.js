@@ -9,7 +9,11 @@
    * duplicando información.
    */
   function buildRequestOpsCard(r, user) {
-    const allowEdit = canClientManageRequest(r);
+    const allowEdit = typeof canPortalUserEditTransportRequest === "function" ? canPortalUserEditTransportRequest(r, user) : false;
+    const allowClientHardDeletePending =
+      user?.role === ROLES.CLIENT &&
+      typeof canClientEditOwnPendingTransportRequest === "function" &&
+      canClientEditOwnPendingTransportRequest(r, user);
     const isAdmin = user?.role === ROLES.ADMIN;
     const companies = read(KEYS.companies, []);
     const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
@@ -56,8 +60,9 @@
       ${tripBadge}
       <div class="toolbar trip-ops-card-actions">
         <button class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle completo de la solicitud">${IC.eye} Detalle</button>
-        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit" data-id="${escapeAttr(String(r.id || ""))}" title="Editar la solicitud">${IC.edit} Editar</button>` : ""}
-        ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel" data-id="${escapeAttr(String(r.id || ""))}" title="Cancelar la solicitud">${IC.x} Cancelar</button>` : ""}
+        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}" title="Editar la solicitud">${IC.edit} Editar</button>` : ""}
+        ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}" title="Marcar solicitud como cancelada">${IC.x} Cancelar</button>` : ""}
+        ${allowClientHardDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar solicitud antes de aprobacion">${IC.trash} Eliminar</button>` : ""}
         ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Solo administradores: eliminar definitivamente">${IC.trash} Eliminar</button>` : ""}
       </div>
     </article>`;
