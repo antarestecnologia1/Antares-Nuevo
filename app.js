@@ -9408,6 +9408,25 @@ function adminUsersHtml(current) {
   </form>`;
 
   const fComp = `<form id="form-admin-company-create" class="p-form">
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.upload} Logo corporativo</legend>
+      <div class="full hr-employee-avatar-row hr-employee-avatar-row--lead" style="grid-column:1/-1">
+        <div class="hr-employee-avatar-inner">
+          <label class="full company-logo-form-label">
+            ${fieldLabel(IC.upload, "Logo de la empresa", { required: true })}
+            <input type="file" id="admin-company-create-logo-file" name="logoFile" accept="image/*" required class="company-logo-file-input" aria-label="Seleccionar logo de la empresa" />
+            <span class="company-logo-oval company-logo-oval--interactive" data-company-logo-preview-wrap>
+              <span class="company-logo-oval-fallback" data-company-logo-fallback>${IC.upload}</span>
+              <img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />
+              <span class="company-logo-oval-overlay" aria-hidden="true">
+                <span class="company-logo-oval-overlay-inner">${IC.upload}<span>Elegir imagen</span></span>
+              </span>
+            </span>
+            <span class="muted company-logo-picker-hint">Pulse el óvalo para cargar el logo (obligatorio). La imagen se muestra completa sin recorte.</span>
+          </label>
+        </div>
+      </div>
+    </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
       <p class="muted full" style="margin:0 0 0.85rem;line-height:1.45">
@@ -9453,18 +9472,6 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department"><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city"><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" placeholder="Dirección de cargue/descargue o sede principal" /></label>
-        <label class="full company-logo-form-label">
-          ${fieldLabel(IC.upload, "Logo de la empresa", { required: true })}
-          <input type="file" id="admin-company-create-logo-file" name="logoFile" accept="image/*" required class="company-logo-file-input" aria-label="Seleccionar logo de la empresa" />
-          <span class="company-logo-oval company-logo-oval--interactive" data-company-logo-preview-wrap>
-            <span class="company-logo-oval-fallback" data-company-logo-fallback>${IC.upload}</span>
-            <img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />
-            <span class="company-logo-oval-overlay" aria-hidden="true">
-              <span class="company-logo-oval-overlay-inner">${IC.upload}<span>Elegir imagen</span></span>
-            </span>
-          </span>
-          <span class="muted company-logo-picker-hint">Pulse el óvalo para cargar el logo.</span>
-        </label>
       </div>
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
     </fieldset>
@@ -9473,6 +9480,29 @@ function adminUsersHtml(current) {
   const fCompanyEdit = editingCompany
     ? `<form id="form-admin-company-edit" class="p-form p-form-colored">
     <input type="hidden" name="id" value="${escapeAttr(String(editingCompany.id || ""))}" />
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.upload} Logo corporativo</legend>
+      <div class="full hr-employee-avatar-row hr-employee-avatar-row--lead" style="grid-column:1/-1">
+        <div class="hr-employee-avatar-inner">
+          <label class="full company-logo-form-label">
+            ${fieldLabel(IC.upload, "Logo de la empresa")}
+            <input type="file" id="admin-company-edit-logo-file" name="logoFile" accept="image/*" class="company-logo-file-input" aria-label="Cambiar logo de la empresa" />
+            <span class="company-logo-oval company-logo-oval--interactive${editingCompanyLogoUrl ? " has-image" : ""}" data-company-logo-preview-wrap>
+              ${
+                editingCompanyLogoUrl
+                  ? `<img class="company-logo-oval-img" src="${escapeAttr(editingCompanyLogoUrl)}" alt="" width="128" height="80" loading="lazy" decoding="async" data-company-logo-preview-img data-company-logo-original="1" />`
+                  : `<span class="company-logo-oval-fallback" data-company-logo-fallback>${escapeHtml(String(editingCompany.name || "E").charAt(0).toUpperCase())}</span><img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />`
+              }
+              <span class="company-logo-oval-overlay" aria-hidden="true">
+                <span class="company-logo-oval-overlay-inner">${IC.upload}<span>Cambiar logo</span></span>
+              </span>
+            </span>
+            <span class="muted company-logo-picker-hint">Pulse el óvalo para cambiar el logo. La imagen se muestra completa sin recorte; si no elige archivo, se conserva el actual.</span>
+            <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
+          </label>
+        </div>
+      </div>
+    </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
       <div class="form-section-grid">
@@ -9503,22 +9533,6 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompanyDeptKey)}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompanyDeptKey, editingCompanyCityCanon)}</select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
-        <label class="full company-logo-form-label">
-          ${fieldLabel(IC.upload, "Logo de la empresa")}
-          <input type="file" id="admin-company-edit-logo-file" name="logoFile" accept="image/*" class="company-logo-file-input" aria-label="Cambiar logo de la empresa" />
-          <span class="company-logo-oval company-logo-oval--interactive${editingCompanyLogoUrl ? " has-image" : ""}" data-company-logo-preview-wrap>
-            ${
-              editingCompanyLogoUrl
-                ? `<img class="company-logo-oval-img" src="${escapeAttr(editingCompanyLogoUrl)}" alt="" width="128" height="80" loading="lazy" decoding="async" data-company-logo-preview-img data-company-logo-original="1" />`
-                : `<span class="company-logo-oval-fallback" data-company-logo-fallback>${escapeHtml(String(editingCompany.name || "E").charAt(0).toUpperCase())}</span><img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />`
-            }
-            <span class="company-logo-oval-overlay" aria-hidden="true">
-              <span class="company-logo-oval-overlay-inner">${IC.upload}<span>Cambiar logo</span></span>
-            </span>
-          </span>
-          <span class="muted company-logo-picker-hint">Pulse el óvalo para elegir otra imagen.</span>
-          <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
-        </label>
       </div>
     </fieldset>
     <div class="toolbar full">
@@ -16626,6 +16640,9 @@ function bindDynamicEvents() {
         }
       }
       notify(userMessage("driverCreated"), "success");
+      try {
+        if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+      } catch (_e) {}
       renderPortalView();
     });
   }
@@ -16803,12 +16820,19 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-driver']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const all = read(KEYS.drivers, []);
+    btn.addEventListener("click", async () => {
       const did = String(btn.dataset.id || "").trim();
-      const rawTarget = all.find((v) => String(v.id || "") === did);
+      if (!did) return;
+      try {
+        if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+      } catch (_e) {}
+      const all = read(KEYS.drivers, []);
+      const rawTarget = all.find((v) => String(v.id ?? "").trim() === did);
       const target = normalizeDriverRowForEditor(rawTarget);
-      if (!target) return;
+      if (!target) {
+        notify("No se encontro el conductor en el servidor. Actualice la pagina o verifique su conexion.", "error");
+        return;
+      }
       const initials = String(target.name || "C")
         .split(/\s+/)
         .map((p) => p.charAt(0).toUpperCase())
@@ -16905,8 +16929,8 @@ function bindDynamicEvents() {
               ? String(new FormData(formEl).get(name) ?? "").trim()
               : "";
 
-          const nextDrivers = all.map((d) =>
-            String(d.id || "") === String(target.id || "")
+          const nextDrivers = read(KEYS.drivers, []).map((d) =>
+            String(d.id ?? "").trim() === String(target.id ?? "").trim()
               ? {
                   ...d,
                   name: getVal("name"),
@@ -18954,6 +18978,9 @@ function bindDynamicEvents() {
             return;
           }
         }
+        try {
+          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+        } catch (_e) {}
       } else if (approval.type === "register_hr_absence") {
         const absences = read(KEYS.hrAbsences, []);
         absences.unshift({

@@ -2033,8 +2033,8 @@ export class PortalService implements OnModuleInit {
             autoBusy: busyNow
           };
         })(),
-        id: d.id,
-        companyId: d.id_empresa,
+        id: d.id != null ? String(d.id).trim() : "",
+        companyId: d.id_empresa != null ? String(d.id_empresa).trim() : "",
         name: d.nombre_completo != null ? String(d.nombre_completo).trim() : "",
         documentType: d.tipo_documento,
         idDoc: d.numero_documento != null ? String(d.numero_documento).trim() : "",
