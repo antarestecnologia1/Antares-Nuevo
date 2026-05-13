@@ -691,30 +691,180 @@ function openInfoModal({
   }
 }
 
-/** Modal de ficha de viaje (misma vista que Transporte → Detalle). */
+/**
+ * Modal de ficha de viaje. Muestra detalles operativos del viaje y, según
+ * permisos, expone:
+ *   - "Ver solicitud" → abre el detalle de la solicitud asociada.
+ *   - "Editar viaje"  → abre el formulario de edición (solo admin).
+ */
 function openAssignedTripInfoModal(req) {
   if (!req?.trip) return;
+  const canEditTrip = canAdminEditTrip(req);
+  const secondaryActions = [
+    `<button type="button" class="btn btn-outline" data-trip-info-action="view-request">${IC.eye} Ver solicitud</button>`,
+    canEditTrip ? `<button type="button" class="btn btn-action" data-trip-info-action="edit-trip">${IC.edit} Editar viaje</button>` : ""
+  ].filter(Boolean).join("");
   openInfoModal({
     title: `Viaje ${req.trip.tripNumber}`,
     subtitleHtml: prettyStatus(req.status, "trip"),
+    wide: true,
+    secondaryActionsHtml: secondaryActions,
+    afterMount: (contentEl) => {
+      contentEl
+        .querySelector("[data-trip-info-action='view-request']")
+        ?.addEventListener("click", () => {
+          /**
+           * Salta del detalle del viaje al detalle de la solicitud. Se hace
+           * fire-and-forget vía el handler global de `data-action=detail`.
+           * Como `data-action=detail` está en cards del módulo y aquí el
+           * botón es modal, abrimos el modal de info directamente.
+           */
+          openRequestDetailModal(req);
+        });
+      contentEl
+        .querySelector("[data-trip-info-action='edit-trip']")
+        ?.addEventListener("click", () => {
+          openEditTripModal(req);
+        });
+    },
     bodyHtml: `
           <div class="dash-grid">
             <div><strong>Solicitud:</strong> ${escapeHtml(String(req.requestNumber || req.id))}</div>
             <div><strong>Cliente:</strong> ${escapeHtml(String(req.clientName || "-"))}</div>
-            <div><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
+            <div class="full"><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
             <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${parseNum(req.weightKg).toLocaleString("es-CO")} kg</div>
             <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || 0).toLocaleString("es-CO")}</div>
-            <div><strong>Camion:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
+            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
             <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
             <div><strong>Asignado por:</strong> ${escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))}</div>
-            <div><strong>Fecha asignacion:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
+            <div><strong>Fecha asignación:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
             <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
             <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
             ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
             ${req.trip.invoice ? `<div><strong>Factura:</strong> ${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}</div>` : ""}
           </div>
-          ${parseNum(req.standbyChargeTotal) > 0 ? `<p><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
+          ${parseNum(req.standbyChargeTotal) > 0 ? `<p style="margin-top:0.6rem"><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
         `
+  });
+}
+
+/**
+ * Modal de detalle de solicitud (read-only) reutilizable desde la ficha
+ * de viaje y desde otros lugares. Mantiene la misma estructura visual
+ * que la del listado de solicitudes pero sin acciones de edición.
+ */
+function openRequestDetailModal(req) {
+  if (!req) return;
+  const thermokingReq = serviceTypeRequiresRefrigeration(req.serviceType);
+  const boxes = parseNum(req.boxes ?? req.boxesCount);
+  const obs = String(req.notes || req.observations || "").trim();
+  const origAddr = String(req.originAddress || "").trim();
+  const destAddr = String(req.destinationAddress || "").trim();
+  openInfoModal({
+    title: `Solicitud ${req.requestNumber || req.id}`,
+    subtitleHtml: prettyStatus(req.status, "request"),
+    wide: true,
+    bodyHtml: `
+      <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
+        <div class="dash-grid">
+          <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
+          <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
+          <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
+          ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
+          ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${escapeHtml(destAddr)}</span></div>` : ""}
+          <div><strong>Recogida programada</strong><br /><span class="muted">${fmtDate(req.pickupAt || `${req.pickupDate || ""}T${req.pickupTime || ""}`)}</span></div>
+          <div><strong>Entrega estimada</strong><br /><span class="muted">${fmtDate(req.etaDelivery || `${req.deliveryDate || ""}T${req.deliveryTime || ""}`)}</span></div>
+          <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
+          <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}</span></div>
+          <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
+          <div><strong>Peso / cajas</strong><br /><span class="muted">${parseNum(req.weightKg).toLocaleString("es-CO")} kg · ${boxes.toLocaleString("es-CO")} cajas</span></div>
+          <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
+        </div>
+        ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
+      </section>
+    `
+  });
+}
+
+/**
+ * Editor del viaje (admin). Permite actualizar fechas estimadas, vehículo,
+ * conductor y observaciones operativas. Las acciones destructivas como
+ * cambiar el estado del viaje siguen ocurriendo a través del select de
+ * estado en el card (transitionRequestStatus).
+ */
+function openEditTripModal(req) {
+  if (!req?.trip) return;
+  if (!canAdminEditTrip(req)) {
+    notify("Solo un administrador puede editar este viaje.", "error");
+    return;
+  }
+  const vehicles = read(KEYS.vehicles, []);
+  const drivers = read(KEYS.drivers, []);
+  const vehicleOptions = [{ value: req.trip.vehicleId || "", label: `${req.trip.vehiclePlate || "—"} · ${req.trip.vehicleType || ""}` }]
+    .concat(
+      vehicles
+        .filter((v) => String(v.id || "") !== String(req.trip.vehicleId || ""))
+        .map((v) => ({ value: String(v.id || ""), label: `${v.plate} · ${v.type || ""}` }))
+    );
+  const driverOptions = [{ value: req.trip.driverId || "", label: req.trip.driverName || "—" }]
+    .concat(
+      drivers
+        .filter((d) => String(d.id || "") !== String(req.trip.driverId || ""))
+        .map((d) => ({ value: String(d.id || ""), label: `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}` }))
+    );
+  const etaPickup = String(req.trip.etaPickup || "");
+  const etaDelivery = String(req.trip.etaDelivery || "");
+  openEditModal({
+    title: `Editar viaje ${req.trip.tripNumber}`,
+    subtitle: `Solicitud ${req.requestNumber || req.id} · ${req.clientName || ""}`,
+    submitText: "Guardar cambios del viaje",
+    extraModalCardClass: "modal-card-edit--trip",
+    fields: [
+      { type: "section", id: "edit-trip-assign", title: "Asignación", hint: "Vehículo y conductor actualmente asignados al viaje." },
+      { name: "vehicleId", label: "Vehículo", type: "select", value: req.trip.vehicleId || "", required: true, options: vehicleOptions },
+      { name: "driverId", label: "Conductor", type: "select", value: req.trip.driverId || "", required: true, options: driverOptions },
+      { type: "section", id: "edit-trip-times", title: "Fechas estimadas", hint: "Permite reprogramar la recogida o la entrega del viaje." },
+      { name: "etaPickup", label: "Recogida (fecha y hora)", type: "datetime-local", value: etaPickup ? etaPickup.slice(0, 16) : "", required: true },
+      { name: "etaDelivery", label: "Entrega (fecha y hora)", type: "datetime-local", value: etaDelivery ? etaDelivery.slice(0, 16) : "", required: true },
+      { type: "section", id: "edit-trip-money", title: "Tarifa y observaciones", hint: "Ajustes manuales que no exigen cambiar el estado del viaje." },
+      { name: "tripValue", label: "Tarifa del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || 0), required: false },
+      { name: "tripNotes", label: "Observaciones del viaje", type: "textarea", value: req.trip.notes || "", rows: 3 }
+    ],
+    onSubmit: async (form) => {
+      const requests = reqRead();
+      const targetVehicle = vehicles.find((v) => String(v.id || "") === String(form.vehicleId || ""));
+      const targetDriver = drivers.find((d) => String(d.id || "") === String(form.driverId || ""));
+      const updates = {
+        tripValue: parseNum(form.tripValue) || parseNum(req.tripValue || 0),
+        updatedAt: nowIso(),
+        updatedBy: currentUser()?.name || "Admin",
+        trip: {
+          ...req.trip,
+          vehicleId: String(form.vehicleId || req.trip.vehicleId || ""),
+          vehiclePlate: targetVehicle?.plate || req.trip.vehiclePlate || "",
+          vehicleType: targetVehicle?.type || req.trip.vehicleType || "",
+          driverId: String(form.driverId || req.trip.driverId || ""),
+          driverName: targetDriver?.fullName || targetDriver?.name || req.trip.driverName || "",
+          driverPhone: targetDriver?.phone || req.trip.driverPhone || "",
+          etaPickup: form.etaPickup ? new Date(form.etaPickup).toISOString() : req.trip.etaPickup,
+          etaDelivery: form.etaDelivery ? new Date(form.etaDelivery).toISOString() : req.trip.etaDelivery,
+          notes: String(form.tripNotes || "").trim(),
+          updatedAt: nowIso(),
+          updatedBy: currentUser()?.name || "Admin"
+        }
+      };
+      const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
+      try {
+        await reqWriteAwait(updated);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar los cambios del viaje."), "error");
+        return false;
+      }
+      recalculateResourceAvailability();
+      notify("Viaje actualizado correctamente.", "success");
+      renderPortalView();
+      return true;
+    }
   });
 }
 
@@ -6306,9 +6456,33 @@ function canTransitionStatus(currentStatus, nextStatus) {
   return allowed.includes(nextStatus);
 }
 
+/**
+ * Determina si el usuario actual puede editar/cancelar una solicitud.
+ *
+ * Reglas de negocio (consolidadas):
+ *   - Solo administradores pueden editar campos de la solicitud.
+ *   - El admin puede editar mientras la solicitud no esté ya cerrada,
+ *     completada, cancelada o rechazada (estados "finales" inmutables).
+ *   - Cualquier otro rol (cliente, operador, etc.) NO puede editar — solo
+ *     ve el detalle de las solicitudes que le corresponden a su empresa.
+ */
 function canClientManageRequest(request) {
   if (!request) return false;
-  return currentUser()?.role === ROLES.ADMIN && request.status === STATUS.PENDIENTE;
+  if (currentUser()?.role !== ROLES.ADMIN) return false;
+  const finalStatuses = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.CANCELADA, STATUS.RECHAZADA];
+  return !finalStatuses.includes(request.status);
+}
+
+/**
+ * Permiso de edición sobre el detalle del viaje (vehículo, conductor,
+ * fechas estimadas, observaciones). Solo administradores y mientras el
+ * viaje no haya sido cerrado/completado/cancelado.
+ */
+function canAdminEditTrip(request) {
+  if (!request?.trip) return false;
+  if (currentUser()?.role !== ROLES.ADMIN) return false;
+  const finalStatuses = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.CANCELADA, STATUS.RECHAZADA];
+  return !finalStatuses.includes(request.status);
 }
 
 function hasUnsavedPortalFormData() {
@@ -7952,6 +8126,7 @@ function transportTripsHtml() {
       <div class="toolbar trip-ops-card-actions">
         <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje: vehículo, conductor, horarios y standby">${IC.truck} Viaje</button>
         <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud asociada">${IC.eye} Solicitud</button>
+        ${canAdminEditTrip(r) ? `<button class="btn btn-sm btn-action" data-action="edit-trip" data-id="${r.id}" title="Editar vehículo, conductor o fechas estimadas">${IC.edit} Editar</button>` : ""}
         ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Generar factura PDF del viaje">${IC.file} Factura</button>` : ""}
         ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores: eliminar el viaje">${IC.trash} Eliminar</button>` : ""}
       </div>
@@ -7996,15 +8171,15 @@ function transportTripsHtml() {
     const ids = Array.isArray(companyIds) ? companyIds : [];
     if (!ids.length) {
       return {
-        scope: '<span class="route-rate-scope-badge route-rate-scope-badge--all">General</span>',
-        clients: '<span class="muted">Aplica a todos los clientes</span>'
+        scope: '<span class="route-rate-scope-badge route-rate-scope-badge--all" title="Esta tarifa es estándar y aplica a todos los clientes">General</span>',
+        clients: '<span class="muted">Todos los clientes</span>'
       };
     }
     const chips = ids
       .map((id) => `<span class="route-rate-client-chip">${escapeHtml(getCompanyById(id)?.name || String(id))}</span>`)
       .join("");
     return {
-      scope: '<span class="route-rate-scope-badge route-rate-scope-badge--specific">Por empresa</span>',
+      scope: '<span class="route-rate-scope-badge route-rate-scope-badge--specific" title="Esta tarifa solo aplica a las empresas listadas">Por empresa</span>',
       clients: `<div class="route-rate-client-chips">${chips}</div>`
     };
   };
@@ -8017,45 +8192,65 @@ function transportTripsHtml() {
           <td>${formatRateRouteCell(storageKey)}</td>
           <td>${clientCell.scope}</td>
           <td>${clientCell.clients}</td>
-          <td><strong class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</strong></td>
-          <td>${isAdmin ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar tarifa">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Solo administradores">${IC.trash} Quitar</button></div>` : '<span class="muted">—</span>'}</td>
+          <td><strong class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</strong><br><span class="muted" style="font-size:0.7rem;letter-spacing:0.02em">COP por viaje</span></td>
+          <td>${isAdmin ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar el valor o el alcance de esta tarifa">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Quitar esta tarifa del catálogo (solo administradores)">${IC.trash} Quitar</button></div>` : '<span class="muted">—</span>'}</td>
         </tr>`;
         })
         .join("")
     : "";
   const ratesTable = ratesRows
-    ? `<div class="table-wrap route-rates-table-wrap"><table class="route-rates-table"><thead><tr><th>Trayecto</th><th>Alcance</th><th>Empresas</th><th>Tarifa (COP)</th><th></th></tr></thead><tbody>${ratesRows}</tbody></table></div>`
-    : emptyState("No hay tarifas por trayecto. Define rutas para autocompletar precios al asignar.");
+    ? `<div class="route-rates-intro">
+        <p><strong>${IC.dollar} Catálogo de tarifas pactadas</strong> · Estos precios se autocompletan cuando creas un viaje con la misma ruta. <span class="muted">Si la tarifa es "General" aplica a cualquier cliente; "Por empresa" solo aplica a las empresas seleccionadas.</span></p>
+      </div>
+      <div class="table-wrap route-rates-table-wrap">
+        <table class="route-rates-table">
+          <thead>
+            <tr>
+              <th>Trayecto (origen → destino)</th>
+              <th>Aplica a</th>
+              <th>Clientes específicos</th>
+              <th>Valor del viaje</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>${ratesRows}</tbody>
+        </table>
+      </div>`
+    : emptyState("Aún no has configurado tarifas por trayecto. Crea la primera para que el sistema sugiera el precio cuando asignes un viaje a esa ruta.");
 
   const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
     <fieldset class="form-section form-section-blue full">
-      <legend>${IC.mapPin} Origen del trayecto</legend>
+      <legend>${IC.mapPin} Paso 1 · Ciudad de origen</legend>
+      <p class="muted form-section-hint">Indica desde dónde sale el viaje. Selecciona primero el departamento y luego la ciudad.</p>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione...</option>${departmentsOpts}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="originCity" id="route-rate-origin-city" required><option value="">Seleccione departamento...</option></select></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento de origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione departamento...</option>${departmentsOpts}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad de origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Primero elige departamento...</option></select></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-violet full">
-      <legend>${IC.mapPin} Destino</legend>
+      <legend>${IC.mapPin} Paso 2 · Ciudad de destino</legend>
+      <p class="muted form-section-hint">Indica hasta dónde llega el viaje.</p>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione...</option>${departmentsOpts}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Seleccione departamento...</option></select></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento de destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione departamento...</option>${departmentsOpts}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad de destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Primero elige departamento...</option></select></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.dollar} Tarifa sugerida</legend>
+      <legend>${IC.dollar} Paso 3 · Tarifa pactada</legend>
+      <p class="muted form-section-hint">Valor en pesos colombianos (COP) que se autocompletará cada vez que se asigne un viaje en esta ruta.</p>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ej: 4200000" /></label>
+        <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ejemplo: 4.200.000" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">
-      <legend>${IC.briefcase} Clientes (negociación)</legend>
+      <legend>${IC.briefcase} Paso 4 · ¿A qué clientes aplica?</legend>
+      <p class="muted form-section-hint">Elige <strong>General</strong> si la tarifa es la misma para todos tus clientes, o <strong>Por empresa</strong> si tienes negociaciones particulares con uno o varios.</p>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.grid, "Alcance de la tarifa")}
           <select name="rateScope" id="route-rate-scope">
-            <option value="all" selected>General (todos los clientes)</option>
-            <option value="specific">Específica por empresa</option>
+            <option value="all" selected>General — aplica a todos los clientes</option>
+            <option value="specific">Por empresa — tarifa negociada con clientes específicos</option>
           </select>
         </label>
         <div class="route-rate-company-count-wrap">
@@ -8064,15 +8259,15 @@ function transportTripsHtml() {
         </div>
         <div class="toolbar full route-rate-clients-toolbar">
           <button type="button" class="btn btn-sm btn-outline" id="route-rate-select-all">${IC.check} Seleccionar todas</button>
-          <button type="button" class="btn btn-sm btn-outline" id="route-rate-clear-all">${IC.x} Limpiar</button>
+          <button type="button" class="btn btn-sm btn-outline" id="route-rate-clear-all">${IC.x} Limpiar selección</button>
         </div>
-        <label class="full">${fieldLabel(IC.briefcase, "Empresas a las que aplica", { required: false })}
+        <label class="full">${fieldLabel(IC.briefcase, "Empresas a las que aplica esta tarifa", { required: false })}
           <select name="rateClientCompanies" id="route-rate-clients" multiple size="6" class="route-rate-clients-select">
             ${rateCompanyOptions}
           </select>
         </label>
-        <p class="muted full route-rate-scope-help" id="route-rate-scope-help" style="margin:0;line-height:1.45">En <strong>General</strong>, la tarifa aplica a todos los clientes. Cambia a <strong>Específica</strong> para elegir una o varias empresas.</p>
-        <p class="muted full" id="route-rate-editing-hint" style="margin:0;display:none">Modo edición activo. Al guardar se actualizará la tarifa seleccionada.</p>
+        <p class="muted full route-rate-scope-help" id="route-rate-scope-help" style="margin:0;line-height:1.45">Mantén pulsado <strong>Ctrl</strong> (o <strong>Cmd</strong> en Mac) para elegir varias empresas. En modo <strong>General</strong> el listado de empresas queda desactivado.</p>
+        <p class="muted full" id="route-rate-editing-hint" style="margin:0;display:none">Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
       </div>
     </fieldset>
     <div class="toolbar full" style="justify-content:flex-start;gap:0.5rem">
@@ -8146,10 +8341,10 @@ function transportTripsHtml() {
 
   const actionGrid = `<div class="dash-grid trips-actions-row--two">
     ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona solicitud, vehículo, conductor y precio de forma guiada (mismo estilo que nueva solicitud)", createTripForm, "Asignar viaje")}
-    ${createCollapsibleCard("create-route-rate", "dollar", "Tarifas por trayecto", "Precios sugeridos por ruta (origen y destino)", routeRateForm, "Nueva tarifa")}
+    ${createCollapsibleCard("create-route-rate", "dollar", "Configurar nueva tarifa por trayecto", "Define el precio sugerido para una ruta. Al crear un viaje con esa misma ruta, este valor se autocompletará en la asignación.", routeRateForm, "Configurar tarifa")}
   </div>`;
 
-  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} rutas`, ratesTable)}`;
+  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}`;
 }
 
 function transportCalendarHtml() {
@@ -14485,22 +14680,148 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
-      if (!req || req.status !== STATUS.PENDIENTE) return;
+      if (!req) return;
+      /**
+       * Defensa en profundidad: aunque el botón solo se renderiza para
+       * administradores con solicitud editable, validamos aquí también.
+       */
+      if (!canClientManageRequest(req)) {
+        notify("Solo un administrador puede editar esta solicitud.", "error");
+        return;
+      }
+      const departmentsOpts = departmentOptions();
+      const originCityOpts = cityOptionsFromDepartment(req.originDepartment || "", req.originCity || "");
+      const destinationCityOpts = cityOptionsFromDepartment(req.destinationDepartment || "", req.destinationCity || "");
       openEditModal({
-        title: "Editar observaciones de solicitud",
-        subtitle: req.requestNumber || req.id,
-        submitText: "Guardar observaciones",
-        fields: [{ name: "notes", label: "Observaciones", value: req.notes || "", required: false }],
+        title: "Editar solicitud de viaje",
+        subtitle: `${req.requestNumber || req.id} · ${req.clientName || ""}`,
+        submitText: "Guardar cambios",
+        extraModalCardClass: "modal-card-edit--request-full",
+        fields: [
+          { type: "section", id: "edit-req-route", title: "Origen y destino", hint: "Ciudades y direcciones del servicio." },
+          {
+            name: "originDepartment",
+            label: "Departamento origen",
+            type: "select",
+            value: req.originDepartment || "",
+            required: true,
+            options: [{ value: "", label: "Seleccione..." }].concat(
+              Object.keys(COLOMBIA_LOCATIONS).map((d) => ({ value: d, label: d }))
+            )
+          },
+          {
+            name: "originCity",
+            label: "Ciudad origen",
+            type: "select",
+            value: req.originCity || "",
+            required: true,
+            options: [{ value: "", label: "Seleccione..." }].concat(
+              (COLOMBIA_LOCATIONS[req.originDepartment || ""] || []).map((c) => ({ value: c, label: c }))
+            )
+          },
+          { name: "originAddress", label: "Dirección origen", value: req.originAddress || "", full: true, required: true },
+          {
+            name: "destinationDepartment",
+            label: "Departamento destino",
+            type: "select",
+            value: req.destinationDepartment || "",
+            required: true,
+            options: [{ value: "", label: "Seleccione..." }].concat(
+              Object.keys(COLOMBIA_LOCATIONS).map((d) => ({ value: d, label: d }))
+            )
+          },
+          {
+            name: "destinationCity",
+            label: "Ciudad destino",
+            type: "select",
+            value: req.destinationCity || "",
+            required: true,
+            options: [{ value: "", label: "Seleccione..." }].concat(
+              (COLOMBIA_LOCATIONS[req.destinationDepartment || ""] || []).map((c) => ({ value: c, label: c }))
+            )
+          },
+          { name: "destinationAddress", label: "Dirección destino", value: req.destinationAddress || "", full: true, required: true },
+          { type: "section", id: "edit-req-window", title: "Ventanas de servicio", hint: "Fechas y horas estimadas de recogida y entrega." },
+          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: req.pickupDate || "", required: true },
+          { name: "pickupTime", label: "Hora de recogida", type: "time", value: req.pickupTime || "", required: true },
+          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: req.deliveryDate || "", required: true },
+          { name: "deliveryTime", label: "Hora de entrega", type: "time", value: req.deliveryTime || "", required: true },
+          { type: "section", id: "edit-req-cargo", title: "Carga y servicio", hint: "Características del envío." },
+          { name: "cargoDescription", label: "Descripción de carga", value: req.cargoDescription || "", required: true, full: true },
+          {
+            name: "requiresThermoking",
+            label: "Refrigeración Termoking",
+            type: "select",
+            value: serviceTypeRequiresRefrigeration(req.serviceType) ? "yes" : "no",
+            required: true,
+            options: [
+              { value: "yes", label: "Sí, requiere equipo Termoking" },
+              { value: "no", label: "No, carga seca" }
+            ]
+          },
+          { name: "boxes", label: "Cajas", type: "number", min: 0, value: parseNum(req.boxes ?? req.boxesCount) || 0, required: true },
+          { name: "weightKg", label: "Peso (kg)", type: "number", min: 0, value: parseNum(req.weightKg) || 0, required: true },
+          { name: "tripValue", label: "Valor del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || req.insuredValue || 0), required: false },
+          { type: "section", id: "edit-req-contact", title: "Contacto en sitio", hint: "Persona que recibe / entrega." },
+          { name: "siteContactName", label: "Nombre de contacto", value: req.siteContactName || req.contactName || "", required: true },
+          { name: "siteContactPhone", label: "Teléfono de contacto", value: req.siteContactPhone || req.contactPhone || "", required: true },
+          { name: "notes", label: "Observaciones", type: "textarea", value: req.notes || req.observations || "", rows: 3 }
+        ],
+        afterMount: (formEl) => {
+          /**
+           * Departamento ↔ ciudad encadenados: al cambiar departamento, las
+           * ciudades se repueblan. Mismo patrón usado en el form de creación.
+           */
+          attachDepartmentCitySelects(formEl, {
+            departmentSelector: "select[name='originDepartment']",
+            citySelector: "select[name='originCity']",
+            initialDepartment: req.originDepartment,
+            initialCity: req.originCity
+          });
+          attachDepartmentCitySelects(formEl, {
+            departmentSelector: "select[name='destinationDepartment']",
+            citySelector: "select[name='destinationCity']",
+            initialDepartment: req.destinationDepartment,
+            initialCity: req.destinationCity
+          });
+        },
         onSubmit: async (form) => {
-          const updated = requests.map((r) => (r.id === req.id ? { ...r, notes: String(form.notes || "").trim() } : r));
+          const newServiceType = form.requiresThermoking === "yes" ? "refrigerated" : "dry";
+          const updates = {
+            originDepartment: String(form.originDepartment || "").trim(),
+            originCity: String(form.originCity || "").trim(),
+            originAddress: String(form.originAddress || "").trim(),
+            destinationDepartment: String(form.destinationDepartment || "").trim(),
+            destinationCity: String(form.destinationCity || "").trim(),
+            destinationAddress: String(form.destinationAddress || "").trim(),
+            pickupDate: String(form.pickupDate || "").trim(),
+            pickupTime: String(form.pickupTime || "").trim(),
+            deliveryDate: String(form.deliveryDate || "").trim(),
+            deliveryTime: String(form.deliveryTime || "").trim(),
+            cargoDescription: String(form.cargoDescription || "").trim(),
+            serviceType: newServiceType,
+            boxes: parseNum(form.boxes),
+            boxesCount: parseNum(form.boxes),
+            weightKg: parseNum(form.weightKg),
+            tripValue: parseNum(form.tripValue),
+            siteContactName: String(form.siteContactName || "").trim(),
+            siteContactPhone: String(form.siteContactPhone || "").trim(),
+            contactName: String(form.siteContactName || "").trim(),
+            contactPhone: String(form.siteContactPhone || "").trim(),
+            notes: String(form.notes || "").trim(),
+            observations: String(form.notes || "").trim(),
+            updatedAt: nowIso(),
+            updatedBy: currentUser()?.name || "Admin"
+          };
+          const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
           try {
             await reqWriteAwait(updated);
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar las observaciones en el servidor."), "error");
+            notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
           }
           recalculateResourceAvailability();
-          notify(userMessage("observationsUpdated"), "success");
+          notify("Solicitud actualizada correctamente.", "success");
           renderPortalView();
           return true;
         }
@@ -14512,14 +14833,24 @@ function bindDynamicEvents() {
     btn.addEventListener("click", async () => {
       const requests = reqRead();
       const req = requests.find((r) => r.id === btn.dataset.id);
-      if (!req || req.status !== STATUS.PENDIENTE) return;
-      const updated = requests.map((r) => (r.id === req.id ? { ...r, status: STATUS.CANCELADA } : r));
+      if (!req) return;
+      /**
+       * Defensa en profundidad: cancelar requiere permiso de admin Y que la
+       * solicitud no esté ya con viaje asignado. La UI ya esconde el botón
+       * en otros casos, pero validamos aquí también.
+       */
+      if (!canClientManageRequest(req) || req.trip) {
+        notify("Solo un administrador puede cancelar esta solicitud y debe estar sin viaje asignado.", "error");
+        return;
+      }
+      const updated = requests.map((r) => (r.id === req.id ? { ...r, status: STATUS.CANCELADA, updatedAt: nowIso(), updatedBy: currentUser()?.name || "Admin" } : r));
       try {
         await reqWriteAwait(updated);
       } catch (err) {
         notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
         return;
       }
+      notify("Solicitud cancelada.", "success");
       renderPortalView();
     });
   });
@@ -14963,6 +15294,19 @@ function bindDynamicEvents() {
       const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req || !req.trip) return;
       openAssignedTripInfoModal(req);
+    });
+  });
+
+  /**
+   * Edición rápida del viaje (admin). Abre directamente el editor sin pasar
+   * por el modal de detalle. El permiso se valida también dentro de
+   * `openEditTripModal` como defensa en profundidad.
+   */
+  nodes.viewRoot.querySelectorAll("[data-action='edit-trip']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const req = reqRead().find((r) => r.id === btn.dataset.id);
+      if (!req || !req.trip) return;
+      openEditTripModal(req);
     });
   });
 

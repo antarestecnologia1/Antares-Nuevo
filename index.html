@@ -28,7 +28,7 @@
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&amp;family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260512-clients-marquee" />
+    <link rel="stylesheet" href="./styles.css?v=20260512-perms-edit-logos" />
     <script>
       // Site key del widget Turnstile (gestionado en panel Cloudflare → Turnstile).
       // Es público por diseño; el dominio queda atado a los hostnames del widget.
@@ -292,16 +292,28 @@
             </p>
           </div>
           <!--
-            Carrusel automático de clientes. Se duplica la tira de logos dos
-            veces dentro del track para lograr un loop sin "salto": al
-            trasladar el track -50% (un copia completa), la segunda copia
-            queda exactamente en la misma posición que la primera.
-            La animación se detiene al pasar el cursor (UX para leer logos).
+            Carrusel infinito de clientes. Los logos se renderizan dos veces
+            consecutivas dentro del track para lograr un loop sin "salto":
+            al trasladar el track -50% (todo el primer bloque), el segundo
+            bloque ocupa exactamente la posición original.
+            La animación se pausa al pasar el cursor.
           -->
           <div class="clients-strip" aria-label="Clientes que confían en nosotros">
-            <div class="clients-strip-track" aria-hidden="false">
-              <img class="clients-strip-image" src="./imagenes empresa/clientes-strip.png" alt="Clientes: CREG · LRG Solutions S.A.S · MEDIREZ S.A.S · Instituto Nacional de Cancerología · AMT Avaluos" loading="lazy" />
-              <img class="clients-strip-image" src="./imagenes empresa/clientes-strip.png" alt="" aria-hidden="true" loading="lazy" />
+            <div class="clients-strip-track">
+              <div class="clients-strip-set" aria-hidden="false">
+                <img class="clients-strip-logo" src="./logos_clientes/CAPIRO.png" alt="Capiro" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/buenavista.png" alt="Buenavista" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/lacampina.png" alt="La Campiña" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/sayonara.png" alt="Sayonara" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/silvestre.png" alt="Silvestre" loading="lazy" />
+              </div>
+              <div class="clients-strip-set" aria-hidden="true">
+                <img class="clients-strip-logo" src="./logos_clientes/CAPIRO.png" alt="" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/buenavista.png" alt="" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/lacampina.png" alt="" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/sayonara.png" alt="" loading="lazy" />
+                <img class="clients-strip-logo" src="./logos_clientes/silvestre.png" alt="" loading="lazy" />
+              </div>
             </div>
           </div>
           <div class="grid-3 trusted-grid">

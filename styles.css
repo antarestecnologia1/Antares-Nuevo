@@ -1201,23 +1201,27 @@ body[data-theme="light"] .lang-option.active {
 }
 
 /**
- * Carrusel automático de logos de clientes (sección "Empresas que confían en
- * nosotros"). Se duplica la imagen-strip 2 veces y se traslada el track
- * -50% (= ancho de UNA copia) en bucle infinito. Resulta en un scroll
- * continuo sin saltos. El máscara horizontal (mask-image) suaviza los
- * bordes para que los logos parezcan "entrar" y "salir" en fade.
+ * Carrusel infinito de logos de clientes. Estructura:
+ *   .clients-strip > .clients-strip-track > .clients-strip-set × 2
+ *
+ * Cada `.clients-strip-set` contiene los mismos 5 logos. El track traslada
+ * -50% (= un set completo) en bucle, así el segundo set siempre rellena el
+ * espacio del primero cuando este sale. Cada logo tiene altura fija (mismo
+ * tamaño visual) y se separa de los demás con un `gap` consistente — sin
+ * vacíos visibles entre los sets, ya que el gap aplica también al cambio
+ * de set (es un solo `flex` track).
  */
 .clients-strip {
   margin: 1.4rem 0 1.6rem;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: linear-gradient(135deg, #ffffff 0%, #fbfdff 100%);
-  padding: 1.1rem 0;
+  padding: 1.2rem 0;
   overflow: hidden;
   position: relative;
   box-shadow: 0 10px 32px rgba(13, 63, 121, 0.05), 0 1px 2px rgba(13, 63, 121, 0.04);
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 6%, #000 94%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 6%, #000 94%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 5%, #000 95%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 5%, #000 95%, transparent 100%);
 }
 
 .clients-strip-track {
@@ -1225,7 +1229,7 @@ body[data-theme="light"] .lang-option.active {
   width: max-content;
   align-items: center;
   gap: 0;
-  animation: marquee 28s linear infinite;
+  animation: marquee 30s linear infinite;
   will-change: transform;
 }
 
@@ -1233,30 +1237,50 @@ body[data-theme="light"] .lang-option.active {
   animation-play-state: paused;
 }
 
-.clients-strip-image {
-  height: 70px;
+.clients-strip-set {
+  display: flex;
+  align-items: center;
+  gap: 3.5rem;
+  /* Margin-right igual al gap mantiene la separación entre logos también
+     en el "punto de pegado" entre sets, eliminando cualquier hueco visible. */
+  padding-right: 3.5rem;
+  flex-shrink: 0;
+}
+
+.clients-strip-logo {
+  height: 78px;
   width: auto;
-  max-width: none;
+  max-width: 180px;
   display: block;
   object-fit: contain;
   flex-shrink: 0;
-  padding: 0 1.2rem;
-  box-sizing: content-box;
-  /* Filtro suave para que el strip se mezcle con el fondo claro */
-  filter: saturate(1.02);
+  filter: saturate(1.05);
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.clients-strip-logo:hover {
+  transform: scale(1.06);
 }
 
 @media (max-width: 1024px) {
-  .clients-strip-image {
-    height: 56px;
-    padding: 0 0.8rem;
+  .clients-strip-logo {
+    height: 62px;
+    max-width: 150px;
+  }
+  .clients-strip-set {
+    gap: 2.5rem;
+    padding-right: 2.5rem;
   }
 }
 
 @media (max-width: 640px) {
-  .clients-strip-image {
-    height: 44px;
-    padding: 0 0.6rem;
+  .clients-strip-logo {
+    height: 48px;
+    max-width: 120px;
+  }
+  .clients-strip-set {
+    gap: 2rem;
+    padding-right: 2rem;
   }
   .clients-strip-track {
     animation-duration: 22s;
@@ -1269,7 +1293,7 @@ body[data-theme="light"] .lang-option.active {
     justify-content: center;
     width: 100%;
   }
-  .clients-strip-track .clients-strip-image:nth-child(n+2) {
+  .clients-strip-track > .clients-strip-set:nth-child(n+2) {
     display: none;
   }
 }
@@ -1279,10 +1303,10 @@ body[data-theme="dark"] .clients-strip {
   border-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
 }
 
-body[data-theme="dark"] .clients-strip-image {
+body[data-theme="dark"] .clients-strip-logo {
   background: #ffffff;
   border-radius: 12px;
-  padding: 0.45rem 1.2rem;
+  padding: 0.4rem 0.7rem;
 }
 
 .logo-track {
@@ -4392,9 +4416,9 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 }
 
 .trip-ops-card-standby {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin: 0;
   padding: 0.4rem 0.6rem;
   border-radius: 10px;
@@ -4402,6 +4426,20 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   border: 1px solid rgba(217, 119, 6, 0.35);
   font-size: 0.76rem;
   color: #7a3e00;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.trip-ops-card-standby > span:not(.request-ops-card-trip-ico) {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: block;
+  /* Permitimos wrap natural por palabras; el texto largo crece en altura
+     dentro del badge sin desbordarse horizontalmente. */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .trip-ops-card-standby strong {
@@ -11870,6 +11908,41 @@ body[data-theme="dark"] .auth-hub-sync-spinner {
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
+}
+
+/**
+ * Bloque introductorio sobre la tabla de tarifas — explica con un texto
+ * corto qué es esta vista para usuarios menos técnicos.
+ */
+.route-rates-intro {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, #ffffff), color-mix(in srgb, var(--primary) 14%, #ffffff));
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  font-size: 0.86rem;
+  color: var(--primary-dark);
+  line-height: 1.45;
+}
+
+.route-rates-intro p { margin: 0; }
+.route-rates-intro strong { color: var(--primary-deeper); font-weight: 800; }
+.route-rates-intro svg { vertical-align: -2px; }
+
+body[data-theme="dark"] .route-rates-intro {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 22%, #0f172a), color-mix(in srgb, var(--primary) 12%, #0f172a));
+  color: #dbeafe;
+  border-color: color-mix(in srgb, var(--primary) 30%, #2a3f56);
+}
+
+/**
+ * Hint de subsección dentro de los formularios coloreados.
+ * Texto introductorio compacto que aparece debajo del <legend>.
+ */
+.form-section .form-section-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .route-rate-route-leg {
