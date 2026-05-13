@@ -104,6 +104,7 @@ CREATE TABLE solicitudes_transporte (
   tipo_vehiculo_solicitado        VARCHAR(40) NOT NULL,
   descripcion_carga               TEXT NOT NULL,
   tipo_servicio                   VARCHAR(80) NOT NULL,
+  refrigeracion_termoking         BOOLEAN NOT NULL DEFAULT false,
   numero_cajas                    INTEGER NOT NULL CHECK (numero_cajas >= 0),
   peso_kg                         NUMERIC(14,2) NOT NULL CHECK (peso_kg >= 0),
   nombre_contacto_en_sitio        VARCHAR(255) NOT NULL,
@@ -129,6 +130,8 @@ CREATE TABLE solicitudes_transporte (
 );
 
 COMMENT ON TABLE solicitudes_transporte IS 'KEYS.requests; viaje asignado en tabla viajes_transporte.';
+COMMENT ON COLUMN solicitudes_transporte.tipo_servicio IS 'Modo: Transporte nacional | Transporte entre sedes del cliente.';
+COMMENT ON COLUMN solicitudes_transporte.refrigeracion_termoking IS 'Requiere Termoking; ver portal refrigeracionTermoking.';
 COMMENT ON COLUMN solicitudes_transporte.valor_tarifa_viaje IS 'Tarifa operativa; no la fija el cliente en el prototipo.';
 COMMENT ON COLUMN solicitudes_transporte.eventos_standby_json IS 'Historial standby (horas, tarifa, actor).';
 

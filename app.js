@@ -924,11 +924,12 @@ function openAssignedTripInfoModal(req) {
  */
 function openRequestDetailModal(req) {
   if (!req) return;
-  const thermokingReq = serviceTypeRequiresRefrigeration(req.serviceType);
+  const thermokingReq = requestRequiresRefrigeration(req);
   const boxes = parseNum(req.boxes ?? req.boxesCount);
   const obs = String(req.notes || req.observations || "").trim();
   const origAddr = String(req.originAddress || "").trim();
   const destAddr = String(req.destinationAddress || "").trim();
+  const modoTransporte = escapeHtml(requestTransportModeFromRequest(req));
   openInfoModal({
     title: `Solicitud ${req.requestNumber || req.id}`,
     subtitleHtml: prettyStatus(req.status, "request"),
@@ -937,6 +938,7 @@ function openRequestDetailModal(req) {
       <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
         <div class="dash-grid">
           <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
+          <div><strong>Modo de transporte</strong><br /><span class="muted">${modoTransporte}</span></div>
           <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
           <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
           ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
@@ -2697,6 +2699,7 @@ const PUBLIC_ES_EN_DICT = {
   "Seleccione...": "Select...",
   "Transporte nacional con termoking": "National transport with Thermo King",
   "Transporte nacional sin termoking": "National transport without Thermo King",
+  "Transporte nacional": "National transport",
   "Transporte entre sedes del cliente": "Transport between client sites",
   Mensaje: "Message",
   "Enviar solicitud": "Send request",
@@ -4094,7 +4097,7 @@ function refreshCreateTripModuleForm(formEl) {
       drvSel.disabled = true;
     }
     if (rateMount) {
-      rateMount.innerHTML = `<p class="muted" style="margin:0">Seleccione una solicitud para cargar tarifas sugeridas.</p>`;
+      rateMount.innerHTML = `<p class="muted create-trip-rate-placeholder">Seleccione una solicitud para cargar tarifas sugeridas.</p>`;
     }
     return;
   }
@@ -8587,42 +8590,53 @@ function transportTripsHtml() {
       return `<option value="${escapeAttr(r.id)}" disabled>${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${pickup} · 🔴 fecha vencida</option>`;
     })
     .join("");
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored">
-    <fieldset class="form-section form-section-blue full">
-      <legend>${IC.compass} Solicitud</legend>
-      <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.compass, "Solicitud pendiente de asignación", { required: true })}
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored create-trip-form" autocomplete="off">
+    <ol class="create-trip-stepper" aria-label="Pasos para crear el viaje">
+      <li class="create-trip-step create-trip-step--current"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
+      <li class="create-trip-step"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Flota</span></li>
+      <li class="create-trip-step"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
+    </ol>
+    <fieldset class="form-section form-section-blue full create-trip-fieldset">
+      <legend>${IC.compass} Paso 1 · Solicitud a asignar</legend>
+      <p class="muted create-trip-fieldset-hint">Elija una solicitud aprobada pendiente de viaje; el resumen aparece debajo y habilita vehículo, conductor y precio.</p>
+      <div class="create-trip-request-stack">
+        <label class="create-trip-request-select-label">${fieldLabel(IC.compass, "Solicitud pendiente de asignación", { required: true })}
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
             <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : pendingExpired.length ? "No hay solicitudes asignables hoy (hay vencidas)" : "No hay solicitudes pendientes"}</option>
             ${pendingSelectOpts}
             ${expiredPendingOpts ? `<optgroup label="No asignables hoy (fecha vencida)">${expiredPendingOpts}</optgroup>` : ""}
           </select>
         </label>
-        <div id="trip-request-preview" class="create-trip-summary-panel full">
+        <div id="trip-request-preview" class="create-trip-summary-panel">
           <p class="muted create-trip-summary-placeholder">Seleccione una solicitud pendiente para ver el resumen y habilitar vehículo, conductor y precio.</p>
         </div>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.truck} Asignación de flota</legend>
-      <div class="form-section-grid create-trip-surface">
-        <p class="muted full create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
-        <p class="create-trip-flag-legend full"><span class="create-trip-flag create-trip-flag--busy">🟠 Ocupado</span><span class="create-trip-flag create-trip-flag--offline">🟡 No disponible</span><span class="create-trip-flag create-trip-flag--expired">🔴 Documentación vencida</span></p>
-        <label class="full">${fieldLabel(IC.truck, "Vehículo", { required: true })}
-          <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
-        </label>
-        <label class="full">${fieldLabel(IC.user, "Conductor", { required: true })}
-          <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
-        </label>
+    <fieldset class="form-section form-section-emerald full create-trip-fieldset">
+      <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
+      <div class="create-trip-surface create-trip-fleet-shell">
+        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+        <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">🟠 Ocupado</span><span class="create-trip-flag create-trip-flag--offline">🟡 No disponible</span><span class="create-trip-flag create-trip-flag--expired">🔴 Documentación vencida</span></p>
+        <div class="create-trip-fleet-grid">
+          <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
+            <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
+          </label>
+          <label class="create-trip-fleet-field">${fieldLabel(IC.user, "Conductor", { required: true })}
+            <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
+          </label>
+        </div>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-violet full">
-      <legend>${IC.dollar} Tarifa y precio</legend>
+    <fieldset class="form-section form-section-violet full create-trip-fieldset">
+      <legend>${IC.dollar} Paso 3 · Tarifa y precio</legend>
+      <p class="muted create-trip-fieldset-hint">Se sugieren tarifas del catálogo por ruta; puede ajustar el valor antes de confirmar.</p>
       <div id="create-trip-rate-fields" class="create-trip-rate-surface create-trip-surface create-trip-surface--premium">
-        <p class="muted" style="margin:0">Seleccione una solicitud para cargar tarifas sugeridas.</p>
+        <p class="muted create-trip-rate-placeholder">Seleccione una solicitud para cargar tarifas sugeridas.</p>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje y asignar</button>
+    <div class="create-trip-submit-wrap">
+      <button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje y asignar</button>
+    </div>
   </form>`;
 
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
@@ -10689,6 +10703,16 @@ function payrollHtml() {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Datos personales</legend>
       <div class="form-section-grid">
+        <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
+          <div class="hr-employee-avatar-inner">
+            <label for="emp-create-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload" data-emp-create-avatar-label title="Foto del empleado">
+              <span class="profile-avatar-initial" data-emp-avatar-initial>E</span>
+              <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Foto</span></span></span>
+            </label>
+            <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
+            <p class="muted hr-employee-avatar-caption">JPG o PNG, opcional. Pulse el círculo para elegir archivo.</p>
+          </div>
+        </div>
         <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" /></label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeOptions}</select></label>
         <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
@@ -10800,8 +10824,6 @@ function payrollHtml() {
         </select></label>
       </div>
     </fieldset>
-
-    <label class="full">${fieldLabel(IC.upload, "Foto del empleado")}<input type="file" name="avatarFile" accept="image/*" /></label>
 
       </div>
 
@@ -12777,6 +12799,25 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
   });
 }
 
+/** Vista previa local en el óvalo (misma lógica que perfil de usuario). */
+function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
+  if (!fileInput || !labelEl) return;
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files?.[0];
+    if (!f || !String(f.type || "").startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "").trim();
+      const cssSafe = employeeAvatarCssUrl(url);
+      labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+      labelEl.classList.toggle("has-image", Boolean(cssSafe));
+      const initial = labelEl.querySelector(".profile-avatar-initial");
+      if (initial) initial.textContent = "";
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
 /** Alta empleado (wizard): objeto listo para guardar Word o persistir (sin id). */
 function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = {}) {
   const stripLargeAvatar = Boolean(avatarOpts.stripLargeAvatar);
@@ -13046,6 +13087,9 @@ function buildPayrollEmployeeEditModalFields(emp) {
   const tplKind = escapeAttr(String(e.contractTemplateKind || "oficina").toLowerCase());
   const defCourse = escapeAttr(String(e.defensiveCourse || ""));
   const existingAvatar = escapeAttr(String(e.avatarUrl || ""));
+  const editPhotoCss = employeeAvatarCssUrl(e.avatarUrl);
+  const editPhotoHasImage = Boolean(editPhotoCss);
+  const editPhotoInitial = escapeHtml(String(e.name || "E").charAt(0).toUpperCase());
   const dur = parseContractDurationFields(
     String(e.contractDuration || e.contractDurationText || "").trim()
   );
@@ -13162,9 +13206,17 @@ function buildPayrollEmployeeEditModalFields(emp) {
       type: "custom",
       label: "Foto",
       html: `<div class="form-section-grid employee-edit-grid">
-<label class="full"><span>${escapeHtml("Nueva foto (opcional)")}</span><input type="file" name="avatarFile" accept="image/*" /></label>
+<div class="full hr-employee-avatar-row" style="grid-column:1/-1">
+<div class="hr-employee-avatar-inner">
+<label for="emp-edit-modal-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${editPhotoHasImage ? " has-image" : ""}" data-emp-edit-avatar-label style="${editPhotoHasImage ? `background-image:url('${editPhotoCss}');` : ""}" title="Foto del empleado">
+<span class="profile-avatar-initial">${editPhotoHasImage ? "" : editPhotoInitial}</span>
+<span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${editPhotoHasImage ? escapeHtml("Cambiar") : escapeHtml("Subir foto")}</span></span></span>
+</label>
+<input type="file" id="emp-edit-modal-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
 <input type="hidden" name="avatarUrlExisting" value="${existingAvatar}" />
-<p class="full muted modal-field-hint" style="font-size:0.82rem">${escapeHtml("Si no selecciona archivo, se mantiene la foto actual.")}</p>
+<p class="muted hr-employee-avatar-caption">${escapeHtml("Pulse el círculo. Si no elige archivo, se conserva la foto actual.")}</p>
+</div>
+</div>
 </div>`
     }
   ];
@@ -16717,6 +16769,19 @@ function bindDynamicEvents() {
       empIllnessSelect.addEventListener("change", syncIllnessVisibility);
       syncIllnessVisibility();
     }
+    const empCreateAvatarInput = employeeForm.querySelector("#emp-create-avatar-input");
+    const empCreateAvatarLabel = employeeForm.querySelector("[data-emp-create-avatar-label]");
+    bindEmployeeAvatarFilePreview(empCreateAvatarInput, empCreateAvatarLabel);
+    const empNameForAvatar = employeeForm.querySelector("input[name='name']");
+    const empAvatarInitialSpan = employeeForm.querySelector("[data-emp-avatar-initial]");
+    const syncEmpCreateAvatarInitial = () => {
+      if (!empAvatarInitialSpan || !empCreateAvatarLabel) return;
+      if (empCreateAvatarLabel.classList.contains("has-image")) return;
+      const n = String(empNameForAvatar?.value || "").trim();
+      empAvatarInitialSpan.textContent = n ? n.charAt(0).toUpperCase() : "E";
+    };
+    empNameForAvatar?.addEventListener("input", syncEmpCreateAvatarInitial);
+    syncEmpCreateAvatarInitial();
     bindHrFormWizard(employeeForm);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -16971,6 +17036,20 @@ function bindDynamicEvents() {
           illnessSel?.addEventListener("change", syncIllness);
           syncIllness();
           syncPlazoEdit();
+          bindEmployeeAvatarFilePreview(
+            formEl.querySelector("#emp-edit-modal-avatar-input"),
+            formEl.querySelector("[data-emp-edit-avatar-label]")
+          );
+          const editAvLab = formEl.querySelector("[data-emp-edit-avatar-label]");
+          const editNameInp = formEl.querySelector("input[name='name']");
+          const editAvInit = editAvLab?.querySelector(".profile-avatar-initial");
+          const syncEditAvatarInitial = () => {
+            if (!editAvLab || !editAvInit || editAvLab.classList.contains("has-image")) return;
+            const n = String(editNameInp?.value || "").trim();
+            editAvInit.textContent = n ? n.charAt(0).toUpperCase() : "?";
+          };
+          editNameInp?.addEventListener("input", syncEditAvatarInitial);
+          syncEditAvatarInitial();
         },
         onSubmit: async (payload, formEl) => {
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
@@ -18306,22 +18385,7 @@ function bindDynamicEvents() {
   if (profileForm) {
     const profileAvatarInput = document.getElementById("profile-avatar-input");
     const profileAvatarLabel = document.querySelector('label[for="profile-avatar-input"]');
-    if (profileAvatarInput && profileAvatarLabel) {
-      profileAvatarInput.addEventListener("change", () => {
-        const f = profileAvatarInput.files?.[0];
-        if (!f || !String(f.type || "").startsWith("image/")) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const url = String(reader.result || "").trim();
-          const cssSafe = employeeAvatarCssUrl(url);
-          profileAvatarLabel.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
-          profileAvatarLabel.classList.toggle("has-image", Boolean(cssSafe));
-          const initial = profileAvatarLabel.querySelector(".profile-avatar-initial");
-          if (initial) initial.textContent = "";
-        };
-        reader.readAsDataURL(f);
-      });
-    }
+    bindEmployeeAvatarFilePreview(profileAvatarInput, profileAvatarLabel);
     profileForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();

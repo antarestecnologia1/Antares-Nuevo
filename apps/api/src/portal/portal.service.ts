@@ -202,6 +202,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureUsuariosSchema();
     await this.ensureEmpresasSchema();
     await this.ensureProspectosContactoB2bSchema();
+    await this.ensureSolicitudesTransporteSchema();
   }
 
   /** Sincroniza `tarifas_trayecto` con migración `09_tarifas_trayecto_clientes.sql`. */
@@ -329,7 +330,58 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureEmpresasSchema: ADD COLUMN activo fallo (no fatal): ${msg}`);
     }
-    this.logger.log("empresas: esquema tipo_relacion_empresa y activo verificado.");
+    try {
+      await this.pool.query(`ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS url_logo TEXT`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN url_logo fallo (no fatal): ${msg}`);
+    }
+    this.logger.log("empresas: esquema tipo_relacion_empresa, activo y url_logo verificado.");
+  }
+
+  /** Columna `refrigeracion_termoking` en solicitudes (migr. `26_solicitudes_refrigeracion_termoking.sql`). */
+  private async ensureSolicitudesTransporteSchema() {
+    if (!(await this.tableExists("solicitudes_transporte"))) return;
+    try {
+      await this.pool.query(
+        `ALTER TABLE solicitudes_transporte
+           ADD COLUMN IF NOT EXISTS refrigeracion_termoking BOOLEAN NOT NULL DEFAULT false`
+      );
+      await this.pool.query(`
+        UPDATE solicitudes_transporte
+        SET refrigeracion_termoking = CASE
+          WHEN lower(btrim(coalesce(tipo_servicio, ''))) = 'refrigerated' THEN true
+          WHEN lower(btrim(coalesce(tipo_servicio, ''))) = 'dry' THEN false
+          WHEN lower(tipo_servicio) LIKE '%sin termoking%' THEN false
+          WHEN lower(tipo_servicio) LIKE '%con termoking%' THEN true
+          WHEN lower(tipo_servicio) LIKE '%termoking%'
+               AND lower(tipo_servicio) NOT LIKE '%sin termoking%' THEN true
+          WHEN lower(tipo_servicio) LIKE '%thermo king%' THEN true
+          WHEN lower(tipo_servicio) LIKE '%refrigerada%' OR lower(tipo_servicio) LIKE '%refrigerado%' THEN true
+          ELSE refrigeracion_termoking
+        END
+      `);
+      await this.pool.query(`
+        UPDATE solicitudes_transporte
+        SET tipo_servicio = 'Transporte nacional'
+        WHERE tipo_servicio IN (
+          'Transporte nacional con termoking',
+          'Transporte nacional sin termoking',
+          'refrigerated',
+          'dry'
+        )
+      `);
+      await this.pool.query(`
+        UPDATE solicitudes_transporte
+        SET tipo_servicio = 'Transporte entre sedes del cliente'
+        WHERE lower(tipo_servicio) LIKE '%entre sedes%'
+           OR lower(tipo_servicio) LIKE '%sedes del cliente%'
+      `);
+      this.logger.log("solicitudes_transporte: columna refrigeracion_termoking verificada.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureSolicitudesTransporteSchema fallo no fatal: ${msg}`);
+    }
   }
 
   /** Sincroniza `prospectos_contacto_b2b` con migración `14_contacto_web_b2b.sql`. */
@@ -1382,6 +1434,7 @@ export class PortalService implements OnModuleInit {
   private async loadCompanies() {
     const r = await this.pool.query(
       `SELECT id::text, nombre AS name, nit, telefono AS phone,
+              url_logo AS "logoUrl",
               tipo_relacion_empresa::text AS "companyKind",
               COALESCE(activo, true) AS activo,
               fecha_creacion AS "createdAt"
@@ -1393,6 +1446,7 @@ export class PortalService implements OnModuleInit {
       nit: row.nit,
       taxId: row.nit,
       phone: row.phone || "",
+      logoUrl: String((row as { logoUrl?: unknown }).logoUrl ?? "").trim(),
       companyKind: row.companyKind || "cliente",
       active: row.activo !== false,
       createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
@@ -1645,6 +1699,7 @@ export class PortalService implements OnModuleInit {
              s.tipo_vehiculo_solicitado AS "vehicleType",
              s.descripcion_carga AS "cargoDescription",
              s.tipo_servicio AS "serviceType",
+             s.refrigeracion_termoking AS "refrigeracionTermoking",
              s.numero_cajas AS "boxesCount",
              s.peso_kg AS "weightKg",
              s.nombre_contacto_en_sitio AS "contactName",
@@ -1741,6 +1796,10 @@ export class PortalService implements OnModuleInit {
       vehicleType: row.vehicleType,
       cargoDescription: row.cargoDescription,
       serviceType: row.serviceType,
+      refrigeracionTermoking:
+        typeof (row as { refrigeracionTermoking?: unknown }).refrigeracionTermoking === "boolean"
+          ? Boolean((row as { refrigeracionTermoking?: boolean }).refrigeracionTermoking)
+          : this.solicitudRefrigeracionFromPayload({ serviceType: row.serviceType } as Record<string, unknown>),
       boxesCount: row.boxesCount,
       weightKg: row.weightKg,
       contactName: row.contactName,
@@ -2690,16 +2749,22 @@ export class PortalService implements OnModuleInit {
                 rawActive === 1 ||
                 String(rawActive).trim().toLowerCase() === "true"
             );
+      const logoPick = pickPortalField(rec, "logoUrl", "logo_url", "urlLogo", "url_logo");
+      const urlLogo =
+        logoPick === undefined || logoPick === null || String(logoPick).trim() === ""
+          ? null
+          : String(logoPick).trim();
       await c.query(
-        `INSERT INTO empresas (id, nombre, nit, telefono, tipo_relacion_empresa, activo)
-         VALUES ($1::uuid, $2, $3, $4, $5::tipo_relacion_empresa, $6)
+        `INSERT INTO empresas (id, nombre, nit, telefono, tipo_relacion_empresa, activo, url_logo)
+         VALUES ($1::uuid, $2, $3, $4, $5::tipo_relacion_empresa, $6, $7)
          ON CONFLICT (id) DO UPDATE SET
            nombre = EXCLUDED.nombre,
            nit = EXCLUDED.nit,
            telefono = EXCLUDED.telefono,
            tipo_relacion_empresa = EXCLUDED.tipo_relacion_empresa,
-           activo = EXCLUDED.activo`,
-        [id, String(nombre).trim(), String(nit).trim(), telefono, tipoRelacion, activo]
+           activo = EXCLUDED.activo,
+           url_logo = EXCLUDED.url_logo`,
+        [id, String(nombre).trim(), String(nit).trim(), telefono, tipoRelacion, activo, urlLogo]
       );
     }
   }
@@ -2759,6 +2824,22 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /**
+   * Bandera Termoking persistida en `refrigeracion_termoking`. Si el cliente aún manda solo
+   * `tipo_servicio` legacy (texto con/sin termoking), se infiere aquí al sincronizar.
+   */
+  private solicitudRefrigeracionFromPayload(req: Record<string, unknown>): boolean {
+    if (typeof req.refrigeracionTermoking === "boolean") return req.refrigeracionTermoking;
+    const s = String(req.serviceType ?? "").toLowerCase();
+    if (!s) return false;
+    if (s === "dry" || s.includes("sin termoking") || s.includes("without thermo")) return false;
+    if (s === "refrigerated") return true;
+    if (s.includes("termoking") && !s.includes("sin termoking")) return true;
+    if (s.includes("thermo king")) return true;
+    if (s.includes("refrigerada") || s.includes("refrigerado")) return true;
+    return false;
+  }
+
   private async syncRequests(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
@@ -2792,19 +2873,21 @@ export class PortalService implements OnModuleInit {
       const vehicleType = "Por definir";
       const observations =
         String(req.observations ?? req.notes ?? "").trim() || null;
+      const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req as Record<string, unknown>);
 
       await c.query(
         `INSERT INTO solicitudes_transporte (
           id, numero_solicitud, id_usuario_solicitante, id_empresa_cliente, nombre_cliente, nombre_quien_solicita,
           departamento_origen, ciudad_origen, direccion_origen, departamento_destino, ciudad_destino, direccion_destino,
           fecha_hora_recogida, fecha_hora_entrega_estimada, tipo_vehiculo_solicitado, descripcion_carga, tipo_servicio,
+          refrigeracion_termoking,
           numero_cajas, peso_kg, nombre_contacto_en_sitio, telefono_contacto_en_sitio, observaciones,
           adjuntos_nombres_json, estado, valor_tarifa_viaje, total_cargos_standby, eventos_standby_json,
           motivo_rechazo, fecha_aprobacion, aprobado_por, fecha_entrega_efectiva, fecha_cierre
         ) VALUES (
           $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::timestamptz,
-          $15, $16, $17, $18, $19, $20, $21, $22, $23::jsonb, $24::estado_solicitud_transporte, $25, $26, $27::jsonb,
-          $28, $29::timestamptz, $30, $31::timestamptz, $32::timestamptz
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::jsonb, $25::estado_solicitud_transporte, $26, $27, $28::jsonb,
+          $29, $30::timestamptz, $31, $32::timestamptz, $33::timestamptz
         )
         ON CONFLICT (id) DO UPDATE SET
           numero_solicitud = EXCLUDED.numero_solicitud,
@@ -2823,6 +2906,7 @@ export class PortalService implements OnModuleInit {
           tipo_vehiculo_solicitado = EXCLUDED.tipo_vehiculo_solicitado,
           descripcion_carga = EXCLUDED.descripcion_carga,
           tipo_servicio = EXCLUDED.tipo_servicio,
+          refrigeracion_termoking = EXCLUDED.refrigeracion_termoking,
           numero_cajas = EXCLUDED.numero_cajas,
           peso_kg = EXCLUDED.peso_kg,
           nombre_contacto_en_sitio = EXCLUDED.nombre_contacto_en_sitio,
@@ -2856,6 +2940,7 @@ export class PortalService implements OnModuleInit {
           vehicleType,
           req.cargoDescription,
           req.serviceType,
+          refrigeracionTermoking,
           boxesNum,
           Number(req.weightKg) || 0,
           contactName,

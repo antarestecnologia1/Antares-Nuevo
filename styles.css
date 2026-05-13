@@ -3517,6 +3517,210 @@ body[data-theme="dark"] .modal-edit-section-title {
   color: #9f1239;
 }
 
+/* Formulario "Crear viaje": flujo vertical, pasos y flota en cuadrícula coherente */
+.create-trip-form {
+  gap: 1rem !important;
+}
+
+.create-trip-stepper {
+  list-style: none;
+  margin: 0 0 0.25rem;
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--white)), var(--white));
+}
+
+.create-trip-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted, #5a7a96);
+  background: color-mix(in srgb, var(--muted) 8%, var(--white));
+  border: 1px solid var(--line);
+}
+
+.create-trip-step--current {
+  color: var(--primary-dark, #0d3f78);
+  background: color-mix(in srgb, var(--primary) 14%, var(--white));
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.12);
+}
+
+.create-trip-step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+}
+
+.create-trip-step--current .create-trip-step-n {
+  background: var(--primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+.create-trip-step-t {
+  letter-spacing: 0.02em;
+}
+
+.create-trip-fieldset-hint {
+  margin: -0.15rem 0 0.65rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.create-trip-request-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.create-trip-request-select-label {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.create-trip-request-select-label:focus-within {
+  border-color: rgba(var(--primary-rgb), 0.45);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
+}
+
+.create-trip-request-stack .create-trip-summary-panel {
+  margin-top: 0;
+}
+
+.create-trip-fleet-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.create-trip-fleet-shell .create-trip-flag-legend {
+  margin-bottom: 0.1rem;
+}
+
+.create-trip-fleet-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .create-trip-fleet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+}
+
+.create-trip-fleet-field {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.create-trip-fleet-field:focus-within {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+.create-trip-rate-placeholder {
+  margin: 0;
+  line-height: 1.45;
+}
+
+#create-trip-rate-fields .form-section-grid {
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.create-trip-submit-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.85rem 0 0.15rem;
+  margin-top: 0.15rem;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+.create-trip-submit-btn {
+  min-width: min(100%, 16rem);
+  padding: 0.65rem 1.25rem;
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+body[data-theme="dark"] .create-trip-stepper {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-color: rgba(135, 190, 247, 0.28);
+}
+
+body[data-theme="dark"] .create-trip-step {
+  background: rgba(8, 18, 32, 0.65);
+  color: #9fb9d9;
+  border-color: rgba(135, 190, 247, 0.22);
+}
+
+body[data-theme="dark"] .create-trip-step--current {
+  color: #e8f4fc;
+  border-color: rgba(112, 171, 239, 0.45);
+  background: rgba(23, 55, 85, 0.85);
+}
+
+body[data-theme="dark"] .create-trip-step-n {
+  background: rgba(8, 18, 32, 0.9);
+  color: #c8dff7;
+}
+
+body[data-theme="dark"] .create-trip-step--current .create-trip-step-n {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+}
+
+body[data-theme="dark"] .create-trip-request-select-label,
+body[data-theme="dark"] .create-trip-fleet-field {
+  background: rgba(8, 18, 32, 0.55);
+  border-color: rgba(135, 190, 247, 0.22);
+  color: #d2e6ff;
+}
+
+body[data-theme="dark"] .create-trip-submit-wrap {
+  border-top-color: rgba(135, 190, 247, 0.22);
+}
+
 .trip-rate-choice-select {
   font-variant-numeric: tabular-nums;
 }
@@ -9875,6 +10079,35 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   cursor: not-allowed;
 }
 
+/* Foto empleado: óvalo + input (crear / editar nómina), reutiliza .profile-avatar-* */
+.hr-employee-avatar-row {
+  display: flex;
+  justify-content: center;
+  padding: 0.15rem 0 0.55rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.hr-employee-avatar-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  text-align: center;
+  max-width: 100%;
+}
+
+.hr-employee-avatar-caption {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 22rem;
+}
+
+body[data-theme="dark"] .hr-employee-avatar-row {
+  border-bottom-color: rgba(148, 196, 255, 0.12);
+}
+
 .payroll-shell .payroll-actions-grid .form-section,
 .hiring-shell .hiring-actions-grid .form-section {
   border-radius: 12px;
@@ -12653,14 +12886,12 @@ body[data-theme="dark"] .portal-main .btn-action {
   }
 }
 
+/**
+ * Viajes: acciones de alta (crear viaje + tarifa) en columna única para que el formulario
+ * de asignación use todo el ancho del panel y no quede partido en dos mitades de pantalla.
+ */
 .portal-main .dash-grid.trips-actions-row--two {
   grid-template-columns: minmax(0, 1fr);
-}
-
-@media (min-width: 1280px) {
-  .portal-main .dash-grid.trips-actions-row--two {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (min-width: 900px) {
