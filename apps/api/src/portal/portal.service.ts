@@ -2023,6 +2023,16 @@ export class PortalService implements OnModuleInit {
         d.curso_conduccion_defensiva != null && String(d.curso_conduccion_defensiva).trim() !== ""
           ? String(d.curso_conduccion_defensiva).trim()
           : "";
+      const row = d as Record<string, unknown>;
+      const defCourseExpiry = this.sqlVehicleDateColumnToString(row.fecha_vencimiento_curso_defensivo) || "";
+      const comparendosNum =
+        row.comparendos_pendientes != null && String(row.comparendos_pendientes).trim() !== ""
+          ? Math.max(0, Math.min(9999, Math.floor(Number(row.comparendos_pendientes))))
+          : 0;
+      const expYears =
+        row.anos_experiencia_conduccion != null && String(row.anos_experiencia_conduccion).trim() !== ""
+          ? Math.max(0, Math.min(80, Math.floor(Number(row.anos_experiencia_conduccion))))
+          : 0;
       return {
         ...(() => {
           const id = String(d.id || "").trim();
@@ -2052,6 +2062,12 @@ export class PortalService implements OnModuleInit {
         psychoTestExpiry: psychoE,
         defensiveDrivingCourse: defCourse,
         defensiveCourse: defCourse,
+        defensiveCourseExpiry: defCourseExpiry,
+        bloodType: row.tipo_sangre != null ? String(row.tipo_sangre).trim() : "",
+        eps: row.eps != null ? String(row.eps).trim() : "",
+        arl: row.arl != null ? String(row.arl).trim() : "",
+        comparendos: comparendosNum,
+        experienceYears: expYears,
         emergencyContact: d.contacto_emergencia,
         emergencyPhone: d.telefono_emergencia,
         contractType: d.tipo_contrato,
@@ -3275,17 +3291,37 @@ export class PortalService implements OnModuleInit {
         urlFotoSql = null;
       }
 
+      const bloodRaw = p(d, "bloodType", "tipo_sangre");
+      const bloodSql =
+        bloodRaw != null && String(bloodRaw).trim() !== "" ? String(bloodRaw).trim().slice(0, 8) : null;
+      const epsRaw = p(d, "eps");
+      const epsSql = epsRaw != null && String(epsRaw).trim() !== "" ? String(epsRaw).trim().slice(0, 120) : null;
+      const arlRaw = p(d, "arl");
+      const arlSql = arlRaw != null && String(arlRaw).trim() !== "" ? String(arlRaw).trim().slice(0, 120) : null;
+      const comparendosRaw = p(d, "comparendos", "comparendos_pendientes");
+      const comparendosNum = Number(comparendosRaw);
+      const comparendosSql = Number.isFinite(comparendosNum)
+        ? Math.max(0, Math.min(9999, Math.floor(comparendosNum)))
+        : 0;
+      const expRaw = p(d, "experienceYears", "anos_experiencia_conduccion");
+      const expNum = Number(expRaw);
+      const anosSql = Number.isFinite(expNum) ? Math.max(0, Math.min(80, Math.floor(expNum))) : 0;
+
       await c.query(
         `INSERT INTO conductores (
           id, id_empresa, nombre_completo, tipo_documento, numero_documento, telefono, departamento, ciudad, direccion,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
           disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
-          $13::date, $14::date, $15, $16, $17, $18, $19, $20, $21, $22::date, $23::timestamptz,
-          $24
+          $13::date, $14::date, $15,
+          $16::date, $17, $18, $19, $20, $21,
+          $22, $23,
+          $24, $25, $26, $27, $28::date, $29::timestamptz,
+          $30
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
@@ -3302,6 +3338,12 @@ export class PortalService implements OnModuleInit {
           fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
           fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
           curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          fecha_vencimiento_curso_defensivo = EXCLUDED.fecha_vencimiento_curso_defensivo,
+          tipo_sangre = EXCLUDED.tipo_sangre,
+          eps = EXCLUDED.eps,
+          arl = EXCLUDED.arl,
+          comparendos_pendientes = EXCLUDED.comparendos_pendientes,
+          anos_experiencia_conduccion = EXCLUDED.anos_experiencia_conduccion,
           contacto_emergencia = EXCLUDED.contacto_emergencia,
           telefono_emergencia = EXCLUDED.telefono_emergencia,
           disponible = EXCLUDED.disponible,
@@ -3327,6 +3369,12 @@ export class PortalService implements OnModuleInit {
           portalDateOrNull(p(d, "psychometricExamDate", "psychoTestDate")),
           portalDateOrNull(p(d, "psychometricExpiry", "psychoTestExpiry")),
           (p(d, "defensiveDrivingCourse", "defensiveCourse") as string) || null,
+          portalDateOrNull(p(d, "defensiveCourseExpiry", "fecha_vencimiento_curso_defensivo")),
+          bloodSql,
+          epsSql,
+          arlSql,
+          comparendosSql,
+          anosSql,
           (p(d, "emergencyContact") as string) || null,
           (p(d, "emergencyPhone") as string) || null,
           d.available !== false,

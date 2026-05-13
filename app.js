@@ -10571,6 +10571,19 @@ async function syncDriverFromEmployee(employee, extraDriverData = {}) {
     emergencyContact: employee.emergencyContact || "",
     emergencyPhone: employee.emergencyPhone || "",
     companyId: employee.companyId || "",
+    bloodType: String(employee.bloodType || "").trim(),
+    eps: String(employee.eps || "").trim(),
+    arl: String(employee.arl || "").trim(),
+    comparendos: parseNum(employee.comparendos ?? 0),
+    experienceYears: parseNum(employee.experienceYears ?? 0),
+    defensiveCourse: String(employee.defensiveCourse || "").trim(),
+    defensiveCourseExpiry: String(employee.defensiveCourseExpiry || "").trim(),
+    psychoTestDate: String(
+      employee.psychoTestDate || employee.psychometricExamDate || extraDriverData.psychoTestDate || ""
+    ).trim(),
+    psychoTestExpiry: String(
+      employee.psychoTestExpiry || employee.psychometricExpiry || extraDriverData.psychoTestExpiry || ""
+    ).trim(),
     available: true,
     hiredAt: existing?.hiredAt || nowIso()
   };
