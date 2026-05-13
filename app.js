@@ -4386,6 +4386,60 @@ function wireAdminCompanyLocationSelects() {
   }
 }
 
+/** Vista previa del logo en el óvalo (formularios alta/edición empresa en admin). */
+function wireAdminCompanyLogoOvals() {
+  const wireForm = (formId) => {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const input = form.querySelector("input[name='logoFile']");
+    const wrap = form.querySelector("[data-company-logo-preview-wrap]");
+    if (!input || !wrap) return;
+    const img = wrap.querySelector("[data-company-logo-preview-img]");
+    const fallback = wrap.querySelector("[data-company-logo-fallback]");
+    let previewBlobUrl = "";
+    if (img && img.dataset.companyLogoOriginal === "1" && img.src) {
+      img.dataset.originalSrc = img.src;
+    }
+    const clearBlob = () => {
+      if (previewBlobUrl && previewBlobUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewBlobUrl);
+      }
+      previewBlobUrl = "";
+    };
+    const applyPreview = () => {
+      const file = input.files?.[0] || null;
+      if (file) {
+        clearBlob();
+        previewBlobUrl = URL.createObjectURL(file);
+        if (img) {
+          img.src = previewBlobUrl;
+          img.removeAttribute("hidden");
+        }
+        wrap.classList.add("has-image");
+        if (fallback) fallback.setAttribute("hidden", "");
+        return;
+      }
+      clearBlob();
+      if (img?.dataset.originalSrc) {
+        img.src = img.dataset.originalSrc;
+        img.removeAttribute("hidden");
+        wrap.classList.add("has-image");
+        if (fallback) fallback.setAttribute("hidden", "");
+      } else {
+        if (img) {
+          img.removeAttribute("src");
+          img.setAttribute("hidden", "");
+        }
+        wrap.classList.remove("has-image");
+        if (fallback) fallback.removeAttribute("hidden");
+      }
+    };
+    input.addEventListener("change", applyPreview);
+  };
+  wireForm("form-admin-company-create");
+  wireForm("form-admin-company-edit");
+}
+
 function saveNotification({ userId, title, body }) {
   const all = read(KEYS.notifications, []);
   all.unshift({ id: newUuidV4(), userId, title, body, createdAt: nowIso(), readAt: null });
@@ -12874,6 +12928,7 @@ function renderPortalViewImpl() {
   bindExtendedViewEditHandlers();
   enforceColombianFormStandards();
   wireAdminCompanyLocationSelects();
+  wireAdminCompanyLogoOvals();
   applyModuleMicroAnimations();
 }
 
