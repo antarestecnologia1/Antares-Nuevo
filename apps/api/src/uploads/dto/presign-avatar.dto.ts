@@ -1,4 +1,4 @@
-import { IsIn, IsString, MaxLength, MinLength } from "class-validator";
+import { IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
 export class PresignAvatarDto {
   @IsString()
@@ -6,13 +6,9 @@ export class PresignAvatarDto {
   @MaxLength(160)
   fileName!: string;
 
+  /** Opcional: el controlador normaliza (p. ej. vacío → image/jpeg). */
+  @IsOptional()
   @IsString()
-  @IsIn([
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "image/webp",
-    "image/gif"
-  ])
-  contentType!: string;
+  @MaxLength(120)
+  contentType?: string;
 }

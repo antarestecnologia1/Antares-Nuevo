@@ -206,6 +206,36 @@ function hrWizardStepValid(stepEl) {
   return true;
 }
 
+/** Muestra cantidad u “otro” según la unidad de duración del contrato (alta o edición empleado). */
+function wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherEl }) {
+  if (!unitSel || !qtyWrap || !otherWrap) return;
+  const sync = () => {
+    const u = String(unitSel.value || "").trim().toLowerCase();
+    const showQty = u === "meses" || u === "anios";
+    const showOtro = u === "otro";
+    qtyWrap.classList.toggle("hidden", !showQty);
+    qtyWrap.toggleAttribute("hidden", !showQty);
+    otherWrap.classList.toggle("hidden", !showOtro);
+    otherWrap.toggleAttribute("hidden", !showOtro);
+    if (amtEl) {
+      if (showQty) amtEl.setAttribute("required", "required");
+      else {
+        amtEl.removeAttribute("required");
+        amtEl.value = "";
+      }
+    }
+    if (otherEl) {
+      if (showOtro) otherEl.setAttribute("required", "required");
+      else {
+        otherEl.removeAttribute("required");
+        otherEl.value = "";
+      }
+    }
+  };
+  unitSel.addEventListener("change", sync);
+  sync();
+}
+
 function bindHrFormWizard(form) {
   if (!form || form.dataset.hrWizardBound === "1") return;
   const wizard = form.querySelector("[data-hr-wizard]");
@@ -10457,7 +10487,21 @@ function payrollHtml() {
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
         <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
-        <label>${fieldLabel(IC.calendar, "Duración del contrato")}<input name="contractDuration" required placeholder="Ej: 12 meses, 24 meses (2 años) o indefinido" title="Indique meses y/o años, o texto 'indefinido' cuando aplique contrato indefinido." /></label>
+        <div class="full" style="grid-column:1/-1">
+          <label class="full" style="display:block;margin-bottom:0.25rem">${fieldLabel(IC.calendar, "Duración del contrato")}</label>
+          <p class="muted" style="font-size:0.82rem;line-height:1.45;margin:0 0 0.55rem">Indique en qué unidad mide el plazo: <strong>meses</strong>, <strong>años</strong>, <strong>indefinido</strong> u <strong>otro</strong> (texto libre, p. ej. obra o labor).</p>
+          <div class="form-section-grid">
+            <label>${fieldLabel(IC.calendar, "Unidad de tiempo")}<select name="contractDurationUnit" id="emp-contract-duration-unit" required>
+              <option value="">Seleccione...</option>
+              <option value="meses">Meses</option>
+              <option value="anios">Años</option>
+              <option value="indefinido">Indefinido</option>
+              <option value="otro">Otro (texto libre)</option>
+            </select></label>
+            <label id="emp-contract-duration-qty-wrap" class="hidden">${fieldLabel(IC.hash, "Cantidad")}<input type="number" name="contractDurationAmount" id="emp-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" /></label>
+            <label id="emp-contract-duration-other-wrap" class="full hidden">${fieldLabel(IC.file, "Describa la duración")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto; periodo de prueba; etc."></textarea></label>
+          </div>
+        </div>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
         <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
@@ -12390,12 +12434,47 @@ function describeContractDurationForDocx(data) {
   return start ? `Vigencia desde ${start} · ${ct || "según anexo"}` : String(ct || "Según cláusulas y normativa aplicable");
 }
 
-/** Alta empleado (wizard): objeto listo para guardar Word o persistir (sin id). */
+/** Descompone texto guardado (p. ej. "12 meses", "1 año") para el formulario de edición. */
+function parseContractDurationFields(text) {
+  const t = String(text || "").trim();
+  if (!t) return { unit: "", amount: "", other: "" };
+  const lower = t.toLowerCase();
+  if (/^ind/i.test(lower) || /indefinid/i.test(lower)) return { unit: "indefinido", amount: "", other: "" };
+  const mMes = t.match(/^(\d+)\s*mes(es)?\s*$/i);
+  if (mMes) {
+    const n = parseInt(mMes[1], 10);
+    if (Number.isFinite(n) && n >= 1) return { unit: "meses", amount: String(n), other: "" };
+  }
+  const mAn = t.match(/^(\d+)\s*(años|anos|año|ano)\s*$/i);
+  if (mAn) {
+    const n = parseInt(mAn[1], 10);
+    if (Number.isFinite(n) && n >= 1) return { unit: "anios", amount: String(n), other: "" };
+  }
+  return { unit: "otro", amount: "", other: t };
+}
+
+/** Arma el texto único `contractDuration` a partir de unidad + cantidad / indefinido / otro. */
+function composeContractDurationText(raw) {
+  const unit = String(raw.contractDurationUnit || "").trim().toLowerCase();
+  const parsedAmt = parseInt(String(raw.contractDurationAmount ?? "").trim(), 10);
+  const amount = Number.isFinite(parsedAmt) ? Math.floor(parsedAmt) : NaN;
+  const other = String(raw.contractDurationOther || "").trim();
+  const legacy = String(raw.contractDuration || "").trim();
+  if (unit === "indefinido") return "Indefinido";
+  if (unit === "otro") return other;
+  if (unit === "meses" && Number.isFinite(amount) && amount >= 1) {
+    return `${amount} ${amount === 1 ? "mes" : "meses"}`;
+  }
+  if (unit === "anios" && Number.isFinite(amount) && amount >= 1) {
+    return `${amount} ${amount === 1 ? "año" : "años"}`;
+  }
+  return legacy;
+}
+
 /**
- * Resuelve el avatar de un empleado: si Cloudflare R2 está disponible vía el
- * backend (`POST /uploads/avatar/presign`) sube el archivo directo a R2 y
- * devuelve la URL pública del bucket. Si no hay backend o el endpoint falla,
- * regresa al método anterior basado en `FileReader` → `data:` URL.
+ * Resuelve URL de imagen (avatar, logo, etc.): intenta presign + PUT directo a R2;
+ * si no hay URL pública HTTPS, reintenta con `POST /uploads/image` (subida vía API,
+ * evita CORS del bucket). Si no hay API o todo falla, usa `data:` URL (FileReader).
  *
  * Devuelve la URL final (`https://...` o `data:image/...`) o cadena vacía si
  * no hay archivo.
@@ -12403,29 +12482,53 @@ function describeContractDurationForDocx(data) {
 async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
   if (!file) return String(fallbackDataUrl || "").trim();
   const api = window.AntaresApi;
+  const rawMime = String(file.type || "image/jpeg").split(";")[0].trim().toLowerCase();
+  const contentType =
+    !rawMime || rawMime === "image/jpg" || rawMime === "image/pjpeg" ? "image/jpeg" : rawMime;
   const canUseBackend =
-    api && typeof api.postJson === "function" && typeof api.getBase === "function" && api.getBase();
+    api &&
+    typeof api.postJson === "function" &&
+    typeof api.getBase === "function" &&
+    api.getBase() &&
+    typeof api.getAccessToken === "function" &&
+    api.getAccessToken();
+
   if (canUseBackend) {
+    let publicFromPresign = "";
     try {
       const presign = await api.postJson("/uploads/avatar/presign", {
         fileName: String(file.name || "avatar.jpg"),
-        contentType: String(file.type || "image/jpeg")
+        contentType
       });
       const uploadUrl = String(presign?.uploadUrl || "").trim();
-      const publicUrl = String(presign?.publicUrl || "").trim();
+      publicFromPresign = String(presign?.publicUrl || "").trim();
       if (uploadUrl) {
         const resp = await fetch(uploadUrl, {
           method: "PUT",
-          headers: { "Content-Type": String(file.type || "image/jpeg") },
+          headers: { "Content-Type": contentType },
           body: file
         });
         if (!resp.ok) throw new Error(`R2 PUT respondió ${resp.status}`);
-        if (publicUrl) return publicUrl;
       }
     } catch (err) {
-      devWarn?.("avatar-upload-r2-failed", err);
+      devWarn?.("avatar-upload-r2-presign-failed", err);
+      publicFromPresign = "";
+    }
+    if (/^https?:\/\//i.test(publicFromPresign)) return publicFromPresign;
+
+    try {
+      if (typeof api.postFormData === "function") {
+        const fd = new FormData();
+        fd.append("file", file, file.name || "upload.jpg");
+        const viaServer = await api.postFormData("/uploads/image", fd);
+        const u = String(viaServer?.publicUrl || "").trim();
+        if (/^https?:\/\//i.test(u)) return u;
+      }
+    } catch (err) {
+      devWarn?.("avatar-upload-api-failed", err);
     }
   }
+
   return new Promise((resolve) => {
     const r = new FileReader();
     r.onerror = () => resolve(String(fallbackDataUrl || "").trim());
@@ -12434,6 +12537,7 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
   });
 }
 
+/** Alta empleado (wizard): objeto listo para guardar Word o persistir (sin id). */
 function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = {}) {
   const stripLargeAvatar = Boolean(avatarOpts.stripLargeAvatar);
   let merged = String(avatarOpts.avatarUrl ?? raw.avatarUrl ?? "").trim();
@@ -12449,6 +12553,17 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       ok: false,
       msg: userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO"))
     };
+  }
+  const unitDur = String(raw.contractDurationUnit || "").trim().toLowerCase();
+  const composedDur = composeContractDurationText(raw);
+  if (!String(composedDur || "").trim()) {
+    const msg =
+      unitDur === "otro"
+        ? "Describa la duración en el campo de texto libre o elija otra unidad."
+        : unitDur === "meses" || unitDur === "anios"
+          ? "Indique la cantidad (número) de meses o de años."
+          : "Seleccione la unidad de duración del contrato (meses, años, indefinido u otro).";
+    return { ok: false, msg };
   }
   return {
     ok: true,
@@ -12491,7 +12606,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       baseSalary,
       transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
       contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
-      contractDuration: String(raw.contractDuration || "").trim(),
+      contractDuration: composeContractDurationText(raw),
       bankName: String(raw.bankName || "").trim(),
       bankAccount: String(raw.bankAccount || "").trim(),
       bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
@@ -12685,6 +12800,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
   const tplKind = escapeAttr(String(e.contractTemplateKind || "oficina").toLowerCase());
   const defCourse = escapeAttr(String(e.defensiveCourse || ""));
   const existingAvatar = escapeAttr(String(e.avatarUrl || ""));
+  const dur = parseContractDurationFields(e.contractDuration || "");
   return [
     {
       type: "hidden",
@@ -12731,9 +12847,19 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
 <label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
 <label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" required>${contractSel}</select></label>
-<label class="full"><span>${escapeHtml(
-      "Duración del contrato (texto para el PDF: meses, años o indefinido)"
-    )}</span><input name="contractDuration" required value="${escapeAttr(e.contractDuration || "")}" title="Ej.: 12 meses, 1 año, o indefinido." /></label>
+<label class="full"><span>${escapeHtml("Duración del contrato")}</span></label>
+<p class="full muted modal-field-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Elija la unidad (meses, años, indefinido) o “otro” para texto libre; el valor se refleja en contratos y PDF.</p>
+<div class="form-section-grid employee-edit-grid" style="grid-column:1/-1">
+<label><span>${escapeHtml("Unidad de tiempo")}</span><select name="contractDurationUnit" id="emp-edit-contract-duration-unit" required>
+<option value="">${escapeHtml("Seleccione...")}</option>
+<option value="meses" ${dur.unit === "meses" ? "selected" : ""}>${escapeHtml("Meses")}</option>
+<option value="anios" ${dur.unit === "anios" ? "selected" : ""}>${escapeHtml("Años")}</option>
+<option value="indefinido" ${dur.unit === "indefinido" ? "selected" : ""}>${escapeHtml("Indefinido")}</option>
+<option value="otro" ${dur.unit === "otro" ? "selected" : ""}>${escapeHtml("Otro (texto libre)")}</option>
+</select></label>
+<label id="emp-edit-contract-duration-qty-wrap" class="${dur.unit === "meses" || dur.unit === "anios" ? "" : "hidden"}"><span>${escapeHtml("Cantidad")}</span><input type="number" name="contractDurationAmount" id="emp-edit-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" value="${escapeAttr(dur.amount)}" /></label>
+<label id="emp-edit-contract-duration-other-wrap" class="full ${dur.unit === "otro" ? "" : "hidden"}"><span>${escapeHtml("Describa la duración")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto">${escapeHtml(dur.other)}</textarea></label>
+</div>
 <label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(e.startDate || "")}" /></label>
 <label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
 <label><span>${escapeHtml("Auxilio transporte")}</span><input type="number" name="transportAllowance" min="0" value="${escapeAttr(parseNum(e.transportAllowance) || CO_HR_RULES.transportAllowance)}" /></label>
@@ -13415,7 +13541,7 @@ function bindDynamicEvents() {
       }
       if (window.AntaresApi?.isConfigured?.() && isDataUrl(logoUrl)) {
         notify(
-          "No se pudo subir el logo al servidor (R2). Configure uploads o reintente; en modo servidor no se admite logo embebido.",
+          "No se pudo obtener una URL pública del logo (R2). Revise CF_R2_* y CF_R2_PUBLIC_BASE en el servidor, CORS del bucket si usa subida directa, formato JPEG/PNG/WebP/GIF, o reintente. En modo servidor no se admite logo embebido (data URL).",
           "error"
         );
         return;
@@ -16294,6 +16420,13 @@ function bindDynamicEvents() {
       empIllnessSelect.addEventListener("change", syncIllnessVisibility);
       syncIllnessVisibility();
     }
+    wireContractDurationBranch({
+      unitSel: employeeForm.querySelector("#emp-contract-duration-unit"),
+      qtyWrap: employeeForm.querySelector("#emp-contract-duration-qty-wrap"),
+      otherWrap: employeeForm.querySelector("#emp-contract-duration-other-wrap"),
+      amtEl: employeeForm.querySelector("#emp-contract-duration-amount"),
+      otherEl: employeeForm.querySelector("#emp-contract-duration-other")
+    });
     bindHrFormWizard(employeeForm);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -16534,6 +16667,13 @@ function bindDynamicEvents() {
           };
           illnessSel?.addEventListener("change", syncIllness);
           syncIllness();
+          wireContractDurationBranch({
+            unitSel: formEl.querySelector("#emp-edit-contract-duration-unit"),
+            qtyWrap: formEl.querySelector("#emp-edit-contract-duration-qty-wrap"),
+            otherWrap: formEl.querySelector("#emp-edit-contract-duration-other-wrap"),
+            amtEl: formEl.querySelector("#emp-edit-contract-duration-amount"),
+            otherEl: formEl.querySelector("#emp-edit-contract-duration-other")
+          });
         },
         onSubmit: async (payload, formEl) => {
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);

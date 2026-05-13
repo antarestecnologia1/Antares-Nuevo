@@ -160,6 +160,37 @@
     return data;
   }
 
+  /** POST multipart con token (p. ej. subida de imagen vía API). */
+  async function postFormData(path, formData) {
+    const base = getBase();
+    const auth = getAccessToken();
+    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!auth) throw new Error("API: falta token de acceso");
+    const rel = path.startsWith("/") ? path : `/${path}`;
+    const url = `${base}/api${rel}`;
+    const headers = { Accept: "application/json", Authorization: `Bearer ${auth}` };
+    const res = await fetch(url, { method: "POST", headers, body: formData });
+    const text = await res.text();
+    let data = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
+    if (!res.ok) {
+      let msg = res.statusText;
+      if (typeof data === "object" && data && data.message) {
+        msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
+      }
+      const err = new Error(msg || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
   /** GET sin token (rutas públicas de la API). */
   async function getJsonPublic(path) {
     const base = getBase();
@@ -199,6 +230,7 @@
     getJson,
     postJson,
     postJsonPublic,
+    postFormData,
     postFormDataPublic,
     getJsonPublic
   };

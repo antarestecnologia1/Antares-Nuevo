@@ -7,9 +7,12 @@ import {
   Post,
   Req,
   Res,
-  UseGuards
+  UploadedFile,
+  UseGuards,
+  UseInterceptors
 } from "@nestjs/common";
-import type { Response } from "express";
+import { FileInterceptor } from "@nestjs/platform-express";
+import type { Express, Response } from "express";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { PresignAvatarDto } from "./dto/presign-avatar.dto";
 import { R2Service } from "./r2.service";
@@ -33,18 +36,77 @@ export class UploadsController {
         "R2 no está configurado. Define CF_R2_* en el servidor."
       );
     }
+    const rawCt = String(dto.contentType || "image/jpeg")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const normalizedCt =
+      rawCt === "image/jpg" || rawCt === "image/pjpeg" ? "image/jpeg" : rawCt || "image/jpeg";
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalizedCt)) {
+      throw new BadRequestException(
+        "Tipo de imagen no permitido. Use JPEG, PNG, WebP o GIF."
+      );
+    }
     const safeName = String(dto.fileName).replace(/[^a-zA-Z0-9._-]+/g, "_");
     const ext = safeName.includes(".") ? safeName.split(".").pop()!.toLowerCase() : "jpg";
     const allowedExt = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
     const finalExt = allowedExt.has(ext) ? ext : "jpg";
     const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
     const key = `empleados/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${finalExt}`;
-    const url = await this.r2.presignAvatarUpload(key, dto.contentType, 300);
+    const url = await this.r2.presignAvatarUpload(key, normalizedCt, 300);
     return {
       uploadUrl: url,
       publicUrl: this.r2.publicUrl(key),
       key,
       expiresInSec: 300
+    };
+  }
+
+  /**
+   * Subida de imagen vía API → R2 (evita CORS del PUT directo al bucket y
+   * content-types raros del navegador). Mismo bucket que avatares/logos.
+   */
+  @Post("image")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 4 * 1024 * 1024 }
+    })
+  )
+  async uploadImage(
+    @Req() req: { user: ReqUser },
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    if (!this.r2.isEnabled()) {
+      throw new BadRequestException(
+        "R2 no está configurado. Define CF_R2_* en el servidor."
+      );
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Adjunte un archivo de imagen.");
+    }
+    const mime = String(file.mimetype || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const normalized =
+      mime === "image/jpg" || mime === "image/pjpeg" ? "image/jpeg" : mime || "image/jpeg";
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalized)) {
+      throw new BadRequestException("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
+    }
+    const ext =
+      normalized === "image/png"
+        ? "png"
+        : normalized === "image/webp"
+          ? "webp"
+          : normalized === "image/gif"
+            ? "gif"
+            : "jpg";
+    const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
+    const key = `portal-uploads/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, normalized);
+    return {
+      publicUrl: this.r2.publicUrl(key),
+      key
     };
   }
 
