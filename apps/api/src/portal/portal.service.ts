@@ -2824,6 +2824,15 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /** `tipo_servicio` en BD: solo nacional o entre sedes (Termoking va en `refrigeracion_termoking`). */
+  private normalizeSolicitudTipoServicioParaDb(raw: unknown): string {
+    const s = String(raw ?? "").trim().toLowerCase();
+    if (s.includes("entre sedes") || s.includes("sedes del cliente")) {
+      return "Transporte entre sedes del cliente";
+    }
+    return "Transporte nacional";
+  }
+
   /**
    * Bandera Termoking persistida en `refrigeracion_termoking`. Si el cliente aún manda solo
    * `tipo_servicio` legacy (texto con/sin termoking), se infiere aquí al sincronizar.
@@ -2874,6 +2883,7 @@ export class PortalService implements OnModuleInit {
       const observations =
         String(req.observations ?? req.notes ?? "").trim() || null;
       const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req as Record<string, unknown>);
+      const tipoServicioDb = this.normalizeSolicitudTipoServicioParaDb((req as { serviceType?: unknown }).serviceType);
 
       await c.query(
         `INSERT INTO solicitudes_transporte (
@@ -2939,7 +2949,7 @@ export class PortalService implements OnModuleInit {
           req.etaDelivery,
           vehicleType,
           req.cargoDescription,
-          req.serviceType,
+          tipoServicioDb,
           refrigeracionTermoking,
           boxesNum,
           Number(req.weightKg) || 0,

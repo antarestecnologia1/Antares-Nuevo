@@ -82,6 +82,19 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
+/** Tras abrir edición en Usuarios y accesos, lleva la vista al formulario superior (p-card). */
+function scrollAdminUsersEditFormIntoView() {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el =
+        document.getElementById("form-admin-user-edit") ||
+        document.getElementById("form-admin-company-edit");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
 function moduleFleetHeroStrip(metrics, hrVariant = "") {
   const stripTone =
     hrVariant === "payroll" ? " fleet-hero-strip--hr-payroll" : hrVariant === "hiring" ? " fleet-hero-strip--hr-hiring" : "";
@@ -924,7 +937,7 @@ function openAssignedTripInfoModal(req) {
  */
 function openRequestDetailModal(req) {
   if (!req) return;
-  const thermokingReq = requestRequiresRefrigeration(req);
+  const thermokingReq = requestRequiresRefrigeracionTermoking(req);
   const boxes = parseNum(req.boxes ?? req.boxesCount);
   const obs = String(req.notes || req.observations || "").trim();
   const origAddr = String(req.originAddress || "").trim();
@@ -4102,7 +4115,7 @@ function refreshCreateTripModuleForm(formEl) {
     return;
   }
 
-  const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
+  const needsTermoking = requestRequiresRefrigeracionTermoking(request);
   const assignableByDate = isRequestPickupSameDayOrFuture(request);
   const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
   const driverCandidates = getDriverCandidatesForRequest(request, requestId);
@@ -6923,6 +6936,31 @@ function serviceTypeRequiresRefrigeration(serviceType) {
   );
 }
 
+/** Valores permitidos para `tipo_servicio` (modo de transporte) en solicitudes. */
+const SOLICITUD_TIPO_TRANSPORTE_NACIONAL = "Transporte nacional";
+const SOLICITUD_TIPO_TRANSPORTE_ENTRE_SEDES = "Transporte entre sedes del cliente";
+
+function normalizeSolicitudTipoServicio(serviceType) {
+  const lower = String(serviceType || "").trim().toLowerCase();
+  if (lower.includes("entre sedes") || lower.includes("sedes del cliente")) {
+    return SOLICITUD_TIPO_TRANSPORTE_ENTRE_SEDES;
+  }
+  return SOLICITUD_TIPO_TRANSPORTE_NACIONAL;
+}
+
+/** Termoking requerido: bandera explícita `refrigeracionTermoking` o inferencia legacy desde `serviceType`. */
+function requestRequiresRefrigeracionTermoking(request) {
+  if (!request || typeof request !== "object") return false;
+  if (typeof request.refrigeracionTermoking === "boolean") return request.refrigeracionTermoking;
+  const legacySvc = request.serviceType;
+  return serviceTypeRequiresRefrigeration(legacySvc);
+}
+
+/** Modo de transporte para UI (sin mezclar Termoking). */
+function requestTransportModeFromRequest(req) {
+  return normalizeSolicitudTipoServicio(req?.serviceType);
+}
+
 /** BD `vehiculos.refrigerado_termoking` ↔ portal `refrigerated`; tolera strings legacy en sincronización. */
 function vehicleHasTermokingEquipment(vehicle) {
   if (!vehicle || typeof vehicle !== "object") return false;
@@ -6937,8 +6975,11 @@ function vehicleHasTermokingEquipment(vehicle) {
 
 /** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
 function requestTermokingClientLabel(request) {
-  if (!String(request?.serviceType || "").trim()) return "—";
-  return serviceTypeRequiresRefrigeration(request.serviceType) ? "Con Termoking" : "Sin Termoking";
+  if (!request || typeof request !== "object") return "—";
+  const hasExplicit = typeof request.refrigeracionTermoking === "boolean";
+  const st = String(request.serviceType || "").trim();
+  if (!hasExplicit && !st) return "—";
+  return requestRequiresRefrigeracionTermoking(request) ? "Con Termoking" : "Sin Termoking";
 }
 
 /** Columna historial: preferencia Termoking del cliente + tipo de flota si ya hay viaje asignado. */
@@ -8988,9 +9029,15 @@ function adminUsersHtml(current) {
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </div>`;
+    const avatarUrlRaw = String(u.avatarUrl || "").trim();
+    const avatarCss = employeeAvatarCssUrl(u.avatarUrl);
+    const letterClass = isPending ? "user-avatar pending-avatar" : "user-avatar";
+    const userAvatarBlock = avatarCss
+      ? `<div class="${letterClass} user-avatar--with-photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" /></div>`
+      : `<div class="${letterClass}">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>`;
     return `<div class="user-card${isPending ? " user-card--pending" : ""}">
       <div class="user-card-top">
-        <div class="user-avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>
+        ${userAvatarBlock}
         <div class="user-card-info">
           <h4>${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="muted" style="font-weight:400;font-size:0.78rem">(tu)</span>' : ""}</h4>
           <p>${escapeHtml(String(u.email || ""))}</p>
@@ -9016,9 +9063,10 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
     const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
-    const logoUrl = String(c.logoUrl || "").trim();
-    const avatarCompany = logoUrl
-      ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
+    const logoUrlRaw = String(c.logoUrl || "").trim();
+    const logoCss = employeeAvatarCssUrl(c.logoUrl);
+    const avatarCompany = logoCss
+      ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrlRaw)}" alt="" loading="lazy" /></div>`
       : `<div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>`;
     const nit = String(c.taxId || c.nit || "").trim();
     const subtitle = nit
@@ -9041,7 +9089,7 @@ function adminUsersHtml(current) {
       c.email
         ? `${IC.mail} ${escapeHtml(String(c.email))}`
         : `<span class="muted">${IC.mail} Sin correo</span>`,
-      c.logoUrl
+      logoCss
         ? `${IC.check} Logo configurado`
         : `<span class="muted">${IC.upload} Sin logo</span>`,
       `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
@@ -9165,6 +9213,13 @@ function adminUsersHtml(current) {
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
   </form>`;
 
+  const adminEditCompanyLogoExisting = escapeAttr(String(editingCompany?.logoUrl ?? ""));
+  const adminEditCompanyLogoCss = editingCompany ? employeeAvatarCssUrl(editingCompany.logoUrl) : "";
+  const adminEditCompanyLogoHasImage = Boolean(adminEditCompanyLogoCss);
+  const adminEditCompanyLogoInitial = editingCompany
+    ? escapeHtml(String((editingCompany.name || "?").trim().charAt(0).toUpperCase() || "?"))
+    : "";
+
   const fComp = `<form id="form-admin-company-create" class="p-form">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
@@ -9220,6 +9275,20 @@ function adminUsersHtml(current) {
   const fCompanyEdit = editingCompany
     ? `<form id="form-admin-company-edit" class="p-form p-form-colored">
     <input type="hidden" name="id" value="${escapeAttr(String(editingCompany.id || ""))}" />
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.upload} Logo de la empresa</legend>
+      <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
+        <div class="hr-employee-avatar-inner">
+          <label for="admin-edit-company-logo-input" class="profile-avatar profile-avatar-lg profile-avatar-upload profile-avatar--logo-contain${adminEditCompanyLogoHasImage ? " has-image" : ""}" id="admin-edit-company-logo-label" style="${adminEditCompanyLogoHasImage ? `background-image:url('${adminEditCompanyLogoCss}');` : ""}" title="Logo">
+            <span class="profile-avatar-initial">${adminEditCompanyLogoHasImage ? "" : adminEditCompanyLogoInitial}</span>
+            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditCompanyLogoHasImage ? escapeHtml("Cambiar logo") : escapeHtml("Subir logo")}</span></span></span>
+          </label>
+          <input type="file" id="admin-edit-company-logo-input" name="logoFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar logo de la empresa" />
+          <input type="hidden" name="logoUrlExisting" value="${adminEditCompanyLogoExisting}" />
+          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. Si no cambia el archivo, se conserva el logo actual.</p>
+        </div>
+      </div>
+    </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.briefcase} Datos de la empresa</legend>
       <div class="form-section-grid">
@@ -9250,10 +9319,6 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompany.department || "")}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompany.department || "", editingCompany.city || "")}</select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
-        <label class="full">${fieldLabel(IC.upload, "Logo de la empresa")}
-          <input type="file" name="logoFile" accept="image/*" />
-          <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
-        </label>
       </div>
     </fieldset>
     <div class="toolbar full">
@@ -9277,9 +9342,30 @@ function adminUsersHtml(current) {
     <button class="btn btn-primary full" type="submit">${IC.save} Guardar permisos</button>
   </form>`;
 
+  const adminEditUserAvatarExisting = escapeAttr(String(editingUser?.avatarUrl ?? ""));
+  const adminEditUserAvatarCss = editingUser ? employeeAvatarCssUrl(editingUser.avatarUrl) : "";
+  const adminEditUserAvatarHasImage = Boolean(adminEditUserAvatarCss);
+  const adminEditUserAvatarInitial = editingUser
+    ? escapeHtml((getPortalUserDisplayName(editingUser).charAt(0) || "?").toUpperCase())
+    : "";
+
   const fEdit = editingUser
     ? `<form id="form-admin-user-edit" class="p-form p-form-colored">
     <input type="hidden" name="id" value="${escapeAttr(String(editingUser.id || ""))}" />
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.upload} Foto de perfil</legend>
+      <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
+        <div class="hr-employee-avatar-inner">
+          <label for="admin-edit-user-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario">
+            <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
+            <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
+          </label>
+          <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto del usuario" />
+          <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
+          <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. Si no cambia el archivo, se conserva la foto actual.</p>
+        </div>
+      </div>
+    </fieldset>
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Nombre y datos del registro</legend>
       <div class="form-section-grid">
@@ -9367,10 +9453,6 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.briefcase, "Área de trabajo")}<input name="workArea" value="${escapeAttr(String(editingUser.workArea ?? ""))}" /></label>
         <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial / razón corta")}<input name="company" value="${escapeAttr(String(editingUser.company ?? ""))}" /></label>
       </div>
-    </fieldset>
-    <fieldset class="form-section full perm-fieldset">
-      <legend>${IC.upload} Avatar</legend>
-      <label class="full">${fieldLabel(IC.upload, "Cambiar foto")}<input type="file" name="avatarFile" accept="image/*" /></label>
     </fieldset>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
@@ -13612,6 +13694,7 @@ function bindDynamicEvents() {
       if (!id) return;
       state.adminUsersUi = { panel: "", editUserId: id, editCompanyId: "" };
       renderPortalView();
+      scrollAdminUsersEditFormIntoView();
     });
   });
 
@@ -13628,6 +13711,7 @@ function bindDynamicEvents() {
       if (!id) return;
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: id };
       renderPortalView();
+      scrollAdminUsersEditFormIntoView();
     });
   });
 
@@ -13906,6 +13990,9 @@ function bindDynamicEvents() {
         citySelectEdit.innerHTML = cityOptionsFromDepartment(String(depSelectEdit.value || ""), "");
       });
     }
+    const adminEditCompanyLogoInput = document.getElementById("admin-edit-company-logo-input");
+    const adminEditCompanyLogoLabel = document.getElementById("admin-edit-company-logo-label");
+    bindEmployeeAvatarFilePreview(adminEditCompanyLogoInput, adminEditCompanyLogoLabel);
     adminCompanyEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
@@ -14067,6 +14154,9 @@ function bindDynamicEvents() {
       initialDepartment: String(adminUserEdit.querySelector("select[name='department']")?.value || ""),
       initialCity: String(adminUserEdit.querySelector("select[name='city']")?.value || "")
     });
+    const adminEditAvatarInput = document.getElementById("admin-edit-user-avatar-input");
+    const adminEditAvatarLabel = document.getElementById("admin-edit-user-avatar-label");
+    bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
     adminUserEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminUserEdit).entries());
@@ -14139,6 +14229,31 @@ function bindDynamicEvents() {
       const gRaw = String(data.gender ?? "").trim();
       const genderStored = gRaw ? normalizeLatinUpperForDb(gRaw) : "";
       const registrationKindStored = normalizeRegistrationKindForDb(data.registrationKind);
+      const avatarFile = adminUserEdit.querySelector("input[name='avatarFile']")?.files?.[0] || null;
+      const avatarExisting = String(data.avatarUrlExisting ?? existing.avatarUrl ?? "").trim();
+      let resolvedAvatarUrl = avatarExisting;
+      if (avatarFile) {
+        try {
+          resolvedAvatarUrl = await resolveEmployeeAvatarUrl(avatarFile, avatarExisting);
+        } catch (presignErr) {
+          devWarn?.("admin-user-edit-avatar-resolve", presignErr);
+          notify(String(presignErr?.message || "No fue posible subir la foto. Intente de nuevo."), "error");
+          return;
+        }
+        const trimmedAv = String(resolvedAvatarUrl || "").trim();
+        if (!trimmedAv) {
+          notify("No se obtuvo una imagen válida para la foto del usuario.", "error");
+          return;
+        }
+        if (window.AntaresApi?.isConfigured?.() && isDataUrl(trimmedAv)) {
+          notify(
+            "No se pudo obtener una URL pública de la foto (R2). Revise la configuración del servidor o reintente.",
+            "error"
+          );
+          return;
+        }
+        resolvedAvatarUrl = trimmedAv;
+      }
       const nextEdited = users.map((u) =>
         u.id === userId
           ? {
@@ -14156,6 +14271,7 @@ function bindDynamicEvents() {
               documentIssuedAt: String(data.documentIssuedAt || u.documentIssuedAt || ""),
               birthDate: birthStored,
               gender: genderStored,
+              avatarUrl: resolvedAvatarUrl,
               companyId: company.id,
               company: normalizeLatinForDb(String(data.company || company.name).trim()),
               taxId: String(data.taxId || "").trim(),
@@ -15321,7 +15437,7 @@ function bindDynamicEvents() {
       const requestId = String(btn.dataset.id || "");
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) return;
-      const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
+      const needsTermoking = requestRequiresRefrigeracionTermoking(request);
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
@@ -18600,7 +18716,7 @@ function bindDynamicEvents() {
           return;
         }
 
-        const needsTermoking = serviceTypeRequiresRefrigeration(request.serviceType);
+        const needsTermoking = requestRequiresRefrigeracionTermoking(request);
         const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
         const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);

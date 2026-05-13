@@ -2909,6 +2909,54 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 1.1rem;
 }
 
+.user-avatar.user-avatar--with-photo {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--primary-rgb), 0.22);
+  background: #f1f5f9;
+}
+
+.user-avatar.user-avatar--with-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+body[data-theme="dark"] .user-avatar.user-avatar--with-photo {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.user-avatar.pending-avatar.user-avatar--with-photo {
+  background: #f1f5f9;
+  border-color: #fcd34d;
+  box-shadow: 0 2px 12px rgba(217, 119, 6, 0.15);
+}
+
+.user-card.user-card--pending .user-avatar.user-avatar--with-photo {
+  border-color: #fbbf24;
+}
+
+.user-modal-photo-hero {
+  display: flex;
+  justify-content: center;
+  padding: 0.2rem 0 0.85rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.user-avatar.user-avatar--modal-hero {
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
+}
+
+body[data-theme="dark"] .user-modal-photo-hero {
+  border-bottom-color: rgba(148, 196, 255, 0.2);
+}
+
 .pending-avatar {
   background: linear-gradient(135deg, #F59F00, #E67700);
 }
@@ -10719,6 +10767,17 @@ body[data-theme="dark"] .hiring-shell .table-wrap tbody tr:nth-child(even) td {
 
 .profile-avatar.has-image {
   color: transparent;
+}
+
+.profile-avatar.profile-avatar--logo-contain.has-image {
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-color: #fff;
+  background-position: center center;
+}
+
+body[data-theme="dark"] .profile-avatar.profile-avatar--logo-contain.has-image {
+  background-color: #0f172a;
 }
 
 .profile-avatar-lg {
