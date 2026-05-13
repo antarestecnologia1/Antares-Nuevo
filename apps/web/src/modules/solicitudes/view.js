@@ -179,8 +179,7 @@
          */
         return `<article class="request-company-hub-card${isSelected ? " is-active" : ""}" data-action="request-company-filter" data-company-id="${escapeAttr(companyId)}" role="button" tabindex="0" aria-pressed="${isSelected ? "true" : "false"}" title="Ver solo solicitudes de ${escapeAttr(name)}">
           <header>
-            <div class="request-company-hub-head">${logoHtml}<h4>${escapeHtml(name)}</h4></div>
-            <span class="status ${pending ? "status-pendiente" : "status-viaje_asignado"}">${pending ? `${pending} pendientes` : "Al día"}</span>
+            <div class="request-company-hub-head">${logoHtml}<div class="request-company-hub-titlestack"><h4>${escapeHtml(name)}</h4><span class="status ${pending ? "status-pendiente" : "status-viaje_asignado"}">${pending ? `${pending} pendientes` : "Al día"}</span></div></div>
           </header>
           <div class="request-company-hub-metrics">
             <span><strong>${list.length}</strong><small>Solicitudes</small></span>
