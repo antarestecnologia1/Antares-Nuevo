@@ -4392,6 +4392,29 @@ function attachDepartmentCitySelects(form, {
   deptSelect.addEventListener("change", () => fill(deptSelect.value, ""));
 }
 
+/**
+ * Administración · Usuarios: acerca el scroll al formulario visible (edición,
+ * creación de usuario/empresa o permisos) para no quedar abajo del listado.
+ */
+function scrollToAdminUsersFocusedForm() {
+  const target =
+    document.getElementById("form-admin-user-edit") ||
+    document.getElementById("form-admin-company-edit") ||
+    document.getElementById("form-admin-user-create") ||
+    document.getElementById("form-admin-company-create") ||
+    document.getElementById("form-admin-user-permissions");
+  if (!target) return;
+  requestAnimationFrame(() => {
+    try {
+      target.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+    } catch (_e) {
+      try {
+        target.scrollIntoView(true);
+      } catch (__e) {}
+    }
+  });
+}
+
 /** Alta/edición empresa (admin): cascada departamento→ciudad y valores iniciales coherentes con el catálogo. */
 function wireAdminCompanyLocationSelects() {
   const createForm = document.getElementById("form-admin-company-create");
@@ -13856,12 +13879,16 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const panel = String(btn.dataset.panel || "");
       const currentPanel = state.adminUsersUi?.panel || "";
+      const willOpen = currentPanel !== panel;
       state.adminUsersUi = {
         panel: currentPanel === panel ? "" : panel,
         editUserId: "",
         editCompanyId: ""
       };
       renderPortalView();
+      if (willOpen && state.adminUsersUi.panel) {
+        scrollToAdminUsersFocusedForm();
+      }
     });
   });
 
@@ -13970,6 +13997,7 @@ function bindDynamicEvents() {
       if (!id) return;
       state.adminUsersUi = { panel: "", editUserId: id, editCompanyId: "" };
       renderPortalView();
+      scrollToAdminUsersFocusedForm();
     });
   });
 
@@ -13986,6 +14014,7 @@ function bindDynamicEvents() {
       if (!id) return;
       state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: id };
       renderPortalView();
+      scrollToAdminUsersFocusedForm();
     });
   });
 
