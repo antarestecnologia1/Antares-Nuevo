@@ -1740,6 +1740,7 @@ export class PortalService implements OnModuleInit {
              s.numero_solicitud AS "requestNumber",
              s.id_usuario_solicitante::text AS "clientUserId",
              s.id_empresa_cliente::text AS "clientCompanyId",
+             NULLIF(trim(COALESCE(ec.url_logo, '')), '') AS "clientCompanyLogoUrl",
              s.nombre_cliente AS "clientName",
              s.nombre_quien_solicita AS "requestedByName",
              s.departamento_origen AS "originDepartment",
@@ -1786,7 +1787,8 @@ export class PortalService implements OnModuleInit {
              v.estado_operativo_en_vivo AS "trip_realtimeStatus",
              v.datos_factura_json AS "trip_invoice"
       FROM solicitudes_transporte s
-      LEFT JOIN viajes_transporte v ON v.id_solicitud = s.id`;
+      LEFT JOIN viajes_transporte v ON v.id_solicitud = s.id
+      LEFT JOIN empresas ec ON ec.id = s.id_empresa_cliente`;
 
     const r =
       admin || transport
@@ -1837,6 +1839,12 @@ export class PortalService implements OnModuleInit {
       requestNumber: row.requestNumber,
       clientUserId: row.clientUserId,
       clientCompanyId: row.clientCompanyId,
+      clientCompanyLogoUrl: (() => {
+        const rec = row as Record<string, unknown>;
+        const v = pickPortalField(rec, "clientCompanyLogoUrl", "client_company_logo_url");
+        if (v == null || v === "") return "";
+        return String(v).trim();
+      })(),
       clientName: row.clientName,
       requestedByName: row.requestedByName,
       originDepartment: row.originDepartment,

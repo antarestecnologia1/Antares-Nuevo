@@ -2,6 +2,16 @@
   if (!window.AppModules) window.AppModules = {};
   if (!window.AppModules.solicitudes) window.AppModules.solicitudes = {};
 
+  /** Logo cliente: prioriza caché de empresa (logo actualizado), luego URL del JOIN en API. */
+  function resolveRequestCompanyLogoUrl(r, company) {
+    const fromCompany =
+      typeof companyProfileLogoUrl === "function"
+        ? companyProfileLogoUrl(company)
+        : String(company?.logoUrl ?? company?.url_logo ?? "").trim();
+    if (fromCompany) return fromCompany;
+    return String(r?.clientCompanyLogoUrl ?? "").trim();
+  }
+
   /**
    * Convierte una solicitud en una tarjeta moderna del panel operativo.
    * Esta tarjeta es ahora la vista única del módulo: incluye todas las
@@ -18,6 +28,10 @@
     const companies = read(KEYS.companies, []);
     const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
     const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
+    const logoUrl = resolveRequestCompanyLogoUrl(r, company);
+    const clientLogoHtml = logoUrl
+      ? `<span class="request-company-logo request-company-logo--sm request-ops-card-company-logo" role="img" aria-label="Logo de ${escapeAttr(clientName)}"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></span>`
+      : `<span class="request-company-logo request-company-logo--sm request-company-logo--fallback request-ops-card-company-logo" aria-hidden="true">${escapeHtml(String(clientName || "E").charAt(0).toUpperCase())}</span>`;
     const statusSlug = typeof slugStatus === "function" ? slugStatus(r.status) : String(r.status || "").replace(/\W+/g, "-").toLowerCase();
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
     const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
@@ -32,9 +46,12 @@
       : "";
     return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)} request-ops-card" data-request-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
-        <div class="trip-ops-card-head-info">
-          <p class="trip-ops-card-kicker">Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}${requestedBy ? ` · ${escapeHtml(requestedBy)}` : ""}</p>
-          <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+        <div class="trip-ops-card-head-main">
+          ${clientLogoHtml}
+          <div class="trip-ops-card-head-info">
+            <p class="trip-ops-card-kicker">Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}${requestedBy ? ` · ${escapeHtml(requestedBy)}` : ""}</p>
+            <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+          </div>
         </div>
         <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span>
       </header>
@@ -144,7 +161,8 @@
       .map(([companyId, list]) => {
         const company = companies.find((c) => String(c.id) === companyId) || null;
         const name = company?.name || list[0]?.clientName || "Empresa sin nombre";
-        const logoUrl = String(company?.logoUrl || "").trim();
+        const logoFromReq = list.map((x) => resolveRequestCompanyLogoUrl(x, company)).find((u) => u) || "";
+        const logoUrl = logoFromReq || String(company?.logoUrl || "").trim();
         const logoHtml = logoUrl
           ? `<span class="request-company-hub-logo" role="img" aria-label="Logo de ${escapeAttr(name)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(name)}" loading="lazy" /></span>`
           : `<span class="request-company-hub-logo request-company-hub-logo--fallback" aria-hidden="true">${escapeHtml(String(name || "E").charAt(0).toUpperCase())}</span>`;

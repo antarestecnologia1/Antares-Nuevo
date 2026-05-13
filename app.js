@@ -924,6 +924,14 @@ function openAssignedTripInfoModal(req) {
  */
 function openRequestDetailModal(req) {
   if (!req) return;
+  const company = typeof getCompanyById === "function" ? getCompanyById(req.clientCompanyId) : null;
+  const clientLogoUrl =
+    companyProfileLogoUrl(company) || String(req.clientCompanyLogoUrl || "").trim();
+  const clientDisplayName = String(req.clientName || company?.name || "-").trim() || "-";
+  const clientBlock =
+    clientLogoUrl && !/^data:/i.test(clientLogoUrl)
+      ? `<div class="solicitud-detail-client-row"><span class="request-company-logo request-company-logo--sm" role="img" aria-label="Logo de ${escapeAttr(clientDisplayName)}"><img src="${escapeAttr(clientLogoUrl)}" alt="" loading="lazy" /></span><span class="muted">${escapeHtml(clientDisplayName)}</span></div>`
+      : `<span class="muted">${escapeHtml(clientDisplayName)}</span>`;
   const thermokingReq = requestRequiresRefrigeration(req);
   const boxes = parseNum(req.boxes ?? req.boxesCount);
   const obs = String(req.notes || req.observations || "").trim();
@@ -937,7 +945,7 @@ function openRequestDetailModal(req) {
     bodyHtml: `
       <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
         <div class="dash-grid">
-          <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
+          <div class="full"><strong>Cliente</strong><br />${clientBlock}</div>
           <div><strong>Modo de transporte</strong><br /><span class="muted">${modoTransporte}</span></div>
           <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
           <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
@@ -1366,6 +1374,12 @@ function normalizePortalBootstrapCompanyRow(c) {
     address: String(r.address ?? r.direccion_operativa ?? r.direccion ?? "").trim(),
     logoUrl: String(r.logoUrl ?? r.url_logo ?? r.urlLogo ?? "").trim()
   };
+}
+
+/** URL del logo corporativo para UI (solicitudes, detalle, selector). */
+function companyProfileLogoUrl(company) {
+  if (!company || typeof company !== "object") return "";
+  return String(normalizePortalBootstrapCompanyRow(company).logoUrl || "").trim();
 }
 
 /** Alinea texto guardado con la clave exacta del catálogo COLOMBIA_LOCATIONS (tildes, espacios, mayúsculas). */
@@ -7949,7 +7963,7 @@ function buildRequestCompanySelectHtml(user) {
     }
     const c = getCompanyById(cid);
     const label = c?.name || user.company || "Mi empresa";
-    const logoUrl = String(c?.logoUrl || "").trim();
+    const logoUrl = companyProfileLogoUrl(c);
     const logoPreview = logoUrl
       ? `<span class="request-company-logo" role="img" aria-label="Logo de ${escapeAttr(label)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(label)}" loading="lazy" /></span>`
       : `<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">${escapeHtml(String(label || "E").charAt(0).toUpperCase())}</span>`;
@@ -7969,7 +7983,7 @@ function buildRequestCompanySelectHtml(user) {
   const opts = companies
     .map((c) => {
       const id = String(c.id || "");
-      return `<option value="${escapeAttr(id)}" data-company-logo="${escapeAttr(String(c.logoUrl || ""))}" data-company-name="${escapeAttr(String(c.name || ""))}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
+      return `<option value="${escapeAttr(id)}" data-company-logo="${escapeAttr(companyProfileLogoUrl(c))}" data-company-name="${escapeAttr(String(c.name || ""))}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
     })
     .join("");
   return `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada", { required: true })}
@@ -9155,7 +9169,7 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
     const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
-    const logoUrl = String(c.logoUrl || "").trim();
+    const logoUrl = companyProfileLogoUrl(c);
     const avatarCompany = logoUrl
       ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
       : `<div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>`;
@@ -9180,7 +9194,7 @@ function adminUsersHtml(current) {
       c.email
         ? `${IC.mail} ${escapeHtml(String(c.email))}`
         : `<span class="muted">${IC.mail} Sin correo</span>`,
-      c.logoUrl
+      companyProfileLogoUrl(c)
         ? `${IC.check} Logo configurado`
         : `<span class="muted">${IC.upload} Sin logo</span>`,
       `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
@@ -9350,7 +9364,18 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department"><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city"><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" placeholder="Dirección de cargue/descargue o sede principal" /></label>
-        <label class="full">${fieldLabel(IC.upload, "Logo de la empresa", { required: true })}<input type="file" name="logoFile" accept="image/*" required /></label>
+        <label class="full company-logo-form-label">
+          ${fieldLabel(IC.upload, "Logo de la empresa", { required: true })}
+          <input type="file" id="admin-company-create-logo-file" name="logoFile" accept="image/*" required class="company-logo-file-input" aria-label="Seleccionar logo de la empresa" />
+          <span class="company-logo-oval company-logo-oval--interactive" data-company-logo-preview-wrap>
+            <span class="company-logo-oval-fallback" data-company-logo-fallback>${IC.upload}</span>
+            <img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />
+            <span class="company-logo-oval-overlay" aria-hidden="true">
+              <span class="company-logo-oval-overlay-inner">${IC.upload}<span>Elegir imagen</span></span>
+            </span>
+          </span>
+          <span class="muted company-logo-picker-hint">Pulse el óvalo para cargar el logo.</span>
+        </label>
       </div>
       <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
     </fieldset>
@@ -9389,13 +9414,20 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-edit-company-department"><option value="">Seleccione...</option>${departmentOptions(editingCompanyDeptKey)}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-edit-company-city"><option value="">Seleccione...</option>${cityOptionsFromDepartment(editingCompanyDeptKey, editingCompanyCityCanon)}</select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
-        <label class="full">${fieldLabel(IC.upload, "Logo de la empresa")}
-          ${
-            editingCompanyLogoUrl
-              ? `<div class="company-logo-preview-wrap" role="group" aria-label="Logo actual"><span class="company-logo-preview"><img src="${escapeAttr(editingCompanyLogoUrl)}" alt="" loading="lazy" /></span><p class="muted" style="margin:0">Logo registrado. Elija otra imagen solo si desea reemplazarlo.</p></div>`
-              : ""
-          }
-          <input type="file" name="logoFile" accept="image/*" />
+        <label class="full company-logo-form-label">
+          ${fieldLabel(IC.upload, "Logo de la empresa")}
+          <input type="file" id="admin-company-edit-logo-file" name="logoFile" accept="image/*" class="company-logo-file-input" aria-label="Cambiar logo de la empresa" />
+          <span class="company-logo-oval company-logo-oval--interactive${editingCompanyLogoUrl ? " has-image" : ""}" data-company-logo-preview-wrap>
+            ${
+              editingCompanyLogoUrl
+                ? `<img class="company-logo-oval-img" src="${escapeAttr(editingCompanyLogoUrl)}" alt="" width="128" height="80" loading="lazy" decoding="async" data-company-logo-preview-img data-company-logo-original="1" />`
+                : `<span class="company-logo-oval-fallback" data-company-logo-fallback>${escapeHtml(String(editingCompany.name || "E").charAt(0).toUpperCase())}</span><img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />`
+            }
+            <span class="company-logo-oval-overlay" aria-hidden="true">
+              <span class="company-logo-oval-overlay-inner">${IC.upload}<span>Cambiar logo</span></span>
+            </span>
+          </span>
+          <span class="muted company-logo-picker-hint">Pulse el óvalo para elegir otra imagen.</span>
           <input type="hidden" name="logoUrlExisting" value="${escapeAttr(String(editingCompany.logoUrl || ""))}" />
         </label>
       </div>
@@ -14853,8 +14885,9 @@ function bindDynamicEvents() {
         notify("Debe seleccionar la empresa asociada.", "error");
         return;
       }
-      const reqCompany =
+      const reqCompanyRaw =
         read(KEYS.companies, []).find((c) => String(c.id) === requestCompanyId) || null;
+      const reqCompany = reqCompanyRaw ? normalizePortalBootstrapCompanyRow(reqCompanyRaw) : null;
       if (!reqCompany) {
         notify("La empresa seleccionada no es válida.", "error");
         return;
@@ -14926,6 +14959,7 @@ function bindDynamicEvents() {
         clientUserId: user.id,
         clientName: reqCompany.name || user.company || "",
         clientCompanyId: reqCompany.id,
+        clientCompanyLogoUrl: companyProfileLogoUrl(reqCompany),
         requestedByName: user.name,
         ...payloadRest,
         serviceType,
@@ -19547,7 +19581,7 @@ function bindExtendedViewEditHandlers() {
       }
       const usersCount = read(KEYS.users, []).filter((u) => String(u.companyId || "") === String(c.id)).length;
       const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
-      const logoUrl = String(c.logoUrl || "").trim();
+      const logoUrl = companyProfileLogoUrl(c);
       const logoBlock = logoUrl
         ? `<div class="company-logo-preview-wrap"><span class="company-logo-preview"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(String(c.name || "Empresa"))}" loading="lazy" /></span><p class="muted">Logo corporativo registrado</p></div>`
         : `<div class="company-logo-preview-wrap"><span class="company-logo-preview company-logo-preview--fallback" aria-hidden="true">${escapeHtml(String(c.name || "E").charAt(0).toUpperCase())}</span><p class="muted">Sin logo cargado</p></div>`;

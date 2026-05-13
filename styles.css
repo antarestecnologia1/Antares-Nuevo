@@ -4521,6 +4521,13 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   font-weight: 800;
 }
 
+.request-company-logo--sm {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0.15rem;
+}
+
 .trip-ops-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
@@ -4565,6 +4572,19 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   align-items: flex-start;
   gap: 0.6rem;
   min-width: 0;
+}
+
+.trip-ops-card-head-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.request-ops-card-company-logo {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
 }
 
 .trip-ops-card-head-info {
@@ -14505,6 +14525,14 @@ body[data-theme="dark"] .trip-assign-tk-banner--dry {
 
 .solicitud-detail-section .dash-grid {
   gap: 0.7rem 1.1rem;
+}
+
+.solicitud-detail-client-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
 }
 
 .solicitud-detail-notes {
