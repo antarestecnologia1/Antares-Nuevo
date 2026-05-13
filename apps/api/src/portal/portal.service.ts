@@ -2286,6 +2286,7 @@ export class PortalService implements OnModuleInit {
   }
 
   private mapEmployeeRow(e: Record<string, unknown>) {
+    /** Alineado con `app.js` (formulario y perfil de nómina): mismas claves que `buildPayrollEmployeePayloadFromWizard`. */
     return {
       id: e.id,
       companyId: e.id_empresa,
@@ -2305,7 +2306,7 @@ export class PortalService implements OnModuleInit {
       personalEmail: e.correo_personal,
       emergencyContact: e.contacto_emergencia,
       emergencyPhone: e.telefono_emergencia,
-      emergencyRelationship: e.parentesco_emergencia,
+      emergencyRelation: e.parentesco_emergencia,
       position: e.nombre_cargo_texto,
       contractType: e.tipo_contrato,
       /** Alias del formulario portal; misma columna BD `duracion_contrato_texto`. */
@@ -2321,22 +2322,22 @@ export class PortalService implements OnModuleInit {
       costCenter: e.centro_costos,
       contributorType: e.tipo_cotizante,
       arlRiskLevel: e.nivel_riesgo_arl,
-      contractTemplate: e.tipo_plantilla_contrato,
+      contractTemplateKind: e.tipo_plantilla_contrato,
       eps: e.eps,
       pensionFund: e.fondo_pension,
       arl: e.arl,
       severanceFund: e.fondo_cesantias,
       compensationFund: e.caja_compensacion,
-      bank: e.banco,
-      accountType: e.tipo_cuenta_bancaria,
-      accountNumber: e.numero_cuenta_bancaria,
+      bankName: e.banco,
+      bankAccountType: e.tipo_cuenta_bancaria,
+      bankAccount: e.numero_cuenta_bancaria,
       workerRole: e.rol_trabajador,
-      licenseNumber: e.numero_licencia,
+      license: e.numero_licencia,
       licenseCategory: e.categoria_licencia,
       licenseExpiry: e.fecha_vencimiento_licencia,
-      psychometricExamDate: e.fecha_examen_psicosensometrico,
-      psychometricExpiry: e.fecha_vencimiento_psicosensometrico,
-      defensiveDrivingCourse: e.curso_conduccion_defensiva,
+      psychoTestDate: e.fecha_examen_psicosensometrico,
+      psychoTestExpiry: e.fecha_vencimiento_psicosensometrico,
+      defensiveCourse: e.curso_conduccion_defensiva,
       probationMonths: e.meses_prueba,
       contractEndDate: e.fecha_fin_contrato,
       workSchedule: e.jornada_laboral,
