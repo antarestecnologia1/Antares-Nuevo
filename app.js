@@ -7890,15 +7890,21 @@ function activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequest
 }
 
 function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentRequestId = null) {
-  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) =>
-    t.vehicleId ? t.vehicleId === vehicle.id : t.vehiclePlate === vehicle.plate
-  );
+  const vid = String(vehicle?.id || "").trim();
+  const vplate = String(vehicle?.plate || "").trim().toUpperCase();
+  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
+    if (t.vehicleId) return String(t.vehicleId).trim() === vid;
+    return Boolean(vplate && String(t.vehiclePlate || "").trim().toUpperCase() === vplate);
+  });
 }
 
 function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = null) {
-  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) =>
-    t.driverId ? t.driverId === driver.id : t.driverName === driver.name
-  );
+  const did = String(driver?.id || "").trim();
+  const dname = String(driver?.name || "").trim().toLowerCase();
+  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
+    if (t.driverId) return String(t.driverId).trim() === did;
+    return Boolean(dname && String(t.driverName || "").trim().toLowerCase() === dname);
+  });
 }
 
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
@@ -8031,9 +8037,9 @@ function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
       : " · Termoking: no"
     : ` · ${vehicleHasTermokingEquipment(vehicle) ? "Refrigerado" : "Seco"}`;
   let tail = ` · SOAT ${soat} · Tec ${tec}`;
-  if (isBusy) tail += " · 🟠 OCUPADO";
-  if (isUnavailable) tail += " · 🟡 NO DISPONIBLE";
-  if (hasExpiredDocs) tail += " · 🔴 DOCUMENTOS VENCIDOS";
+  if (isBusy) tail += " · Ocupado (horario)";
+  if (isUnavailable) tail += " · No disponible";
+  if (hasExpiredDocs) tail += " · Documentación vencida";
   return `${vehicle.plate} · ${vehicle.type} · ${cap}${thermal}${tail}`;
 }
 
@@ -8042,9 +8048,9 @@ function tripAssignmentDriverOptionLabel(driver, options = {}) {
   const isUnavailable = Boolean(options.isUnavailable);
   const hasExpiredDocs = Boolean(options.hasExpiredDocs);
   let tail = `${driver.name} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || "-"}`;
-  if (isBusy) tail += " · 🟠 OCUPADO";
-  if (isUnavailable) tail += " · 🟡 NO DISPONIBLE";
-  if (hasExpiredDocs) tail += " · 🔴 LICENCIA VENCIDA";
+  if (isBusy) tail += " · Ocupado (horario)";
+  if (isUnavailable) tail += " · No disponible";
+  if (hasExpiredDocs) tail += " · Licencia vencida";
   return tail;
 }
 
@@ -8065,7 +8071,15 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null, compa
     if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
     if (docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days < 0)
       return false;
-    if (isVehicleBusyAtHour(vehicle, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId)) return false;
+    if (
+      isVehicleBusyAtHour(
+        vehicle,
+        requestSchedulingPickupIso(request),
+        requestSchedulingDeliveryIso(request),
+        currentRequestId
+      )
+    )
+      return false;
     return true;
   });
 }
@@ -8075,7 +8089,7 @@ function getCompatibleDriversForRequest(request, currentRequestId = null) {
     (driver) =>
       !isManuallyUnavailable(driver) &&
       daysUntil(driver.licenseExpiry) >= 0 &&
-      !isDriverBusyAtHour(driver, request?.pickupAt, request?.etaDelivery || request?.pickupAt, currentRequestId)
+      !isDriverBusyAtHour(driver, requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request), currentRequestId)
   );
 }
 
@@ -8094,8 +8108,8 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
       const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days;
       const busyBySchedule = isVehicleBusyAtHour(
         vehicle,
-        request?.pickupAt,
-        request?.etaDelivery || request?.pickupAt,
+        requestSchedulingPickupIso(request),
+        requestSchedulingDeliveryIso(request),
         currentRequestId
       );
       const unavailableManual = isManuallyUnavailable(vehicle);
@@ -8113,8 +8127,8 @@ function getDriverCandidatesForRequest(request, currentRequestId = null) {
     const expiredLicense = daysUntil(driver.licenseExpiry) < 0;
     const busyBySchedule = isDriverBusyAtHour(
       driver,
-      request?.pickupAt,
-      request?.etaDelivery || request?.pickupAt,
+      requestSchedulingPickupIso(request),
+      requestSchedulingDeliveryIso(request),
       currentRequestId
     );
     const unavailableManual = isManuallyUnavailable(driver);
@@ -8202,18 +8216,20 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
   const compatibleVehicles = getCompatibleVehiclesForRequest(current, requestId);
   const compatibleDrivers = getCompatibleDriversForRequest(current, requestId);
 
+  const schedPickup = requestSchedulingPickupIso(current);
+  const schedDelivery = requestSchedulingDeliveryIso(current);
   const vehicle = selectedVehicleId
     ? compatibleVehicles.find((item) => item.id === selectedVehicleId) || null
     : selectBestVehicle(
       parseNum(current.weightKg),
-      current.pickupAt,
-      current.etaDelivery || current.pickupAt,
+      schedPickup,
+      schedDelivery,
       requestId,
       { requiresRefrigeration: requestRequiresTermoking(current) }
     );
   const driver = selectedDriverId
     ? compatibleDrivers.find((item) => item.id === selectedDriverId) || null
-    : selectDriver(current.pickupAt, current.etaDelivery || current.pickupAt, requestId);
+    : selectDriver(schedPickup, schedDelivery, requestId);
 
   if (!vehicle || !driver) {
     notify(userMessage("noCompatibleResources"), "error");
@@ -8233,8 +8249,8 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     driverName: driver ? driver.name : "Por definir",
     driverPhone: driver ? driver.phone : "-",
     route: formatRoute(current),
-    etaPickup: current.pickupAt,
-    etaDelivery: current.etaDelivery || current.pickupAt,
+    etaPickup: schedPickup || current.pickupAt || "",
+    etaDelivery: schedDelivery || current.etaDelivery || current.pickupAt || "",
     assignedBy: actorName,
     assignedAt: nowLocalIso(),
     realtimeStatus: STATUS.VIAJE_ASIGNADO
@@ -9126,16 +9142,16 @@ function vehiclesHtml() {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
       const refrigeratedTag = vehicleHasTermokingEquipment(v)
-        ? '<span class="status status-viaje_asignado">Termoking</span>'
-        : '<span class="status status-espera_standby">Carga seca</span>';
+        ? '<span class="status status-fleet-equipo-tk">Termoking</span>'
+        : '<span class="status status-fleet-equipo-seco">Carga seca</span>';
       const occupancy = resolveVehicleOccupancy(v.id);
       const availabilityTag = isManuallyUnavailable(v)
-        ? '<span class="status status-pendiente">🟡 No disponible</span>'
+        ? '<span class="status status-fleet-offline">No disponible</span>'
         : occupancy.tone === "busy"
-          ? `<span class="status status-en_transito">🟠 Ocupado</span>`
+          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
           : occupancy.tone === "scheduled"
-            ? `<span class="status status-espera_standby">🟣 Reservado</span>`
-            : '<span class="status status-viaje_asignado">🟢 Disponible</span>';
+            ? '<span class="status status-fleet-programado">Reservado</span>'
+            : '<span class="status status-fleet-disponible">Disponible</span>';
       const occupancyDetail = occupancy.trip
         ? `<strong>${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}</strong> · <span class="muted">${escapeHtml(String(occupancy.trip.clientName || "-"))}</span>`
         : `<span class="muted">${escapeHtml(String(occupancy.detail || "Sin viaje activo"))}</span>`;
@@ -9327,12 +9343,12 @@ function driversHtml() {
       const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
       const occupancy = resolveDriverOccupancy(d.id);
       const statusTag = isManuallyUnavailable(d)
-        ? '<span class="status status-pendiente">🟡 No disponible</span>'
+        ? '<span class="status status-fleet-offline">No disponible</span>'
         : occupancy.tone === "busy"
-          ? '<span class="status status-en_transito">🟠 Ocupado</span>'
+          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
           : occupancy.tone === "scheduled"
-            ? '<span class="status status-espera_standby">🟣 Reservado</span>'
-            : '<span class="status status-viaje_asignado">🟢 Disponible</span>';
+            ? '<span class="status status-fleet-programado">Reservado</span>'
+            : '<span class="status status-fleet-disponible">Disponible</span>';
       const licStatus = (() => {
         if (!d.licenseExpiry) return '<span class="status status-pendiente">Sin fecha</span>';
         const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
@@ -9738,7 +9754,7 @@ function transportTripsHtml() {
       <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
         <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, la ocupación por horario usa la misma ventana <strong>recogida → entrega estimada</strong> de esta solicitud frente a los viajes ya asignados; si la entrega estimada es mucho más tarde que la recogida, ambos recursos pueden seguir marcados ocupados en ese tramo. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
-        <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">🟠 Ocupado</span><span class="create-trip-flag create-trip-flag--offline">🟡 No disponible</span><span class="create-trip-flag create-trip-flag--expired">🔴 Documentación vencida</span></p>
+        <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">Ocupado</span><span class="create-trip-flag create-trip-flag--offline">No disponible</span><span class="create-trip-flag create-trip-flag--expired">Documentación vencida</span></p>
         <div class="create-trip-fleet-grid">
           <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
             <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
@@ -16810,8 +16826,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción, y conductores. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: camiones, turbos y tractomulas, y conductores. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: camiones, turbos y tractomulas, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
@@ -20171,7 +20187,7 @@ function bindDynamicEvents() {
               id: "auth-approve-hint",
               title: "Asignación opcional",
               hint: "Deje vehículo y conductor en «sin asignar» para solo aprobar la solicitud. Si completa ambos, deberá indicar el precio del viaje."
-              + " Estados en listado: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación/licencia vencida."
+              + " Estados en listado: ocupado (horario), no disponible, documentación o licencia vencida."
             },
             {
               name: "vehicleId",

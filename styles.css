@@ -2410,7 +2410,7 @@ tbody tr:last-child td { border-bottom: none; }
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1.15;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.16);
   white-space: nowrap;
   text-align: center;
   max-width: 100%;
@@ -2469,21 +2469,116 @@ tbody tr:last-child td { border-bottom: none; }
   min-width: 14px;
 }
 
-.status-pendiente { background: linear-gradient(135deg, #F59F00, #E67700); }
+.status-pendiente {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warning) 90%, #ffffff 10%),
+    color-mix(in srgb, #e67700 78%, var(--primary-dark) 22%)
+  );
+  box-shadow: 0 2px 10px rgba(229, 132, 0, 0.2);
+}
 .status-aprobada_pendiente_asignacion {
   background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 42%, var(--primary) 100%);
   box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.35);
 }
-.status-viaje_asignado { background: linear-gradient(135deg, #1B8E5F, #157A50); }
-.status-en_transito { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); }
-.status-espera_standby { background: linear-gradient(135deg, #8a5b00, #6d4800); }
-.status-completada { background: linear-gradient(135deg, #0e7490, #0c5f74); }
+.status-viaje_asignado {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--success) 92%, var(--primary) 8%),
+    color-mix(in srgb, #157a50 90%, var(--primary-dark) 10%)
+  );
+  box-shadow: 0 2px 12px rgba(27, 142, 95, 0.22);
+}
+.status-en_transito {
+  background: linear-gradient(135deg, var(--primary-mid) 0%, var(--primary) 42%, var(--primary-dark) 100%);
+  box-shadow: 0 2px 14px rgba(var(--primary-rgb), 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.status-espera_standby {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary-deeper) 50%, #4f46b5 50%),
+    color-mix(in srgb, var(--primary-dark) 45%, #4338ca 55%)
+  );
+  box-shadow: 0 2px 12px rgba(67, 56, 202, 0.16);
+}
+.status-completada {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #0e7490 72%, var(--primary-dark) 28%),
+    color-mix(in srgb, #0c5f74 68%, var(--primary-deeper) 32%)
+  );
+  box-shadow: 0 2px 10px rgba(14, 116, 144, 0.2);
+}
 .status-cerrada { background: linear-gradient(135deg, #334155, #1e293b); }
 .status-cancelada,
 .status-rechazada { background: linear-gradient(135deg, #D62828, #B02020); }
 .status-vencida {
   background: linear-gradient(135deg, #9a3412, #7c2d12);
   box-shadow: 0 2px 10px rgba(124, 45, 18, 0.38);
+}
+
+/**
+ * Flota (camión / conductor): estados de disponibilidad alineados a la marca,
+ * sin reutilizar colores de flujo de viaje (en tránsito, standby, etc.).
+ */
+.status-fleet-disponible {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--success) 90%, var(--primary) 10%),
+    color-mix(in srgb, #157a50 88%, var(--primary-dark) 12%)
+  );
+  box-shadow: 0 2px 12px rgba(27, 142, 95, 0.22);
+  text-shadow: 0 1px 1px rgba(0, 50, 40, 0.2);
+}
+.status-fleet-ocupado {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary-dark) 58%, #c45d34 42%),
+    color-mix(in srgb, var(--primary-deeper) 52%, #a84a2e 48%)
+  );
+  box-shadow: 0 2px 14px rgba(var(--primary-rgb), 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  text-shadow: 0 1px 2px rgba(24, 40, 70, 0.32);
+}
+.status-fleet-programado {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 68%, #5c6bc0 32%),
+    color-mix(in srgb, var(--primary-deeper) 58%, #3949ab 42%)
+  );
+  box-shadow: 0 2px 14px rgba(var(--primary-rgb), 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  text-shadow: 0 1px 2px rgba(20, 35, 80, 0.32);
+}
+.status-fleet-offline {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #64748b 35%, var(--warning) 65%),
+    color-mix(in srgb, var(--primary-deeper) 40%, #d97706 60%)
+  );
+  box-shadow: 0 2px 10px rgba(100, 116, 139, 0.14);
+  text-shadow: 0 1px 1px rgba(40, 30, 10, 0.22);
+}
+.status-fleet-equipo-tk {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--success) 72%, var(--primary) 28%),
+    color-mix(in srgb, #157a50 68%, var(--primary-dark) 32%)
+  );
+  box-shadow: 0 1px 8px rgba(27, 142, 95, 0.16);
+  font-size: 0.72rem;
+  padding: 0.26rem 0.62rem;
+  text-shadow: 0 1px 1px rgba(0, 45, 30, 0.18);
+}
+.status-fleet-equipo-seco {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand-blue-soft) 88%, #ffffff 12%),
+    color-mix(in srgb, var(--primary-mid) 22%, #e2e8f0 78%)
+  );
+  color: var(--primary-deeper);
+  font-weight: 800;
+  text-shadow: none;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line));
+  box-shadow: 0 1px 6px rgba(var(--primary-rgb), 0.08);
 }
 
 .status-road::after {
@@ -3551,13 +3646,15 @@ body[data-theme="dark"] .modal-edit-section-title {
 }
 
 .create-trip-flag--busy {
-  background: color-mix(in srgb, #f59e0b 16%, var(--white));
-  color: #8a4b00;
+  background: color-mix(in srgb, var(--primary) 14%, var(--white));
+  color: var(--primary-deeper);
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--line));
 }
 
 .create-trip-flag--offline {
-  background: color-mix(in srgb, #eab308 16%, var(--white));
-  color: #805f00;
+  background: color-mix(in srgb, var(--warning) 14%, var(--white));
+  color: color-mix(in srgb, var(--primary-deeper) 35%, #92400e 65%);
+  border-color: color-mix(in srgb, var(--warning) 22%, var(--line));
 }
 
 .create-trip-flag--expired {
@@ -4455,19 +4552,34 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
 }
 
 .trip-ops-card--vehicle-disponible::before {
-  background: linear-gradient(90deg, #1B8E5F, #2db987, #6ed4a8);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--success) 85%, var(--primary) 15%), #2db987, #6ed4a8);
 }
 
 .trip-ops-card--vehicle-ocupado::before {
-  background: linear-gradient(90deg, #c2410c, #ea580c, #fb923c);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary-deeper) 55%, #c45d34 45%),
+    color-mix(in srgb, var(--primary) 38%, #d97706 62%),
+    color-mix(in srgb, var(--primary-mid) 55%, #fb923c 45%)
+  );
 }
 
 .trip-ops-card--vehicle-reservado::before {
-  background: linear-gradient(90deg, #6d28d9, #8b5cf6, #c4b5fd);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary-deeper) 45%, #4f46b5 55%),
+    color-mix(in srgb, var(--primary) 40%, #6366f1 60%),
+    color-mix(in srgb, var(--primary-mid) 50%, #a5b4fc 50%)
+  );
 }
 
 .trip-ops-card--vehicle-no-disponible::before {
-  background: linear-gradient(90deg, #b45309, #d97706, #fcd34d);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary-deeper) 35%, #b45309 65%),
+    color-mix(in srgb, var(--warning) 70%, #d97706 30%),
+    color-mix(in srgb, var(--warning) 45%, var(--brand-blue-mid) 55%)
+  );
 }
 
 body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-plate-title {
@@ -14123,6 +14235,19 @@ body[data-theme="dark"] .cal-cell-has-events {
 body[data-theme="dark"] .driver-card-head {
   background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.16), rgba(14, 28, 46, 0.96));
   border-bottom-color: var(--line);
+}
+
+body[data-theme="dark"] .status-fleet-equipo-seco {
+  color: #e8f4fc;
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.32), rgba(30, 74, 115, 0.55));
+  border-color: rgba(var(--primary-mid-rgb), 0.35);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.22);
+}
+
+body[data-theme="dark"] .status-fleet-ocupado,
+body[data-theme="dark"] .status-fleet-programado,
+body[data-theme="dark"] .status-fleet-disponible {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 body[data-theme="dark"] .notif-card-unread {
