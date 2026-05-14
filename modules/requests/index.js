@@ -96,12 +96,19 @@ window.DomainModules = window.DomainModules || {};
     const destination = [dDept && dCity ? `${dDept}, ${dCity}` : dCity || dDept, dAddr].filter(Boolean).join(" — ");
     const weightKg = Math.max(1, parseInt(String(portalPayload.weightKg ?? "1"), 10) || 1);
     const pickupAt = new Date(pickupAtIso).toISOString();
+    const etaRaw = portalPayload?.etaDelivery;
+    let etaIso = null;
+    if (etaRaw != null && String(etaRaw).trim() !== "") {
+      const d = new Date(etaRaw);
+      if (Number.isFinite(d.getTime())) etaIso = d.toISOString();
+    }
     return {
       origin,
       destination,
       vehicleType: portalPayload.vehicleType,
       weightKg,
-      pickupAt
+      pickupAt,
+      ...(etaIso ? { etaDelivery: etaIso } : {})
     };
   }
 

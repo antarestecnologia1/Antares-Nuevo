@@ -103,7 +103,8 @@
     observationsUpdated: "Observaciones guardadas correctamente.",
     assignSelectResources: "Seleccione camión y conductor para asignar.",
     assignPriceRequired: "Indique el valor del viaje (COP) para poder asignar.",
-    assignResourcesBusy: "No puede asignar recursos ocupados o no disponibles en ese horario.",
+    assignResourcesBusy:
+      "No puede asignar esos recursos: el vehículo o el conductor no están disponibles u aparecen ocupados en el horario de esta solicitud (se cruza la ventana recogida–entrega estimada con otro viaje activo).",
     assignPastRequestDate:
       "No se puede asignar el viaje: la solicitud tiene fecha de recogida vencida. Solo se permite para el mismo día o fechas futuras.",
     assignBulkPartial: (ok, fail) =>

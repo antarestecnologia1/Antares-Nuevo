@@ -4105,9 +4105,20 @@ function formatInterviewWhenDisplay(whenRaw) {
 
 function buildColombiaOffsetDateTime(datePart, timePart) {
   const date = String(datePart || "").trim();
-  const time = String(timePart || "").trim();
-  if (!date || !time) return "";
-  return `${date}T${time}:00-05:00`;
+  const raw = String(timePart || "").trim();
+  if (!date || !raw) return "";
+  /** `type="time"` suele enviar `HH:mm`; algunos navegadores `HH:mm:ss`. Evitar `T10:00:00:00` inválido. */
+  let timeNorm = "";
+  if (/^\d{1,2}:\d{2}$/.test(raw)) {
+    const [h, m] = raw.split(":");
+    timeNorm = `${String(Number(h)).padStart(2, "0")}:${String(Number(m)).padStart(2, "0")}:00`;
+  } else if (/^\d{1,2}:\d{2}:\d{2}$/.test(raw)) {
+    const [h, m, s] = raw.split(":");
+    timeNorm = `${String(Number(h)).padStart(2, "0")}:${String(Number(m)).padStart(2, "0")}:${String(Number(s)).padStart(2, "0")}`;
+  } else {
+    return "";
+  }
+  return `${date}T${timeNorm}-05:00`;
 }
 
 function normalizeEmail(email) {
@@ -4525,6 +4536,15 @@ function requestDeliveryIsoForEdit(req) {
     if (built) return built;
   }
   return requestPickupIsoForEdit(req);
+}
+
+/** Recogida / entrega efectivas para solapes de agenda (API puede mandar solo fecha+hora por campos). */
+function requestSchedulingPickupIso(req) {
+  return requestPickupIsoForEdit(req);
+}
+
+function requestSchedulingDeliveryIso(req) {
+  return requestDeliveryIsoForEdit(req);
 }
 
 function routeRateKeyFromRequest(request) {
@@ -7380,15 +7400,6 @@ function diffMinutes(fromIso) {
   return (Date.now() - new Date(fromIso).getTime()) / 60000;
 }
 
-function intervalsOverlap(startA, endA, startB, endB) {
-  const aStart = new Date(startA).getTime();
-  const aEnd = new Date(endA).getTime();
-  const bStart = new Date(startB).getTime();
-  const bEnd = new Date(endB).getTime();
-  if (![aStart, aEnd, bStart, bEnd].every(Number.isFinite)) return false;
-  return aStart < bEnd && bStart < aEnd;
-}
-
 function isManuallyUnavailable(resource) {
   return Boolean(resource && resource.available === false && resource.autoBusy !== true);
 }
@@ -7440,17 +7451,41 @@ function getActiveTrips() {
   return requests.filter((r) => r.trip && activeTripStatuses().includes(r.status));
 }
 
-function recalculateResourceAvailability() {
-  const activeTrips = getActiveTrips();
-  const busyVehicleIds = new Set(activeTrips.map((r) => r.trip?.vehicleId).filter(Boolean));
-  const busyDriverIds = new Set(activeTrips.map((r) => r.trip?.driverId).filter(Boolean));
+/** Igual que API `tstzrange(...) @> now()`: ocupación automática solo si el instante actual cae en la ventana programada del viaje. */
+function tripWindowContainsInstant(trip, instantTs = Date.now()) {
+  const range = parseTripWindowRange(trip);
+  if (!range) return false;
+  return instantTs >= range.start && instantTs < range.end;
+}
 
+function activeTripOccupiesVehicleAtInstant(trip, vehicle, instantTs = Date.now()) {
+  if (!trip || !vehicle || !tripWindowContainsInstant(trip, instantTs)) return false;
+  const vid = String(vehicle.id || "").trim();
+  const vplate = String(vehicle.plate || "").trim().toUpperCase();
+  if (trip.vehicleId && String(trip.vehicleId).trim() === vid) return true;
+  if (!trip.vehicleId && vplate && String(trip.vehiclePlate || "").trim().toUpperCase() === vplate) return true;
+  return false;
+}
+
+function activeTripOccupiesDriverAtInstant(trip, driver, instantTs = Date.now()) {
+  if (!trip || !driver || !tripWindowContainsInstant(trip, instantTs)) return false;
+  const did = String(driver.id || "").trim();
+  const dname = String(driver.name || "").trim().toLowerCase();
+  if (trip.driverId && String(trip.driverId).trim() === did) return true;
+  if (!trip.driverId && dname && String(trip.driverName || "").trim().toLowerCase() === dname) return true;
+  return false;
+}
+
+function recalculateResourceAvailability() {
+  const nowTs = Date.now();
+  const activeTrips = getActiveTrips();
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
 
   let vehiclesChanged = false;
   const nextVehicles = vehicles.map((vehicle) => {
-    if (busyVehicleIds.has(vehicle.id)) {
+    const liveBusy = activeTrips.some((r) => activeTripOccupiesVehicleAtInstant(r.trip, vehicle, nowTs));
+    if (liveBusy) {
       if (vehicle.available === false && vehicle.autoBusy === true) return vehicle;
       vehiclesChanged = true;
       return { ...vehicle, available: false, autoBusy: true };
@@ -7464,7 +7499,8 @@ function recalculateResourceAvailability() {
 
   let driversChanged = false;
   const nextDrivers = drivers.map((driver) => {
-    if (busyDriverIds.has(driver.id)) {
+    const liveBusy = activeTrips.some((r) => activeTripOccupiesDriverAtInstant(r.trip, driver, nowTs));
+    if (liveBusy) {
       if (driver.available === false && driver.autoBusy === true) return driver;
       driversChanged = true;
       return { ...driver, available: false, autoBusy: true };
@@ -7832,30 +7868,37 @@ async function transitionRequestStatus(requestId, nextStatus, actorName = "Siste
   return true;
 }
 
-function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentRequestId = null) {
+/**
+ * Cruce de ventanas recogida→entrega (misma regla para vehículo y conductor).
+ * `tripMatches` recibe el viaje activo y decide si ese recurso es el que se está evaluando.
+ */
+function activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, tripMatches) {
+  const candidate = parseTripWindowRange({
+    etaPickup: pickupAt,
+    etaDelivery: etaDelivery != null && String(etaDelivery).trim() !== "" ? etaDelivery : pickupAt
+  });
+  if (!candidate) return false;
   return getActiveTrips().some((request) => {
     if (currentRequestId && request.id === currentRequestId) return false;
-    const tripStart = request.trip?.etaPickup;
-    const tripEnd = request.trip?.etaDelivery || tripStart;
-    const conflict = intervalsOverlap(tripStart, tripEnd, pickupAt, etaDelivery);
-    if (!conflict) return false;
-    return request.trip.vehicleId
-      ? request.trip.vehicleId === vehicle.id
-      : request.trip.vehiclePlate === vehicle.plate;
+    const t = request.trip;
+    if (!t) return false;
+    const existing = parseTripWindowRange(t);
+    if (!existing) return false;
+    if (!(existing.start < candidate.end && candidate.start < existing.end)) return false;
+    return tripMatches(t);
   });
 }
 
+function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentRequestId = null) {
+  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) =>
+    t.vehicleId ? t.vehicleId === vehicle.id : t.vehiclePlate === vehicle.plate
+  );
+}
+
 function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = null) {
-  return getActiveTrips().some((request) => {
-    if (currentRequestId && request.id === currentRequestId) return false;
-    const tripStart = request.trip?.etaPickup;
-    const tripEnd = request.trip?.etaDelivery || tripStart;
-    const conflict = intervalsOverlap(tripStart, tripEnd, pickupAt, etaDelivery);
-    if (!conflict) return false;
-    return request.trip.driverId
-      ? request.trip.driverId === driver.id
-      : request.trip.driverName === driver.name;
-  });
+  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) =>
+    t.driverId ? t.driverId === driver.id : t.driverName === driver.name
+  );
 }
 
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
@@ -9694,7 +9737,7 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full create-trip-fieldset">
       <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
-        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, la ocupación por horario usa la misma ventana <strong>recogida → entrega estimada</strong> de esta solicitud frente a los viajes ya asignados; si la entrega estimada es mucho más tarde que la recogida, ambos recursos pueden seguir marcados ocupados en ese tramo. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
         <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">🟠 Ocupado</span><span class="create-trip-flag create-trip-flag--offline">🟡 No disponible</span><span class="create-trip-flag create-trip-flag--expired">🔴 Documentación vencida</span></p>
         <div class="create-trip-fleet-grid">
           <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
@@ -16767,8 +16810,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: camiones, turbos y tractomulas. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción, y conductores. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: camiones, turbos y tractomulas, y conductores. Estados: 🟠 Ocupado, 🟡 No disponible, 🔴 Documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
@@ -17222,14 +17265,40 @@ function bindDynamicEvents() {
           { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTime, required: true }
         ],
         onSubmit: async (form) => {
-          const newPickup = `${form.pickupDate}T${form.pickupTime}`;
-          const newDelivery = `${form.deliveryDate}T${form.deliveryTime}`;
-          if (new Date(newDelivery).getTime() <= new Date(newPickup).getTime()) {
+          const pickupDateValue = String(form.pickupDate || "").trim();
+          const pickupTimeValue = String(form.pickupTime || "").trim();
+          const deliveryDateValue = String(form.deliveryDate || "").trim();
+          const deliveryTimeValue = String(form.deliveryTime || "").trim();
+          const pickupAtBuilt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
+          const etaDeliveryBuilt = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
+          if (!pickupAtBuilt || !etaDeliveryBuilt) {
+            notify(userMessage("requestDatetimeMissing"), "error");
+            return false;
+          }
+          const pickupMs = new Date(pickupAtBuilt).getTime();
+          const deliveryMs = new Date(etaDeliveryBuilt).getTime();
+          if (deliveryMs <= pickupMs) {
             notify(userMessage("requestScheduleInvalid"), "error");
             return false;
           }
+          const pickupAtIso = new Date(pickupAtBuilt).toISOString();
+          const etaDeliveryIso = new Date(etaDeliveryBuilt).toISOString();
           try {
-            await reqWriteAwait(requests.map((r) => (r.id === req.id ? { ...r, pickupAt: newPickup, etaDelivery: newDelivery } : r)));
+            await reqWriteAwait(
+              requests.map((r) =>
+                r.id === req.id
+                  ? {
+                      ...r,
+                      pickupAt: pickupAtIso,
+                      etaDelivery: etaDeliveryIso,
+                      pickupDate: pickupDateValue,
+                      pickupTime: pickupTimeValue,
+                      deliveryDate: deliveryDateValue,
+                      deliveryTime: deliveryTimeValue
+                    }
+                  : r
+              )
+            );
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
