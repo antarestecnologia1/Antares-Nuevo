@@ -7845,6 +7845,49 @@ function isViewAllowedForUser(user, view) {
   });
 }
 
+function isBrowserReloadNavigation() {
+  if (typeof performance === "undefined") return false;
+  try {
+    const entry = performance.getEntriesByType("navigation")[0];
+    if (entry && entry.type === "reload") return true;
+  } catch (_e) {}
+  try {
+    if (performance.navigation && performance.navigation.type === 1) return true;
+  } catch (_e2) {}
+  return false;
+}
+
+function isAntaresProductionSiteHost(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  return h === "www.transportesantares.co" || h === "transportesantares.co";
+}
+
+/**
+ * Tras F5 en un módulo del portal (#portal/...), siempre abrimos el dashboard.
+ * En producción la URL canónica es https://www.transportesantares.co/#portal/dashboard .
+ * @returns {boolean} true si se disparó `location.replace` y debe cortarse `renderPortal`.
+ */
+function applyPortalDashboardOnFullReload() {
+  if (!isBrowserReloadNavigation()) return false;
+  const raw = String(window.location.hash || "").split("?")[0];
+  if (!raw.startsWith("#portal")) return false;
+  state.currentView = "dashboard";
+  const canonicalOrigin = "https://www.transportesantares.co";
+  try {
+    const u = new URL(window.location.href);
+    if (isAntaresProductionSiteHost(u.hostname)) {
+      if (u.protocol === "https:" && u.hostname === "www.transportesantares.co") {
+        history.replaceState(null, "", `${u.pathname}${u.search}#portal/dashboard`);
+        return false;
+      }
+      window.location.replace(`${canonicalOrigin}/#portal/dashboard`);
+      return true;
+    }
+  } catch (_e) {}
+  history.replaceState(null, "", "#portal/dashboard");
+  return false;
+}
+
 function viewFromPortalHash() {
   const h = String(window.location.hash || "").split("?")[0].replace(/\/+$/, "");
   if (h === "#portal/transport-requests") {
@@ -7953,6 +7996,7 @@ function renderPortal() {
   nodes.portalApp.classList.remove("hidden");
   /** El portal ya está en pantalla: liberamos la regla anti-flash del boot guard inline. */
   document.documentElement.classList.remove("antares-booting-portal");
+  if (applyPortalDashboardOnFullReload()) return;
   const user = materializePortalUserFromSession(session);
   if (!user) {
     /**
