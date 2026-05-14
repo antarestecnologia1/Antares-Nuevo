@@ -5343,6 +5343,24 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
   align-items: start;
 }
 
+/* Modales de edición: mismas tarjetas de sección que solicitudes (`p-form-colored`). */
+#crud-form.p-form-colored.modal-edit-form {
+  margin-top: 0.85rem;
+}
+
+#crud-form.p-form-colored.modal-edit-form .modal-edit-actions {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+}
+
+#crud-form.p-form-colored.modal-edit-form .form-section {
+  margin: 0;
+}
+
+#crud-form.p-form-colored.modal-edit-form .modal-edit-custom-slot {
+  grid-column: 1 / -1;
+}
+
 .modal-edit-form label > span {
   display: inline-block;
   margin-bottom: 0.35rem;

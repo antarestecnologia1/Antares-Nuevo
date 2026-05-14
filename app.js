@@ -465,6 +465,119 @@ function userMessage(key, ...args) {
   return v != null ? v : String(key);
 }
 
+/**
+ * Fila de campo para {@link openEditModal} (sin agrupación por sección).
+ */
+function renderEditModalFieldRow(f, fieldIdx) {
+  if (f.type === "section") return "";
+  if (f.type === "select") {
+    const options = (f.options || [])
+      .map((opt) => {
+        const v = escapeAttr(String(opt.value ?? ""));
+        const sel = String(opt.value) === String(f.value ?? "") ? "selected" : "";
+        const dis = opt.disabled ? "disabled" : "";
+        return `<option value="${v}" ${sel} ${dis}>${escapeHtml(opt.label)}</option>`;
+      })
+      .join("");
+    const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
+    const labelWrap = f.labelHtml
+      ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
+      : `<span>${labelInner}</span>`;
+    const fullCls = f.full ? "full" : "";
+    return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
+  }
+  if (f.type === "hidden") {
+    return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
+  }
+  if (f.type === "textarea") {
+    return `<label class="full"><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
+  }
+  if (f.type === "file") {
+    return `<label class="full"><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
+  }
+  if (f.type === "custom") {
+    /**
+     * Bloque HTML libre dentro del modal (p.ej. checklist de permisos editables).
+     * El consumidor wirea sus interacciones con `afterMount(form)` y/o lee los inputs en `onSubmit`.
+     */
+    const labelHtml = f.label ? `<span class="modal-edit-section-title">${escapeHtml(f.label)}</span>` : "";
+    return `<div class="full modal-edit-custom-slot"${f.id ? ` id="${escapeAttr(f.id)}"` : ""}>${labelHtml}${f.html || ""}</div>`;
+  }
+  const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
+  const minAttr = f.min != null ? ` min="${escapeAttr(String(f.min))}"` : "";
+  const maxAttr = f.max != null ? ` max="${escapeAttr(String(f.max))}"` : "";
+  const stepAttr = f.step != null ? ` step="${escapeAttr(String(f.step))}"` : "";
+  const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
+  const labelWrap = f.labelHtml
+    ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
+    : `<span>${labelInner}</span>`;
+  const fullCls = f.full ? "full" : "";
+  return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""} /></label>`;
+}
+
+/**
+ * Agrupa campos por `type: "section"` y genera el mismo patrón visual que el
+ * editor de solicitudes (`fieldset.form-section` dentro de `p-form-colored`).
+ */
+function buildOpenEditModalFieldsHtml(fields, fallbackSectionTitle = "Información") {
+  if (!fields.length) return "";
+  const toneCycle = ["blue", "violet", "emerald", "amber", "cyan", "rose"];
+  let toneIdx = 0;
+  const firstSectionAt = fields.findIndex((x) => x.type === "section");
+  if (firstSectionAt === -1) {
+    const inner = fields.map((f, i) => renderEditModalFieldRow(f, i)).join("");
+    if (fields.every((x) => x.type === "hidden")) return inner;
+    return `<fieldset class="form-section form-section-blue full" role="group">
+      <legend>${escapeHtml(fallbackSectionTitle)}</legend>
+      <div class="form-section-grid">${inner}</div>
+    </fieldset>`;
+  }
+  let html = "";
+  if (firstSectionAt > 0) {
+    const leading = fields.slice(0, firstSectionAt);
+    const leadH = leading.filter((x) => x.type === "hidden");
+    const leadV = leading.filter((x) => x.type !== "hidden");
+    html += leadH.map((f, i) => renderEditModalFieldRow(f, i)).join("");
+    if (leadV.length) {
+      html += `<fieldset class="form-section form-section-blue full" role="group">
+        <legend>${escapeHtml(fallbackSectionTitle)}</legend>
+        <div class="form-section-grid">${leadV.map((f, i) => renderEditModalFieldRow(f, i)).join("")}</div>
+      </fieldset>`;
+    }
+  }
+  const rest = firstSectionAt > 0 ? fields.slice(firstSectionAt) : fields;
+  let i = 0;
+  while (i < rest.length) {
+    const head = rest[i];
+    if (head.type !== "section") {
+      html += renderEditModalFieldRow(head, i);
+      i++;
+      continue;
+    }
+    const section = head;
+    i++;
+    const chunk = [];
+    while (i < rest.length && rest[i].type !== "section") {
+      chunk.push(rest[i]);
+      i++;
+    }
+    const sid = escapeAttr(String(section.id || `edit-section-${toneIdx}`));
+    const explicitTone =
+      section.sectionTone && toneCycle.includes(String(section.sectionTone)) ? String(section.sectionTone) : null;
+    const tone = explicitTone || toneCycle[toneIdx % toneCycle.length];
+    if (!explicitTone) toneIdx += 1;
+    const hint = section.hint ? `<p class="muted form-section-hint">${escapeHtml(section.hint)}</p>` : "";
+    const gridExtra = section.gridClass ? ` ${escapeAttr(String(section.gridClass))}` : "";
+    const gridInner = chunk.map((f, j) => renderEditModalFieldRow(f, j)).join("");
+    html += `<fieldset class="form-section form-section-${tone} full" role="group" aria-labelledby="${sid}-lg">
+      <legend id="${sid}-lg">${escapeHtml(section.title || "Sección")}</legend>
+      ${hint}
+      <div class="form-section-grid${gridExtra}">${gridInner}</div>
+    </fieldset>`;
+  }
+  return html;
+}
+
 function openEditModal({
   title,
   subtitle = "",
@@ -490,60 +603,7 @@ function openEditModal({
     card.className = `modal-card modal-card-edit${extraModalCardClass ? ` ${extraModalCardClass}` : ""}`;
   }
   const content = modal.querySelector("#crud-modal-content");
-  const fieldsHtml = fields
-    .map((f, fieldIdx) => {
-      if (f.type === "section") {
-        const sid = escapeAttr(String(f.id || `approve-section-${fieldIdx}`));
-        const hint = f.hint ? `<p class="modal-form-section-hint">${escapeHtml(f.hint)}</p>` : "";
-        return `<div class="modal-form-section full" role="group" aria-labelledby="${sid}">
-    <h3 class="modal-form-section-title" id="${sid}">${escapeHtml(f.title || "")}</h3>
-    ${hint}
-  </div>`;
-      }
-      if (f.type === "select") {
-        const options = (f.options || [])
-          .map((opt) => {
-            const v = escapeAttr(String(opt.value ?? ""));
-            const sel = String(opt.value) === String(f.value ?? "") ? "selected" : "";
-            const dis = opt.disabled ? "disabled" : "";
-            return `<option value="${v}" ${sel} ${dis}>${escapeHtml(opt.label)}</option>`;
-          })
-          .join("");
-        const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
-        const labelWrap = f.labelHtml
-          ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
-          : `<span>${labelInner}</span>`;
-        const fullCls = f.full ? "full" : "";
-        return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
-      }
-      if (f.type === "hidden") {
-        return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
-      }
-      if (f.type === "textarea") {
-        return `<label class="full"><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
-      }
-      if (f.type === "file") {
-        return `<label class="full"><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
-      }
-      if (f.type === "custom") {
-        /**
-         * Bloque HTML libre dentro del modal (p.ej. checklist de permisos editables).
-         * El consumidor wirea sus interacciones con `afterMount(form)` y/o lee los inputs en `onSubmit`.
-         */
-        const labelHtml = f.label ? `<span class="modal-edit-section-title">${escapeHtml(f.label)}</span>` : "";
-        return `<div class="full modal-edit-custom-slot"${f.id ? ` id="${escapeAttr(f.id)}"` : ""}>${labelHtml}${f.html || ""}</div>`;
-      }
-      const inputType = String(f.type || "text").replace(/[^a-z0-9\-]/gi, "") || "text";
-      const minAttr = f.min != null ? ` min="${escapeAttr(String(f.min))}"` : "";
-      const maxAttr = f.max != null ? ` max="${escapeAttr(String(f.max))}"` : "";
-      const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
-      const labelWrap = f.labelHtml
-        ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
-        : `<span>${labelInner}</span>`;
-      const fullCls = f.full ? "full" : "";
-      return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr} ${f.required ? "required" : ""} /></label>`;
-    })
-    .join("");
+  const fieldsHtml = buildOpenEditModalFieldsHtml(fields);
 
   content.innerHTML = `
     <div class="modal-head">
@@ -552,9 +612,9 @@ function openEditModal({
     </div>
     ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
     ${introHtml || ""}
-    <form id="crud-form" class="p-form modal-edit-form">
+    <form id="crud-form" class="p-form p-form-colored modal-edit-form">
       ${fieldsHtml}
-      <div class="modal-edit-actions">
+      <div class="modal-edit-actions full">
         <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
         <button type="submit" class="btn btn-primary">${IC.save} ${escapeHtml(submitText)}</button>
       </div>
@@ -11711,6 +11771,7 @@ function payrollHtml() {
       <legend>${IC.user} Periodo y persona</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
         <label>${fieldLabel(IC.calendar, "Mes a liquidar")}<input type="month" name="month" required /></label>
       </div>
     </fieldset>
@@ -16161,7 +16222,7 @@ function bindDynamicEvents() {
             )
           },
           { name: "destinationAddress", label: "Dirección destino", value: req.destinationAddress || "", full: true, required: true },
-          { type: "section", id: "edit-req-window", title: "Ventanas de servicio", hint: "Fechas y horas estimadas de recogida y entrega." },
+          { type: "section", id: "edit-req-window", title: "Ventanas de servicio", hint: "Fechas y horas estimadas de recogida y entrega.", gridClass: "datetime-group" },
           { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDateInit || "", required: true },
           { name: "pickupTime", label: "Hora de recogida", type: "time", value: pickupTimeInit || "", required: true },
           { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDateInit || "", required: true },
@@ -16816,6 +16877,13 @@ function bindDynamicEvents() {
         subtitle: req.requestNumber || req.id,
         submitText: "Actualizar solicitud",
         fields: [
+          {
+            type: "section",
+            id: "admin-req-window",
+            title: "Ventanas de servicio",
+            hint: "Fechas y horas de recogida y entrega.",
+            gridClass: "datetime-group"
+          },
           { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDate, required: true },
           { name: "pickupTime", label: "Hora de recogida", type: "time", value: pickupTime, required: true },
           { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDate, required: true },
