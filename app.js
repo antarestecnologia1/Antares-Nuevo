@@ -19902,50 +19902,87 @@ function bindExtendedViewEditHandlers() {
       const usersCount = read(KEYS.users, []).filter((u) => String(u.companyId || "") === String(c.id)).length;
       const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
       const logoUrl = companyProfileLogoUrl(c);
-      const logoBlock = logoUrl
-        ? `<div class="company-logo-preview-wrap"><span class="company-logo-preview"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(String(c.name || "Empresa"))}" loading="lazy" /></span><p class="muted">Logo corporativo registrado</p></div>`
-        : `<div class="company-logo-preview-wrap"><span class="company-logo-preview company-logo-preview--fallback" aria-hidden="true">${escapeHtml(String(c.name || "E").charAt(0).toUpperCase())}</span><p class="muted">Sin logo cargado</p></div>`;
-      const sections = [
-        {
-          icon: "briefcase",
-          title: "Identificación",
-          rows: renderDetailRows([
-            ["Razón social", `<strong>${escapeHtml(String(c.name || "-"))}</strong>`],
-            ["NIT", escapeHtml(String(c.taxId || c.nit || "-"))],
-            ["Tipo", escapeHtml(String(companyKindLabel(c.companyKind) || c.companyKind || "-"))],
-            ["Estado", isCompanyRecordActive(c) ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>']
-          ])
-        },
-        {
-          icon: "upload",
-          title: "Imagen de marca",
-          rows: renderDetailRows([["Logo", logoBlock]])
-        },
-        {
-          icon: "mapPin",
-          title: "Contacto",
-          rows: renderDetailRows([
-            ["Teléfono", escapeHtml(String(phoneDisp || "-"))],
-            ["Correo", escapeHtml(String(c.email || "-"))],
-            ["Dirección", escapeHtml(String(c.address || "-"))],
-            ["Ciudad", escapeHtml(String(c.city || "-"))],
-            ["Departamento", escapeHtml(String(c.department || "-"))]
-          ])
-        },
-        {
-          icon: "users",
-          title: "Vínculos",
-          rows: renderDetailRows([
-            ["Usuarios asociados", `${usersCount}`],
-            ["Creada", fmtDateOr(c.createdAt)]
-          ])
+      const kindUi = patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
+      const active = isCompanyRecordActive(c);
+      const statusChip = active
+        ? `<span class="status status-viaje_asignado">Activa</span>`
+        : `<span class="status status-rechazada">Inactiva</span>`;
+      const nitStr = String(c.taxId || c.nit || "").trim();
+      const logoHero = logoUrl
+        ? `<div class="company-detail-logo"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" decoding="async" /></div>`
+        : `<div class="company-detail-logo company-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(String(c.name || "E").charAt(0).toUpperCase())}</span></div>`;
+      const rawPhone = String(c.phone || "").trim();
+      const telDigits = rawPhone.replace(/\D/g, "");
+      const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
+      const mail = String(c.email || "").trim();
+      const mailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail);
+      const mailHref = mailOk ? `mailto:${mail}` : "";
+      const contactName = String(c.contactName || "").trim();
+      const addr = String(c.address || "").trim();
+      const city = String(c.city || "").trim();
+      const dept = String(c.department || "").trim();
+      const locLine = [city, dept].filter(Boolean).join(city && dept ? ", " : "");
+      const hasLoc = Boolean(addr || locLine);
+      const createdLbl = fmtDateOr(c.createdAt, "—");
+
+      const tile = (iconSvg, label, valueHtml, opts = {}) => {
+        const { href = "", muted = false } = opts;
+        const inner = `<span class="company-detail-tile-icon" aria-hidden="true">${iconSvg}</span><span class="company-detail-tile-text"><span class="company-detail-tile-label">${escapeHtml(label)}</span><span class="company-detail-tile-value">${valueHtml}</span></span>`;
+        if (href) {
+          return `<a class="company-detail-tile" href="${escapeAttr(href)}">${inner}</a>`;
         }
-      ];
+        return `<div class="company-detail-tile${muted ? " company-detail-tile--muted" : ""}" role="group">${inner}</div>`;
+      };
+
+      const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
+      const phoneBlock = telHref
+        ? tile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : tile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+
+      const emailValue = mail ? escapeHtml(mail) : `<span class="muted">Sin correo</span>`;
+      const emailBlock = mailHref
+        ? tile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
+        : tile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
+
+      const contactValue = contactName ? escapeHtml(contactName) : `<span class="muted">Sin contacto principal</span>`;
+      const contactBlock = tile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
+
+      const locBody = hasLoc
+        ? `<p class="company-detail-loc-line">${addr ? escapeHtml(addr) : `<span class="muted">Sin dirección</span>`}</p>${
+            locLine ? `<p class="company-detail-loc-sub muted">${IC.mapPin} ${escapeHtml(locLine)}</p>` : ""
+          }`
+        : `<p class="muted" style="margin:0">Sin ubicación registrada.</p>`;
+
+      const bodyHtml = `<div class="company-detail-modal">
+  <div class="company-detail-hero">
+    ${logoHero}
+    <div class="company-detail-hero-main">
+      <p class="company-detail-eyebrow">${IC.briefcase} Ficha comercial</p>
+      <div class="company-detail-badges">${companyKindChipHtml(kindUi)}${statusChip}</div>
+      ${
+        nitStr
+          ? `<p class="company-detail-nit"><span class="muted">NIT</span> <strong>${escapeHtml(nitStr)}</strong></p>`
+          : `<p class="company-detail-nit muted">Sin NIT registrado</p>`
+      }
+      <ul class="company-detail-stats" aria-label="Resumen">
+        <li><strong>${escapeHtml(String(usersCount))}</strong><span>Usuario${usersCount === 1 ? "" : "s"} portal</span></li>
+        <li><strong>${createdLbl}</strong><span>Alta en sistema</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="company-detail-tiles">${phoneBlock}${emailBlock}${contactBlock}</div>
+  <section class="company-detail-loc" aria-label="Ubicación">
+    <h4 class="company-detail-loc-title">${IC.mapPin} Ubicación</h4>
+    ${locBody}
+  </section>
+</div>`;
+
       openInfoModal({
         title: String(c.name || "Empresa"),
-        subtitle: c.taxId ? `NIT ${String(c.taxId)}` : "",
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        subtitle: nitStr ? `NIT ${nitStr}` : "",
+        bodyHtml,
+        wide: true,
+        extraModalCardClass: "modal-card--company-detail"
       });
     });
   });
