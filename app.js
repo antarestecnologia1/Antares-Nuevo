@@ -8439,7 +8439,7 @@ function requestListClientHtml(user) {
               ${allowClientDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
               ${
                 user?.role === ROLES.ADMIN
-                  ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}" title="Solo administradores: eliminar la solicitud (si hay viaje, primero se desasigna con el mismo motivo)">${IC.trash} Eliminar</button>`
+                  ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}" title="Eliminar solicitud (solo si no tiene viaje asignado; quite el viaje primero en Transporte · Viajes)">${IC.trash} Eliminar</button>`
                   : ""
               }
             </div>
@@ -16561,40 +16561,20 @@ function bindDynamicEvents() {
       const requestId = String(btn.dataset.id || "");
       if (!requestId) return;
       const reqSnapshot = reqRead().find((r) => String(r.id) === requestId);
-      const hadTrip = Boolean(reqSnapshot?.trip);
-      if (hadTrip) {
+      if (reqSnapshot?.trip) {
         notify(
-          "Esta solicitud tiene viaje asignado. Al confirmar, primero se desasignará el viaje (mismo motivo) y luego se eliminará la solicitud.",
-          "warn"
+          "Esta solicitud tiene un viaje asignado. Elimine primero el viaje en Transporte · Viajes (con motivo registrado) y luego podrá eliminar la solicitud.",
+          "error"
         );
+        return;
       }
-      const deleteMessage = hadTrip
-        ? "Se desasignará el viaje y a continuación se eliminará la solicitud del sistema. El mismo motivo quedará registrado en ambas auditorías."
-        : "Se eliminara la solicitud seleccionada del sistema. Indique el motivo; quedara guardado en el historial de eliminados.";
       openConfirmReasonModal({
         title: "Eliminar solicitud",
-        message: deleteMessage,
+        message:
+          "Se eliminará la solicitud seleccionada del sistema. Indique el motivo; quedará guardado en el historial de eliminados.",
         confirmText: "Eliminar",
         onConfirm: async (motivo) => {
           try {
-            const stillHasTrip = Boolean(reqRead().find((r) => String(r.id) === requestId)?.trip);
-            if (stillHasTrip) {
-              await postPortalAuthorized("/portal/admin-clear-trip", { requestId, motivo });
-              await reqWriteAwait(
-                reqRead().map((request) =>
-                  request.id === requestId
-                    ? {
-                      ...request,
-                      status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
-                      trip: null,
-                      deliveredAt: null,
-                      closedAt: null
-                    }
-                    : request
-                )
-              );
-              recalculateResourceAvailability();
-            }
             await postPortalAuthorized("/portal/admin-request-delete", { requestId, motivo });
           } catch (err) {
             notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
@@ -16626,7 +16606,7 @@ function bindDynamicEvents() {
       }
       if (req.trip) {
         notify(
-          "No puede eliminar esta solicitud porque ya tiene un viaje asignado. Solicite a operaciones que quite el viaje primero.",
+          "No puede eliminar esta solicitud porque tiene un viaje asignado. Solicite a operaciones que quite el viaje primero; luego podrá eliminar la solicitud.",
           "error"
         );
         return;
