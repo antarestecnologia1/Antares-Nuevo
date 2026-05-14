@@ -19677,6 +19677,15 @@ function bindExtendedViewEditHandlers() {
     return y ? escapeHtml(y) : fallback;
   };
 
+  const portalDetailTile = (iconSvg, label, valueHtml, opts = {}) => {
+    const { href = "", muted = false } = opts;
+    const inner = `<span class="portal-detail-tile-icon" aria-hidden="true">${iconSvg}</span><span class="portal-detail-tile-text"><span class="portal-detail-tile-label">${escapeHtml(label)}</span><span class="portal-detail-tile-value">${valueHtml}</span></span>`;
+    if (href) {
+      return `<a class="portal-detail-tile" href="${escapeAttr(href)}">${inner}</a>`;
+    }
+    return `<div class="portal-detail-tile${muted ? " portal-detail-tile--muted" : ""}" role="group">${inner}</div>`;
+  };
+
   /** Postulación web (API/R2): adjuntos_json con kind cv_file | cv_blob | cv_filename · Local: solo nombres o cv_blob desde RRHH. */
   const parseCandidateAttachmentsForView = (raw) => {
     let experienceFromJson = "";
@@ -19909,8 +19918,8 @@ function bindExtendedViewEditHandlers() {
         : `<span class="status status-rechazada">Inactiva</span>`;
       const nitStr = String(c.taxId || c.nit || "").trim();
       const logoHero = logoUrl
-        ? `<div class="company-detail-logo"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" decoding="async" /></div>`
-        : `<div class="company-detail-logo company-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(String(c.name || "E").charAt(0).toUpperCase())}</span></div>`;
+        ? `<div class="portal-detail-logo"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" decoding="async" /></div>`
+        : `<div class="portal-detail-logo portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(String(c.name || "E").charAt(0).toUpperCase())}</span></div>`;
       const rawPhone = String(c.phone || "").trim();
       const telDigits = rawPhone.replace(/\D/g, "");
       const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
@@ -19925,54 +19934,45 @@ function bindExtendedViewEditHandlers() {
       const hasLoc = Boolean(addr || locLine);
       const createdLbl = fmtDateOr(c.createdAt, "—");
 
-      const tile = (iconSvg, label, valueHtml, opts = {}) => {
-        const { href = "", muted = false } = opts;
-        const inner = `<span class="company-detail-tile-icon" aria-hidden="true">${iconSvg}</span><span class="company-detail-tile-text"><span class="company-detail-tile-label">${escapeHtml(label)}</span><span class="company-detail-tile-value">${valueHtml}</span></span>`;
-        if (href) {
-          return `<a class="company-detail-tile" href="${escapeAttr(href)}">${inner}</a>`;
-        }
-        return `<div class="company-detail-tile${muted ? " company-detail-tile--muted" : ""}" role="group">${inner}</div>`;
-      };
-
       const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
       const phoneBlock = telHref
-        ? tile(IC.phone, "Teléfono", phoneValue, { href: telHref })
-        : tile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
 
       const emailValue = mail ? escapeHtml(mail) : `<span class="muted">Sin correo</span>`;
       const emailBlock = mailHref
-        ? tile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
-        : tile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
+        ? portalDetailTile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
+        : portalDetailTile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
 
       const contactValue = contactName ? escapeHtml(contactName) : `<span class="muted">Sin contacto principal</span>`;
-      const contactBlock = tile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
+      const contactBlock = portalDetailTile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
 
       const locBody = hasLoc
-        ? `<p class="company-detail-loc-line">${addr ? escapeHtml(addr) : `<span class="muted">Sin dirección</span>`}</p>${
-            locLine ? `<p class="company-detail-loc-sub muted">${IC.mapPin} ${escapeHtml(locLine)}</p>` : ""
+        ? `<p class="portal-detail-loc-line">${addr ? escapeHtml(addr) : `<span class="muted">Sin dirección</span>`}</p>${
+            locLine ? `<p class="portal-detail-loc-sub muted">${IC.mapPin} ${escapeHtml(locLine)}</p>` : ""
           }`
         : `<p class="muted" style="margin:0">Sin ubicación registrada.</p>`;
 
-      const bodyHtml = `<div class="company-detail-modal">
-  <div class="company-detail-hero">
+      const bodyHtml = `<div class="portal-detail-modal">
+  <div class="portal-detail-hero">
     ${logoHero}
-    <div class="company-detail-hero-main">
-      <p class="company-detail-eyebrow">${IC.briefcase} Ficha comercial</p>
-      <div class="company-detail-badges">${companyKindChipHtml(kindUi)}${statusChip}</div>
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.briefcase} Ficha comercial</p>
+      <div class="portal-detail-badges">${companyKindChipHtml(kindUi)} ${statusChip}</div>
       ${
         nitStr
-          ? `<p class="company-detail-nit"><span class="muted">NIT</span> <strong>${escapeHtml(nitStr)}</strong></p>`
-          : `<p class="company-detail-nit muted">Sin NIT registrado</p>`
+          ? `<p class="portal-detail-meta"><span class="muted">NIT</span> <strong>${escapeHtml(nitStr)}</strong></p>`
+          : `<p class="portal-detail-meta muted">Sin NIT registrado</p>`
       }
-      <ul class="company-detail-stats" aria-label="Resumen">
+      <ul class="portal-detail-stats" aria-label="Resumen">
         <li><strong>${escapeHtml(String(usersCount))}</strong><span>Usuario${usersCount === 1 ? "" : "s"} portal</span></li>
         <li><strong>${createdLbl}</strong><span>Alta en sistema</span></li>
       </ul>
     </div>
   </div>
-  <div class="company-detail-tiles">${phoneBlock}${emailBlock}${contactBlock}</div>
-  <section class="company-detail-loc" aria-label="Ubicación">
-    <h4 class="company-detail-loc-title">${IC.mapPin} Ubicación</h4>
+  <div class="portal-detail-tiles">${phoneBlock}${emailBlock}${contactBlock}</div>
+  <section class="portal-detail-loc" aria-label="Ubicación">
+    <h4 class="portal-detail-loc-title">${IC.mapPin} Ubicación</h4>
     ${locBody}
   </section>
 </div>`;
@@ -19982,7 +19982,7 @@ function bindExtendedViewEditHandlers() {
         subtitle: nitStr ? `NIT ${nitStr}` : "",
         bodyHtml,
         wide: true,
-        extraModalCardClass: "modal-card--company-detail"
+        extraModalCardClass: "modal-card--portal-detail"
       });
     });
   });
@@ -19996,45 +19996,104 @@ function bindExtendedViewEditHandlers() {
         return;
       }
       const company = getCompanyById(u.companyId);
+      const companyName = String(company?.name || u.company || "").trim();
+      const displayName = getPortalUserDisplayName(u);
+      const avatarUrlRaw = String(u.avatarUrl || "").trim();
+      const avatarCss = employeeAvatarCssUrl(u.avatarUrl);
+      const avatarHero = avatarCss
+        ? `<div class="portal-detail-logo portal-detail-logo--avatar"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" /></div>`
+        : `<div class="portal-detail-logo portal-detail-logo--avatar portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(
+            (displayName.charAt(0) || "?").toUpperCase()
+          )}</span></div>`;
+      const roleKey = String(u.role || "");
+      const roleColors = {
+        admin: "#377cc0",
+        rrhh: "#7C3AED",
+        administracion: "#1D4ED8",
+        auxiliar_administrativo: "#0EA5E9",
+        lider_administrativo: "#4F46E5",
+        client: "#0E7490"
+      };
+      const roleChip = `<span class="role-chip" style="--role-color:${roleColors[roleKey] || "#64748B"}">${escapeHtml(
+        formatPortalRoleLabel(u.role)
+      )}</span>`;
+      const normAcc = normalizeUserAccountStatus(u);
+      const accountStatusChip =
+        normAcc === ACCOUNT_STATUS.PENDIENTE
+          ? `<span class="status status-pendiente">Pendiente</span>`
+          : normAcc === ACCOUNT_STATUS.RECHAZADO
+            ? `<span class="status status-rechazada">Rechazado</span>`
+            : `<span class="status status-viaje_asignado">Aprobado</span>`;
+      const idDoc = String(u.idDoc || u.taxId || "").trim();
+      const metaLine = idDoc
+        ? `<p class="portal-detail-meta"><span class="muted">Documento</span> <strong>${escapeHtml(idDoc)}</strong></p>`
+        : `<p class="portal-detail-meta muted">Sin documento registrado</p>`;
+      const createdLbl = fmtDateOr(u.createdAt, "—");
+      const email = String(u.email || "").trim();
+      const mailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      const mailHref = mailOk ? `mailto:${email}` : "";
+      const rawPhone = String(u.phone || "").trim();
+      const telDigits = rawPhone.replace(/\D/g, "");
+      const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
+      const phoneDisp = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "";
+      const emailValue = email ? escapeHtml(email) : `<span class="muted">Sin correo</span>`;
+      const emailBlock = mailHref
+        ? portalDetailTile(IC.mail, "Correo", emailValue, { href: mailHref })
+        : portalDetailTile(IC.mail, "Correo", emailValue, { muted: !email });
+      const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
+      const phoneBlock = telHref
+        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+      const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
+      const companyBlock = portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
+      const city = String(u.city || "").trim();
+      const dept = String(u.department || "").trim();
+      const locLine = [city, dept].filter(Boolean).join(city && dept ? ", " : "");
+      const locBody = locLine
+        ? `<p class="portal-detail-loc-line">${IC.mapPin} ${escapeHtml(locLine)}</p>`
+        : `<p class="muted" style="margin:0">Sin ciudad o departamento registrados.</p>`;
       const permsHtml = (u.permissions || [])
         .map((p) => `<span class="perm-tag">${escapeHtml(PERMISSION_META[p]?.title || String(p))}</span>`)
         .join(" ");
-      const phoneDisp = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "";
-      const sections = [
-        {
-          icon: "user",
-          title: "Identidad",
-          rows: renderDetailRows([
-            ["Nombre", `<strong>${escapeHtml(getPortalUserDisplayName(u))}</strong>`],
-            ["Correo", escapeHtml(String(u.email || "-"))],
-            ["Documento", escapeHtml(String(u.idDoc || u.taxId || "-"))],
-            ["Teléfono", escapeHtml(String(phoneDisp || "-"))],
-            ["Ciudad", escapeHtml(String(u.city || "-"))],
-            ["Departamento", escapeHtml(String(u.department || "-"))]
-          ])
-        },
-        {
-          icon: "shield",
-          title: "Cuenta y rol",
-          rows: renderDetailRows([
-            ["Rol", escapeHtml(String(formatPortalRoleLabel(u.role) || u.role || "-"))],
-            ["Estado", escapeHtml(String(u.accountStatus || "-"))],
-            ["Tipo de vínculo", escapeHtml(String(registrationKindLabel(u.registrationKind) || "-"))],
-            ["Empresa", escapeHtml(String(company?.name || u.company || "-"))],
-            ["Creado", fmtDateOr(u.createdAt)]
-          ])
-        },
-        {
-          icon: "layers",
-          title: "Permisos asignados",
-          rows: permsHtml ? `<div class="detail-perms-list">${permsHtml}</div>` : `<span class="muted">Sin permisos asignados.</span>`
-        }
-      ];
+      const regKind = registrationKindLabel(u.registrationKind);
+      const cuentaBody = `
+        <p class="portal-detail-loc-line"><span class="muted">Tipo de vínculo</span> ${escapeHtml(regKind || "—")}</p>`;
+      const permsBody = permsHtml
+        ? `<div class="detail-perms-list">${permsHtml}</div>`
+        : `<p class="muted" style="margin:0">Sin permisos asignados.</p>`;
+      const bodyHtml = `<div class="portal-detail-modal">
+  <div class="portal-detail-hero">
+    ${avatarHero}
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.user} Usuario del sistema</p>
+      <div class="portal-detail-badges">${roleChip} ${accountStatusChip}</div>
+      ${metaLine}
+      <ul class="portal-detail-stats" aria-label="Resumen">
+        <li><strong>${companyName ? escapeHtml(companyName) : "—"}</strong><span>Empresa</span></li>
+        <li><strong>${createdLbl}</strong><span>Alta en sistema</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="portal-detail-tiles">${emailBlock}${phoneBlock}${companyBlock}</div>
+  <section class="portal-detail-loc" aria-label="Ubicación">
+    <h4 class="portal-detail-loc-title">${IC.mapPin} Ubicación</h4>
+    ${locBody}
+  </section>
+  <section class="portal-detail-loc" aria-label="Cuenta">
+    <h4 class="portal-detail-loc-title">${IC.shield} Cuenta</h4>
+    ${cuentaBody}
+  </section>
+  <section class="portal-detail-loc" aria-label="Permisos">
+    <h4 class="portal-detail-loc-title">${IC.layers} Permisos</h4>
+    ${permsBody}
+  </section>
+</div>`;
       openInfoModal({
-        title: getPortalUserDisplayName(u) || "Usuario",
-        subtitle: String(u.email || ""),
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        title: displayName || "Usuario",
+        subtitle: email,
+        bodyHtml,
+        wide: true,
+        extraModalCardClass: "modal-card--portal-detail"
       });
     });
   });
