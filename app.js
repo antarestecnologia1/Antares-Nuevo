@@ -970,6 +970,213 @@ function openRequestDetailModal(req) {
   });
 }
 
+/** `datos_json` de auditoría: puede venir como objeto (JSONB) o string JSON. */
+function parsePortalJsonSnapshot(raw) {
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const o = JSON.parse(raw);
+      return o && typeof o === "object" && !Array.isArray(o) ? o : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function snapPick(obj, ...keys) {
+  if (!obj) return "";
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+}
+
+function formatDeletedRequestSnapshotRouteLine(snap) {
+  if (!snap) return "Sin datos de ruta.";
+  const od = snapPick(snap, "departamento_origen", "originDepartment");
+  const oc = snapPick(snap, "ciudad_origen", "originCity");
+  const dd = snapPick(snap, "departamento_destino", "destinationDepartment");
+  const dc = snapPick(snap, "ciudad_destino", "destinationCity");
+  const left = [oc, od].filter(Boolean).join(", ") || oc || od || "";
+  const right = [dc, dd].filter(Boolean).join(", ") || dc || dd || "";
+  if (left && right) return `${left} → ${right}`;
+  return left || right || "Sin datos de ruta.";
+}
+
+function formatDeletedRequestSnapshotTableSummary(snap) {
+  if (!snap) return "—";
+  const route = formatDeletedRequestSnapshotRouteLine(snap);
+  const cargo = snapPick(snap, "descripcion_carga", "cargoDescription");
+  if (!cargo) return route;
+  const short = cargo.length > 90 ? `${cargo.slice(0, 87)}…` : cargo;
+  return `${route} · ${short}`;
+}
+
+/**
+ * Ficha de solo lectura desde la fila de `auditoria_solicitudes_eliminadas`
+ * (copia JSON al momento de borrar).
+ */
+function openDeletedTransportRequestAuditModal(logRow) {
+  if (!logRow) return;
+  const snap = parsePortalJsonSnapshot(logRow.snapshot);
+  const reqN = String(logRow.requestNumber || logRow.requestId || "-").trim();
+  const baseAuditSubtitle = `<span class="muted">Eliminada:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
+    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
+    <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}`;
+  if (!snap) {
+    openInfoModal({
+      title: `Solicitud eliminada ${reqN}`,
+      subtitleHtml: `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> —`,
+      wide: true,
+      bodyHtml:
+        '<p class="muted">No hay copia JSON de la solicitud en este registro de auditoría (registros antiguos o sin snapshot).</p>'
+    });
+    return;
+  }
+  const modo = escapeHtml(snapPick(snap, "tipo_servicio", "serviceType") || "—");
+  const tkRaw = snap.refrigeracion_termoking ?? snap.requiresThermoking;
+  const thermoking =
+    tkRaw === true ||
+    String(tkRaw).toLowerCase() === "true" ||
+    String(tkRaw).toLowerCase() === "yes";
+  const routeLine = escapeHtml(formatDeletedRequestSnapshotRouteLine(snap));
+  const origAddr = escapeHtml(snapPick(snap, "direccion_origen", "originAddress"));
+  const destAddr = escapeHtml(snapPick(snap, "direccion_destino", "destinationAddress"));
+  const pickupIso = snapPick(snap, "fecha_hora_recogida", "pickupAt");
+  const deliveryIso = snapPick(snap, "fecha_hora_entrega_estimada", "etaDelivery");
+  const requestedBy = escapeHtml(snapPick(snap, "nombre_quien_solicita", "requestedByName") || "—");
+  const contactName = escapeHtml(snapPick(snap, "nombre_contacto_en_sitio", "siteContactName", "contactName") || "—");
+  const contactPhone = escapeHtml(snapPick(snap, "telefono_contacto_en_sitio", "siteContactPhone", "contactPhone") || "—");
+  const cargo = escapeHtml(snapPick(snap, "descripcion_carga", "cargoDescription") || "—");
+  const peso = parseNum(snap.peso_kg ?? snap.weightKg);
+  const cajas = parseNum(snap.numero_cajas ?? snap.boxes ?? snap.boxesCount);
+  const estadoPlain = snapPick(snap, "estado", "status") || "—";
+  const estado = escapeHtml(estadoPlain);
+  const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> ${estado}`;
+  openInfoModal({
+    title: `Solicitud eliminada ${reqN}`,
+    subtitleHtml: fullSubtitleHtml,
+    wide: true,
+    bodyHtml: `
+      <section class="solicitud-detail-section" aria-label="Copia de la solicitud eliminada">
+        <div class="dash-grid">
+          <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(
+            snapPick(snap, "nombre_cliente", "clientName") || "—"
+          )}</span></div>
+          <div><strong>Modo de transporte</strong><br /><span class="muted">${modo}</span></div>
+          <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermoking ? "Sí, requerida" : "No"}</span></div>
+          <div><strong>Tipo de vehículo solicitado</strong><br /><span class="muted">${tipoVeh}</span></div>
+          <div><strong>Ruta (ciudad / depto.)</strong><br /><span class="muted">${routeLine}</span></div>
+          ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${origAddr}</span></div>` : ""}
+          ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${destAddr}</span></div>` : ""}
+          <div><strong>Recogida programada</strong><br /><span class="muted">${escapeHtml(fmtDate(pickupIso))}</span></div>
+          <div><strong>Entrega estimada</strong><br /><span class="muted">${escapeHtml(fmtDate(deliveryIso))}</span></div>
+          <div><strong>Solicita</strong><br /><span class="muted">${requestedBy}</span></div>
+          <div><strong>Contacto en sitio</strong><br /><span class="muted">${contactName} · ${contactPhone}</span></div>
+          <div><strong>Carga</strong><br /><span class="muted">${cargo}</span></div>
+          <div><strong>Peso / cajas</strong><br /><span class="muted">${peso.toLocaleString("es-CO")} kg · ${cajas.toLocaleString("es-CO")} cajas</span></div>
+        </div>
+        ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
+      </section>
+    `
+  });
+}
+
+function formatDeletedTripSnapshotTableSummary(snap) {
+  if (!snap) return "—";
+  const num = snapPick(snap, "numero_viaje", "tripNumber");
+  const plate = snapPick(snap, "placa_vehiculo", "vehiclePlate");
+  const driver = snapPick(snap, "nombre_conductor", "driverName");
+  const route = snapPick(snap, "descripcion_ruta", "routeDescription", "notes");
+  const parts = [];
+  if (num) parts.push(`Viaje ${num}`);
+  if (plate) parts.push(plate);
+  if (driver) parts.push(driver);
+  let line = parts.length ? parts.join(" · ") : "Viaje";
+  if (route) {
+    const rShort = route.length > 72 ? `${route.slice(0, 69)}…` : route;
+    line += ` · ${rShort}`;
+  }
+  return line;
+}
+
+/**
+ * Ficha de solo lectura desde `auditoria_viajes_eliminados.datos_json`
+ * (fila de viajes_transporte al momento de desasignar).
+ */
+function openDeletedTransportTripAuditModal(logRow) {
+  if (!logRow) return;
+  const snap = parsePortalJsonSnapshot(logRow.snapshot);
+  const tripLabel = String(logRow.tripNumber || "").trim() || "—";
+  const reqLabel = String(logRow.requestNumber || logRow.requestId || "").trim() || "—";
+  const baseAuditSubtitle = `<span class="muted">Registrado:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
+    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
+    <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}<br />
+    <span class="muted">Solicitud:</span> ${escapeHtml(reqLabel)} · <span class="muted">Viaje:</span> ${escapeHtml(tripLabel)}`;
+  if (!snap) {
+    openInfoModal({
+      title: `Viaje desasignado ${tripLabel}`,
+      subtitleHtml: baseAuditSubtitle,
+      wide: true,
+      bodyHtml:
+        '<p class="muted">No hay copia JSON del viaje en este registro de auditoría (registros antiguos o sin snapshot).</p>'
+    });
+    return;
+  }
+  const estadoOp = escapeHtml(snapPick(snap, "estado_operativo_en_vivo", "liveOperationalStatus") || "—");
+  const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado operativo (copia):</span> ${estadoOp}`;
+  const pickup = snapPick(snap, "fecha_hora_recogida_programada", "etaPickup");
+  const delivery = snapPick(snap, "fecha_hora_entrega_programada", "etaDelivery");
+  const assignedBy = escapeHtml(snapPick(snap, "asignado_por", "assignedBy") || "—");
+  const assignedAt = snapPick(snap, "fecha_hora_asignacion", "assignedAt");
+  const tipoVeh = escapeHtml(snapPick(snap, "tipo_vehiculo_asignado", "vehicleType") || "—");
+  const plate = escapeHtml(snapPick(snap, "placa_vehiculo", "vehiclePlate") || "—");
+  const driver = escapeHtml(snapPick(snap, "nombre_conductor", "driverName") || "—");
+  const driverPhone = escapeHtml(snapPick(snap, "telefono_conductor", "driverPhone") || "—");
+  const routeDesc = escapeHtml(snapPick(snap, "descripcion_ruta", "routeDescription") || "—");
+  const numViajeRaw = snapPick(snap, "numero_viaje", "tripNumber") || tripLabel;
+  const numViaje = escapeHtml(numViajeRaw);
+  const idSol = escapeHtml(snapPick(snap, "id_solicitud", "requestId") || String(logRow.requestId || "—"));
+  const invoiceRaw = snap.datos_factura_json ?? snap.invoiceData;
+  let invoiceBlock = "";
+  if (invoiceRaw != null && invoiceRaw !== "") {
+    try {
+      const txt =
+        typeof invoiceRaw === "string" ? invoiceRaw : JSON.stringify(invoiceRaw, null, 2);
+      const short = txt.length > 1200 ? `${txt.slice(0, 1197)}…` : txt;
+      invoiceBlock = `<div class="solicitud-detail-notes"><strong>Datos facturación (JSON)</strong><pre class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0;font-size:0.82em;max-height:14rem;overflow:auto">${escapeHtml(short)}</pre></div>`;
+    } catch {
+      invoiceBlock = "";
+    }
+  }
+  openInfoModal({
+    title: `Viaje desasignado ${numViajeRaw}`,
+    subtitleHtml: fullSubtitleHtml,
+    wide: true,
+    bodyHtml: `
+      <section class="solicitud-detail-section" aria-label="Copia del viaje desasignado">
+        <div class="dash-grid">
+          <div><strong>Número de viaje</strong><br /><span class="muted">${numViaje}</span></div>
+          <div class="full"><strong>ID solicitud asociada</strong><br /><span class="muted">${idSol}</span></div>
+          <div><strong>Vehículo (placa)</strong><br /><span class="muted">${plate}</span></div>
+          <div><strong>Tipo vehículo asignado</strong><br /><span class="muted">${tipoVeh}</span></div>
+          <div><strong>Conductor</strong><br /><span class="muted">${driver}</span></div>
+          <div><strong>Teléfono conductor</strong><br /><span class="muted">${driverPhone}</span></div>
+          <div class="full"><strong>Descripción de ruta / observaciones</strong><br /><span class="muted">${routeDesc}</span></div>
+          <div><strong>Recogida programada</strong><br /><span class="muted">${escapeHtml(fmtDate(pickup))}</span></div>
+          <div><strong>Entrega programada</strong><br /><span class="muted">${escapeHtml(fmtDate(delivery))}</span></div>
+          <div><strong>Asignado por</strong><br /><span class="muted">${assignedBy}</span></div>
+          <div><strong>Fecha de asignación</strong><br /><span class="muted">${escapeHtml(fmtDate(assignedAt))}</span></div>
+        </div>
+        ${invoiceBlock}
+      </section>
+    `
+  });
+}
+
 /**
  * Editor del viaje (admin). Permite actualizar fechas estimadas, vehículo,
  * conductor y observaciones operativas. Las acciones destructivas como
@@ -1849,6 +2056,10 @@ let state = {
   adminUserSessionsError: null,
   /** Administración · Usuarios: tarjeta «Sesiones» colapsada para ganar espacio vertical. */
   adminSessionsLogMinimized: true,
+  /** Solicitudes · Admin: historial de solicitudes eliminadas (minimizar para ganar espacio). */
+  deletedTransportRequestsLogMinimized: false,
+  /** Transporte · Admin: historial de viajes desasignados/eliminados (minimizar). */
+  deletedTransportTripsLogMinimized: false,
   theme: "light",
   publicLang: "es",
   authTab: "login",
@@ -5590,6 +5801,8 @@ function clearSession() {
   state.adminUserSessionsLoading = false;
   state.adminUserSessionsError = null;
   state.adminSessionsLogMinimized = true;
+  state.deletedTransportRequestsLogMinimized = false;
+  state.deletedTransportTripsLogMinimized = false;
   if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
     window.AntaresPersistence.clearServerBackedMemory();
   }
@@ -8774,55 +8987,79 @@ function driversHtml() {
   return heroStrip + pcardWrap("user", "Conductores", drivers.length + " registrados", info + grid);
 }
 
-/** Tabla de auditoría: viajes quitados (solo datos en caché desde bootstrap). */
+/** Tabla de auditoría: viajes quitados (colapsable; detalle desde snapshot JSON en bootstrap). */
 function buildDeletedTransportTripsLogSection() {
   const rows = read(KEYS.deletedTransportTripLogs, []);
-  if (!rows.length) {
-    return pcardWrap(
-      "trash",
-      "Viajes eliminados o desasignados",
-      "Registro de auditoría",
-      `<p class="muted">Aún no hay registros. Al eliminar un viaje asignado se guardará motivo, fecha y usuario.</p>`
-    );
-  }
-  const body = `<div class="table-wrap trips-table-wrap"><table><thead><tr>
-    <th>Fecha</th><th>Solicitud</th><th>Viaje</th><th>Motivo</th><th>Usuario</th>
+  const minimized = Boolean(state.deletedTransportTripsLogMinimized);
+  const expanded = !minimized;
+  const toggleText = expanded ? "Ocultar historial de viajes" : "Mostrar historial de viajes";
+  const subtitle = rows.length ? `${rows.length} en historial` : "Registro de auditoría";
+
+  const tableOrEmpty = !rows.length
+    ? `<p class="muted">Aún no hay registros. Al eliminar o desasignar un viaje se guardará motivo, fecha, usuario y copia del viaje.</p>`
+    : `<div class="table-wrap trips-table-wrap"><table><thead><tr>
+    <th>Fecha</th><th>Solicitud</th><th>Viaje</th><th>Resumen (copia)</th><th>Motivo</th><th>Usuario</th><th></th>
   </tr></thead><tbody>${rows
     .map((row) => {
       const when = fmtDate(row.deletedAt || "");
       const reqN = escapeHtml(String(row.requestNumber || row.requestId || "-"));
       const tripN = escapeHtml(String(row.tripNumber || "-"));
+      const snap = parsePortalJsonSnapshot(row.snapshot);
+      const summary = escapeHtml(formatDeletedTripSnapshotTableSummary(snap));
       const reason = escapeHtml(String(row.reason || "").slice(0, 500));
       const who = escapeHtml(String(row.deletedByEmail || "—"));
-      return `<tr><td>${when}</td><td>${reqN}</td><td>${tripN}</td><td>${reason}</td><td class="muted">${who}</td></tr>`;
+      const rid = escapeAttr(String(row.id || ""));
+      return `<tr><td>${escapeHtml(when)}</td><td>${reqN}</td><td>${tripN}</td><td class="muted" style="max-width:20rem;word-break:break-word;font-size:0.92em">${summary}</td><td>${reason}</td><td class="muted">${who}</td><td><button type="button" class="btn btn-sm btn-outline" data-action="deleted-trip-snapshot-detail" data-id="${rid}" title="Ver copia completa del viaje">${IC.eye} Detalle</button></td></tr>`;
     })
     .join("")}</tbody></table></div>`;
-  return pcardWrap("trash", "Viajes eliminados o desasignados", `${rows.length} en historial`, body);
+
+  const cardBody = `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
+    <button type="button" class="btn btn-sm btn-action" data-action="toggle-deleted-trips-log" aria-expanded="${expanded ? "true" : "false"}">
+      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
+    </button>
+  </div>
+  <div class="${expanded ? "" : "hidden"}" data-deleted-trips-log-panel>
+    ${tableOrEmpty}
+  </div>`;
+
+  return pcardWrap("trash", "Viajes eliminados o desasignados", subtitle, cardBody, expanded ? "p-card--expanded" : "p-card--collapsed");
 }
 
-/** Tabla de auditoría: solicitudes borradas físicamente. */
+/** Tabla de auditoría: solicitudes borradas físicamente (colapsable; detalle desde snapshot JSON). */
 function buildDeletedTransportRequestsLogSection() {
   const rows = read(KEYS.deletedTransportRequestLogs, []);
-  if (!rows.length) {
-    return pcardWrap(
-      "file",
-      "Solicitudes eliminadas",
-      "Registro de auditoría",
-      `<p class="muted">Aún no hay registros. Al eliminar una solicitud se guardará motivo, fecha y usuario.</p>`
-    );
-  }
-  const body = `<div class="table-wrap trips-table-wrap"><table><thead><tr>
-    <th>Fecha</th><th>Número</th><th>Motivo</th><th>Usuario</th>
+  const minimized = Boolean(state.deletedTransportRequestsLogMinimized);
+  const expanded = !minimized;
+  const toggleText = expanded ? "Ocultar historial de eliminadas" : "Mostrar historial de eliminadas";
+  const subtitle = rows.length ? `${rows.length} en historial` : "Registro de auditoría";
+
+  const tableOrEmpty = !rows.length
+    ? `<p class="muted">Aún no hay registros. Al eliminar una solicitud se guardará motivo, fecha, usuario y copia de la solicitud.</p>`
+    : `<div class="table-wrap trips-table-wrap"><table><thead><tr>
+    <th>Fecha</th><th>Número</th><th>Resumen (copia)</th><th>Motivo</th><th>Usuario</th><th></th>
   </tr></thead><tbody>${rows
     .map((row) => {
       const when = fmtDate(row.deletedAt || "");
       const reqN = escapeHtml(String(row.requestNumber || row.requestId || "-"));
+      const snap = parsePortalJsonSnapshot(row.snapshot);
+      const summary = escapeHtml(formatDeletedRequestSnapshotTableSummary(snap));
       const reason = escapeHtml(String(row.reason || "").slice(0, 500));
       const who = escapeHtml(String(row.deletedByEmail || "—"));
-      return `<tr><td>${when}</td><td>${reqN}</td><td>${reason}</td><td class="muted">${who}</td></tr>`;
+      const rid = escapeAttr(String(row.id || ""));
+      return `<tr><td>${escapeHtml(when)}</td><td>${reqN}</td><td class="muted" style="max-width:22rem;word-break:break-word;font-size:0.92em">${summary}</td><td>${reason}</td><td class="muted">${who}</td><td><button type="button" class="btn btn-sm btn-outline" data-action="deleted-request-snapshot-detail" data-id="${rid}" title="Ver copia completa de la solicitud">${IC.eye} Detalle</button></td></tr>`;
     })
     .join("")}</tbody></table></div>`;
-  return pcardWrap("file", "Solicitudes eliminadas", `${rows.length} en historial`, body);
+
+  const cardBody = `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
+    <button type="button" class="btn btn-sm btn-action" data-action="toggle-deleted-requests-log" aria-expanded="${expanded ? "true" : "false"}">
+      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
+    </button>
+  </div>
+  <div class="${expanded ? "" : "hidden"}" data-deleted-requests-log-panel>
+    ${tableOrEmpty}
+  </div>`;
+
+  return pcardWrap("file", "Solicitudes eliminadas", subtitle, cardBody, expanded ? "p-card--expanded" : "p-card--collapsed");
 }
 
 function transportTripsHtml() {
@@ -14006,7 +14243,11 @@ const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "delete-interview",
   "delete-contract",
   "edit-sst-record",
-  "delete-sst-record"
+  "delete-sst-record",
+  "toggle-deleted-requests-log",
+  "deleted-request-snapshot-detail",
+  "toggle-deleted-trips-log",
+  "deleted-trip-snapshot-detail"
 ]);
 
 function portalNonAdminRestrictedCaptureClick(event) {
@@ -14211,6 +14452,52 @@ function bindDynamicEvents() {
       if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
       state.adminSessionsLogMinimized = !Boolean(state.adminSessionsLogMinimized);
       renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-deleted-requests-log']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) return;
+      state.deletedTransportRequestsLogMinimized = !Boolean(state.deletedTransportRequestsLogMinimized);
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='deleted-request-snapshot-detail']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "").trim();
+      if (!id) return;
+      const rows = read(KEYS.deletedTransportRequestLogs, []);
+      const row = rows.find((r) => String(r.id) === id);
+      if (!row) {
+        notify("No se encontró el registro de auditoría.", "error");
+        return;
+      }
+      openDeletedTransportRequestAuditModal(row);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-deleted-trips-log']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (currentUser()?.role !== ROLES.ADMIN) return;
+      state.deletedTransportTripsLogMinimized = !Boolean(state.deletedTransportTripsLogMinimized);
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='deleted-trip-snapshot-detail']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "").trim();
+      if (!id) return;
+      const rows = read(KEYS.deletedTransportTripLogs, []);
+      const row = rows.find((r) => String(r.id) === id);
+      if (!row) {
+        notify("No se encontró el registro de auditoría.", "error");
+        return;
+      }
+      openDeletedTransportTripAuditModal(row);
     });
   });
 
