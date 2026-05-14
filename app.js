@@ -1922,12 +1922,74 @@ function fillSettlementSuggestedAmounts(form) {
   if (v) v.value = String(lines.vacaciones);
 }
 
+/**
+ * Rubros de devengo de la liquidación mensual como arreglo (incluye auxilio según ficha del empleado).
+ * Se persiste en `devengosLines` y dentro de `noveltiesDetail` para columnas JSON en servidor.
+ */
+function buildPayrollMensualDevengosLines({
+  baseSalary,
+  extras,
+  aux,
+  bonus,
+  travelAllowance,
+  fuelReimbursement,
+  primaServiciosCop,
+  interesesCesantiasCop,
+  empleadoAuxilioTransporteMensualCop
+}) {
+  const bs = Math.max(0, parseNum(baseSalary));
+  const ex = Math.max(0, parseNum(extras));
+  const au = Math.max(0, parseNum(aux));
+  const bo = Math.max(0, parseNum(bonus));
+  const via = Math.max(0, parseNum(travelAllowance));
+  const comb = Math.max(0, parseNum(fuelReimbursement));
+  const prima = Math.max(0, parseNum(primaServiciosCop));
+  const intCe = Math.max(0, parseNum(interesesCesantiasCop));
+  const refAux = Math.max(0, parseNum(empleadoAuxilioTransporteMensualCop));
+  const lines = [
+    { code: "SALARIO_ORDINARIO", label: "Salario básico mensual (ordinario)", amount: bs },
+    {
+      code: "AUXILIO_TRANSPORTE",
+      label: "Auxilio legal de transporte (no constitutivo de salario)",
+      amount: au,
+      empleadoAuxilioMensualRefCop: refAux > 0 ? refAux : null
+    }
+  ];
+  if (ex > 0) lines.push({ code: "EXTRAS", label: "Horas extras, dominicales o recargos nocturnos", amount: ex });
+  if (bo > 0) lines.push({ code: "BONIFICACIONES", label: "Bonificaciones y pagos ocasionales gravables", amount: bo });
+  if (via > 0) lines.push({ code: "VIATICOS", label: "Viáticos y anticipos de viaje (reintegro)", amount: via });
+  if (comb > 0) lines.push({ code: "REEMBOLSO_COMBUSTIBLE", label: "Reembolso combustible y gastos de ruta", amount: comb });
+  if (prima > 0) lines.push({ code: "PRIMA_SERVICIOS", label: "Prima de servicios (CST)", amount: prima });
+  if (intCe > 0) lines.push({ code: "INT_CESANTIAS", label: "Intereses sobre cesantías (Ley 52/1975)", amount: intCe });
+  return lines;
+}
+
+function resolvePayrollDevengosLines(run) {
+  if (!run || typeof run !== "object") return null;
+  if (Array.isArray(run.devengosLines) && run.devengosLines.length) return run.devengosLines;
+  const nv = run.noveltiesDetail;
+  if (nv && typeof nv === "object" && Array.isArray(nv.devengosLines) && nv.devengosLines.length) return nv.devengosLines;
+  return null;
+}
+
 function wireMonthlyPayrollConcepts(form) {
   if (!form || form.dataset.monthlyPayrollConceptsBound === "1") return;
   form.dataset.monthlyPayrollConceptsBound = "1";
   const monthEl = form.querySelector('[name="month"]');
   const empEl = form.querySelector('[name="employeeId"]');
+  const auxInput = form.querySelector('[name="aux"]');
   if (!monthEl || !empEl) return;
+
+  const syncAuxTransportFromEmployee = () => {
+    if (!auxInput || !empEl) return;
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
+    if (!emp) {
+      auxInput.value = String(CO_HR_RULES.transportAllowance);
+      return;
+    }
+    const v = parseNum(emp.transportAllowance);
+    auxInput.value = String(v > 0 ? v : CO_HR_RULES.transportAllowance);
+  };
 
   const fsP = form.querySelector("#payroll-prima-fieldset");
   const cbP = form.querySelector("#payroll-pay-prima");
@@ -2002,9 +2064,13 @@ function wireMonthlyPayrollConcepts(form) {
 
   monthEl.addEventListener("change", onMonthChange);
   empEl.addEventListener("change", () => {
+    syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
+    syncAuxTransportFromEmployee();
     recalcPrimaCop();
     recalcInteresesCop();
   });
+  syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
+  syncAuxTransportFromEmployee();
 
   if (cbP && daysP && copP) {
     cbP.addEventListener("change", applyPrima);
@@ -2025,11 +2091,33 @@ function wireMonthlyPayrollConcepts(form) {
   onMonthChange();
 }
 
+/** Muestra el salario base del empleado en un input de solo lectura (sin `name`, no va en el envío). */
+function syncPayrollEmployeeSalaryReadonly(form, inputId) {
+  const empSel = form?.querySelector?.('[name="employeeId"]');
+  const salEl = form?.querySelector?.(`#${inputId}`);
+  if (!salEl) return;
+  const id = String(empSel?.value || "").trim();
+  const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === id);
+  if (!id || !emp) {
+    salEl.value = "";
+    salEl.placeholder = "Seleccione empleado";
+    return;
+  }
+  const n = parseNum(emp.baseSalary);
+  salEl.placeholder = "";
+  salEl.value = n > 0 ? `$${n.toLocaleString("es-CO")}` : "Sin salario base registrado";
+}
+
 function wireTerminationSettlementForm(form) {
   if (!form || form.dataset.settlementWire === "1") return;
   form.dataset.settlementWire = "1";
   const btn = form.querySelector('[data-action="settlement-recalc"]');
   if (btn) btn.addEventListener("click", () => fillSettlementSuggestedAmounts(form));
+  const empSel = form.querySelector('[name="employeeId"]');
+  if (empSel) {
+    empSel.addEventListener("change", () => syncPayrollEmployeeSalaryReadonly(form, "payroll-settlement-base-salary"));
+    syncPayrollEmployeeSalaryReadonly(form, "payroll-settlement-base-salary");
+  }
 }
 const CO_HR_RULES = {
   legalWeeklyHours: 46,
@@ -2554,7 +2642,7 @@ function __applyPortalBootstrapPayloadInner(p) {
           if (!String(o.contractDuration || "").trim() && String(o.contractDurationText || "").trim()) {
             o.contractDuration = String(o.contractDurationText).trim();
           }
-          return o;
+          return normalizePayrollEmployeeRowDates(o);
         })
       );
       continue;
@@ -4131,6 +4219,28 @@ function normalizePortalDateYmd(raw) {
   const t = Date.parse(s);
   if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
   return "";
+}
+
+/**
+ * Fechas de ficha de nómina en formato `YYYY-MM-DD` para formularios y caché local.
+ * Acepta alias snake_case por si algún flujo devuelve columnas crudas de BD.
+ */
+function normalizePayrollEmployeeRowDates(emp) {
+  if (!emp || typeof emp !== "object") return emp;
+  const e = { ...emp };
+  const first = (...vals) => {
+    for (const v of vals) {
+      if (v != null && String(v).trim() !== "") return v;
+    }
+    return "";
+  };
+  e.birthDate = normalizePortalDateYmd(first(e.birthDate, e.fecha_nacimiento));
+  e.licenseExpiry = normalizePortalDateYmd(first(e.licenseExpiry, e.fecha_vencimiento_licencia));
+  e.startDate = normalizePortalDateYmd(first(e.startDate, e.fecha_ingreso));
+  e.psychoTestDate = normalizePortalDateYmd(first(e.psychoTestDate, e.fecha_examen_psicosensometrico));
+  e.psychoTestExpiry = normalizePortalDateYmd(first(e.psychoTestExpiry, e.fecha_vencimiento_psicosensometrico));
+  e.contractEndDate = normalizePortalDateYmd(first(e.contractEndDate, e.fecha_fin_contrato));
+  return e;
 }
 
 /**
@@ -11815,7 +11925,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
         <label>${fieldLabel(IC.dollar, "Reembolso combustible manual (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
         <label>${fieldLabel(IC.clock, "Horas extras")}<input type="number" name="extras" value="0" min="0" /></label>
-        <label>${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
+        <label>${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" title="Se rellena con el subsidio registrado en la ficha del empleado; puede ajustarlo si aplica otro valor en el periodo." /></label>
         <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
       </div>
     </fieldset>
@@ -11830,6 +11940,7 @@ function payrollHtml() {
       </p>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required>${payrollEmpOptionsSettlement}</select></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-settlement-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
         <label>${fieldLabel(IC.calendar, "Mes de retiro (periodo)")}<input type="month" name="month" required /></label>
         <label>${fieldLabel(IC.calendar, "Fecha de terminación")}<input type="date" name="terminationDate" required /></label>
         <label>${fieldLabel(IC.file, "Motivo de terminación")}
@@ -13792,7 +13903,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       name: String(raw.name || "").trim(),
       documentType: raw.documentType,
       idDoc: docNormalized,
-      birthDate: String(raw.birthDate || "").trim(),
+      birthDate: normalizePortalDateYmd(raw.birthDate),
       gender: String(raw.gender || "").trim(),
       maritalStatus: String(raw.maritalStatus || "").trim(),
       educationLevel: String(raw.educationLevel || "").trim(),
@@ -13831,12 +13942,12 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       bankName: String(raw.bankName || "").trim(),
       bankAccount: String(raw.bankAccount || "").trim(),
       bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
-      startDate: raw.startDate,
+      startDate: normalizePortalDateYmd(raw.startDate),
       license: String(raw.license || "").trim(),
       licenseCategory: String(raw.licenseCategory || "").trim(),
-      licenseExpiry: String(raw.licenseExpiry || "").trim(),
-      psychoTestDate: String(raw.psychoTestDate || "").trim(),
-      psychoTestExpiry: String(raw.psychoTestExpiry || "").trim(),
+      licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
+      psychoTestDate: normalizePortalDateYmd(raw.psychoTestDate),
+      psychoTestExpiry: normalizePortalDateYmd(raw.psychoTestExpiry),
       defensiveCourse: String(raw.defensiveCourse || "").trim(),
       avatarUrl
     }
@@ -13962,7 +14073,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
 }
 
 function buildPayrollEmployeeEditModalFields(emp) {
-  const e = emp || {};
+  const e = normalizePayrollEmployeeRowDates(emp || {});
   const empId = escapeAttr(String(e.id || ""));
   const deps = `<option value="">${escapeHtml("Seleccione...")}</option>${departmentOptions(e.department || "")}`;
   const docSel = CO_CATALOGS.documentTypes.map((d) => {
@@ -14043,7 +14154,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Nombre completo")}</span><input name="name" required value="${escapeAttr(e.name || "")}" /></label>
 <label><span>${escapeHtml("Tipo documento")}</span><select name="documentType" required>${docSel}</select></label>
 <label><span>${escapeHtml("N° documento")}</span><input name="idDoc" required value="${escapeAttr(e.idDoc || "")}" /></label>
-<label><span>${escapeHtml("Fecha nacimiento")}</span><input type="date" name="birthDate" value="${escapeAttr(e.birthDate || "")}" /></label>
+<label><span>${escapeHtml("Fecha nacimiento")}</span><input type="date" name="birthDate" value="${escapeAttr(normalizePortalDateYmd(e.birthDate))}" /></label>
 <label><span>${escapeHtml("Género")}</span><select name="gender">${genderSel}</select></label>
 <label><span>${escapeHtml("Estado civil")}</span><select name="maritalStatus">${maritalSel}</select></label>
 <label><span>${escapeHtml("Nivel educativo")}</span><select name="educationLevel">${eduSel}</select></label>
@@ -14090,7 +14201,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label id="emp-edit-contract-duration-other-wrap" class="full ${dur.unit === "otro" ? "" : "hidden"}"><span>${escapeHtml("Describa la duración")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto">${escapeHtml(dur.other)}</textarea></label>
 </div>
 </div>
-<label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(e.startDate || "")}" /></label>
+<label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
 <label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
 <label><span>${escapeHtml("Auxilio transporte")}</span><input type="number" name="transportAllowance" min="0" value="${escapeAttr(parseNum(e.transportAllowance) || CO_HR_RULES.transportAllowance)}" /></label>
 <label><span>${escapeHtml("Periodicidad pago")}</span><select name="payFrequency">${payFreqSel}</select></label>
@@ -14126,9 +14237,9 @@ function buildPayrollEmployeeEditModalFields(emp) {
       html: `<div class="form-section-grid employee-edit-grid hr-modal-conductor-block">
 <label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
 <label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
-<label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(e.licenseExpiry || "")}" /></label>
-<label><span>${escapeHtml("Psicosensométrico")}</span><input type="date" name="psychoTestDate" value="${escapeAttr(e.psychoTestDate || "")}" /></label>
-<label><span>${escapeHtml("Vence psicosensométrico")}</span><input type="date" name="psychoTestExpiry" value="${escapeAttr(e.psychoTestExpiry || "")}" /></label>
+<label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" /></label>
+<label><span>${escapeHtml("Psicosensométrico")}</span><input type="date" name="psychoTestDate" value="${escapeAttr(normalizePortalDateYmd(e.psychoTestDate))}" /></label>
+<label><span>${escapeHtml("Vence psicosensométrico")}</span><input type="date" name="psychoTestExpiry" value="${escapeAttr(normalizePortalDateYmd(e.psychoTestExpiry))}" /></label>
 <label><span>${escapeHtml("Conducción defensiva")}</span><select name="defensiveCourse">
 <option value="">${escapeHtml("Seleccione...")}</option>
 <option value="vigente" ${defCourse === "vigente" ? "selected" : ""}>${escapeHtml("Vigente")}</option>
@@ -18305,6 +18416,7 @@ function bindDynamicEvents() {
       const extras = parseNum(data.extras);
       const aux = parseNum(data.aux);
       const bonus = parseNum(data.bonus);
+      const empleadoAuxilioRef = parseNum(employee.transportAllowance) || CO_HR_RULES.transportAllowance;
       const grossMonthlyBase = baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement;
       const gross =
         grossMonthlyBase +
@@ -18316,6 +18428,17 @@ function bindDynamicEvents() {
       const solidarity = ibc > CO_PAYROLL.smmlv * CO_PAYROLL.solidarityThresholdSmmlv ? ibc * CO_PAYROLL.solidarityRate : 0;
       const deductions = health + pension + solidarity;
       const net = gross - deductions;
+      const devengosLines = buildPayrollMensualDevengosLines({
+        baseSalary,
+        extras,
+        aux,
+        bonus,
+        travelAllowance,
+        fuelReimbursement,
+        primaServiciosCop: payPrima ? primaServiciosCop : 0,
+        interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
+        empleadoAuxilioTransporteMensualCop: empleadoAuxilioRef
+      });
       const run = {
         id: newUuidV4(),
         employeeId: employee.id,
@@ -18329,6 +18452,12 @@ function bindDynamicEvents() {
         fuelReimbursementAuto: autoFuelReimbursement,
         travelAllowanceManual,
         fuelReimbursementManual,
+        extras,
+        aux,
+        bonus,
+        devengosLines,
+        liquidacionOrigin: "manual",
+        noveltiesDetail: { devengosLines },
         tripCount: monthlyDriver?.tripCount || 0,
         interDepartmentTrips: monthlyDriver?.interDepartmentTrips || 0,
         health,
@@ -18522,17 +18651,7 @@ function bindDynamicEvents() {
             <tr><td style="padding:12px 8px"><strong>Total neto a consignar / pagar</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
           </tbody></table>`;
       } else {
-        const ex = parseNum(run.extras);
-        const au = parseNum(run.aux);
-        const bo = parseNum(run.bonus);
-        const via = parseNum(run.travelAllowance);
-        const comb = parseNum(run.fuelReimbursement);
-        const prima = parseNum(run.primaServiciosCop);
-        const intCe = parseNum(run.interesesCesantiasCop);
-        const salarioBasicoDevengo = Math.max(
-          0,
-          parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe
-        );
+        const linesFromRun = resolvePayrollDevengosLines(run);
         const baseInt = parseNum(run.cesantiasInterestBaseCop);
         const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "—";
         const intLabel =
@@ -18540,22 +18659,55 @@ function bindDynamicEvents() {
             ? `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} días/360)`
             : `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975)`;
 
-        const devRowsMes =
-          `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
-          (ex > 0
-            ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
-            : "") +
-          `<tr><td style="${cL}">Auxilio legal de transporte (no constitutivo de salario)</td><td style="${cR}">${fmtPay(au)}</td></tr>` +
-          (bo > 0
-            ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
-            : "") +
-          `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
-          `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
-          (prima > 0
-            ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
-            : "") +
-          (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
-          `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+        let devRowsMes;
+        if (linesFromRun && linesFromRun.length) {
+          const showLine = (L) => {
+            const a = parseNum(L.amount);
+            return a > 0 || L.code === "SALARIO_ORDINARIO" || L.code === "AUXILIO_TRANSPORTE";
+          };
+          devRowsMes = linesFromRun
+            .filter(showLine)
+            .map((L) => {
+              let label = String(L.label || L.code || "Concepto");
+              if (L.code === "PRIMA_SERVICIOS") {
+                label = `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`;
+              }
+              if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
+                label = intLabel;
+              }
+              return `<tr><td style="${cL}">${escapeHtml(label)}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
+            })
+            .join("");
+          devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+        } else {
+          const ex = parseNum(run.extras);
+          const au = parseNum(run.aux);
+          const bo = parseNum(run.bonus);
+          const via = parseNum(run.travelAllowance);
+          const comb = parseNum(run.fuelReimbursement);
+          const prima = parseNum(run.primaServiciosCop);
+          const intCe = parseNum(run.interesesCesantiasCop);
+          const salarioBasicoDevengo = Math.max(
+            0,
+            parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe
+          );
+          devRowsMes =
+            `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+            (ex > 0
+              ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
+              : "") +
+            `<tr><td style="${cL}">Auxilio legal de transporte (no constitutivo de salario)</td><td style="${cR}">${fmtPay(au)}</td></tr>` +
+            (bo > 0
+              ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
+              : "") +
+            `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
+            `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
+            (prima > 0
+              ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
+              : "") +
+            (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
+            `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+        }
 
         const dedRowsMes =
           `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +

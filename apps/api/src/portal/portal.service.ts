@@ -1935,6 +1935,11 @@ export class PortalService implements OnModuleInit {
     return m ? m[1] : null;
   }
 
+  /** Igual que {@link sqlVehicleDateColumnToString} pero cadena vacía si no hay fecha (empleados nómina). */
+  private sqlEmployeeDateToPortalYmd(raw: unknown): string {
+    return this.sqlVehicleDateColumnToString(raw) ?? "";
+  }
+
   private async loadLiveTransportOccupancySets(now = new Date()) {
     const busyVehicleIds = new Set<string>();
     const busyDriverIds = new Set<string>();
@@ -2444,7 +2449,7 @@ export class PortalService implements OnModuleInit {
       name: e.nombre_completo,
       documentType: e.tipo_documento,
       idDoc: e.numero_documento,
-      birthDate: e.fecha_nacimiento,
+      birthDate: this.sqlEmployeeDateToPortalYmd(e.fecha_nacimiento),
       gender: e.genero,
       maritalStatus: e.estado_civil,
       bloodType: e.tipo_sangre,
@@ -2465,7 +2470,7 @@ export class PortalService implements OnModuleInit {
           ? String(e.duracion_contrato_texto).trim()
           : "",
       contractDurationText: e.duracion_contrato_texto,
-      startDate: e.fecha_ingreso,
+      startDate: this.sqlEmployeeDateToPortalYmd(e.fecha_ingreso),
       baseSalary: Number(e.salario_base),
       transportAllowance: e.auxilio_transporte != null ? Number(e.auxilio_transporte) : null,
       payFrequency: e.periodicidad_pago,
@@ -2484,12 +2489,12 @@ export class PortalService implements OnModuleInit {
       workerRole: e.rol_trabajador,
       license: e.numero_licencia,
       licenseCategory: e.categoria_licencia,
-      licenseExpiry: e.fecha_vencimiento_licencia,
-      psychoTestDate: e.fecha_examen_psicosensometrico,
-      psychoTestExpiry: e.fecha_vencimiento_psicosensometrico,
+      licenseExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_licencia),
+      psychoTestDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_psicosensometrico),
+      psychoTestExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_psicosensometrico),
       defensiveCourse: e.curso_conduccion_defensiva,
       probationMonths: e.meses_prueba,
-      contractEndDate: e.fecha_fin_contrato,
+      contractEndDate: this.sqlEmployeeDateToPortalYmd(e.fecha_fin_contrato),
       workSchedule: e.jornada_laboral,
       avatarUrl: e.url_avatar,
       corporateEmail: e.correo_corporativo,
