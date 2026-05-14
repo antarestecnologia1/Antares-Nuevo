@@ -1935,7 +1935,8 @@ function buildPayrollMensualDevengosLines({
   fuelReimbursement,
   primaServiciosCop,
   interesesCesantiasCop,
-  empleadoAuxilioTransporteMensualCop
+  empleadoAuxilioTransporteMensualCop,
+  incapacityEpisodes
 }) {
   const bs = Math.max(0, parseNum(baseSalary));
   const ex = Math.max(0, parseNum(extras));
@@ -1961,6 +1962,16 @@ function buildPayrollMensualDevengosLines({
   if (comb > 0) lines.push({ code: "REEMBOLSO_COMBUSTIBLE", label: "Reembolso combustible y gastos de ruta", amount: comb });
   if (prima > 0) lines.push({ code: "PRIMA_SERVICIOS", label: "Prima de servicios (CST)", amount: prima });
   if (intCe > 0) lines.push({ code: "INT_CESANTIAS", label: "Intereses sobre cesantías (Ley 52/1975)", amount: intCe });
+  const incapEp = Array.isArray(incapacityEpisodes) ? incapacityEpisodes : [];
+  incapEp.forEach((ep, i) => {
+    const amt = Math.round(parseNum(ep.adjustCop));
+    lines.push({
+      code: `INCAPACIDAD_EP_${i}`,
+      label: `${String(ep.label || "Incapacidad")} · ${ep.days ?? "—"} días liq. · ${String(ep.rangeLabel || "")}`,
+      amount: amt,
+      incapacityNote: ep.note ? String(ep.note) : ""
+    });
+  });
   return lines;
 }
 
@@ -1970,6 +1981,157 @@ function resolvePayrollDevengosLines(run) {
   const nv = run.noveltiesDetail;
   if (nv && typeof nv === "object" && Array.isArray(nv.devengosLines) && nv.devengosLines.length) return nv.devengosLines;
   return null;
+}
+
+/**
+ * Fecha local mediodía (alineado a cortes de mes del portal).
+ */
+function payrollDateAtNoonLocal(y, m0, d) {
+  return new Date(y, m0, d, 12, 0, 0, 0);
+}
+
+function payrollParseLocalYmd(raw) {
+  const s = String(raw || "").trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const da = Number(m[3]);
+  const dt = payrollDateAtNoonLocal(y, mo, da);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function payrollInclusiveCalendarDaysLocal(a, b) {
+  const msDay = 86400000;
+  const n = Math.floor((b.getTime() - a.getTime()) / msDay) + 1;
+  return n > 0 ? n : 0;
+}
+
+function payrollMaxDateLocal(a, b) {
+  return a >= b ? a : b;
+}
+
+function payrollMinDateLocal(a, b) {
+  return a <= b ? a : b;
+}
+
+function payrollOverlapInclusiveLocal(aStart, aEnd, bStart, bEnd) {
+  const s = payrollMaxDateLocal(aStart, bStart);
+  const e = payrollMinDateLocal(aEnd, bEnd);
+  if (s > e) return null;
+  return { s, e };
+}
+
+function payrollFmtYmdLocal(d) {
+  if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${da}`;
+}
+
+/**
+ * Clasificación incapacidad común (EPS) vs laboral (ARL) según observaciones / tipo.
+ * Misma heurística que `classifyAusenciaTipo` en apps/api/src/payroll/colombian-monthly-payroll.ts
+ */
+function payrollClassifyIncapacityKind(absenceType, observaciones) {
+  const t = String(absenceType || "").trim().toLowerCase();
+  const obs = String(observaciones || "").trim().toLowerCase();
+  if (/\barl\b|origen.?labor|risk|riesgo.?labor/i.test(obs) || t.includes("arl")) {
+    return { kind: "incapacidad_arl", label: "Incapacidad origen laboral (ARL)" };
+  }
+  return { kind: "incapacidad_eps", label: "Incapacidad común (EPS)" };
+}
+
+/**
+ * Ajuste orientativo al devengo por incapacidades del mes (normativa laboral colombiana, criterio salario÷30).
+ * Ver `computeColombiaPayrollForPeriodCut` en API. No sustituye liquidación EPS/ARL ni tablas de porcentajes.
+ */
+function computePayrollIncapacityColombiaForMonth({ employee, liquidacionMonthYm, absencesAll }) {
+  const smmlv = CO_PAYROLL.smmlv;
+  const baseSalary = Math.max(0, parseNum(employee?.baseSalary));
+  const daily = baseSalary > 0 ? baseSalary / 30 : 0;
+  const range = monthRange(liquidacionMonthYm);
+  if (!range || daily <= 0) {
+    return { adjustCop: 0, episodes: [], smmlv };
+  }
+  const hire = payrollParseLocalYmd(employee?.startDate);
+  const lo = payrollMaxDateLocal(hire || range.start, range.start);
+  const hi = range.end;
+  if (lo > hi) return { adjustCop: 0, episodes: [], smmlv };
+
+  const absences = (absencesAll || []).filter((a) => String(a.employeeId || "") === String(employee?.id || ""));
+  let salarioAjuste = 0;
+  const episodes = [];
+
+  for (const ab of absences) {
+    if (String(ab.absenceType || "").toLowerCase() !== "incapacidad") continue;
+    const abStart = payrollParseLocalYmd(ab.startDate);
+    const abEnd = payrollParseLocalYmd(ab.endDate) || abStart;
+    if (!abStart || !abEnd) continue;
+
+    const obs = [ab.notes, ab.epsEntity, ab.supportNumber].filter(Boolean).join(" · ");
+    const cl = payrollClassifyIncapacityKind(ab.absenceType, obs);
+    const ov = payrollOverlapInclusiveLocal(abStart, abEnd, lo, hi);
+    if (!ov) continue;
+
+    const rad = String(ab.supportNumber || "").trim();
+    const baseLabel = rad ? `Incapacidad · radicado ${rad}` : "Incapacidad";
+
+    if (cl.kind === "incapacidad_arl") {
+      const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
+      const ded = -Math.round(days * daily);
+      salarioAjuste += ded;
+      episodes.push({
+        kind: "arl",
+        absenceId: ab.id,
+        days,
+        adjustCop: ded,
+        label: `${cl.label}`,
+        rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
+        note:
+          "Incapacidad laboral / ARL: descuento orientativo del salario por días en el periodo (pago a cargo de ARL según calificación). Validar dictamen y resolución."
+      });
+      continue;
+    }
+
+    if (baseSalary > 0 && baseSalary <= smmlv) {
+      const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
+      episodes.push({
+        kind: "eps_smmlv",
+        absenceId: ab.id,
+        days,
+        adjustCop: 0,
+        label: baseLabel,
+        rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
+        note:
+          "Salario hasta SMMLV: sin ajuste automático en este motor. Verificar pago al trabajador según tablas EPS (100% en etapas iniciales) y soporte médico."
+      });
+      continue;
+    }
+
+    let netIncap = 0;
+    const msDay = 86400000;
+    for (let cur = ov.s.getTime(); cur <= ov.e.getTime(); cur += msDay) {
+      const dt = new Date(cur);
+      const idx = payrollInclusiveCalendarDaysLocal(abStart, dt);
+      netIncap += -daily + (idx <= 2 ? (daily * 2) / 3 : 0);
+    }
+    const roundedIncap = Math.round(netIncap);
+    salarioAjuste += roundedIncap;
+    episodes.push({
+      kind: "eps",
+      absenceId: ab.id,
+      days: payrollInclusiveCalendarDaysLocal(ov.s, ov.e),
+      adjustCop: roundedIncap,
+      label: baseLabel,
+      rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
+      note:
+        "Incapacidad común (EPS): sin salario empresa el día; complemento orientativo de ⅔ del salario diario en los dos primeros días corridos del episodio (Dec. 780/2016 / CST — validar año y liquidación en EPS)."
+    });
+  }
+
+  return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
 }
 
 function wireMonthlyPayrollConcepts(form) {
@@ -3921,6 +4083,24 @@ function bindVehicleDocExpiryAutoFill(formEl) {
 function colombiaDatetimeLocalString(dateValue = new Date()) {
   const p = getColombiaDateParts(dateValue);
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/** Texto legible para valores guardados desde `datetime-local` (YYYY-MM-DDTHH:mm). */
+function formatInterviewWhenDisplay(whenRaw) {
+  const s = String(whenRaw || "").trim();
+  if (!s) return "—";
+  let d;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+    d = new Date(`${s}:00`);
+  } else {
+    d = new Date(s);
+  }
+  if (!Number.isFinite(d.getTime())) return s;
+  try {
+    return d.toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" });
+  } catch (_e) {
+    return s;
+  }
 }
 
 function buildColombiaOffsetDateTime(datePart, timePart) {
@@ -10957,22 +11137,36 @@ function buildReportDataset(reportId, actor = currentUser()) {
     };
   }
   if (reportId === "payroll_summary") {
-    const rows = read(KEYS.payrollRuns, []).map((run) => ({
-      month: run.month,
-      employee: run.employeeName,
-      gross: parseNum(run.gross),
-      travelAllowance: parseNum(run.travelAllowance || 0),
-      fuelReimbursement: parseNum(run.fuelReimbursement || 0),
-      deductions: parseNum(run.deductions),
-      net: parseNum(run.net),
-      status: run.paid ? "Pagado" : "Pendiente"
-    }));
+    const rows = read(KEYS.payrollRuns, []).map((run) => {
+      const inc = run.noveltiesDetail?.incapacity;
+      const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
+      const incapacitySummary =
+        inc && Array.isArray(inc.episodes) && inc.episodes.length
+          ? inc.episodes
+              .map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop).toLocaleString("es-CO")}`)
+              .join("; ")
+          : "";
+      return {
+        month: run.month,
+        employee: run.employeeName,
+        gross: parseNum(run.gross),
+        incapacityAdjust,
+        incapacitySummary,
+        travelAllowance: parseNum(run.travelAllowance || 0),
+        fuelReimbursement: parseNum(run.fuelReimbursement || 0),
+        deductions: parseNum(run.deductions),
+        net: parseNum(run.net),
+        status: run.paid ? "Pagado" : "Pendiente"
+      };
+    });
     return {
       title: "Reporte de nomina",
       columns: [
         { key: "month", label: "Mes" },
         { key: "employee", label: "Empleado" },
         { key: "gross", label: "Devengado" },
+        { key: "incapacityAdjust", label: "Ajuste incapacidad (COP)" },
+        { key: "incapacitySummary", label: "Incapacidad (resumen)" },
         { key: "travelAllowance", label: "Viaticos" },
         { key: "fuelReimbursement", label: "Reembolso combustible" },
         { key: "deductions", label: "Deducciones" },
@@ -11674,6 +11868,9 @@ function payrollHtml() {
         if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor (cron día 13)">Automática</span>');
         if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
         if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
+        if (Array.isArray(r.noveltiesDetail?.incapacity?.episodes) && r.noveltiesDetail.incapacity.episodes.length) {
+          bits.push("Incapacidad");
+        }
         return bits.length
           ? `<span class="muted">Nómina</span><br><span class="muted" style="font-size:0.76rem">${bits.join(" · ")} incl.</span>`
           : `<span class="muted">Nómina</span>`;
@@ -12308,6 +12505,9 @@ function hiringHtml() {
   const interviews = read(KEYS.interviews, []);
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
+  const candidatesForInterviewSelect = candidates.filter((c) =>
+    !["Contratado", "Descartado"].includes(String(c.status || ""))
+  );
   const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
@@ -12401,6 +12601,7 @@ function hiringHtml() {
       const expCargo = parseNum(c.experienceYears || 0);
       const cvDlRow = extractCandidateCvDownload(c);
       const canDlCv = Boolean(cvDlRow?.href);
+      const canScheduleInterview = !["Contratado", "Descartado"].includes(String(c.status || ""));
       return `<tr>
       <td><strong>${escapeHtml(String(c.name || ""))}</strong></td>
       <td>${escapeHtml(String(c.email || ""))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></td>
@@ -12411,6 +12612,11 @@ function hiringHtml() {
       <td><select data-action="candidate-status" data-id="${escapeAttr(String(c.id))}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+        ${
+          canScheduleInterview
+            ? `<button type="button" class="btn btn-sm btn-action" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Abrir formulario de entrevista con fecha y hora">${IC.calendar} Entrevista</button>`
+            : ""
+        }
         <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar CV" : "Sin CV disponible"}">${IC.download} Descargar CV</button>
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
@@ -12421,7 +12627,7 @@ function hiringHtml() {
   const interviewRows = interviews
     .map((i) => `<tr>
       <td><strong>${escapeHtml(String(i.candidateName || "-"))}</strong></td>
-      <td>${escapeHtml(String(i.when || "-"))}</td>
+      <td>${escapeHtml(formatInterviewWhenDisplay(i.when))}</td>
       <td>${escapeHtml(String(i.interviewer || "-"))}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye} Ver</button>
@@ -12554,8 +12760,13 @@ function hiringHtml() {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.calendar} Programación de entrevista</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Candidato")}<select name="candidateId" required><option value="">Seleccione</option>${candidates.map((c) => `<option value="${c.id}">${c.name}</option>`).join("")}</select></label>
-        <label>${fieldLabel(IC.calendar, "Fecha y hora")}<input type="datetime-local" name="when" required /></label>
+        <label class="full">${fieldLabel(IC.user, "Candidato (en proceso)")}<select name="candidateId" required><option value="">Seleccione</option>${candidatesForInterviewSelect
+          .map(
+            (c) =>
+              `<option value="${escapeAttr(String(c.id))}">${escapeHtml(String(c.name || ""))} · ${escapeHtml(String(c.status || PIPELINE[0]))}</option>`
+          )
+          .join("")}</select><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Solo candidatos que no están contratados ni descartados.</span></label>
+        <label class="full">${fieldLabel(IC.calendar, "Fecha y hora")}<input type="datetime-local" name="when" required step="60" /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Elija día y hora en el control del navegador (se valida que sea una cita futura).</span></label>
         <label>${fieldLabel(IC.user, "Entrevistador")}<input name="interviewer" required placeholder="Nombre del entrevistador" /></label>
         <label>${fieldLabel(IC.globe, "Modalidad")}<select name="mode">
           <option value="presencial">Presencial</option>
@@ -12627,7 +12838,9 @@ function hiringHtml() {
   const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
   const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
-  const tInt = interviewRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>` : emptyState("Sin entrevistas");
+  const tInt = interviewRows
+    ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
+    : emptyState("Sin entrevistas");
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
   const alertsBody = renderHrAlertCards([
     {
@@ -12681,6 +12894,7 @@ function hiringHtml() {
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-position">${IC.briefcase} Definir cargo</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-vacancy">${IC.plus} Publicar vacante</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Agregar candidato</button>
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-interview">${IC.calendar} Programar entrevista</button>
         <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-contract">${IC.file} Generar contrato</button>
         </div>
       </div>
@@ -12717,7 +12931,14 @@ function hiringHtml() {
             <p class="hr-flow-step-lead muted">Programa entrevistas y, cuando estés listo, genera el contrato en Word.</p>
           </div>
         </div>
-        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard("create-interview", "calendar", "Programar entrevista", null, fInt, "Agendar entrevista")}${createCollapsibleCard("create-contract", "file", "Generar contrato (Word)", null, fCon, "Generar contrato")}</div>
+        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard(
+          "create-interview",
+          "calendar",
+          "Programar entrevista",
+          "Candidato en proceso, fecha y hora (calendario del navegador) y entrevistador.",
+          fInt,
+          "Agendar entrevista"
+        )}${createCollapsibleCard("create-contract", "file", "Generar contrato (Word)", null, fCon, "Generar contrato")}</div>
       </div>
     </section>`;
   const hiringDataBlock = `<section class="ops-block ops-block--hiring-data">
@@ -18417,7 +18638,14 @@ function bindDynamicEvents() {
       const aux = parseNum(data.aux);
       const bonus = parseNum(data.bonus);
       const empleadoAuxilioRef = parseNum(employee.transportAllowance) || CO_HR_RULES.transportAllowance;
-      const grossMonthlyBase = baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement;
+      const incapacityCalc = computePayrollIncapacityColombiaForMonth({
+        employee,
+        liquidacionMonthYm: data.month,
+        absencesAll: read(KEYS.hrAbsences, [])
+      });
+      const incapacityAdjustCop = parseNum(incapacityCalc.adjustCop);
+      const grossMonthlyBase =
+        baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement + incapacityAdjustCop;
       const gross =
         grossMonthlyBase +
         (payPrima ? primaServiciosCop : 0) +
@@ -18437,8 +18665,16 @@ function bindDynamicEvents() {
         fuelReimbursement,
         primaServiciosCop: payPrima ? primaServiciosCop : 0,
         interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
-        empleadoAuxilioTransporteMensualCop: empleadoAuxilioRef
+        empleadoAuxilioTransporteMensualCop: empleadoAuxilioRef,
+        incapacityEpisodes: incapacityCalc.episodes
       });
+      const incapacityNovelty = {
+        episodes: incapacityCalc.episodes,
+        totalAdjustCop: incapacityAdjustCop,
+        smmlvRef: incapacityCalc.smmlv,
+        legalNote:
+          "Ajuste por incapacidad orientativo (salario÷30; incapacidad común: sin salario empresa el día y ⅔ del día en los dos primeros días del episodio según práctica Dec. 780/2016 / CST; laboral: descuento orientativo por días, pago vía ARL). No sustituye liquidación EPS/ARL, tablas IBP ni dictamen médico y contable."
+      };
       const run = {
         id: newUuidV4(),
         employeeId: employee.id,
@@ -18457,7 +18693,7 @@ function bindDynamicEvents() {
         bonus,
         devengosLines,
         liquidacionOrigin: "manual",
-        noveltiesDetail: { devengosLines },
+        noveltiesDetail: { devengosLines, incapacity: incapacityNovelty },
         tripCount: monthlyDriver?.tripCount || 0,
         interDepartmentTrips: monthlyDriver?.interDepartmentTrips || 0,
         health,
@@ -18662,20 +18898,27 @@ function bindDynamicEvents() {
         let devRowsMes;
         if (linesFromRun && linesFromRun.length) {
           const showLine = (L) => {
+            const code = String(L.code || "");
+            if (code.startsWith("INCAPACIDAD")) return true;
             const a = parseNum(L.amount);
-            return a > 0 || L.code === "SALARIO_ORDINARIO" || L.code === "AUXILIO_TRANSPORTE";
+            return a > 0 || code === "SALARIO_ORDINARIO" || code === "AUXILIO_TRANSPORTE";
           };
           devRowsMes = linesFromRun
             .filter(showLine)
             .map((L) => {
-              let label = String(L.label || L.code || "Concepto");
+              let labelHtml = escapeHtml(String(L.label || L.code || "Concepto"));
               if (L.code === "PRIMA_SERVICIOS") {
-                label = `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`;
+                labelHtml = escapeHtml(
+                  `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`
+                );
               }
               if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
-                label = intLabel;
+                labelHtml = escapeHtml(intLabel);
               }
-              return `<tr><td style="${cL}">${escapeHtml(label)}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
+              if (L.incapacityNote) {
+                labelHtml += `<span style="font-size:0.82rem;color:#6c757d;display:block;margin-top:3px;line-height:1.35">${escapeHtml(String(L.incapacityNote))}</span>`;
+              }
+              return `<tr><td style="${cL}">${labelHtml}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
             })
             .join("");
           devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
@@ -18759,6 +19002,15 @@ function bindDynamicEvents() {
           disclaimerPieces.push(
             `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
           );
+        const incNv = run.noveltiesDetail?.incapacity;
+        if (incNv && Array.isArray(incNv.episodes) && incNv.episodes.length) {
+          disclaimerPieces.push(
+            String(
+              incNv.legalNote ||
+                "Incapacidad: montos orientativos en este comprobante; valide con EPS/ARL y contador."
+            )
+          );
+        }
       }
       const disclaimer =
         isTerm &&
@@ -18923,7 +19175,7 @@ function bindDynamicEvents() {
     exportPayroll.addEventListener("click", () => {
       const rows = read(KEYS.payrollRuns, []);
       const csv = [
-        "Mes,Tipo,Empleado,Devengado,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
+        "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
       ]
         .concat(
           rows.map((r) => {
@@ -18933,11 +19185,19 @@ function bindDynamicEvents() {
               `"${String(v ?? "")
                 .replace(/\\/g, "\\\\")
                 .replace(/"/g, '""')}"`;
+            const inc = r.noveltiesDetail?.incapacity;
+            const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
+            const incapacitySummary =
+              inc && Array.isArray(inc.episodes) && inc.episodes.length
+                ? inc.episodes.map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop)}`).join("|")
+                : "";
             return [
               r.month,
               tipo,
               r.employeeName,
               r.gross,
+              incapacityAdjust,
+              incapacitySummary,
               r.primaServiciosCop ?? 0,
               r.interesesCesantiasCop ?? 0,
               r.cesantiasInterestBaseCop ?? "",
@@ -18952,9 +19212,7 @@ function bindDynamicEvents() {
               r.net,
               r.paid ? "Pagado" : "Pendiente"
             ]
-              .map((cell) =>
-                typeof cell === "number" ? cell : esc(cell)
-              )
+              .map((cell) => (typeof cell === "number" ? cell : esc(cell)))
               .join(",");
           })
         )
@@ -19342,7 +19600,7 @@ function bindDynamicEvents() {
         notify(userMessage("interviewScheduleFuture"), "error");
         return;
       }
-      const candidate = read(KEYS.candidates, []).find((c) => c.id === data.candidateId);
+      const candidate = read(KEYS.candidates, []).find((c) => String(c.id) === String(data.candidateId || ""));
       if (!candidate) {
         notify(userMessage("interviewCandidateMissing"), "error");
         return;
@@ -19370,7 +19628,7 @@ function bindDynamicEvents() {
       }
       const candidateList = read(KEYS.candidates, []);
       const nextCandidates = candidateList.map((item) =>
-        item.id === candidate.id && ["Recibido", "Preseleccionado"].includes(String(item.status || ""))
+        String(item.id) === String(candidate.id) && ["Recibido", "Preseleccionado"].includes(String(item.status || ""))
           ? { ...item, status: "Entrevistado" }
           : item
       );
@@ -19381,7 +19639,11 @@ function bindDynamicEvents() {
         renderPortalView();
         return;
       }
-      sendEmail({ to: candidate.email, subject: "Entrevista programada", body: `Fecha: ${data.when}` });
+      sendEmail({
+        to: candidate.email,
+        subject: "Entrevista programada",
+        body: `Fecha y hora: ${formatInterviewWhenDisplay(data.when)} (ajuste según su zona horaria).`
+      });
       try {
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
@@ -19391,6 +19653,24 @@ function bindDynamicEvents() {
       collapseCreatePanel("create-interview");
       notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
+    });
+    const applyPendingInterviewCandidate = () => {
+      const cid = String(state.hiringUi?.scheduleInterviewOpenForCandidateId || "").trim();
+      if (!cid) return;
+      state.hiringUi = { ...(state.hiringUi || {}), scheduleInterviewOpenForCandidateId: "" };
+      const sel = interviewForm.querySelector('select[name="candidateId"]');
+      if (sel && [...sel.options].some((o) => String(o.value) === cid)) {
+        sel.value = cid;
+      }
+      const whenEl = interviewForm.querySelector('input[name="when"]');
+      if (whenEl) {
+        whenEl.setAttribute("min", colombiaDatetimeLocalString());
+        whenEl.value = "";
+        whenEl.focus();
+      }
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(applyPendingInterviewCandidate);
     });
   }
 
@@ -21093,6 +21373,35 @@ function bindExtendedViewEditHandlers() {
     });
   });
 
+  /* ============= CANDIDATO: PROGRAMAR ENTREVISTA DESDE TABLA ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='schedule-interview-for-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cid = String(btn.dataset.candidateId || "").trim();
+      if (!cid) return;
+      const cand = read(KEYS.candidates, []).find((c) => String(c.id) === cid);
+      if (!cand) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      if (["Contratado", "Descartado"].includes(String(cand.status || ""))) {
+        notify("Este candidato ya no está en proceso; no se puede agendar entrevista.", "info");
+        return;
+      }
+      state.hiringUi = { ...(state.hiringUi || {}), scheduleInterviewOpenForCandidateId: cid };
+      state.createPanels = { ...(state.createPanels || {}) };
+      const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
+      HIRING_CREATE_IDS.forEach((id) => {
+        state.createPanels[id] = id === "create-interview";
+      });
+      state.hiringUi.workspace = "operate";
+      persistHrWorkspace("hiring", "operate");
+      renderPortalView();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => scrollToCreatePanelForm("create-interview"));
+      });
+    });
+  });
+
   /* ============= CANDIDATO: VER / EDITAR / ELIMINAR ============= */
   nodes.viewRoot.querySelectorAll("[data-action='view-candidate']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -21315,7 +21624,7 @@ function bindExtendedViewEditHandlers() {
           title: "Programación",
           rows: renderDetailRows([
             ["Candidato", `<strong>${escapeHtml(String(i.candidateName || "-"))}</strong>`],
-            ["Fecha y hora", escapeHtml(String(i.when || "-"))],
+            ["Fecha y hora", escapeHtml(formatInterviewWhenDisplay(i.when))],
             ["Entrevistador", escapeHtml(String(i.interviewer || "-"))],
             ["Modalidad", escapeHtml(String(i.modality || "-"))],
             ["Lugar / enlace", escapeHtml(String(i.locationOrLink || "-"))]
@@ -21331,7 +21640,7 @@ function bindExtendedViewEditHandlers() {
       ];
       openInfoModal({
         title: `Entrevista · ${String(i.candidateName || "")}`,
-        subtitle: String(i.when || ""),
+        subtitle: formatInterviewWhenDisplay(i.when),
         bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
         wide: true
       });
