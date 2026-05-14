@@ -84,9 +84,7 @@
         ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}" title="Marcar solicitud como cancelada">${IC.x} Cancelar</button>` : ""}
         ${allowClientHardDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar solicitud antes de aprobacion">${IC.trash} Eliminar</button>` : ""}
         ${isAdmin
-          ? r.trip
-            ? `<button class="btn btn-sm btn-reject" type="button" disabled title="Elimine primero el viaje en Transporte · Viajes">${IC.trash} Eliminar</button>`
-            : `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Solo administradores: eliminar definitivamente">${IC.trash} Eliminar</button>`
+          ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Solo administradores: eliminar (si hay viaje, se desasigna primero con el mismo motivo)">${IC.trash} Eliminar</button>`
           : ""}
       </div>
     </article>`;

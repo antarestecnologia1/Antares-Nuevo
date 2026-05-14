@@ -1052,6 +1052,129 @@ function openEditTripModal(req) {
   });
 }
 
+/**
+ * Edición de tarifa por trayecto (admin): mismo patrón visual que {@link openEditTripModal}
+ * (secciones, `modal-card-edit--trip`), sin depender del formulario colapsable.
+ */
+function openEditRouteRateModal(storageKey) {
+  const key = String(storageKey || "").trim();
+  if (!key) return;
+  const entry = getTripRouteRatesNormalized()[key];
+  if (!entry) return;
+  const parts = parseTripRateStorageKeyToRouteParts(key);
+  const companies = read(KEYS.companies, []);
+  const selectedCompanyIds = new Set(
+    (Array.isArray(entry.companyIds) ? entry.companyIds : []).map((id) => String(id).trim()).filter(Boolean)
+  );
+  const rateScopeValue = selectedCompanyIds.size ? "specific" : "all";
+  const companySelectHtml = `<select name="rateClientCompanies" id="modal-rate-clients" multiple class="full" style="width:100%;min-height:7rem;box-sizing:border-box" size="6">${companies
+    .map(
+      (c) =>
+        `<option value="${escapeAttr(String(c.id || ""))}" ${selectedCompanyIds.has(String(c.id || "").trim()) ? "selected" : ""}>${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`
+    )
+    .join("")}</select>`;
+  const deptOpts = [{ value: "", label: "Seleccione..." }, ...Object.keys(COLOMBIA_LOCATIONS).sort().map((d) => ({ value: d, label: d }))];
+  const cityPlaceholder = [{ value: "", label: "Seleccione departamento..." }];
+  openEditModal({
+    title: "Editar tarifa de trayecto",
+    subtitle: humanTripRateRouteLabelFromStorageKey(key),
+    submitText: "Guardar cambios de tarifa",
+    extraModalCardClass: "modal-card-edit--trip",
+    fields: [
+      { type: "hidden", name: "editingRateKey", value: key },
+      { type: "section", id: "edit-rate-origin", title: "Origen", hint: "Departamento y ciudad desde los que se pactó el trayecto." },
+      { name: "originDepartment", label: "Departamento de origen", type: "select", value: parts.originDepartment, required: true, options: deptOpts },
+      { name: "originCity", label: "Ciudad de origen", type: "select", value: parts.originCity, required: true, options: cityPlaceholder },
+      { type: "section", id: "edit-rate-dest", title: "Destino", hint: "Departamento y ciudad de entrega." },
+      { name: "destinationDepartment", label: "Departamento de destino", type: "select", value: parts.destinationDepartment, required: true, options: deptOpts },
+      { name: "destinationCity", label: "Ciudad de destino", type: "select", value: parts.destinationCity, required: true, options: cityPlaceholder },
+      { type: "section", id: "edit-rate-money", title: "Tarifa pactada", hint: "Valor en COP que se sugiere al asignar un viaje en esta ruta." },
+      { name: "tripRateCop", label: "Valor del viaje (COP)", type: "number", min: 1, step: 1, value: parseNum(entry.value), required: true },
+      { type: "section", id: "edit-rate-scope", title: "Alcance", hint: "General aplica a todos los clientes; por empresa limita el autocompletado a las seleccionadas." },
+      {
+        name: "rateScope",
+        label: "Alcance de la tarifa",
+        type: "select",
+        value: rateScopeValue,
+        required: true,
+        options: [
+          { value: "all", label: "General — todos los clientes" },
+          { value: "specific", label: "Por empresa — clientes específicos" }
+        ]
+      },
+      { type: "custom", label: "Empresas (Ctrl/Cmd para varias)", html: companySelectHtml }
+    ],
+    afterMount: (formEl) => {
+      const od = formEl.querySelector("select[name='originDepartment']");
+      const oc = formEl.querySelector("select[name='originCity']");
+      const dd = formEl.querySelector("select[name='destinationDepartment']");
+      const dc = formEl.querySelector("select[name='destinationCity']");
+      setSelectValueInsensitive(od, parts.originDepartment);
+      attachDepartmentCitySelects(formEl, {
+        departmentSelector: "select[name='originDepartment']",
+        citySelector: "select[name='originCity']",
+        initialDepartment: parts.originDepartment,
+        initialCity: parts.originCity
+      });
+      setSelectValueInsensitive(oc, parts.originCity);
+      setSelectValueInsensitive(dd, parts.destinationDepartment);
+      attachDepartmentCitySelects(formEl, {
+        departmentSelector: "select[name='destinationDepartment']",
+        citySelector: "select[name='destinationCity']",
+        initialDepartment: parts.destinationDepartment,
+        initialCity: parts.destinationCity
+      });
+      setSelectValueInsensitive(dc, parts.destinationCity);
+      const scopeSel = formEl.querySelector("select[name='rateScope']");
+      const clientsSel = formEl.querySelector("#modal-rate-clients");
+      const syncScope = () => {
+        const specific = String(scopeSel?.value || "") === "specific";
+        if (clientsSel) clientsSel.disabled = !specific;
+      };
+      scopeSel?.addEventListener("change", syncScope);
+      syncScope();
+    },
+    onSubmit: async (payload, formEl) => {
+      const scope = String(payload.rateScope || "all");
+      const fd = new FormData(formEl);
+      const companyIdsRaw = [...fd.getAll("rateClientCompanies")].map((v) => String(v || "").trim()).filter(Boolean);
+      const companyIds = scope === "specific" ? companyIdsRaw : [];
+      const od = String(payload.originDepartment || "").trim();
+      const oc = String(payload.originCity || "").trim();
+      const dd = String(payload.destinationDepartment || "").trim();
+      const dc = String(payload.destinationCity || "").trim();
+      const tripRateCop = parseNum(payload.tripRateCop);
+      if (!od || !oc || !dd || !dc) {
+        notify(userMessage("routeRateSelectRoute"), "error");
+        return false;
+      }
+      if (tripRateCop <= 0) {
+        notify(userMessage("routeRateInvalidCop"), "error");
+        return false;
+      }
+      if (scope === "specific" && !companyIds.length) {
+        notify("Selecciona al menos una empresa para una tarifa específica.", "error");
+        return false;
+      }
+      const routeKey = buildTripRouteRateKey(od, oc, dd, dc);
+      const normalized = getTripRouteRatesNormalized();
+      const newStorageKey = tripRateStorageKey(routeKey, companyIds);
+      const editingKey = String(payload.editingRateKey || "").trim();
+      const next = { ...normalized, [newStorageKey]: { value: tripRateCop, companyIds } };
+      if (editingKey && editingKey !== newStorageKey) delete next[editingKey];
+      try {
+        await writeAwaitServer(KEYS.tripRouteRates, next);
+      } catch (err) {
+        notify(String(err?.message || userMessage("genericError")), "error");
+        return false;
+      }
+      notify("Tarifa por trayecto actualizada.", "success");
+      renderPortalView();
+      return true;
+    }
+  });
+}
+
 function validateColombianDocument(docType, rawValue) {
   const type = String(docType || "").toUpperCase();
   const base = String(rawValue || "").trim();
@@ -3862,6 +3985,35 @@ function tripRateStorageKey(routeKey, companyIds) {
   const ids = Array.isArray(companyIds) ? companyIds.map(String).filter(Boolean).sort() : [];
   const suffix = ids.length ? ids.join(",") : "*";
   return `${routeKey}${TRIP_RATE_SCOPE_SEP}${suffix}`;
+}
+
+/** Partes de ruta (depto/ciudad) a partir de la clave de almacenamiento del catálogo de tarifas. */
+function parseTripRateStorageKeyToRouteParts(storageKey) {
+  const raw = String(storageKey || "");
+  const sepIdx = raw.lastIndexOf(TRIP_RATE_SCOPE_SEP);
+  const routeOnly = sepIdx === -1 ? raw : raw.slice(0, sepIdx);
+  const [orig, dest] = String(routeOnly).split("->");
+  const [od, oc] = String(orig || "").split("|");
+  const [dd, dc] = String(dest || "").split("|");
+  return {
+    originDepartment: od || "",
+    originCity: oc || "",
+    destinationDepartment: dd || "",
+    destinationCity: dc || ""
+  };
+}
+
+/** Alinea el valor de un `<select>` con opciones aunque difiera mayúsculas/espacios. */
+function setSelectValueInsensitive(selectEl, rawValue) {
+  if (!selectEl) return;
+  const target = String(rawValue || "").trim().toLowerCase();
+  if (!target) {
+    selectEl.value = "";
+    return;
+  }
+  const options = [...selectEl.options];
+  const hit = options.find((opt) => String(opt.value || "").trim().toLowerCase() === target);
+  selectEl.value = hit ? hit.value : "";
 }
 
 function getTripRouteRatesNormalized() {
@@ -8243,9 +8395,7 @@ function requestListClientHtml(user) {
               ${allowClientDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
               ${
                 user?.role === ROLES.ADMIN
-                  ? r.trip
-                    ? `<button class="btn btn-sm btn-reject" type="button" disabled title="Elimine primero el viaje en Transporte · Viajes">${IC.trash} Eliminar</button>`
-                    : `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}">${IC.trash} Eliminar</button>`
+                  ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${r.id}" title="Solo administradores: eliminar la solicitud (si hay viaje, primero se desasigna con el mismo motivo)">${IC.trash} Eliminar</button>`
                   : ""
               }
             </div>
@@ -16101,17 +16251,6 @@ function bindDynamicEvents() {
         .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
         .join("")}`;
     };
-    const setSelectValueInsensitive = (selectEl, rawValue) => {
-      if (!selectEl) return;
-      const target = String(rawValue || "").trim().toLowerCase();
-      if (!target) {
-        selectEl.value = "";
-        return;
-      }
-      const options = [...selectEl.options];
-      const hit = options.find((opt) => String(opt.value || "").trim().toLowerCase() === target);
-      selectEl.value = hit ? hit.value : "";
-    };
     const selectedCompaniesCount = () => {
       if (!companiesSelect) return 0;
       return [...companiesSelect.options].filter((opt) => !!opt.selected).length;
@@ -16144,52 +16283,12 @@ function bindDynamicEvents() {
       clearCompanySelection();
       syncRateScopeUi();
     };
-    const parseStorageKeyToRouteParts = (storageKey) => {
-      const raw = String(storageKey || "");
-      const sepIdx = raw.lastIndexOf(TRIP_RATE_SCOPE_SEP);
-      const routeOnly = sepIdx === -1 ? raw : raw.slice(0, sepIdx);
-      const [orig, dest] = String(routeOnly).split("->");
-      const [od, oc] = String(orig || "").split("|");
-      const [dd, dc] = String(dest || "").split("|");
-      return {
-        originDepartment: od || "",
-        originCity: oc || "",
-        destinationDepartment: dd || "",
-        destinationCity: dc || ""
-      };
-    };
     nodes.viewRoot.querySelectorAll("[data-action='edit-route-rate']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const encoded = String(btn.dataset.rateKey || "");
         const key = decodeURIComponent(encoded);
         if (!key) return;
-        const entry = getTripRouteRatesNormalized()[key];
-        if (!entry) return;
-        const parts = parseStorageKeyToRouteParts(key);
-        setSelectValueInsensitive(originDept, parts.originDepartment);
-        if (originDept && originCity) fillRouteRateCities(originDept, originCity);
-        setSelectValueInsensitive(originCity, parts.originCity);
-        setSelectValueInsensitive(destDept, parts.destinationDepartment);
-        if (destDept && destCity) fillRouteRateCities(destDept, destCity);
-        setSelectValueInsensitive(destCity, parts.destinationCity);
-        const inputCop = routeRateFormEl.querySelector("input[name='tripRateCop']");
-        if (inputCop) inputCop.value = String(parseNum(entry.value));
-        const selectedCompanyIds = new Set(
-          (Array.isArray(entry.companyIds) ? entry.companyIds : []).map((id) => String(id).trim()).filter(Boolean)
-        );
-        if (rateScopeSelect) rateScopeSelect.value = selectedCompanyIds.size ? "specific" : "all";
-        if (companiesSelect) {
-          [...companiesSelect.options].forEach((opt) => {
-            opt.selected = selectedCompanyIds.has(String(opt.value || "").trim());
-          });
-        }
-        syncRateScopeUi();
-        if (editingKeyInput) editingKeyInput.value = key;
-        if (submitBtn) submitBtn.textContent = `${IC.save} Actualizar tarifa de trayecto`;
-        if (cancelEditBtn) cancelEditBtn.style.display = "";
-        if (editingHint) editingHint.style.display = "";
-        const panelBtn = nodes.viewRoot.querySelector("[data-action='toggle-create-panel'][data-panel='create-route-rate']");
-        if (panelBtn && !state.createPanels?.["create-route-rate"]) panelBtn.click();
+        openEditRouteRateModal(key);
       });
     });
     if (cancelEditBtn) {
@@ -16417,21 +16516,41 @@ function bindDynamicEvents() {
       if (abortIfNotAdmin()) return;
       const requestId = String(btn.dataset.id || "");
       if (!requestId) return;
-      const req = reqRead().find((r) => String(r.id) === requestId);
-      if (req?.trip) {
+      const reqSnapshot = reqRead().find((r) => String(r.id) === requestId);
+      const hadTrip = Boolean(reqSnapshot?.trip);
+      if (hadTrip) {
         notify(
-          "Esta solicitud tiene un viaje asignado. Elimine primero el viaje en Transporte · Viajes (se registrara el motivo) y luego podra eliminar la solicitud.",
-          "error"
+          "Esta solicitud tiene viaje asignado. Al confirmar, primero se desasignará el viaje (mismo motivo) y luego se eliminará la solicitud.",
+          "warn"
         );
-        return;
       }
+      const deleteMessage = hadTrip
+        ? "Se desasignará el viaje y a continuación se eliminará la solicitud del sistema. El mismo motivo quedará registrado en ambas auditorías."
+        : "Se eliminara la solicitud seleccionada del sistema. Indique el motivo; quedara guardado en el historial de eliminados.";
       openConfirmReasonModal({
         title: "Eliminar solicitud",
-        message:
-          "Se eliminara la solicitud seleccionada del sistema. Indique el motivo; quedara guardado en el historial de eliminados.",
+        message: deleteMessage,
         confirmText: "Eliminar",
         onConfirm: async (motivo) => {
           try {
+            const stillHasTrip = Boolean(reqRead().find((r) => String(r.id) === requestId)?.trip);
+            if (stillHasTrip) {
+              await postPortalAuthorized("/portal/admin-clear-trip", { requestId, motivo });
+              await reqWriteAwait(
+                reqRead().map((request) =>
+                  request.id === requestId
+                    ? {
+                      ...request,
+                      status: STATUS.APROBADA_PENDIENTE_ASIGNACION,
+                      trip: null,
+                      deliveredAt: null,
+                      closedAt: null
+                    }
+                    : request
+                )
+              );
+              recalculateResourceAvailability();
+            }
             await postPortalAuthorized("/portal/admin-request-delete", { requestId, motivo });
           } catch (err) {
             notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");

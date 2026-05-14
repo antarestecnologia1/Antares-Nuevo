@@ -5407,6 +5407,7 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
 .toast-success { border-left: 4px solid #22c55e; }
 .toast-error { border-left: 4px solid #ef4444; }
 .toast-info { border-left: 4px solid #38bdf8; }
+.toast-warn { border-left: 4px solid #f59e0b; }
 
 .auth-form {
   gap: 0.8rem;
