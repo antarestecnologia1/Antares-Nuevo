@@ -367,23 +367,24 @@ nav a:focus-visible {
   transform: translateY(-6px) rotate(-45deg);
 }
 
-/* Sitio público: mismo patrón hamburguesa + panel en móvil y escritorio */
-body:not(.portal-mode) #main-nav:not(.nav-open) {
-  display: none !important;
-}
+/* Sitio público: hamburguesa y panel tipo drawer solo ≤920px; en escritorio, links en línea */
+@media (max-width: 920px) {
+  body:not(.portal-mode) #main-nav:not(.nav-open) {
+    display: none !important;
+  }
 
-body:not(.portal-mode).public-nav-open {
-  overflow: hidden;
-  overscroll-behavior: none;
-}
+  body:not(.portal-mode).public-nav-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
 
-body:not(.portal-mode) .top-nav .hamburger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  z-index: 70;
-}
+  body:not(.portal-mode) .top-nav .hamburger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 70;
+  }
 
 body:not(.portal-mode) #main-nav.nav-open {
   display: flex;
@@ -568,32 +569,17 @@ body:not(.portal-mode)[data-theme="dark"] #main-nav.nav-open a:focus-visible {
     0 8px 22px rgba(0, 0, 0, 0.35);
 }
 
-@media (min-width: 921px) {
-  body:not(.portal-mode) #main-nav.nav-open {
-    left: auto;
-    right: 0;
-    width: min(440px, min(94vw, 100%));
-    margin-left: auto;
-    margin-right: 0;
-    border-radius: 20px;
-    top: calc(100% + 0.42rem);
-    max-height: min(78vh, calc(100vh - 6rem));
-  }
-
-  body:not(.portal-mode) #main-nav.nav-open a {
-    font-size: 0.935rem;
+  @supports (height: 100dvh) {
+    body:not(.portal-mode) #main-nav.nav-open {
+      max-height: min(72dvh, calc(100dvh - 5rem));
+    }
   }
 }
 
-@supports (height: 100dvh) {
-  body:not(.portal-mode) #main-nav.nav-open {
-    max-height: min(72dvh, calc(100dvh - 5rem));
-  }
-
-  @media (min-width: 921px) {
-    body:not(.portal-mode) #main-nav.nav-open {
-      max-height: min(78dvh, calc(100dvh - 6rem));
-    }
+@media (min-width: 921px) {
+  body:not(.portal-mode).public-nav-open {
+    overflow: visible;
+    overscroll-behavior: auto;
   }
 }
 
@@ -7778,8 +7764,10 @@ body[data-theme="dark"] .b2b-leads-brief {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body:not(.portal-mode) #main-nav.nav-open {
-    animation: none !important;
+  @media (max-width: 920px) {
+    body:not(.portal-mode) #main-nav.nav-open {
+      animation: none !important;
+    }
   }
 
   .hamburger svg line {

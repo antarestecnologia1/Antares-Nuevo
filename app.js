@@ -7974,8 +7974,10 @@ function parseTripWindowRange(trip) {
 }
 
 /**
- * Ventana recogida→entrega para cruces de agenda: mezcla fila de solicitud + viaje.
+ * Ventana recogida→entrega (UI, “ahora” en mapa, etc.): mezcla fila de solicitud + viaje.
  * Si las ETAs del viaje vienen vacías (sync/API), se usan `pickupAt` / `etaDelivery` de la solicitud.
+ * Para decidir si un camión puede tomar **otra** solicitud, use `transportRequestOverlapRangeForFleetSchedulingConflicts`
+ * (no reutiliza el SLA largo de la solicitud como bloqueo de flota).
  */
 function tripWindowRangeFromTransportRequest(request) {
   const t = request?.trip;
@@ -8456,21 +8458,51 @@ async function transitionRequestStatus(requestId, nextStatus, actorName = "Siste
   return true;
 }
 
+/** Ventanas de más de 12 h suelen ser plazo/SLA de solicitud, no reserva real del vehículo en agenda. */
+const FLEET_SCHED_CONFLICT_SLA_LIKE_SPAN_MS = 12 * 60 * 60 * 1000;
+/** Bloque máximo asumido para solapes cuando la ventana parece un SLA (no sustituye duración real documentada). */
+const FLEET_SCHED_CONFLICT_CAP_BLOCK_MS = 90 * 60 * 1000;
+
+function normalizeFleetSchedulingRangeForConflict(range) {
+  if (!range) return null;
+  const span = range.end - range.start;
+  if (span <= FLEET_SCHED_CONFLICT_SLA_LIKE_SPAN_MS) return range;
+  return { start: range.start, end: range.start + FLEET_SCHED_CONFLICT_CAP_BLOCK_MS };
+}
+
+/**
+ * Ventana solo para cruce con otras asignaciones (vehículo/conductor).
+ * Si `trip.etaDelivery` no viene en el viaje, no se usa `request.etaDelivery` como fin de bloque:
+ * esa fecha suele ser “entregar antes de las X” (todo el día) y dejaba el camión como ocupado
+ * aunque el servicio real fuera una franja corta (p. ej. 8:00–9:00 vs otra solicitud 9:30–10:30).
+ */
+function transportRequestOverlapRangeForFleetSchedulingConflicts(request) {
+  const t = request?.trip;
+  if (!t) return null;
+  const pickup = String(t.etaPickup || request?.pickupAt || "").trim();
+  if (!pickup) return null;
+  const tripDel = String(t.etaDelivery || "").trim();
+  const delivery = tripDel || pickup;
+  const range = parseTripWindowRange({ etaPickup: pickup, etaDelivery: delivery });
+  return normalizeFleetSchedulingRangeForConflict(range);
+}
+
 /**
  * Cruce de ventanas recogida→entrega (misma regla para vehículo y conductor).
  * `tripMatches` recibe el viaje activo y decide si ese recurso es el que se está evaluando.
  */
 function activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, tripMatches) {
-  const candidate = parseTripWindowRange({
+  const candidateRaw = parseTripWindowRange({
     etaPickup: pickupAt,
     etaDelivery: etaDelivery != null && String(etaDelivery).trim() !== "" ? etaDelivery : pickupAt
   });
+  const candidate = normalizeFleetSchedulingRangeForConflict(candidateRaw);
   if (!candidate) return false;
   return getActiveTrips().some((request) => {
     if (currentRequestId && request.id === currentRequestId) return false;
     const t = request.trip;
     if (!t) return false;
-    const existing = tripWindowRangeFromTransportRequest(request);
+    const existing = transportRequestOverlapRangeForFleetSchedulingConflicts(request);
     if (!existing) return false;
     if (!(existing.start < candidate.end && candidate.start < existing.end)) return false;
     return tripMatches(t);
@@ -21317,7 +21349,10 @@ function initGlobalEvents() {
     });
     portalBackdrop.addEventListener("click", () => setPortalDrawerOpen(false));
     window.addEventListener("resize", () => {
-      if (window.innerWidth > 920) setPortalDrawerOpen(false);
+      if (window.innerWidth > 920) {
+        setPortalDrawerOpen(false);
+        closePublicNavDrawer();
+      }
     });
   }
   document.addEventListener("keydown", (event) => {
