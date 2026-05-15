@@ -3626,7 +3626,7 @@ function applyPublicLanguage(lang = "es") {
   const docLang = lang === "en" ? "en-US" : "es";
   document.documentElement.setAttribute("lang", docLang);
 
-  document.title = lang === "en" ? "Antares — B2B Refrigerated Logistics" : "Antares - Logistica Refrigerada B2B";
+  document.title = lang === "en" ? "Antares" : "Antares";
   const metaDesc = document.querySelector('meta[name="description"]');
   if (metaDesc) {
     metaDesc.setAttribute(
