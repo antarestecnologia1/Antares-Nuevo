@@ -2835,6 +2835,14 @@ function __applyPortalBootstrapPayloadInner(p) {
       write(KEYS.companies, merged);
       continue;
     }
+    if (prop === "notifications") {
+      const raw = Array.isArray(p.notifications) ? p.notifications : [];
+      const actor = currentUser();
+      const filtered =
+        actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
+      write(KEYS.notifications, filtered);
+      continue;
+    }
     if (prop === "payrollEmployees") {
       const raw = Array.isArray(p.payrollEmployees) ? p.payrollEmployees : [];
       write(
@@ -5317,16 +5325,92 @@ function wireAdminCompanyLogoOvals() {
   wireForm("form-admin-company-edit");
 }
 
+function getNotificationRecipientId(n) {
+  if (!n || typeof n !== "object") return "";
+  return String(n.userId ?? n.user_id ?? n.id_usuario ?? "").trim();
+}
+
+/** Solo el rol administrador ve la bandeja global; el resto solo las propias. */
+function canViewAllNotifications(user) {
+  return isAdminActor(user);
+}
+
+function notificationTargetsUser(n, user) {
+  if (!user) return false;
+  if (canViewAllNotifications(user)) return true;
+  const uid = String(user.id ?? "").trim();
+  if (!uid) return false;
+  return getNotificationRecipientId(n) === uid;
+}
+
+function filterNotificationsForUser(user, list) {
+  const rows = Array.isArray(list) ? list : [];
+  if (!user) return [];
+  if (canViewAllNotifications(user)) return rows;
+  return rows.filter((n) => notificationTargetsUser(n, user));
+}
+
+async function dispatchPortalNotification(payload) {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || typeof api.postJson !== "function") return false;
+  if (!portalCanRefreshFromApi()) return false;
+  try {
+    await api.postJson("/portal/notifications/dispatch", payload);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 function saveNotification({ userId, title, body }) {
-  const all = read(KEYS.notifications, []);
-  all.unshift({ id: newUuidV4(), userId, title, body, createdAt: nowIso(), readAt: null });
-  write(KEYS.notifications, all);
+  const actor = currentUser();
+  const targetId = String(userId ?? "").trim();
+  if (!targetId) return;
+  const row = {
+    id: newUuidV4(),
+    userId: targetId,
+    title: String(title ?? ""),
+    body: String(body ?? ""),
+    createdAt: nowIso(),
+    readAt: null
+  };
+  if (actor && canViewAllNotifications(actor)) {
+    const all = read(KEYS.notifications, []);
+    all.unshift(row);
+    write(KEYS.notifications, all);
+    return;
+  }
+  if (actor && String(actor.id ?? "") === targetId) {
+    const all = read(KEYS.notifications, []);
+    all.unshift(row);
+    write(KEYS.notifications, all);
+    return;
+  }
+  void dispatchPortalNotification({ userIds: [targetId], title: row.title, body: row.body });
+}
+
+function notifyAdminUsers(title, body) {
+  void dispatchPortalNotification({ audience: "admins", title, body });
 }
 
 function notifyHrUsers(title, body) {
-  read(KEYS.users, [])
-    .filter((u) => canAccessRRHH(u.role))
-    .forEach((u) => saveNotification({ userId: u.id, title, body }));
+  void dispatchPortalNotification({ audience: "hr", title, body });
+}
+
+async function writeNotificationsAwaitServer() {
+  const user = currentUser();
+  const all = read(KEYS.notifications, []);
+  const payload =
+    user && !canViewAllNotifications(user) ? filterNotificationsForUser(user, all) : all;
+  await writeAwaitServer(KEYS.notifications, payload);
+}
+
+/** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
+function reconcileNotificationsCacheForSession() {
+  const user = currentUser();
+  if (!user || canViewAllNotifications(user)) return;
+  const filtered = filterNotificationsForUser(user, read(KEYS.notifications, []));
+  write(KEYS.notifications, filtered);
 }
 
 function sendEmail({ to, subject, body }) {
@@ -5691,17 +5775,7 @@ async function queueApproval({ type, title, payload, requestedByUserId, requeste
   try {
     await writeAwaitServer(KEYS.approvals, approvals);
   } catch (_e) {}
-  const admins = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
-  admins.forEach((admin) => {
-    saveNotification({
-      userId: admin.id,
-      title: "Nueva autorización pendiente",
-      body: `${title} solicitada por ${requestedByName}.`
-    });
-  });
-  try {
-    await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
-  } catch (_e) {}
+  notifyAdminUsers("Nueva autorización pendiente", `${title} solicitada por ${requestedByName}.`);
 }
 
 /** Metadatos UI: cola de autorizaciones agrupada por ambito operativo (ver también queueApproval). */
@@ -7322,19 +7396,19 @@ function bindAuthForms() {
         subject: "Registro recibido - Antares Portal",
         body: "Tu solicitud de registro fue recibida. Un administrador revisara tu cuenta y te notificaremos cuando sea aprobada."
       });
-      const adminUsers = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
-      adminUsers.forEach((admin) => {
-        saveNotification({
-          userId: admin.id,
-          title: "Nuevo registro de cliente pendiente",
-          body: `${fullName} solicita acceso al portal. Falta asociar empresa en aprobacion.`
+      notifyAdminUsers(
+        "Nuevo registro de cliente pendiente",
+        `${fullName} solicita acceso al portal. Falta asociar empresa en aprobacion.`
+      );
+      read(KEYS.users, [])
+        .filter((u) => u.role === ROLES.ADMIN)
+        .forEach((admin) => {
+          sendEmail({
+            to: admin.email,
+            subject: "Nuevo registro de cliente pendiente de aprobacion",
+            body: `Cliente: ${fullName} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
+          });
         });
-        sendEmail({
-          to: admin.email,
-          subject: "Nuevo registro de cliente pendiente de aprobacion",
-          body: `Cliente: ${fullName} | Documento: ${data.documentType || "-"} ${data.taxId || "-"} | Correo: ${data.email}`
-        });
-      });
       const offlineMsg = userMessage("registerSuccess");
       state.registrationSuccessBanner = {
         message: offlineMsg,
@@ -8290,7 +8364,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
             : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
         });
         try {
-          await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+          await writeNotificationsAwaitServer();
         } catch (_e) {}
       }
     })();
@@ -8373,7 +8447,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
         body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
       });
       try {
-        await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+        await writeNotificationsAwaitServer();
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
     }
@@ -8397,7 +8471,7 @@ async function rejectRequest(requestId, reason, actorName) {
     saveNotification({ userId: user.id, title: "Solicitud rechazada", body: `Su solicitud fue rechazada. Motivo: ${reason}` });
     sendEmail({ to: user.email, subject: "Solicitud rechazada", body: reason });
     try {
-      await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
+      await writeNotificationsAwaitServer();
       await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
     } catch (_e) {}
   }
@@ -8865,7 +8939,9 @@ function __tickNotificationsPoll() {
    */
   const suppressUntil = Number(state.portalSuppressSelfPollToastUntil || 0);
   const now = Date.now();
-  const selfNew = current.filter((n) => !seen.has(n.id) && String(n.userId || "") === String(user.id || ""));
+  const selfNew = current.filter(
+    (n) => !seen.has(n.id) && getNotificationRecipientId(n) === String(user.id || "")
+  );
   const toToast = [];
   /**
    * Solo se notifica en toast lo que ocurre en tiempo real (≤ 30s). Las notificaciones
@@ -8903,7 +8979,7 @@ function __tickNotificationsPoll() {
 function getCurrentNotifications() {
   const user = currentUser();
   if (!user) return [];
-  return read(KEYS.notifications, []).filter((n) => n.userId === user.id || user.role === ROLES.ADMIN);
+  return filterNotificationsForUser(user, read(KEYS.notifications, []));
 }
 
 function updateNotificationBadge() {
@@ -13361,9 +13437,12 @@ function laborComplianceHtml() {
 
 function notificationsHtml() {
   const user = currentUser();
-  const list = read(KEYS.notifications, [])
-    .filter((n) => n.userId === user.id || user.role === ROLES.ADMIN)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const list = getCurrentNotifications().sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const scopeHint = canViewAllNotifications(user)
+    ? `<p class="muted notif-scope-hint">Vista de administrador: todas las notificaciones del sistema.</p>`
+    : `<p class="muted notif-scope-hint">Solo se muestran las notificaciones dirigidas a tu cuenta.</p>`;
   const unread = list.filter((n) => !n.readAt).length;
   const items = list
     .map((n) => {
@@ -13391,13 +13470,13 @@ function notificationsHtml() {
   const readCount = list.length - unread;
   const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
   const body = list.length
-    ? `<div class="notif-toolbar">
+    ? `${scopeHint}<div class="notif-toolbar">
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
         ${readCount ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-clear-read">${IC.trash} Eliminar leídas</button>` : ""}
         <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-clear-all">${IC.trash} Vaciar bandeja</button>
       </div>
       <div class="notif-list">${items}</div>`
-    : emptyState("No tienes notificaciones.");
+    : `${scopeHint}${emptyState("No tienes notificaciones.")}`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: list.length },
     { label: "Sin leer", value: unread, tone: unread ? "warn" : undefined },
@@ -16401,21 +16480,20 @@ function bindDynamicEvents() {
         return;
       }
 
-      const adminUsers = read(KEYS.users, []).filter((u) => u.role === ROLES.ADMIN);
-      adminUsers.forEach((admin) => {
-        saveNotification({
-          userId: admin.id,
-          title: "Nueva solicitud pendiente",
-          body: `Solicitud ${requestNumber} de ${rowToSave.clientName || user.name || ""}`
+      notifyAdminUsers(
+        "Nueva solicitud pendiente",
+        `Solicitud ${requestNumber} de ${rowToSave.clientName || user.name || ""}`
+      );
+      read(KEYS.users, [])
+        .filter((u) => u.role === ROLES.ADMIN)
+        .forEach((admin) => {
+          sendEmail({
+            to: admin.email,
+            subject: "Nueva solicitud de viaje",
+            body: `Revisar solicitud ${requestNumber}`
+          });
         });
-        sendEmail({
-          to: admin.email,
-          subject: "Nueva solicitud de viaje",
-          body: `Revisar solicitud ${requestNumber}`
-        });
-      });
       try {
-        await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
 
@@ -16480,12 +16558,15 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = String(btn.dataset.id || "");
+      const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
+      if (!visibleIds.has(id)) return;
       const list = read(KEYS.notifications, []);
+      write(
+        KEYS.notifications,
+        list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
+      );
       try {
-        await writeAwaitServer(
-          KEYS.notifications,
-          list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
-        );
+        await writeNotificationsAwaitServer();
       } catch (_e) {
         return;
       }
@@ -16496,13 +16577,15 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const list = read(KEYS.notifications, []);
+      const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
       const ts = nowIso();
+      const list = read(KEYS.notifications, []);
+      write(
+        KEYS.notifications,
+        list.map((n) => (visibleIds.has(n.id) && !n.readAt ? { ...n, readAt: ts } : n))
+      );
       try {
-        await writeAwaitServer(
-          KEYS.notifications,
-          list.map((n) => (n.readAt ? n : { ...n, readAt: ts }))
-        );
+        await writeNotificationsAwaitServer();
       } catch (_e) {
         return;
       }
@@ -16521,8 +16604,11 @@ function bindDynamicEvents() {
         message: "¿Quieres eliminar esta notificación de tu bandeja? Esta acción no se puede deshacer.",
         confirmText: "Eliminar",
         onConfirm: async () => {
+          const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
+          if (!visibleIds.has(id)) return;
           const list = read(KEYS.notifications, []);
-          await writeAwaitServer(KEYS.notifications, list.filter((n) => n.id !== id));
+          write(KEYS.notifications, list.filter((n) => n.id !== id));
+          await writeNotificationsAwaitServer();
           notify("Notificación eliminada.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -16539,12 +16625,12 @@ function bindDynamicEvents() {
         message: "¿Eliminar todas las notificaciones ya leídas de tu bandeja?",
         confirmText: "Eliminar leídas",
         onConfirm: async () => {
-          const list = read(KEYS.notifications, []);
           const user = currentUser();
-          const isOwn = (n) => user && (String(n.userId || "") === String(user.id || "") || user.role === ROLES.ADMIN);
-          const remaining = list.filter((n) => !(n.readAt && isOwn(n)));
+          const list = read(KEYS.notifications, []);
+          const remaining = list.filter((n) => !(n.readAt && notificationTargetsUser(n, user)));
           const removed = list.length - remaining.length;
-          await writeAwaitServer(KEYS.notifications, remaining);
+          write(KEYS.notifications, remaining);
+          await writeNotificationsAwaitServer();
           notify(removed ? `${removed} notificaciones eliminadas.` : "No había notificaciones leídas.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -16561,12 +16647,12 @@ function bindDynamicEvents() {
         message: "¿Eliminar todas las notificaciones (leídas y sin leer)? Esta acción no se puede deshacer.",
         confirmText: "Vaciar bandeja",
         onConfirm: async () => {
-          const list = read(KEYS.notifications, []);
           const user = currentUser();
-          const isOwn = (n) => user && (String(n.userId || "") === String(user.id || "") || user.role === ROLES.ADMIN);
-          const remaining = list.filter((n) => !isOwn(n));
+          const list = read(KEYS.notifications, []);
+          const remaining = list.filter((n) => !notificationTargetsUser(n, user));
           const removed = list.length - remaining.length;
-          await writeAwaitServer(KEYS.notifications, remaining);
+          write(KEYS.notifications, remaining);
+          await writeNotificationsAwaitServer();
           notify(removed ? `${removed} notificaciones eliminadas.` : "Bandeja ya estaba vacía.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -22466,9 +22552,6 @@ function openPublicVacancyApplyModal(vacancy) {
         "Nueva postulacion (web)",
         `${nm} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`
       );
-      try {
-        await writeAwaitServer(KEYS.notifications, read(KEYS.notifications, []));
-      } catch (_e) {}
       notify(userMessage("candidacySentOk"), "success");
       return true;
     }
@@ -22680,6 +22763,7 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
   if (!getSession()) return;
   try {
     syncSessionProfileSnapshotFromCache();
+    reconcileNotificationsCacheForSession();
     updatePortalSidebarSessionMeta();
   } catch (_e) {
     /* noop */

@@ -2084,6 +2084,65 @@ export class PortalService implements OnModuleInit {
     });
   }
 
+  /**
+   * Inserta notificaciones in-app para uno o varios usuarios (servidor).
+   * Usado cuando un cliente u operador debe avisar a admins/RRHH sin ver su bandeja.
+   */
+  async dispatchNotification(
+    actorUserId: string,
+    actorRole: JwtRole,
+    dto: { title: string; body: string; userIds?: string[]; audience?: "admins" | "hr" }
+  ) {
+    const title = String(dto.title || "").trim();
+    const body = String(dto.body || "").trim();
+    if (!title || !body) throw new BadRequestException("title y body son obligatorios");
+
+    let targetIds: string[] = [];
+    if (dto.audience === "admins") {
+      targetIds = await this.loadUserIdsByRoles(["admin"]);
+    } else if (dto.audience === "hr") {
+      targetIds = await this.loadUserIdsByRoles([
+        "admin",
+        "rrhh",
+        "administracion",
+        "auxiliar_administrativo",
+        "lider_administrativo"
+      ]);
+    } else if (Array.isArray(dto.userIds) && dto.userIds.length) {
+      targetIds = dto.userIds.map((id) => String(id).trim()).filter((id) => PG_UUID_V4_RE.test(id));
+      if (!this.isAdmin(actorRole)) {
+        const actor = String(actorUserId || "").trim();
+        const onlySelf = targetIds.length === 1 && targetIds[0] === actor;
+        if (!onlySelf) throw new ForbiddenException();
+      }
+    } else {
+      throw new BadRequestException("Indique userIds o audience");
+    }
+
+    const unique = [...new Set(targetIds)];
+    if (!unique.length) return { ok: true, count: 0 };
+
+    for (const uid of unique) {
+      await this.pool.query(
+        `INSERT INTO notificaciones (id_usuario, titulo, cuerpo) VALUES ($1::uuid, $2, $3)`,
+        [uid, title, body]
+      );
+    }
+    return { ok: true, count: unique.length };
+  }
+
+  private async loadUserIdsByRoles(roles: string[]): Promise<string[]> {
+    const normalized = roles.map((r) => String(r || "").toLowerCase()).filter(Boolean);
+    if (!normalized.length) return [];
+    const r = await this.pool.query<{ id: string }>(
+      `SELECT id::text AS id FROM usuarios
+       WHERE lower(rol::text) = ANY($1::text[])
+         AND estado_cuenta = 'aprobado'::estado_cuenta_usuario`,
+      [normalized]
+    );
+    return r.rows.map((row) => String(row.id)).filter((id) => PG_UUID_V4_RE.test(id));
+  }
+
   private async loadNotifications(userId: string, admin: boolean) {
     const r = admin
       ? await this.pool.query(

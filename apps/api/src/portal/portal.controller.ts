@@ -13,6 +13,7 @@ import { AdminClearUserSessionsDto } from "./dto/admin-clear-user-sessions.dto";
 import { AdminUserCredentialsDto } from "./dto/admin-user-credentials.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
+import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -58,6 +59,12 @@ export class PortalController {
   @Post("sync-key")
   syncKey(@Req() req: { user: ReqUser }, @Body() dto: SyncKeyDto) {
     return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role);
+  }
+
+  /** Crear notificaciones in-app para otros usuarios (p. ej. avisar a admins). */
+  @Post("notifications/dispatch")
+  dispatchNotification(@Req() req: { user: ReqUser }, @Body() dto: DispatchNotificationDto) {
+    return this.portal.dispatchNotification(req.user.userId, req.user.role, dto);
   }
 
   /** Solo admin: aprueba usuario pendiente y asigna id_empresa en PostgreSQL. */
