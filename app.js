@@ -6851,12 +6851,12 @@ function authView() {
   if (state.authSupabaseRecovery) {
     return `
     <div class="auth-header-premium">
-      <h3>Nueva contraseña</h3>
+      <h3>Asignar contraseña</h3>
       <p class="muted">Elija una contraseña segura. Quedará aplicada para el inicio de sesión en este portal.</p>
     </div>
     <form id="form-recover-complete" class="form-grid auth-pane auth-form" autocomplete="off">
       <label class="full auth-field-stack">
-        <span class="auth-plain-label">${fieldLabel(IC.lock, "Nueva contraseña", { required: true })}</span>
+        <span class="auth-plain-label">${fieldLabel(IC.lock, "Asignar contraseña", { required: true })}</span>
         <div class="password-field auth-password-row">
           <div class="auth-input-row auth-input-row--grow">
             <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
@@ -6864,6 +6864,17 @@ function authView() {
           </div>
           <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete">${IC.eye} Mostrar</button>
         </div>
+      </label>
+      <label class="full auth-field-stack">
+        <span class="auth-plain-label">${fieldLabel(IC.shield, "Confirmar contraseña", { required: true })}</span>
+        <div class="password-field auth-password-row">
+          <div class="auth-input-row auth-input-row--grow">
+            <span class="auth-input-prefix" aria-hidden="true">${IC.shield}</span>
+            <input class="auth-input-control" type="password" name="passwordConfirm" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete-c">${IC.eye} Mostrar</button>
+        </div>
+        <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
       </label>
       <div id="recover-password-strength-suite" class="password-strength-suite full">
         <div class="password-strength-bar-wrap">
@@ -6884,17 +6895,6 @@ function authView() {
         </ul>
         <p id="recover-password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
       </div>
-      <label class="full auth-field-stack">
-        <span class="auth-plain-label">${fieldLabel(IC.shield, "Confirmar contraseña", { required: true })}</span>
-        <div class="password-field auth-password-row">
-          <div class="auth-input-row auth-input-row--grow">
-            <span class="auth-input-prefix" aria-hidden="true">${IC.shield}</span>
-            <input class="auth-input-control" type="password" name="passwordConfirm" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
-          </div>
-          <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete-c">${IC.eye} Mostrar</button>
-        </div>
-        <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
-      </label>
       <button class="btn btn-primary full" type="submit">${IC.check} Guardar contraseña e iniciar sesión después</button>
     </form>`;
   }
