@@ -1544,7 +1544,7 @@ function __notificationPollAgeMs(n, nowMs) {
 
 /**
  * Ventana «en vivo» del poll: evita re-toastear historial.
- * Si el servidor va adelantado (age &lt; 0), igual contamos como fresca para no silenciar timbre/toast.
+ * Si el servidor va adelantado (age < 0), igual contamos como fresca para no silenciar timbre/toast.
  */
 function __inboxNotificationIsFreshForPoll(n, nowMs, windowMs) {
   return __notificationPollAgeMs(n, nowMs) < windowMs;
@@ -1632,6 +1632,7 @@ function setNotificationSoundMuted(muted) {
     sonidoNotificacionesHabilitadas: sonidoOn
   };
   syncNotificationPrefsSidebarUi();
+  if (sonidoOn) primeInboxNotificationAudioFromUserGesture();
   void persistNotificationPreferencesToApi({ sonidoNotificacionesHabilitadas: sonidoOn });
 }
 
@@ -1743,6 +1744,20 @@ function playInboxNotificationSound() {
     } else {
       run();
     }
+  } catch (_e) {}
+}
+
+/**
+ * Tras un gesto explícito (p. ej. activar timbre), deja el AudioContext listo para el poll sin esperar otro clic.
+ */
+function primeInboxNotificationAudioFromUserGesture() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!__notifInboxAudioCtx) __notifInboxAudioCtx = new AC();
+    ensureInboxNotificationAudioUnlocked();
+    const ctx = __notifInboxAudioCtx;
+    if (ctx.state === "suspended") void ctx.resume();
   } catch (_e) {}
 }
 
