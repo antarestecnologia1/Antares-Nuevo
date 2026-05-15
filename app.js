@@ -5408,6 +5408,16 @@ function reconcileNotificationsCacheForSession() {
 }
 
 function sendEmail({ to, subject, body }) {
+  /**
+   * Con API activa, `emails` solo sincroniza admin (sync-key). Un cliente que encola correos
+   * dispara 403 en segundo plano y el toast genérico de “sin conexión” aunque la operación principal
+   * (p. ej. solicitud) ya se guardó en PostgreSQL.
+   */
+  const api = window.AntaresApi;
+  if (api?.isConfigured?.()) {
+    const actor = currentUser();
+    if (actor && actor.role !== ROLES.ADMIN) return;
+  }
   const outbox = read(KEYS.emails, []);
   outbox.unshift({ id: newUuidV4(), to, subject, body, createdAt: nowIso() });
   write(KEYS.emails, outbox);
@@ -16369,6 +16379,15 @@ function bindDynamicEvents() {
 
     requestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (requestForm.dataset.submitting === "1") return;
+      requestForm.dataset.submitting = "1";
+      const submitBtn = requestForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      const releaseSubmitLock = () => {
+        requestForm.dataset.submitting = "0";
+        if (submitBtn) submitBtn.disabled = false;
+      };
+      try {
       const user = currentUser();
       const data = Object.fromEntries(new FormData(requestForm).entries());
       const requestCompanyId = String(data.companyId || "").trim();
@@ -16497,18 +16516,17 @@ function bindDynamicEvents() {
         "Nueva solicitud pendiente",
         `Solicitud ${requestNumber} de ${rowToSave.clientName || user.name || ""}`
       );
-      read(KEYS.users, [])
-        .filter((u) => u.role === ROLES.ADMIN)
-        .forEach((admin) => {
-          sendEmail({
-            to: admin.email,
-            subject: "Nueva solicitud de viaje",
-            body: `Revisar solicitud ${requestNumber}`
+      if (!window.AntaresApi?.isConfigured?.()) {
+        read(KEYS.users, [])
+          .filter((u) => u.role === ROLES.ADMIN)
+          .forEach((admin) => {
+            sendEmail({
+              to: admin.email,
+              subject: "Nueva solicitud de viaje",
+              body: `Revisar solicitud ${requestNumber}`
+            });
           });
-        });
-      try {
-        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
-      } catch (_e) {}
+      }
 
       const actingUser = currentUser();
       if (actingUser?.role === ROLES.ADMIN) {
@@ -16517,6 +16535,9 @@ function bindDynamicEvents() {
       notify(userMessage("requestCreated"), "success");
       collapseCreatePanel("create-request");
       renderPortalView();
+      } finally {
+        releaseSubmitLock();
+      }
     });
   }
 

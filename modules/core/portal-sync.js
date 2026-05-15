@@ -25,6 +25,8 @@
   const DEBOUNCE_MS = 0;
   const timers = {};
   const pending = {};
+  /** Evita que un `setTimeout(0)` antiguo dispare sync tras `flushStorageKeyNow`. */
+  const scheduleGeneration = {};
   let bootstrapDepth = 0;
 
   const EXCLUDED_STORAGE_KEYS = new Set(["antares_session_v2"]);
@@ -65,7 +67,10 @@
 
     pending[storageKey] = value;
     clearTimeout(timers[storageKey]);
+    const gen = (scheduleGeneration[storageKey] || 0) + 1;
+    scheduleGeneration[storageKey] = gen;
     timers[storageKey] = setTimeout(() => {
+      if (scheduleGeneration[storageKey] !== gen) return;
       const data = pending[storageKey];
       delete pending[storageKey];
       delete timers[storageKey];
@@ -120,7 +125,12 @@
     } catch (_e2) {
       /* noop */
     }
-    notifySyncFailureDebounced();
+    var errStatus =
+      lastErr && typeof lastErr === "object" && typeof lastErr.status === "number" ? lastErr.status : 0;
+    /** 403 en segundo plano (p. ej. emails solo admin) no es fallo de red. */
+    if (errStatus !== 403) {
+      notifySyncFailureDebounced();
+    }
     const msg =
       lastErr &&
       typeof lastErr === "object" &&
@@ -144,6 +154,7 @@
 
     clearTimeout(timers[storageKey]);
     delete timers[storageKey];
+    scheduleGeneration[storageKey] = (scheduleGeneration[storageKey] || 0) + 1;
 
     var data = pending[storageKey];
     delete pending[storageKey];
