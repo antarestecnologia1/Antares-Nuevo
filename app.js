@@ -1525,6 +1525,77 @@ const KEYS = {
 /** Opcional: usuario marca «recordar» en login; se guarda correo y contraseña en este navegador (texto plano). No usar en equipos compartidos. */
 const LOGIN_REMEMBER_STORAGE_KEY = "antares_portal_login_remember_v1";
 
+/** Sonido de toasts de la bandeja (poll): el usuario puede silenciarlo con clic en la campana del menú lateral. */
+const NOTIF_SOUND_MUTED_STORAGE_KEY = "antares_portal_notif_sound_muted_v1";
+let __notifInboxAudioCtx = null;
+
+function isNotificationSoundMuted() {
+  try {
+    return localStorage.getItem(NOTIF_SOUND_MUTED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setNotificationSoundMuted(muted) {
+  try {
+    if (muted) localStorage.setItem(NOTIF_SOUND_MUTED_STORAGE_KEY, "1");
+    else localStorage.removeItem(NOTIF_SOUND_MUTED_STORAGE_KEY);
+  } catch (_) {}
+  syncNotificationSoundMutedUi();
+}
+
+function toggleNotificationSoundMuted() {
+  setNotificationSoundMuted(!isNotificationSoundMuted());
+  notify(
+    isNotificationSoundMuted()
+      ? "Sonido de notificaciones silenciado."
+      : "Sonido de notificaciones activado.",
+    "info",
+    2600
+  );
+}
+
+function syncNotificationSoundMutedUi() {
+  const link = document.querySelector('.side-link[data-view="notifications"]');
+  if (!link) return;
+  link.classList.toggle("side-link--notif-sound-muted", isNotificationSoundMuted());
+}
+
+/**
+ * Timbre breve para nuevas notificaciones de bandeja (no afecta otros `notify()` de la app).
+ * Puede quedar en silencio hasta la primera interacción del usuario (política del navegador).
+ */
+function playInboxNotificationSound() {
+  if (isNotificationSoundMuted()) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!__notifInboxAudioCtx) __notifInboxAudioCtx = new AC();
+    const ctx = __notifInboxAudioCtx;
+    const run = () => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.type = "sine";
+      const t0 = ctx.currentTime;
+      osc.frequency.setValueAtTime(740, t0);
+      osc.frequency.setValueAtTime(988, t0 + 0.07);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.075, t0 + 0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+      osc.start(t0);
+      osc.stop(t0 + 0.34);
+    };
+    if (ctx.state === "suspended") {
+      void ctx.resume().then(run).catch(() => {});
+    } else {
+      run();
+    }
+  } catch (_e) {}
+}
+
 function readRememberedLoginCredentials() {
   try {
     const raw = localStorage.getItem(LOGIN_REMEMBER_STORAGE_KEY);
@@ -9128,6 +9199,7 @@ function __tickNotificationsPoll() {
     toToast.push(n);
   }
   if (toToast.length) {
+    playInboxNotificationSound();
     toToast.forEach((n) => {
       if (typeof notify === "function") {
         const message = `${n.title}${n.body ? " — " + n.body : ""}`;
@@ -9168,6 +9240,7 @@ function updateNotificationBadge() {
   } else if (badge) {
     badge.remove();
   }
+  syncNotificationSoundMutedUi();
 }
 
 function startNotificationsPolling() {
@@ -21080,7 +21153,13 @@ function initGlobalEvents() {
   });
 
   nodes.sideLinks.forEach((link) => {
-    link.addEventListener("click", () => {
+    link.addEventListener("click", (ev) => {
+      if (link.dataset.view === "notifications" && ev.target.closest(".side-link-notif-bell")) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        toggleNotificationSoundMuted();
+        return;
+      }
       setView(link.dataset.view);
       setPortalDrawerOpen(false);
     });
