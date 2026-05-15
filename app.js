@@ -2399,6 +2399,8 @@ let state = {
    */
   tripsFilter: "active",
   requestsFilter: "all",
+  /** Cliente: `company` = toda la empresa; `individual` = solo solicitudes propias. */
+  clientDataScope: "company",
   createPanels: {},
   calendarFocus: null,
   calendarFilters: { driver: "", vehicle: "", status: "", kind: "" },
@@ -2425,6 +2427,7 @@ let state = {
 };
 
 hydrateHrWorkspaceFromStorage();
+hydrateClientDataScopeFromStorage();
 try {
   purgeDuplicateContracts();
 } catch (_) {
@@ -2470,6 +2473,12 @@ const HR_WORKSPACE_STORAGE = {
   payroll: "antares_hr_payroll_workspace_v1",
   hiring: "antares_hr_hiring_workspace_v1"
 };
+
+const CLIENT_DATA_SCOPE_STORAGE = "antares_client_data_scope_v1";
+const CLIENT_DATA_SCOPE = {
+  COMPANY: "company",
+  INDIVIDUAL: "individual"
+};
 const HR_VALID_PAYROLL_WS = new Set(["overview", "operate", "data"]);
 const HR_VALID_HIRING_WS = new Set(["overview", "operate", "track"]);
 
@@ -2484,6 +2493,55 @@ function hydrateHrWorkspaceFromStorage() {
       state.hiringUi = { ...(state.hiringUi || {}), workspace: h };
     }
   } catch (_e) {}
+}
+
+function hydrateClientDataScopeFromStorage() {
+  try {
+    const raw = localStorage.getItem(CLIENT_DATA_SCOPE_STORAGE);
+    if (raw === CLIENT_DATA_SCOPE.INDIVIDUAL || raw === CLIENT_DATA_SCOPE.COMPANY) {
+      state.clientDataScope = raw;
+    }
+  } catch (_e) {}
+}
+
+function getClientDataScope() {
+  const s = String(state.clientDataScope || CLIENT_DATA_SCOPE.COMPANY);
+  return s === CLIENT_DATA_SCOPE.INDIVIDUAL ? CLIENT_DATA_SCOPE.INDIVIDUAL : CLIENT_DATA_SCOPE.COMPANY;
+}
+
+function persistClientDataScope(scope) {
+  const next =
+    String(scope || "") === CLIENT_DATA_SCOPE.INDIVIDUAL
+      ? CLIENT_DATA_SCOPE.INDIVIDUAL
+      : CLIENT_DATA_SCOPE.COMPANY;
+  state.clientDataScope = next;
+  try {
+    localStorage.setItem(CLIENT_DATA_SCOPE_STORAGE, next);
+  } catch (_e) {}
+}
+
+function isPortalClientUser(user) {
+  return user?.role === ROLES.CLIENT;
+}
+
+function clientRequestsScopePrimaryLabel() {
+  return getClientDataScope() === CLIENT_DATA_SCOPE.INDIVIDUAL
+    ? "Mis solicitudes"
+    : "Solicitudes de mi empresa";
+}
+
+function clientDataScopeBarHtml(activeScope) {
+  const active =
+    String(activeScope || "") === CLIENT_DATA_SCOPE.INDIVIDUAL
+      ? CLIENT_DATA_SCOPE.INDIVIDUAL
+      : CLIENT_DATA_SCOPE.COMPANY;
+  const pill = (key, label) =>
+    `<button type="button" class="ops-filter-pill${active === key ? " is-active" : ""}" data-action="client-data-scope" data-scope="${escapeAttr(key)}"><span>${escapeHtml(label)}</span></button>`;
+  return `<div class="client-data-scope-bar ops-filters-bar" role="group" aria-label="Alcance de datos">
+    <span class="muted client-data-scope-label">${IC.briefcase} Ver:</span>
+    ${pill(CLIENT_DATA_SCOPE.COMPANY, "Toda mi empresa")}
+    ${pill(CLIENT_DATA_SCOPE.INDIVIDUAL, "Solo mis solicitudes")}
+  </div>`;
 }
 
 function persistHrWorkspace(moduleId, workspace) {
@@ -8606,7 +8664,16 @@ function getVisibleRequestsForUser(user) {
   const requests = reqRead();
   if (!user) return [];
   if (user.role === ROLES.ADMIN) return requests;
-  return requests.filter((request) => request.clientCompanyId === user.companyId);
+  const companyId = String(user.companyId || "").trim();
+  const userId = String(user.id || "").trim();
+  let filtered = requests.filter((request) => {
+    if (companyId) return String(request.clientCompanyId || "").trim() === companyId;
+    return userId && String(request.clientUserId || "").trim() === userId;
+  });
+  if (isPortalClientUser(user) && getClientDataScope() === CLIENT_DATA_SCOPE.INDIVIDUAL && userId) {
+    filtered = filtered.filter((request) => String(request.clientUserId || "").trim() === userId);
+  }
+  return filtered;
 }
 
 function hasPermission(user, permission) {
@@ -9125,14 +9192,16 @@ function viewDashboard() {
   ).length;
   const conViaje = list.filter((r) => r.trip).length;
   const enOperacion = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
+  const primaryLabel = isPortalClientUser(user) ? clientRequestsScopePrimaryLabel() : "Solicitudes visibles";
   const dashHero = moduleFleetHeroStrip([
-    { label: "Solicitudes visibles", value: list.length },
+    { label: primaryLabel, value: list.length },
     { label: "Con viaje", value: conViaje },
     { label: "En operacion", value: enOperacion },
     { label: "Pendientes / asignacion", value: pendientes, tone: pendientes ? "warn" : undefined }
   ]);
 
-  return `${dashHero}<div class="dash-grid">
+  return `${scopeBar}${dashHero}<div class="dash-grid">
     ${pcardWrap("truck", "Por Termoking (solicitud)", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos aun"))}
     ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
     ${qualityCard}
@@ -9193,8 +9262,9 @@ function requestFormHtml() {
   const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
   const conViaje = list.filter((r) => r.trip).length;
   const enOp = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
   const clientHero = moduleFleetHeroStrip([
-    { label: "Mis solicitudes", value: list.length },
+    { label: clientRequestsScopePrimaryLabel(), value: list.length },
     { label: "Con viaje", value: conViaje },
     { label: "En operacion", value: enOp },
     { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
@@ -9245,7 +9315,7 @@ function requestFormHtml() {
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-  return clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
+  return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
 }
 
 function requestListClientHtml(user) {
@@ -15163,6 +15233,15 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const filterKey = String(btn.dataset.filter || "active");
       state.requestsFilter = filterKey;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='client-data-scope']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!isPortalClientUser(currentUser())) return;
+      const scope = String(btn.dataset.scope || CLIENT_DATA_SCOPE.COMPANY);
+      persistClientDataScope(scope);
       renderPortalView();
     });
   });
@@ -22762,6 +22841,10 @@ window.AppLegacyViews = {
   viewDashboard,
   requestFormHtml,
   requestListClientHtml,
+  clientDataScopeBarHtml,
+  clientRequestsScopePrimaryLabel,
+  isPortalClientUser,
+  getClientDataScope,
   transportTripsHtml,
   vehiclesHtml,
   driversHtml,

@@ -4404,6 +4404,17 @@ body[data-theme="dark"] .create-trip-submit-wrap {
   align-items: center;
 }
 
+/** Selector empresa / solo mis solicitudes (cliente en dashboard y solicitudes). */
+.client-data-scope-bar {
+  margin: 0 0 0.85rem;
+}
+.client-data-scope-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-right: 0.15rem;
+  white-space: nowrap;
+}
+
 .ops-filter-pill {
   display: inline-flex;
   align-items: center;

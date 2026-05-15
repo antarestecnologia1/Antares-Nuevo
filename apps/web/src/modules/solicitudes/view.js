@@ -202,8 +202,14 @@
     const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
     const conViaje = list.filter((r) => r.trip).length;
     const enOp = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+    const scopeBar =
+      typeof clientDataScopeBarHtml === "function" && typeof isPortalClientUser === "function" && isPortalClientUser(user)
+        ? clientDataScopeBarHtml(typeof getClientDataScope === "function" ? getClientDataScope() : "company")
+        : "";
+    const heroPrimary =
+      typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
     const clientHero = moduleFleetHeroStrip([
-      { label: "Mis solicitudes", value: list.length },
+      { label: heroPrimary, value: list.length },
       { label: "Con viaje", value: conViaje },
       { label: "En operacion", value: enOp },
       { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
@@ -262,7 +268,7 @@
     <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-    return clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
+    return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
   }
 
   function requestListClientHtml(user) {
@@ -298,10 +304,21 @@
           : "";
       return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}${delLog}`;
     }
+    const scopeBar =
+      typeof clientDataScopeBarHtml === "function" && typeof isPortalClientUser === "function" && isPortalClientUser(user)
+        ? clientDataScopeBarHtml(typeof getClientDataScope === "function" ? getClientDataScope() : "company")
+        : "";
+    const panelTitle =
+      typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
     const filtered = applyRequestFilter(requests, activeFilter);
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);
     const opsCards = requestOpsCardsHtml(filtered, user);
-    const opsPanel = pcardWrap("activity", "Mis solicitudes", `${filtered.length} de ${requests.length} registradas`, `${filtersBar}${opsCards}`);
+    const opsPanel = pcardWrap(
+      "activity",
+      panelTitle,
+      `${filtered.length} de ${requests.length} registradas`,
+      `${scopeBar}${filtersBar}${opsCards}`
+    );
     return opsPanel;
   }
 
