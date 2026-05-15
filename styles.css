@@ -13748,6 +13748,8 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 }
 .side-link.side-link--notif-sound-muted .side-link-notif-sound-pill {
   opacity: 0.72;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.45);
 }
 .side-link.side-link--notif-alerts-off .side-link-notif-alerts-pill {
   opacity: 0.72;

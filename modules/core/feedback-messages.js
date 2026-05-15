@@ -51,6 +51,10 @@
       "Falta la URL de la API del portal en este sitio. Sin ella no se puede sincronizar la contraseña con el servidor.",
     recoverSessionMissing:
       "No hay sesión de recuperación activa. Abra de nuevo el enlace enviado a su correo.",
+    recoverLinkInvalidOrExpired:
+      "El enlace para restablecer su contraseña ya no es válido o expiró. Use la pestaña «Recuperar», indique su correo corporativo y solicite un enlace nuevo.",
+    recoverLinkInvalidOrExpiredEn:
+      "This password reset link is invalid or has expired. Open Recover, enter your corporate email, and request a new link.",
     sessionIdle: "Sesión cerrada por 30 minutos de inactividad.",
     invoiceNoTrip: "No hay un viaje disponible para facturar.",
     invoicePopupBlocked: "No se abrió la ventana. Permita ventanas emergentes para este sitio.",

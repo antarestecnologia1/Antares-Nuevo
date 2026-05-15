@@ -632,7 +632,9 @@ export class AuthService {
 
   /**
    * Confirma recuperación iniciada por correo de Supabase Auth: valida el JWT de recuperación,
-   * actualiza la contraseña en Auth (service role) y el hash en `usuarios` (sesiones API previas invalidadas).
+   * actualiza la contraseña en Auth (service role) y el bcrypt en `usuarios` (por `id`, o por correo como respaldo).
+   * Invalida `refresh_token_hash` para que el siguiente login exija credenciales nuevas;
+   * antes de responder comprueba con `bcrypt.compare` el valor devuelto por el `UPDATE` (consistencia inmediata con `POST /auth/login`).
    */
   async completePasswordRecoveryFromSupabase(supabaseAccessToken: string, newPassword: string) {
     this.assertDatabaseConfigured();
@@ -651,7 +653,9 @@ export class AuthService {
     }
 
     const email = user.email.trim().toLowerCase();
-    const { error: updAuthErr } = await this.supabaseAdmin.auth.admin.updateUserById(user.id, {
+    const supabaseAuthId = String(user.id);
+
+    const { error: updAuthErr } = await this.supabaseAdmin.auth.admin.updateUserById(supabaseAuthId, {
       password: newPassword
     });
     if (updAuthErr) {
@@ -662,15 +666,36 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    const r = await this.pool.query(
+    /** Sesiones API previas invalidadas de inmediato; login usa sólo esta fila. */
+    let persisted = await this.pool.query<{ hash_contrasena: string }>(
       `UPDATE usuarios
-       SET hash_contrasena = $1, refresh_token_hash = NULL
-       WHERE lower(btrim(correo_electronico::text)) = $2`,
-      [passwordHash, email]
+       SET hash_contrasena = $1, refresh_token_hash = NULL, fecha_actualizacion = now()
+       WHERE id = $2::uuid
+       RETURNING hash_contrasena`,
+      [passwordHash, supabaseAuthId]
     );
-    if (!r.rowCount) {
+    if (!persisted.rowCount) {
+      persisted = await this.pool.query<{ hash_contrasena: string }>(
+        `UPDATE usuarios
+         SET hash_contrasena = $1, refresh_token_hash = NULL, fecha_actualizacion = now()
+         WHERE lower(btrim(correo_electronico::text)) = $2
+         RETURNING hash_contrasena`,
+        [passwordHash, email]
+      );
+    }
+    if (!persisted.rowCount || !persisted.rows[0]?.hash_contrasena) {
       throw new BadRequestException(
         "No hay una cuenta de portal asociada a este correo. Si su acceso es antiguo, contacte al administrador."
+      );
+    }
+
+    const hashOk = await bcrypt.compare(newPassword, persisted.rows[0].hash_contrasena);
+    if (!hashOk) {
+      this.logger.error(
+        `completePasswordRecoveryFromSupabase: verificación del hash tras UPDATE falló (correo=${email})`
+      );
+      throw new ServiceUnavailableException(
+        "La contraseña no pudo validarse después de guardarla. Espere unos segundos e intente recuperarla de nuevo, o contacte a soporte."
       );
     }
 

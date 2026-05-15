@@ -1615,9 +1615,9 @@ function setNotificationAlertsEnabled(enabled) {
 function toggleNotificationSoundMuted() {
   const wasSoundOn = isSonidoNotificacionesHabilitado();
   setNotificationSoundMuted(wasSoundOn);
-  notify(
+    notify(
     wasSoundOn
-      ? "Timbre desactivado. Los avisos emergentes no cambian (si los tienes activos)."
+      ? "Timbre silenciado (solo audio). Los avisos en pantalla no cambian si los tienes activos."
       : "Timbre activado.",
     "info",
     2600
@@ -1645,10 +1645,10 @@ function syncNotificationPrefsSidebarUi() {
   link.classList.toggle("side-link--notif-alerts-off", alertsOff);
   const soundPill = link.querySelector(".side-link-notif-sound-pill");
   if (soundPill) {
-    soundPill.textContent = soundOff ? "Sin sonido" : "Sonido";
+    soundPill.textContent = soundOff ? "Sin timbre" : "Timbre";
     soundPill.title = soundOff
-      ? "Clic para activar el timbre al llegar avisos nuevos (solo audio)"
-      : "Clic para silenciar solo el timbre";
+      ? "Clic para volver a reproducir el timbre al llegar avisos nuevos"
+      : "Clic para silenciar solo el timbre (la bandeja y los avisos en pantalla siguen igual)";
   }
   const alertsPill = link.querySelector(".side-link-notif-alerts-pill");
   if (alertsPill) {
@@ -1662,13 +1662,13 @@ function syncNotificationPrefsSidebarUi() {
     let aria = "";
     if (alertsOff && soundOff) {
       aria =
-        "Preferencias: avisos emergentes desactivados y timbre silenciado. Use «Avisos» o «Sonido» para activar cada uno.";
+        "Preferencias: avisos emergentes desactivados y timbre silenciado. Use «Avisos» o «Timbre» para activar cada uno.";
     } else if (alertsOff) {
-      aria = "Avisos emergentes desactivados (sin toasts ni notificaciones nuevas en servidor). «Sonido»: solo el timbre.";
+      aria = "Avisos emergentes desactivados (sin toasts ni notificaciones nuevas en servidor). «Timbre»: solo el audio.";
     } else if (soundOff) {
       aria = "Timbre silenciado; los avisos emergentes siguen activos si no los desactivó.";
     } else {
-      aria = "«Sonido» controla el timbre; «Avisos» controla ventanas emergentes y notificaciones del servidor.";
+      aria = "«Timbre» controla el audio; «Avisos» controla ventanas emergentes y notificaciones nuevas del servidor.";
     }
     control.setAttribute("aria-label", aria);
   }
@@ -5728,6 +5728,50 @@ function scheduleStripSupabaseRecoveryHash(delayMs = 400) {
   }, delayMs);
 }
 
+/**
+ * Supabase Auth deja el fallo del enlace (p. ej. OTP vencido) en el fragmento:
+ * `#error=access_denied&error_code=otp_expired&error_description=...`
+ */
+function parseSupabaseAuthErrorHashParams() {
+  const h = String(window.location.hash || "");
+  if (!h || h.length < 2) return null;
+  const body = h.slice(1);
+  if (!body) return null;
+  /** No mezclar con rutas del portal (`#portal/...`). */
+  if (body.startsWith("portal/")) return null;
+  try {
+    const params = new URLSearchParams(body);
+    if (!params.get("error")) return null;
+    return params;
+  } catch (_e) {
+    return null;
+  }
+}
+
+/**
+ * Si la URL trae error de enlace mágico/OTP de Supabase, abre el modal en «Recuperar», avisa y limpia el hash.
+ * @returns {boolean} true si hubo un error de fragmento OAuth/Auth y se atendió.
+ */
+function maybeHandleSupabaseAuthUrlErrorFromHash() {
+  const params = parseSupabaseAuthErrorHashParams();
+  if (!params) return false;
+  try {
+    sessionStorage.removeItem("antares_pw_recovery_pending");
+  } catch (_e) {}
+  state.authSupabaseRecovery = false;
+  state.authTab = "recover";
+  try {
+    stripSupabaseAuthHashFromUrl();
+  } catch (_e) {}
+  showAuth();
+  const msg =
+    state.publicLang === "en"
+      ? userMessage("recoverLinkInvalidOrExpiredEn")
+      : userMessage("recoverLinkInvalidOrExpired");
+  notify(msg, "error", 9000);
+  return true;
+}
+
 async function waitForAntaresSupabaseClient(timeoutMs) {
   const cap = typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : 15000;
   if (window.antaresSupabase) return window.antaresSupabase;
@@ -5745,6 +5789,11 @@ async function waitForAntaresSupabaseClient(timeoutMs) {
 function wireSupabasePasswordRecoveryUi() {
   if (window.__antaresSupabaseRecoveryWired) return;
   window.__antaresSupabaseRecoveryWired = true;
+
+  maybeHandleSupabaseAuthUrlErrorFromHash();
+  window.addEventListener("hashchange", () => {
+    maybeHandleSupabaseAuthUrlErrorFromHash();
+  });
 
   function enterRecoveryFlowFromStorage() {
     try {
@@ -5777,6 +5826,7 @@ function wireSupabasePasswordRecoveryUi() {
       enterRecoveryFlowFromStorage();
       return;
     }
+    if (maybeHandleSupabaseAuthUrlErrorFromHash()) return;
     void client.auth.getSession().then(({ data }) => {
       const session = data?.session;
       const hash = String(window.location.hash || "");
@@ -13841,6 +13891,7 @@ function notificationsHtml() {
   const scopeHint = canViewAllNotifications(user)
     ? `<p class="muted notif-scope-hint">Vista de administrador: todas las notificaciones del sistema.</p>`
     : `<p class="muted notif-scope-hint">Solo se muestran las notificaciones dirigidas a tu cuenta.</p>`;
+  const storageHint = `<p class="muted notif-storage-hint">La bandeja se guarda en el servidor y se sincroniza al iniciar sesión; no depende de un archivo local en el navegador.</p>`;
   const alertsOn = isInAppNotificationAlertsEnabled();
   const soundOn = isSonidoNotificacionesHabilitado();
   const prefBanner =
@@ -13857,10 +13908,10 @@ function notificationsHtml() {
               : ""
           }${
             !soundOn && !alertsOn
-              ? "El timbre permanece desactivado; al reactivar solo «Avisos», podrás activar el sonido de forma independiente. "
+              ? "El timbre permanece desactivado; al reactivar solo «Avisos», podrás activar el timbre de forma independiente. "
               : ""
           }</span>
-          <span class="muted">Use «Avisos» / «Sonido» junto a la campana del menú lateral.</span>
+          <span class="muted">Use «Avisos» / «Timbre» junto a la campana del menú lateral.</span>
         </div>`
       : "";
   const unread = list.filter((n) => !n.readAt).length;
@@ -13890,7 +13941,7 @@ function notificationsHtml() {
   const readCount = list.length - unread;
   const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
   const body = list.length
-    ? `${scopeHint}${prefBanner}<div class="notif-toolbar">
+    ? `${scopeHint}${storageHint}${prefBanner}<div class="notif-toolbar">
         <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
           ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
         </button>
@@ -13902,7 +13953,7 @@ function notificationsHtml() {
         <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-clear-all">${IC.trash} Vaciar bandeja</button>
       </div>
       <div class="notif-list">${items}</div>`
-    : `${scopeHint}${prefBanner}<div class="notif-toolbar">
+    : `${scopeHint}${storageHint}${prefBanner}<div class="notif-toolbar">
         <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
           ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
         </button>

@@ -11,6 +11,7 @@
   /**
    * En producción no escribimos detalles del error en consola (evita filtrar pistas).
    * Activar depuración: window.__ANTARES_DEBUG_SYNC__ = true o localhost.
+   * Con true: errores en consola y, tras cada POST exitoso, sync-key OK (p. ej. recuento si key=notifications).
    */
   function logPortalSyncFailure(entity, err) {
     try {
@@ -112,6 +113,17 @@
       }
       try {
         await api.postJson("/portal/sync-key", { key: entity, data });
+        if (window.__ANTARES_DEBUG_SYNC__ === true) {
+          try {
+            var okHint = "";
+            if (entity === "notifications" && Array.isArray(data)) {
+              okHint = " (" + data.length + " filas en payload)";
+            }
+            console.info("[Antares] portal sync-key OK:" + okHint, entity);
+          } catch (_log) {
+            /* noop */
+          }
+        }
         return;
       } catch (err) {
         lastErr = err;
