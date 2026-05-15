@@ -3702,13 +3702,7 @@ function applyPublicLanguage(lang = "es") {
   if (nodes.themeTogglePublic) nodes.themeTogglePublic.setAttribute("aria-label", lang === "en" ? "Theme" : "Tema");
   if (nodes.langTogglePublic) nodes.langTogglePublic.setAttribute("aria-label", lang === "en" ? "Language" : "Idioma");
 
-  const hamburgerBtn = document.getElementById("hamburger-btn");
-  if (hamburgerBtn) {
-    hamburgerBtn.setAttribute(
-      "aria-label",
-      lang === "en" ? "Open navigation menu" : "Abrir menu de navegacion"
-    );
-  }
+  syncPublicNavDrawer();
 }
 
 function applyTheme(theme = "light") {
@@ -8744,6 +8738,33 @@ function setView(view) {
   renderPortalView();
 }
 
+function syncPublicNavDrawer() {
+  const mainNav = document.getElementById("main-nav");
+  const hamburgerBtn = document.getElementById("hamburger-btn");
+  if (!mainNav || !hamburgerBtn) return;
+  const open = mainNav.classList.contains("nav-open");
+  document.body.classList.toggle("public-nav-open", open);
+  hamburgerBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  const lang = state.publicLang === "en" ? "en" : "es";
+  hamburgerBtn.setAttribute(
+    "aria-label",
+    open
+      ? lang === "en"
+        ? "Close navigation menu"
+        : "Cerrar menu de navegacion"
+      : lang === "en"
+        ? "Open navigation menu"
+        : "Abrir menu de navegacion"
+  );
+}
+
+function closePublicNavDrawer() {
+  const mainNav = document.getElementById("main-nav");
+  if (!mainNav?.classList.contains("nav-open")) return;
+  mainNav.classList.remove("nav-open");
+  syncPublicNavDrawer();
+}
+
 function setPortalDrawerOpen(open) {
   if (typeof document === "undefined") return;
   const on = Boolean(open);
@@ -8763,14 +8784,10 @@ function renderPortal() {
     stopSessionSecurityWatch();
     stopNotificationsPolling();
     setPortalDrawerOpen(false);
+    closePublicNavDrawer();
     document.body.classList.remove("portal-mode");
-    document.body.classList.remove("public-nav-open");
     /** Quitamos el guard de booting: el usuario no tiene sesión, debe ver el sitio público. */
     document.documentElement.classList.remove("antares-booting-portal");
-    const pubNav = document.getElementById("main-nav");
-    if (pubNav) pubNav.classList.remove("nav-open");
-    const pubHam = document.getElementById("hamburger-btn");
-    if (pubHam) pubHam.setAttribute("aria-expanded", "false");
     nodes.publicApp.classList.remove("hidden");
     nodes.portalApp.classList.add("hidden");
     return;
@@ -8796,11 +8813,7 @@ function renderPortal() {
     return;
   }
   state.session = session;
-  document.body.classList.remove("public-nav-open");
-  const pubNavOpen = document.getElementById("main-nav");
-  if (pubNavOpen) pubNavOpen.classList.remove("nav-open");
-  const pubHamOpen = document.getElementById("hamburger-btn");
-  if (pubHamOpen) pubHamOpen.setAttribute("aria-expanded", "false");
+  closePublicNavDrawer();
   document.body.classList.add("portal-mode");
   setPortalDrawerOpen(false);
   nodes.publicApp.classList.add("hidden");
@@ -20710,40 +20723,28 @@ function initGlobalEvents() {
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const mainNav = document.getElementById("main-nav");
   if (hamburgerBtn && mainNav) {
-    const syncPublicNavDrawer = () => {
-      const open = mainNav.classList.contains("nav-open");
-      document.body.classList.toggle("public-nav-open", open);
-      hamburgerBtn.setAttribute("aria-expanded", open ? "true" : "false");
-    };
     hamburgerBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       mainNav.classList.toggle("nav-open");
       syncPublicNavDrawer();
     });
     mainNav.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => {
-        mainNav.classList.remove("nav-open");
-        syncPublicNavDrawer();
-      });
+      link.addEventListener("click", () => closePublicNavDrawer());
     });
     document.addEventListener("click", (event) => {
       if (!mainNav.classList.contains("nav-open")) return;
       const t = event.target;
       if (mainNav.contains(t) || hamburgerBtn.contains(t)) return;
-      mainNav.classList.remove("nav-open");
-      syncPublicNavDrawer();
+      closePublicNavDrawer();
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !mainNav.classList.contains("nav-open")) return;
-      mainNav.classList.remove("nav-open");
-      syncPublicNavDrawer();
+      closePublicNavDrawer();
       hamburgerBtn.focus();
     });
     window.addEventListener("resize", () => {
       if (!window.matchMedia("(min-width: 921px)").matches) return;
-      if (!mainNav.classList.contains("nav-open")) return;
-      mainNav.classList.remove("nav-open");
-      syncPublicNavDrawer();
+      closePublicNavDrawer();
     });
   }
 

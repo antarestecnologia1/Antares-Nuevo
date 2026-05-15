@@ -368,7 +368,29 @@ nav a:focus-visible {
   outline-offset: 2px;
 }
 
-.hamburger svg { width: 22px; height: 22px; }
+.hamburger svg {
+  width: 22px;
+  height: 22px;
+}
+
+.hamburger svg line {
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.hamburger[aria-expanded="true"] svg line:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.hamburger[aria-expanded="true"] svg line:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.hamburger[aria-expanded="true"] svg line:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
 
 .nav-controls {
   display: inline-flex;
@@ -7491,6 +7513,10 @@ body[data-theme="dark"] .b2b-leads-brief {
     animation: none !important;
   }
 
+  .hamburger svg line {
+    transition: none !important;
+  }
+
   body.portal-drawer-open #portal-sidebar .side-link {
     animation: none !important;
   }
@@ -7702,6 +7728,8 @@ body[data-theme="dark"] .b2b-leads-brief {
 
   .hamburger {
     display: inline-flex;
+    position: relative;
+    z-index: 70;
   }
 
   .nav-controls {
