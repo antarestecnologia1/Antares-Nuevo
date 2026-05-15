@@ -1008,17 +1008,19 @@
         <div id="portal-nav-backdrop" class="portal-nav-backdrop" aria-hidden="true"></div>
         <aside class="sidebar" id="portal-sidebar">
           <div class="sidebar-brand">
-            <span class="sidebar-brand-logo-wrap" aria-hidden="true">
+            <span class="sidebar-session-avatar-wrap" id="sidebar-session-avatar-wrap" aria-hidden="true">
+              <span class="sidebar-session-avatar-initial" id="sidebar-session-avatar-initial">A</span>
               <img
-                class="sidebar-brand-logo"
-                src="./imagenes%20empresa/Logo.png"
+                class="sidebar-session-avatar-img"
+                id="sidebar-session-avatar-img"
                 alt=""
                 width="44"
                 height="44"
                 decoding="async"
+                hidden
               />
             </span>
-            <div><h2>Antares</h2><p id="session-meta"></p></div>
+            <div><h2 id="sidebar-session-display-name">Antares</h2><p id="session-meta"></p></div>
           </div>
           <p class="sidebar-drawer-tagline" aria-hidden="true">Modulos del portal</p>
           <p class="sidebar-section-label">General</p>

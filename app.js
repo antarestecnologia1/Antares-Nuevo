@@ -1744,6 +1744,8 @@ function normalizePortalBootstrapUserRow(u) {
   if (!out.source) {
     out.source = out.accountStatus === ACCOUNT_STATUS.PENDIENTE ? "portal_db" : "portal_db";
   }
+  const avatar = String(out.avatarUrl ?? out.url_avatar ?? out.urlAvatar ?? "").trim();
+  if (avatar) out.avatarUrl = avatar;
   return out;
 }
 
@@ -2381,7 +2383,11 @@ let state = {
   adminUsersUi: {
     panel: "",
     editUserId: "",
-    editCompanyId: ""
+    editCompanyId: "",
+    /** Tarjeta «Editar usuario» colapsada (solo cabecera). */
+    editMinimized: false,
+    /** Tarjeta «Asignar permisos» colapsada tras guardar. */
+    permissionsMinimized: false
   },
   requestsUi: {
     companyId: ""
@@ -2624,8 +2630,40 @@ function buildProfileSnapshotFromUserRow(u) {
     name: String(u.name || "").trim(),
     role: u.role,
     companyId: u.companyId != null ? String(u.companyId) : "",
-    permissions: Array.isArray(u.permissions) ? u.permissions : []
+    permissions: Array.isArray(u.permissions) ? u.permissions : [],
+    avatarUrl: String(u.avatarUrl || "").trim()
   };
+}
+
+function defaultAdminUsersUi() {
+  return {
+    panel: "",
+    editUserId: "",
+    editCompanyId: "",
+    editMinimized: false,
+    permissionsMinimized: false
+  };
+}
+
+function getAdminUsersUi() {
+  return { ...defaultAdminUsersUi(), ...(state.adminUsersUi || {}) };
+}
+
+function setAdminUsersUi(patch) {
+  state.adminUsersUi = { ...getAdminUsersUi(), ...(patch && typeof patch === "object" ? patch : {}) };
+}
+
+/** Cuerpo de p-card colapsable (mismo patrón que registro de sesiones en admin). */
+function adminUsersCollapsibleCardBody(expanded, toggleAction, panelHtml) {
+  const toggleText = expanded ? "Ocultar formulario" : "Mostrar formulario";
+  return `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
+    <button type="button" class="btn btn-sm btn-action" data-action="${escapeAttr(toggleAction)}" aria-expanded="${expanded ? "true" : "false"}">
+      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
+    </button>
+  </div>
+  <div class="${expanded ? "" : "hidden"}">
+    ${panelHtml}
+  </div>`;
 }
 
 function syncSessionProfileSnapshotFromCache() {
@@ -2667,6 +2705,7 @@ function materializePortalUserFromSession(session) {
       company: "",
       password: "",
       permissions: Array.isArray(snap.permissions) ? snap.permissions : [],
+      avatarUrl: String(snap.avatarUrl || "").trim(),
       taxId: "",
       phone: ""
     };
@@ -2714,6 +2753,7 @@ function materializePortalUserFromSession(session) {
     company: "",
     password: "",
     permissions: Array.isArray(session.profileSnapshot?.permissions) ? session.profileSnapshot.permissions : [],
+    avatarUrl: String(session.profileSnapshot?.avatarUrl || "").trim(),
     taxId: "",
     phone: ""
   };
@@ -8442,13 +8482,46 @@ function formatPortalRoleLabel(role) {
 }
 
 function updatePortalSidebarSessionMeta() {
-  if (!nodes.sessionMeta) return;
   const user = currentUser();
+  const meta = nodes.sessionMeta;
+  const nameEl = document.getElementById("sidebar-session-display-name");
+  const avatarWrap = document.getElementById("sidebar-session-avatar-wrap");
+  const avatarImg = document.getElementById("sidebar-session-avatar-img");
+  const avatarInitial = document.getElementById("sidebar-session-avatar-initial");
   if (!user) {
-    nodes.sessionMeta.textContent = "";
+    if (meta) meta.textContent = "";
+    if (nameEl) nameEl.textContent = "Antares";
+    if (avatarWrap) avatarWrap.classList.remove("has-photo");
+    if (avatarImg) {
+      avatarImg.removeAttribute("src");
+      avatarImg.setAttribute("hidden", "");
+    }
+    if (avatarInitial) {
+      avatarInitial.textContent = "A";
+      avatarInitial.removeAttribute("hidden");
+    }
     return;
   }
-  nodes.sessionMeta.textContent = `${getPortalUserDisplayName(user)} · ${formatPortalRoleLabel(user.role)}`;
+  const displayName = getPortalUserDisplayName(user);
+  const roleLabel = formatPortalRoleLabel(user.role);
+  if (nameEl) nameEl.textContent = displayName;
+  if (meta) meta.textContent = roleLabel;
+  const avatarUrlRaw = String(user.avatarUrl || "").trim();
+  const avatarCss = employeeAvatarCssUrl(user.avatarUrl);
+  if (avatarWrap && avatarImg && avatarInitial) {
+    if (avatarCss && avatarUrlRaw) {
+      avatarImg.src = avatarUrlRaw;
+      avatarImg.removeAttribute("hidden");
+      avatarInitial.setAttribute("hidden", "");
+      avatarWrap.classList.add("has-photo");
+    } else {
+      avatarImg.removeAttribute("src");
+      avatarImg.setAttribute("hidden", "");
+      avatarInitial.textContent = (displayName.charAt(0) || "U").toUpperCase();
+      avatarInitial.removeAttribute("hidden");
+      avatarWrap.classList.remove("has-photo");
+    }
+  }
 }
 
 function getVisibleRequestsForUser(user) {
@@ -10104,7 +10177,7 @@ function adminUsersHtml(current) {
   const isAdmin = isAdminActor(current);
   const users = read(KEYS.users, []);
   const companies = read(KEYS.companies, []);
-  const ui = state.adminUsersUi || { panel: "", editUserId: "", editCompanyId: "" };
+  const ui = getAdminUsersUi();
   const editingUser = ui.editUserId
     ? users.find((u) => String(u.id) === String(ui.editUserId))
     : null;
@@ -10680,14 +10753,26 @@ function adminUsersHtml(current) {
 
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
   if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
-  if (ui.panel === "set-permissions") html += pcardWrap("save", "Asignar permisos", "Selecciona usuario y permisos", fPerm);
-  if (editingUser)
+  if (ui.panel === "set-permissions") {
+    const permExpanded = !ui.permissionsMinimized;
+    html += pcardWrap(
+      "save",
+      "Asignar permisos",
+      "Selecciona usuario y permisos",
+      adminUsersCollapsibleCardBody(permExpanded, "toggle-admin-permissions-panel", fPerm),
+      permExpanded ? "p-card--expanded" : "p-card--collapsed"
+    );
+  }
+  if (editingUser) {
+    const editExpanded = !ui.editMinimized;
     html += pcardWrap(
       "edit",
       "Editar usuario",
       `Actualiza los datos de ${escapeHtml(getPortalUserDisplayName(editingUser))}`,
-      fEdit
+      adminUsersCollapsibleCardBody(editExpanded, "toggle-admin-edit-user-panel", fEdit),
+      editExpanded ? "p-card--expanded" : "p-card--collapsed"
     );
+  }
   if (editingCompany)
     html += pcardWrap(
       "briefcase",
@@ -14894,17 +14979,35 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const panel = String(btn.dataset.panel || "");
-      const currentPanel = state.adminUsersUi?.panel || "";
-      const willOpen = currentPanel !== panel;
-      state.adminUsersUi = {
-        panel: currentPanel === panel ? "" : panel,
+      const ui = getAdminUsersUi();
+      const willOpen = ui.panel !== panel;
+      setAdminUsersUi({
+        panel: ui.panel === panel ? "" : panel,
         editUserId: "",
-        editCompanyId: ""
-      };
+        editCompanyId: "",
+        editMinimized: false,
+        permissionsMinimized: panel === "set-permissions" ? false : ui.permissionsMinimized
+      });
       renderPortalView();
-      if (willOpen && state.adminUsersUi.panel) {
+      if (willOpen && getAdminUsersUi().panel) {
         scrollToAdminUsersFocusedForm();
       }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-permissions-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ui = getAdminUsersUi();
+      setAdminUsersUi({ permissionsMinimized: !ui.permissionsMinimized });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-edit-user-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ui = getAdminUsersUi();
+      setAdminUsersUi({ editMinimized: !ui.editMinimized });
+      renderPortalView();
     });
   });
 
@@ -15065,7 +15168,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      state.adminUsersUi = { panel: "", editUserId: id, editCompanyId: "" };
+      setAdminUsersUi({ panel: "", editUserId: id, editCompanyId: "", editMinimized: false });
       renderPortalView();
       scrollToAdminUsersFocusedForm();
     });
@@ -15073,7 +15176,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", editMinimized: false });
       renderPortalView();
     });
   });
@@ -15517,9 +15620,17 @@ function bindDynamicEvents() {
           renderPortal();
           return;
         }
+        syncSessionProfileSnapshotFromCache();
+        updatePortalSidebarSessionMeta();
       }
       notify(userMessage("permissionsUpdated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      setAdminUsersUi({
+        panel: "set-permissions",
+        editUserId: "",
+        editCompanyId: "",
+        permissionsMinimized: true,
+        editMinimized: true
+      });
       renderPortalView();
     });
   }
@@ -15680,7 +15791,17 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("userUpdated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      setAdminUsersUi({
+        panel: "",
+        editUserId: "",
+        editCompanyId: "",
+        editMinimized: true,
+        permissionsMinimized: false
+      });
+      if (state.session?.userId === userId) {
+        syncSessionProfileSnapshotFromCache();
+        updatePortalSidebarSessionMeta();
+      }
       renderPortalView();
     });
   }
@@ -20067,6 +20188,8 @@ function bindDynamicEvents() {
           return;
         }
         notify(userMessage("profileUpdatedOk"), "success");
+        syncSessionProfileSnapshotFromCache();
+        updatePortalSidebarSessionMeta();
         renderPortal();
       };
       try {
