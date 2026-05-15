@@ -8657,6 +8657,19 @@ function formatPortalRoleLabel(role) {
   return String(role || "usuario").toUpperCase();
 }
 
+/** Segunda línea del bloque de sesión en el drawer: clientes ven el nombre de la empresa, no la etiqueta «Cliente». */
+function getPortalSidebarSessionSubtitle(user) {
+  if (!user) return "";
+  if (user.role === ROLES.CLIENT) {
+    const cid = String(user.companyId || "").trim();
+    const fromCatalog = cid ? getCompanyById(cid)?.name : "";
+    const fromUser = String(user.company || "").trim();
+    const companyName = String(fromCatalog || fromUser).trim();
+    return companyName || formatPortalRoleLabel(user.role);
+  }
+  return formatPortalRoleLabel(user.role);
+}
+
 function updatePortalSidebarSessionMeta() {
   const user = currentUser();
   const meta = nodes.sessionMeta;
@@ -8679,7 +8692,7 @@ function updatePortalSidebarSessionMeta() {
     return;
   }
   const displayName = getPortalUserDisplayName(user);
-  const roleLabel = formatPortalRoleLabel(user.role);
+  const roleLabel = getPortalSidebarSessionSubtitle(user);
   if (nameEl) nameEl.textContent = displayName;
   if (meta) meta.textContent = roleLabel;
   const avatarUrlRaw = String(user.avatarUrl || "").trim();
