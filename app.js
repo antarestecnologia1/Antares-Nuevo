@@ -9478,6 +9478,8 @@ function __tickNotificationsPoll() {
     (n) => !seen.has(n.id) && getNotificationRecipientId(n) === String(user.id || "")
   );
   const toToast = [];
+  /** Timbre ante cualquier fila nueva para el usuario en este tick (desacoplado de la ventana de toast). */
+  let toSound = false;
   /**
    * Solo se notifica en toast lo que ocurre en tiempo real (≤ 30s). Las notificaciones
    * viejas que se materializan ahora — porque vinieron del servidor en un bootstrap
@@ -9487,14 +9489,16 @@ function __tickNotificationsPoll() {
    */
   const FRESH_TOAST_WINDOW_MS = 30_000;
   for (const n of selfNew) {
-    if (!__inboxNotificationIsFreshForPoll(n, now, FRESH_TOAST_WINDOW_MS)) continue;
     const ageMs = __notificationPollAgeMs(n, now);
     const skipDuplicateExplicitSuccess = suppressUntil > now && ageMs < 6500;
     if (skipDuplicateExplicitSuccess) continue;
-    toToast.push(n);
+    toSound = true;
+    if (__inboxNotificationIsFreshForPoll(n, now, FRESH_TOAST_WINDOW_MS)) {
+      toToast.push(n);
+    }
   }
+  if (toSound) playInboxNotificationSound();
   if (toToast.length && isInAppNotificationAlertsEnabled()) {
-    playInboxNotificationSound();
     toToast.forEach((n) => {
       if (typeof notify === "function") {
         const message = `${n.title}${n.body ? " — " + n.body : ""}`;
