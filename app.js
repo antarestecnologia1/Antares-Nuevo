@@ -5563,14 +5563,24 @@ function defaultPermissionsForRole(role) {
 function ensureUsersPermissions() {
   const users = read(KEYS.users, []);
   const updated = users.map((user) => {
+    if (user.role === ROLES.ADMIN) {
+      return { ...user, permissions: [...ALL_PERMISSIONS] };
+    }
     const current = Array.isArray(user.permissions) ? user.permissions : [];
+    const filtered = current.filter((permission) => ALL_PERMISSIONS.includes(permission));
+    if (filtered.length > 0) {
+      return { ...user, permissions: filtered };
+    }
     const base = defaultPermissionsForRole(user.role);
-    const merged = [...new Set([...base, ...current])].filter((permission) =>
-      ALL_PERMISSIONS.includes(permission)
-    );
+    const merged = [...new Set(base)].filter((permission) => ALL_PERMISSIONS.includes(permission));
     return { ...user, permissions: merged };
   });
-  write(KEYS.users, updated);
+  const changed = updated.some((u, i) => {
+    const a = JSON.stringify([...(u.permissions || [])].sort());
+    const b = JSON.stringify([...(users[i]?.permissions || [])].sort());
+    return a !== b;
+  });
+  if (changed) write(KEYS.users, updated);
 }
 
 function ensureUsersAccountStatus() {
@@ -10036,6 +10046,29 @@ function transportCalendarHtml() {
   return calHero + calendarShell;
 }
 
+/**
+ * Casillas de permisos granulares (admin). Centralizado para reutilizar en HTML y al
+ * cambiar el usuario seleccionado en el formulario de permisos.
+ */
+function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
+  const readOnly = Boolean(opts.readOnlyAllChecked);
+  const allowed = new Set(ALL_PERMISSIONS);
+  const sel = new Set(
+    readOnly
+      ? ALL_PERMISSIONS
+      : (Array.isArray(selected) ? selected : []).filter((p) => allowed.has(p))
+  );
+  return ALL_PERMISSIONS.map((permission) => {
+    const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
+    const checked = sel.has(permission) ? "checked" : "";
+    const dis = readOnly ? " disabled" : "";
+    return `<label class="perm-check">
+      <input type="checkbox" name="permissions" value="${escapeAttr(permission)}" ${checked}${dis} />
+      <span><strong>${escapeHtml(String(meta.title || ""))}</strong><small>${escapeHtml(String(meta.desc || ""))}</small></span>
+    </label>`;
+  }).join("");
+}
+
 function adminUsersHtml(current) {
   const isAdmin = isAdminActor(current);
   const users = read(KEYS.users, []);
@@ -10080,16 +10113,13 @@ function adminUsersHtml(current) {
     : "";
 
   const userOptions = users
-    .map((u) => `<option value="${u.id}">${u.name} (${u.role})${u.id === current.id ? " · tu perfil" : ""}</option>`)
+    .map(
+      (u) =>
+        `<option value="${escapeAttr(String(u.id ?? ""))}">${escapeHtml(String(u.name || ""))} (${escapeHtml(String(u.role || ""))})${String(u.id) === String(current.id) ? " · tu perfil" : ""}</option>`
+    )
     .join("");
 
-  const permissionChecks = (selected = []) => ALL_PERMISSIONS.map((permission) => {
-    const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
-    return `<label class="perm-check">
-      <input type="checkbox" name="permissions" value="${permission}" ${selected.includes(permission) ? "checked" : ""} />
-      <span><strong>${meta.title}</strong><small>${meta.desc}</small></span>
-    </label>`;
-  }).join("");
+  const permissionChecks = (selected = []) => buildGranularPermissionsCheckboxesHtml(selected);
 
   const statusBadge = (s) => {
     if (s === ACCOUNT_STATUS.APROBADO) return `<span class="status status-viaje_asignado">Aprobado</span>`;
@@ -15397,6 +15427,37 @@ function bindDynamicEvents() {
 
   const adminUserPermissions = document.getElementById("form-admin-user-permissions");
   if (adminUserPermissions) {
+    const syncPermGridFromSelectedUser = () => {
+      const sel = adminUserPermissions.querySelector("select[name='userId']");
+      const grid = adminUserPermissions.querySelector(".perm-grid");
+      if (!sel || !grid) return;
+      const uid = String(sel.value || "").trim();
+      if (!uid) {
+        grid.innerHTML = buildGranularPermissionsCheckboxesHtml([]);
+        return;
+      }
+      const u = read(KEYS.users, []).find((x) => String(x.id) === uid);
+      if (!u) {
+        grid.innerHTML = buildGranularPermissionsCheckboxesHtml([]);
+        return;
+      }
+      if (u.role === ROLES.ADMIN) {
+        grid.innerHTML = buildGranularPermissionsCheckboxesHtml([], { readOnlyAllChecked: true });
+        return;
+      }
+      const perms =
+        Array.isArray(u.permissions) && u.permissions.length
+          ? u.permissions.filter((p) => ALL_PERMISSIONS.includes(p))
+          : defaultPermissionsForRole(u.role);
+      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(perms);
+    };
+    const userSel = adminUserPermissions.querySelector("select[name='userId']");
+    if (userSel && !userSel.dataset.antaresPermGridWired) {
+      userSel.dataset.antaresPermGridWired = "1";
+      userSel.addEventListener("change", syncPermGridFromSelectedUser);
+    }
+    syncPermGridFromSelectedUser();
+
     adminUserPermissions.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(adminUserPermissions);
@@ -15410,7 +15471,7 @@ function bindDynamicEvents() {
       );
       const users = read(KEYS.users, []);
       const nextUsers = users.map((user) =>
-        user.id === userId
+        String(user.id) === userId
           ? {
               ...user,
               permissions:
@@ -15422,11 +15483,12 @@ function bindDynamicEvents() {
       );
       try {
         await writeAwaitServer(KEYS.users, nextUsers);
-      } catch (_) {
+      } catch (err) {
+        notify(String(err?.message || userMessage("genericError")), "error");
         return;
       }
       if (state.session?.userId === userId) {
-        const refreshed = read(KEYS.users, []).find((item) => item.id === userId);
+        const refreshed = read(KEYS.users, []).find((item) => String(item.id) === userId);
         if (refreshed && !hasPermission(refreshed, PERMISSIONS.USERS_MANAGE)) {
           notify(userMessage("permissionsChangedLogout"), "error");
           clearSession();
