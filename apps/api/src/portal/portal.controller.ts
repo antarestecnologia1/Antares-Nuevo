@@ -14,6 +14,7 @@ import { AdminUserCredentialsDto } from "./dto/admin-user-credentials.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
+import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -54,6 +55,11 @@ export class PortalController {
   @Get("user-sessions")
   userSessions(@Req() req: { user: ReqUser }) {
     return this.portal.getUserSessions(req.user.userId, req.user.role);
+  }
+
+  @Post("notification-preferences")
+  notificationPreferences(@Req() req: { user: ReqUser }, @Body() dto: NotificationPreferencesDto) {
+    return this.portal.updateNotificationPreferences(req.user.userId, dto);
   }
 
   @Post("sync-key")

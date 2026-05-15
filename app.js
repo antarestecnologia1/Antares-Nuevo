@@ -1525,41 +1525,158 @@ const KEYS = {
 /** Opcional: usuario marca «recordar» en login; se guarda correo y contraseña en este navegador (texto plano). No usar en equipos compartidos. */
 const LOGIN_REMEMBER_STORAGE_KEY = "antares_portal_login_remember_v1";
 
-/** Sonido de toasts de la bandeja (poll): el usuario puede silenciarlo con clic en la campana del menú lateral. */
-const NOTIF_SOUND_MUTED_STORAGE_KEY = "antares_portal_notif_sound_muted_v1";
+/**
+ * Preferencias de notificaciones: única persistencia en PostgreSQL (`preferencias_notificacion_usuario`),
+ * vía GET /portal/bootstrap (`notificationPreferences`) y POST /portal/notification-preferences.
+ * En memoria solo `state.notificationPreferences` (hasta que llegue el bootstrap).
+ */
 let __notifInboxAudioCtx = null;
 
-function isNotificationSoundMuted() {
+function getNotificationPreferencesNormalized() {
+  const p = state.notificationPreferences;
+  if (p && typeof p === "object") {
+    return {
+      notificacionesHabilitadas: p.notificacionesHabilitadas !== false,
+      sonidoNotificacionesHabilitadas: p.sonidoNotificacionesHabilitadas !== false
+    };
+  }
+  return { notificacionesHabilitadas: true, sonidoNotificacionesHabilitadas: true };
+}
+
+/** Timbre audible (columna `sonido_notificaciones_habilitadas`); independiente de avisos emergentes. */
+function isSonidoNotificacionesHabilitado() {
+  return getNotificationPreferencesNormalized().sonidoNotificacionesHabilitadas !== false;
+}
+
+/** Avisos emergentes (toasts) y fila server-side respetan este flag. */
+function isInAppNotificationAlertsEnabled() {
+  return getNotificationPreferencesNormalized().notificacionesHabilitadas !== false;
+}
+
+/** Reproduce timbre solo si avisos y sonido están activos. */
+function isInboxNotificationSoundEnabled() {
+  const n = getNotificationPreferencesNormalized();
+  if (!n.notificacionesHabilitadas) return false;
+  return n.sonidoNotificacionesHabilitadas !== false;
+}
+
+function applyNotificationPreferencesFromBootstrapPayload(raw) {
+  if (!raw || typeof raw !== "object") return;
+  state.notificationPreferences = {
+    notificacionesHabilitadas: raw.notificacionesHabilitadas !== false,
+    sonidoNotificacionesHabilitadas: raw.sonidoNotificacionesHabilitadas !== false
+  };
+  syncNotificationPrefsSidebarUi();
+}
+
+async function persistNotificationPreferencesToApi(partial) {
+  const api = window.AntaresApi;
+  if (!api?.getBase?.() || typeof api.postJson !== "function") return null;
+  if (!String(api.getAccessToken?.() || "").trim()) return null;
+  const body = {};
+  if (partial.notificacionesHabilitadas !== undefined) {
+    body.notificacionesHabilitadas = Boolean(partial.notificacionesHabilitadas);
+  }
+  if (partial.sonidoNotificacionesHabilitadas !== undefined) {
+    body.sonidoNotificacionesHabilitadas = Boolean(partial.sonidoNotificacionesHabilitadas);
+  }
+  if (!Object.keys(body).length) return null;
   try {
-    return localStorage.getItem(NOTIF_SOUND_MUTED_STORAGE_KEY) === "1";
-  } catch {
-    return false;
+    const res = await api.postJson("/portal/notification-preferences", body);
+    if (res && typeof res === "object") {
+      applyNotificationPreferencesFromBootstrapPayload(res);
+    }
+    return res;
+  } catch (_e) {
+    notify("No se pudieron guardar las preferencias de notificaciones.", "error");
+    return null;
   }
 }
 
 function setNotificationSoundMuted(muted) {
-  try {
-    if (muted) localStorage.setItem(NOTIF_SOUND_MUTED_STORAGE_KEY, "1");
-    else localStorage.removeItem(NOTIF_SOUND_MUTED_STORAGE_KEY);
-  } catch (_) {}
-  syncNotificationSoundMutedUi();
+  const sonidoOn = !muted;
+  state.notificationPreferences = {
+    ...getNotificationPreferencesNormalized(),
+    sonidoNotificacionesHabilitadas: sonidoOn
+  };
+  syncNotificationPrefsSidebarUi();
+  void persistNotificationPreferencesToApi({ sonidoNotificacionesHabilitadas: sonidoOn });
+}
+
+function setNotificationAlertsEnabled(enabled) {
+  state.notificationPreferences = {
+    ...getNotificationPreferencesNormalized(),
+    notificacionesHabilitadas: Boolean(enabled)
+  };
+  syncNotificationPrefsSidebarUi();
+  void persistNotificationPreferencesToApi({ notificacionesHabilitadas: Boolean(enabled) });
 }
 
 function toggleNotificationSoundMuted() {
-  setNotificationSoundMuted(!isNotificationSoundMuted());
+  const wasSoundOn = isSonidoNotificacionesHabilitado();
+  setNotificationSoundMuted(wasSoundOn);
   notify(
-    isNotificationSoundMuted()
-      ? "Sonido de notificaciones silenciado."
-      : "Sonido de notificaciones activado.",
+    wasSoundOn
+      ? "Timbre desactivado. Los avisos emergentes no cambian (si los tienes activos)."
+      : "Timbre activado.",
     "info",
     2600
   );
 }
 
-function syncNotificationSoundMutedUi() {
+function toggleNotificationAlertsEnabled() {
+  const next = !isInAppNotificationAlertsEnabled();
+  setNotificationAlertsEnabled(next);
+  notify(
+    next
+      ? "Avisos emergentes activados. Verás mensajes al instante cuando lleguen avisos nuevos."
+      : "Avisos emergentes desactivados: sin ventanas por avisos nuevos ni notificaciones nuevas del servidor. La bandeja conserva el historial ya recibido.",
+    "info",
+    3800
+  );
+}
+
+function syncNotificationPrefsSidebarUi() {
   const link = document.querySelector('.side-link[data-view="notifications"]');
   if (!link) return;
-  link.classList.toggle("side-link--notif-sound-muted", isNotificationSoundMuted());
+  const soundOff = !isSonidoNotificacionesHabilitado();
+  const alertsOff = !isInAppNotificationAlertsEnabled();
+  link.classList.toggle("side-link--notif-sound-muted", soundOff);
+  link.classList.toggle("side-link--notif-alerts-off", alertsOff);
+  const soundPill = link.querySelector(".side-link-notif-sound-pill");
+  if (soundPill) {
+    soundPill.textContent = soundOff ? "Sin sonido" : "Sonido";
+    soundPill.title = soundOff
+      ? "Clic para activar el timbre al llegar avisos nuevos (solo audio)"
+      : "Clic para silenciar solo el timbre";
+  }
+  const alertsPill = link.querySelector(".side-link-notif-alerts-pill");
+  if (alertsPill) {
+    alertsPill.textContent = alertsOff ? "Sin avisos" : "Avisos";
+    alertsPill.title = alertsOff
+      ? "Clic para volver a recibir avisos emergentes y notificaciones del servidor"
+      : "Clic para pausar avisos emergentes y dejar de recibir notificaciones nuevas en el servidor";
+  }
+  const control = link.querySelector(".side-link-notif-control");
+  if (control) {
+    let aria = "";
+    if (alertsOff && soundOff) {
+      aria =
+        "Preferencias: avisos emergentes desactivados y timbre silenciado. Use «Avisos» o «Sonido» para activar cada uno.";
+    } else if (alertsOff) {
+      aria = "Avisos emergentes desactivados (sin toasts ni notificaciones nuevas en servidor). «Sonido»: solo el timbre.";
+    } else if (soundOff) {
+      aria = "Timbre silenciado; los avisos emergentes siguen activos si no los desactivó.";
+    } else {
+      aria = "«Sonido» controla el timbre; «Avisos» controla ventanas emergentes y notificaciones del servidor.";
+    }
+    control.setAttribute("aria-label", aria);
+  }
+}
+
+/** @deprecated usar syncNotificationPrefsSidebarUi */
+function syncNotificationSoundMutedUi() {
+  syncNotificationPrefsSidebarUi();
 }
 
 /**
@@ -1567,7 +1684,7 @@ function syncNotificationSoundMutedUi() {
  * Puede quedar en silencio hasta la primera interacción del usuario (política del navegador).
  */
 function playInboxNotificationSound() {
-  if (isNotificationSoundMuted()) return;
+  if (!isInboxNotificationSoundEnabled()) return;
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -2443,6 +2560,11 @@ let state = {
   deletedTransportRequestsLogMinimized: false,
   /** Transporte · Admin: historial de viajes desasignados/eliminados (minimizar). */
   deletedTransportTripsLogMinimized: false,
+  /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
+  notificationPreferences: {
+    notificacionesHabilitadas: true,
+    sonidoNotificacionesHabilitadas: true
+  },
   theme: "light",
   publicLang: "es",
   authTab: "login",
@@ -2913,6 +3035,9 @@ function applyPortalBootstrapPayload(p) {
 }
 
 function __applyPortalBootstrapPayloadInner(p) {
+  if (p.notificationPreferences !== undefined) {
+    applyNotificationPreferencesFromBootstrapPayload(p.notificationPreferences);
+  }
   if (p.contacts !== undefined) {
     state.portalContacts = Array.isArray(p.contacts) ? p.contacts : [];
   }
@@ -3577,7 +3702,6 @@ const PUBLIC_ES_EN_DICT = {
   "Sesion cifrada": "Encrypted session",
   "Historial de cambios": "Change history",
   "Soporte corporativo": "Corporate support",
-  "Usa credenciales corporativas. Evita ingresar desde equipos compartidos o redes publicas.": "Use corporate credentials. Avoid signing in from shared devices or public networks.",
   "Registro de cliente empresarial": "Enterprise client registration",
   "Completa tu perfil para habilitar aprobacion de acceso y configuracion de servicios.": "Complete your profile to enable access approval and service setup.",
   "Tu solicitud sera revisada por un administrador antes de habilitar acceso al portal.": "Your request will be reviewed by an administrator before portal access is enabled.",
@@ -6477,6 +6601,11 @@ function clearSession() {
   state.adminSessionsLogMinimized = true;
   state.deletedTransportRequestsLogMinimized = false;
   state.deletedTransportTripsLogMinimized = false;
+  state.notificationPreferences = {
+    notificacionesHabilitadas: true,
+    sonidoNotificacionesHabilitadas: true
+  };
+  state.__notificationPrefsHydratedFromServer = false;
   if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
     window.AntaresPersistence.clearServerBackedMemory();
   }
@@ -6731,11 +6860,30 @@ function authView() {
         <div class="password-field auth-password-row">
           <div class="auth-input-row auth-input-row--grow">
             <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
-            <input class="auth-input-control" type="password" name="password" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
+            <input class="auth-input-control" type="password" name="password" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="recover-password-strength-headline recover-password-hint" />
           </div>
           <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete">${IC.eye} Mostrar</button>
         </div>
       </label>
+      <div id="recover-password-strength-suite" class="password-strength-suite full">
+        <div class="password-strength-bar-wrap">
+          <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+            <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+          </div>
+          <div class="password-strength-meta">
+            <span class="password-strength-pill password-strength-pill--weak">0%</span>
+            <p id="recover-password-strength-headline" class="password-strength-headline">Indique una contraseña segura</p>
+          </div>
+        </div>
+        <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+          <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+          <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+          <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+          <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+          <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+        </ul>
+        <p id="recover-password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
+      </div>
       <label class="full auth-field-stack">
         <span class="auth-plain-label">${fieldLabel(IC.shield, "Confirmar contraseña", { required: true })}</span>
         <div class="password-field auth-password-row">
@@ -6745,6 +6893,7 @@ function authView() {
           </div>
           <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete-c">${IC.eye} Mostrar</button>
         </div>
+        <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
       </label>
       <button class="btn btn-primary full" type="submit">${IC.check} Guardar contraseña e iniciar sesión después</button>
     </form>`;
@@ -6805,22 +6954,7 @@ function authView() {
             <span class="auth-submit-spinner" aria-hidden="true"></span>
           </button>
         </form>
-        <div class="auth-login-side auth-pane">
-          <h3 class="auth-side-heading"><span class="auth-side-heading-icon" aria-hidden="true">${IC.shield}</span><span class="auth-side-heading-text">Acceso seguro Antares</span></h3>
-          <p class="muted">Portal diseñado para equipos de operaciones, administración y recursos humanos.</p>
-          <ul class="auth-bullets">
-            <li>Control por roles y permisos granulares</li>
-            <li>Trazabilidad de aprobaciones y auditoría</li>
-            <li>Operación alineada a flujos empresariales</li>
-          </ul>
-          <div class="auth-side-pills">
-            <span>${IC.lock} Sesión cifrada</span>
-            <span>${IC.activity} Historial de cambios</span>
-            <span>${IC.bell} Soporte corporativo</span>
-          </div>
-        </div>
       </div>
-      <p class="muted auth-help">${IC.alertTriangle} Use credenciales corporativas. Evite ingresar desde equipos compartidos o redes públicas.</p>
     `;
   }
 
@@ -7633,6 +7767,23 @@ function bindAuthForms() {
 
   const recoverComplete = document.getElementById("form-recover-complete");
   if (recoverComplete) {
+    const recoverPass = recoverComplete.querySelector("input[name='password']");
+    const recoverPassConfirm = recoverComplete.querySelector("input[name='passwordConfirm']");
+    bindPasswordStrengthSuite(recoverPass, recoverComplete.querySelector("#recover-password-strength-suite"));
+    const syncRecoverPasswordMatchState = () => {
+      if (!recoverPass || !recoverPassConfirm) return;
+      recoverPass.classList.remove("password-match-ok", "password-match-bad");
+      recoverPassConfirm.classList.remove("password-match-ok", "password-match-bad");
+      const p1 = String(recoverPass.value || "");
+      const p2 = String(recoverPassConfirm.value || "");
+      if (!p1 && !p2) return;
+      const same = p1.length > 0 && p1 === p2;
+      recoverPass.classList.add(same ? "password-match-ok" : "password-match-bad");
+      recoverPassConfirm.classList.add(same ? "password-match-ok" : "password-match-bad");
+    };
+    recoverPass?.addEventListener("input", syncRecoverPasswordMatchState);
+    recoverPassConfirm?.addEventListener("input", syncRecoverPasswordMatchState);
+
     recoverComplete.addEventListener("submit", async (event) => {
       event.preventDefault();
       const apiBase = window.AntaresApi?.getBase?.();
@@ -9198,7 +9349,7 @@ function __tickNotificationsPoll() {
     if (skipDuplicateExplicitSuccess) continue;
     toToast.push(n);
   }
-  if (toToast.length) {
+  if (toToast.length && isInAppNotificationAlertsEnabled()) {
     playInboxNotificationSound();
     toToast.forEach((n) => {
       if (typeof notify === "function") {
@@ -13690,6 +13841,28 @@ function notificationsHtml() {
   const scopeHint = canViewAllNotifications(user)
     ? `<p class="muted notif-scope-hint">Vista de administrador: todas las notificaciones del sistema.</p>`
     : `<p class="muted notif-scope-hint">Solo se muestran las notificaciones dirigidas a tu cuenta.</p>`;
+  const alertsOn = isInAppNotificationAlertsEnabled();
+  const soundOn = isSonidoNotificacionesHabilitado();
+  const prefBanner =
+    !alertsOn || !soundOn
+      ? `<div class="notif-pref-banner" role="status">
+          <strong>Preferencias activas</strong>
+          <span class="muted">${
+            !alertsOn
+              ? "Avisos emergentes desactivados: no verás ventanas por avisos nuevos y el servidor no creará notificaciones para tu cuenta. "
+              : ""
+          }${
+            !soundOn && alertsOn
+              ? "Timbre silenciado; los avisos emergentes siguen llegando en pantalla. "
+              : ""
+          }${
+            !soundOn && !alertsOn
+              ? "El timbre permanece desactivado; al reactivar solo «Avisos», podrás activar el sonido de forma independiente. "
+              : ""
+          }</span>
+          <span class="muted">Use «Avisos» / «Sonido» junto a la campana del menú lateral.</span>
+        </div>`
+      : "";
   const unread = list.filter((n) => !n.readAt).length;
   const items = list
     .map((n) => {
@@ -13717,13 +13890,26 @@ function notificationsHtml() {
   const readCount = list.length - unread;
   const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
   const body = list.length
-    ? `${scopeHint}<div class="notif-toolbar">
+    ? `${scopeHint}${prefBanner}<div class="notif-toolbar">
+        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
+          ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
+        </button>
+        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-sound" title="Solo el timbre; no afecta la bandeja">
+          ${soundOn ? "Silenciar timbre" : "Activar timbre"}
+        </button>
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
         ${readCount ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-clear-read">${IC.trash} Eliminar leídas</button>` : ""}
         <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-clear-all">${IC.trash} Vaciar bandeja</button>
       </div>
       <div class="notif-list">${items}</div>`
-    : `${scopeHint}${emptyState("No tienes notificaciones.")}`;
+    : `${scopeHint}${prefBanner}<div class="notif-toolbar">
+        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
+          ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
+        </button>
+        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-sound" title="Solo el timbre; no afecta la bandeja">
+          ${soundOn ? "Silenciar timbre" : "Activar timbre"}
+        </button>
+      </div>${emptyState("No tienes notificaciones.")}`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: list.length },
     { label: "Sin leer", value: unread, tone: unread ? "warn" : undefined },
@@ -16837,6 +17023,22 @@ function bindDynamicEvents() {
       } catch (_e) {
         return;
       }
+      renderPortalView();
+      updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='notif-toggle-alerts']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      toggleNotificationAlertsEnabled();
+      renderPortalView();
+      updateNotificationBadge();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='notif-toggle-sound']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      toggleNotificationSoundMuted();
       renderPortalView();
       updateNotificationBadge();
     });
@@ -21154,11 +21356,16 @@ function initGlobalEvents() {
 
   nodes.sideLinks.forEach((link) => {
     link.addEventListener("click", (ev) => {
-      if (link.dataset.view === "notifications" && ev.target.closest(".side-link-notif-bell")) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        toggleNotificationSoundMuted();
-        return;
+      if (link.dataset.view === "notifications") {
+        const prefTarget = ev.target.closest("[data-notif-pref]");
+        if (prefTarget) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const which = prefTarget.getAttribute("data-notif-pref") || "";
+          if (which === "sound") toggleNotificationSoundMuted();
+          else if (which === "alerts") toggleNotificationAlertsEnabled();
+          return;
+        }
       }
       setView(link.dataset.view);
       setPortalDrawerOpen(false);

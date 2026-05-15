@@ -1938,6 +1938,8 @@ input[type="password"] {
 #form-register input[name="passwordConfirm"],
 #form-register .auth-password-input,
 #form-login input[name="password"],
+#form-recover-complete input[name="password"],
+#form-recover-complete input[name="passwordConfirm"],
 #form-admin-user-create input[name="password"] {
   text-transform: none !important;
   letter-spacing: normal !important;
@@ -6388,7 +6390,7 @@ body[data-theme="dark"] #form-register .register-kind-option {
 
 .auth-login-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.9rem;
   align-items: start;
   min-width: 0;
@@ -6547,6 +6549,16 @@ body[data-theme="dark"] #form-register .register-kind-option {
 }
 
 .auth-register-form input.auth-password-input.password-match-bad {
+  border-color: #d64545 !important;
+  box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.16) !important;
+}
+
+#form-recover-complete .auth-input-control.password-match-ok {
+  border-color: #2d9d62 !important;
+  box-shadow: 0 0 0 3px rgba(45, 157, 98, 0.16) !important;
+}
+
+#form-recover-complete .auth-input-control.password-match-bad {
   border-color: #d64545 !important;
   box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.16) !important;
 }
@@ -13670,18 +13682,50 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.45);
 }
 
-/* Campana del ítem «Notificaciones»: clic alterna sonido (ver app.js). */
+/* Campana + «Sonido» / «Avisos»: clics independientes (ver app.js). */
+.side-link-notif-control {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: -0.2rem 0.1rem -0.2rem -0.25rem;
+  padding: 0.12rem 0.2rem;
+  border-radius: 10px;
+  cursor: default;
+}
+.side-link-notif-control:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
 .side-link-notif-bell {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  margin: -0.2rem -0.15rem -0.2rem -0.25rem;
-  padding: 0.2rem 0.15rem;
+  padding: 0.05rem 0;
   cursor: pointer;
 }
-.side-link-notif-bell:hover .side-icon {
+.side-link-notif-pref-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.04rem;
+  align-items: flex-start;
+  min-width: 0;
+}
+.side-link-notif-sound-pill,
+.side-link-notif-alerts-pill {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.12;
+  opacity: 0.9;
+  max-width: 4.8rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.02rem 0;
+}
+.side-link-notif-control:hover .side-icon {
   opacity: 1;
 }
 .side-link.side-link--notif-sound-muted .side-link-notif-bell .side-icon {
@@ -13701,6 +13745,14 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   border-radius: 1px;
   transform: translateY(-50%) rotate(-32deg);
   pointer-events: none;
+}
+.side-link.side-link--notif-sound-muted .side-link-notif-sound-pill {
+  opacity: 0.72;
+}
+.side-link.side-link--notif-alerts-off .side-link-notif-alerts-pill {
+  opacity: 0.72;
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.45);
 }
 
 .fleet-hero-strip,
@@ -14227,6 +14279,20 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .users-stat-emerald { background: linear-gradient(135deg, #3d9b78, #5ec09a); }
 .users-stat-orange { background: linear-gradient(135deg, #d4804a, #e8a066); }
 .users-stat-green { background: linear-gradient(135deg, #4a9b62, #6bc585); }
+
+.notif-pref-banner {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(var(--primary-rgb), 0.08);
+  border: 1px solid rgba(var(--primary-rgb), 0.2);
+  font-size: 0.88rem;
+}
+.notif-pref-banner strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-weight: 700;
+}
 
 .notif-toolbar {
   margin-bottom: 0.8rem;

@@ -1090,11 +1090,16 @@
           </button>
           <button data-view="notifications" class="side-link" type="button">
             <span
-              class="side-link-notif-bell"
-              title="Clic aquí para silenciar o activar el sonido del aviso · el texto «Notificaciones» abre la bandeja"
-              aria-label="Silenciar o activar sonido de notificaciones"
+              class="side-link-notif-control"
+              title="«Sonido» = timbre. «Avisos» = ventanas emergentes y notificaciones nuevas del servidor. El texto Notificaciones abre la bandeja."
             >
-              <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span class="side-link-notif-bell" data-notif-pref="sound" aria-hidden="true">
+                <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              </span>
+              <span class="side-link-notif-pref-col">
+                <span class="side-link-notif-sound-pill" data-notif-pref="sound" aria-live="polite">Sonido</span>
+                <span class="side-link-notif-alerts-pill" data-notif-pref="alerts" aria-live="polite">Avisos</span>
+              </span>
             </span>
             Notificaciones
           </button>

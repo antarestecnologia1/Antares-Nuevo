@@ -634,6 +634,74 @@ export class PortalService implements OnModuleInit {
     return { id: authUserId, email, name: fullName };
   }
 
+  /**
+   * Preferencias de bandeja: `notificaciones_habilitadas` (toasts + inserción server-side) vs
+   * `sonido_notificaciones_habilitadas` (solo timbre; irrelevante si las notificaciones están off).
+   */
+  private async loadNotificationPreferencesForPortal(userId: string): Promise<{
+    notificacionesHabilitadas: boolean;
+    sonidoNotificacionesHabilitadas: boolean;
+  }> {
+    try {
+      const r = await this.pool.query<{
+        notificaciones_habilitadas: boolean;
+        sonido_notificaciones_habilitadas: boolean;
+      }>(
+        `SELECT notificaciones_habilitadas, sonido_notificaciones_habilitadas
+         FROM preferencias_notificacion_usuario WHERE id_usuario = $1::uuid LIMIT 1`,
+        [userId]
+      );
+      if (!r.rows.length) {
+        return { notificacionesHabilitadas: true, sonidoNotificacionesHabilitadas: true };
+      }
+      const row = r.rows[0];
+      return {
+        notificacionesHabilitadas: row.notificaciones_habilitadas !== false,
+        sonidoNotificacionesHabilitadas: row.sonido_notificaciones_habilitadas !== false
+      };
+    } catch {
+      return { notificacionesHabilitadas: true, sonidoNotificacionesHabilitadas: true };
+    }
+  }
+
+  async updateNotificationPreferences(
+    userId: string,
+    dto: { notificacionesHabilitadas?: boolean; sonidoNotificacionesHabilitadas?: boolean }
+  ) {
+    if (dto.notificacionesHabilitadas === undefined && dto.sonidoNotificacionesHabilitadas === undefined) {
+      throw new BadRequestException("Indique al menos una preferencia");
+    }
+    const cur = await this.loadNotificationPreferencesForPortal(userId);
+    const next = {
+      notificacionesHabilitadas:
+        dto.notificacionesHabilitadas !== undefined ? Boolean(dto.notificacionesHabilitadas) : cur.notificacionesHabilitadas,
+      sonidoNotificacionesHabilitadas:
+        dto.sonidoNotificacionesHabilitadas !== undefined
+          ? Boolean(dto.sonidoNotificacionesHabilitadas)
+          : cur.sonidoNotificacionesHabilitadas
+    };
+    try {
+      await this.pool.query(
+        `INSERT INTO preferencias_notificacion_usuario (
+           id_usuario, notificaciones_habilitadas, sonido_notificaciones_habilitadas, fecha_creacion, fecha_actualizacion
+         ) VALUES ($1::uuid, $2, $3, now(), now())
+         ON CONFLICT (id_usuario) DO UPDATE SET
+           notificaciones_habilitadas = EXCLUDED.notificaciones_habilitadas,
+           sonido_notificaciones_habilitadas = EXCLUDED.sonido_notificaciones_habilitadas,
+           fecha_actualizacion = now()`,
+        [userId, next.notificacionesHabilitadas, next.sonidoNotificacionesHabilitadas]
+      );
+    } catch (e) {
+      this.logger.warn(
+        `updateNotificationPreferences falló para ${userId}: ${e instanceof Error ? e.message : String(e)}`
+      );
+      throw new BadRequestException(
+        "No se pudieron guardar las preferencias. Revise la tabla preferencias_notificacion_usuario (columna sonido_notificaciones_habilitadas)."
+      );
+    }
+    return next;
+  }
+
   async bootstrap(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
     const transport = this.isTransportOps(role) || admin;
@@ -700,6 +768,8 @@ export class PortalService implements OnModuleInit {
     const [users, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs] =
       dependent;
 
+    const notificationPreferences = await this.loadNotificationPreferencesForPortal(userId);
+
     return {
       users,
       companies,
@@ -725,7 +795,8 @@ export class PortalService implements OnModuleInit {
       tripRouteRates,
       approvals,
       deletedTransportTripLogs,
-      deletedTransportRequestLogs
+      deletedTransportRequestLogs,
+      notificationPreferences
     };
   }
 
@@ -2122,13 +2193,27 @@ export class PortalService implements OnModuleInit {
     const unique = [...new Set(targetIds)];
     if (!unique.length) return { ok: true, count: 0 };
 
-    for (const uid of unique) {
+    let recipients = unique;
+    try {
+      const blocked = await this.pool.query<{ id: string }>(
+        `SELECT id_usuario::text AS id FROM preferencias_notificacion_usuario
+         WHERE id_usuario = ANY($1::uuid[]) AND notificaciones_habilitadas = false`,
+        [unique]
+      );
+      const skip = new Set(blocked.rows.map((x) => x.id));
+      recipients = unique.filter((id) => !skip.has(id));
+    } catch {
+      recipients = unique;
+    }
+    if (!recipients.length) return { ok: true, count: 0 };
+
+    for (const uid of recipients) {
       await this.pool.query(
         `INSERT INTO notificaciones (id_usuario, titulo, cuerpo) VALUES ($1::uuid, $2, $3)`,
         [uid, title, body]
       );
     }
-    return { ok: true, count: unique.length };
+    return { ok: true, count: recipients.length };
   }
 
   private async loadUserIdsByRoles(roles: string[]): Promise<string[]> {
