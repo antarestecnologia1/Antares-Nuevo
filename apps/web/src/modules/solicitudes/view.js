@@ -304,20 +304,17 @@
           : "";
       return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}${delLog}`;
     }
-    const scopeBar =
-      typeof clientDataScopeBarHtml === "function" && typeof isPortalClientUser === "function" && isPortalClientUser(user)
-        ? clientDataScopeBarHtml(typeof getClientDataScope === "function" ? getClientDataScope() : "company")
-        : "";
     const panelTitle =
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
     const filtered = applyRequestFilter(requests, activeFilter);
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);
     const opsCards = requestOpsCardsHtml(filtered, user);
+    /** Barra "Ver: toda empresa / solo mías" va solo arriba del módulo (`requestFormHtml`), no dentro de esta tarjeta. */
     const opsPanel = pcardWrap(
       "activity",
       panelTitle,
       `${filtered.length} de ${requests.length} registradas`,
-      `${scopeBar}${filtersBar}${opsCards}`
+      `${filtersBar}${opsCards}`
     );
     return opsPanel;
   }

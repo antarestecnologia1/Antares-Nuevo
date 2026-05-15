@@ -2577,12 +2577,20 @@ function write(key, value) {
   const P = window.AntaresPersistence;
   if (P && typeof P.write === "function") {
     P.write(key, value);
-    return;
+  } else {
+    const stored = capStoredArrayRows(key, value);
+    localStorage.setItem(key, JSON.stringify(stored));
+    if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+      window.AntaresPortalSync.schedule(key, stored);
+    }
   }
-  const stored = capStoredArrayRows(key, value);
-  localStorage.setItem(key, JSON.stringify(stored));
-  if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
-    window.AntaresPortalSync.schedule(key, stored);
+  /** Contador de campana lateral: mismo valor que tras F5 ante cualquier mutación local o bootstrap. */
+  if (key === KEYS.notifications && getSession()) {
+    try {
+      updateNotificationBadge();
+    } catch (_e) {
+      /* DOM aún sin portal o función no inicializada */
+    }
   }
 }
 
@@ -4922,6 +4930,7 @@ function wireTripApprovalModeFields(formEl) {
 
 function slugStatus(value) {
   return String(value || "")
+    .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -5430,6 +5439,10 @@ function saveNotification({ userId, title, body }) {
     const all = read(KEYS.notifications, []);
     all.unshift(row);
     write(KEYS.notifications, all);
+    const actorId = String(actor.id ?? "").trim();
+    if (actorId && actorId !== targetId) {
+      void dispatchPortalNotification({ userIds: [targetId], title: row.title, body: row.body });
+    }
     return;
   }
   if (actor && String(actor.id ?? "") === targetId) {
@@ -7632,8 +7645,24 @@ function parseTripWindowRange(trip) {
   return { start, end };
 }
 
-function describeTripTimingVsNow(trip, nowTs = Date.now()) {
-  const range = parseTripWindowRange(trip);
+/**
+ * Ventana recogida→entrega para cruces de agenda: mezcla fila de solicitud + viaje.
+ * Si las ETAs del viaje vienen vacías (sync/API), se usan `pickupAt` / `etaDelivery` de la solicitud.
+ */
+function tripWindowRangeFromTransportRequest(request) {
+  const t = request?.trip;
+  if (!t) return null;
+  const pickup = String(t.etaPickup || request?.pickupAt || "").trim();
+  if (!pickup) return null;
+  const delivery = String(t.etaDelivery || request?.etaDelivery || "").trim();
+  return parseTripWindowRange({
+    etaPickup: pickup,
+    etaDelivery: delivery || pickup
+  });
+}
+
+function describeTripTimingVsNow(transportRequest, nowTs = Date.now()) {
+  const range = tripWindowRangeFromTransportRequest(transportRequest);
   if (!range) return { timing: "unknown", minutes: null };
   if (nowTs < range.start) return { timing: "upcoming", minutes: Math.ceil((range.start - nowTs) / 60000) };
   if (nowTs >= range.end) return { timing: "past", minutes: Math.ceil((nowTs - range.end) / 60000) };
@@ -7642,6 +7671,11 @@ function describeTripTimingVsNow(trip, nowTs = Date.now()) {
 
 function activeTripStatuses() {
   return [STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY];
+}
+
+/** Viaje “vivo” para filtros y ocupación: tolera espacios / variantes en `status` sincronizado desde API. */
+function tripRequestStatusIsOperational(status) {
+  return activeTripStatuses().some((s) => slugStatus(s) === slugStatus(status));
 }
 
 function requestPickupIsoDate(request) {
@@ -7668,7 +7702,7 @@ function isRequestPickupSameDayOrFuture(request, todayIso = colombiaTodayIsoDate
 
 function getActiveTrips() {
   const requests = reqRead();
-  return requests.filter((r) => r.trip && activeTripStatuses().includes(r.status));
+  return requests.filter((r) => r.trip && tripRequestStatusIsOperational(r.status));
 }
 
 /** Igual que API `tstzrange(...) @> now()`: ocupación automática solo si el instante actual cae en la ventana programada del viaje. */
@@ -7678,8 +7712,11 @@ function tripWindowContainsInstant(trip, instantTs = Date.now()) {
   return instantTs >= range.start && instantTs < range.end;
 }
 
-function activeTripOccupiesVehicleAtInstant(trip, vehicle, instantTs = Date.now()) {
-  if (!trip || !vehicle || !tripWindowContainsInstant(trip, instantTs)) return false;
+function activeTripOccupiesVehicleAtInstant(transportRequest, vehicle, instantTs = Date.now()) {
+  const trip = transportRequest?.trip;
+  if (!trip || !vehicle) return false;
+  const range = tripWindowRangeFromTransportRequest(transportRequest);
+  if (!range || !(instantTs >= range.start && instantTs < range.end)) return false;
   const vid = String(vehicle.id || "").trim();
   const vplate = String(vehicle.plate || "").trim().toUpperCase();
   if (trip.vehicleId && String(trip.vehicleId).trim() === vid) return true;
@@ -7687,8 +7724,11 @@ function activeTripOccupiesVehicleAtInstant(trip, vehicle, instantTs = Date.now(
   return false;
 }
 
-function activeTripOccupiesDriverAtInstant(trip, driver, instantTs = Date.now()) {
-  if (!trip || !driver || !tripWindowContainsInstant(trip, instantTs)) return false;
+function activeTripOccupiesDriverAtInstant(transportRequest, driver, instantTs = Date.now()) {
+  const trip = transportRequest?.trip;
+  if (!trip || !driver) return false;
+  const range = tripWindowRangeFromTransportRequest(transportRequest);
+  if (!range || !(instantTs >= range.start && instantTs < range.end)) return false;
   const did = String(driver.id || "").trim();
   const dname = String(driver.name || "").trim().toLowerCase();
   if (trip.driverId && String(trip.driverId).trim() === did) return true;
@@ -7704,7 +7744,7 @@ function recalculateResourceAvailability() {
 
   let vehiclesChanged = false;
   const nextVehicles = vehicles.map((vehicle) => {
-    const liveBusy = activeTrips.some((r) => activeTripOccupiesVehicleAtInstant(r.trip, vehicle, nowTs));
+    const liveBusy = activeTrips.some((r) => activeTripOccupiesVehicleAtInstant(r, vehicle, nowTs));
     if (liveBusy) {
       if (vehicle.available === false && vehicle.autoBusy === true) return vehicle;
       vehiclesChanged = true;
@@ -7719,7 +7759,7 @@ function recalculateResourceAvailability() {
 
   let driversChanged = false;
   const nextDrivers = drivers.map((driver) => {
-    const liveBusy = activeTrips.some((r) => activeTripOccupiesDriverAtInstant(r.trip, driver, nowTs));
+    const liveBusy = activeTrips.some((r) => activeTripOccupiesDriverAtInstant(r, driver, nowTs));
     if (liveBusy) {
       if (driver.available === false && driver.autoBusy === true) return driver;
       driversChanged = true;
@@ -8102,7 +8142,7 @@ function activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequest
     if (currentRequestId && request.id === currentRequestId) return false;
     const t = request.trip;
     if (!t) return false;
-    const existing = parseTripWindowRange(t);
+    const existing = tripWindowRangeFromTransportRequest(request);
     if (!existing) return false;
     if (!(existing.start < candidate.end && candidate.start < existing.end)) return false;
     return tripMatches(t);
@@ -8500,12 +8540,12 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     if (target) {
       saveNotification({
         userId: target.id,
-        title: "Solicitud aprobada",
-        body: `Su solicitud ${current.requestNumber || current.id} fue aprobada${auto ? " automáticamente" : ""}. Viaje ${trip.tripNumber}.`
+        title: "Viaje asignado",
+        body: `Se asignó el viaje ${trip.tripNumber} a su solicitud ${current.requestNumber || current.id}. Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}.`
       });
       sendEmail({
         to: target.email,
-        subject: "Solicitud aprobada",
+        subject: "Viaje asignado - Antares",
         body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
       });
       try {
@@ -8953,6 +8993,8 @@ function renderPortal() {
 
 let __notificationsPollHandle = null;
 let __lastSeenNotificationIds = null;
+/** Última vez que el poll arrastró bootstrap para traer notificaciones del servidor (otros usuarios). */
+let __lastNotificationsSilentBootstrapWallMs = 0;
 
 function stopNotificationsPolling() {
   if (typeof document !== "undefined") {
@@ -9017,9 +9059,32 @@ function runAsSilentSystemNotifications(callback) {
   return result;
 }
 
+/** Mínimo entre GET /portal/bootstrap lanzados solo para refrescar la bandeja en caliente (sin F5). */
+const NOTIF_SILENT_BOOTSTRAP_MIN_MS = 12000;
+
+function __silentPullNotificationsViaBootstrapIfStale() {
+  if (!portalCanRefreshFromApi()) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  const now = Date.now();
+  if (now - __lastNotificationsSilentBootstrapWallMs < NOTIF_SILENT_BOOTSTRAP_MIN_MS) return;
+  __lastNotificationsSilentBootstrapWallMs = now;
+  void applyPortalBootstrapFromApi().then((ok) => {
+    if (!ok || !getSession()) return;
+    try {
+      syncSessionProfileSnapshotFromCache();
+      reconcileNotificationsCacheForSession();
+      updateNotificationBadge();
+      if (state.currentView === "notifications") scheduleRenderPortalView();
+    } catch (_e) {
+      /* noop */
+    }
+  });
+}
+
 function __tickNotificationsPoll() {
   const user = currentUser();
   if (!user) return;
+  __silentPullNotificationsViaBootstrapIfStale();
   const current = getCurrentNotifications();
   const seen = __lastSeenNotificationIds || new Set();
   /**
@@ -9063,6 +9128,8 @@ function __tickNotificationsPoll() {
     if (state.currentView === "notifications") {
       scheduleRenderPortalView();
     }
+  } else {
+    updateNotificationBadge();
   }
 }
 
@@ -9093,6 +9160,7 @@ function updateNotificationBadge() {
 function startNotificationsPolling() {
   if (__notificationsPollHandle != null) return;
   __lastSeenNotificationIds = new Set(getCurrentNotifications().map((n) => n.id));
+  __lastNotificationsSilentBootstrapWallMs = Date.now();
   __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", __onNotificationsVisibilityChange);
@@ -9191,7 +9259,7 @@ function viewDashboard() {
     [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
   ).length;
   const conViaje = list.filter((r) => r.trip).length;
-  const enOperacion = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const enOperacion = list.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
   const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
   const primaryLabel = isPortalClientUser(user) ? clientRequestsScopePrimaryLabel() : "Solicitudes visibles";
   const dashHero = moduleFleetHeroStrip([
@@ -9261,7 +9329,7 @@ function requestFormHtml() {
   const list = getVisibleRequestsForUser(user);
   const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
   const conViaje = list.filter((r) => r.trip).length;
-  const enOp = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+  const enOp = list.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
   const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
   const clientHero = moduleFleetHeroStrip([
     { label: clientRequestsScopePrimaryLabel(), value: list.length },
@@ -9375,9 +9443,9 @@ function vehiclesHtml() {
   const resolveVehicleOccupancy = (vehicleId) => {
     const list = activeTripsByVehicleId.get(String(vehicleId)) || [];
     if (!list.length) return { tone: "available", trip: null, detail: "Sin viaje activo" };
-    const ongoing = list.find((r) => describeTripTimingVsNow(r.trip, nowTs).timing === "ongoing") || null;
+    const ongoing = list.find((r) => describeTripTimingVsNow(r, nowTs).timing === "ongoing") || null;
     if (ongoing) {
-      const left = describeTripTimingVsNow(ongoing.trip, nowTs).minutes;
+      const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
       return {
         tone: "busy",
         trip: ongoing,
@@ -9385,7 +9453,7 @@ function vehiclesHtml() {
       };
     }
     const upcoming = list
-      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .map((r) => ({ r, info: describeTripTimingVsNow(r, nowTs) }))
       .filter((x) => x.info.timing === "upcoming")
       .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
     if (upcoming) {
@@ -9396,7 +9464,7 @@ function vehiclesHtml() {
       };
     }
     const latestPast = list
-      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .map((r) => ({ r, info: describeTripTimingVsNow(r, nowTs) }))
       .filter((x) => x.info.timing === "past")
       .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
     if (latestPast) {
@@ -9562,9 +9630,9 @@ function driversHtml() {
   const resolveDriverOccupancy = (driverId) => {
     const list = activeTripsByDriverId.get(String(driverId)) || [];
     if (!list.length) return { tone: "available", trip: null, detail: "Sin viaje activo" };
-    const ongoing = list.find((r) => describeTripTimingVsNow(r.trip, nowTs).timing === "ongoing") || null;
+    const ongoing = list.find((r) => describeTripTimingVsNow(r, nowTs).timing === "ongoing") || null;
     if (ongoing) {
-      const left = describeTripTimingVsNow(ongoing.trip, nowTs).minutes;
+      const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
       return {
         tone: "busy",
         trip: ongoing,
@@ -9572,7 +9640,7 @@ function driversHtml() {
       };
     }
     const upcoming = list
-      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .map((r) => ({ r, info: describeTripTimingVsNow(r, nowTs) }))
       .filter((x) => x.info.timing === "upcoming")
       .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
     if (upcoming) {
@@ -9583,7 +9651,7 @@ function driversHtml() {
       };
     }
     const latestPast = list
-      .map((r) => ({ r, info: describeTripTimingVsNow(r.trip, nowTs) }))
+      .map((r) => ({ r, info: describeTripTimingVsNow(r, nowTs) }))
       .filter((x) => x.info.timing === "past")
       .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
     if (latestPast) {
@@ -9773,7 +9841,7 @@ function transportTripsHtml() {
   const pendingForTrip = pendingRaw.filter((r) => isRequestPickupSameDayOrFuture(r));
   const pendingExpired = pendingRaw.filter((r) => !isRequestPickupSameDayOrFuture(r));
   const trips = reqRead().filter((r) => r.trip);
-  const activeOps = trips.filter((r) => activeTripStatuses().includes(r.status)).length;
+  const activeOps = trips.filter((r) => tripRequestStatusIsOperational(r.status)).length;
   const completedTrips = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
   const standbyTrips = trips.filter((r) => parseNum(r.standbyChargeTotal) > 0).length;
   const todayIso = colombiaTodayIsoDate();
@@ -9791,7 +9859,7 @@ function transportTripsHtml() {
     if (filter === "closed") return trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status));
     if (filter === "standby") return trips.filter((r) => parseNum(r.standbyChargeTotal) > 0);
     if (filter === "all") return trips;
-    return trips.filter((r) => activeTripStatuses().includes(r.status));
+    return trips.filter((r) => tripRequestStatusIsOperational(r.status));
   })();
   const sortedFilteredTrips = filteredTrips
     .slice()
@@ -11037,7 +11105,7 @@ function historyHtml() {
     },
     {
       label: "En curso",
-      value: requests.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length
+      value: requests.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length
     },
     {
       label: "Sin viaje",
@@ -20842,10 +20910,7 @@ function initGlobalEvents() {
       closePublicNavDrawer();
       hamburgerBtn.focus();
     });
-    window.addEventListener("resize", () => {
-      if (!window.matchMedia("(min-width: 921px)").matches) return;
-      closePublicNavDrawer();
-    });
+    syncPublicNavDrawer();
   }
 
   const portalMenuBtn = document.getElementById("portal-menu-btn");
