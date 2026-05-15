@@ -1531,6 +1531,38 @@ const LOGIN_REMEMBER_STORAGE_KEY = "antares_portal_login_remember_v1";
  * En memoria solo `state.notificationPreferences` (hasta que llegue el bootstrap).
  */
 let __notifInboxAudioCtx = null;
+let __notifInboxAudioUnlockInstalled = false;
+
+/** Edad de una notificación respecto al reloj local; 0 si no hay fecha fiable (se trata como recién vista). */
+function __notificationPollAgeMs(n, nowMs) {
+  const raw = n?.createdAt;
+  if (raw === undefined || raw === null || String(raw).trim() === "") return 0;
+  const createdTs = new Date(raw).getTime();
+  if (!Number.isFinite(createdTs)) return 0;
+  return nowMs - createdTs;
+}
+
+/**
+ * Ventana «en vivo» del poll: evita re-toastear historial.
+ * Si el servidor va adelantado (age &lt; 0), igual contamos como fresca para no silenciar timbre/toast.
+ */
+function __inboxNotificationIsFreshForPoll(n, nowMs, windowMs) {
+  return __notificationPollAgeMs(n, nowMs) < windowMs;
+}
+
+function ensureInboxNotificationAudioUnlocked() {
+  if (typeof document === "undefined" || __notifInboxAudioUnlockInstalled) return;
+  __notifInboxAudioUnlockInstalled = true;
+  const resume = () => {
+    try {
+      const ctx = __notifInboxAudioCtx;
+      if (ctx && ctx.state === "suspended") void ctx.resume();
+    } catch (_e) {}
+  };
+  ["pointerdown", "keydown", "click"].forEach((ev) => {
+    document.addEventListener(ev, resume, { capture: true, passive: true });
+  });
+}
 
 function getNotificationPreferencesNormalized() {
   const p = state.notificationPreferences;
@@ -1689,6 +1721,7 @@ function playInboxNotificationSound() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     if (!__notifInboxAudioCtx) __notifInboxAudioCtx = new AC();
+    ensureInboxNotificationAudioUnlocked();
     const ctx = __notifInboxAudioCtx;
     const run = () => {
       const osc = ctx.createOscillator();
@@ -7887,8 +7920,16 @@ function bindAuthForms() {
         } catch (_e0) {}
         state.authSupabaseRecovery = false;
         state.authTab = "login";
-        notify(String(body?.message || userMessage("recoverCompleteSuccess")), "success", 8000);
-        renderAuthTab();
+        const okMsg = String(body?.message || userMessage("recoverCompleteSuccess"));
+        notify(okMsg, "success", 9000);
+        hideAuth();
+        if (!getSession()) {
+          try {
+            history.replaceState(null, "", window.location.pathname + window.location.search);
+          } catch (_u) {}
+          window.scrollTo(0, 0);
+        }
+        renderPortal();
       } catch (_e) {
         notify(userMessage("authNoConnection"), "error");
       }
@@ -9392,10 +9433,9 @@ function __tickNotificationsPoll() {
    */
   const FRESH_TOAST_WINDOW_MS = 30_000;
   for (const n of selfNew) {
-    const createdTs = new Date(n.createdAt || 0).getTime();
-    const age = Number.isFinite(createdTs) ? now - createdTs : Number.POSITIVE_INFINITY;
-    if (!Number.isFinite(age) || age < 0 || age >= FRESH_TOAST_WINDOW_MS) continue;
-    const skipDuplicateExplicitSuccess = suppressUntil > now && age < 6500;
+    if (!__inboxNotificationIsFreshForPoll(n, now, FRESH_TOAST_WINDOW_MS)) continue;
+    const ageMs = __notificationPollAgeMs(n, now);
+    const skipDuplicateExplicitSuccess = suppressUntil > now && ageMs < 6500;
     if (skipDuplicateExplicitSuccess) continue;
     toToast.push(n);
   }
@@ -9446,6 +9486,7 @@ function updateNotificationBadge() {
 
 function startNotificationsPolling() {
   if (__notificationsPollHandle != null) return;
+  ensureInboxNotificationAudioUnlocked();
   __lastSeenNotificationIds = new Set(getCurrentNotifications().map((n) => n.id));
   __lastNotificationsSilentBootstrapWallMs = Date.now();
   __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());

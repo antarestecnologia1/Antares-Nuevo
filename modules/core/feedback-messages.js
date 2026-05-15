@@ -45,7 +45,8 @@
     recoverSupabaseError: "No se pudo enviar el correo de recuperación. Intente de nuevo o contacte a soporte.",
     recoverSupabaseUnavailable:
       "No se pudo iniciar la recuperación desde el navegador. Actualice la página y compruebe su conexión, o solicite asistencia a soporte.",
-    recoverCompleteSuccess: "Contraseña actualizada. Ya puede iniciar sesión con su correo y la nueva contraseña.",
+    recoverCompleteSuccess:
+      "Contraseña restablecida correctamente. Le mostramos la página principal; use «Portal» para iniciar sesión con su correo y la nueva contraseña.",
     recoverCompleteError: "No se pudo guardar la nueva contraseña.",
     recoverCompleteNeedsApi:
       "Falta la URL de la API del portal en este sitio. Sin ella no se puede sincronizar la contraseña con el servidor.",
