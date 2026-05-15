@@ -2770,6 +2770,7 @@ function __applyPortalBootstrapPayloadInner(p) {
     if (prop === "users") {
       const raw = Array.isArray(p.users) ? p.users : [];
       write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
+      ensureUsersPermissions();
       continue;
     }
     if (prop === "companies") {
@@ -5560,19 +5561,52 @@ function defaultPermissionsForRole(role) {
   ];
 }
 
+/** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol (no re-expandir admin). */
+function normalizeSavedUserPermissions(role, checkedPermissions) {
+  const filtered = (Array.isArray(checkedPermissions) ? checkedPermissions : []).filter((p) =>
+    ALL_PERMISSIONS.includes(p)
+  );
+  if (filtered.length > 0) return [...new Set(filtered)];
+  return defaultPermissionsForRole(role);
+}
+
+/** Permisos efectivos en UI/validación: los guardados o, si no hay, los defaults del rol. */
+function effectiveUserPermissions(user) {
+  const role = user?.role || ROLES.CLIENT;
+  const current = Array.isArray(user?.permissions) ? user.permissions : [];
+  const filtered = current.filter((p) => ALL_PERMISSIONS.includes(p));
+  if (filtered.length > 0) return filtered;
+  return defaultPermissionsForRole(role);
+}
+
+function repaintPermGridInForm(form, role) {
+  if (!form) return;
+  const grid = form.querySelector(".perm-grid");
+  if (!grid) return;
+  grid.innerHTML = buildGranularPermissionsCheckboxesHtml(defaultPermissionsForRole(role || ROLES.CLIENT));
+}
+
+function wireAdminUserFormPermGridOnRoleChange(form) {
+  if (!form || form.dataset.antaresPermRoleWired === "1") return;
+  const roleSel = form.querySelector("select[name='role']");
+  if (!roleSel || !form.querySelector(".perm-grid")) return;
+  form.dataset.antaresPermRoleWired = "1";
+  roleSel.addEventListener("change", () => {
+    repaintPermGridInForm(form, roleSel.value || ROLES.CLIENT);
+  });
+}
+
 function ensureUsersPermissions() {
   const users = read(KEYS.users, []);
   const updated = users.map((user) => {
-    if (user.role === ROLES.ADMIN) {
-      return { ...user, permissions: [...ALL_PERMISSIONS] };
-    }
     const current = Array.isArray(user.permissions) ? user.permissions : [];
     const filtered = current.filter((permission) => ALL_PERMISSIONS.includes(permission));
     if (filtered.length > 0) {
       return { ...user, permissions: filtered };
     }
-    const base = defaultPermissionsForRole(user.role);
-    const merged = [...new Set(base)].filter((permission) => ALL_PERMISSIONS.includes(permission));
+    const merged = [...new Set(defaultPermissionsForRole(user.role))].filter((permission) =>
+      ALL_PERMISSIONS.includes(permission)
+    );
     return { ...user, permissions: merged };
   });
   const changed = updated.some((u, i) => {
@@ -8426,9 +8460,7 @@ function getVisibleRequestsForUser(user) {
 
 function hasPermission(user, permission) {
   if (!permission) return true;
-  if (user?.role === ROLES.ADMIN) return true;
-  const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
-  return permissions.includes(permission);
+  return effectiveUserPermissions(user).includes(permission);
 }
 
 /**
@@ -8663,8 +8695,7 @@ function renderPortal() {
    * pierde su vista actual aunque el bootstrap esté lento o falle temporalmente.
    */
   const userPermsArr = Array.isArray(user.permissions) ? user.permissions : [];
-  const userIsAdmin = user.role === ROLES.ADMIN;
-  const hydratingStub = !userIsAdmin && userPermsArr.length === 0;
+  const hydratingStub = userPermsArr.length === 0;
   if (hydratingStub) {
     const urlView = viewFromPortalHash();
     if (urlView && PortalArch.isKnownView(urlView)) {
@@ -10074,7 +10105,9 @@ function adminUsersHtml(current) {
   const users = read(KEYS.users, []);
   const companies = read(KEYS.companies, []);
   const ui = state.adminUsersUi || { panel: "", editUserId: "", editCompanyId: "" };
-  const editingUser = ui.editUserId ? users.find((u) => u.id === ui.editUserId) : null;
+  const editingUser = ui.editUserId
+    ? users.find((u) => String(u.id) === String(ui.editUserId))
+    : null;
   const editingCompanyRaw = ui.editCompanyId ? companies.find((c) => String(c.id) === String(ui.editCompanyId)) : null;
   const editingCompany = editingCompanyRaw ? normalizePortalBootstrapCompanyRow(editingCompanyRaw) : null;
   const editingCompanyDeptKey = editingCompany
@@ -10341,7 +10374,7 @@ function adminUsersHtml(current) {
 
     <fieldset class="full perm-fieldset">
       <legend>${IC.shield} Permisos del usuario</legend>
-      <div class="perm-grid">${permissionChecks([...ALL_PERMISSIONS])}</div>
+      <div class="perm-grid">${permissionChecks(defaultPermissionsForRole(ROLES.ADMIN))}</div>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
   </form>`;
@@ -10609,7 +10642,7 @@ function adminUsersHtml(current) {
     </fieldset>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
-      <div class="perm-grid">${permissionChecks(editingUser.permissions || [])}</div>
+      <div class="perm-grid">${permissionChecks(effectiveUserPermissions(editingUser))}</div>
     </fieldset>
     <div class="toolbar full">
       <button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>
@@ -15131,6 +15164,7 @@ function bindDynamicEvents() {
       adminUserCreate.querySelector("input[name='password']"),
       adminUserCreate.querySelector("#admin-password-strength-suite")
     );
+    wireAdminUserFormPermGridOnRoleChange(adminUserCreate);
     adminUserCreate.addEventListener("submit", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -15197,12 +15231,7 @@ function bindDynamicEvents() {
         twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
         systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
         createdAt: nowIso(),
-        permissions:
-          data.role === ROLES.ADMIN
-            ? [...ALL_PERMISSIONS]
-            : permissions.length
-              ? permissions
-              : defaultPermissionsForRole(data.role)
+        permissions: normalizeSavedUserPermissions(data.role, permissions)
       });
       await writeAwaitServer(KEYS.users, users);
       notify(userMessage("userCreated"), "success");
@@ -15441,15 +15470,7 @@ function bindDynamicEvents() {
         grid.innerHTML = buildGranularPermissionsCheckboxesHtml([]);
         return;
       }
-      if (u.role === ROLES.ADMIN) {
-        grid.innerHTML = buildGranularPermissionsCheckboxesHtml([], { readOnlyAllChecked: true });
-        return;
-      }
-      const perms =
-        Array.isArray(u.permissions) && u.permissions.length
-          ? u.permissions.filter((p) => ALL_PERMISSIONS.includes(p))
-          : defaultPermissionsForRole(u.role);
-      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(perms);
+      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(effectiveUserPermissions(u));
     };
     const userSel = adminUserPermissions.querySelector("select[name='userId']");
     if (userSel && !userSel.dataset.antaresPermGridWired) {
@@ -15470,14 +15491,15 @@ function bindDynamicEvents() {
         (input) => input.value
       );
       const users = read(KEYS.users, []);
+      const target = users.find((u) => String(u.id) === userId);
       const nextUsers = users.map((user) =>
         String(user.id) === userId
           ? {
               ...user,
-              permissions:
-                user.role === ROLES.ADMIN
-                  ? [...ALL_PERMISSIONS]
-                  : permissions.filter((permission) => ALL_PERMISSIONS.includes(permission))
+              permissions: normalizeSavedUserPermissions(
+                String(user.role || target?.role || ROLES.CLIENT),
+                permissions
+              )
             }
           : user
       );
@@ -15513,13 +15535,14 @@ function bindDynamicEvents() {
     const adminEditAvatarInput = document.getElementById("admin-edit-user-avatar-input");
     const adminEditAvatarLabel = document.getElementById("admin-edit-user-avatar-label");
     bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
+    wireAdminUserFormPermGridOnRoleChange(adminUserEdit);
     adminUserEdit.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(adminUserEdit).entries());
       const userId = String(data.id || "");
       if (!userId) return;
       const users = read(KEYS.users, []);
-      const existing = users.find((u) => u.id === userId);
+      const existing = users.find((u) => String(u.id) === userId);
       if (!existing) {
         notify(userMessage("userNotFound"), "error");
         return;
@@ -15611,7 +15634,7 @@ function bindDynamicEvents() {
         resolvedAvatarUrl = trimmedAv;
       }
       const nextEdited = users.map((u) =>
-        u.id === userId
+        String(u.id) === userId
           ? {
               ...u,
               name: resolvedFullName,
@@ -15646,18 +15669,14 @@ function bindDynamicEvents() {
               },
               twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
               systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
-              permissions:
-                String(data.role || u.role) === ROLES.ADMIN
-                  ? [...ALL_PERMISSIONS]
-                  : permissions.length
-                    ? permissions.filter((p) => ALL_PERMISSIONS.includes(p))
-                    : defaultPermissionsForRole(String(data.role || u.role))
+              permissions: normalizeSavedUserPermissions(String(data.role || u.role), permissions)
             }
           : u
       );
       try {
         await writeAwaitServer(KEYS.users, nextEdited);
-      } catch (_e) {
+      } catch (err) {
+        notify(String(err?.message || userMessage("genericError")), "error");
         return;
       }
       notify(userMessage("userUpdated"), "success");
@@ -15713,9 +15732,7 @@ function bindDynamicEvents() {
       }
       if (target.phone) modalSubtitleLines.push(`Tel.: ${String(target.phone).trim()}`);
       const initialRole = target.role || ROLES.CLIENT;
-      const initialPerms = Array.isArray(target.permissions) && target.permissions.length
-        ? target.permissions.filter((p) => ALL_PERMISSIONS.includes(p))
-        : defaultPermissionsForRole(initialRole);
+      const initialPerms = effectiveUserPermissions(target);
       const renderPermsChecklistHtml = (selected) => {
         const setSel = new Set(selected);
         const items = ALL_PERMISSIONS.map((permission) => {
@@ -15851,9 +15868,7 @@ function bindDynamicEvents() {
                 .map((el) => el.value)
                 .filter((p) => ALL_PERMISSIONS.includes(p))
             : [];
-          const finalPerms = checkedPerms.length
-            ? [...new Set(checkedPerms)]
-            : defaultPermissionsForRole(chosenRole);
+          const finalPerms = normalizeSavedUserPermissions(chosenRole, checkedPerms);
           const api = window.AntaresApi;
           if (api?.isConfigured?.()) {
             try {
@@ -15894,7 +15909,7 @@ function bindDynamicEvents() {
             write(
               KEYS.users,
               read(KEYS.users, []).map((u) =>
-                u.id === userId
+                String(u.id) === String(userId)
                   ? {
                       ...u,
                       accountStatus: ACCOUNT_STATUS.APROBADO,
@@ -20116,10 +20131,10 @@ function bindDynamicEvents() {
             city: normalizeLatinForDb(p.city || ""),
             department: normalizeLatinForDb(p.department || ""),
             address: normalizeLatinForDb(p.address || ""),
-            permissions:
-              p.role === ROLES.ADMIN
-                ? [...ALL_PERMISSIONS]
-                : (p.permissions || defaultPermissionsForRole(p.role))
+            permissions: normalizeSavedUserPermissions(
+              p.role,
+              p.permissions || defaultPermissionsForRole(p.role)
+            )
           });
           try {
             await writeAwaitServer(KEYS.users, users);
