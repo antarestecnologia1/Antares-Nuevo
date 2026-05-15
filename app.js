@@ -8458,10 +8458,17 @@ async function transitionRequestStatus(requestId, nextStatus, actorName = "Siste
   return true;
 }
 
-/** Ventanas de más de 12 h suelen ser plazo/SLA de solicitud, no reserva real del vehículo en agenda. */
-const FLEET_SCHED_CONFLICT_SLA_LIKE_SPAN_MS = 12 * 60 * 60 * 1000;
-/** Bloque máximo asumido para solapes cuando la ventana parece un SLA (no sustituye duración real documentada). */
-const FLEET_SCHED_CONFLICT_CAP_BLOCK_MS = 90 * 60 * 1000;
+/**
+ * Por encima de este tramo, la ventana recogida→entrega suele mezclar plazo/SLA del cliente con el uso
+ * real del camión (p. ej. recogida 08:00 y “entregar antes de” 20:00). En cruces de agenda no debe
+ * bloquearse todo el día ni impedir otra solicitud claramente en horas posteriores.
+ */
+const FLEET_SCHED_CONFLICT_SLA_LIKE_SPAN_MS = 4 * 60 * 60 * 1000;
+/**
+ * Bloque máximo reservado desde la recogida programada cuando la ventana parece SLA (mismo criterio que la API
+ * con ventanas largas: prioriza liberar franjas sin solape real).
+ */
+const FLEET_SCHED_CONFLICT_CAP_BLOCK_MS = 2 * 60 * 60 * 1000;
 
 function normalizeFleetSchedulingRangeForConflict(range) {
   if (!range) return null;
@@ -10479,7 +10486,7 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full create-trip-fieldset">
       <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
-        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, la ocupación por horario usa la misma ventana <strong>recogida → entrega estimada</strong> de esta solicitud frente a los viajes ya asignados; si la entrega estimada es mucho más tarde que la recogida, ambos recursos pueden seguir marcados ocupados en ese tramo. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, el cruce de agenda usa la ventana <strong>recogida → entrega estimada</strong> de esta solicitud frente a los viajes ya asignados; si la entrega está muy lejos en el tiempo respecto a la recogida (plazo tipo SLA), el sistema solo reserva un tramo inicial razonable para el solape, de modo que un camión en viaje no bloquee franjas mucho más tarde sin cruce real. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
         <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">Ocupado</span><span class="create-trip-flag create-trip-flag--offline">No disponible</span><span class="create-trip-flag create-trip-flag--expired">Documentación vencida</span></p>
         <div class="create-trip-fleet-grid">
           <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
@@ -17718,8 +17725,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: camiones, turbos y tractomulas, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» en vehículo y conductor usa la misma ventana recogida–entrega estimada de esta solicitud frente a viajes ya asignados. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» por horario cruza esta solicitud con viajes ya asignados; si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape, para no bloquear franjas posteriores sin cruce real. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: camiones, turbos y tractomulas, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» por horario cruza esta solicitud con viajes ya asignados; si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape, para no bloquear franjas posteriores sin cruce real. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
