@@ -1,14 +1,10 @@
-import { Transform, Type } from "class-transformer";
+import { Transform } from "class-transformer";
 import {
   IsEmail,
   IsNotEmpty,
-  IsNumber,
-  IsOptional,
   IsString,
   Matches,
-  Max,
   MaxLength,
-  Min,
   MinLength
 } from "class-validator";
 import { TransformStripNulTrim } from "../../common/transformers/strip-nul-trim.transform";
@@ -86,14 +82,6 @@ export class CreateB2bProspectDto {
   @IsNotEmpty()
   @MaxLength(80)
   startWindow!: string;
-
-  /** Opcional: el formulario público ya no lo solicita; se persiste 0 en base de datos. */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(999999999)
-  monthlyVolumeKg?: number;
 
   @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value))
   @IsString()

@@ -490,12 +490,6 @@ export class B2bProspectService {
       );
     }
 
-    const rawVol = dto.monthlyVolumeKg;
-    const vol =
-      rawVol === undefined || rawVol === null || !Number.isFinite(Number(rawVol))
-        ? 0
-        : Math.min(999_999_999, Math.max(0, Number(rawVol)));
-
     const msg = String(dto.message || "").trim();
     if (msg.length < 30) {
       throw new BadRequestException("El mensaje debe tener al menos 30 caracteres.");
@@ -508,8 +502,8 @@ export class B2bProspectService {
     const ins = await this.pool.query<{ id: string }>(
       `INSERT INTO prospectos_contacto_b2b (
           nombre_contacto, nombre_empresa, nit, cargo_contacto, telefono, correo_electronico,
-          tipo_servicio, tipo_operacion, frecuencia_operacion, ventana_inicio_servicio, volumen_mensual_aprox_kg, mensaje
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          tipo_servicio, tipo_operacion, frecuencia_operacion, ventana_inicio_servicio, mensaje
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id::text AS id`,
       [
         dto.name.trim(),
@@ -522,7 +516,6 @@ export class B2bProspectService {
         dto.operationType.trim(),
         dto.operationFrequency.trim(),
         dto.startWindow.trim(),
-        vol,
         msg
       ]
     );
@@ -533,7 +526,6 @@ export class B2bProspectService {
       ...dto,
       email,
       phone: phoneCheck.formatted,
-      monthlyVolumeKg: vol,
       message: msg
     });
 

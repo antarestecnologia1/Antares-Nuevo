@@ -15293,11 +15293,6 @@ function contactLeadsHtml() {
       const nit = escapeHtml(String(c.nit || "").trim()) || "—";
       const freq = escapeHtml(String(c.frequency || "").trim()) || "—";
       const win = escapeHtml(String(c.serviceWindow || "").trim()) || "—";
-      const volNum = parseNum(c.monthlyVolumeKg);
-      const volRow =
-        volNum > 0
-          ? `<div><dt>Volumen ref.</dt><dd>${escapeHtml(`${volNum.toLocaleString("es-CO")} kg / mes`)}</dd></div>`
-          : "";
       const brief = escapeHtml(String(c.message || "").trim() || "(Sin mensaje corporativo)");
       const briefHtml = brief.replace(/\r\n|\r|\n/g, "<br />");
       const mailHref = escapeAttr(emailRaw);
@@ -15325,7 +15320,6 @@ function contactLeadsHtml() {
           <div><dt>NIT</dt><dd>${nit}</dd></div>
           <div><dt>Frecuencia</dt><dd>${freq}</dd></div>
           <div><dt>Inicio esperado</dt><dd>${win}</dd></div>
-          ${volRow}
         </dl>
         <section class="b2b-leads-brief" aria-label="Mensaje del prospecto"><h4 class="b2b-leads-brief-title">Brief de la solicitud</h4><div class="b2b-leads-brief-body">${briefHtml}</div></section>
       </article>`;
@@ -22562,7 +22556,7 @@ function initGlobalEvents() {
     };
     let messageValue = String(data.message || "").trim();
     if (V && typeof V.validateB2bProspectClient === "function") {
-      const b2bVal = V.validateB2bProspectClient(data, nodes.b2bForm, () =>
+      const b2bVal = V.validateB2bProspectClient(nodes.b2bForm, data, () =>
         getSelectedPhoneCountry(nodes.b2bForm, "b2b")
       );
       if (!b2bVal.ok) {

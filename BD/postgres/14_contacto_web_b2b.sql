@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS prospectos_contacto_b2b (
   tipo_operacion              VARCHAR(80) NOT NULL,
   frecuencia_operacion        VARCHAR(64) NOT NULL,
   ventana_inicio_servicio     VARCHAR(80) NOT NULL,
-  volumen_mensual_aprox_kg    NUMERIC(14,2) NOT NULL CHECK (volumen_mensual_aprox_kg >= 0),
   mensaje                     TEXT NOT NULL,
   fecha_creacion              TIMESTAMPTZ NOT NULL DEFAULT now()
 );

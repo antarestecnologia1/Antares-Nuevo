@@ -435,10 +435,12 @@ export class PortalService implements OnModuleInit {
           tipo_operacion              VARCHAR(80) NOT NULL,
           frecuencia_operacion        VARCHAR(64) NOT NULL,
           ventana_inicio_servicio     VARCHAR(80) NOT NULL,
-          volumen_mensual_aprox_kg    NUMERIC(14,2) NOT NULL CHECK (volumen_mensual_aprox_kg >= 0),
           mensaje                     TEXT NOT NULL,
           fecha_creacion              TIMESTAMPTZ NOT NULL DEFAULT now()
         )`
+      );
+      await this.pool.query(
+        `ALTER TABLE prospectos_contacto_b2b DROP COLUMN IF EXISTS volumen_mensual_aprox_kg`
       );
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_prospectos_contacto_b2b_fecha_creacion_desc
@@ -2329,7 +2331,6 @@ export class PortalService implements OnModuleInit {
       operationType: c.tipo_operacion,
       frequency: c.frecuencia_operacion,
       serviceWindow: c.ventana_inicio_servicio,
-      monthlyVolumeKg: c.volumen_mensual_aprox_kg,
       message: c.mensaje,
       createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString()
     }));
@@ -3198,9 +3199,9 @@ export class PortalService implements OnModuleInit {
       await c.query(
         `INSERT INTO prospectos_contacto_b2b (
           id, nombre_contacto, nombre_empresa, nit, cargo_contacto, telefono, correo_electronico,
-          tipo_servicio, tipo_operacion, frecuencia_operacion, ventana_inicio_servicio, volumen_mensual_aprox_kg, mensaje
+          tipo_servicio, tipo_operacion, frecuencia_operacion, ventana_inicio_servicio, mensaje
         ) VALUES (
-          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_contacto = EXCLUDED.nombre_contacto,
@@ -3213,7 +3214,6 @@ export class PortalService implements OnModuleInit {
           tipo_operacion = EXCLUDED.tipo_operacion,
           frecuencia_operacion = EXCLUDED.frecuencia_operacion,
           ventana_inicio_servicio = EXCLUDED.ventana_inicio_servicio,
-          volumen_mensual_aprox_kg = EXCLUDED.volumen_mensual_aprox_kg,
           mensaje = EXCLUDED.mensaje`,
         [
           row.id,
@@ -3227,7 +3227,6 @@ export class PortalService implements OnModuleInit {
           row.operationType,
           row.frequency,
           row.serviceWindow,
-          row.monthlyVolumeKg ?? 0,
           row.message
         ]
       );
