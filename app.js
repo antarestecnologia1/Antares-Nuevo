@@ -3608,6 +3608,12 @@ const PUBLIC_ES_EN_DICT = {
   "Capacidad:": "Capacity:",
   "Cajas:": "Boxes:",
   "Ideal para rutas urbanas y regionales": "Ideal for urban and regional routes",
+  "18 carros turbo en operación": "18 turbo trucks in operation",
+  "Unidades livianas para despachos frecuentes y cadena de frío confiable":
+    "Lightweight units for frequent dispatches with a dependable cold chain",
+  "6 tractomulas en operación": "6 tractor-trailers in operation",
+  "Articulados para el mayor volumen por viaje y trazabilidad en corredor":
+    "Articulated rigs for maximum load per trip and corridor-level traceability",
   Tractomula: "Articulated fleet",
   Bus: "Bus",
   "Traslados de equipo y corredores entre sedes": "Crew moves and corridor runs between locations",
@@ -23706,12 +23712,15 @@ const COVERAGE_FALLBACK_HUBS_ES = [
   "Bogota"
 ];
 
-const COVERAGE_FALLBACK_CORRIDORS_ES = [
-  "Sabana de Bogota",
-  "Antioquia floricultora",
-  "Puertos de exportacion",
-  "Eje cafetero",
-  "Costa atlantica"
+/** Corredores de referencia (misma forma que topCorridors de la API) para fallback o sin datos. */
+const COVERAGE_FALLBACK_CORRIDORS = [
+  { cityA: "Santa Marta", cityB: "Barranquilla" },
+  { cityA: "Barranquilla", cityB: "Cartagena" },
+  { cityA: "Cartagena", cityB: "Buenaventura" },
+  { cityA: "Buenaventura", cityB: "Medellin" },
+  { cityA: "Medellin", cityB: "Bogota" },
+  { cityA: "Oriente Antioqueño", cityB: "Medellin" },
+  { cityA: "Medellin", cityB: "Puerto Antioquia" }
 ];
 
 /** Ventana de meses para GET /public/transport-request-coverage-stats (API acota entre 3 y 36). */
@@ -23753,9 +23762,11 @@ function renderPublicCoverageCorridorGrid(rows, showCounts) {
       if (!a || !b) return "";
       const deptA = String(row.departmentA ?? row.originDepartment ?? "").trim();
       const deptB = String(row.departmentB ?? row.destinationDepartment ?? "").trim();
-      const linePlain = `${a} \u2194 ${b}`;
-      const left = deptA ? `${a} (${deptA})` : a;
-      const right = deptB ? `${b} (${deptB})` : b;
+      const ta = tPublic(a);
+      const tb = tPublic(b);
+      const linePlain = `${ta} \u2194 ${tb}`;
+      const left = deptA ? `${ta} (${tPublic(deptA)})` : ta;
+      const right = deptB ? `${tb} (${tPublic(deptB)})` : tb;
       const title = `${left} \u2194 ${right}`;
       const cnt = row.requestCount != null ? Number(row.requestCount) : NaN;
       const badge =
@@ -23795,12 +23806,7 @@ function renderPublicCoverageFromView() {
       COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
       false
     );
-    corridorGrid.innerHTML = COVERAGE_FALLBACK_CORRIDORS_ES.map(
-      (label) =>
-        `<div class="coverage-item"><span class="coverage-dot"></span><span class="coverage-item-label">${escapeHtml(
-          tPublic(label)
-        )}</span></div>`
-    ).join("");
+    corridorGrid.innerHTML = renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
     if (foot) {
       foot.hidden = false;
       foot.textContent =
@@ -23835,12 +23841,7 @@ function renderPublicCoverageFromView() {
 
   corridorGrid.innerHTML = corOk
     ? renderPublicCoverageCorridorGrid(topCorridors, true)
-    : COVERAGE_FALLBACK_CORRIDORS_ES.map(
-        (label) =>
-          `<div class="coverage-item"><span class="coverage-dot"></span><span class="coverage-item-label">${escapeHtml(
-            tPublic(label)
-          )}</span></div>`
-      ).join("");
+    : renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
 
   if (foot) {
     if (total > 0 && (hubsOk || corOk)) {
