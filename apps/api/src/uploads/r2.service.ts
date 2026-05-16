@@ -126,6 +126,32 @@ export class R2Service {
     return `${this.publicBase}/${key.replace(/^\/+/, "")}`;
   }
 
+  /** Lee un objeto del bucket de uploads (p. ej. hoja de vida en R2). */
+  async getUploadsObject(key: string): Promise<{ buffer: Buffer; contentType: string }> {
+    if (!this.client) {
+      throw new InternalServerErrorException(
+        "R2 no está configurado en el servidor."
+      );
+    }
+    const normalizedKey = key.replace(/^\/+/, "");
+    const cmd = new GetObjectCommand({
+      Bucket: this.uploadsBucket,
+      Key: normalizedKey
+    });
+    const out = await this.client.send(cmd);
+    const body = out.Body as { transformToByteArray?: () => Promise<Uint8Array> } | undefined;
+    if (!body || typeof body.transformToByteArray !== "function") {
+      throw new InternalServerErrorException(
+        "No se pudo leer el archivo desde R2."
+      );
+    }
+    const bytes = await body.transformToByteArray();
+    return {
+      buffer: Buffer.from(bytes),
+      contentType: String(out.ContentType || "application/octet-stream")
+    };
+  }
+
   /** GET prefirmado para descargar un objeto ya subido a `CF_R2_UPLOADS_BUCKET` (p. ej. CV sin dominio público configurado). */
   async presignGetUploadsObject(key: string, expiresInSec = 7200) {
     if (!this.client) {

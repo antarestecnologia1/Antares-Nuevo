@@ -2567,6 +2567,71 @@ export class PortalService implements OnModuleInit {
     throw new NotFoundException("No hay hoja de vida adjunta para este candidato.");
   }
 
+  /**
+   * Binario de hoja de vida para descarga directa (Content-Disposition: attachment).
+   * Evita que el navegador abra URLs R2 en la misma pestaña del portal.
+   */
+  async getCandidateCvFile(
+    userId: string,
+    role: JwtRole,
+    candidateId: string
+  ): Promise<{ buffer: Buffer; mime: string; fileName: string }> {
+    void userId;
+    if (!this.isRrhh(role)) {
+      throw new ForbiddenException();
+    }
+    const id = String(candidateId || "").trim();
+    if (!PG_UUID_V4_RE.test(id)) {
+      throw new BadRequestException("Identificador de candidato invalido.");
+    }
+    const r = await this.pool.query<{ adjuntos_json: unknown }>(
+      `SELECT adjuntos_json FROM candidatos WHERE id = $1::uuid`,
+      [id]
+    );
+    if (!r.rows[0]) {
+      throw new NotFoundException("Candidato no encontrado.");
+    }
+    const arr = this.parseCandidateAdjuntosJsonArray(r.rows[0].adjuntos_json);
+    for (const item of arr) {
+      if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+      const rec = item as Record<string, unknown>;
+      const kind = String(rec.kind || "");
+      const fileName = String(rec.name || "hoja-de-vida").trim() || "hoja-de-vida";
+      if (kind === "cv_blob" && rec.data && rec.mime) {
+        return {
+          buffer: Buffer.from(String(rec.data), "base64"),
+          mime: String(rec.mime || "application/octet-stream"),
+          fileName
+        };
+      }
+      if (kind === "cv_file") {
+        const storageKey = String(rec.storageKey || "").trim();
+        if (storageKey && this.r2.hasUploadsClient()) {
+          const obj = await this.r2.getUploadsObject(storageKey);
+          return {
+            buffer: obj.buffer,
+            mime: obj.contentType || "application/octet-stream",
+            fileName
+          };
+        }
+        const existingUrl = String(rec.url || "").trim();
+        if (existingUrl && /^https?:\/\//i.test(existingUrl)) {
+          const res = await fetch(existingUrl);
+          if (!res.ok) {
+            throw new NotFoundException("No se pudo obtener la hoja de vida.");
+          }
+          const ab = await res.arrayBuffer();
+          const mime =
+            String(res.headers.get("content-type") || "application/octet-stream")
+              .split(";")[0]
+              ?.trim() || "application/octet-stream";
+          return { buffer: Buffer.from(ab), mime, fileName };
+        }
+      }
+    }
+    throw new NotFoundException("No hay hoja de vida adjunta para este candidato.");
+  }
+
   private async loadVacancies() {
     const r = await this.pool.query(`SELECT * FROM vacantes ORDER BY fecha_creacion DESC`);
     return r.rows.map((v) => ({

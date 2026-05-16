@@ -156,7 +156,7 @@
       skip: (el) => el.matches(".js-b2b-phone-national, .js-register-phone-national")
     },
     {
-      re: /(Salary|salary|Cost|cost|Cop|cop|Amount|amount|Price|price|Value|value|Reimbursement|Allowance|allowance|bonus|Bonus|indemnization|cesantias|prima|vacaciones|otrosSettlement|tripValue|tripRate|totalCost|fuelReimbursement|baseSalary|liters|odometerKm|weightKg|capacityKg|fuelles|openings|experienceYears|expectedSalary|salaryOffer|extras|aux|primaServicios|interesesCesantias|vacationDays|days360|primaProp)/,
+      re: /(Salary|salary|Cost|cost|Cop|cop|Amount|amount|Price|price|Value|value|Reimbursement|Allowance|allowance|bonus|Bonus|indemnization|cesantias|prima|vacaciones|otrosSettlement|tripValue|tripRateCop|totalCost|fuelReimbursement|baseSalary|liters|odometerKm|weightKg|capacityKg|fuelles|openings|experienceYears|expectedSalary|salaryOffer|extras|aux|primaServicios|interesesCesantias|vacationDays|days360|primaProp)/,
       attrs: { blur: "decimal", restrict: "decimal" }
     },
     { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
@@ -173,6 +173,8 @@
 
   function resolveFieldRules(name, el) {
     const n = String(name || "");
+    /** Clave de catálogo (`ruta@@empresas`), no un importe — no aplicar reglas numéricas. */
+    if (n === "tripRateChoice" || el?.getAttribute?.("data-antares-skip-validate") === "1") return null;
     for (const rule of FIELD_NAME_RULES) {
       if (rule.skip && rule.skip(el)) continue;
       if (rule.re.test(n)) return rule.attrs;

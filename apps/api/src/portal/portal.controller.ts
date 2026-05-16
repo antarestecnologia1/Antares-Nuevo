@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
 import { AdminUserDeleteDto } from "./dto/admin-user-delete.dto";
@@ -34,6 +35,26 @@ export class PortalController {
   @Get("candidates/:id/cv-download")
   candidateCvDownload(@Req() req: { user: ReqUser }, @Param("id") candidateId: string) {
     return this.portal.getCandidateCvDownload(req.user.userId, req.user.role, candidateId);
+  }
+
+  /** Descarga forzada del CV (binario con Content-Disposition: attachment). Rol RRHH. */
+  @Get("candidates/:id/cv-file")
+  async candidateCvFile(
+    @Req() req: { user: ReqUser },
+    @Param("id") candidateId: string,
+    @Res() res: Response
+  ) {
+    const { buffer, mime, fileName } = await this.portal.getCandidateCvFile(
+      req.user.userId,
+      req.user.role,
+      candidateId
+    );
+    const safeName = String(fileName || "hoja-de-vida").replace(/[\\/]/g, "_");
+    res
+      .setHeader("Content-Type", mime || "application/octet-stream")
+      .setHeader("Content-Disposition", `attachment; filename="${safeName}"`)
+      .setHeader("Cache-Control", "private, no-store")
+      .send(buffer);
   }
 
   /**

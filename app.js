@@ -503,6 +503,7 @@ function editModalAntaresAttrString(f) {
   if (a.blur) s += ` data-antares-validate-blur="${escapeAttr(String(a.blur))}"`;
   if (a.field) s += ` data-antares-field="${escapeAttr(String(a.field))}"`;
   if (a.max != null && String(a.max).trim() !== "") s += ` data-antares-max="${escapeAttr(String(a.max))}"`;
+  if (a.skipValidate) s += ` data-antares-skip-validate="1"`;
   return s;
 }
 
@@ -533,7 +534,8 @@ function renderEditModalFieldRow(f, fieldIdx) {
     const labelWrap = f.labelHtml
       ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
       : `<span>${labelInner}</span>`;
-    return `<label${editModalLabelClassAttr(f)}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}${editModalAntaresAttrString(f)}>${options}</select></label>`;
+    const hiddenAttr = f.hidden ? " hidden" : "";
+    return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}${editModalAntaresAttrString(f)}>${options}</select></label>`;
   }
   if (f.type === "hidden") {
     return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
@@ -560,8 +562,8 @@ function renderEditModalFieldRow(f, fieldIdx) {
   const labelWrap = f.labelHtml
     ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
     : `<span>${labelInner}</span>`;
-  const fullCls = f.full ? "full" : "";
-  return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
+  const hiddenAttr = f.hidden ? " hidden" : "";
+  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
 }
 
 /**
@@ -5401,7 +5403,8 @@ function buildTripRateModalFields(request, opts) {
         type: "select",
         required: false,
         value: defaultKey || "",
-        options: selectOptions
+        options: selectOptions,
+        antares: { skipValidate: true }
       },
       {
         type: "custom",
@@ -5454,7 +5457,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
 
   return `
     <label class="full">${fieldLabel(IC.dollar, items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto")}
-      <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select">${optionsHtml}</select>
+      <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
     </label>
     <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>
     <label class="full create-trip-price-field">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
@@ -6492,10 +6495,15 @@ const AUTH_QUEUE_SHORT_TAB_LABELS = {
 
 function buildAuthorizationsTransportRequestsSection(pendingRequests) {
   const n = pendingRequests.length;
+  const actor = currentUser();
   const countBadge = `<span class="auth-section-count">${n} solicitud pendiente${n === 1 ? "" : "es"}</span>`;
   const cards = pendingRequests
     .map((r) => {
       const eid = escapeAttr(String(r.id));
+      const allowEdit = canPortalUserEditTransportRequest(r, actor);
+      const editBtn = allowEdit
+        ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-request" data-id="${eid}">${IC.edit} Editar</button>`
+        : "";
       return `<article class="auth-request-card">
       <div class="auth-request-card-top">
         <span class="auth-ref-pill" title="Código solicitud">${escapeHtml(authRefSolicitudViaje(r))}</span>
@@ -6507,6 +6515,7 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
       <p class="muted auth-request-card-date">${fmtDate(r.createdAt)}</p>
       <div class="toolbar auth-request-card-actions">
         <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${eid}">${IC.eye} Ver</button>
+        ${editBtn}
         <button type="button" class="btn btn-sm btn-approve" data-action="approve" data-id="${eid}">${IC.check} Aprobar</button>
         <button type="button" class="btn btn-sm btn-reject" data-action="reject" data-id="${eid}">${IC.x} Rechazar</button>
       </div>
@@ -6522,7 +6531,7 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
           <h3 class="auth-queue-section-title">Solicitudes pendientes</h3>
           ${countBadge}
         </div>
-        <p class="muted auth-queue-section-desc">Pendientes de aprobación operativa. Lo más reciente aparece primero; use <strong>Aprobar</strong> para el mismo flujo que en Solicitudes.</p>
+        <p class="muted auth-queue-section-desc">Pendientes de aprobación operativa. Use <strong>Editar</strong> para ajustar tipo de camión (fuelles o kg) antes de <strong>Aprobar</strong>.</p>
       </header>
       <div class="auth-queue-section-body">${body}</div>
     </section>`;
@@ -9013,6 +9022,96 @@ function requestRequiredTruckTypeShowsFuelles(t) {
 
 function requestRequiredTruckTypeShowsTractomulaKg(t) {
   return t === "Tractomula";
+}
+
+/** Muestra/oculta fuelles (Turbo/Camión) vs kg (Tractomula) y limpia el campo que no aplica. */
+function attachRequestTruckTypeFields(formEl) {
+  if (!formEl) return;
+  const truckSel = formEl.querySelector("select[name='requiredTruckType']");
+  const fuellesRow = formEl.querySelector(".request-truck-field--fuelles");
+  const kgRow = formEl.querySelector(".request-truck-field--kg");
+  const fuellesInput = formEl.querySelector("input[name='fuelles']");
+  const kgInput = formEl.querySelector("input[name='weightKg']");
+  if (!truckSel || !fuellesRow || !kgRow) return;
+
+  const stripRequiredMarkers = (label) => {
+    label?.querySelectorAll?.(".required-marker")?.forEach((m) => m.remove());
+  };
+
+  const sync = () => {
+    const t = normalizeRequestRequiredTruckType(truckSel.value);
+    const showF = requestRequiredTruckTypeShowsFuelles(t);
+    const showKg = requestRequiredTruckTypeShowsTractomulaKg(t);
+    fuellesRow.hidden = !showF;
+    kgRow.hidden = !showKg;
+    if (fuellesInput) {
+      fuellesInput.required = showF;
+      fuellesInput.toggleAttribute("required", showF);
+      if (!showF) {
+        fuellesInput.value = "";
+        stripRequiredMarkers(fuellesRow);
+      }
+    }
+    if (kgInput) {
+      kgInput.required = showKg;
+      kgInput.toggleAttribute("required", showKg);
+      if (!showKg) {
+        kgInput.value = "";
+        stripRequiredMarkers(kgRow);
+      }
+    }
+  };
+
+  if (truckSel.dataset.truckTypeWired !== "1") {
+    truckSel.dataset.truckTypeWired = "1";
+    truckSel.addEventListener("change", sync);
+  }
+  sync();
+}
+
+/** Filas de edición (modal) para tipo de camión, fuelles y peso tractomula. */
+function buildRequestTruckTypeEditFieldRows(req) {
+  const truckVt = normalizeRequestRequiredTruckType(req?.vehicleType);
+  const showFuelles = requestRequiredTruckTypeShowsFuelles(truckVt);
+  const showKg = requestRequiredTruckTypeShowsTractomulaKg(truckVt);
+  return [
+    {
+      name: "requiredTruckType",
+      label: "Tipo de camión requerido",
+      type: "select",
+      value: truckVt || "",
+      required: true,
+      full: true,
+      options: [
+        { value: "", label: "Seleccione..." },
+        { value: "Turbo", label: "Turbo" },
+        { value: "Camión", label: "Camión" },
+        { value: "Tractomula", label: "Tractomula" }
+      ]
+    },
+    {
+      name: "fuelles",
+      label: "Cantidad de fuelles",
+      type: "number",
+      min: 0,
+      step: 1,
+      value: req.fuelles != null && req.fuelles !== "" ? parseNum(req.fuelles) : "",
+      required: showFuelles,
+      hidden: !showFuelles,
+      wrapperClass: "request-truck-field request-truck-field--fuelles"
+    },
+    {
+      name: "weightKg",
+      label: "Peso (kg) tractomula",
+      type: "number",
+      min: 0,
+      step: 0.01,
+      value: showKg ? parseNum(req.weightKg) || "" : "",
+      required: showKg,
+      hidden: !showKg,
+      wrapperClass: "request-truck-field request-truck-field--kg"
+    }
+  ];
 }
 
 /** Resumen legible de tipo de camión, fuelles o peso (tarjetas y detalle). */
@@ -14173,17 +14272,89 @@ async function resolveCandidateCvDownload(candidateLike) {
   return fetchCandidateCvDownloadFromApi(id);
 }
 
-function triggerCandidateCvDownload(href, fileNameFallback) {
+function candidateCvDataUrlToBlob(href) {
+  const m = /^data:([^;,]+)?(?:;charset=[^;,]+)?(;base64)?,(.*)$/i.exec(String(href || ""));
+  if (!m) return null;
+  const mime = (m[1] || "application/octet-stream").trim();
+  const payload = m[3] || "";
+  if (m[2]) {
+    const bin = atob(payload);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+  return new Blob([decodeURIComponent(payload)], { type: mime });
+}
+
+function triggerBlobDownload(blob, fileNameFallback) {
   const name = String(fileNameFallback || "cv").replace(/[\\/]/g, "_");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** GET /portal/candidates/:id/cv-file — binario con Content-Disposition: attachment. */
+async function fetchCandidateCvBlobFromApi(candidateId) {
+  const id = String(candidateId || "").trim();
+  if (!id || !portalCanRefreshFromApi()) return null;
+  const api = window.AntaresApi;
+  if (!api?.getBase || !api?.getAccessToken) return null;
+  const base = api.getBase();
+  const auth = api.getAccessToken();
+  if (!base || !auth) return null;
+  const url = `${base}/api/portal/candidates/${encodeURIComponent(id)}/cv-file`;
   try {
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = name;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${auth}` }
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    if (!blob || !blob.size) return null;
+    const cd = res.headers.get("Content-Disposition") || "";
+    const fnMatch = /filename\*?=(?:UTF-8''|utf-8'')?["']?([^"';]+)["']?/i.exec(cd);
+    const fileName = fnMatch
+      ? decodeURIComponent(fnMatch[1].trim())
+      : String("hoja-de-vida").trim();
+    return { blob, fileName };
   } catch (_e) {
+    return null;
+  }
+}
+
+async function triggerCandidateCvDownload(href, fileNameFallback, candidateId) {
+  const name = String(fileNameFallback || "cv").replace(/[\\/]/g, "_");
+  const id = String(candidateId || "").trim();
+  if (id) {
+    const fromApi = await fetchCandidateCvBlobFromApi(id);
+    if (fromApi?.blob) {
+      triggerBlobDownload(fromApi.blob, fromApi.fileName || name);
+      return;
+    }
+  }
+  try {
+    let blob = null;
+    if (String(href || "").startsWith("data:")) {
+      blob = candidateCvDataUrlToBlob(href);
+    } else if (/^https?:\/\//i.test(String(href || ""))) {
+      const res = await fetch(href, { mode: "cors", credentials: "omit" });
+      if (!res.ok) throw new Error("fetch failed");
+      blob = await res.blob();
+    }
+    if (blob && blob.size) {
+      triggerBlobDownload(blob, name);
+      return;
+    }
+  } catch (_e) {
+    /* continuar al respaldo */
+  }
+  if (href) {
     window.open(href, "_blank", "noopener,noreferrer");
   }
 }
@@ -14211,7 +14382,7 @@ function installCandidateCvDownloadDelegation() {
       notify("No hay CV descargable para este candidato.", "info");
       return;
     }
-    triggerCandidateCvDownload(dl.href, dl.fileName);
+    await triggerCandidateCvDownload(dl.href, dl.fileName, id);
   });
 }
 
@@ -17772,33 +17943,6 @@ function bindDynamicEvents() {
     });
   });
 
-  function attachRequestTruckTypeFields(formEl) {
-    if (!formEl) return;
-    const truckSel = formEl.querySelector("select[name='requiredTruckType']");
-    const fuellesRow = formEl.querySelector(".request-truck-field--fuelles");
-    const kgRow = formEl.querySelector(".request-truck-field--kg");
-    const fuellesInput = formEl.querySelector("input[name='fuelles']");
-    const kgInput = formEl.querySelector("input[name='weightKg']");
-    if (!truckSel || !fuellesRow || !kgRow) return;
-    const sync = () => {
-      const t = normalizeRequestRequiredTruckType(truckSel.value);
-      const showF = requestRequiredTruckTypeShowsFuelles(t);
-      const showKg = requestRequiredTruckTypeShowsTractomulaKg(t);
-      fuellesRow.hidden = !showF;
-      kgRow.hidden = !showKg;
-      if (fuellesInput) {
-        fuellesInput.required = showF;
-        if (!showF) fuellesInput.value = "";
-      }
-      if (kgInput) {
-        kgInput.required = showKg;
-        if (!showKg) kgInput.value = "";
-      }
-    };
-    truckSel.addEventListener("change", sync);
-    sync();
-  }
-
   const requestForm = document.getElementById("form-request");
   if (requestForm) {
     const originDepartment = requestForm.querySelector("#origin-department");
@@ -17982,8 +18126,8 @@ function bindDynamicEvents() {
         notes: notesTrim,
         observations: notesTrim || null,
         vehicleType: requiredTruckType,
-        fuelles: fuellesVal,
-        weightKg: weightKgVal,
+        fuelles: requestRequiredTruckTypeShowsFuelles(requiredTruckType) ? fuellesVal : null,
+        weightKg: requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType) ? weightKgVal : 0,
         pickupAt,
         etaDelivery,
         attachments,
@@ -18492,40 +18636,7 @@ function bindDynamicEvents() {
               { value: "no", label: "No, carga seca" }
             ]
           },
-          {
-            name: "requiredTruckType",
-            label: "Tipo de camión requerido",
-            type: "select",
-            value: normalizeRequestRequiredTruckType(req.vehicleType) || "",
-            required: true,
-            full: true,
-            options: [
-              { value: "", label: "Seleccione..." },
-              { value: "Turbo", label: "Turbo" },
-              { value: "Camión", label: "Camión" },
-              { value: "Tractomula", label: "Tractomula" }
-            ]
-          },
-          {
-            name: "fuelles",
-            label: "Cantidad de fuelles",
-            type: "number",
-            min: 0,
-            step: 1,
-            value: req.fuelles != null && req.fuelles !== "" ? parseNum(req.fuelles) : "",
-            required: false,
-            wrapperClass: "request-truck-field request-truck-field--fuelles"
-          },
-          {
-            name: "weightKg",
-            label: "Peso (kg) tractomula",
-            type: "number",
-            min: 0,
-            step: 0.01,
-            value: parseNum(req.weightKg) || "",
-            required: false,
-            wrapperClass: "request-truck-field request-truck-field--kg"
-          },
+          ...buildRequestTruckTypeEditFieldRows(req),
           { name: "tripValue", label: "Valor del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || req.insuredValue || 0), required: false },
           { type: "section", id: "edit-req-contact", title: "Contacto en sitio", hint: "Persona que recibe / entrega." },
           { name: "siteContactName", label: "Nombre de contacto", value: req.siteContactName || req.contactName || "", required: true },
@@ -18618,10 +18729,10 @@ function bindDynamicEvents() {
             serviceType: modo,
             refrigeracionTermoking,
             vehicleType: requiredTruckType,
-            fuelles: fuellesVal,
+            fuelles: requestRequiredTruckTypeShowsFuelles(requiredTruckType) ? fuellesVal : null,
             boxes: 0,
             boxesCount: 0,
-            weightKg: weightKgVal,
+            weightKg: requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType) ? weightKgVal : 0,
             tripValue: parseNum(form.tripValue),
             siteContactName: String(form.siteContactName || "").trim(),
             siteContactPhone: String(form.siteContactPhone || "").trim(),
