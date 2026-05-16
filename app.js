@@ -3578,7 +3578,7 @@ const PUBLIC_ES_EN_DICT = {
   "Empresas que confian en nosotros": "Companies that trust us",
   "Aliados del sector floricultor, comercializador y exportador que": "Allies across floriculture, trading, and exports who",
   "priorizan puntualidad y conservacion de cadena de frio.": "prioritize punctuality and cold-chain integrity.",
-  "Empresas atendidas en el ultimo ano.": "Companies served in the last year.",
+  "Viajes realizados el ultimo año": "Trips taken in the last year.",
   "Clientes recurrentes por nivel de servicio.": "Repeat clients driven by service quality.",
   "Monitoreo de operacion y trazabilidad.": "Operations monitoring and traceability.",
   "Rastrea tu envio": "Track your shipment",
