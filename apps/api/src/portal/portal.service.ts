@@ -3231,6 +3231,222 @@ export class PortalService implements OnModuleInit {
     return false;
   }
 
+  /** Misma heurística que `app.js` (ventanas tipo SLA no bloquean todo el día en cruces de agenda). */
+  private static readonly FLEET_SCHED_SLA_LIKE_MS = 4 * 60 * 60 * 1000;
+  private static readonly FLEET_SCHED_CAP_MS = 2 * 60 * 60 * 1000;
+  private static readonly FLEET_OP_TYPE_KEYS = new Set(["camion", "turbo", "tractomula"]);
+  /** Estados operativos donde el viaje sigue reservando vehículo/conductor (texto = enum en BD). */
+  private static readonly SOLICITUD_ACTIVE_OVERLAP_STATUSES = ["Viaje asignado", "En transito", "Espera standby"];
+
+  private stripDiacritics(input: string): string {
+    return input.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  private fleetTypeKey(raw: unknown): string {
+    return this.stripDiacritics(String(raw ?? "").trim()).toLowerCase();
+  }
+
+  private normalizeSchedulingRangeMs(startMs: number, endMs: number): { start: number; end: number } | null {
+    if (!Number.isFinite(startMs)) return null;
+    const endRaw = Number.isFinite(endMs) ? endMs : startMs;
+    const span = endRaw - startMs;
+    const end = span > 0 ? endRaw : startMs + 60 * 1000;
+    const span2 = end - startMs;
+    if (span2 <= PortalService.FLEET_SCHED_SLA_LIKE_MS) return { start: startMs, end };
+    return { start: startMs, end: startMs + PortalService.FLEET_SCHED_CAP_MS };
+  }
+
+  private rangesOverlapMs(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
+    return a.start < b.end && b.start < a.end;
+  }
+
+  private dateFromDbCell(v: unknown, label: string): Date {
+    const d = v instanceof Date ? v : new Date(String(v ?? ""));
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException(`${label} no es una fecha válida en base de datos.`);
+    }
+    return d;
+  }
+
+  /**
+   * Viaje: valida contra `solicitudes_transporte`, `vehiculos` y `conductores` ya persistidos.
+   * Devuelve placa, tipo asignado, nombre/tel conductor y ventana programada leídos de tablas (no del payload).
+   */
+  private async resolveTripRowFromDatabase(
+    c: PoolClient,
+    solicitudId: string,
+    tripPayload: Record<string, unknown>
+  ): Promise<{
+    vehicleId: string;
+    driverId: string;
+    vehiclePlate: string;
+    vehicleTipoAsignado: string;
+    driverName: string;
+    driverPhone: string | null;
+    pickupProg: Date;
+    deliveryProg: Date;
+  }> {
+    const vehicleIdRaw = String(tripPayload.vehicleId ?? "").trim();
+    const driverIdRaw = String(tripPayload.driverId ?? "").trim();
+    if (!PG_UUID_V4_RE.test(vehicleIdRaw)) {
+      throw new BadRequestException("Identificador de vehículo inválido para registrar el viaje.");
+    }
+    if (!PG_UUID_V4_RE.test(driverIdRaw)) {
+      throw new BadRequestException("Identificador de conductor inválido para registrar el viaje.");
+    }
+
+    const sRes = await c.query(
+      `SELECT tipo_vehiculo_solicitado, refrigeracion_termoking, peso_kg,
+              fecha_hora_recogida, fecha_hora_entrega_estimada
+       FROM solicitudes_transporte WHERE id = $1::uuid`,
+      [solicitudId]
+    );
+    if (!sRes.rows.length) {
+      throw new BadRequestException("La solicitud no está en base de datos; no se puede registrar el viaje.");
+    }
+    const s = sRes.rows[0] as Record<string, unknown>;
+    const tipoSolicitado = String(s.tipo_vehiculo_solicitado ?? "").trim();
+    const reqTk = Boolean(s.refrigeracion_termoking);
+    const pesoKg = Math.max(0, Number(s.peso_kg) || 0);
+    const pickupProg = this.dateFromDbCell(s.fecha_hora_recogida, "fecha_hora_recogida");
+    const deliveryProg = this.dateFromDbCell(s.fecha_hora_entrega_estimada, "fecha_hora_entrega_estimada");
+
+    const vRes = await c.query(
+      `SELECT tipo_vehiculo, capacidad_kg, refrigerado_termoking, placa, disponible, ocupado_por_sistema
+       FROM vehiculos WHERE id = $1::uuid`,
+      [vehicleIdRaw]
+    );
+    if (!vRes.rows.length) {
+      throw new BadRequestException("El vehículo no existe en la tabla vehiculos.");
+    }
+    const v = vRes.rows[0] as Record<string, unknown>;
+    const vehManualOff = v.disponible === false && v.ocupado_por_sistema !== true;
+    if (vehManualOff) {
+      throw new BadRequestException("El vehículo está marcado como no disponible en base de datos.");
+    }
+
+    const dRes = await c.query(
+      `SELECT nombre_completo, telefono, disponible, ocupado_por_sistema
+       FROM conductores WHERE id = $1::uuid`,
+      [driverIdRaw]
+    );
+    if (!dRes.rows.length) {
+      throw new BadRequestException("El conductor no existe en la tabla conductores.");
+    }
+    const d = dRes.rows[0] as Record<string, unknown>;
+    const drvManualOff = d.disponible === false && d.ocupado_por_sistema !== true;
+    if (drvManualOff) {
+      throw new BadRequestException("El conductor está marcado como no disponible en base de datos.");
+    }
+
+    const vehTipoKey = this.fleetTypeKey(v.tipo_vehiculo);
+    if (!PortalService.FLEET_OP_TYPE_KEYS.has(vehTipoKey)) {
+      throw new BadRequestException(
+        "El tipo de vehículo en base de datos no es operativo (se espera Camión, Turbo o Tractomula)."
+      );
+    }
+    const solKey = this.fleetTypeKey(tipoSolicitado);
+    if (solKey && solKey !== "por definir" && solKey !== vehTipoKey) {
+      throw new BadRequestException(
+        `El vehículo en flota (${String(v.tipo_vehiculo)}) no coincide con el tipo solicitado registrado en la solicitud (${tipoSolicitado}).`
+      );
+    }
+
+    const vehTk =
+      v.refrigerado_termoking === true ||
+      v.refrigerado_termoking === 1 ||
+      String(v.refrigerado_termoking ?? "")
+        .toLowerCase()
+        .trim() === "true";
+    if (reqTk && !vehTk) {
+      throw new BadRequestException(
+        "La solicitud en base exige refrigeración (Termoking) y el vehículo no está habilitado como refrigerado."
+      );
+    }
+    if (!reqTk && vehTk) {
+      throw new BadRequestException(
+        "La solicitud en base es seca (sin Termoking) y el vehículo está marcado como refrigerado."
+      );
+    }
+
+    const capKg = Math.max(0, Number(v.capacidad_kg) || 0);
+    if (capKg < pesoKg) {
+      throw new BadRequestException(
+        `La capacidad del vehículo en base (${capKg} kg) es inferior al peso de la solicitud (${pesoKg} kg).`
+      );
+    }
+
+    const cand = this.normalizeSchedulingRangeMs(pickupProg.getTime(), deliveryProg.getTime());
+    if (!cand) {
+      throw new BadRequestException("No fue posible calcular la ventana horaria de la solicitud para validar solapes.");
+    }
+
+    const statusArr = PortalService.SOLICITUD_ACTIVE_OVERLAP_STATUSES;
+
+    const vOverlap = await c.query(
+      `SELECT v.fecha_hora_recogida_programada, v.fecha_hora_entrega_programada
+       FROM viajes_transporte v
+       INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+       WHERE v.id_vehiculo = $1::uuid
+         AND v.id_solicitud <> $2::uuid
+         AND s.estado::text = ANY($3::text[])`,
+      [vehicleIdRaw, solicitudId, statusArr]
+    );
+    for (const row of vOverlap.rows) {
+      const r = row as Record<string, unknown>;
+      const pu = this.dateFromDbCell(r.fecha_hora_recogida_programada, "recogida (viaje existente)");
+      const delRaw = r.fecha_hora_entrega_programada ?? r.fecha_hora_recogida_programada;
+      const del = this.dateFromDbCell(delRaw, "entrega (viaje existente)");
+      const ex = this.normalizeSchedulingRangeMs(pu.getTime(), del.getTime());
+      if (ex && this.rangesOverlapMs(cand, ex)) {
+        throw new BadRequestException(
+          "En base de datos el vehículo ya tiene otro viaje activo cuya franja horaria se cruza con esta solicitud."
+        );
+      }
+    }
+
+    const dOverlap = await c.query(
+      `SELECT v.fecha_hora_recogida_programada, v.fecha_hora_entrega_programada
+       FROM viajes_transporte v
+       INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+       WHERE v.id_conductor = $1::uuid
+         AND v.id_solicitud <> $2::uuid
+         AND s.estado::text = ANY($3::text[])`,
+      [driverIdRaw, solicitudId, statusArr]
+    );
+    for (const row of dOverlap.rows) {
+      const r = row as Record<string, unknown>;
+      const pu = this.dateFromDbCell(r.fecha_hora_recogida_programada, "recogida (viaje existente)");
+      const delRaw = r.fecha_hora_entrega_programada ?? r.fecha_hora_recogida_programada;
+      const del = this.dateFromDbCell(delRaw, "entrega (viaje existente)");
+      const ex = this.normalizeSchedulingRangeMs(pu.getTime(), del.getTime());
+      if (ex && this.rangesOverlapMs(cand, ex)) {
+        throw new BadRequestException(
+          "En base de datos el conductor ya tiene otro viaje activo cuya franja horaria se cruza con esta solicitud."
+        );
+      }
+    }
+
+    const plateSql = String(v.placa ?? "")
+      .trim()
+      .toUpperCase();
+    if (!plateSql) {
+      throw new BadRequestException("El vehículo en base no tiene placa registrada.");
+    }
+
+    return {
+      vehicleId: vehicleIdRaw,
+      driverId: driverIdRaw,
+      vehiclePlate: plateSql,
+      vehicleTipoAsignado: String(v.tipo_vehiculo ?? "").trim(),
+      driverName: String(d.nombre_completo ?? "").trim() || "Por definir",
+      driverPhone:
+        d.telefono != null && String(d.telefono).trim() !== "" ? String(d.telefono).trim() : null,
+      pickupProg,
+      deliveryProg
+    };
+  }
+
   private async syncRequests(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
@@ -3363,9 +3579,10 @@ export class PortalService implements OnModuleInit {
       );
 
       if (req.trip && req.trip.tripNumber) {
-        const t = req.trip;
+        const t = req.trip as Record<string, unknown>;
         const tripIdRaw = t.id != null ? String(t.id).trim() : "";
         const tripId = PG_UUID_V4_RE.test(tripIdRaw) ? tripIdRaw : null;
+        const tripDb = await this.resolveTripRowFromDatabase(c, idStr, t);
         await c.query(
           `INSERT INTO viajes_transporte (
             id, id_solicitud, numero_viaje, id_vehiculo, id_conductor, placa_vehiculo, tipo_vehiculo_asignado,
@@ -3394,15 +3611,15 @@ export class PortalService implements OnModuleInit {
             tripId,
             req.id,
             t.tripNumber,
-            t.vehicleId,
-            t.driverId,
-            t.vehiclePlate,
-            t.vehicleType || null,
-            t.driverName,
-            t.driverPhone || null,
+            tripDb.vehicleId,
+            tripDb.driverId,
+            tripDb.vehiclePlate,
+            tripDb.vehicleTipoAsignado || null,
+            tripDb.driverName,
+            tripDb.driverPhone,
             t.route || null,
-            t.etaPickup || req.pickupAt,
-            t.etaDelivery || req.etaDelivery,
+            tripDb.pickupProg,
+            tripDb.deliveryProg,
             t.assignedBy || null,
             t.assignedAt || null,
             t.realtimeStatus || null,

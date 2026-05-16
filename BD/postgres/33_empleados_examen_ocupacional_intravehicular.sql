@@ -2,23 +2,50 @@
 -- Reemplaza columnas psicosensométricas; las fechas de vencimiento se calculan +1 año desde cada examen en aplicación.
 
 DO $$
+DECLARE
+  has_psico_fecha boolean;
+  has_ocup_fecha boolean;
+  has_psico_venc boolean;
+  has_ocup_venc boolean;
 BEGIN
-  IF EXISTS (
+  SELECT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'empleados_nomina'
       AND column_name = 'fecha_examen_psicosensometrico'
-  ) THEN
-    ALTER TABLE public.empleados_nomina
-      RENAME COLUMN fecha_examen_psicosensometrico TO fecha_examen_ocupacional;
-  END IF;
-
-  IF EXISTS (
+  ) INTO has_psico_fecha;
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'empleados_nomina'
+      AND column_name = 'fecha_examen_ocupacional'
+  ) INTO has_ocup_fecha;
+  SELECT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'empleados_nomina'
       AND column_name = 'fecha_vencimiento_psicosensometrico'
-  ) THEN
+  ) INTO has_psico_venc;
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'empleados_nomina'
+      AND column_name = 'fecha_vencimiento_examen_ocupacional'
+  ) INTO has_ocup_venc;
+
+  IF has_psico_fecha AND NOT has_ocup_fecha THEN
+    ALTER TABLE public.empleados_nomina
+      RENAME COLUMN fecha_examen_psicosensometrico TO fecha_examen_ocupacional;
+  ELSIF has_psico_fecha AND has_ocup_fecha THEN
+    UPDATE public.empleados_nomina
+    SET fecha_examen_ocupacional = COALESCE(fecha_examen_ocupacional, fecha_examen_psicosensometrico);
+    ALTER TABLE public.empleados_nomina DROP COLUMN fecha_examen_psicosensometrico;
+  END IF;
+
+  IF has_psico_venc AND NOT has_ocup_venc THEN
     ALTER TABLE public.empleados_nomina
       RENAME COLUMN fecha_vencimiento_psicosensometrico TO fecha_vencimiento_examen_ocupacional;
+  ELSIF has_psico_venc AND has_ocup_venc THEN
+    UPDATE public.empleados_nomina
+    SET fecha_vencimiento_examen_ocupacional =
+      COALESCE(fecha_vencimiento_examen_ocupacional, fecha_vencimiento_psicosensometrico);
+    ALTER TABLE public.empleados_nomina DROP COLUMN fecha_vencimiento_psicosensometrico;
   END IF;
 END $$;
 
@@ -35,23 +62,50 @@ COMMENT ON COLUMN public.empleados_nomina.fecha_vencimiento_examen_instruvial IS
 
 -- Conductores (transporte): mismos nombres de columna.
 DO $$
+DECLARE
+  has_psico_fecha boolean;
+  has_ocup_fecha boolean;
+  has_psico_venc boolean;
+  has_ocup_venc boolean;
 BEGIN
-  IF EXISTS (
+  SELECT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'conductores'
       AND column_name = 'fecha_examen_psicosensometrico'
-  ) THEN
-    ALTER TABLE public.conductores
-      RENAME COLUMN fecha_examen_psicosensometrico TO fecha_examen_ocupacional;
-  END IF;
-
-  IF EXISTS (
+  ) INTO has_psico_fecha;
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'conductores'
+      AND column_name = 'fecha_examen_ocupacional'
+  ) INTO has_ocup_fecha;
+  SELECT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'conductores'
       AND column_name = 'fecha_vencimiento_psicosensometrico'
-  ) THEN
+  ) INTO has_psico_venc;
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'conductores'
+      AND column_name = 'fecha_vencimiento_examen_ocupacional'
+  ) INTO has_ocup_venc;
+
+  IF has_psico_fecha AND NOT has_ocup_fecha THEN
+    ALTER TABLE public.conductores
+      RENAME COLUMN fecha_examen_psicosensometrico TO fecha_examen_ocupacional;
+  ELSIF has_psico_fecha AND has_ocup_fecha THEN
+    UPDATE public.conductores
+    SET fecha_examen_ocupacional = COALESCE(fecha_examen_ocupacional, fecha_examen_psicosensometrico);
+    ALTER TABLE public.conductores DROP COLUMN fecha_examen_psicosensometrico;
+  END IF;
+
+  IF has_psico_venc AND NOT has_ocup_venc THEN
     ALTER TABLE public.conductores
       RENAME COLUMN fecha_vencimiento_psicosensometrico TO fecha_vencimiento_examen_ocupacional;
+  ELSIF has_psico_venc AND has_ocup_venc THEN
+    UPDATE public.conductores
+    SET fecha_vencimiento_examen_ocupacional =
+      COALESCE(fecha_vencimiento_examen_ocupacional, fecha_vencimiento_psicosensometrico);
+    ALTER TABLE public.conductores DROP COLUMN fecha_vencimiento_psicosensometrico;
   END IF;
 END $$;
 
