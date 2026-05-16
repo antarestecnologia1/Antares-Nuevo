@@ -23699,7 +23699,8 @@ function openPublicVacancyApplyModal(vacancy) {
 /** Cobertura pública: GET /api/public/transport-request-coverage-stats (sin JWT). */
 let publicCoverageStatsView = null;
 
-const COVERAGE_FALLBACK_HUBS_ES = [
+/** Ciudades fijas en «Rutas principales» (cobertura pública); no dependen de la API. */
+const COVERAGE_PRINCIPAL_HUBS_ES = [
   "Santa Marta",
   "Barranquilla",
   "Cartagena",
@@ -23795,7 +23796,7 @@ function renderPublicCoverageFromView() {
   const view = publicCoverageStatsView;
   if (!view || view.kind === "fallback") {
     hubGrid.innerHTML = renderPublicCoverageHubGrid(
-      COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
+      COVERAGE_PRINCIPAL_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
       false
     );
     corridorGrid.innerHTML = renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
@@ -23819,16 +23820,13 @@ function renderPublicCoverageFromView() {
   const total = Number(data?.totalRequestsAnalyzed) || 0;
   const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
   const topCorridors = Array.isArray(data?.topCorridors) ? data.topCorridors : [];
-
   const hubsOk = topHubs.length > 0;
   const corOk = topCorridors.length > 0;
 
-  hubGrid.innerHTML = hubsOk
-    ? renderPublicCoverageHubGrid(topHubs, true)
-    : renderPublicCoverageHubGrid(
-        COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
-        false
-      );
+  hubGrid.innerHTML = renderPublicCoverageHubGrid(
+    COVERAGE_PRINCIPAL_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
+    false
+  );
 
   corridorGrid.innerHTML = corOk
     ? renderPublicCoverageCorridorGrid(topCorridors, true)
