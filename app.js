@@ -3641,10 +3641,10 @@ const PUBLIC_ES_EN_DICT = {
   "Registramos novedades, evidencia de entrega y reporte para analisis de cumplimiento.": "We record incidents, proof of delivery, and compliance reporting.",
   "Cobertura nacional": "Nationwide coverage",
   "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for floriculture and exports.",
-  "Ciudades con mas presencia en solicitudes (puntos de recogida y entrega).":
-    "Cities most often appearing in requests (both pickup and delivery points).",
-  "Corredores sin direccion fija (ida y vuelta suman) mas solicitados segun solicitudes registradas.":
-    "Non-directional corridors (outbound and return combined) ranked by recorded requests.",
+  "Principales puntos de recogida y entrega donde hoy concentramos mas operacion.":
+    "Main pickup and delivery points where we concentrate the most activity today.",
+  "Trayectos entre ciudades que mas se repiten; ida y vuelta del mismo corredor se muestran como un solo movimiento.":
+    "Most repeated city-to-city runs; outbound and return on the same corridor are shown as a single movement.",
   "Cargando datos de cobertura...": "Loading coverage data…",
   "Configure la URL del servidor para ver la demanda real en esta seccion.":
     "Configure the server URL to see real demand in this section.",
@@ -3652,8 +3652,6 @@ const PUBLIC_ES_EN_DICT = {
     "Not enough requests in the analyzed window; showing a geographic reference instead.",
   "No fue posible cargar las estadisticas de cobertura. Se muestra referencia geografica.":
     "Could not load coverage statistics; showing a geographic reference instead.",
-  "Basado en {N} solicitudes analizadas (ultimos {M} meses; excluye canceladas y rechazadas).":
-    "Based on {N} analyzed requests (last {M} months; excludes cancelled and rejected).",
   "Rutas principales": "Main routes",
   "Corredores frecuentes": "Frequent corridors",
   Sabana: "Savannah",
@@ -23726,12 +23724,6 @@ const COVERAGE_FALLBACK_CORRIDORS = [
 /** Ventana de meses para GET /public/transport-request-coverage-stats (API acota entre 3 y 36). */
 const COVERAGE_STATS_API_MONTHS = 12;
 
-function formatCoverageFootnote(total, months) {
-  return tPublic("Basado en {N} solicitudes analizadas (ultimos {M} meses; excluye canceladas y rechazadas).")
-    .replace(/\{N\}/g, String(total))
-    .replace(/\{M\}/g, String(months));
-}
-
 function renderPublicCoverageHubGrid(hubs, showCounts) {
   return hubs
     .map((row) => {
@@ -23792,11 +23784,11 @@ function renderPublicCoverageFromView() {
   if (!hubGrid || !corridorGrid) return;
 
   if (captHub) {
-    captHub.textContent = tPublic("Ciudades con mas presencia en solicitudes (puntos de recogida y entrega).");
+    captHub.textContent = tPublic("Principales puntos de recogida y entrega donde hoy concentramos mas operacion.");
   }
   if (captCor) {
     captCor.textContent = tPublic(
-      "Corredores sin direccion fija (ida y vuelta suman) mas solicitados segun solicitudes registradas."
+      "Trayectos entre ciudades que mas se repiten; ida y vuelta del mismo corredor se muestran como un solo movimiento."
     );
   }
 
@@ -23824,7 +23816,6 @@ function renderPublicCoverageFromView() {
   }
 
   const data = view.data;
-  const months = Number(data?.periodMonths) || 24;
   const total = Number(data?.totalRequestsAnalyzed) || 0;
   const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
   const topCorridors = Array.isArray(data?.topCorridors) ? data.topCorridors : [];
@@ -23845,8 +23836,8 @@ function renderPublicCoverageFromView() {
 
   if (foot) {
     if (total > 0 && (hubsOk || corOk)) {
-      foot.hidden = false;
-      foot.textContent = formatCoverageFootnote(total, months);
+      foot.hidden = true;
+      foot.textContent = "";
     } else {
       foot.hidden = false;
       foot.textContent = tPublic(
