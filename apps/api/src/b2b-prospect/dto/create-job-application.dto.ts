@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import {
+  Allow,
   IsDateString,
   IsEmail,
   IsIn,
@@ -77,4 +78,9 @@ export class CreateJobApplicationDto {
   @IsString()
   @MaxLength(512)
   attachmentFileName?: string;
+
+  /** Ignorado: el binario llega por multer (`FileInterceptor('attachment')`). Evita 400 del ValidationPipe global. */
+  @Allow()
+  @IsOptional()
+  attachment?: unknown;
 }

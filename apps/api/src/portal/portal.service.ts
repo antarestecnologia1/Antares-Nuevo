@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
   type OnModuleInit
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -27,6 +28,7 @@ import {
 } from "../payroll/payroll-cut-bogota";
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
+import type { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import { LIQUIDACION_UPSERT } from "./liquidacion-upsert";
 import { randomUUID } from "node:crypto";
 
@@ -2458,12 +2460,27 @@ export class PortalService implements OnModuleInit {
     return [];
   }
 
-  /** CV en R2 sin `CF_R2_PUBLIC_BASE`: añade URL prefirmada para que RH pueda descargar desde el portal. */
+  private candidateAttachmentsHasStoredCv(arr: unknown[]): boolean {
+    for (const item of arr) {
+      if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+      const rec = item as Record<string, unknown>;
+      const kind = String(rec.kind || "");
+      if (kind === "cv_blob" && rec.data) return true;
+      if (kind === "cv_file" && (String(rec.storageKey || "").trim() || String(rec.url || "").trim())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Evita que sync-key del portal pise un CV en BD (R2 o inline) con solo nombres de archivo. */
+  private shouldPreserveExistingCandidateAttachments(existing: unknown[], incoming: unknown[]): boolean {
+    return this.candidateAttachmentsHasStoredCv(existing) && !this.candidateAttachmentsHasStoredCv(incoming);
+  }
+
+  /** CV en R2: URL pública estable o GET prefirmado (renueva enlaces expirados en caché del navegador). */
   private async enrichCandidateAttachmentsForPortal(raw: unknown): Promise<unknown> {
     const arr = this.parseCandidateAdjuntosJsonArray(raw);
-    if (!this.r2.hasUploadsClient()) {
-      return arr;
-    }
     const out: unknown[] = [];
     for (const item of arr) {
       if (item == null || typeof item !== "object" || Array.isArray(item)) {
@@ -2473,23 +2490,83 @@ export class PortalService implements OnModuleInit {
       const rec = item as Record<string, unknown>;
       const kind = String(rec.kind || "");
       const storageKey = String(rec.storageKey || "").trim();
-      const existingUrl = String(rec.url || "").trim();
-      if (
-        kind === "cv_file" &&
-        storageKey &&
-        !(existingUrl && /^https?:\/\//i.test(existingUrl))
-      ) {
-        try {
-          const signed = await this.r2.presignGetUploadsObject(storageKey, 7200);
-          out.push({ ...rec, url: signed });
+      if (kind === "cv_file" && storageKey) {
+        const existingUrl = String(rec.url || "").trim();
+        const publicUrl = this.r2.publicUrl(storageKey);
+        if (publicUrl) {
+          out.push({ ...rec, url: publicUrl });
           continue;
-        } catch (e) {
-          this.logger.warn(`presign CV falló (${storageKey}): ${String((e as Error)?.message || e)}`);
+        }
+        if (
+          this.r2.hasUploadsClient() &&
+          (!existingUrl || !this.r2.isStablePublicObjectUrl(existingUrl, storageKey))
+        ) {
+          try {
+            const signed = await this.r2.presignGetUploadsObject(storageKey, 7200);
+            out.push({ ...rec, url: signed });
+            continue;
+          } catch (e) {
+            this.logger.warn(`presign CV falló (${storageKey}): ${String((e as Error)?.message || e)}`);
+          }
         }
       }
       out.push(rec);
     }
     return out;
+  }
+
+  /**
+   * Descarga de hoja de vida para Contratación (JWT + rol RRHH).
+   * Con R2: URL pública o prefirmada; sin R2: devuelve cv_blob inline del JSON.
+   */
+  async getCandidateCvDownload(userId: string, role: JwtRole, candidateId: string) {
+    void userId;
+    if (!this.isRrhh(role)) {
+      throw new ForbiddenException();
+    }
+    const id = String(candidateId || "").trim();
+    if (!PG_UUID_V4_RE.test(id)) {
+      throw new BadRequestException("Identificador de candidato invalido.");
+    }
+    const r = await this.pool.query<{ adjuntos_json: unknown }>(
+      `SELECT adjuntos_json FROM candidatos WHERE id = $1::uuid`,
+      [id]
+    );
+    if (!r.rows[0]) {
+      throw new NotFoundException("Candidato no encontrado.");
+    }
+    const arr = this.parseCandidateAdjuntosJsonArray(r.rows[0].adjuntos_json);
+    for (const item of arr) {
+      if (item == null || typeof item !== "object" || Array.isArray(item)) continue;
+      const rec = item as Record<string, unknown>;
+      const kind = String(rec.kind || "");
+      const fileName = String(rec.name || "hoja-de-vida").trim() || "hoja-de-vida";
+      if (kind === "cv_blob" && rec.data && rec.mime) {
+        return {
+          fileName,
+          mime: String(rec.mime || "application/octet-stream"),
+          data: String(rec.data)
+        };
+      }
+      if (kind === "cv_file") {
+        const storageKey = String(rec.storageKey || "").trim();
+        const existingUrl = String(rec.url || "").trim();
+        if (storageKey) {
+          const publicUrl = this.r2.publicUrl(storageKey);
+          if (publicUrl) {
+            return { url: publicUrl, fileName };
+          }
+          if (this.r2.hasUploadsClient()) {
+            const signed = await this.r2.presignGetUploadsObject(storageKey, 3600);
+            return { url: signed, fileName };
+          }
+        }
+        if (existingUrl && /^https?:\/\//i.test(existingUrl)) {
+          return { url: existingUrl, fileName };
+        }
+      }
+    }
+    throw new NotFoundException("No hay hoja de vida adjunta para este candidato.");
   }
 
   private async loadVacancies() {
@@ -3231,9 +3308,6 @@ export class PortalService implements OnModuleInit {
     return false;
   }
 
-  /** Misma heurística que `app.js` (ventanas tipo SLA no bloquean todo el día en cruces de agenda). */
-  private static readonly FLEET_SCHED_SLA_LIKE_MS = 4 * 60 * 60 * 1000;
-  private static readonly FLEET_SCHED_CAP_MS = 2 * 60 * 60 * 1000;
   private static readonly FLEET_OP_TYPE_KEYS = new Set(["camion", "turbo", "tractomula"]);
   /** Estados operativos donde el viaje sigue reservando vehículo/conductor (texto = enum en BD). */
   private static readonly SOLICITUD_ACTIVE_OVERLAP_STATUSES = ["Viaje asignado", "En transito", "Espera standby"];
@@ -3246,18 +3320,95 @@ export class PortalService implements OnModuleInit {
     return this.stripDiacritics(String(raw ?? "").trim()).toLowerCase();
   }
 
-  private normalizeSchedulingRangeMs(startMs: number, endMs: number): { start: number; end: number } | null {
+  /** Ventana programada recogida→entrega (misma regla que `app.js`). */
+  private parseTripScheduleRangeMs(startMs: number, endMs: number): { start: number; end: number } | null {
     if (!Number.isFinite(startMs)) return null;
     const endRaw = Number.isFinite(endMs) ? endMs : startMs;
-    const span = endRaw - startMs;
-    const end = span > 0 ? endRaw : startMs + 60 * 1000;
-    const span2 = end - startMs;
-    if (span2 <= PortalService.FLEET_SCHED_SLA_LIKE_MS) return { start: startMs, end };
-    return { start: startMs, end: startMs + PortalService.FLEET_SCHED_CAP_MS };
+    const end = endRaw > startMs ? endRaw : startMs + 60 * 1000;
+    return { start: startMs, end };
   }
 
-  private rangesOverlapMs(a: { start: number; end: number }, b: { start: number; end: number }): boolean {
-    return a.start < b.end && b.start < a.end;
+  /** Sin cruce: inicio nuevo ≥ fin existente, o fin nuevo ≤ inicio existente. */
+  private tripScheduleRangesConflictMs(
+    newStart: number,
+    newEnd: number,
+    existStart: number,
+    existEnd: number
+  ): boolean {
+    if (newStart >= existEnd) return false;
+    if (newEnd <= existStart) return false;
+    return true;
+  }
+
+  private formatTripScheduleConflictMessage(
+    resourceLabel: string,
+    tripNumber: string,
+    pickup: Date,
+    delivery: Date
+  ): string {
+    const fmt = (d: Date) =>
+      d.toLocaleString("es-CO", {
+        timeZone: "America/Bogota",
+        dateStyle: "short",
+        timeStyle: "short"
+      });
+    return `Conflicto de horario: el ${resourceLabel} ya tiene programado el viaje ${tripNumber || "-"} (${fmt(pickup)} – ${fmt(delivery)}).`;
+  }
+
+  /**
+   * POST /portal/transport-schedule-busy — una query con `tstzrange &&` (rápido vs N×flota en cliente).
+   */
+  async getTransportScheduleBusy(userId: string, role: JwtRole, dto: TransportScheduleBusyDto) {
+    void userId;
+    if (!this.isTransportOps(role)) {
+      throw new ForbiddenException();
+    }
+    const pickup = new Date(dto.pickupAt);
+    const delivery = new Date(dto.deliveryAt);
+    if (Number.isNaN(pickup.getTime()) || Number.isNaN(delivery.getTime())) {
+      throw new BadRequestException("Recogida o entrega no son fechas válidas.");
+    }
+    if (delivery.getTime() <= pickup.getTime()) {
+      throw new BadRequestException("La entrega debe ser posterior a la recogida.");
+    }
+    const excludeRaw = String(dto.excludeRequestId ?? "").trim();
+    const excludeId = excludeRaw && PG_UUID_V4_RE.test(excludeRaw) ? excludeRaw : null;
+    const statuses = PortalService.SOLICITUD_ACTIVE_OVERLAP_STATUSES;
+    try {
+      const r = await this.pool.query<{ vehicle_id: string | null; driver_id: string | null }>(
+        `SELECT DISTINCT v.id_vehiculo::text AS vehicle_id, v.id_conductor::text AS driver_id
+         FROM viajes_transporte v
+         INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+         WHERE s.estado::text = ANY($1::text[])
+           AND ($2::uuid IS NULL OR v.id_solicitud <> $2::uuid)
+           AND tstzrange(
+                 v.fecha_hora_recogida_programada,
+                 COALESCE(
+                   v.fecha_hora_entrega_programada,
+                   v.fecha_hora_recogida_programada + interval '1 minute'
+                 ),
+                 '[)'
+               ) && tstzrange($3::timestamptz, $4::timestamptz, '[)')`,
+        [statuses, excludeId, pickup.toISOString(), delivery.toISOString()]
+      );
+      const busyVehicleIds = new Set<string>();
+      const busyDriverIds = new Set<string>();
+      for (const row of r.rows) {
+        const vid = String(row.vehicle_id || "").trim();
+        const did = String(row.driver_id || "").trim();
+        if (vid) busyVehicleIds.add(vid);
+        if (did) busyDriverIds.add(did);
+      }
+      return {
+        busyVehicleIds: [...busyVehicleIds],
+        busyDriverIds: [...busyDriverIds]
+      };
+    } catch (err: unknown) {
+      if (String((err as { code?: string })?.code || "") === "42P01") {
+        return { busyVehicleIds: [], busyDriverIds: [] };
+      }
+      throw err;
+    }
   }
 
   private dateFromDbCell(v: unknown, label: string): Date {
@@ -3376,7 +3527,9 @@ export class PortalService implements OnModuleInit {
       );
     }
 
-    const cand = this.normalizeSchedulingRangeMs(pickupProg.getTime(), deliveryProg.getTime());
+    const candStart = pickupProg.getTime();
+    const candEnd = deliveryProg.getTime();
+    const cand = this.parseTripScheduleRangeMs(candStart, candEnd);
     if (!cand) {
       throw new BadRequestException("No fue posible calcular la ventana horaria de la solicitud para validar solapes.");
     }
@@ -3384,7 +3537,7 @@ export class PortalService implements OnModuleInit {
     const statusArr = PortalService.SOLICITUD_ACTIVE_OVERLAP_STATUSES;
 
     const vOverlap = await c.query(
-      `SELECT v.fecha_hora_recogida_programada, v.fecha_hora_entrega_programada
+      `SELECT v.fecha_hora_recogida_programada, v.fecha_hora_entrega_programada, v.numero_viaje
        FROM viajes_transporte v
        INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
        WHERE v.id_vehiculo = $1::uuid
@@ -3397,16 +3550,22 @@ export class PortalService implements OnModuleInit {
       const pu = this.dateFromDbCell(r.fecha_hora_recogida_programada, "recogida (viaje existente)");
       const delRaw = r.fecha_hora_entrega_programada ?? r.fecha_hora_recogida_programada;
       const del = this.dateFromDbCell(delRaw, "entrega (viaje existente)");
-      const ex = this.normalizeSchedulingRangeMs(pu.getTime(), del.getTime());
-      if (ex && this.rangesOverlapMs(cand, ex)) {
+      if (
+        this.tripScheduleRangesConflictMs(candStart, candEnd, pu.getTime(), del.getTime())
+      ) {
         throw new BadRequestException(
-          "En base de datos el vehículo ya tiene otro viaje activo cuya franja horaria se cruza con esta solicitud."
+          this.formatTripScheduleConflictMessage(
+            "vehículo",
+            String(r.numero_viaje ?? "").trim(),
+            pu,
+            del
+          )
         );
       }
     }
 
     const dOverlap = await c.query(
-      `SELECT v.fecha_hora_recogida_programada, v.fecha_hora_entrega_programada
+      `SELECT v.fecha_hora_recogida_programada, v.fecha_hora_entrega_programada, v.numero_viaje
        FROM viajes_transporte v
        INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
        WHERE v.id_conductor = $1::uuid
@@ -3419,10 +3578,16 @@ export class PortalService implements OnModuleInit {
       const pu = this.dateFromDbCell(r.fecha_hora_recogida_programada, "recogida (viaje existente)");
       const delRaw = r.fecha_hora_entrega_programada ?? r.fecha_hora_recogida_programada;
       const del = this.dateFromDbCell(delRaw, "entrega (viaje existente)");
-      const ex = this.normalizeSchedulingRangeMs(pu.getTime(), del.getTime());
-      if (ex && this.rangesOverlapMs(cand, ex)) {
+      if (
+        this.tripScheduleRangesConflictMs(candStart, candEnd, pu.getTime(), del.getTime())
+      ) {
         throw new BadRequestException(
-          "En base de datos el conductor ya tiene otro viaje activo cuya franja horaria se cruza con esta solicitud."
+          this.formatTripScheduleConflictMessage(
+            "conductor",
+            String(r.numero_viaje ?? "").trim(),
+            pu,
+            del
+          )
         );
       }
     }
@@ -4849,6 +5014,16 @@ export class PortalService implements OnModuleInit {
           pickPortalField(x, "availableFrom", "availabilityDate") ?? x.availableFrom
         );
         const stage = String(pickPortalField(x, "pipelineStage", "status") ?? "Recibido");
+        let attachmentsPayload: unknown = x.attachments || [];
+        const existingAdj = await c.query<{ adjuntos_json: unknown }>(
+          `SELECT adjuntos_json FROM candidatos WHERE id = $1::uuid`,
+          [x.id]
+        );
+        const existingArr = this.parseCandidateAdjuntosJsonArray(existingAdj.rows[0]?.adjuntos_json);
+        const incomingArr = this.parseCandidateAdjuntosJsonArray(attachmentsPayload);
+        if (this.shouldPreserveExistingCandidateAttachments(existingArr, incomingArr)) {
+          attachmentsPayload = existingArr;
+        }
         await c.query(
           `INSERT INTO candidatos (
             id, id_vacante, nombre_completo, correo_electronico, telefono, tipo_documento, numero_documento,
@@ -4889,7 +5064,7 @@ export class PortalService implements OnModuleInit {
             Number.isFinite(salaryAsp) ? salaryAsp : 0,
             avail || new Date().toISOString().slice(0, 10),
             stage,
-            JSON.stringify(x.attachments || [])
+            JSON.stringify(attachmentsPayload)
           ]
         );
       }

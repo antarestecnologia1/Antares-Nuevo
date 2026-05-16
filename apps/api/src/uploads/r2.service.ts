@@ -61,6 +61,20 @@ export class R2Service {
     return this.enabled;
   }
 
+  /** Base pública configurada (`CF_R2_PUBLIC_BASE`), sin barra final. */
+  getPublicBase(): string {
+    return this.publicBase;
+  }
+
+  /** URL estable del dominio público de R2 para una key ya subida (vacío si no hay PUBLIC_BASE). */
+  isStablePublicObjectUrl(url: string, key: string): boolean {
+    if (!this.publicBase) return false;
+    const u = String(url || "").trim();
+    const normalizedKey = String(key || "").replace(/^\/+/, "");
+    if (!u || !normalizedKey) return false;
+    return u === `${this.publicBase}/${normalizedKey}` || u.startsWith(`${this.publicBase}/`);
+  }
+
   /** Cliente S3 listo para operar sobre el bucket de uploads (independiente del bucket de plantillas). */
   hasUploadsClient(): boolean {
     return Boolean(this.client);

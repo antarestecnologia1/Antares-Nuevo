@@ -466,6 +466,20 @@ function userMessage(key, ...args) {
 }
 
 /**
+ * Atributos estándar Antares para validación en vivo / al enviar en modales CRUD (`openEditModal`).
+ */
+function editModalAntaresAttrString(f) {
+  const a = f?.antares;
+  if (!a || typeof a !== "object") return "";
+  let s = "";
+  if (a.restrict) s += ` data-antares-restrict="${escapeAttr(String(a.restrict))}"`;
+  if (a.blur) s += ` data-antares-validate-blur="${escapeAttr(String(a.blur))}"`;
+  if (a.field) s += ` data-antares-field="${escapeAttr(String(a.field))}"`;
+  if (a.max != null && String(a.max).trim() !== "") s += ` data-antares-max="${escapeAttr(String(a.max))}"`;
+  return s;
+}
+
+/**
  * Fila de campo para {@link openEditModal} (sin agrupación por sección).
  */
 function editModalLabelClassAttr(f) {
@@ -3942,7 +3956,7 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#testimonials .section-head p": "Real stories from companies managing high volume, strict quality, and demanding timelines.",
     "#services .section-head p": "End-to-end logistics solutions for floriculture and export operations.",
     "#coverage-headline":
-      "Cities and lanes with the highest demand from recorded transport requests (updates automatically from the server).",
+      "Main routes and frequent corridors for floriculture and exports.",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
     "#careers .muted":
       "With your organization server configured, openings and applications are stored centrally; without it you only see demo data in this browser.",
@@ -7147,7 +7161,7 @@ function authView() {
             <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo corporativo")}</span>
             <div class="auth-input-row">
               <span class="auth-input-prefix" aria-hidden="true">${IC.mail}</span>
-              <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required />
+              <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required data-antares-validate-blur="email" data-antares-restrict="email-local" />
             </div>
           </label>
           <label class="full auth-field-stack">
@@ -7198,10 +7212,10 @@ function authView() {
           </div>
           <small class="muted register-kind-hint">Cliente: empresas u organizaciones que contratan el servicio. Empleado interno: personal de Transportes Antares.</small>
         </div>
-        <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" /></label>
-        <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" /></label>
-        <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" /></label>
-        <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" /></label>
+        <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" data-antares-restrict="person-name" /></label>
+        <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" data-antares-restrict="person-name" /></label>
         <div class="register-doc-section full">
           <label class="register-field-person-type">${fieldLabel(IC.briefcase, "Tipo de persona")}
             <select name="personType" required>
@@ -7218,11 +7232,11 @@ function authView() {
                 <option value="PAS">Pasaporte</option>
               </select>
             </label>
-            <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" /></label>
+            <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
           </div>
           <div id="register-doc-empresa" class="register-doc-block register-doc-block--empresa hidden" hidden>
             <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
-              <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" />
+              <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="nit" />
             </label>
             <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
               <select name="personalDocumentType">
@@ -7231,12 +7245,12 @@ function authView() {
               </select>
             </label>
             <label>${fieldLabel(IC.badge, "Número de cédula")}
-              <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" />
+              <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" data-antares-restrict="alnum-doc" data-antares-field="doc" data-antares-doc-type-selector="select[name='personalDocumentType']" />
             </label>
             <p class="muted register-doc-empresa-note">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
           </div>
-        </div>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
+        </motion.div>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.users, "Género")}
           <select name="gender" required>
             <option value="">Seleccione...</option>
@@ -7283,7 +7297,7 @@ function authView() {
           </select>
         </label>
         <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" autocomplete="street-address" /></label>
-        <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required /></label>
+        <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
         <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field">
             <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
@@ -7459,6 +7473,17 @@ function bindAuthForms() {
       }
       const data = Object.fromEntries(new FormData(login).entries());
       const passwordRaw = String(data.password || "");
+      const V = window.AntaresValidation;
+      if (V && typeof V.validateAuthLogin === "function") {
+        const loginVal = V.validateAuthLogin(data);
+        if (!loginVal.ok) {
+          const field = login.querySelector(loginVal.fieldSelector || "input[name='email']");
+          if (field) setFieldError(field, loginVal.hint || loginVal.message);
+          notify(loginVal.message, "error");
+          return;
+        }
+        data.email = loginVal.sanitized.email;
+      }
 
       setLoginSubmitLoading(true);
       try {
@@ -7928,6 +7953,15 @@ function bindAuthForms() {
     recover.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(recover).entries());
+      const V = window.AntaresValidation;
+      if (V && typeof V.validateDomForm === "function") {
+        const domVal = V.validateDomForm(recover);
+        if (!domVal.ok) {
+          domVal.firstInvalid?.focus?.();
+          notify(userMessage("validationStep"), "error");
+          return;
+        }
+      }
       const email = normalizeEmail(String(data.email || ""));
       if (!email) {
         notify(userMessage("validationStep"), "error");
@@ -8097,8 +8131,7 @@ function parseTripWindowRange(trip) {
 /**
  * Ventana recogida→entrega (UI, “ahora” en mapa, etc.): mezcla fila de solicitud + viaje.
  * Si las ETAs del viaje vienen vacías (sync/API), se usan `pickupAt` / `etaDelivery` de la solicitud.
- * Para decidir si un camión puede tomar **otra** solicitud, use `transportRequestOverlapRangeForFleetSchedulingConflicts`
- * (no reutiliza el SLA largo de la solicitud como bloqueo de flota).
+ * Para cruce de agenda al asignar otro viaje, use `transportRequestScheduledRange` y `tripScheduleRangesConflict`.
  */
 function tripWindowRangeFromTransportRequest(request) {
   const t = request?.trip;
@@ -8580,66 +8613,165 @@ async function transitionRequestStatus(requestId, nextStatus, actorName = "Siste
 }
 
 /**
- * Por encima de este tramo, la ventana recogida→entrega suele mezclar plazo/SLA del cliente con el uso
- * real del camión (p. ej. recogida 08:00 y “entregar antes de” 20:00). En cruces de agenda no debe
- * bloquearse todo el día ni impedir otra solicitud claramente en horas posteriores.
+ * Ventana programada recogida→entrega de un viaje activo (horas del cliente, sin recortes).
  */
-const FLEET_SCHED_CONFLICT_SLA_LIKE_SPAN_MS = 4 * 60 * 60 * 1000;
-/**
- * Bloque máximo reservado desde la recogida programada cuando la ventana parece SLA (mismo criterio que la API
- * con ventanas largas: prioriza liberar franjas sin solape real).
- */
-const FLEET_SCHED_CONFLICT_CAP_BLOCK_MS = 2 * 60 * 60 * 1000;
-
-function normalizeFleetSchedulingRangeForConflict(range) {
-  if (!range) return null;
-  const span = range.end - range.start;
-  if (span <= FLEET_SCHED_CONFLICT_SLA_LIKE_SPAN_MS) return range;
-  return { start: range.start, end: range.start + FLEET_SCHED_CONFLICT_CAP_BLOCK_MS };
-}
-
-/**
- * Ventana solo para cruce con otras asignaciones (vehículo/conductor).
- * Si `trip.etaDelivery` no viene en el viaje, no se usa `request.etaDelivery` como fin de bloque:
- * esa fecha suele ser “entregar antes de las X” (todo el día) y dejaba el camión como ocupado
- * aunque el servicio real fuera una franja corta (p. ej. 8:00–9:00 vs otra solicitud 9:30–10:30).
- */
-function transportRequestOverlapRangeForFleetSchedulingConflicts(request) {
+function transportRequestScheduledRange(request) {
   const t = request?.trip;
   if (!t) return null;
   const pickup = String(t.etaPickup || request?.pickupAt || "").trim();
   if (!pickup) return null;
   const tripDel = String(t.etaDelivery || "").trim();
-  const delivery = tripDel || pickup;
-  const range = parseTripWindowRange({ etaPickup: pickup, etaDelivery: delivery });
-  return normalizeFleetSchedulingRangeForConflict(range);
+  const reqDel = String(requestSchedulingDeliveryIso(request) || "").trim();
+  const delivery = tripDel || (reqDel && reqDel !== pickup ? reqDel : "") || pickup;
+  return parseTripWindowRange({ etaPickup: pickup, etaDelivery: delivery });
+}
+
+function scheduleRangeFromPickupDelivery(pickupAt, etaDelivery) {
+  const del =
+    etaDelivery != null && String(etaDelivery).trim() !== "" ? String(etaDelivery).trim() : String(pickupAt || "");
+  return parseTripWindowRange({ etaPickup: pickupAt, etaDelivery: del });
 }
 
 /**
- * Cruce de ventanas recogida→entrega (misma regla para vehículo y conductor).
- * `tripMatches` recibe el viaje activo y decide si ese recurso es el que se está evaluando.
+ * Conflicto si los rangos se cruzan parcial o totalmente.
+ * Sin cruce: inicio nuevo ≥ fin existente, o fin nuevo ≤ inicio existente.
  */
-function activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, tripMatches) {
-  const candidateRaw = parseTripWindowRange({
-    etaPickup: pickupAt,
-    etaDelivery: etaDelivery != null && String(etaDelivery).trim() !== "" ? etaDelivery : pickupAt
-  });
-  const candidate = normalizeFleetSchedulingRangeForConflict(candidateRaw);
-  if (!candidate) return false;
-  return getActiveTrips().some((request) => {
-    if (currentRequestId && request.id === currentRequestId) return false;
+function tripScheduleRangesConflict(candidate, existing) {
+  if (!candidate || !existing) return false;
+  if (candidate.start >= existing.end) return false;
+  if (candidate.end <= existing.start) return false;
+  return true;
+}
+
+/**
+ * Primer viaje activo que cruza horario con el candidato (vehículo o conductor).
+ */
+function findActiveTripScheduleConflict(pickupAt, etaDelivery, currentRequestId, tripMatches) {
+  const candidate = scheduleRangeFromPickupDelivery(pickupAt, etaDelivery);
+  if (!candidate) return null;
+  for (const request of getActiveTrips()) {
+    if (currentRequestId && request.id === currentRequestId) continue;
     const t = request.trip;
-    if (!t) return false;
-    const existing = transportRequestOverlapRangeForFleetSchedulingConflicts(request);
-    if (!existing) return false;
-    if (!(existing.start < candidate.end && candidate.start < existing.end)) return false;
-    return tripMatches(t);
-  });
+    if (!t || !tripMatches(t)) continue;
+    const existing = transportRequestScheduledRange(request);
+    if (existing && tripScheduleRangesConflict(candidate, existing)) return request;
+  }
+  return null;
+}
+
+function activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, tripMatches) {
+  return findActiveTripScheduleConflict(pickupAt, etaDelivery, currentRequestId, tripMatches) != null;
+}
+
+function notifyScheduleConflictIfAny(pickupAt, etaDelivery, currentRequestId, resourceLabel, tripMatches) {
+  const conflict = findActiveTripScheduleConflict(pickupAt, etaDelivery, currentRequestId, tripMatches);
+  if (!conflict) return false;
+  const tripNum = String(conflict.trip?.tripNumber || conflict.requestNumber || "-").trim();
+  const range = transportRequestScheduledRange(conflict);
+  const windowLabel =
+    range && Number.isFinite(range.start) && Number.isFinite(range.end)
+      ? `${fmtDate(new Date(range.start).toISOString())} – ${fmtDate(new Date(range.end).toISOString())}`
+      : "";
+  notify(userMessage("scheduleConflict", resourceLabel, tripNum, windowLabel), "error");
+  return true;
+}
+
+const TRANSPORT_SCHEDULE_BUSY_TTL_MS = 90_000;
+const transportScheduleBusyState = {
+  key: "",
+  busyVehicleIds: null,
+  busyDriverIds: null,
+  at: 0,
+  inflight: null
+};
+
+function transportScheduleBusyCacheKey(requestId, pickup, delivery) {
+  return `${String(requestId || "").trim()}|${String(pickup || "").trim()}|${String(delivery || "").trim()}`;
+}
+
+function invalidateTransportScheduleBusyCache() {
+  transportScheduleBusyState.key = "";
+  transportScheduleBusyState.busyVehicleIds = null;
+  transportScheduleBusyState.busyDriverIds = null;
+  transportScheduleBusyState.at = 0;
+  transportScheduleBusyState.inflight = null;
+}
+
+function isTransportScheduleBusyCacheReady(request, requestId) {
+  const pickup = requestSchedulingPickupIso(request);
+  const delivery = requestSchedulingDeliveryIso(request);
+  const key = transportScheduleBusyCacheKey(requestId, pickup, delivery);
+  return (
+    transportScheduleBusyState.key === key &&
+    transportScheduleBusyState.busyVehicleIds instanceof Set &&
+    transportScheduleBusyState.busyDriverIds instanceof Set &&
+    Date.now() - transportScheduleBusyState.at < TRANSPORT_SCHEDULE_BUSY_TTL_MS
+  );
+}
+
+/** POST /portal/transport-schedule-busy — una ida al servidor; resultado en caché ~90 s. */
+function refreshTransportScheduleBusyFromApi(request, requestId) {
+  const pickup = requestSchedulingPickupIso(request);
+  const delivery = requestSchedulingDeliveryIso(request);
+  const key = transportScheduleBusyCacheKey(requestId, pickup, delivery);
+  if (isTransportScheduleBusyCacheReady(request, requestId)) {
+    return Promise.resolve(transportScheduleBusyState);
+  }
+  if (transportScheduleBusyState.inflight && transportScheduleBusyState.key === key) {
+    return transportScheduleBusyState.inflight;
+  }
+  const api = window.AntaresApi;
+  if (!api?.postJson || !pickup || !delivery) {
+    return Promise.resolve(null);
+  }
+  transportScheduleBusyState.key = key;
+  const run = api
+    .postJson("/portal/transport-schedule-busy", {
+      excludeRequestId: requestId || undefined,
+      pickupAt: pickup,
+      deliveryAt: delivery
+    })
+    .then((res) => {
+      if (transportScheduleBusyState.key !== key) return transportScheduleBusyState;
+      transportScheduleBusyState.busyVehicleIds = new Set((res?.busyVehicleIds || []).map((id) => String(id).trim()).filter(Boolean));
+      transportScheduleBusyState.busyDriverIds = new Set((res?.busyDriverIds || []).map((id) => String(id).trim()).filter(Boolean));
+      transportScheduleBusyState.at = Date.now();
+      document.dispatchEvent(
+        new CustomEvent("transport-schedule-busy-updated", {
+          detail: { requestId, pickup, delivery }
+        })
+      );
+      return transportScheduleBusyState;
+    })
+    .catch(() => {
+      if (transportScheduleBusyState.key === key) {
+        transportScheduleBusyState.busyVehicleIds = null;
+        transportScheduleBusyState.busyDriverIds = null;
+      }
+      return null;
+    })
+    .finally(() => {
+      if (transportScheduleBusyState.inflight === run) transportScheduleBusyState.inflight = null;
+    });
+  transportScheduleBusyState.inflight = run;
+  return run;
+}
+
+function scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId) {
+  return (
+    transportScheduleBusyState.key === transportScheduleBusyCacheKey(currentRequestId, pickupAt, etaDelivery) &&
+    transportScheduleBusyState.busyVehicleIds instanceof Set &&
+    transportScheduleBusyState.busyDriverIds instanceof Set &&
+    Date.now() - transportScheduleBusyState.at < TRANSPORT_SCHEDULE_BUSY_TTL_MS
+  );
 }
 
 function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentRequestId = null) {
   const vid = String(vehicle?.id || "").trim();
   const vplate = String(vehicle?.plate || "").trim().toUpperCase();
+  if (vid && scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId)) {
+    return transportScheduleBusyState.busyVehicleIds.has(vid);
+  }
   return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
     if (t.vehicleId) return String(t.vehicleId).trim() === vid;
     return Boolean(vplate && String(t.vehiclePlate || "").trim().toUpperCase() === vplate);
@@ -8649,10 +8781,57 @@ function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentRequestId = 
 function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = null) {
   const did = String(driver?.id || "").trim();
   const dname = String(driver?.name || "").trim().toLowerCase();
+  if (did && scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId)) {
+    return transportScheduleBusyState.busyDriverIds.has(did);
+  }
   return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
     if (t.driverId) return String(t.driverId).trim() === did;
     return Boolean(dname && String(t.driverName || "").trim().toLowerCase() === dname);
   });
+}
+
+function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTermoking) {
+  if (!formEl || !request) return;
+  const vehSel = formEl.querySelector("select[name='vehicleId']");
+  const drvSel = formEl.querySelector("select[name='driverId']");
+  if (!vehSel && !drvSel) return;
+  const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
+  const driverCandidates = getDriverCandidatesForRequest(request, requestId);
+  if (vehSel) {
+    const prev = String(vehSel.value || "");
+    vehSel.innerHTML = [
+      `<option value="">${vehicleCandidates.length ? "Sin asignar por ahora" : needsTermoking ? "No hay vehículos con Termoking para capacidad, documentos u horario" : "No hay vehículos para capacidad, documentos u horario"}</option>`,
+      ...vehicleCandidates.map((vehicle) => {
+        const dis = Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs || vehicle.wrongTruckType);
+        const label = tripAssignmentVehicleOptionLabel(vehicle, {
+          needsTermoking,
+          isBusy: vehicle.isBusy,
+          isUnavailable: vehicle.isUnavailable,
+          hasExpiredDocs: vehicle.hasExpiredDocs,
+          wrongTruckType: vehicle.wrongTruckType,
+          request
+        });
+        return `<option value="${escapeAttr(String(vehicle.id))}"${dis ? " disabled" : ""}>${escapeHtml(label)}</option>`;
+      })
+    ].join("");
+    if (prev && [...vehSel.options].some((o) => o.value === prev && !o.disabled)) vehSel.value = prev;
+  }
+  if (drvSel) {
+    const prev = String(drvSel.value || "");
+    drvSel.innerHTML = [
+      `<option value="">${driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores disponibles para el horario"}</option>`,
+      ...driverCandidates.map((driver) => {
+        const dis = Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs);
+        const label = tripAssignmentDriverOptionLabel(driver, {
+          isBusy: driver.isBusy,
+          isUnavailable: driver.isUnavailable,
+          hasExpiredDocs: driver.hasExpiredDocs
+        });
+        return `<option value="${escapeAttr(String(driver.id))}"${dis ? " disabled" : ""}>${escapeHtml(label)}</option>`;
+      })
+    ].join("");
+    if (prev && [...drvSel.options].some((o) => o.value === prev && !o.disabled)) drvSel.value = prev;
+  }
 }
 
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
@@ -9039,6 +9218,34 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     : selectDriver(schedPickup, schedDelivery, requestId);
 
   if (!vehicle || !driver) {
+    const vid = String(selectedVehicleId || "").trim();
+    const did = String(selectedDriverId || "").trim();
+    const vplate = vid
+      ? String(read(KEYS.vehicles, []).find((v) => v.id === vid)?.plate || "").trim().toUpperCase()
+      : "";
+    const dname = did
+      ? String(read(KEYS.drivers, []).find((d) => d.id === did)?.name || "")
+          .trim()
+          .toLowerCase()
+      : "";
+    if (
+      notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehículo", (t) => {
+        if (vid && t.vehicleId) return String(t.vehicleId).trim() === vid;
+        if (vplate) return String(t.vehiclePlate || "").trim().toUpperCase() === vplate;
+        return false;
+      })
+    ) {
+      return false;
+    }
+    if (
+      notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "conductor", (t) => {
+        if (did && t.driverId) return String(t.driverId).trim() === did;
+        if (dname) return String(t.driverName || "").trim().toLowerCase() === dname;
+        return false;
+      })
+    ) {
+      return false;
+    }
     notify(userMessage("noCompatibleResources"), "error");
     return false;
   }
@@ -9752,6 +9959,194 @@ function renderKpis() {
       <div class="kpi-data"><span>${c.label}</span><b class="kpi-value">${c.value}</b></div>
     </article>
   `).join("");
+}
+
+function formatColombiaLongDate(dateValue = new Date()) {
+  try {
+    const raw = new Date(dateValue).toLocaleDateString("es-CO", {
+      timeZone: CO_TIMEZONE,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  } catch (_e) {
+    return "";
+  }
+}
+
+function fmtTimeOnly(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleTimeString("es-CO", {
+      timeZone: CO_TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  } catch (_e) {
+    return "—";
+  }
+}
+
+function dashMinuteOfDayColombia(isoValue) {
+  const ts = new Date(isoValue).getTime();
+  if (!Number.isFinite(ts)) return null;
+  const p = getColombiaDateParts(new Date(ts));
+  return parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10);
+}
+
+function dashTimelinePct(isoValue) {
+  const minutes = dashMinuteOfDayColombia(isoValue);
+  if (minutes == null) return null;
+  return Math.min(100, Math.max(0, (minutes / 1439) * 100));
+}
+
+function dashRequestOutcomeTone(status) {
+  const key = slugStatus(status);
+  if (["completada", "cerrada"].includes(key)) return "ok";
+  if (["cancelada", "rechazada"].includes(key)) return "fail";
+  if (["espera_standby"].includes(key)) return "warn";
+  if (["en_transito", "viaje_asignado"].includes(key)) return "live";
+  return "neutral";
+}
+
+function dashBuildTimelineHtml(trips) {
+  const hourMarks = [0, 6, 12, 18, 23]
+    .map((h) => {
+      const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h < 12 ? `${h} AM` : `${h - 12} PM`;
+      return `<span style="left:${(h / 23) * 100}%">${label}</span>`;
+    })
+    .join("");
+  const markers = [];
+  (trips || []).forEach((request) => {
+    const pickupPct = dashTimelinePct(request?.trip?.etaPickup || request?.pickupAt);
+    const deliveryPct = dashTimelinePct(request?.trip?.etaDelivery || request?.deliveryAt);
+    const tone = dashRequestOutcomeTone(request?.status);
+    if (pickupPct != null) {
+      markers.push(
+        `<span class="ops-dash-tl-marker ops-dash-tl-marker--start" style="left:${pickupPct}%" title="Recogida ${escapeAttr(request.requestNumber || "")}">${IC.mapPin}</span>`
+      );
+    }
+    if (deliveryPct != null) {
+      markers.push(
+        `<span class="ops-dash-tl-marker ops-dash-tl-marker--${tone}" style="left:${deliveryPct}%" title="Entrega ${escapeAttr(request.requestNumber || "")}">${IC.package}</span>`
+      );
+    }
+  });
+  const nowPct = dashTimelinePct(colombiaNowIso());
+  const nowMarker =
+    nowPct != null
+      ? `<span class="ops-dash-tl-marker ops-dash-tl-marker--now" style="left:${nowPct}%" title="Ahora">${IC.activity}</span>`
+      : "";
+  return `<div class="ops-dash-timeline" aria-hidden="true">
+    <div class="ops-dash-tl-track">${markers.join("")}${nowMarker}<i class="ops-dash-tl-progress"></i></div>
+    <div class="ops-dash-tl-hours">${hourMarks}</div>
+  </div>`;
+}
+
+function dashBuildVehicleCard(group, vehicleById) {
+  const vehicleId = String(group.vehicleId || "");
+  const vehicle = vehicleById.get(vehicleId) || {};
+  const plate = String(group.plate || vehicle.plate || "Sin placa").trim();
+  const driver = String(group.driverName || "Sin conductor").trim();
+  const trips = group.trips || [];
+  const assigned = trips.length;
+  const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+  const okCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "ok").length;
+  const warnCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "warn").length;
+  const failCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "fail").length;
+  const liveCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "live").length;
+  const totalValue = trips.reduce((acc, r) => acc + parseNum(r.tripValue || r.insuredValue || 0), 0);
+  const cardStatus = liveCount ? "en-ruta" : completed === assigned && assigned ? "cerrado" : assigned ? "programado" : "libre";
+  const statusLabel =
+    cardStatus === "en-ruta" ? "En ruta" : cardStatus === "cerrado" ? "Cerrado hoy" : cardStatus === "programado" ? "Programado" : "Sin viaje";
+  const rows = trips
+    .map((r) => {
+      const arrival = fmtTimeOnly(r.trip?.etaPickup || r.pickupAt);
+      const delivery = fmtTimeOnly(r.deliveredAt || r.trip?.etaDelivery || r.deliveryAt);
+      const recaudo = parseNum(r.tripValue || r.insuredValue || 0);
+      return `<tr>
+        <td><strong>${escapeHtml(String(r.requestNumber || r.id))}</strong></td>
+        <td>${escapeHtml(String(r.clientName || "—"))}<br><span class="muted">${escapeHtml(formatRoute(r))}</span></td>
+        <td>${arrival}</td>
+        <td>${delivery}</td>
+        <td>${prettyStatus(r.status, "request")}</td>
+        <td><span class="muted">${escapeHtml(String(r.cancellationReason || r.rejectionReason || "—"))}</span></td>
+        <td>${recaudo > 0 ? `$${recaudo.toLocaleString("es-CO")}` : "—"}</td>
+        <td><span class="muted">${escapeHtml(String(r.notes || "—").slice(0, 80))}</span></td>
+      </tr>`;
+    })
+    .join("");
+  const table = rows
+    ? `<div class="table-wrap ops-dash-table-wrap"><table><thead><tr>
+        <th>Solicitud</th><th>Cliente / ruta</th><th>Recogida</th><th>Entrega</th><th>Estado</th><th>Motivo</th><th>Valor</th><th>Notas</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`
+    : emptyState("Sin solicitudes en este vehículo hoy.");
+  const searchBlob = [plate, driver, ...trips.map((r) => `${r.requestNumber} ${r.clientName} ${formatRoute(r)}`)].join(" ");
+  return `<article class="ops-dash-vehicle-card" data-plate="${escapeAttr(plate)}" data-driver="${escapeAttr(driver)}" data-status="${escapeAttr(cardStatus)}" data-search="${escapeAttr(searchBlob)}">
+    <header class="ops-dash-vehicle-head">
+      <div class="ops-dash-vehicle-meta">
+        <span class="ops-dash-chip">${IC.truck}<strong>${escapeHtml(plate)}</strong></span>
+        <span class="ops-dash-chip">${IC.user}<span>${escapeHtml(driver)}</span></span>
+        <span class="ops-dash-chip">${IC.briefcase}<span>$${totalValue.toLocaleString("es-CO")}</span></span>
+      </div>
+      <span class="ops-dash-vehicle-status ops-dash-vehicle-status--${cardStatus}">${IC.compass}<span>${statusLabel}</span></span>
+    </header>
+    <div class="ops-dash-vehicle-summary">
+      <div>
+        <strong>${assigned}</strong><span>Viajes hoy</span>
+        <strong>${completed}</strong><span>Cumplidos</span>
+      </div>
+      <div class="ops-dash-mini-bars">
+        ${okCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--ok" style="flex:${okCount}">${okCount} OK</span>` : ""}
+        ${warnCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--warn" style="flex:${warnCount}">${warnCount} Standby</span>` : ""}
+        ${failCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--fail" style="flex:${failCount}">${failCount} Incid.</span>` : ""}
+        ${liveCount && !okCount && !warnCount && !failCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--live" style="flex:${liveCount}">${liveCount} En curso</span>` : ""}
+      </div>
+    </div>
+    ${dashBuildTimelineHtml(trips)}
+    ${table}
+    <footer class="ops-dash-vehicle-foot">
+      <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(trips[0]?.id || "")}" ${trips[0]?.id ? "" : "disabled"}>${IC.eye} Ver solicitud</button>
+    </footer>
+  </article>`;
+}
+
+function bindDashboardControls() {
+  if (String(state.currentView || "") !== "dashboard" || !nodes.viewRoot) return;
+  const root = nodes.viewRoot.querySelector(".ops-dash");
+  if (!root) return;
+  const search = root.querySelector("#dash-search");
+  const filter = root.querySelector("#dash-filter");
+  const cards = [...root.querySelectorAll(".ops-dash-vehicle-card")];
+  const countEl = root.querySelector("#dash-fleet-count");
+  const apply = () => {
+    const q = String(search?.value || "").trim().toLowerCase();
+    const f = String(filter?.value || "all");
+    let visible = 0;
+    cards.forEach((card) => {
+      const blob = String(card.dataset.search || "").toLowerCase();
+      const plate = String(card.dataset.plate || "").toLowerCase();
+      const driver = String(card.dataset.driver || "").toLowerCase();
+      const status = String(card.dataset.status || "");
+      const matchQ = !q || plate.includes(q) || driver.includes(q) || blob.includes(q);
+      const matchF = f === "all" || status === f;
+      const show = matchQ && matchF;
+      card.hidden = !show;
+      if (show) visible += 1;
+    });
+    if (countEl) countEl.textContent = `${visible} vehículo${visible === 1 ? "" : "s"}`;
+  };
+  search?.addEventListener("input", apply);
+  filter?.addEventListener("change", apply);
+  apply();
+  root.querySelectorAll("[data-action='dash-nav']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = String(btn.dataset.targetView || "").trim();
+      if (target) setView(target);
+    });
+  });
 }
 
 function viewDashboard() {
@@ -10671,7 +11066,7 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full create-trip-fieldset">
       <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
-        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, el cruce de agenda usa la ventana <strong>recogida → entrega estimada</strong> de esta solicitud frente a los viajes ya asignados; si la entrega está muy lejos en el tiempo respecto a la recogida (plazo tipo SLA), el sistema solo reserva un tramo inicial razonable para el solape, de modo que un camión en viaje no bloquee franjas mucho más tarde sin cruce real. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, el sistema compara la <strong>hora de recogida y la hora de entrega estimada</strong> de esta solicitud con los viajes ya programados: solo hay conflicto si los intervalos se cruzan; si entre el fin de un viaje y el inicio del siguiente hay tiempo libre, el mismo recurso puede reutilizarse. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
         <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">Ocupado</span><span class="create-trip-flag create-trip-flag--offline">No disponible</span><span class="create-trip-flag create-trip-flag--expired">Documentación vencida</span></p>
         <div class="create-trip-fleet-grid">
           <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
@@ -13527,6 +13922,20 @@ function flattenCandidateAttachmentsForCv(raw) {
   return [];
 }
 
+/** Hay CV persistido (inline, R2 con key o URL) aunque el enlace no este aun en caché local. */
+function candidateMayHaveCvInStorage(candidateLike) {
+  const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
+  for (const item of attachments) {
+    if (item == null || typeof item !== "object") continue;
+    const k = String(item.kind || "");
+    if (k === "cv_blob" && item.data && item.mime) return true;
+    if (k === "cv_file" && (String(item.storageKey || "").trim() || safeHttpsUrlForCandidateCv(item.url))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Primera fuente descargable: cv_blob inline, si no cv_file con URL http(s) incl. prefirmadas. */
 function extractCandidateCvDownload(candidateLike) {
   const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
@@ -13550,6 +13959,42 @@ function extractCandidateCvDownload(candidateLike) {
   return null;
 }
 
+/** GET /portal/candidates/:id/cv-download — URL R2 prefirmada/pública o base64 inline. */
+async function fetchCandidateCvDownloadFromApi(candidateId) {
+  const id = String(candidateId || "").trim();
+  if (!id || !portalCanRefreshFromApi()) return null;
+  const api = window.AntaresApi;
+  if (!api?.getJson) return null;
+  try {
+    const data = await api.getJson(`/portal/candidates/${encodeURIComponent(id)}/cv-download`);
+    if (!data || typeof data !== "object") return null;
+    if (data.url && /^https?:\/\//i.test(String(data.url))) {
+      return {
+        href: String(data.url),
+        fileName: String(data.fileName || "hoja-de-vida").trim() || "hoja-de-vida"
+      };
+    }
+    if (data.data && data.mime) {
+      const mime = safeMimeForCvBlobStored(data.mime);
+      return {
+        href: `data:${mime};base64,${String(data.data)}`,
+        fileName: String(data.fileName || "hoja-de-vida").trim() || "hoja-de-vida"
+      };
+    }
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function resolveCandidateCvDownload(candidateLike) {
+  const local = extractCandidateCvDownload(candidateLike);
+  if (local?.href) return local;
+  const id = String(candidateLike?.id || "").trim();
+  if (!id || !candidateMayHaveCvInStorage(candidateLike)) return null;
+  return fetchCandidateCvDownloadFromApi(id);
+}
+
 function triggerCandidateCvDownload(href, fileNameFallback) {
   const name = String(fileNameFallback || "cv").replace(/[\\/]/g, "_");
   try {
@@ -13569,7 +14014,7 @@ function installCandidateCvDownloadDelegation() {
   if (typeof document === "undefined" || !document.body) return;
   if (document.body.dataset.antaresCvDlBound === "1") return;
   document.body.dataset.antaresCvDlBound = "1";
-  document.body.addEventListener("click", (event) => {
+  document.body.addEventListener("click", async (event) => {
     const btn = event.target instanceof Element ? event.target.closest("[data-action='download-candidate-cv']") : null;
     if (!btn) return;
     if (btn.hasAttribute("disabled") || btn.getAttribute("aria-disabled") === "true") return;
@@ -13581,7 +14026,9 @@ function installCandidateCvDownloadDelegation() {
       notify(userMessage("genericError"), "error");
       return;
     }
-    const dl = extractCandidateCvDownload(cand);
+    btn.setAttribute("aria-busy", "true");
+    const dl = await resolveCandidateCvDownload(cand);
+    btn.removeAttribute("aria-busy");
     if (!dl?.href) {
       notify("No hay CV descargable para este candidato.", "info");
       return;
@@ -13693,7 +14140,7 @@ function hiringHtml() {
       const ageStr = ageInfo.age != null ? `${ageInfo.age} años` : "—";
       const expCargo = parseNum(c.experienceYears || 0);
       const cvDlRow = extractCandidateCvDownload(c);
-      const canDlCv = Boolean(cvDlRow?.href);
+      const canDlCv = Boolean(cvDlRow?.href) || candidateMayHaveCvInStorage(c);
       const canScheduleInterview = !["Contratado", "Descartado"].includes(String(c.status || ""));
       return `<tr>
       <td><strong>${escapeHtml(String(c.name || ""))}</strong></td>
@@ -18121,8 +18568,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), con equipo Termoking según la etiqueta, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si el horario de esta solicitud se cruza con un viaje ya asignado al mismo vehículo o conductor; franjas distintas permiten reutilizar el recurso. Si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si el horario de esta solicitud se cruza con un viaje ya asignado al mismo vehículo o conductor; franjas distintas permiten reutilizar el recurso. Si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), con equipo Termoking según la etiqueta, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si la franja recogida→entrega de esta solicitud se cruza con otro viaje del mismo vehículo o conductor; si hay hueco entre la hora fin de un viaje y la hora inicio del siguiente, el recurso puede reutilizarse. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si la franja recogida→entrega de esta solicitud se cruza con otro viaje del mismo vehículo o conductor; si hay hueco entre la hora fin de un viaje y la hora inicio del siguiente, el recurso puede reutilizarse. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
@@ -21830,13 +22277,7 @@ function initGlobalEvents() {
     syncPhoneHiddenFull(nodes.b2bForm, "b2b");
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
-    const emailValue = normalizeEmail(data.email);
-    const messageValue = String(data.message || "").trim();
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
-    const meta = getSelectedPhoneCountry(nodes.b2bForm, "b2b");
-    const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
-
-    const errors = [];
+    const V = window.AntaresValidation;
     const jumpToStepForField = (selector) => {
       const field = nodes.b2bForm.querySelector(selector);
       const pane = field?.closest("[data-step-pane]");
@@ -21845,6 +22286,33 @@ function initGlobalEvents() {
         nodes.b2bForm.__setB2BStep(paneIndex);
       }
     };
+    let messageValue = String(data.message || "").trim();
+    if (V && typeof V.validateB2bProspectClient === "function") {
+      const b2bVal = V.validateB2bProspectClient(data, nodes.b2bForm, () =>
+        getSelectedPhoneCountry(nodes.b2bForm, "b2b")
+      );
+      if (!b2bVal.ok) {
+        const first = b2bVal.first || b2bVal.errors?.[0];
+        if (first === "email") jumpToStepForField("input[name='email']");
+        if (first === "phone") jumpToStepForField(".js-b2b-phone-national");
+        if (first === "message") jumpToStepForField("textarea[name='message']");
+        if (first === "name") jumpToStepForField("input[name='name']");
+        if (first === "company") jumpToStepForField("input[name='company']");
+        if (first === "taxId") jumpToStepForField("input[name='taxId']");
+        if (first === "position") jumpToStepForField("input[name='position']");
+        notify(userMessage("b2bFieldsInvalid"), "error");
+        return;
+      }
+      Object.assign(data, b2bVal.sanitized);
+      messageValue = String(data.message || "").trim();
+    } else {
+    const emailValue = normalizeEmail(data.email);
+    messageValue = String(data.message || "").trim();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
+    const meta = getSelectedPhoneCountry(nodes.b2bForm, "b2b");
+    const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
+
+    const errors = [];
     if (!emailValid) {
       setFieldError(nodes.b2bForm.querySelector("input[name='email']"), "Ingresa un correo corporativo valido.");
       errors.push("email");
@@ -21887,6 +22355,7 @@ function initGlobalEvents() {
     data.email = emailValue;
     data.phone = String(data.phone || "").trim();
     data.message = messageValue;
+    }
 
     const api = window.AntaresApi;
     const apiBase = typeof api?.getBase === "function" ? api.getBase() : "";
@@ -22052,7 +22521,8 @@ function bindExtendedViewEditHandlers() {
   };
 
   /** Postulación web (API/R2): adjuntos_json con kind cv_file | cv_blob | cv_filename · Local: solo nombres o cv_blob desde RRHH. */
-  const parseCandidateAttachmentsForView = (raw) => {
+  const parseCandidateAttachmentsForView = (raw, opts = {}) => {
+    const candidateId = String(opts.candidateId || "").trim();
     let experienceFromJson = "";
     /** @type {string[]} */
     const parts = [];
@@ -22098,9 +22568,13 @@ function bindExtendedViewEditHandlers() {
             parts.push(
               `<a class="btn btn-sm btn-outline" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer" download>${IC.download} Ver / descargar</a> <span class="muted">${displayName}</span>`
             );
+          } else if (item.storageKey && candidateId) {
+            parts.push(
+              `<button type="button" class="btn btn-sm btn-outline" data-action="download-candidate-cv" data-id="${escapeAttr(candidateId)}">${IC.download} Ver / descargar</button> <span class="muted">${displayName}</span>`
+            );
           } else if (item.storageKey) {
             parts.push(
-              `<span class="perm-tag">${IC.file}<span>${displayName}</span></span> <span class="muted" title="${escapeAttr(String(item.storageKey))}">(objeto guardado sin URL publica configurada)</span>`
+              `<span class="perm-tag">${IC.file}<span>${displayName}</span></span> <span class="muted" title="${escapeAttr(String(item.storageKey))}">(CV en almacenamiento; use Descargar CV)</span>`
             );
           } else {
             parts.push(`<span class="perm-tag">${IC.file}<span>${displayName}</span></span>`);
@@ -23709,7 +24183,8 @@ function openPublicVacancyApplyModal(vacancy) {
 /** Cobertura pública: GET /api/public/transport-request-coverage-stats (sin JWT). */
 let publicCoverageStatsView = null;
 
-const COVERAGE_FALLBACK_HUBS_ES = [
+/** Rutas principales del index: lista fija (no se sustituye por topHubs de la API). */
+const COVERAGE_MAIN_ROUTES_ES = [
   "Santa Marta",
   "Barranquilla",
   "Cartagena",
@@ -23719,6 +24194,14 @@ const COVERAGE_FALLBACK_HUBS_ES = [
   "Oriente Antioqueño",
   "Bogota"
 ];
+
+function coverageMainRouteHubRows() {
+  return COVERAGE_MAIN_ROUTES_ES.map((city) => ({
+    city,
+    department: null,
+    requestCount: null
+  }));
+}
 
 /** Corredores de referencia (misma forma que topCorridors de la API) para fallback o sin datos. */
 const COVERAGE_FALLBACK_CORRIDORS = [
@@ -23803,11 +24286,9 @@ function renderPublicCoverageFromView() {
   }
 
   const view = publicCoverageStatsView;
+  hubGrid.innerHTML = renderPublicCoverageHubGrid(coverageMainRouteHubRows(), false);
+
   if (!view || view.kind === "fallback") {
-    hubGrid.innerHTML = renderPublicCoverageHubGrid(
-      COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
-      false
-    );
     corridorGrid.innerHTML = renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
     if (foot) {
       foot.hidden = false;
@@ -23827,25 +24308,16 @@ function renderPublicCoverageFromView() {
 
   const data = view.data;
   const total = Number(data?.totalRequestsAnalyzed) || 0;
-  const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
   const topCorridors = Array.isArray(data?.topCorridors) ? data.topCorridors : [];
 
-  const hubsOk = topHubs.length > 0;
   const corOk = topCorridors.length > 0;
-
-  hubGrid.innerHTML = hubsOk
-    ? renderPublicCoverageHubGrid(topHubs, true)
-    : renderPublicCoverageHubGrid(
-        COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
-        false
-      );
 
   corridorGrid.innerHTML = corOk
     ? renderPublicCoverageCorridorGrid(topCorridors, true)
     : renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
 
   if (foot) {
-    if (total > 0 && (hubsOk || corOk)) {
+    if (total > 0 && corOk) {
       foot.hidden = true;
       foot.textContent = "";
     } else {
@@ -24029,6 +24501,9 @@ function initPublicScrollSpy() {
 }
 
 function initPublicEffects() {
+  if (window.AntaresValidation?.installLiveValidation) {
+    window.AntaresValidation.installLiveValidation(document);
+  }
   initCoverageCorridors();
   initPublicCareers();
   initPublicScrollSpy();

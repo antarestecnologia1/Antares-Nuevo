@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
 import { AdminUserDeleteDto } from "./dto/admin-user-delete.dto";
@@ -15,6 +15,7 @@ import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
 import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
+import { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -27,6 +28,12 @@ export class PortalController {
   @Get("bootstrap")
   bootstrap(@Req() req: { user: ReqUser }) {
     return this.portal.bootstrap(req.user.userId, req.user.role);
+  }
+
+  /** Hoja de vida del candidato (R2 prefirmado / público o base64 inline). Rol RRHH. */
+  @Get("candidates/:id/cv-download")
+  candidateCvDownload(@Req() req: { user: ReqUser }, @Param("id") candidateId: string) {
+    return this.portal.getCandidateCvDownload(req.user.userId, req.user.role, candidateId);
   }
 
   /**
@@ -65,6 +72,15 @@ export class PortalController {
   @Post("sync-key")
   syncKey(@Req() req: { user: ReqUser }, @Body() dto: SyncKeyDto) {
     return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role);
+  }
+
+  /**
+   * Una sola consulta: vehículos y conductores con viaje activo que se cruza con la franja indicada.
+   * Para marcar «ocupado» en asignación sin recorrer toda la flota en el cliente.
+   */
+  @Post("transport-schedule-busy")
+  transportScheduleBusy(@Req() req: { user: ReqUser }, @Body() dto: TransportScheduleBusyDto) {
+    return this.portal.getTransportScheduleBusy(req.user.userId, req.user.role, dto);
   }
 
   /** Crear notificaciones in-app para otros usuarios (p. ej. avisar a admins). */

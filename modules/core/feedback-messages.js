@@ -62,6 +62,10 @@
     tripTransitionDenied: (from, to) => `No se puede cambiar de estado: ${from} → ${to}.`,
     noCompatibleResources:
       "No hay camión o conductor compatible y disponible para esta solicitud y horario.",
+    scheduleConflict: (resourceLabel, tripNumber, windowLabel) => {
+      const base = `Conflicto de horario: el ${resourceLabel} ya tiene programado el viaje ${tripNumber || "-"}`;
+      return windowLabel ? `${base} (${windowLabel}).` : `${base}.`;
+    },
     reportPdfBlocked: "No se pudo abrir la ventana del reporte PDF. Revise el bloqueador de ventanas.",
     payrollDriverLicenseSync:
       "Los conductores requieren licencia, categoría y fecha de vencimiento para sincronizar.",
