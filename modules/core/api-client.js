@@ -55,6 +55,17 @@
     } catch (_) {}
   }
 
+  /** Convierte fallos de `fetch` (red, CORS, certificado, URL incorrecta) en mensaje legible. */
+  function throwIfFetchNetworkError(err) {
+    const raw = String(err?.message || err || "");
+    if (/failed to fetch|networkerror|load failed|network request failed/i.test(raw)) {
+      throw new Error(
+        "No fue posible conectar con el servidor. Compruebe su conexion a internet, que la API este activa, la URL en antares_api_base (raiz del API, sin repetir /api) y que CORS permita este sitio."
+      );
+    }
+    throw err instanceof Error ? err : new Error(raw || "Error de red");
+  }
+
   async function request(method, path, body) {
     const base = getBase();
     const auth = getAccessToken();
@@ -69,7 +80,12 @@
       headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
-    const res = await fetch(url, opts);
+    let res;
+    try {
+      res = await fetch(url, opts);
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
     const text = await res.text();
     let data = null;
     if (text) {
@@ -109,7 +125,12 @@
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = { Accept: "application/json", "Content-Type": "application/json" };
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
     const text = await res.text();
     let data = null;
     if (text) {
@@ -138,7 +159,12 @@
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = { Accept: "application/json" };
-    const res = await fetch(url, { method: "POST", headers, body: formData });
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", headers, body: formData });
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
     const text = await res.text();
     let data = null;
     if (text) {
@@ -169,7 +195,12 @@
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = { Accept: "application/json", Authorization: `Bearer ${auth}` };
-    const res = await fetch(url, { method: "POST", headers, body: formData });
+    let res;
+    try {
+      res = await fetch(url, { method: "POST", headers, body: formData });
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
     const text = await res.text();
     let data = null;
     if (text) {
@@ -198,7 +229,12 @@
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = { Accept: "application/json" };
-    const res = await fetch(url, { method: "GET", headers });
+    let res;
+    try {
+      res = await fetch(url, { method: "GET", headers });
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
     const text = await res.text();
     let data = null;
     if (text) {

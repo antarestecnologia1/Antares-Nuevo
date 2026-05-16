@@ -79,11 +79,12 @@ async function bootstrap() {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     next();
   });
+  /* CORS: no fijar `allowedHeaders`; cors replica Access-Control-Request-Headers en el preflight.
+   * Una lista corta puede bloquear POST multipart y el navegador solo muestra «Failed to fetch». */
   app.enableCors({
     origin: buildCorsOriginHandler(config),
     credentials: true,
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"]
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
   });
   app.useGlobalPipes(
     new ValidationPipe({

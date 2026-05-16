@@ -77,6 +77,7 @@ window.DomainModules = window.DomainModules || {};
           ? row.refrigeracionTermoking
           : existing?.refrigeracionTermoking,
       weightKg: row.weightKg,
+      fuelles: row.fuelles != null && row.fuelles !== "" ? Number(row.fuelles) : existing?.fuelles,
       pickupAt: pickupIso || existing?.pickupAt,
       etaDelivery: etaIso || existing?.etaDelivery || pickupIso,
       status: mapApiStatus(row.status),

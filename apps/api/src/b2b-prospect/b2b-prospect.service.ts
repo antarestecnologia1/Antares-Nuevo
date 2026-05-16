@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import type { Express } from "express";
 import type { Pool } from "pg";
@@ -17,11 +17,25 @@ const JOB_CV_MIME_ALLOWED = new Set([
   "image/gif"
 ]);
 
+/** Windows / algunos navegadores envían `application/octet-stream`; inferimos por extensión. */
+const CV_FILENAME_EXT_TO_MIME: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif"
+};
+
 /** Sin R2, el archivo se guarda en adjuntos_json (base64) — tamaño máximo servidor. */
 const MAX_CV_INLINE_STORE_BYTES = 1_500_000;
 
 @Injectable()
 export class B2bProspectService {
+  private readonly logger = new Logger(B2bProspectService.name);
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly r2: R2Service
@@ -109,30 +123,159 @@ export class B2bProspectService {
       requisitos: string | null;
       estado: string;
       nombre_cargo_denorm: string | null;
+      fecha_publicacion_desde: Date | null;
     }>(
       `SELECT id::text, titulo, departamento, ciudad, fecha_limite_postulacion,
-              salario_oferta::text, requisitos, estado::text AS estado, nombre_cargo_denorm
+              salario_oferta::text, requisitos, estado::text AS estado, nombre_cargo_denorm,
+              fecha_publicacion_desde
        FROM vacantes
        WHERE estado = 'Publicada'::estado_vacante
          AND fecha_limite_postulacion >= CURRENT_DATE
+         AND (fecha_publicacion_desde IS NULL OR fecha_publicacion_desde <= CURRENT_DATE)
        ORDER BY fecha_creacion DESC`
     );
     return r.rows.map((v) => {
       const d = v.fecha_limite_postulacion;
       const deadline =
         d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+      const pub = v.fecha_publicacion_desde;
+      const publishedFrom =
+        pub == null
+          ? null
+          : pub instanceof Date
+            ? pub.toISOString().slice(0, 10)
+            : String(pub).slice(0, 10);
       return {
         id: v.id,
         title: v.titulo,
         department: v.departamento,
         city: v.ciudad,
         deadline,
+        publishedFrom,
         salaryOffer: Number(v.salario_oferta),
         requirements: v.requisitos,
         status: v.estado,
         positionName: v.nombre_cargo_denorm
       };
     });
+  }
+
+  /**
+   * Agregados anónimos para la landing: ciudades con más apariciones (origen+destino) y corredores
+   * **no dirigidos** (A→B y B→A suman en un solo bucket). Excluye canceladas/rechazadas.
+   *
+   * @param periodMonths ventana hacia atrás (3–36), por defecto 24.
+   */
+  async getTransportRequestCoverageStats(periodMonthsRaw?: number) {
+    const periodMonths = Math.min(36, Math.max(3, Math.floor(Number(periodMonthsRaw) || 24)));
+    const hubLimit = 10;
+    const corridorLimit = 10;
+
+    const countR = await this.pool.query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c
+       FROM solicitudes_transporte
+       WHERE estado NOT IN ('Rechazada'::estado_solicitud_transporte, 'Cancelada'::estado_solicitud_transporte)
+         AND fecha_creacion >= now() - ($1::numeric * interval '1 month')
+         AND length(trim(ciudad_origen)) > 0
+         AND length(trim(ciudad_destino)) > 0`,
+      [periodMonths]
+    );
+    const totalRequestsAnalyzed = Number(countR.rows[0]?.c || 0) || 0;
+
+    const hubs = await this.pool.query<{
+      city: string;
+      department: string | null;
+      requestCount: string;
+    }>(
+      `WITH base AS (
+         SELECT ciudad_origen, departamento_origen, ciudad_destino, departamento_destino
+         FROM solicitudes_transporte
+         WHERE estado NOT IN ('Rechazada'::estado_solicitud_transporte, 'Cancelada'::estado_solicitud_transporte)
+           AND fecha_creacion >= now() - ($1::numeric * interval '1 month')
+           AND length(trim(ciudad_origen)) > 0
+           AND length(trim(ciudad_destino)) > 0
+       ),
+       cities AS (
+         SELECT lower(trim(ciudad_origen)) AS k,
+                trim(ciudad_origen) AS city_label,
+                NULLIF(trim(COALESCE(departamento_origen, '')), '') AS department_label
+         FROM base
+         UNION ALL
+         SELECT lower(trim(ciudad_destino)) AS k,
+                trim(ciudad_destino) AS city_label,
+                NULLIF(trim(COALESCE(departamento_destino, '')), '') AS department_label
+         FROM base
+       )
+       SELECT MAX(city_label) AS city,
+              MAX(department_label) AS department,
+              COUNT(*)::text AS "requestCount"
+       FROM cities
+       WHERE k <> ''
+       GROUP BY k
+       ORDER BY COUNT(*) DESC, MAX(city_label) ASC
+       LIMIT $2::int`,
+      [periodMonths, hubLimit]
+    );
+
+    const corridors = await this.pool.query<{
+      cityA: string;
+      departmentA: string | null;
+      cityB: string;
+      departmentB: string | null;
+      requestCount: string;
+    }>(
+      `WITH norm AS (
+         SELECT lower(trim(ciudad_origen)) AS o_k,
+                trim(ciudad_origen) AS o_c,
+                NULLIF(trim(COALESCE(departamento_origen, '')), '') AS o_d,
+                lower(trim(ciudad_destino)) AS d_k,
+                trim(ciudad_destino) AS d_c,
+                NULLIF(trim(COALESCE(departamento_destino, '')), '') AS d_d
+         FROM solicitudes_transporte
+         WHERE estado NOT IN ('Rechazada'::estado_solicitud_transporte, 'Cancelada'::estado_solicitud_transporte)
+           AND fecha_creacion >= now() - ($1::numeric * interval '1 month')
+           AND length(trim(ciudad_origen)) > 0
+           AND length(trim(ciudad_destino)) > 0
+           AND lower(trim(ciudad_origen)) <> lower(trim(ciudad_destino))
+       ),
+       pairs AS (
+         SELECT CASE WHEN o_k <= d_k THEN o_k ELSE d_k END AS ka,
+                CASE WHEN o_k <= d_k THEN d_k ELSE o_k END AS kb,
+                CASE WHEN o_k <= d_k THEN o_c ELSE d_c END AS "cityA",
+                CASE WHEN o_k <= d_k THEN o_d ELSE d_d END AS "departmentA",
+                CASE WHEN o_k <= d_k THEN d_c ELSE o_c END AS "cityB",
+                CASE WHEN o_k <= d_k THEN d_d ELSE o_d END AS "departmentB"
+         FROM norm
+       )
+       SELECT MAX("cityA") AS "cityA",
+              MAX("departmentA") AS "departmentA",
+              MAX("cityB") AS "cityB",
+              MAX("departmentB") AS "departmentB",
+              COUNT(*)::text AS "requestCount"
+       FROM pairs
+       GROUP BY ka, kb
+       ORDER BY COUNT(*) DESC, MAX("cityA") ASC, MAX("cityB") ASC
+       LIMIT $2::int`,
+      [periodMonths, corridorLimit]
+    );
+
+    return {
+      periodMonths,
+      corridorAggregation: "undirected" as const,
+      totalRequestsAnalyzed,
+      topHubs: hubs.rows.map((row) => ({
+        city: row.city,
+        department: row.department,
+        requestCount: Number(row.requestCount) || 0
+      })),
+      topCorridors: corridors.rows.map((row) => ({
+        cityA: row.cityA,
+        departmentA: row.departmentA,
+        cityB: row.cityB,
+        departmentB: row.departmentB,
+        requestCount: Number(row.requestCount) || 0
+      }))
+    };
   }
 
   /** Postulación anónima persistida en tabla candidatos (`multipart/form-data`, campo archivo `attachment`). */
@@ -155,7 +298,24 @@ export class B2bProspectService {
       throw new BadRequestException("Años de experiencia invalidos.");
     }
 
-    const adjuntos: Record<string, unknown>[] = [{ kind: "experience_notes", text: String(dto.experience || "").trim() }];
+    const pre = await this.pool.query<{
+      titulo: string;
+      estado: string;
+      lim: Date;
+      fecha_publicacion_desde: Date | null;
+    }>(
+      `SELECT titulo, estado::text, fecha_limite_postulacion AS lim, fecha_publicacion_desde
+       FROM vacantes
+       WHERE id = $1::uuid`,
+      [dto.vacancyId]
+    );
+    this.assertVacancyAcceptsPublicApplications(pre.rows[0]);
+
+    const expNotes = String(dto.experience ?? "").trim();
+    const adjuntos: Record<string, unknown>[] = [];
+    if (expNotes) {
+      adjuntos.push({ kind: "experience_notes", text: expNotes });
+    }
     await this.attachJobApplicationCvJson(adjuntos, dto, attachment);
 
     const client = await this.pool.connect();
@@ -163,29 +323,18 @@ export class B2bProspectService {
       await client.query("BEGIN");
 
       const vac = await client.query<{
-        id: string;
         titulo: string;
         estado: string;
         lim: Date;
+        fecha_publicacion_desde: Date | null;
       }>(
-        `SELECT id::text, titulo, estado::text, fecha_limite_postulacion AS lim
+        `SELECT titulo, estado::text, fecha_limite_postulacion AS lim, fecha_publicacion_desde
          FROM vacantes
          WHERE id = $1::uuid
          FOR UPDATE`,
         [dto.vacancyId]
       );
-      const row = vac.rows[0];
-      if (!row) {
-        throw new NotFoundException("La vacante no existe.");
-      }
-      if (row.estado !== "Publicada") {
-        throw new BadRequestException("Esta vacante ya no acepta postulaciones.");
-      }
-      const lim = row.lim instanceof Date ? row.lim.toISOString().slice(0, 10) : String(row.lim).slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
-      if (lim < today) {
-        throw new BadRequestException("La fecha limite de postulacion ya vencio.");
-      }
+      const tituloVacante = this.assertVacancyAcceptsPublicApplications(vac.rows[0]);
 
       const ins = await client.query<{ id: string }>(
         `INSERT INTO candidatos (
@@ -208,7 +357,7 @@ export class B2bProspectService {
           dto.address.trim(),
           birthSql,
           expYears,
-          row.titulo,
+          tituloVacante,
           JSON.stringify(adjuntos)
         ]
       );
@@ -236,26 +385,66 @@ export class B2bProspectService {
     }
   }
 
+  private assertVacancyAcceptsPublicApplications(
+    row: { titulo: string; estado: string; lim: Date; fecha_publicacion_desde?: Date | null } | undefined
+  ): string {
+    if (!row) {
+      throw new NotFoundException("La vacante no existe.");
+    }
+    if (row.estado !== "Publicada") {
+      throw new BadRequestException("Esta vacante ya no acepta postulaciones.");
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const vd = row.fecha_publicacion_desde;
+    if (vd != null) {
+      const vs = vd instanceof Date ? vd.toISOString().slice(0, 10) : String(vd).slice(0, 10);
+      if (today < vs) {
+        throw new BadRequestException("Esta vacante aun no esta abierta a postulaciones en linea.");
+      }
+    }
+    const lim = row.lim instanceof Date ? row.lim.toISOString().slice(0, 10) : String(row.lim).slice(0, 10);
+    if (lim < today) {
+      throw new BadRequestException("La fecha limite de postulacion ya vencio.");
+    }
+    return String(row.titulo || "").trim();
+  }
+
+  /** MIME declarado o inferido por nombre (p. ej. octet-stream + .pdf). */
+  private resolveCvMimeOrThrow(file: Express.Multer.File): string {
+    const raw = String(file.mimetype || "")
+      .split(";")[0]
+      ?.trim()
+      .toLowerCase();
+    if (raw && JOB_CV_MIME_ALLOWED.has(raw)) {
+      return raw;
+    }
+    const loose = raw === "application/octet-stream" || raw === "binary/octet-stream" || raw === "";
+    if (loose) {
+      const lower = String(file.originalname || "").toLowerCase();
+      const dot = lower.lastIndexOf(".");
+      const ext = dot >= 0 ? lower.slice(dot) : "";
+      const mapped = CV_FILENAME_EXT_TO_MIME[ext];
+      if (mapped) {
+        return mapped;
+      }
+    }
+    throw new BadRequestException(
+      "Formato de archivo no permitido. Use PDF, Word (doc/docx) o imagen (jpeg, png, webp o gif)."
+    );
+  }
+
   private async attachJobApplicationCvJson(
     adjuntos: Record<string, unknown>[],
     dto: CreateJobApplicationDto,
     attachment?: Express.Multer.File
   ) {
     if (attachment?.buffer && attachment.buffer.length > 0) {
-      const mime = String(attachment.mimetype || "")
-        .split(";")[0]
-        ?.trim()
-        .toLowerCase();
-      if (!mime || !JOB_CV_MIME_ALLOWED.has(mime)) {
-        throw new BadRequestException(
-          "Formato de archivo no permitido. Use PDF, Word (doc/docx) o imagen (jpeg, png, webp o gif)."
-        );
-      }
+      const mime = this.resolveCvMimeOrThrow(attachment);
       const origRaw = String(attachment.originalname || "hoja-de-vida").trim().slice(0, 240);
       const safeTail = origRaw.replace(/[^\w.\-\sÁÉÍÓÚáéíóúñÑ]+/g, "_").replace(/\s+/g, "_");
       const fileLabel = safeTail.length ? safeTail : "hoja-de-vida";
 
-      if (this.r2.isEnabled()) {
+      if (this.r2.hasUploadsClient()) {
         const key = `job-applications/${randomUUID()}/${Date.now()}-${fileLabel}`;
         await this.r2.putJobCv(key, attachment.buffer, mime);
         const url = this.r2.publicUrl(key);
@@ -301,10 +490,11 @@ export class B2bProspectService {
       );
     }
 
-    const vol = Number(dto.monthlyVolumeKg);
-    if (!Number.isFinite(vol) || vol < 100) {
-      throw new BadRequestException("Volumen mensual debe ser al menos 100 kg.");
-    }
+    const rawVol = dto.monthlyVolumeKg;
+    const vol =
+      rawVol === undefined || rawVol === null || !Number.isFinite(Number(rawVol))
+        ? 0
+        : Math.min(999_999_999, Math.max(0, Number(rawVol)));
 
     const msg = String(dto.message || "").trim();
     if (msg.length < 30) {
@@ -315,55 +505,51 @@ export class B2bProspectService {
       .trim()
       .toLowerCase();
 
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      const ins = await client.query<{ id: string }>(
-        `INSERT INTO prospectos_contacto_b2b (
+    const ins = await this.pool.query<{ id: string }>(
+      `INSERT INTO prospectos_contacto_b2b (
           nombre_contacto, nombre_empresa, nit, cargo_contacto, telefono, correo_electronico,
           tipo_servicio, tipo_operacion, frecuencia_operacion, ventana_inicio_servicio, volumen_mensual_aprox_kg, mensaje
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id::text AS id`,
-        [
-          dto.name.trim(),
-          dto.company.trim(),
-          dto.taxId.trim(),
-          dto.position.trim(),
-          phoneCheck.formatted,
-          email,
-          dto.serviceType.trim(),
-          dto.operationType.trim(),
-          dto.operationFrequency.trim(),
-          dto.startWindow.trim(),
-          vol,
-          msg
-        ]
-      );
-
-      const id = ins.rows[0]?.id;
-      const bodyJson = JSON.stringify({
-        id,
-        ...dto,
+      [
+        dto.name.trim(),
+        dto.company.trim(),
+        dto.taxId.trim(),
+        dto.position.trim(),
+        phoneCheck.formatted,
         email,
-        phone: phoneCheck.formatted,
-        monthlyVolumeKg: vol,
-        message: msg
+        dto.serviceType.trim(),
+        dto.operationType.trim(),
+        dto.operationFrequency.trim(),
+        dto.startWindow.trim(),
+        vol,
+        msg
+      ]
+    );
+
+    const id = ins.rows[0]?.id;
+    const bodyJson = JSON.stringify({
+      id,
+      ...dto,
+      email,
+      phone: phoneCheck.formatted,
+      monthlyVolumeKg: vol,
+      message: msg
+    });
+
+    /** No bloquea la respuesta HTTP: la cola de correo es secundaria al registro del prospecto. */
+    void this.pool
+      .query(`INSERT INTO correos_salida (direccion_destino, asunto, cuerpo) VALUES ($1, $2, $3)`, [
+        "comercial@antarescargo.com",
+        "Nuevo lead B2B",
+        bodyJson
+      ])
+      .catch((e: unknown) => {
+        this.logger.warn(
+          `No se pudo encolar correo B2B para prospecto ${id}: ${e instanceof Error ? e.message : String(e)}`
+        );
       });
 
-      await client.query(
-        `INSERT INTO correos_salida (direccion_destino, asunto, cuerpo)
-         VALUES ($1, $2, $3)`,
-        ["comercial@antarescargo.com", "Nuevo lead B2B", bodyJson]
-      );
-
-      await client.query("COMMIT");
-      return { ok: true, id };
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+    return { ok: true, id };
   }
 }

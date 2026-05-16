@@ -468,6 +468,15 @@ function userMessage(key, ...args) {
 /**
  * Fila de campo para {@link openEditModal} (sin agrupación por sección).
  */
+function editModalLabelClassAttr(f) {
+  const parts = [];
+  if (f.full) parts.push("full");
+  const w = String(f.wrapperClass || "").trim();
+  if (w) parts.push(w);
+  if (!parts.length) return "";
+  return ` class="${escapeAttr(parts.join(" "))}"`;
+}
+
 function renderEditModalFieldRow(f, fieldIdx) {
   if (f.type === "section") return "";
   if (f.type === "select") {
@@ -483,17 +492,16 @@ function renderEditModalFieldRow(f, fieldIdx) {
     const labelWrap = f.labelHtml
       ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
       : `<span>${labelInner}</span>`;
-    const fullCls = f.full ? "full" : "";
-    return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
+    return `<label${editModalLabelClassAttr(f)}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
   }
   if (f.type === "hidden") {
     return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
   }
   if (f.type === "textarea") {
-    return `<label class="full"><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
+    return `<label${editModalLabelClassAttr({ ...f, full: true })}><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
   }
   if (f.type === "file") {
-    return `<label class="full"><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
+    return `<label${editModalLabelClassAttr({ ...f, full: true })}><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
   }
   if (f.type === "custom") {
     /**
@@ -966,7 +974,7 @@ function openAssignedTripInfoModal(req) {
             <div><strong>Solicitud:</strong> ${escapeHtml(String(req.requestNumber || req.id))}</div>
             <div><strong>Cliente:</strong> ${escapeHtml(String(req.clientName || "-"))}</div>
             <div class="full"><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
-            <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${parseNum(req.weightKg).toLocaleString("es-CO")} kg</div>
+            <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${requestTruckRequirementSummaryHtml(req)}</div>
             <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || 0).toLocaleString("es-CO")}</div>
             <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
             <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
@@ -997,8 +1005,7 @@ function openRequestDetailModal(req) {
     clientLogoUrl && !/^data:/i.test(clientLogoUrl)
       ? `<div class="solicitud-detail-client-row"><span class="request-company-logo request-company-logo--sm" role="img" aria-label="Logo de ${escapeAttr(clientDisplayName)}"><img src="${escapeAttr(clientLogoUrl)}" alt="" loading="lazy" /></span><span class="muted">${escapeHtml(clientDisplayName)}</span></div>`
       : `<span class="muted">${escapeHtml(clientDisplayName)}</span>`;
-  const thermokingReq = requestRequiresRefrigeration(req);
-  const boxes = parseNum(req.boxes ?? req.boxesCount);
+  const thermokingReq = requestRequiresTermoking(req);
   const obs = String(req.notes || req.observations || "").trim();
   const origAddr = String(req.originAddress || "").trim();
   const destAddr = String(req.destinationAddress || "").trim();
@@ -1021,7 +1028,7 @@ function openRequestDetailModal(req) {
           <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
           <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}</span></div>
           <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
-          <div><strong>Peso / cajas</strong><br /><span class="muted">${parseNum(req.weightKg).toLocaleString("es-CO")} kg · ${boxes.toLocaleString("es-CO")} cajas</span></div>
+          <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
           <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
         </div>
         ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
@@ -2644,6 +2651,8 @@ let state = {
   clientDataScope: "company",
   createPanels: {},
   calendarFocus: null,
+  /** Vista del calendario de transporte: `month` | `week` | `day`. */
+  calendarViewMode: "month",
   calendarFilters: { driver: "", vehicle: "", status: "", kind: "" },
   payrollFilters: {
     period: "all",
@@ -3578,15 +3587,15 @@ const PUBLIC_ES_EN_DICT = {
   "Empresas que confian en nosotros": "Companies that trust us",
   "Aliados del sector floricultor, comercializador y exportador que": "Allies across floriculture, trading, and exports who",
   "priorizan puntualidad y conservacion de cadena de frio.": "prioritize punctuality and cold-chain integrity.",
-  "Viajes realizados el ultimo año": "Trips taken in the last year.",
-  "Clientes recurrentes por nivel de servicio.": "Repeat clients driven by service quality.",
+  "Viajes estimados al año.": "Estimated trips per year.",
+  "Clientes satisfechos por nivel de servicio.": "Customer satisfaction by service level.",
   "Monitoreo de operacion y trazabilidad.": "Operations monitoring and traceability.",
   "Rastrea tu envio": "Track your shipment",
   "Lo que dicen nuestros clientes": "What our clients say",
   "Experiencias reales de empresas que gestionan volumen, calidad y": "Real stories from companies managing volume, quality, and",
   "tiempos exigentes.": "tight timelines.",
   '"Redujimos reprocesos logisticos en un 32% desde que operamos': '"We cut logistics rework by 32% since we started working',
-  'con Antares. Son rapidos, claros y muy confiables."': 'with Antares. They are fast, clear, and very reliable."',
+  'con Transportes Antares. Son rapidos, claros y muy confiables."': 'with Transportes Antares. They are fast, clear, and very reliable."',
   "Directora de Operaciones": "Director of Operations",
   "Gerente Logistico": "Logistics Manager",
   "Coordinadora Comercial": "Commercial Coordinator",
@@ -3626,6 +3635,19 @@ const PUBLIC_ES_EN_DICT = {
   "Registramos novedades, evidencia de entrega y reporte para analisis de cumplimiento.": "We record incidents, proof of delivery, and compliance reporting.",
   "Cobertura nacional": "Nationwide coverage",
   "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for floriculture and exports.",
+  "Ciudades con mas presencia en solicitudes (puntos de recogida y entrega).":
+    "Cities most often appearing in requests (both pickup and delivery points).",
+  "Corredores sin direccion fija (ida y vuelta suman) mas solicitados segun solicitudes registradas.":
+    "Non-directional corridors (outbound and return combined) ranked by recorded requests.",
+  "Cargando datos de cobertura...": "Loading coverage data…",
+  "Configure la URL del servidor para ver la demanda real en esta seccion.":
+    "Configure the server URL to see real demand in this section.",
+  "No hay solicitudes suficientes en la ventana analizada; se muestra referencia geografica.":
+    "Not enough requests in the analyzed window; showing a geographic reference instead.",
+  "No fue posible cargar las estadisticas de cobertura. Se muestra referencia geografica.":
+    "Could not load coverage statistics; showing a geographic reference instead.",
+  "Basado en {N} solicitudes analizadas (ultimos {M} meses; excluye canceladas y rechazadas).":
+    "Based on {N} analyzed requests (last {M} months; excludes cancelled and rejected).",
   "Rutas principales": "Main routes",
   "Corredores frecuentes": "Frequent corridors",
   Sabana: "Savannah",
@@ -3634,25 +3656,25 @@ const PUBLIC_ES_EN_DICT = {
   "Puertos de exportacion": "Export ports",
   "Eje cafetero": "Coffee axis",
   "Costa atlantica": "Atlantic coast",
-  "Bogota D.C.": "Bogota D.C.",
-  Medellin: "Medellin",
-  Rionegro: "Rionegro",
-  Cali: "Cali",
-  Pereira: "Pereira",
-  Armenia: "Armenia",
-  Bucaramanga: "Bucaramanga",
-  Cartagena: "Cartagena",
+  "Santa Marta": "Santa Marta",
   Barranquilla: "Barranquilla",
+  Cartagena: "Cartagena",
+  Buenaventura: "Buenaventura",
+  "Puerto Antioquia": "Puerto Antioquia",
+  Medellin: "Medellin",
+  "Oriente Antioqueño": "Eastern Antioquia",
+  Bogota: "Bogota",
   "Novedades y mejoras": "News and updates",
   "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.": "Recent changes in operations, technology, and service to keep our clients informed.",
   "Infraestructura y competitividad": "Infrastructure and competitiveness",
   "COMUNICADO OFICIAL · OPERACIÓN HISTÓRICA": "OFFICIAL STATEMENT · HISTORIC OPERATION",
-  "Antares marca un hito en Puerto Antioquia con la tractomula JZX522": "Antares marks a milestone at Puerto Antioquia with tractor-trailer JZX522",
+  "Transportes Antares marca un hito logístico al ser aliado estratégico para transportar el primer contenedor de flor hacia Puerto Antioquia":
+    "Transportes Antares marks a logistics milestone as a strategic partner in the first flower container shipment to Puerto Antioquia",
   "Abrimos un nuevo precedente logístico: primera operación de ingreso de contenedor de flor al puerto con unidad propia, consolidando capacidad real para rutas de exportación de alto valor.": "We are opening a new logistics precedent: first entry of a flower container into the port with our own unit, consolidating real capacity for high-value export routes.",
   "Operación documentada en campo": "Field-documented operation",
   "Corredor estratégico de exportación": "Strategic export corridor",
   "Evidencia audiovisual y fotográfica": "Audiovisual and photographic evidence",
-  "Hito logístico Antares": "Antares logistics milestone",
+  "Hito logístico Transportes Antares": "Transportes Antares logistics milestone",
   "Unidad destacada: JZX522": "Featured unit: JZX522",
   "Primera operación de contenedor de flor en Puerto Antioquia": "First flower container operation at Puerto Antioquia",
   "Fuimos la": "We were the",
@@ -3687,10 +3709,12 @@ const PUBLIC_ES_EN_DICT = {
   "Contexto institucional": "Institutional context",
   "Mensaje oficial de la Gobernación de Antioquia": "Official message from the Government of Antioquia",
   "Mensaje institucional sobre competitividad regional e infraestructura": "Institutional message on regional competitiveness and infrastructure",
-  "Fuente oficial: Gobernación de Antioquia (@puerto_antioquia) · Validación operativa interna Antares · Actualizado: Abril 2026": "Official source: Government of Antioquia (@puerto_antioquia) · Antares internal operational validation · Updated: April 2026",
+  "Fuente oficial: Gobernación de Antioquia (@puerto_antioquia) · Validación operativa interna Transportes Antares · Actualizado: Abril 2026":
+    "Official source: Government of Antioquia (@puerto_antioquia) · Transportes Antares internal operational validation · Updated: April 2026",
   "\"Puerto Antioquia en Uraba marca un antes y un despues para la competitividad de Antioquia y del pais. Todos los dias zarpan barcos con productos del campo: 130 mil tallos de flores, cultivados en La Ceja, van rumbo hacia Inglaterra y 23 toneladas de aguacate Hass del Suroeste llegaran a Belgica. En el pasado estas exportaciones salian por Santa Marta, lo que implicaba mayores tiempos y costos. Hoy, el mundo entra y sale por Uraba, generando ahorros logisticos, empleo y nuevas oportunidades.\"": "\"Puerto Antioquia in Urabá marks a before-and-after for competitiveness in Antioquia and the country. Every day, ships sail with products from the countryside: 130,000 flower stems grown in La Ceja bound for England, and 23 tons of Hass avocado from the southwest heading to Belgium. In the past, these exports left through Santa Marta, with longer times and higher costs. Today, the world enters and leaves through Urabá, generating logistics savings, jobs, and new opportunities.\"",
   "GOBERNACIÓN DE ANTIOQUIA": "GOVERNMENT OF ANTIOQUIA",
-  "Este resultado posiciona a Antares como aliado logístico empresarial para operaciones con alta exigencia de cumplimiento y trazabilidad.": "This outcome positions Antares as a business logistics partner for operations with high compliance and traceability requirements.",
+  "Este resultado posiciona a Transportes Antares como aliado logístico empresarial para operaciones con alta exigencia de cumplimiento y trazabilidad.":
+    "This outcome positions Transportes Antares as a business logistics partner for operations with high compliance and traceability requirements.",
   "Puerto Antioquia impulsa exportaciones: nuestra tractomula en operacion": "Puerto Antioquia boosts exports: our tractor-trailer in operation",
   "Nuestra operacion participa en una ruta clave de exportacion de flores y aguacate desde Antioquia hacia mercados internacionales.": "Our operation supports a key export route for flowers and avocado from Antioquia to international markets.",
   "Tu navegador no soporta video HTML5.": "Your browser does not support HTML5 video.",
@@ -3735,13 +3759,12 @@ const PUBLIC_ES_EN_DICT = {
   "Inmediata (0-7 dias)": "Immediate (0-7 days)",
   "Corto plazo (8-30 dias)": "Short term (8-30 days)",
   "Planificada (31+ dias)": "Planned (31+ days)",
-  "Volumen mensual aprox. (kg)": "Approx. monthly volume (kg)",
   "1. Contacto": "1. Contact",
   "2. Operacion": "2. Operation",
   "3. Requerimiento": "3. Requirements",
   Anterior: "Back",
   Siguiente: "Next",
-  "Portal empresarial Antares": "Antares enterprise portal",
+  "Portal empresarial Transportes Antares": "Transportes Antares enterprise portal",
   "Ingreso seguro para clientes y equipos operativos.": "Secure access for clients and operational teams.",
   Ingresar: "Sign in",
   "Ingreso empresarial seguro": "Secure enterprise access",
@@ -3890,14 +3913,15 @@ function setElementTextPreserveChildren(selector, text) {
 const PUBLIC_TEXT_OVERRIDES = {
   es: {
     "#trusted .section-head p": "Aliados del sector floricultor, comercializador y exportador que priorizan puntualidad y conservacion de cadena de frio.",
-    "#trusted .mini-metric:nth-child(1) p": "Empresas atendidas en el ultimo ano.",
-    "#trusted .mini-metric:nth-child(2) p": "Clientes recurrentes por nivel de servicio.",
+    "#trusted .mini-metric:nth-child(1) p": "Viajes estimados al año.",
+    "#trusted .mini-metric:nth-child(2) p": "Clientes satisfechos por nivel de servicio.",
     "#trusted .mini-metric:nth-child(3) p": "Monitoreo de operacion y trazabilidad.",
     "#about .about-grid article:nth-child(1) p": "Somos un operador logistico B2B especializado en transporte refrigerado para floricultores, comercializadores y exportadores. Integramos tecnologia, disciplina operativa y servicio cercano para garantizar entregas puntuales.",
     "#hierarchy .section-head p": "Liderazgo estrategico y operativo para asegurar excelencia en cada viaje y en toda la cadena de servicio.",
     "#testimonials .section-head p": "Experiencias reales de empresas que gestionan volumen, calidad y tiempos exigentes.",
     "#services .section-head p": "Soluciones logisticas integrales para el sector floricultor y de exportacion.",
-    "#coverage .section-head p": "Rutas principales y corredores frecuentes para el sector floricultor y exportador.",
+    "#coverage-headline":
+      "Ciudades y trayectos con mayor demanda registrada en solicitudes de transporte (se actualiza con los datos del servidor).",
     "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
     "#careers .muted":
       "Con el servidor de la empresa configurado, las vacantes y postulaciones quedan registradas de forma centralizada; sin esa conexión solo verá datos de demostración en este equipo.",
@@ -3906,14 +3930,15 @@ const PUBLIC_TEXT_OVERRIDES = {
   },
   en: {
     "#trusted .section-head p": "Allies across floriculture, trading, and exports who prioritize punctuality and cold-chain integrity.",
-    "#trusted .mini-metric:nth-child(1) p": "Companies served in the last year.",
+    "#trusted .mini-metric:nth-child(1) p": "Estimated trips per year.",
     "#trusted .mini-metric:nth-child(2) p": "Repeat clients driven by service quality.",
     "#trusted .mini-metric:nth-child(3) p": "Operations monitoring and traceability.",
     "#about .about-grid article:nth-child(1) p": "We are a B2B logistics operator specialized in refrigerated transport for growers, distributors, and exporters. We combine technology, operational discipline, and close support to ensure on-time deliveries.",
     "#hierarchy .section-head p": "Strategic and operational leadership that ensures excellence on every trip and across the full service chain.",
     "#testimonials .section-head p": "Real stories from companies managing high volume, strict quality, and demanding timelines.",
     "#services .section-head p": "End-to-end logistics solutions for floriculture and export operations.",
-    "#coverage .section-head p": "Main routes and frequent corridors for the floriculture and export sector.",
+    "#coverage-headline":
+      "Cities and lanes with the highest demand from recorded transport requests (updates automatically from the server).",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
     "#careers .muted":
       "With your organization server configured, openings and applications are stored centrally; without it you only see demo data in this browser.",
@@ -3961,7 +3986,6 @@ function applyPublicLanguage(lang = "es") {
       "input[name='position']": "Ej. Directora de Operaciones",
       "input[name='phone']": "+57 300 000 0000",
       "input[name='email']": "nombre@empresa.com",
-      "input[name='monthlyVolumeKg']": "Ej. 12000",
       "textarea[name='message']": "Cuentanos origen/destino, volumen aproximado, frecuencia y ventana de entrega."
     },
     en: {
@@ -3971,7 +3995,6 @@ function applyPublicLanguage(lang = "es") {
       "input[name='position']": "E.g. Director of Operations",
       "input[name='phone']": "+57 300 000 0000",
       "input[name='email']": "name@company.com",
-      "input[name='monthlyVolumeKg']": "E.g. 12000",
       "textarea[name='message']": "Tell us origin/destination, approximate volume, frequency, and delivery window."
     }
   };
@@ -4233,6 +4256,37 @@ function setFieldError(field, message) {
   label.appendChild(hint);
 }
 
+let b2bFormFeedbackHideTimer = null;
+
+/** Aviso visible en el formulario B2B (complementa el toast). */
+function setB2bFormFeedback(kind, message) {
+  const el = document.getElementById("b2b-form-feedback");
+  if (!el) return;
+  if (b2bFormFeedbackHideTimer) {
+    clearTimeout(b2bFormFeedbackHideTimer);
+    b2bFormFeedbackHideTimer = null;
+  }
+  el.textContent = message || "";
+  el.classList.remove("b2b-form-feedback--hidden", "b2b-form-feedback--success", "b2b-form-feedback--error");
+  if (!kind || !String(message || "").trim()) {
+    el.classList.add("b2b-form-feedback--hidden");
+    return;
+  }
+  el.classList.add(kind === "success" ? "b2b-form-feedback--success" : "b2b-form-feedback--error");
+  try {
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (_) {
+    /* noop */
+  }
+  if (kind === "success") {
+    b2bFormFeedbackHideTimer = setTimeout(() => {
+      el.classList.add("b2b-form-feedback--hidden");
+      el.textContent = "";
+      b2bFormFeedbackHideTimer = null;
+    }, 12000);
+  }
+}
+
 function initB2BFormExperience() {
   const form = nodes.b2bForm;
   if (!form) return;
@@ -4328,16 +4382,12 @@ function initB2BFormExperience() {
 
   const emailInput = form.querySelector("input[name='email']");
   const messageInput = form.querySelector("textarea[name='message']");
-  const volumeInput = form.querySelector("input[name='monthlyVolumeKg']");
 
   if (emailInput) {
     emailInput.addEventListener("input", () => clearFieldError(emailInput));
   }
   if (messageInput) {
     messageInput.addEventListener("input", () => clearFieldError(messageInput));
-  }
-  if (volumeInput) {
-    volumeInput.addEventListener("input", () => clearFieldError(volumeInput));
   }
 
   form.querySelectorAll("input,select,textarea").forEach((field) => {
@@ -4764,6 +4814,21 @@ function normalizePortalDateYmd(raw) {
   return "";
 }
 
+/** Suma un año calendario a `YYYY-MM-DD` (local), para vigencias de examen. */
+function addOneYearToYmd(ymd) {
+  const n = normalizePortalDateYmd(ymd);
+  if (!n) return "";
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return "";
+  const y = Number(p[1]);
+  const mo = Number(p[2]) - 1;
+  const day = Number(p[3]);
+  const d = new Date(y, mo, day);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setFullYear(d.getFullYear() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /**
  * Fechas de ficha de nómina en formato `YYYY-MM-DD` para formularios y caché local.
  * Acepta alias snake_case por si algún flujo devuelve columnas crudas de BD.
@@ -4780,8 +4845,46 @@ function normalizePayrollEmployeeRowDates(emp) {
   e.birthDate = normalizePortalDateYmd(first(e.birthDate, e.fecha_nacimiento));
   e.licenseExpiry = normalizePortalDateYmd(first(e.licenseExpiry, e.fecha_vencimiento_licencia));
   e.startDate = normalizePortalDateYmd(first(e.startDate, e.fecha_ingreso));
-  e.psychoTestDate = normalizePortalDateYmd(first(e.psychoTestDate, e.fecha_examen_psicosensometrico));
-  e.psychoTestExpiry = normalizePortalDateYmd(first(e.psychoTestExpiry, e.fecha_vencimiento_psicosensometrico));
+  e.occupationalExamDate = normalizePortalDateYmd(
+    first(
+      e.occupationalExamDate,
+      e.psychoTestDate,
+      e.fecha_examen_ocupacional,
+      e.fecha_examen_psicosensometrico
+    )
+  );
+  e.occupationalExamExpiry = normalizePortalDateYmd(
+    first(
+      e.occupationalExamExpiry,
+      e.psychoTestExpiry,
+      e.fecha_vencimiento_examen_ocupacional,
+      e.fecha_vencimiento_psicosensometrico
+    )
+  );
+  e.instruvialExamDate = normalizePortalDateYmd(
+    first(
+      e.instruvialExamDate,
+      e.intravehicularExamDate,
+      e.fecha_examen_instruvial,
+      e.fecha_examen_intravehicular
+    )
+  );
+  e.instruvialExamExpiry = normalizePortalDateYmd(
+    first(
+      e.instruvialExamExpiry,
+      e.intravehicularExamExpiry,
+      e.fecha_vencimiento_examen_instruvial,
+      e.fecha_vencimiento_examen_intravehicular
+    )
+  );
+  if (e.occupationalExamDate && !e.occupationalExamExpiry) {
+    e.occupationalExamExpiry = addOneYearToYmd(e.occupationalExamDate);
+  }
+  if (e.instruvialExamDate && !e.instruvialExamExpiry) {
+    e.instruvialExamExpiry = addOneYearToYmd(e.instruvialExamDate);
+  }
+  e.psychoTestDate = e.occupationalExamDate;
+  e.psychoTestExpiry = e.occupationalExamExpiry;
   e.contractEndDate = normalizePortalDateYmd(first(e.contractEndDate, e.fecha_fin_contrato));
   return e;
 }
@@ -4821,7 +4924,7 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
   const route = escapeHtml(formatRoute(request));
   const client = escapeHtml(String(request.clientName || "-"));
   const ref = escapeHtml(String(request.requestNumber || request.id || ""));
-  const kg = parseNum(request.weightKg).toLocaleString("es-CO");
+  const kgLine = requestTruckRequirementSummaryHtml(request);
   const pickup = fmtDate(request.pickupAt);
   const cargo = escapeHtml(String(request.cargoDescription || "—").trim().slice(0, 120));
   const srcBadge =
@@ -4842,7 +4945,7 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
       <div class="approve-trip-hero-route">${IC.mapPin}<span>${route}</span></div>
       <div class="approve-trip-hero-grid">
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Cliente</span><span class="approve-trip-meta-v">${client}</span></div>
-        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Peso</span><span class="approve-trip-meta-v">${kg} kg</span></div>
+        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Camión / carga</span><span class="approve-trip-meta-v">${kgLine}</span></div>
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Recogida</span><span class="approve-trip-meta-v">${pickup}</span></div>
       </div>
       <p class="approve-trip-hero-cargo"><strong>Carga:</strong> ${cargo}${String(request.cargoDescription || "").trim().length > 120 ? "…" : ""}</p>
@@ -5307,7 +5410,9 @@ function refreshCreateTripModuleForm(formEl) {
   const assignableByDate = isRequestPickupSameDayOrFuture(request);
   const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
   const driverCandidates = getDriverCandidatesForRequest(request, requestId);
-  const vehicles = vehicleCandidates.filter((v) => !v.isBusy && !v.isUnavailable && !v.hasExpiredDocs);
+  const vehicles = vehicleCandidates.filter(
+    (v) => !v.isBusy && !v.isUnavailable && !v.hasExpiredDocs && !v.wrongTruckType
+  );
   const drivers = driverCandidates.filter((d) => !d.isBusy && !d.isUnavailable && !d.hasExpiredDocs);
 
   if (preview) {
@@ -5330,7 +5435,7 @@ function refreshCreateTripModuleForm(formEl) {
       <div class="create-trip-summary-grid">
         <div class="create-trip-summary-cell"><span class="create-trip-sk">Cliente</span><span class="create-trip-sv">${escapeHtml(String(request.clientName || "-"))}</span></div>
         <div class="create-trip-summary-cell"><span class="create-trip-sk">Solicita</span><span class="create-trip-sv">${escapeHtml(String(request.requestedByName || "-"))}</span></div>
-        <div class="create-trip-summary-cell"><span class="create-trip-sk">Peso</span><span class="create-trip-sv">${parseNum(request.weightKg).toLocaleString("es-CO")} kg</span></div>
+        <div class="create-trip-summary-cell"><span class="create-trip-sk">Camión / requisitos</span><span class="create-trip-sv">${requestTruckRequirementSummaryHtml(request)}</span></div>
         <div class="create-trip-summary-cell"><span class="create-trip-sk">Recogida</span><span class="create-trip-sv">${fmtDate(request.pickupAt)}</span></div>
         <div class="create-trip-summary-cell create-trip-summary-cell--wide"><span class="create-trip-sk">Carga</span><span class="create-trip-sv">${cargoShort}</span></div>
       </div>`;
@@ -5368,9 +5473,11 @@ function refreshCreateTripModuleForm(formEl) {
               needsTermoking,
               isBusy: v.isBusy,
               isUnavailable: v.isUnavailable,
-              hasExpiredDocs: v.hasExpiredDocs
+              hasExpiredDocs: v.hasExpiredDocs,
+              wrongTruckType: v.wrongTruckType,
+              requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType)
             });
-            const disabled = v.isBusy || v.isUnavailable || v.hasExpiredDocs ? " disabled" : "";
+            const disabled = v.isBusy || v.isUnavailable || v.hasExpiredDocs || v.wrongTruckType ? " disabled" : "";
             return `<option value="${escapeAttr(v.id)}"${disabled}>${escapeHtml(lab)}</option>`;
           })
           .join("");
@@ -8536,15 +8643,18 @@ function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = nu
 
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
   const requiresRefrigeration = Boolean(options.requiresRefrigeration);
+  const reqForType = options.request && typeof options.request === "object" ? options.request : null;
   const vehicles = read(KEYS.vehicles, []);
   /** Con Termoking en solicitud → solo unidades con equipo; sin Termoking → solo secas (excluye refrigerados). */
   const matchesThermal = (v) =>
     requiresRefrigeration ? vehicleHasTermokingEquipment(v) : !vehicleHasTermokingEquipment(v);
+  const matchesReqTruck = (v) => !reqForType || vehicleMatchesRequestTruckType(v, reqForType);
   const filtered = vehicles.filter(
     (v) =>
       !isManuallyUnavailable(v) &&
       isVehicleEligibleForTripAssignment(v) &&
       matchesThermal(v) &&
+      matchesReqTruck(v) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
   );
   const pick =
@@ -8555,6 +8665,7 @@ function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = nul
         !isManuallyUnavailable(v) &&
         isVehicleEligibleForTripAssignment(v) &&
         matchesThermal(v) &&
+        matchesReqTruck(v) &&
         !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
     ) ||
     null;
@@ -8599,6 +8710,45 @@ function normalizeRequestTransportMode(serviceType) {
   return "Transporte nacional";
 }
 
+/** Tipos de camión requerido en el formulario (persistidos en `tipo_vehiculo_solicitado` / `vehicleType`). */
+const REQUEST_REQUIRED_TRUCK_TYPES = ["Turbo", "Camión", "Tractomula"];
+
+function normalizeRequestRequiredTruckType(value) {
+  const s = String(value || "").trim();
+  if (REQUEST_REQUIRED_TRUCK_TYPES.includes(s)) return s;
+  return "";
+}
+
+function requestRequiredTruckTypeShowsFuelles(t) {
+  return t === "Turbo" || t === "Camión";
+}
+
+function requestRequiredTruckTypeShowsTractomulaKg(t) {
+  return t === "Tractomula";
+}
+
+/** Resumen legible de tipo de camión, fuelles o peso (tarjetas y detalle). */
+function requestTruckRequirementSummaryHtml(req) {
+  const vt = normalizeRequestRequiredTruckType(req?.vehicleType);
+  if (vt === "Tractomula") {
+    const kg = parseNum(req?.weightKg).toLocaleString("es-CO");
+    return `${escapeHtml(vt)} · ${kg} kg`;
+  }
+  if (requestRequiredTruckTypeShowsFuelles(vt)) {
+    const n = parseNum(req?.fuelles);
+    return `${escapeHtml(vt)} · ${n.toLocaleString("es-CO")} fuelle(s)`;
+  }
+  const boxes = parseNum(req?.boxes ?? req?.boxesCount);
+  const w = parseNum(req?.weightKg);
+  const legacy = (boxes > 0 || w > 0) && !vt;
+  if (legacy) {
+    return `${w.toLocaleString("es-CO")} kg · ${boxes.toLocaleString("es-CO")} cajas`;
+  }
+  const shown = String(req?.vehicleType || "").trim();
+  if (shown && shown !== "Por definir") return escapeHtml(shown);
+  return escapeHtml("—");
+}
+
 /** Termoking: columna `refrigeracionTermoking` si existe; si no, inferencia legacy desde `serviceType`. */
 function requestRequiresTermoking(request) {
   if (request && typeof request.refrigeracionTermoking === "boolean") return request.refrigeracionTermoking;
@@ -8635,7 +8785,7 @@ function historyVehicleColumn(request) {
   return tk;
 }
 
-/** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud no fija carrocería; Termoking vía `refrigeracionTermoking` o legacy en `serviceType`. */
+/** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud restringe el tipo cuando `vehicleType` está informado; Termoking vía `refrigeracionTermoking` o legacy en `serviceType`. */
 const TRIP_ASSIGNMENT_FLEET_TYPES = new Set(["Camion", "Turbo", "Tractomula"]);
 
 function normalizeFleetTypeForTripAssignment(type) {
@@ -8643,6 +8793,15 @@ function normalizeFleetTypeForTripAssignment(type) {
     .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Turbo / Camión / Tractomula de la solicitud ↔ mismo tipo en flota (tolerante a tildes/mayúsculas). Sin tipo requerido → no se filtra (datos legacy). */
+function vehicleMatchesRequestTruckType(vehicle, request) {
+  const reqLabel = normalizeRequestRequiredTruckType(request?.vehicleType);
+  if (!reqLabel) return true;
+  const reqKey = normalizeFleetTypeForTripAssignment(reqLabel).toLowerCase();
+  const vKey = normalizeFleetTypeForTripAssignment(vehicle?.type).toLowerCase();
+  return Boolean(reqKey && vKey && reqKey === vKey);
 }
 
 function isVehicleEligibleForTripAssignment(vehicle) {
@@ -8667,6 +8826,10 @@ function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
   if (isBusy) tail += " · Ocupado (horario)";
   if (isUnavailable) tail += " · No disponible";
   if (hasExpiredDocs) tail += " · Documentación vencida";
+  if (options.wrongTruckType) {
+    const rt = String(options.requestTruckType || "").trim();
+    tail += rt ? ` · Tipo no coincide (solicitud: ${rt})` : " · Tipo no coincide con la solicitud";
+  }
   return `${vehicle.plate} · ${vehicle.type} · ${cap}${thermal}${tail}`;
 }
 
@@ -8686,9 +8849,10 @@ function getCompatibleVehiclesForRequest(request, currentRequestId = null, compa
   const requiresRefrigeration = requestRequiresTermoking(request);
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (isManuallyUnavailable(vehicle)) return false;
+    if (!vehicleMatchesRequestTruckType(vehicle, request)) return false;
     if (moduleCreate) {
-      // Asistente en Viajes: listar toda la flota compatible (sin filtrar por carrocería
-      // solicitada ni limitar a camión/turbo/tractomula).
+      // Asistente en Viajes: sin filtro estricto Camión/Turbo/Tractomula en `isVehicleEligible…`;
+      // el tipo pedido en la solicitud sí restringe (`vehicleMatchesRequestTruckType` arriba).
     } else {
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
     }
@@ -8740,11 +8904,13 @@ function getVehicleCandidatesForRequest(request, currentRequestId = null) {
         currentRequestId
       );
       const unavailableManual = isManuallyUnavailable(vehicle);
+      const wrongTruckType = !vehicleMatchesRequestTruckType(vehicle, request);
       return {
         ...vehicle,
         isBusy: busyBySchedule,
         isUnavailable: unavailableManual,
-        hasExpiredDocs: soatDays < 0 || techDays < 0
+        hasExpiredDocs: soatDays < 0 || techDays < 0,
+        wrongTruckType
       };
     });
 }
@@ -8852,7 +9018,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
       schedPickup,
       schedDelivery,
       requestId,
-      { requiresRefrigeration: requestRequiresTermoking(current) }
+      { requiresRefrigeration: requestRequiresTermoking(current), request: current }
     );
   const driver = selectedDriverId
     ? compatibleDrivers.find((item) => item.id === selectedDriverId) || null
@@ -9046,7 +9212,7 @@ function updatePortalSidebarSessionMeta() {
   const avatarInitial = document.getElementById("sidebar-session-avatar-initial");
   if (!user) {
     if (meta) meta.textContent = "";
-    if (nameEl) nameEl.textContent = "Antares";
+    if (nameEl) nameEl.textContent = "Transportes Antares";
     if (avatarWrap) avatarWrap.classList.remove("has-photo");
     if (avatarImg) {
       avatarImg.removeAttribute("src");
@@ -9754,8 +9920,9 @@ function requestFormHtml() {
         <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
         <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
-        <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
-        <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+        <label class="full">${fieldLabel(IC.truck, "Tipo de camion requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
+        <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
+        <label class="request-truck-field request-truck-field--kg" hidden>${fieldLabel(IC.scale, "Peso kg (tractomula)", { required: true })}<input type="number" min="0" step="0.01" name="weightKg" id="request-tractomula-kg" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">
@@ -9975,8 +10142,8 @@ function vehiclesHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="true">Sí, GPS activo</option><option value="false">Sin GPS</option></select></label>
         <label>${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej: Detektor, Skyangel, Geolocator" /></label>
-        <label>${fieldLabel(IC.user, "Propietario / Empresa")}<input name="ownerName" placeholder="Persona o razón social del titular" /></label>
-        <label>${fieldLabel(IC.badge, "NIT / Cédula propietario")}<input name="ownerTaxId" placeholder="Ej: 900123456-7" /></label>
+        <label>${fieldLabel(IC.user, "Usuario proveedor satélite")}<input type="text" name="satelliteProviderUser" placeholder="Usuario en el portal del GPS" autocomplete="off" /></label>
+        <label>${fieldLabel(IC.lock, "Contraseña proveedor satélite")}<input type="text" name="satelliteProviderPassword" placeholder="Contraseña en el portal del GPS" autocomplete="off" /></label>
       </div>
     </fieldset>
 
@@ -10616,12 +10783,11 @@ function transportCalendarHtml() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const viewRaw = state.calendarViewMode;
+  const view = viewRaw === "week" || viewRaw === "day" ? viewRaw : "month";
+
   const year = focus.getFullYear();
   const month = focus.getMonth();
-  const firstDayOfMonth = new Date(year, month, 1);
-  const startWeekday = firstDayOfMonth.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const daysInPrevMonth = new Date(year, month, 0).getDate();
 
   const eventsByDay = new Map();
   allEvents.forEach((evt) => {
@@ -10634,15 +10800,15 @@ function transportCalendarHtml() {
   const monthLabel = focus.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
 
-  const buildCell = (day, monthOffset) => {
-    const cellDate = new Date(year, month + monthOffset, day);
-    cellDate.setHours(0, 0, 0, 0);
+  const buildCellFromDate = (cellDateRaw, isOther) => {
+    const cellDate = new Date(cellDateRaw.getFullYear(), cellDateRaw.getMonth(), cellDateRaw.getDate());
     const key = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
     const dayEvents = eventsByDay.get(key) || [];
-    const isOther = monthOffset !== 0;
     const isToday = cellDate.getTime() === today.getTime();
+    const dayNum = cellDate.getDate();
+    const maxEv = view === "day" ? 24 : 3;
     const eventList = dayEvents
-      .slice(0, 3)
+      .slice(0, maxEv)
       .map((evt) => {
         const time = evt.start.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
         return `<button type="button" class="cal-event ${evt.dot}" data-action="cal-event" data-kind="${escapeAttr(evt.kind)}" data-id="${escapeAttr(evt.id)}">
@@ -10651,27 +10817,61 @@ function transportCalendarHtml() {
         </button>`;
       })
       .join("");
-    const more = dayEvents.length > 3 ? `<span class="cal-more">+${dayEvents.length - 3} más</span>` : "";
+    const more =
+      dayEvents.length > maxEv ? `<span class="cal-more">+${dayEvents.length - maxEv} más</span>` : "";
     return `<div class="cal-cell ${isOther ? "cal-cell-other" : ""} ${isToday ? "cal-cell-today" : ""} ${dayEvents.length ? "cal-cell-has-events" : ""}">
-      <div class="cal-day">${day}${isToday ? '<span class="cal-today-pill">Hoy</span>' : ""}</div>
+      <div class="cal-day">${dayNum}${isToday ? '<span class="cal-today-pill">Hoy</span>' : ""}</div>
       <div class="cal-events">${eventList}${more}</div>
     </div>`;
   };
 
-  const cells = [];
-  for (let i = startWeekday - 1; i >= 0; i--) {
-    cells.push(buildCell(daysInPrevMonth - i, -1));
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
-    cells.push(buildCell(d, 0));
-  }
-  while (cells.length % 7 !== 0) {
-    const nextDay = cells.length - (startWeekday + daysInMonth) + 1;
-    cells.push(buildCell(nextDay, 1));
-  }
-
   const weekDays = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-  const weekdayHeaders = weekDays.map((d) => `<div class="cal-weekday">${d}</div>`).join("");
+  let periodTitle = monthLabelCap;
+  let cells = [];
+  let weekdayHeaders = "";
+
+  if (view === "month") {
+    const firstDayOfMonth = new Date(year, month, 1);
+    const startWeekday = firstDayOfMonth.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month - 1, daysInPrevMonth - i);
+      cells.push(buildCellFromDate(d, true));
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push(buildCellFromDate(new Date(year, month, d), false));
+    }
+    while (cells.length % 7 !== 0) {
+      const nextDay = cells.length - (startWeekday + daysInMonth) + 1;
+      cells.push(buildCellFromDate(new Date(year, month + 1, nextDay), true));
+    }
+    weekdayHeaders = weekDays.map((d) => `<div class="cal-weekday">${d}</div>`).join("");
+    periodTitle = monthLabelCap;
+  } else if (view === "week") {
+    const anchor = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate());
+    const sow = new Date(anchor);
+    sow.setDate(anchor.getDate() - anchor.getDay());
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sow.getFullYear(), sow.getMonth(), sow.getDate() + i);
+      cells.push(buildCellFromDate(d, false));
+    }
+    weekdayHeaders = weekDays.map((d) => `<div class="cal-weekday">${d}</div>`).join("");
+    const eow = new Date(sow.getFullYear(), sow.getMonth(), sow.getDate() + 6);
+    const sameMonth = sow.getMonth() === eow.getMonth() && sow.getFullYear() === eow.getFullYear();
+    let rangeStr;
+    if (sameMonth) {
+      rangeStr = `${sow.getDate()}–${eow.getDate()} ${sow.toLocaleDateString("es-CO", { month: "long", year: "numeric" })}`;
+    } else {
+      rangeStr = `${sow.toLocaleDateString("es-CO", { day: "numeric", month: "short" })} – ${eow.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })}`;
+    }
+    periodTitle = rangeStr.charAt(0).toUpperCase() + rangeStr.slice(1);
+  } else {
+    const d = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate());
+    cells.push(buildCellFromDate(d, false));
+    const dayLong = d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    periodTitle = dayLong.charAt(0).toUpperCase() + dayLong.slice(1);
+  }
 
   const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   const todayEvents = eventsByDay.get(todayKey) || [];
@@ -10728,10 +10928,17 @@ function transportCalendarHtml() {
         .join("")
     : `<p class="muted">No hay programación próxima.</p>`;
 
-  const calendarShell = `<section class="calendar-shell">
+  const viewToggle = `<div class="calendar-view-toggle" role="group" aria-label="Vista del calendario">
+        <button type="button" class="btn btn-action btn-sm${view === "month" ? " is-active" : ""}" data-action="cal-view" data-view="month">Mes</button>
+        <button type="button" class="btn btn-action btn-sm${view === "week" ? " is-active" : ""}" data-action="cal-view" data-view="week">Semana</button>
+        <button type="button" class="btn btn-action btn-sm${view === "day" ? " is-active" : ""}" data-action="cal-view" data-view="day">Día</button>
+      </div>`;
+
+  const calendarShell = `<section class="calendar-shell calendar-shell--view-${view}" data-cal-view="${view}">
     <div class="calendar-toolbar">
       <div class="calendar-title-block">
-        <h2>${monthLabelCap}</h2>
+        <h2>${escapeHtml(periodTitle)}</h2>
+        ${viewToggle}
       </div>
       <div class="calendar-controls">
         <button type="button" class="btn btn-action btn-sm" data-action="cal-nav" data-step="-1">${IC.chevronLeft || ""} Anterior</button>
@@ -10752,8 +10959,8 @@ function transportCalendarHtml() {
       <span class="cal-legend-item"><span class="cal-dot dot-absence"></span>Novedades</span>
     </div>
     <div class="calendar-grid">
-      <div class="cal-weekdays">${weekdayHeaders}</div>
-      <div class="cal-days">${cells.join("")}</div>
+      ${view === "day" ? "" : `<div class="cal-weekdays">${weekdayHeaders}</div>`}
+      <div class="cal-days cal-days--view-${view}">${cells.join("")}</div>
     </div>
     <div class="calendar-side-grid">
       ${pcardWrap("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
@@ -12230,14 +12437,26 @@ function resolveDriverForEmployee(employee) {
 function normalizeDriverRowForEditor(raw) {
   if (!raw || typeof raw !== "object") return null;
   const d = { ...raw };
-  const psychoD = d.psychoTestDate ?? d.psychometricExamDate;
-  const psychoE = d.psychoTestExpiry ?? d.psychometricExpiry;
+  const occD = d.occupationalExamDate ?? d.psychoTestDate ?? d.psychometricExamDate;
+  const intraD = d.instruvialExamDate ?? d.intravehicularExamDate;
+  d.occupationalExamDate = normalizePortalDateYmd(occD);
+  d.instruvialExamDate = normalizePortalDateYmd(intraD);
+  d.occupationalExamExpiry = normalizePortalDateYmd(
+    d.occupationalExamExpiry ?? d.psychoTestExpiry ?? d.psychometricExpiry
+  );
+  d.instruvialExamExpiry = normalizePortalDateYmd(d.instruvialExamExpiry);
+  if (d.occupationalExamDate && !d.occupationalExamExpiry) {
+    d.occupationalExamExpiry = addOneYearToYmd(d.occupationalExamDate);
+  }
+  if (d.instruvialExamDate && !d.instruvialExamExpiry) {
+    d.instruvialExamExpiry = addOneYearToYmd(d.instruvialExamDate);
+  }
+  d.psychoTestDate = d.occupationalExamDate;
+  d.psychoTestExpiry = d.occupationalExamExpiry;
   const defPick =
     d.defensiveCourse != null && String(d.defensiveCourse).trim() !== ""
       ? d.defensiveCourse
       : d.defensiveDrivingCourse;
-  d.psychoTestDate = normalizePortalDateYmd(psychoD);
-  d.psychoTestExpiry = normalizePortalDateYmd(psychoE);
   d.defensiveCourse = String(defPick || "").trim();
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
   d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
@@ -12258,6 +12477,10 @@ function normalizeDriverRowForEditor(raw) {
       fill("defensiveCourseExpiry");
       fill("emergencyContact");
       fill("emergencyPhone");
+      fill("occupationalExamDate");
+      fill("occupationalExamExpiry");
+      fill("instruvialExamDate");
+      fill("instruvialExamExpiry");
     }
   }
   return d;
@@ -12268,6 +12491,31 @@ async function syncDriverFromEmployee(employee, extraDriverData = {}) {
   const drivers = read(KEYS.drivers, []);
   const doc = String(employee.idDoc || "").trim();
   const existing = drivers.find((d) => String(d.idDoc || "").trim() === doc);
+  const pickFirst = (...vals) => {
+    for (const v of vals) {
+      if (v != null && String(v).trim() !== "") return v;
+    }
+    return "";
+  };
+  const occ = normalizePortalDateYmd(
+    pickFirst(
+      employee.occupationalExamDate,
+      employee.psychoTestDate,
+      employee.psychometricExamDate,
+      extraDriverData.occupationalExamDate,
+      extraDriverData.psychoTestDate
+    )
+  );
+  const intra = normalizePortalDateYmd(
+    pickFirst(
+      employee.instruvialExamDate,
+      employee.intravehicularExamDate,
+      extraDriverData.instruvialExamDate,
+      extraDriverData.intravehicularExamDate
+    )
+  );
+  const occEx = occ ? addOneYearToYmd(occ) : "";
+  const intraEx = intra ? addOneYearToYmd(intra) : "";
   const nextDriver = {
     name: employee.name,
     documentType: employee.documentType || "CC",
@@ -12289,12 +12537,12 @@ async function syncDriverFromEmployee(employee, extraDriverData = {}) {
     experienceYears: parseNum(employee.experienceYears ?? 0),
     defensiveCourse: String(employee.defensiveCourse || "").trim(),
     defensiveCourseExpiry: String(employee.defensiveCourseExpiry || "").trim(),
-    psychoTestDate: String(
-      employee.psychoTestDate || employee.psychometricExamDate || extraDriverData.psychoTestDate || ""
-    ).trim(),
-    psychoTestExpiry: String(
-      employee.psychoTestExpiry || employee.psychometricExpiry || extraDriverData.psychoTestExpiry || ""
-    ).trim(),
+    occupationalExamDate: occ,
+    occupationalExamExpiry: occEx,
+    instruvialExamDate: intra,
+    instruvialExamExpiry: intraEx,
+    psychoTestDate: occ,
+    psychoTestExpiry: occEx,
     available: true,
     hiredAt: existing?.hiredAt || nowIso()
   };
@@ -12877,8 +13125,9 @@ function payrollHtml() {
         <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
         <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
         <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
-        <label>${fieldLabel(IC.calendar, "Examen psicosensométrico")}<input type="date" name="psychoTestDate" /></label>
-        <label>${fieldLabel(IC.calendar, "Vence psicosensométrico")}<input type="date" name="psychoTestExpiry" /></label>
+        <label>${fieldLabel(IC.calendar, "Examen ocupacional")}<input type="date" name="occupationalExamDate" /></label>
+        <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Las vigencias de ambos exámenes se guardan automáticamente a un año desde cada fecha indicada.</p>
         <label>${fieldLabel(IC.award, "Curso conducción defensiva (Res. 17220)")}<select name="defensiveCourse">
           <option value="">Seleccione...</option>
           <option value="vigente">Vigente</option>
@@ -14426,10 +14675,10 @@ function contactLeadsHtml() {
       const freq = escapeHtml(String(c.frequency || "").trim()) || "—";
       const win = escapeHtml(String(c.serviceWindow || "").trim()) || "—";
       const volNum = parseNum(c.monthlyVolumeKg);
-      const vol =
-        typeof c.monthlyVolumeKg !== "undefined" && c.monthlyVolumeKg !== null && String(c.monthlyVolumeKg).trim() !== ""
-          ? `${volNum.toLocaleString("es-CO")} kg / mes`
-          : "—";
+      const volRow =
+        volNum > 0
+          ? `<div><dt>Volumen ref.</dt><dd>${escapeHtml(`${volNum.toLocaleString("es-CO")} kg / mes`)}</dd></div>`
+          : "";
       const brief = escapeHtml(String(c.message || "").trim() || "(Sin mensaje corporativo)");
       const briefHtml = brief.replace(/\r\n|\r|\n/g, "<br />");
       const mailHref = escapeAttr(emailRaw);
@@ -14457,7 +14706,7 @@ function contactLeadsHtml() {
           <div><dt>NIT</dt><dd>${nit}</dd></div>
           <div><dt>Frecuencia</dt><dd>${freq}</dd></div>
           <div><dt>Inicio esperado</dt><dd>${win}</dd></div>
-          <div><dt>Volumen ref.</dt><dd>${escapeHtml(vol)}</dd></div>
+          ${volRow}
         </dl>
         <section class="b2b-leads-brief" aria-label="Mensaje del prospecto"><h4 class="b2b-leads-brief-title">Brief de la solicitud</h4><div class="b2b-leads-brief-body">${briefHtml}</div></section>
       </article>`;
@@ -15036,8 +15285,10 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       license: String(raw.license || "").trim(),
       licenseCategory: String(raw.licenseCategory || "").trim(),
       licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
-      psychoTestDate: normalizePortalDateYmd(raw.psychoTestDate),
-      psychoTestExpiry: normalizePortalDateYmd(raw.psychoTestExpiry),
+      occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),
+      occupationalExamExpiry: addOneYearToYmd(raw.occupationalExamDate),
+      instruvialExamDate: normalizePortalDateYmd(raw.instruvialExamDate),
+      instruvialExamExpiry: addOneYearToYmd(raw.instruvialExamDate),
       defensiveCourse: String(raw.defensiveCourse || "").trim(),
       avatarUrl
     }
@@ -15096,8 +15347,10 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("N° licencia", emp.license)}
       ${employeeProfileKvRow("Categoría licencia", emp.licenseCategory)}
       ${employeeProfileKvRow("Vence licencia", emp.licenseExpiry)}
-      ${employeeProfileKvRow("Psicosensometría (examen)", emp.psychoTestDate)}
-      ${employeeProfileKvRow("Vence psicosensometría", emp.psychoTestExpiry)}
+      ${employeeProfileKvRow("Examen ocupacional", emp.occupationalExamDate)}
+      ${employeeProfileKvRow("Vence examen ocupacional", emp.occupationalExamExpiry)}
+      ${employeeProfileKvRow("Examen instruvial", emp.instruvialExamDate)}
+      ${employeeProfileKvRow("Vence examen instruvial", emp.instruvialExamExpiry)}
       ${employeeProfileKvRow("Curso conducción defensiva", emp.defensiveCourse)}
     </div></section>`
     : "";
@@ -15328,8 +15581,9 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
 <label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
 <label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" /></label>
-<label><span>${escapeHtml("Psicosensométrico")}</span><input type="date" name="psychoTestDate" value="${escapeAttr(normalizePortalDateYmd(e.psychoTestDate))}" /></label>
-<label><span>${escapeHtml("Vence psicosensométrico")}</span><input type="date" name="psychoTestExpiry" value="${escapeAttr(normalizePortalDateYmd(e.psychoTestExpiry))}" /></label>
+<label><span>${escapeHtml("Examen ocupacional")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
+<label><span>${escapeHtml("Examen instruvial")}</span><input type="date" name="instruvialExamDate" value="${escapeAttr(normalizePortalDateYmd(e.instruvialExamDate))}" /></label>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Las fechas de vencimiento de ambos exámenes se calculan automáticamente (+1 año desde cada fecha de examen).</p>
 <label><span>${escapeHtml("Conducción defensiva")}</span><select name="defensiveCourse">
 <option value="">${escapeHtml("Seleccione...")}</option>
 <option value="vigente" ${defCourse === "vigente" ? "selected" : ""}>${escapeHtml("Vigente")}</option>
@@ -16894,6 +17148,33 @@ function bindDynamicEvents() {
     });
   });
 
+  function attachRequestTruckTypeFields(formEl) {
+    if (!formEl) return;
+    const truckSel = formEl.querySelector("select[name='requiredTruckType']");
+    const fuellesRow = formEl.querySelector(".request-truck-field--fuelles");
+    const kgRow = formEl.querySelector(".request-truck-field--kg");
+    const fuellesInput = formEl.querySelector("input[name='fuelles']");
+    const kgInput = formEl.querySelector("input[name='weightKg']");
+    if (!truckSel || !fuellesRow || !kgRow) return;
+    const sync = () => {
+      const t = normalizeRequestRequiredTruckType(truckSel.value);
+      const showF = requestRequiredTruckTypeShowsFuelles(t);
+      const showKg = requestRequiredTruckTypeShowsTractomulaKg(t);
+      fuellesRow.hidden = !showF;
+      kgRow.hidden = !showKg;
+      if (fuellesInput) {
+        fuellesInput.required = showF;
+        if (!showF) fuellesInput.value = "";
+      }
+      if (kgInput) {
+        kgInput.required = showKg;
+        if (!showKg) kgInput.value = "";
+      }
+    };
+    truckSel.addEventListener("change", sync);
+    sync();
+  }
+
   const requestForm = document.getElementById("form-request");
   if (requestForm) {
     const originDepartment = requestForm.querySelector("#origin-department");
@@ -16945,6 +17226,8 @@ function bindDynamicEvents() {
       requestCompanySelect.addEventListener("change", refreshCompanyPreview);
       refreshCompanyPreview();
     }
+
+    attachRequestTruckTypeFields(requestForm);
 
     requestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -17005,10 +17288,12 @@ function bindDynamicEvents() {
         deliveryTime,
         siteContactName,
         siteContactPhone,
-        boxes,
         notes,
         requiresThermoking,
         serviceType: modoTransporte,
+        requiredTruckType: requiredTruckTypeRaw,
+        fuelles: fuellesFormRaw,
+        weightKg: weightKgFromForm,
         ...payloadRest
       } = data;
       const serviceType = String(modoTransporte || "").trim();
@@ -17022,10 +17307,31 @@ function bindDynamicEvents() {
         return;
       }
       const refrigeracionTermoking = tk === "yes";
+      const requiredTruckType = normalizeRequestRequiredTruckType(requiredTruckTypeRaw);
+      if (!requiredTruckType) {
+        notify("Seleccione el tipo de camión requerido.", "error");
+        return;
+      }
+      let fuellesVal = null;
+      let weightKgVal = 0;
+      if (requestRequiredTruckTypeShowsFuelles(requiredTruckType)) {
+        const f = Math.floor(Number(String(fuellesFormRaw ?? "").trim()));
+        if (!Number.isFinite(f) || String(fuellesFormRaw ?? "").trim() === "" || f < 0) {
+          notify("Indique la cantidad de fuelles.", "error");
+          return;
+        }
+        fuellesVal = f;
+      } else if (requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType)) {
+        weightKgVal = Math.max(0, Number(weightKgFromForm) || 0);
+        if (weightKgVal <= 0) {
+          notify("Indique el peso en kg para tractomula.", "error");
+          return;
+        }
+      }
       payloadRest.tripValue = 0;
       const contactName = String(siteContactName ?? "").trim();
       const contactPhone = String(siteContactPhone ?? "").trim();
-      const boxesCount = Math.max(0, Number(boxes) || 0);
+      const boxesCount = 0;
       const notesTrim = String(notes ?? "").trim();
       const files = requestForm.querySelector("input[name='attachments']").files;
       const attachments = [...files].map((f) => f.name);
@@ -17051,7 +17357,9 @@ function bindDynamicEvents() {
         boxes: boxesCount,
         notes: notesTrim,
         observations: notesTrim || null,
-        vehicleType: "",
+        vehicleType: requiredTruckType,
+        fuelles: fuellesVal,
+        weightKg: weightKgVal,
         pickupAt,
         etaDelivery,
         attachments,
@@ -17307,8 +17615,23 @@ function bindDynamicEvents() {
         ? new Date(state.calendarFocus)
         : new Date();
       base.setHours(12, 0, 0, 0);
-      base.setMonth(base.getMonth() + step);
+      const v = state.calendarViewMode === "week" || state.calendarViewMode === "day" ? state.calendarViewMode : "month";
+      if (v === "month") {
+        base.setMonth(base.getMonth() + step);
+      } else if (v === "week") {
+        base.setDate(base.getDate() + step * 7);
+      } else {
+        base.setDate(base.getDate() + step);
+      }
       state.calendarFocus = base;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cal-view']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = String(btn.dataset.view || "month");
+      state.calendarViewMode = next === "week" || next === "day" ? next : "month";
       renderPortalView();
     });
   });
@@ -17390,7 +17713,6 @@ function bindDynamicEvents() {
       const req = reqRead().find((r) => r.id === btn.dataset.id);
       if (!req) return;
       const thermokingReq = requestRequiresTermoking(req);
-      const boxes = parseNum(req.boxes ?? req.boxesCount);
       const obs = String(req.notes || req.observations || "").trim();
       const origAddr = String(req.originAddress || "").trim();
       const destAddr = String(req.destinationAddress || "").trim();
@@ -17438,7 +17760,7 @@ function bindDynamicEvents() {
               <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
               <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.contactName || "-"))} · ${escapeHtml(String(req.contactPhone || "-"))}</span></div>
               <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
-              <div><strong>Peso / cajas</strong><br /><span class="muted">${parseNum(req.weightKg).toLocaleString("es-CO")} kg · ${boxes.toLocaleString("es-CO")} cajas</span></div>
+              <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
               <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
               <div><strong>Adjuntos</strong><br /><span class="muted">${escapeHtml((req.attachments || []).join(", ") || "Ninguno")}</span></div>
               ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
@@ -17546,8 +17868,40 @@ function bindDynamicEvents() {
               { value: "no", label: "No, carga seca" }
             ]
           },
-          { name: "boxes", label: "Cajas", type: "number", min: 0, value: parseNum(req.boxes ?? req.boxesCount) || 0, required: true },
-          { name: "weightKg", label: "Peso (kg)", type: "number", min: 0, value: parseNum(req.weightKg) || 0, required: true },
+          {
+            name: "requiredTruckType",
+            label: "Tipo de camión requerido",
+            type: "select",
+            value: normalizeRequestRequiredTruckType(req.vehicleType) || "",
+            required: true,
+            full: true,
+            options: [
+              { value: "", label: "Seleccione..." },
+              { value: "Turbo", label: "Turbo" },
+              { value: "Camión", label: "Camión" },
+              { value: "Tractomula", label: "Tractomula" }
+            ]
+          },
+          {
+            name: "fuelles",
+            label: "Cantidad de fuelles",
+            type: "number",
+            min: 0,
+            step: 1,
+            value: req.fuelles != null && req.fuelles !== "" ? parseNum(req.fuelles) : "",
+            required: false,
+            wrapperClass: "request-truck-field request-truck-field--fuelles"
+          },
+          {
+            name: "weightKg",
+            label: "Peso (kg) tractomula",
+            type: "number",
+            min: 0,
+            step: 0.01,
+            value: parseNum(req.weightKg) || "",
+            required: false,
+            wrapperClass: "request-truck-field request-truck-field--kg"
+          },
           { name: "tripValue", label: "Valor del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || req.insuredValue || 0), required: false },
           { type: "section", id: "edit-req-contact", title: "Contacto en sitio", hint: "Persona que recibe / entrega." },
           { name: "siteContactName", label: "Nombre de contacto", value: req.siteContactName || req.contactName || "", required: true },
@@ -17571,6 +17925,7 @@ function bindDynamicEvents() {
             initialDepartment: req.destinationDepartment,
             initialCity: req.destinationCity
           });
+          attachRequestTruckTypeFields(formEl);
         },
         onSubmit: async (form) => {
           const modo = String(form.serviceType || "").trim();
@@ -17601,6 +17956,27 @@ function bindDynamicEvents() {
           const pickupAtIso = pickupDateTime.toISOString();
           const etaDeliveryIso = deliveryDateTime.toISOString();
           const refrigeracionTermoking = form.requiresThermoking === "yes";
+          const requiredTruckType = normalizeRequestRequiredTruckType(form.requiredTruckType);
+          if (!requiredTruckType) {
+            notify("Seleccione el tipo de camión requerido.", "error");
+            return false;
+          }
+          let fuellesVal = null;
+          let weightKgVal = 0;
+          if (requestRequiredTruckTypeShowsFuelles(requiredTruckType)) {
+            const f = Math.floor(Number(String(form.fuelles ?? "").trim()));
+            if (!Number.isFinite(f) || String(form.fuelles ?? "").trim() === "" || f < 0) {
+              notify("Indique la cantidad de fuelles.", "error");
+              return false;
+            }
+            fuellesVal = f;
+          } else if (requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType)) {
+            weightKgVal = Math.max(0, parseNum(form.weightKg));
+            if (weightKgVal <= 0) {
+              notify("Indique el peso en kg para tractomula.", "error");
+              return false;
+            }
+          }
           const updates = {
             originDepartment: String(form.originDepartment || "").trim(),
             originCity: String(form.originCity || "").trim(),
@@ -17617,9 +17993,11 @@ function bindDynamicEvents() {
             cargoDescription: String(form.cargoDescription || "").trim(),
             serviceType: modo,
             refrigeracionTermoking,
-            boxes: parseNum(form.boxes),
-            boxesCount: parseNum(form.boxes),
-            weightKg: parseNum(form.weightKg),
+            vehicleType: requiredTruckType,
+            fuelles: fuellesVal,
+            boxes: 0,
+            boxesCount: 0,
+            weightKg: weightKgVal,
             tripValue: parseNum(form.tripValue),
             siteContactName: String(form.siteContactName || "").trim(),
             siteContactPhone: String(form.siteContactPhone || "").trim(),
@@ -17729,8 +18107,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: camiones, turbos y tractomulas con equipo Termoking según la etiqueta de cada opción, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» por horario cruza esta solicitud con viajes ya asignados; si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape, para no bloquear franjas posteriores sin cruce real. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: camiones, turbos y tractomulas, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» por horario cruza esta solicitud con viajes ya asignados; si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape, para no bloquear franjas posteriores sin cruce real. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), con equipo Termoking según la etiqueta, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si el horario de esta solicitud se cruza con un viaje ya asignado al mismo vehículo o conductor; franjas distintas permiten reutilizar el recurso. Si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape. Si eligió «solo aprobar», puede dejar sin asignar."
+              : "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si el horario de esta solicitud se cruza con un viaje ya asignado al mismo vehículo o conductor; franjas distintas permiten reutilizar el recurso. Si la entrega estimada está muy lejos de la recogida (plazo SLA), solo se considera un tramo inicial para el solape. Si eligió «solo aprobar», puede dejar sin asignar."
           },
           {
             name: "vehicleId",
@@ -17749,12 +18127,14 @@ function bindDynamicEvents() {
               },
               ...vehicleCandidates.map((vehicle) => ({
                 value: vehicle.id,
-                disabled: Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs),
+                disabled: Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs || vehicle.wrongTruckType),
                 label: tripAssignmentVehicleOptionLabel(vehicle, {
                   needsTermoking,
                   isBusy: vehicle.isBusy,
                   isUnavailable: vehicle.isUnavailable,
-                  hasExpiredDocs: vehicle.hasExpiredDocs
+                  hasExpiredDocs: vehicle.hasExpiredDocs,
+                  wrongTruckType: vehicle.wrongTruckType,
+                  requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType)
                 })
               }))
             ]
@@ -18491,8 +18871,8 @@ function bindDynamicEvents() {
         rcPolicyExpiry: data.rcPolicyExpiry || "",
         hasGps: data.hasGps === "true",
         gpsProvider: String(data.gpsProvider || "").trim(),
-        ownerName: String(data.ownerName || "").trim(),
-        ownerTaxId: String(data.ownerTaxId || "").trim(),
+        satelliteProviderUser: String(data.satelliteProviderUser || "").trim(),
+        satelliteProviderPassword: String(data.satelliteProviderPassword || "").trim(),
         available: true,
         createdAt: nowIso()
       });
@@ -18684,8 +19064,13 @@ function bindDynamicEvents() {
             options: [{ value: "true", label: "Sí" }, { value: "false", label: "No" }]
           },
           { name: "gpsProvider", label: "Proveedor GPS", value: target.gpsProvider || "" },
-          { name: "ownerName", label: "Propietario", value: target.ownerName || "" },
-          { name: "ownerTaxId", label: "NIT/Cédula propietario", value: target.ownerTaxId || "" }
+          { name: "satelliteProviderUser", label: "Usuario proveedor satélite", value: target.satelliteProviderUser || "" },
+          {
+            name: "satelliteProviderPassword",
+            label: "Contraseña proveedor satélite",
+            type: "text",
+            value: target.satelliteProviderPassword || ""
+          }
         ],
         afterMount: (formEl) => bindVehicleDocExpiryAutoFill(formEl),
         onSubmit: async (form) => {
@@ -18728,8 +19113,8 @@ function bindDynamicEvents() {
                     rcPolicyExpiry: form.rcPolicyExpiry || "",
                     hasGps: String(form.hasGps || "false") === "true",
                     gpsProvider: String(form.gpsProvider || "").trim(),
-                    ownerName: String(form.ownerName || "").trim(),
-                    ownerTaxId: String(form.ownerTaxId || "").trim()
+                    satelliteProviderUser: String(form.satelliteProviderUser || "").trim(),
+                    satelliteProviderPassword: String(form.satelliteProviderPassword || "").trim()
                   }
                 : v
             );
@@ -18818,8 +19203,8 @@ function bindDynamicEvents() {
           { name: "license", label: "N° licencia de conducción", value: target.license || "", placeholder: "Ej: 12345678" },
           { name: "licenseCategory", label: "Categoría licencia", type: "select", value: target.licenseCategory || "", options: licenseCatOpts },
           { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" },
-          { name: "psychoTestDate", label: "Examen psicosensométrico (fecha)", type: "date", value: target.psychoTestDate || "" },
-          { name: "psychoTestExpiry", label: "Vence psicosensométrico", type: "date", value: target.psychoTestExpiry || "" },
+          { name: "occupationalExamDate", label: "Examen ocupacional", type: "date", value: target.occupationalExamDate || "" },
+          { name: "instruvialExamDate", label: "Examen instruvial", type: "date", value: target.instruvialExamDate || "" },
           {
             name: "defensiveCourse",
             label: "Curso conducción defensiva (Res. 17220)",
@@ -18880,8 +19265,8 @@ function bindDynamicEvents() {
                   license: getVal("license"),
                   licenseCategory: getVal("licenseCategory"),
                   licenseExpiry: expiryValue,
-                  psychoTestDate: getVal("psychoTestDate"),
-                  psychoTestExpiry: getVal("psychoTestExpiry"),
+                  occupationalExamDate: getVal("occupationalExamDate"),
+                  instruvialExamDate: getVal("instruvialExamDate"),
                   defensiveCourse: getVal("defensiveCourse"),
                   defensiveCourseExpiry: getVal("defensiveCourseExpiry"),
                   eps: getVal("eps"),
@@ -20250,6 +20635,18 @@ function bindDynamicEvents() {
         notify(userMessage("vacancyDeadlineFuture"), "error");
         return;
       }
+      const pFrom = String(data.publishedFrom || "").trim();
+      if (pFrom) {
+        if (!publicVacancyYmdValid(pFrom)) {
+          notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
+          return;
+        }
+        const dlim = String(data.deadline || "").trim();
+        if (publicVacancyYmdValid(dlim) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(dlim)) {
+          notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
+          return;
+        }
+      }
       const position = getPositionById(String(data.positionId || ""));
       if (!position || position.active === false) {
         notify(userMessage("vacancySelectPosition"), "error");
@@ -21092,7 +21489,8 @@ function bindDynamicEvents() {
               id: "auth-approve-hint",
               title: "Asignación opcional",
               hint: "Deje vehículo y conductor en «sin asignar» para solo aprobar la solicitud. Si completa ambos, deberá indicar el precio del viaje."
-              + " Estados en listado: ocupado (horario), no disponible, documentación o licencia vencida."
+              + " Solo se listan vehículos del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula)."
+              + " Estados: ocupado (solo si el horario se cruza con otro viaje del mismo recurso), no disponible, documentación o licencia vencida."
             },
             {
               name: "vehicleId",
@@ -21103,12 +21501,14 @@ function bindDynamicEvents() {
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...vehicleCandidates.map((vehicle) => ({
                   value: vehicle.id,
-                  disabled: Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs),
+                  disabled: Boolean(vehicle.isBusy || vehicle.isUnavailable || vehicle.hasExpiredDocs || vehicle.wrongTruckType),
                   label: tripAssignmentVehicleOptionLabel(vehicle, {
                     needsTermoking,
                     isBusy: vehicle.isBusy,
                     isUnavailable: vehicle.isUnavailable,
-                    hasExpiredDocs: vehicle.hasExpiredDocs
+                    hasExpiredDocs: vehicle.hasExpiredDocs,
+                    wrongTruckType: vehicle.wrongTruckType,
+                    requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType)
                   })
                 }))
               ]
@@ -21386,6 +21786,7 @@ function initGlobalEvents() {
         state.publicLang = String(btn.dataset.langOption || "es") === "en" ? "en" : "es";
         localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
         applyPublicLanguage(state.publicLang);
+        initCoverageCorridors();
         initPublicCareers();
       });
     });
@@ -21395,6 +21796,7 @@ function initGlobalEvents() {
       state.publicLang = String(nodes.langTogglePublic.value || "es") === "en" ? "en" : "es";
       localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
       applyPublicLanguage(state.publicLang);
+      initCoverageCorridors();
       initPublicCareers();
     });
   }
@@ -21410,12 +21812,12 @@ function initGlobalEvents() {
 
   nodes.b2bForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    setB2bFormFeedback("", "");
     syncPhoneHiddenFull(nodes.b2bForm, "b2b");
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
     const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
     const emailValue = normalizeEmail(data.email);
     const messageValue = String(data.message || "").trim();
-    const monthlyVolume = parseNum(data.monthlyVolumeKg);
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
     const meta = getSelectedPhoneCountry(nodes.b2bForm, "b2b");
     const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
@@ -21459,16 +21861,11 @@ function initGlobalEvents() {
       setFieldError(nodes.b2bForm.querySelector("textarea[name='message']"), "Cuéntanos un poco mas del requerimiento (minimo 30 caracteres).");
       errors.push("message");
     }
-    if (monthlyVolume < 100) {
-      setFieldError(nodes.b2bForm.querySelector("input[name='monthlyVolumeKg']"), "Ingresa un volumen mensual mayor o igual a 100 kg.");
-      errors.push("volume");
-    }
     if (errors.length) {
       const firstError = errors[0];
       if (firstError === "email") jumpToStepForField("input[name='email']");
       if (firstError === "phone") jumpToStepForField(".js-b2b-phone-national");
       if (firstError === "message") jumpToStepForField("textarea[name='message']");
-      if (firstError === "volume") jumpToStepForField("input[name='monthlyVolumeKg']");
       notify(userMessage("b2bFieldsInvalid"), "error");
       return;
     }
@@ -21476,15 +21873,32 @@ function initGlobalEvents() {
     data.email = emailValue;
     data.phone = String(data.phone || "").trim();
     data.message = messageValue;
-    data.monthlyVolumeKg = monthlyVolume;
 
     const api = window.AntaresApi;
     const apiBase = typeof api?.getBase === "function" ? api.getBase() : "";
     if (!apiBase || typeof api?.postJsonPublic !== "function") {
-      notify(userMessage("b2bApiMissing"), "error");
+      const apiMissing =
+        state.publicLang === "en"
+          ? "API URL is not configured (antares_api_base or __ANTARES_API_BASE__). The request could not be sent to the server."
+          : userMessage("b2bApiMissing");
+      setB2bFormFeedback("error", apiMissing);
+      notify(apiMissing, "error");
       return;
     }
+
+    const submitBtn = nodes.b2bForm.querySelector("[data-step-submit]");
+    const stepPrev = nodes.b2bForm.querySelector("[data-step-prev]");
+    const stepNext = nodes.b2bForm.querySelector("[data-step-next]");
+    const submitHtml = submitBtn ? submitBtn.innerHTML : "";
+    const sendingLabel = state.publicLang === "en" ? "Sending…" : "Enviando…";
     try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.setAttribute("aria-busy", "true");
+        submitBtn.innerHTML = sendingLabel;
+      }
+      if (stepPrev) stepPrev.disabled = true;
+      if (stepNext) stepNext.disabled = true;
       await api.postJsonPublic("/public/b2b-prospect", {
         name: data.name,
         company: data.company,
@@ -21496,14 +21910,32 @@ function initGlobalEvents() {
         operationType: data.operationType,
         operationFrequency: data.operationFrequency,
         startWindow: data.startWindow,
-        monthlyVolumeKg: monthlyVolume,
         message: messageValue
       });
       nodes.b2bForm.reset();
       if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
-      notify(userMessage("b2bContactSent"), "success");
+      const sentOk =
+        state.publicLang === "en"
+          ? "Your request was submitted successfully. Our commercial team has received it and will contact you shortly. Thank you for contacting Transportes Antares."
+          : userMessage("b2bContactSent");
+      setB2bFormFeedback("success", sentOk);
+      notify(sentOk, "success", 5600);
     } catch (err) {
-      notify(String(err?.message || userMessage("b2bServerError")), "error");
+      const errBody =
+        state.publicLang === "en"
+          ? String(err?.message || "").trim() ||
+            "Could not save to the server. Please try again or contact us by phone or email."
+          : String(err?.message || userMessage("b2bServerError"));
+      setB2bFormFeedback("error", errBody);
+      notify(errBody, "error");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.removeAttribute("aria-busy");
+        submitBtn.innerHTML = submitHtml;
+      }
+      if (stepPrev) stepPrev.disabled = false;
+      if (stepNext) stepNext.disabled = false;
     }
   });
 
@@ -21742,13 +22174,13 @@ function bindExtendedViewEditHandlers() {
         },
         {
           icon: "mapPin",
-          title: "Operación y propietario",
+          title: "Operación y rastreo satelital",
           rows: renderDetailRows([
             ["GPS satelital", fmtBool(v.hasGps)],
             ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "-"))],
             ["Disponibilidad", v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'],
-            ["Propietario", escapeHtml(String(v.ownerName || "-"))],
-            ["NIT/Cédula propietario", escapeHtml(String(v.ownerTaxId || "-"))]
+            ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "-"))],
+            ["Contraseña proveedor satélite", escapeHtml(String(v.satelliteProviderPassword || "-"))]
           ])
         }
       ];
@@ -21791,8 +22223,10 @@ function bindExtendedViewEditHandlers() {
             ["N° licencia", escapeHtml(String(d.license || "-"))],
             ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
             ["Vence licencia", fmtDateOr(d.licenseExpiry)],
-            ["Examen psicosensométrico", fmtDateOr(d.psychoTestDate)],
-            ["Vence psicosensométrico", fmtDateOr(d.psychoTestExpiry)],
+            ["Examen ocupacional", fmtDateOr(d.occupationalExamDate)],
+            ["Vence examen ocupacional", fmtDateOr(d.occupationalExamExpiry)],
+            ["Examen instruvial", fmtDateOr(d.instruvialExamDate)],
+            ["Vence examen instruvial", fmtDateOr(d.instruvialExamExpiry)],
             ["Curso defensivo", escapeHtml(String(d.defensiveCourse || "-"))],
             ["Vence curso defensivo", fmtDateOr(d.defensiveCourseExpiry)],
             ["Años experiencia", String(parseNum(d.experienceYears || 0))]
@@ -22183,6 +22617,18 @@ function bindExtendedViewEditHandlers() {
             notify(userMessage("vacancySelectPosition"), "error");
             return false;
           }
+          const pFrom = String(form.publishedFrom || "").trim();
+          if (pFrom) {
+            if (!publicVacancyYmdValid(pFrom)) {
+              notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
+              return false;
+            }
+            const dlim = String(form.deadline || "").trim();
+            if (publicVacancyYmdValid(dlim) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(dlim)) {
+              notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
+              return false;
+            }
+          }
           write(
             KEYS.vacancies,
             all.map((v) =>
@@ -22201,6 +22647,7 @@ function bindExtendedViewEditHandlers() {
                     openings: Math.max(1, parseNum(form.openings || 1)),
                     salaryOffer,
                     deadline: form.deadline || "",
+                    publishedFrom: pFrom,
                     requirements: String(form.requirements || "").trim(),
                     status: String(form.status || "Publicada")
                   }
@@ -22974,6 +23421,7 @@ function normalizeVacancyForCareersPublic(v) {
     department: String(v.department || ""),
     city: String(v.city || ""),
     deadline: v.deadline || "",
+    publishedFrom: v.publishedFrom || v.visibleFrom || "",
     salaryOffer: parseNum(v.salaryOffer),
     requirements: String(v.requirements || ""),
     status: String(v.status || ""),
@@ -22984,9 +23432,25 @@ function normalizeVacancyForCareersPublic(v) {
   };
 }
 
+/** Fecha YYYY-MM-DD válida para ventana pública. */
+function publicVacancyYmdValid(s) {
+  const t = String(s || "").trim();
+  if (!t) return false;
+  const parts = t.split("-");
+  if (parts.length !== 3) return false;
+  const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+  return Number.isFinite(cand);
+}
+
+function publicVacancyYmdToMidnight(s) {
+  const parts = String(s || "").trim().split("-");
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+}
+
+/** Fin de ventana: día de cierre inclusive; al día siguiente ya no se lista. Requiere fecha de cierre. */
 function vacancyPublicationDeadlineOk(isoDateStr) {
   const s = String(isoDateStr || "").trim();
-  if (!s) return true;
+  if (!s) return false;
   const parts = s.split("-");
   if (parts.length !== 3) return false;
   const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
@@ -22994,6 +23458,19 @@ function vacancyPublicationDeadlineOk(isoDateStr) {
   const t = new Date();
   const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
   return cand >= t0;
+}
+
+/** Inicio de ventana opcional: si hay fecha, solo se lista cuando el calendario ya llegó a ese día. */
+function vacancyPublicationStartOk(isoDateStr) {
+  const s = String(isoDateStr || "").trim();
+  if (!s) return true;
+  const parts = s.split("-");
+  if (parts.length !== 3) return false;
+  const start = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+  if (!Number.isFinite(start)) return false;
+  const t = new Date();
+  const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+  return t0 >= start;
 }
 
 function mergeApiVacanciesWithLocalPublished(apiList, localRawList) {
@@ -23023,7 +23500,48 @@ function getPublicPublishedVacancies() {
     publicCareersVacanciesSource === "api" && publicCareersVacanciesFromApi !== null && Array.isArray(publicCareersVacanciesFromApi)
       ? publicCareersVacanciesFromApi
       : (read(KEYS.vacancies, []) || []).map((v) => normalizeVacancyForCareersPublic(v)).filter(Boolean);
-  return rows.filter((v) => String(v.status || "") === "Publicada" && vacancyPublicationDeadlineOk(v.deadline));
+  return rows.filter(
+    (v) =>
+      String(v.status || "") === "Publicada" &&
+      vacancyPublicationStartOk(v.publishedFrom) &&
+      vacancyPublicationDeadlineOk(v.deadline)
+  );
+}
+
+/** Tras montar el modal de postulación pública: nombre del archivo y botón para quitar y elegir otro. */
+function afterMountPublicVacancyAttachmentUi(formEl) {
+  const attachInput = formEl?.querySelector?.("input[name='attachment']");
+  if (!attachInput) return;
+  const label = attachInput.closest("label");
+  if (!label) return;
+  const bar = document.createElement("div");
+  bar.className = "modal-file-attach-actions";
+  bar.innerHTML =
+    '<span class="muted modal-attach-filename" data-attach-filename title=""></span>' +
+    '<button type="button" class="btn btn-sm btn-outline" data-attach-clear hidden>Quitar archivo</button>';
+  label.appendChild(bar);
+  const nameEl = bar.querySelector("[data-attach-filename]");
+  const clearBtn = bar.querySelector("[data-attach-clear]");
+  const sync = () => {
+    const f = attachInput.files?.[0];
+    if (f) {
+      nameEl.textContent = f.name;
+      nameEl.title = f.name;
+      clearBtn.hidden = false;
+    } else {
+      nameEl.textContent = "";
+      nameEl.title = "";
+      clearBtn.hidden = true;
+    }
+  };
+  attachInput.addEventListener("change", sync);
+  clearBtn.addEventListener("click", () => {
+    attachInput.value = "";
+    sync();
+    try {
+      attachInput.focus();
+    } catch (_e) {}
+  });
 }
 
 function openPublicVacancyApplyModal(vacancy) {
@@ -23031,6 +23549,7 @@ function openPublicVacancyApplyModal(vacancy) {
     title: "Postulacion en linea",
     subtitle: `${vacancy.title} — ${vacancy.positionName || "Vacante Antares"}`,
     submitText: "Enviar candidatura",
+    afterMount: afterMountPublicVacancyAttachmentUi,
     fields: [
       { type: "hidden", name: "vacancyId", value: vacancy.id },
       { name: "name", label: "Nombre completo", required: true },
@@ -23061,13 +23580,6 @@ function openPublicVacancyApplyModal(vacancy) {
       },
       { name: "city", label: "Ciudad de residencia", required: true },
       { name: "address", label: "Direccion", required: true },
-      {
-        name: "experience",
-        label: "Experiencia y competencias (resumen)",
-        type: "textarea",
-        required: true,
-        rows: 4
-      },
       {
         name: "attachment",
         label: "Hoja de vida (PDF, Word o imagen)",
@@ -23144,7 +23656,7 @@ function openPublicVacancyApplyModal(vacancy) {
         address: String(fd.get("address") || "").trim(),
         vacancyId: vacLocal.id,
         vacancyTitle: vacLocal.title,
-        experienceNotes: String(fd.get("experience") || "").trim(),
+        experienceNotes: "",
         expectedSalary: 0,
         availabilityDate: "",
         status: PIPELINE[0],
@@ -23155,7 +23667,11 @@ function openPublicVacancyApplyModal(vacancy) {
       try {
         await writeAwaitServer(KEYS.candidates, all);
       } catch (err) {
-        notify(String(err?.message || "No fue posible registrar la postulación en el servidor."), "error");
+        const raw = String(err?.message || "No fue posible registrar la postulación en el servidor.");
+        const msg = /failed to fetch/i.test(raw)
+          ? "No fue posible conectar con el servidor para guardar la postulación. Compruebe su conexion y que la API este disponible."
+          : raw;
+        notify(msg, "error");
         return false;
       }
       sendEmail({
@@ -23174,6 +23690,214 @@ function openPublicVacancyApplyModal(vacancy) {
       return true;
     }
   });
+}
+
+/** Cobertura pública: GET /api/public/transport-request-coverage-stats (sin JWT). */
+let publicCoverageStatsView = null;
+
+const COVERAGE_FALLBACK_HUBS_ES = [
+  "Santa Marta",
+  "Barranquilla",
+  "Cartagena",
+  "Buenaventura",
+  "Puerto Antioquia",
+  "Medellin",
+  "Oriente Antioqueño",
+  "Bogota"
+];
+
+const COVERAGE_FALLBACK_CORRIDORS_ES = [
+  "Sabana de Bogota",
+  "Antioquia floricultora",
+  "Puertos de exportacion",
+  "Eje cafetero",
+  "Costa atlantica"
+];
+
+/** Ventana de meses para GET /public/transport-request-coverage-stats (API acota entre 3 y 36). */
+const COVERAGE_STATS_API_MONTHS = 12;
+
+function formatCoverageFootnote(total, months) {
+  return tPublic("Basado en {N} solicitudes analizadas (ultimos {M} meses; excluye canceladas y rechazadas).")
+    .replace(/\{N\}/g, String(total))
+    .replace(/\{M\}/g, String(months));
+}
+
+function renderPublicCoverageHubGrid(hubs, showCounts) {
+  return hubs
+    .map((row) => {
+      const city = String(row.city || "").trim();
+      if (!city) return "";
+      const dept = String(row.department || "").trim();
+      const labelHtml = dept
+        ? `${escapeHtml(tPublic(city))} (${escapeHtml(dept)})`
+        : escapeHtml(tPublic(city));
+      const cnt = row.requestCount != null ? Number(row.requestCount) : NaN;
+      const badge =
+        showCounts && Number.isFinite(cnt)
+          ? `<span class="coverage-count" aria-label="${escapeHtml(String(cnt))} solicitudes">${escapeHtml(
+              String(cnt)
+            )}</span>`
+          : "";
+      return `<div class="coverage-item"><span class="coverage-dot"></span><span class="coverage-item-label">${labelHtml}</span>${badge}</div>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function renderPublicCoverageCorridorGrid(rows, showCounts) {
+  return rows
+    .map((row) => {
+      const a = String(row.cityA ?? row.originCity ?? "").trim();
+      const b = String(row.cityB ?? row.destinationCity ?? "").trim();
+      if (!a || !b) return "";
+      const deptA = String(row.departmentA ?? row.originDepartment ?? "").trim();
+      const deptB = String(row.departmentB ?? row.destinationDepartment ?? "").trim();
+      const linePlain = `${a} \u2194 ${b}`;
+      const left = deptA ? `${a} (${deptA})` : a;
+      const right = deptB ? `${b} (${deptB})` : b;
+      const title = `${left} \u2194 ${right}`;
+      const cnt = row.requestCount != null ? Number(row.requestCount) : NaN;
+      const badge =
+        showCounts && Number.isFinite(cnt)
+          ? `<span class="coverage-count" aria-label="${escapeHtml(String(cnt))} solicitudes">${escapeHtml(
+              String(cnt)
+            )}</span>`
+          : "";
+      return `<div class="coverage-item"><span class="coverage-dot"></span><span class="coverage-item-label coverage-corridor-line" title="${escapeHtml(
+        title
+      )}">${escapeHtml(linePlain)}</span>${badge}</div>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function renderPublicCoverageFromView() {
+  const hubGrid = document.getElementById("coverage-hub-grid");
+  const corridorGrid = document.getElementById("coverage-corridor-grid");
+  const captHub = document.getElementById("coverage-hubs-caption");
+  const captCor = document.getElementById("coverage-corridors-caption");
+  const foot = document.getElementById("coverage-stats-footnote");
+  if (!hubGrid || !corridorGrid) return;
+
+  if (captHub) {
+    captHub.textContent = tPublic("Ciudades con mas presencia en solicitudes (puntos de recogida y entrega).");
+  }
+  if (captCor) {
+    captCor.textContent = tPublic(
+      "Corredores sin direccion fija (ida y vuelta suman) mas solicitados segun solicitudes registradas."
+    );
+  }
+
+  const view = publicCoverageStatsView;
+  if (!view || view.kind === "fallback") {
+    hubGrid.innerHTML = renderPublicCoverageHubGrid(
+      COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
+      false
+    );
+    corridorGrid.innerHTML = COVERAGE_FALLBACK_CORRIDORS_ES.map(
+      (label) =>
+        `<div class="coverage-item"><span class="coverage-dot"></span><span class="coverage-item-label">${escapeHtml(
+          tPublic(label)
+        )}</span></div>`
+    ).join("");
+    if (foot) {
+      foot.hidden = false;
+      foot.textContent =
+        view?.reason === "nobase"
+          ? tPublic("Configure la URL del servidor para ver la demanda real en esta seccion.")
+          : view?.reason === "empty"
+            ? tPublic("No hay solicitudes suficientes en la ventana analizada; se muestra referencia geografica.")
+            : view?.reason === "error"
+              ? tPublic(
+                  "No fue posible cargar las estadisticas de cobertura. Se muestra referencia geografica."
+                )
+              : tPublic("Configure la URL del servidor para ver la demanda real en esta seccion.");
+    }
+    return;
+  }
+
+  const data = view.data;
+  const months = Number(data?.periodMonths) || 24;
+  const total = Number(data?.totalRequestsAnalyzed) || 0;
+  const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
+  const topCorridors = Array.isArray(data?.topCorridors) ? data.topCorridors : [];
+
+  const hubsOk = topHubs.length > 0;
+  const corOk = topCorridors.length > 0;
+
+  hubGrid.innerHTML = hubsOk
+    ? renderPublicCoverageHubGrid(topHubs, true)
+    : renderPublicCoverageHubGrid(
+        COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
+        false
+      );
+
+  corridorGrid.innerHTML = corOk
+    ? renderPublicCoverageCorridorGrid(topCorridors, true)
+    : COVERAGE_FALLBACK_CORRIDORS_ES.map(
+        (label) =>
+          `<div class="coverage-item"><span class="coverage-dot"></span><span class="coverage-item-label">${escapeHtml(
+            tPublic(label)
+          )}</span></div>`
+      ).join("");
+
+  if (foot) {
+    if (total > 0 && (hubsOk || corOk)) {
+      foot.hidden = false;
+      foot.textContent = formatCoverageFootnote(total, months);
+    } else {
+      foot.hidden = false;
+      foot.textContent = tPublic(
+        "No hay solicitudes suficientes en la ventana analizada; se muestra referencia geografica."
+      );
+    }
+  }
+}
+
+function initCoverageCorridors() {
+  const hubGrid = document.getElementById("coverage-hub-grid");
+  if (!hubGrid) return;
+
+  if (publicCoverageStatsView) {
+    renderPublicCoverageFromView();
+    return;
+  }
+
+  const api = window.AntaresApi;
+  if (!api?.hasBase?.() || typeof api.getJsonPublic !== "function") {
+    publicCoverageStatsView = { kind: "fallback", reason: "nobase" };
+    renderPublicCoverageFromView();
+    return;
+  }
+
+  hubGrid.innerHTML = `<div class="coverage-item coverage-item-loading"><span class="coverage-dot"></span><span class="coverage-item-label">${escapeHtml(
+    tPublic("Cargando datos de cobertura...")
+  )}</span></div>`;
+  const corridorGrid = document.getElementById("coverage-corridor-grid");
+  if (corridorGrid) {
+    corridorGrid.innerHTML = hubGrid.innerHTML;
+  }
+
+  void api
+    .getJsonPublic(`/public/transport-request-coverage-stats?months=${COVERAGE_STATS_API_MONTHS}`)
+    .then((data) => {
+      const total = Number(data?.totalRequestsAnalyzed) || 0;
+      const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
+      const topCorridors = Array.isArray(data?.topCorridors) ? data.topCorridors : [];
+      if (total === 0 && !topHubs.length && !topCorridors.length) {
+        publicCoverageStatsView = { kind: "fallback", reason: "empty" };
+      } else {
+        publicCoverageStatsView = { kind: "api", data };
+      }
+    })
+    .catch((err) => {
+      devWarn("Cobertura: error al cargar estadisticas desde la API.", err?.message || err);
+      publicCoverageStatsView = { kind: "fallback", reason: "error" };
+    })
+    .finally(() => {
+      renderPublicCoverageFromView();
+    });
 }
 
 function initPublicCareers() {
@@ -23225,6 +23949,7 @@ function initPublicCareers() {
               department: row.department,
               city: row.city,
               deadline: row.deadline,
+              publishedFrom: row.publishedFrom || row.visibleFrom || "",
               salaryOffer: row.salaryOffer,
               requirements: row.requirements,
               status: row.status || "Publicada",
@@ -23302,6 +24027,7 @@ function initPublicScrollSpy() {
 }
 
 function initPublicEffects() {
+  initCoverageCorridors();
   initPublicCareers();
   initPublicScrollSpy();
 

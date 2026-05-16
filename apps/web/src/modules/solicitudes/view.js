@@ -37,8 +37,7 @@
     const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
     const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || "") || "Sin fecha";
     const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
-    const weight = parseNum(r.weightKg).toLocaleString("es-CO");
-    const boxes = parseNum(r.boxes ?? r.boxesCount).toLocaleString("es-CO");
+    const truckReq = typeof requestTruckRequirementSummaryHtml === "function" ? requestTruckRequirementSummaryHtml(r) : "";
     const tripAssigned = Boolean(r.trip);
     const valueDd = tripAssigned
       ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
@@ -73,7 +72,7 @@
       </div>
       <dl class="trip-ops-card-grid">
         <div class="trip-ops-card-item"><dt>${IC.file}<span>Carga</span></dt><dd title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoLabel)}</dd></div>
-        <div class="trip-ops-card-item"><dt>${IC.scale}<span>Peso/Cajas</span></dt><dd>${weight} kg · ${boxes}</dd></div>
+        <div class="trip-ops-card-item"><dt>${IC.truck}<span>Camión / requisitos</span></dt><dd>${truckReq}</dd></div>
         <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd>${escapeHtml(pickupLabel)}</dd></div>
         <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Valor</span></dt><dd>${valueDd}</dd></div>
       </dl>
@@ -253,8 +252,9 @@
         <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
         <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
-        <label>${fieldLabel(IC.grid, "Volumen cajas")}<input type="number" min="0" name="boxes" required /></label>
-        <label>${fieldLabel(IC.scale, "Peso kg")}<input type="number" min="0" name="weightKg" required /></label>
+        <label class="full">${fieldLabel(IC.truck, "Tipo de camion requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
+        <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
+        <label class="request-truck-field request-truck-field--kg" hidden>${fieldLabel(IC.scale, "Peso kg (tractomula)", { required: true })}<input type="number" min="0" step="0.01" name="weightKg" id="request-tractomula-kg" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">

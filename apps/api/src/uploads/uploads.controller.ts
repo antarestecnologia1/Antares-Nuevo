@@ -31,9 +31,9 @@ export class UploadsController {
     @Req() req: { user: ReqUser },
     @Body() dto: PresignAvatarDto
   ) {
-    if (!this.r2.isEnabled()) {
+    if (!this.r2.hasUploadsClient()) {
       throw new BadRequestException(
-        "R2 no está configurado. Define CF_R2_* en el servidor."
+        "R2 no está configurado. Define CF_R2_ACCOUNT_ID, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY y CF_R2_UPLOADS_BUCKET en el servidor."
       );
     }
     const rawCt = String(dto.contentType || "image/jpeg")
@@ -76,9 +76,9 @@ export class UploadsController {
     @Req() req: { user: ReqUser },
     @UploadedFile() file: Express.Multer.File
   ) {
-    if (!this.r2.isEnabled()) {
+    if (!this.r2.hasUploadsClient()) {
       throw new BadRequestException(
-        "R2 no está configurado. Define CF_R2_* en el servidor."
+        "R2 no está configurado. Define CF_R2_ACCOUNT_ID, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY y CF_R2_UPLOADS_BUCKET en el servidor."
       );
     }
     if (!file?.buffer?.length) {

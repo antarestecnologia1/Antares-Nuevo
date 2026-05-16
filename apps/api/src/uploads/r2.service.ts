@@ -17,6 +17,9 @@ const TEMPLATE_KEYS: Record<string, string> = {
 export class R2Service {
   private readonly logger = new Logger(R2Service.name);
   private readonly client: S3Client | null = null;
+  /** Listo para subidas y GET prefirmados en `CF_R2_UPLOADS_BUCKET` (CV, avatares). */
+  private readonly uploadsClientReady: boolean;
+  /** Listo además para plantillas de contrato en `CF_R2_TEMPLATES_BUCKET`. */
   private readonly enabled: boolean;
   private readonly uploadsBucket: string;
   private readonly templatesBucket: string;
@@ -30,11 +33,12 @@ export class R2Service {
     this.templatesBucket = (config.get<string>("CF_R2_TEMPLATES_BUCKET") || "").trim();
     this.publicBase = (config.get<string>("CF_R2_PUBLIC_BASE") || "").trim().replace(/\/$/, "");
 
-    this.enabled = Boolean(
-      accountId && accessKeyId && secretAccessKey && this.uploadsBucket && this.templatesBucket
+    this.uploadsClientReady = Boolean(
+      accountId && accessKeyId && secretAccessKey && this.uploadsBucket
     );
+    this.enabled = Boolean(this.uploadsClientReady && this.templatesBucket);
 
-    if (this.enabled) {
+    if (this.uploadsClientReady) {
       this.client = new S3Client({
         region: "auto",
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
@@ -43,7 +47,12 @@ export class R2Service {
       });
     } else {
       this.logger.warn(
-        "R2 deshabilitado: faltan CF_R2_ACCOUNT_ID/CF_R2_ACCESS_KEY_ID/CF_R2_SECRET_ACCESS_KEY/CF_R2_UPLOADS_BUCKET/CF_R2_TEMPLATES_BUCKET en .env."
+        "R2 uploads deshabilitado: faltan CF_R2_ACCOUNT_ID/CF_R2_ACCESS_KEY_ID/CF_R2_SECRET_ACCESS_KEY o CF_R2_UPLOADS_BUCKET en .env."
+      );
+    }
+    if (this.uploadsClientReady && !this.templatesBucket) {
+      this.logger.warn(
+        "R2 plantillas no configuradas (CF_R2_TEMPLATES_BUCKET): las plantillas Word de contratos no estarán disponibles; CV y avatares sí pueden usar el bucket de uploads."
       );
     }
   }
@@ -52,9 +61,14 @@ export class R2Service {
     return this.enabled;
   }
 
+  /** Cliente S3 listo para operar sobre el bucket de uploads (independiente del bucket de plantillas). */
+  hasUploadsClient(): boolean {
+    return Boolean(this.client);
+  }
+
   /** URL prefirmada PUT para que el navegador suba el binario directo a R2. */
   async presignAvatarUpload(key: string, contentType: string, expiresInSec = 300) {
-    if (!this.enabled || !this.client) {
+    if (!this.client) {
       throw new InternalServerErrorException(
         "R2 no está configurado en el servidor."
       );
@@ -69,7 +83,7 @@ export class R2Service {
 
   /** Subida servidor → objetos binarios del bucket `CF_R2_UPLOADS_BUCKET` (avatares, documentos auxiliares). */
   async putUploadsObject(key: string, body: Buffer, contentType: string) {
-    if (!this.enabled || !this.client) {
+    if (!this.client) {
       throw new InternalServerErrorException(
         "R2 no está configurado en el servidor."
       );
@@ -100,7 +114,7 @@ export class R2Service {
 
   /** GET prefirmado para descargar un objeto ya subido a `CF_R2_UPLOADS_BUCKET` (p. ej. CV sin dominio público configurado). */
   async presignGetUploadsObject(key: string, expiresInSec = 7200) {
-    if (!this.enabled || !this.client) {
+    if (!this.client) {
       throw new InternalServerErrorException(
         "R2 no está configurado en el servidor."
       );

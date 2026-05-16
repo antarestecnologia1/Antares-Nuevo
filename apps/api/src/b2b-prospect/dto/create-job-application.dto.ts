@@ -67,11 +67,11 @@ export class CreateJobApplicationDto {
   @Max(65)
   experienceYears!: number;
 
+  /** Resumen libre opcional (el formulario público puede omitirlo). */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @MinLength(10)
   @MaxLength(12000)
-  experience!: string;
+  experience?: string;
 
   @IsOptional()
   @IsString()

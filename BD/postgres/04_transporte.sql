@@ -25,8 +25,8 @@ CREATE TABLE vehiculos (
   fecha_vencimiento_polizas_rc            DATE,
   tiene_gps                               BOOLEAN NOT NULL DEFAULT false,
   proveedor_gps                           VARCHAR(120),
-  nombre_propietario                      VARCHAR(255),
-  nit_cedula_propietario                  VARCHAR(32),
+  usuario_proveedor_satelite              VARCHAR(255),
+  password_proveedor_satelite             TEXT,
   disponible                              BOOLEAN NOT NULL DEFAULT true,
   ocupado_por_sistema                     BOOLEAN NOT NULL DEFAULT false,
   fecha_creacion                          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -36,6 +36,8 @@ CREATE TABLE vehiculos (
 
 COMMENT ON TABLE vehiculos IS 'Flota operativa; KEYS.vehicles. ocupado_por_sistema = autoBusy en app.';
 COMMENT ON COLUMN vehiculos.refrigerado_termoking IS 'Equipo refrigeración (Termoking).';
+COMMENT ON COLUMN vehiculos.usuario_proveedor_satelite IS 'Usuario en el portal del proveedor de rastreo satelital.';
+COMMENT ON COLUMN vehiculos.password_proveedor_satelite IS 'Contraseña del portal del proveedor; almacenada como texto.';
 
 CREATE TABLE conductores (
   id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -50,8 +52,10 @@ CREATE TABLE conductores (
   numero_licencia           VARCHAR(64),
   categoria_licencia        VARCHAR(8),
   fecha_vencimiento_licencia DATE,
-  fecha_examen_psicosensometrico DATE,
-  fecha_vencimiento_psicosensometrico DATE,
+  fecha_examen_ocupacional DATE,
+  fecha_vencimiento_examen_ocupacional DATE,
+  fecha_examen_instruvial DATE,
+  fecha_vencimiento_examen_instruvial DATE,
   curso_conduccion_defensiva VARCHAR(32),
   fecha_vencimiento_curso_defensivo DATE,
   tipo_sangre                 VARCHAR(8),
@@ -107,12 +111,13 @@ CREATE TABLE solicitudes_transporte (
   direccion_destino               TEXT NOT NULL,
   fecha_hora_recogida             TIMESTAMPTZ NOT NULL,
   fecha_hora_entrega_estimada     TIMESTAMPTZ NOT NULL,
-  tipo_vehiculo_solicitado        VARCHAR(40) NOT NULL,
+  tipo_vehiculo_solicitado        VARCHAR(64) NOT NULL,
   descripcion_carga               TEXT NOT NULL,
   tipo_servicio                   VARCHAR(80) NOT NULL,
   refrigeracion_termoking         BOOLEAN NOT NULL DEFAULT false,
   numero_cajas                    INTEGER NOT NULL CHECK (numero_cajas >= 0),
   peso_kg                         NUMERIC(14,2) NOT NULL CHECK (peso_kg >= 0),
+  numero_fuelles                  INTEGER CHECK (numero_fuelles IS NULL OR numero_fuelles >= 0),
   nombre_contacto_en_sitio        VARCHAR(255) NOT NULL,
   telefono_contacto_en_sitio      VARCHAR(32) NOT NULL,
   observaciones                   TEXT,
@@ -138,6 +143,8 @@ CREATE TABLE solicitudes_transporte (
 COMMENT ON TABLE solicitudes_transporte IS 'KEYS.requests; viaje asignado en tabla viajes_transporte.';
 COMMENT ON COLUMN solicitudes_transporte.tipo_servicio IS 'Modo: Transporte nacional | Transporte entre sedes del cliente.';
 COMMENT ON COLUMN solicitudes_transporte.refrigeracion_termoking IS 'Requiere Termoking; ver portal refrigeracionTermoking.';
+COMMENT ON COLUMN solicitudes_transporte.tipo_vehiculo_solicitado IS 'Tipo de camión requerido por el cliente (Turbo, Camión, Tractomula) u operativo (Por definir).';
+COMMENT ON COLUMN solicitudes_transporte.numero_fuelles IS 'Cantidad de fuelles (Turbo/Camión); NULL si no aplica o Tractomula.';
 COMMENT ON COLUMN solicitudes_transporte.valor_tarifa_viaje IS 'Tarifa operativa; no la fija el cliente en el prototipo.';
 COMMENT ON COLUMN solicitudes_transporte.eventos_standby_json IS 'Historial standby (horas, tarifa, actor).';
 

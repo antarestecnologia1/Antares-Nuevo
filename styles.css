@@ -1313,6 +1313,52 @@ body[data-theme="light"] .lang-option.active {
 
 .coverage-item:hover .coverage-dot { background: var(--white); }
 
+.coverage-item-label {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.coverage-corridor-line {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.coverage-count {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(55, 124, 192, 0.12);
+  color: var(--primary);
+}
+
+.coverage-item:hover .coverage-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+}
+
+.coverage-card-caption {
+  margin: 0 0 0.85rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.coverage-stats-footnote {
+  margin-top: 1.1rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  text-align: center;
+  max-width: 52rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.coverage-item-loading {
+  grid-column: 1 / -1;
+}
+
 .coverage-dot {
   width: 8px;
   height: 8px;
@@ -2030,6 +2076,37 @@ input:focus, select:focus, textarea:focus {
   border-radius: 12px;
   letter-spacing: 0.25px;
   box-shadow: 0 12px 26px rgba(13, 71, 161, 0.26);
+}
+
+#contact .contact-submit-btn[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.9;
+}
+
+#contact .b2b-form-feedback {
+  grid-column: 1 / -1;
+  margin: 0 0 0.35rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+#contact .b2b-form-feedback--hidden {
+  display: none;
+}
+
+#contact .b2b-form-feedback--success {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #166534;
+}
+
+#contact .b2b-form-feedback--error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.38);
+  color: #991b1b;
 }
 
 #contact .contact-form-premium label span {
@@ -3920,6 +3997,12 @@ body[data-theme="dark"] .modal-edit-section-title {
   color: #9f1239;
 }
 
+.create-trip-flag--type {
+  background: color-mix(in srgb, #6366f1 12%, var(--white));
+  color: color-mix(in srgb, var(--primary-deeper) 40%, #3730a3 60%);
+  border-color: color-mix(in srgb, #6366f1 22%, var(--line));
+}
+
 /* Formulario "Crear viaje": flujo vertical, pasos y flota en cuadrícula coherente */
 .create-trip-form {
   gap: 1rem !important;
@@ -5800,6 +5883,22 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
 
 .modal-edit-form option {
   font-size: 0.82rem;
+}
+
+.modal-file-attach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.modal-file-attach-actions .modal-attach-filename {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modal-edit-actions {
@@ -8248,6 +8347,18 @@ body[data-theme="dark"] #contact .contact-submit-wrap .muted {
   color: #bfd6f1 !important;
 }
 
+body[data-theme="dark"] #contact .b2b-form-feedback--success {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #bbf7d0;
+}
+
+body[data-theme="dark"] #contact .b2b-form-feedback--error {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
 body[data-theme="dark"] .field-error {
   color: #ffb5b5;
 }
@@ -8656,7 +8767,7 @@ body[data-theme="dark"] .p-form textarea {
 /* Noticia principal: revista (columnas alineadas; evidencia rellena alto sin sticky) */
 .news-magazine {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  grid-template-columns: 1fr;
   gap: 1.25rem;
   align-items: stretch;
 }
@@ -14007,8 +14118,33 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   text-transform: capitalize;
 }
 
+.calendar-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: flex-start;
+}
 .calendar-title-block h2 {
   margin: 0;
+}
+.calendar-view-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.calendar-view-toggle .btn {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+.calendar-view-toggle .btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.calendar-view-toggle .btn.is-active {
+  background: rgba(255, 255, 255, 0.42);
+  border-color: rgba(255, 255, 255, 0.55);
+  font-weight: 800;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 .calendar-toolbar p {
   margin: 0;
@@ -14084,6 +14220,15 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .cal-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.cal-days--view-day {
+  grid-template-columns: 1fr;
+}
+.cal-days--view-week .cal-cell {
+  min-height: 118px;
+}
+.cal-days--view-day .cal-cell {
+  min-height: 260px;
 }
 .cal-cell {
   border-right: 1px solid var(--line);
@@ -14465,6 +14610,8 @@ body[data-theme="dark"] .notif-card-unread {
   .calendar-toolbar { flex-direction: column; align-items: stretch; }
   .calendar-controls { justify-content: flex-end; }
   .cal-cell { min-height: 84px; }
+  .cal-days--view-week .cal-cell { min-height: 78px; }
+  .cal-days--view-day .cal-cell { min-height: 200px; }
   .cal-event-title { display: none; }
 }
 

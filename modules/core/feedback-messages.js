@@ -235,7 +235,8 @@
     wordTemplatesRedownloaded:
       "Se descargó de nuevo el Word usando las plantillas de documentación.",
     b2bFieldsInvalid: "Revise los campos marcados para enviar su solicitud B2B.",
-    b2bContactSent: "Solicitud registrada correctamente. Gracias por contactarnos.",
+    b2bContactSent:
+      "Solicitud enviada correctamente. El equipo comercial la recibió y se pondrá en contacto con usted en breve. Gracias por confiar en Transportes Antares.",
     b2bServerError: "No se pudo guardar en el servidor. Intente de nuevo o contacte por otro canal.",
     b2bApiMissing:
       "Sin URL de API configurada: defina antares_api_base (o __ANTARES_API_BASE__) para enviar la solicitud al servidor.",

@@ -361,7 +361,7 @@
               </div>
               <p class="quote">
                 "Redujimos reprocesos logisticos en un 32% desde que operamos
-                con Antares. Son rapidos, claros y muy confiables."
+                con Transportes Antares. Son rapidos, claros y muy confiables."
               </p>
               <div class="testimonial-meta">
                 <div class="testimonial-avatar">LC</div>
@@ -614,40 +614,29 @@
               </svg>
               <h2>Cobertura nacional</h2>
             </div>
-            <p>Rutas principales y corredores frecuentes para el sector floricultor y exportador.</p>
+            <p id="coverage-headline">
+              Ciudades y trayectos con mayor demanda registrada en solicitudes de transporte (se actualiza con los datos del servidor).
+            </p>
           </div>
           <div class="grid-2" data-reveal>
             <article class="card lift-card" style="padding:1.8rem">
-              <h3 style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
+              <h3 style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
                 <svg style="width:22px;height:22px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                 Rutas principales
               </h3>
-              <div class="coverage-grid">
-                <div class="coverage-item"><span class="coverage-dot"></span>Bogota D.C.</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Medellin</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Rionegro</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Cali</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Pereira</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Armenia</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Bucaramanga</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Cartagena</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Barranquilla</div>
-              </div>
+              <p id="coverage-hubs-caption" class="muted coverage-card-caption"></p>
+              <div id="coverage-hub-grid" class="coverage-grid" aria-live="polite"></div>
             </article>
             <article class="card lift-card" style="padding:1.8rem">
-              <h3 style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
+              <h3 style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem">
                 <svg style="width:22px;height:22px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 Corredores frecuentes
               </h3>
-              <div class="coverage-grid">
-                <div class="coverage-item"><span class="coverage-dot"></span>Sabana de Bogota</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Antioquia floricultora</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Puertos de exportacion</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Eje cafetero</div>
-                <div class="coverage-item"><span class="coverage-dot"></span>Costa atlantica</div>
-              </div>
+              <p id="coverage-corridors-caption" class="muted coverage-card-caption"></p>
+              <div id="coverage-corridor-grid" class="coverage-grid" aria-live="polite"></div>
             </article>
           </div>
+          <p id="coverage-stats-footnote" class="muted coverage-stats-footnote" hidden></p>
         </div>
       </section>
 
@@ -673,16 +662,11 @@
           <div class="news-magazine">
             <article class="card news-card news-feature news-magazine-lead lift-card" data-reveal>
               <span class="news-super-kicker">COMUNICADO OFICIAL · OPERACIÓN HISTÓRICA</span>
-              <span class="news-tag">Infraestructura y competitividad</span>
-              <h3 class="news-hero-title">Antares marca un hito en Puerto Antioquia con la tractomula JZX522</h3>
-              <p class="news-lead">
-                Abrimos un nuevo precedente logístico: primera operación de ingreso de contenedor de flor al puerto
-                con unidad propia, consolidando capacidad real para rutas de exportación de alto valor.
-              </p>
+              <h3 class="news-hero-title">Transportes Antares marca un hito logístico al ser aliado estratégico para transportar el primer contenedor de flor hacia Puerto Antioquia</h3>
               <div class="news-lead-badges" aria-label="Indicadores de respaldo">
                 <span class="news-lead-badge">Operación documentada en campo</span>
                 <span class="news-lead-badge">Corredor estratégico de exportación</span>
-                <span class="news-lead-badge">Evidencia audiovisual y fotográfica</span>
+                <span class="news-lead-badge">Evidencia audiovisual</span>
               </div>
               <div class="news-video-wrap">
                 <video class="video-highlight-white" controls preload="metadata">
@@ -691,7 +675,7 @@
                 </video>
               </div>
               <article class="news-relevance-card">
-                <span class="news-tag news-tag-glow">Hito logístico Antares</span>
+                <span class="news-tag news-tag-glow">Hito logístico Transportes Antares</span>
                 <span class="news-plate-chip">Unidad destacada: JZX522</span>
                 <h3>Primera operación de contenedor de flor en Puerto Antioquia</h3>
                 <p>
@@ -714,59 +698,7 @@
                 </article>
               </div>
             </article>
-            <aside class="news-magazine-aside" aria-label="Evidencia fotográfica del hito">
-              <article class="card news-card news-media news-media-highlight news-evidence-card lift-card" data-reveal>
-                <div class="news-evidence-hook">
-                  <strong>Unidad destacada JZX522</strong>
-                  <span>Registro visual de la tractomula en operación.</span>
-                </div>
-                <div class="news-evidence-gallery news-evidence-gallery--stack">
-                  <figure class="news-evidence-frame">
-                    <img class="news-img-truck-side" src="imagenes%20empresa/imagen_cabezote.jpeg" alt="Tractomula Antares JZX522" loading="lazy" />
-                  </figure>
-                  <figure class="news-evidence-frame">
-                    <img class="news-img-truck" src="imagenes%20empresa/tractomula_de_frente.jpeg" alt="Vista frontal de la tractomula Antares JZX522" loading="lazy" />
-                  </figure>
-                </div>
-                <div class="news-media-copy">
-                  <span class="news-tag">Activo logístico clave</span>
-                  <h3>Tractomula JZX522</h3>
-                  <p>Unidad utilizada en la operación destacada, con soporte fotográfico como respaldo del comunicado institucional.</p>
-                </div>
-              </article>
-            </aside>
             <article class="card news-card news-magazine-continued lift-card" data-reveal>
-              <section class="news-case-study" aria-label="Caso de éxito Puerto Antioquia">
-                <div class="news-case-col">
-                  <h4>Timeline del logro</h4>
-                  <ol class="news-timeline">
-                    <li><strong>Planeación:</strong> coordinación previa de ventana y documentación.</li>
-                    <li><strong>Ejecución:</strong> ingreso de contenedor de flor con tractomula <strong>JZX522</strong>.</li>
-                    <li><strong>Validación:</strong> cierre operativo y confirmación de hito en puerto.</li>
-                  </ol>
-                </div>
-                <div class="news-case-col">
-                  <h4>Ruta de impacto</h4>
-                  <div class="news-route-map">
-                    <span>Antioquia floricultora</span>
-                    <span class="route-arrow">→</span>
-                    <span>Puerto Antioquia</span>
-                    <span class="route-arrow">→</span>
-                    <span>Mercado internacional</span>
-                  </div>
-                  <p class="muted">Corredor estratégico para exportación de flor con trazabilidad continua.</p>
-                </div>
-              </section>
-              <section class="news-before-after" aria-label="Comparativo operativo">
-                <article class="before-after-card">
-                  <h4>Antes</h4>
-                  <p>Rutas más largas, mayores tiempos y menor control de conexión portuaria.</p>
-                </article>
-                <article class="before-after-card">
-                  <h4>Ahora con el hito</h4>
-                  <p>Operación directa más competitiva, mejor respuesta logística y más confiabilidad para clientes.</p>
-                </article>
-              </section>
               <article class="news-quote-panel" aria-label="Contexto institucional del hito">
                 <span class="news-tag">Contexto institucional</span>
                 <h4>Mensaje oficial de la Gobernación de Antioquia</h4>
@@ -775,18 +707,9 @@
                 </blockquote>
                 <div class="news-quote-signature">
                   <span class="news-signature-mark">GOBERNACIÓN DE ANTIOQUIA</span>
-                  <span>Mensaje institucional sobre competitividad regional e infraestructura</span>
                 </div>
-                <small class="muted">Fuente oficial: Gobernación de Antioquia (@puerto_antioquia) · Validación operativa interna Antares · Actualizado: Abril 2026</small>
+                <small class="muted">Fuente oficial: Gobernación de Antioquia (@puerto_antioquia) · Validación operativa interna Transportes Antares · Actualizado: Abril 2026</small>
               </article>
-              <div class="news-impact-strip">
-                <span class="impact-chip">-18% tiempos de conexion</span>
-                <span class="impact-chip">+23% eficiencia logistica</span>
-                <span class="impact-chip">98.7% entregas a tiempo</span>
-              </div>
-              <div class="news-closing-note">
-                Este resultado posiciona a Antares como aliado logístico empresarial para operaciones con alta exigencia de cumplimiento y trazabilidad.
-              </div>
             </article>
           </div>
         </div>
@@ -838,6 +761,13 @@
               <span class="contact-trust-pill">Confidencialidad de datos</span>
             </div>
             <form id="b2b-form" class="form-grid contact-form-premium">
+              <div
+                id="b2b-form-feedback"
+                class="b2b-form-feedback b2b-form-feedback--hidden"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              ></div>
               <div class="full contact-step-indicator" role="list" aria-label="Progreso formulario">
                 <span class="contact-step-chip active" data-step-chip="0" role="listitem">1. Contacto</span>
                 <span class="contact-step-chip" data-step-chip="1" role="listitem">2. Operacion</span>
@@ -928,10 +858,6 @@
                       <option>Planificada (31+ dias)</option>
                     </select>
                   </label>
-                  <label>
-                    <span>Volumen mensual aprox. (kg)</span>
-                    <input name="monthlyVolumeKg" type="number" min="100" step="100" placeholder="Ej. 12000" required />
-                  </label>
                 </div>
               </div>
 
@@ -1008,7 +934,7 @@
                 hidden
               />
             </span>
-            <div><h2 id="sidebar-session-display-name">Antares</h2><p id="session-meta"></p></div>
+            <div><h2 id="sidebar-session-display-name">Transportes Antares</h2><p id="session-meta"></p></div>
           </div>
           <p class="sidebar-drawer-tagline" aria-hidden="true">Modulos del portal</p>
           <p class="sidebar-section-label">General</p>
@@ -1147,7 +1073,7 @@
             />
             <h2 class="auth-modal-heading">
               <svg class="auth-modal-heading-icon" style="width:24px;height:24px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span class="auth-modal-heading-text">Portal empresarial Antares</span>
+              <span class="auth-modal-heading-text">Portal empresarial Transportes Antares</span>
             </h2>
             <p class="muted auth-modal-subtitle">Ingreso seguro para clientes y equipos operativos.</p>
           </div>
@@ -1208,14 +1134,14 @@
         </div>
       </div>
       <div class="footer-bottom">
-        &copy; 2026 Antares. Todos los derechos reservados.
+        &copy; 2026 Transportes Antares. Todos los derechos reservados.
       </div>
     </footer>
 
     <!-- ─── WHATSAPP FAB ─── -->
     <a
       class="whatsapp-fab"
-      href="https://wa.me/573000000000?text=Hola%20Antares%2C%20quiero%20informacion%20de%20sus%20servicios%20de%20transporte."
+      href="https://wa.me/573000000000?text=Hola%20Transportes%20Antares%2C%20quiero%20informacion%20de%20sus%20servicios%20de%20transporte."
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Contactar por WhatsApp"
@@ -1233,7 +1159,7 @@
     <script defer src="./modules/core/persistence.js"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script defer src="./modules/core/api-client.js?v=20260507-postform-job"></script>
+    <script defer src="./modules/core/api-client.js?v=20260515-fetch-errors"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js"></script>
     <script defer src="./apps/web/src/modules/dashboard/view.js"></script>

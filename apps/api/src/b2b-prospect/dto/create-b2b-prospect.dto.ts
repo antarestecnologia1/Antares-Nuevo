@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsNotEmpty,
   IsNumber,
+  IsOptional,
   IsString,
   Max,
   MaxLength,
@@ -63,11 +64,13 @@ export class CreateB2bProspectDto {
   @MaxLength(80)
   startWindow!: string;
 
+  /** Opcional: el formulario público ya no lo solicita; se persiste 0 en base de datos. */
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(100)
+  @Min(0)
   @Max(999999999)
-  monthlyVolumeKg!: number;
+  monthlyVolumeKg?: number;
 
   @IsString()
   @MinLength(30)

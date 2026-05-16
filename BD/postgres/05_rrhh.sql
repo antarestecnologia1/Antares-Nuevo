@@ -28,6 +28,7 @@ CREATE TABLE vacantes (
   modalidad                 VARCHAR(32),
   jornada_vacante           VARCHAR(64),
   fecha_limite_postulacion  DATE NOT NULL,
+  fecha_publicacion_desde   DATE,
   cupos                     INTEGER NOT NULL DEFAULT 1 CHECK (cupos >= 1),
   salario_oferta            NUMERIC(14,2) NOT NULL DEFAULT 0,
   nombre_cargo_denorm       VARCHAR(255),
@@ -39,7 +40,7 @@ CREATE TABLE vacantes (
   fecha_actualizacion       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE vacantes IS 'KEYS.vacancies.';
+COMMENT ON TABLE vacantes IS 'KEYS.vacancies. fecha_publicacion_desde = primera fecha listado público Carreras (NULL = sin espera).';
 
 CREATE TABLE candidatos (
   id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,8 +171,10 @@ CREATE TABLE empleados_nomina (
   numero_licencia             VARCHAR(64),
   categoria_licencia          VARCHAR(8),
   fecha_vencimiento_licencia  DATE,
-  fecha_examen_psicosensometrico DATE,
-  fecha_vencimiento_psicosensometrico DATE,
+  fecha_examen_ocupacional DATE,
+  fecha_vencimiento_examen_ocupacional DATE,
+  fecha_examen_instruvial DATE,
+  fecha_vencimiento_examen_instruvial DATE,
   curso_conduccion_defensiva  VARCHAR(32),
   meses_prueba                SMALLINT,
   fecha_fin_contrato          DATE,

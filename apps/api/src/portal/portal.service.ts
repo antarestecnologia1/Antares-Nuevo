@@ -104,6 +104,24 @@ function portalDateOrNull(v: unknown): string | null {
   return String(v);
 }
 
+/** Suma años a `YYYY-MM-DD` en calendario local (evita corrimientos UTC de toISOString). */
+function portalYmdPlusYears(ymd: unknown, years: number): string | null {
+  const s = portalDateOrNull(ymd);
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s).trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const d = new Date(y, mo, day);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setFullYear(d.getFullYear() + years);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 @Injectable()
 export class PortalService implements OnModuleInit {
   private readonly logger = new Logger(PortalService.name);
@@ -1828,6 +1846,7 @@ export class PortalService implements OnModuleInit {
              s.refrigeracion_termoking AS "refrigeracionTermoking",
              s.numero_cajas AS "boxesCount",
              s.peso_kg AS "weightKg",
+             s.numero_fuelles AS "fuelles",
              s.nombre_contacto_en_sitio AS "contactName",
              s.telefono_contacto_en_sitio AS "contactPhone",
              s.observaciones AS observations,
@@ -1935,6 +1954,10 @@ export class PortalService implements OnModuleInit {
           : this.solicitudRefrigeracionFromPayload({ serviceType: row.serviceType }),
       boxesCount: row.boxesCount,
       weightKg: row.weightKg,
+      fuelles:
+        row.fuelles != null && row.fuelles !== "" && Number.isFinite(Number(row.fuelles))
+          ? Number(row.fuelles)
+          : null,
       contactName: row.contactName,
       contactPhone: row.contactPhone,
       observations: row.observations,
@@ -2082,8 +2105,8 @@ export class PortalService implements OnModuleInit {
       rcPolicyExpiry: this.sqlVehicleDateColumnToString(v.fecha_vencimiento_polizas_rc) || "",
       hasGps: v.tiene_gps,
       gpsProvider: v.proveedor_gps || "",
-      ownerName: v.nombre_propietario || "",
-      ownerTaxId: v.nit_cedula_propietario || "",
+      satelliteProviderUser: v.usuario_proveedor_satelite || "",
+      satelliteProviderPassword: v.password_proveedor_satelite || "",
       createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString()
     }));
   }
@@ -2093,8 +2116,10 @@ export class PortalService implements OnModuleInit {
     const r = await this.pool.query(`SELECT * FROM conductores ORDER BY nombre_completo`);
     return r.rows.map((d) => {
       const licEx = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_licencia) || "";
-      const psychoD = this.sqlVehicleDateColumnToString(d.fecha_examen_psicosensometrico) || "";
-      const psychoE = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_psicosensometrico) || "";
+      const occD = this.sqlVehicleDateColumnToString(d.fecha_examen_ocupacional) || "";
+      const occE = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_examen_ocupacional) || "";
+      const intraD = this.sqlVehicleDateColumnToString(d.fecha_examen_instruvial) || "";
+      const intraE = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_examen_instruvial) || "";
       const defCourse =
         d.curso_conduccion_defensiva != null && String(d.curso_conduccion_defensiva).trim() !== ""
           ? String(d.curso_conduccion_defensiva).trim()
@@ -2131,11 +2156,14 @@ export class PortalService implements OnModuleInit {
         license: d.numero_licencia != null ? String(d.numero_licencia).trim() : "",
         licenseCategory: d.categoria_licencia != null ? String(d.categoria_licencia).trim() : "",
         licenseExpiry: licEx,
-        psychometricExamDate: psychoD,
-        psychometricExpiry: psychoE,
-        /** Alias usados por formularios del portal (mismo dato que psychometric*). */
-        psychoTestDate: psychoD,
-        psychoTestExpiry: psychoE,
+        occupationalExamDate: occD,
+        occupationalExamExpiry: occE,
+        instruvialExamDate: intraD,
+        instruvialExamExpiry: intraE,
+        psychometricExamDate: occD,
+        psychometricExpiry: occE,
+        psychoTestDate: occD,
+        psychoTestExpiry: occE,
         defensiveDrivingCourse: defCourse,
         defensiveCourse: defCourse,
         defensiveCourseExpiry: defCourseExpiry,
@@ -2410,29 +2438,32 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
-  /** CV en R2 sin `CF_R2_PUBLIC_BASE`: añade URL prefirmada para que RH pueda descargar desde el portal. */
-  private async enrichCandidateAttachmentsForPortal(raw: unknown): Promise<unknown> {
-    if (!this.r2.isEnabled()) {
-      if (raw == null) return [];
-      return raw;
-    }
-    let arr: unknown[] = [];
-    if (Array.isArray(raw)) {
-      arr = raw;
-    } else if (typeof raw === "string" && raw.trim()) {
+  /** Normaliza adjuntos_json (JSONB) a array para el portal. */
+  private parseCandidateAdjuntosJsonArray(raw: unknown): unknown[] {
+    if (raw == null) return [];
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "string" && raw.trim()) {
       try {
         const p = JSON.parse(raw) as unknown;
-        if (Array.isArray(p)) arr = p;
-        else return raw;
+        if (Array.isArray(p)) return p;
+        if (p != null && typeof p === "object" && !Array.isArray(p)) return [p];
       } catch {
-        return raw;
+        return [];
       }
-    } else if (raw == null) {
       return [];
-    } else {
-      return raw;
     }
+    if (typeof raw === "object" && !Array.isArray(raw)) {
+      return [raw];
+    }
+    return [];
+  }
 
+  /** CV en R2 sin `CF_R2_PUBLIC_BASE`: añade URL prefirmada para que RH pueda descargar desde el portal. */
+  private async enrichCandidateAttachmentsForPortal(raw: unknown): Promise<unknown> {
+    const arr = this.parseCandidateAdjuntosJsonArray(raw);
+    if (!this.r2.hasUploadsClient()) {
+      return arr;
+    }
     const out: unknown[] = [];
     for (const item of arr) {
       if (item == null || typeof item !== "object" || Array.isArray(item)) {
@@ -2472,6 +2503,12 @@ export class PortalService implements OnModuleInit {
       modality: v.modalidad,
       schedule: v.jornada_vacante,
       deadline: v.fecha_limite_postulacion,
+      publishedFrom: (() => {
+        const d = v.fecha_publicacion_desde;
+        if (d == null || d === "") return null;
+        if (d instanceof Date) return d.toISOString().slice(0, 10);
+        return String(d).slice(0, 10);
+      })(),
       slots: v.cupos,
       salaryOffer: Number(v.salario_oferta),
       positionTitle: v.nombre_cargo_denorm,
@@ -2634,8 +2671,12 @@ export class PortalService implements OnModuleInit {
       license: e.numero_licencia,
       licenseCategory: e.categoria_licencia,
       licenseExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_licencia),
-      psychoTestDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_psicosensometrico),
-      psychoTestExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_psicosensometrico),
+      occupationalExamDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_ocupacional),
+      occupationalExamExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_examen_ocupacional),
+      instruvialExamDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_instruvial),
+      instruvialExamExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_examen_instruvial),
+      psychoTestDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_ocupacional),
+      psychoTestExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_examen_ocupacional),
       defensiveCourse: e.curso_conduccion_defensiva,
       probationMonths: e.meses_prueba,
       contractEndDate: this.sqlEmployeeDateToPortalYmd(e.fecha_fin_contrato),
@@ -3149,6 +3190,24 @@ export class PortalService implements OnModuleInit {
     return "Transporte nacional";
   }
 
+  private static readonly SOLICITUD_TIPOS_CAMION_CLIENTE = new Set(["Turbo", "Camión", "Tractomula"]);
+
+  /** `tipo_vehiculo_solicitado`: tipo de camión pedido por el cliente (o "Por definir" si legacy). */
+  private solicitudTipoCamionFromPayload(req: Record<string, unknown>): string {
+    const raw = String(req["vehicleType"] ?? req["requiredTruckType"] ?? "").trim();
+    if (PortalService.SOLICITUD_TIPOS_CAMION_CLIENTE.has(raw)) return raw;
+    return "Por definir";
+  }
+
+  /** `numero_fuelles`: solo Turbo / Camión. */
+  private solicitudNumeroFuellesFromPayload(req: Record<string, unknown>, tipoCamion: string): number | null {
+    if (tipoCamion !== "Turbo" && tipoCamion !== "Camión") return null;
+    const raw = req["fuelles"];
+    const n = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.floor(n);
+  }
+
   /**
    * Bandera Termoking en `refrigeracion_termoking`. Prioriza boolean explícito del portal;
    * si no, `requiresThermoking` (yes/no) o texto legacy en `serviceType`.
@@ -3201,8 +3260,17 @@ export class PortalService implements OnModuleInit {
         );
       }
       const boxesNum = Math.max(0, Number(req.boxesCount ?? req.boxes ?? 0) || 0);
-      /** El cliente no define carrocería; operaciones asigna vehículo. Columna NOT NULL en BD. */
-      const vehicleType = "Por definir";
+      const reqRec = req as Record<string, unknown>;
+      const vehicleType = this.solicitudTipoCamionFromPayload(reqRec);
+      const numeroFuelles = this.solicitudNumeroFuellesFromPayload(reqRec, vehicleType);
+      let weightKg = 0;
+      if (vehicleType === "Tractomula") {
+        weightKg = Math.max(0, Number(req.weightKg) || 0);
+      } else if (vehicleType === "Turbo" || vehicleType === "Camión") {
+        weightKg = 0;
+      } else {
+        weightKg = Math.max(0, Number(req.weightKg) || 0);
+      }
       const observations =
         String(req.observations ?? req.notes ?? "").trim() || null;
       const tipoServicio = this.solicitudModoTransporteFromPayload(req);
@@ -3214,13 +3282,13 @@ export class PortalService implements OnModuleInit {
           departamento_origen, ciudad_origen, direccion_origen, departamento_destino, ciudad_destino, direccion_destino,
           fecha_hora_recogida, fecha_hora_entrega_estimada, tipo_vehiculo_solicitado, descripcion_carga, tipo_servicio,
           refrigeracion_termoking,
-          numero_cajas, peso_kg, nombre_contacto_en_sitio, telefono_contacto_en_sitio, observaciones,
+          numero_cajas, peso_kg, numero_fuelles, nombre_contacto_en_sitio, telefono_contacto_en_sitio, observaciones,
           adjuntos_nombres_json, estado, valor_tarifa_viaje, total_cargos_standby, eventos_standby_json,
           motivo_rechazo, fecha_aprobacion, aprobado_por, fecha_entrega_efectiva, fecha_cierre
         ) VALUES (
           $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::timestamptz,
-          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::jsonb, $25::estado_solicitud_transporte, $26, $27, $28::jsonb,
-          $29, $30::timestamptz, $31, $32::timestamptz, $33::timestamptz
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26::estado_solicitud_transporte, $27, $28, $29::jsonb,
+          $30, $31::timestamptz, $32, $33::timestamptz, $34::timestamptz
         )
         ON CONFLICT (id) DO UPDATE SET
           numero_solicitud = EXCLUDED.numero_solicitud,
@@ -3242,6 +3310,7 @@ export class PortalService implements OnModuleInit {
           refrigeracion_termoking = EXCLUDED.refrigeracion_termoking,
           numero_cajas = EXCLUDED.numero_cajas,
           peso_kg = EXCLUDED.peso_kg,
+          numero_fuelles = EXCLUDED.numero_fuelles,
           nombre_contacto_en_sitio = EXCLUDED.nombre_contacto_en_sitio,
           telefono_contacto_en_sitio = EXCLUDED.telefono_contacto_en_sitio,
           observaciones = EXCLUDED.observaciones,
@@ -3275,7 +3344,8 @@ export class PortalService implements OnModuleInit {
           tipoServicio,
           refrigeracionTermoking,
           boxesNum,
-          Number(req.weightKg) || 0,
+          weightKg,
+          numeroFuelles,
           contactName,
           contactPhone,
           observations,
@@ -3354,7 +3424,7 @@ export class PortalService implements OnModuleInit {
           tipo_carroceria, tipo_combustible, configuracion_ejes, numero_motor, numero_chasis_vin, numero_tarjeta_propiedad,
           fecha_expedicion_soat, fecha_vencimiento_soat, fecha_expedicion_tecnomecanica, fecha_vencimiento_tecnomecanica,
           numero_poliza_rc_contractual, numero_poliza_rc_extracontractual, fecha_vencimiento_polizas_rc,
-          tiene_gps, proveedor_gps, nombre_propietario, nit_cedula_propietario, disponible, ocupado_por_sistema
+          tiene_gps, proveedor_gps, usuario_proveedor_satelite, password_proveedor_satelite, disponible, ocupado_por_sistema
         ) VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::date, $17::date, $18::date, $19::date,
           $20, $21, $22::date, $23, $24, $25, $26, $27, $28
@@ -3383,8 +3453,8 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_polizas_rc = EXCLUDED.fecha_vencimiento_polizas_rc,
           tiene_gps = EXCLUDED.tiene_gps,
           proveedor_gps = EXCLUDED.proveedor_gps,
-          nombre_propietario = EXCLUDED.nombre_propietario,
-          nit_cedula_propietario = EXCLUDED.nit_cedula_propietario,
+          usuario_proveedor_satelite = EXCLUDED.usuario_proveedor_satelite,
+          password_proveedor_satelite = EXCLUDED.password_proveedor_satelite,
           disponible = EXCLUDED.disponible,
           ocupado_por_sistema = EXCLUDED.ocupado_por_sistema`,
         [
@@ -3412,8 +3482,8 @@ export class PortalService implements OnModuleInit {
           v.rcPolicyExpiry || null,
           Boolean(v.hasGps),
           v.gpsProvider || null,
-          v.ownerName || null,
-          v.ownerTaxId || null,
+          v.satelliteProviderUser || null,
+          v.satelliteProviderPassword || null,
           v.available !== false,
           Boolean(v.autoBusy)
         ]
@@ -3456,21 +3526,32 @@ export class PortalService implements OnModuleInit {
       const expNum = Number(expRaw);
       const anosSql = Number.isFinite(expNum) ? Math.max(0, Math.min(80, Math.floor(expNum))) : 0;
 
+      const occExam = portalDateOrNull(
+        p(d, "occupationalExamDate", "psychometricExamDate", "psychoTestDate", "fecha_examen_ocupacional")
+      );
+      const intraExam = portalDateOrNull(
+        p(d, "instruvialExamDate", "intravehicularExamDate", "fecha_examen_instruvial")
+      );
+      const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
+      const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
+
       await c.query(
         `INSERT INTO conductores (
           id, id_empresa, nombre_completo, tipo_documento, numero_documento, telefono, departamento, ciudad, direccion,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
-          fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva,
           fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
           disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
-          $13::date, $14::date, $15,
-          $16::date, $17, $18, $19, $20, $21,
-          $22, $23,
-          $24, $25, $26, $27, $28::date, $29::timestamptz,
-          $30
+          $13::date, $14::date, $15::date, $16::date, $17,
+          $18::date, $19, $20, $21, $22, $23,
+          $24, $25,
+          $26, $27, $28, $29, $30, $31::date, $32::timestamptz,
+          $33
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
@@ -3484,8 +3565,10 @@ export class PortalService implements OnModuleInit {
           numero_licencia = EXCLUDED.numero_licencia,
           categoria_licencia = EXCLUDED.categoria_licencia,
           fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
-          fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
-          fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
+          fecha_examen_ocupacional = EXCLUDED.fecha_examen_ocupacional,
+          fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
+          fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
           curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           fecha_vencimiento_curso_defensivo = EXCLUDED.fecha_vencimiento_curso_defensivo,
           tipo_sangre = EXCLUDED.tipo_sangre,
@@ -3515,8 +3598,10 @@ export class PortalService implements OnModuleInit {
           d.license || "N",
           d.licenseCategory || "C2",
           d.licenseExpiry || new Date().toISOString().slice(0, 10),
-          portalDateOrNull(p(d, "psychometricExamDate", "psychoTestDate")),
-          portalDateOrNull(p(d, "psychometricExpiry", "psychoTestExpiry")),
+          occExam,
+          occExpiry,
+          intraExam,
+          intraExpiry,
           (p(d, "defensiveDrivingCourse", "defensiveCourse") as string) || null,
           portalDateOrNull(p(d, "defensiveCourseExpiry", "fecha_vencimiento_curso_defensivo")),
           bloodSql,
@@ -3667,7 +3752,9 @@ export class PortalService implements OnModuleInit {
           eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
           banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
-          fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo
         ) VALUES (
           $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
@@ -3680,8 +3767,8 @@ export class PortalService implements OnModuleInit {
           $31, $32, $33, $34, $35,
           $36, $37, $38, $39,
           $40, $41, $42,
-          $43::date, $44::date, $45,
-          $46, $47, $48, $49, $50
+          $43::date, $44::date, $45::date, $46::date, $47,
+          $48, $49, $50, $51, $52
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -3723,8 +3810,10 @@ export class PortalService implements OnModuleInit {
           numero_licencia = EXCLUDED.numero_licencia,
           categoria_licencia = EXCLUDED.categoria_licencia,
           fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
-          fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
-          fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
+          fecha_examen_ocupacional = EXCLUDED.fecha_examen_ocupacional,
+          fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
+          fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
           curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           id_empresa = EXCLUDED.id_empresa,
           id_cargo = EXCLUDED.id_cargo,
@@ -3745,7 +3834,9 @@ export class PortalService implements OnModuleInit {
           eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
           banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
-          fecha_examen_psicosensometrico, fecha_vencimiento_psicosensometrico, curso_conduccion_defensiva,
+          fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
           tiene_condicion_medica, descripcion_condicion_medica
         ) VALUES (
@@ -3759,9 +3850,9 @@ export class PortalService implements OnModuleInit {
           $31, $32, $33, $34, $35,
           $36, $37, $38, $39,
           $40, $41, $42,
-          $43::date, $44::date, $45,
-          $46, $47, $48, $49, $50,
-          $51::boolean, $52
+          $43::date, $44::date, $45::date, $46::date, $47,
+          $48, $49, $50, $51, $52,
+          $53::boolean, $54
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -3803,8 +3894,10 @@ export class PortalService implements OnModuleInit {
           numero_licencia = EXCLUDED.numero_licencia,
           categoria_licencia = EXCLUDED.categoria_licencia,
           fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
-          fecha_examen_psicosensometrico = EXCLUDED.fecha_examen_psicosensometrico,
-          fecha_vencimiento_psicosensometrico = EXCLUDED.fecha_vencimiento_psicosensometrico,
+          fecha_examen_ocupacional = EXCLUDED.fecha_examen_ocupacional,
+          fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
+          fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
           curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           id_empresa = EXCLUDED.id_empresa,
           id_cargo = EXCLUDED.id_cargo,
@@ -3853,7 +3946,16 @@ export class PortalService implements OnModuleInit {
         periodicidadRaw != null ? String(periodicidadRaw) : undefined
       );
 
-      const base50: unknown[] = [
+      const occExam = portalDateOrNull(
+        p(e, "occupationalExamDate", "psychoTestDate", "psychometricExamDate", "fecha_examen_ocupacional")
+      );
+      const intraExam = portalDateOrNull(
+        p(e, "instruvialExamDate", "intravehicularExamDate", "fecha_examen_instruvial")
+      );
+      const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
+      const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
+
+      const base52: unknown[] = [
         e.id,
         e.companyId,
         e.positionId || null,
@@ -3896,8 +3998,10 @@ export class PortalService implements OnModuleInit {
         (p(e, "license", "licenseNumber") as string) || null,
         (p(e, "licenseCategory") as string) || null,
         portalDateOrNull(p(e, "licenseExpiry")),
-        portalDateOrNull(p(e, "psychoTestDate", "psychometricExamDate")),
-        portalDateOrNull(p(e, "psychoTestExpiry", "psychometricExpiry")),
+        occExam,
+        occExpiry,
+        intraExam,
+        intraExpiry,
         (p(e, "defensiveCourse", "defensiveDrivingCourse") as string) || null,
         p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
         portalDateOrNull(p(e, "contractEndDate")),
@@ -3906,10 +4010,10 @@ export class PortalService implements OnModuleInit {
         (p(e, "corporateEmail") as string) || null
       ];
 
-      if (tier === 0) await c.query(UPSERT_LEGACY, base50);
+      if (tier === 0) await c.query(UPSERT_LEGACY, base52);
       else
         await c.query(UPSERT_M19, [
-          ...base50,
+          ...base52,
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
             ? ((p(e, "illnessDescription") as string) || "").trim() || null
@@ -4473,9 +4577,9 @@ export class PortalService implements OnModuleInit {
         await c.query(
           `INSERT INTO vacantes (
             id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
-            fecha_limite_postulacion, cupos, salario_oferta,
+            fecha_limite_postulacion, fecha_publicacion_desde, cupos, salario_oferta,
             nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, estado
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::estado_vacante)
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11, $12, $13, $14, $15, $16::estado_vacante)
           ON CONFLICT (id) DO UPDATE SET
             id_cargo = EXCLUDED.id_cargo,
             titulo = EXCLUDED.titulo,
@@ -4484,6 +4588,7 @@ export class PortalService implements OnModuleInit {
             modalidad = EXCLUDED.modalidad,
             jornada_vacante = EXCLUDED.jornada_vacante,
             fecha_limite_postulacion = EXCLUDED.fecha_limite_postulacion,
+            fecha_publicacion_desde = EXCLUDED.fecha_publicacion_desde,
             cupos = EXCLUDED.cupos,
             salario_oferta = EXCLUDED.salario_oferta,
             nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
@@ -4500,6 +4605,7 @@ export class PortalService implements OnModuleInit {
             (pickPortalField(v, "modality") as string) || null,
             (pickPortalField(v, "workday") as string) || null,
             v.deadline || new Date().toISOString().slice(0, 10),
+            portalDateOrNull(pickPortalField(v, "publishedFrom", "visibleFrom")),
             cupos,
             Number(v.salaryOffer) || 0,
             (pickPortalField(v, "positionName") as string) || null,
