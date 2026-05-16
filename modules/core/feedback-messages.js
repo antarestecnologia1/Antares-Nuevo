@@ -4,7 +4,7 @@
  */
 (function registerFeedbackMessages() {
   const F = {
-    validationStep: "Complete los campos obligatorios del paso actual.",
+    validationStep: "Revise los campos marcados en rojo y corrija la información antes de continuar.",
     authLoginLock: (secs) =>
       `Demasiados intentos fallidos. Espere ${secs} segundos e inténtelo de nuevo.`,
     authProfileLoadFailed:

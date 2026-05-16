@@ -240,9 +240,9 @@
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Ventanas de servicio</legend>
       <div class="form-section-grid datetime-group">
-        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
       </div>
     </fieldset>
@@ -260,8 +260,8 @@
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.user} Contacto en sitio</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
-        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
+        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
       </div>
     </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>

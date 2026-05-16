@@ -689,6 +689,7 @@ function openEditModal({
       devWarn("openEditModal afterMount", err);
     }
   }
+  window.AntaresValidation?.decorateFormFields?.(formEl);
   scrollIntoViewSmoothBlockStart(formEl);
   scrollOpenCrudModalIntoView();
   /**
@@ -10507,9 +10508,9 @@ function requestFormHtml() {
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Ventanas de servicio</legend>
       <div class="form-section-grid datetime-group">
-        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
       </div>
     </fieldset>
@@ -10527,8 +10528,8 @@ function requestFormHtml() {
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.user} Contacto en sitio</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required /></label>
-        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required /></label>
+        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
       </div>
     </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
@@ -10700,7 +10701,7 @@ function vehiclesHtml() {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.truck} Identificación del vehículo</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" /></label>
+        <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" data-antares-restrict="alnum-doc" maxlength="6" /></label>
         <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required placeholder="Ej: Kenworth, Chevrolet, Hino" /></label>
         <label>${fieldLabel(IC.grid, "Línea / Modelo")}<input name="model" required placeholder="Ej: T800, NPR" /></label>
         <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej: ${new Date().getFullYear()}" /></label>
@@ -10718,7 +10719,7 @@ function vehiclesHtml() {
         <label>${fieldLabel(IC.fuel, "Tipo de combustible")}<select name="fuelType" required>${fuelTypeOptions}</select></label>
         <label>${fieldLabel(IC.layers, "Configuración de ejes")}<select name="axleConfig" required>${axleOptions}</select></label>
         <label>${fieldLabel(IC.hash, "Número de motor")}<input name="engineNumber" required placeholder="Ej: 6BT5.9" /></label>
-        <label>${fieldLabel(IC.hash, "Número de chasis (VIN)")}<input name="vin" required maxlength="17" minlength="11" placeholder="17 caracteres" style="text-transform:uppercase" /></label>
+        <label>${fieldLabel(IC.hash, "Número de chasis (VIN)")}<input name="vin" required maxlength="17" minlength="11" placeholder="17 caracteres" style="text-transform:uppercase" data-antares-restrict="alnum-doc" /></label>
       </div>
     </fieldset>
 
@@ -11791,7 +11792,7 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Datos personales</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej.: Laura Castañeda" /></label>
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Ej.: Laura Castañeda" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" name="email" required placeholder="correo@empresa.com" /></label>
         <label class="full">${fieldLabel(IC.lock, "Contraseña")}
           <div class="password-field auth-password-row">
@@ -12057,7 +12058,7 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.user} Nombre y datos del registro</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(getPortalUserDisplayName(editingUser))}" required autocomplete="name" /></label>
+        <label class="full">${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(getPortalUserDisplayName(editingUser))}" required autocomplete="name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" value="${escapeAttr(String(editingUser.firstName ?? ""))}" autocomplete="given-name" /></label>
         <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" value="${escapeAttr(String(editingUser.middleName ?? ""))}" autocomplete="additional-name" /></label>
         <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" value="${escapeAttr(String(editingUser.lastName ?? ""))}" autocomplete="family-name" /></label>
@@ -13623,10 +13624,10 @@ function payrollHtml() {
             <p class="muted hr-employee-avatar-caption">JPG o PNG, opcional. Pulse el círculo para elegir archivo.</p>
           </div>
         </div>
-        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" /></label>
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeOptions}</select></label>
-        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" /></label>
+        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.users, "Género")}<select name="gender">${genderOpts}</select></label>
         <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
@@ -13647,10 +13648,10 @@ function payrollHtml() {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
-        <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" /></label>
-        <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
+        <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." /></label>
       </div>
     </fieldset>
@@ -13678,7 +13679,7 @@ function payrollHtml() {
           </div>
         </div>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
         <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
         <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" /></label>
@@ -14436,12 +14437,12 @@ function hiringHtml() {
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.user} Datos personales del candidato</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required /></label>
-        <label>${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" required /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" /></label>
+        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeCand}</select></label>
-        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required /></label>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required /></label>
+        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required /></label>
@@ -15022,7 +15023,7 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-blue full">
         <legend>${IC.user} Información personal</legend>
         <div class="form-section-grid">
-          <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(displayName)}" required /></label>
+          <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(displayName)}" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
           <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
           <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType">
             <option value="CC" ${user.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
@@ -15030,17 +15031,17 @@ function profileHtml(user) {
             <option value="NIT" ${user.documentType === "NIT" ? "selected" : ""}>NIT</option>
             <option value="PAS" ${user.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
           </select></label>
-          <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" /></label>
-          <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${user.birthDate || ""}" /></label>
-          <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" /></label>
+          <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+          <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${user.birthDate || ""}" data-antares-validate-blur="date-iso" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         </div>
       </fieldset>
 
       <fieldset class="form-section form-section-cyan full">
         <legend>${IC.heart} Contacto de emergencia</legend>
         <div class="form-section-grid">
-          <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${user.emergencyContact || ""}" placeholder="Nombre completo" /></label>
-          <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${user.emergencyPhone || ""}" placeholder="Ej: 3001234567" /></label>
+          <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${user.emergencyContact || ""}" placeholder="Nombre completo" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${user.emergencyPhone || ""}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
           <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${escapeAttr(user.emergencyRelationship || user.emergencyRelation || "")}" placeholder="Cónyuge, padre..." /></label>
         </div>
       </fieldset>
