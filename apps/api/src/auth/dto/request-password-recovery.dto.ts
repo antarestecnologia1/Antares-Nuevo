@@ -1,6 +1,8 @@
+import { Transform } from "class-transformer";
 import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
 export class RequestPasswordRecoveryDto {
+  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "").trim().toLowerCase() : value))
   @IsEmail({}, { message: "Indique un correo electrónico válido." })
   @MinLength(3)
   @MaxLength(320)

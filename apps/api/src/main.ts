@@ -4,6 +4,7 @@ import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import type { NextFunction, Request, Response } from "express";
+import { antaresValidationExceptionFactory } from "./common/validation/validation-exception.factory";
 import { AppModule } from "./app.module";
 
 function buildCorsOriginHandler(config: ConfigService) {
@@ -90,7 +91,8 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true
+      forbidNonWhitelisted: true,
+      exceptionFactory: antaresValidationExceptionFactory
     })
   );
   const port = Number(process.env.PORT || 4000);

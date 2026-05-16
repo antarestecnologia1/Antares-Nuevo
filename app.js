@@ -492,13 +492,13 @@ function renderEditModalFieldRow(f, fieldIdx) {
     const labelWrap = f.labelHtml
       ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
       : `<span>${labelInner}</span>`;
-    return `<label${editModalLabelClassAttr(f)}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}>${options}</select></label>`;
+    return `<label${editModalLabelClassAttr(f)}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}${editModalAntaresAttrString(f)}>${options}</select></label>`;
   }
   if (f.type === "hidden") {
     return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
   }
   if (f.type === "textarea") {
-    return `<label${editModalLabelClassAttr({ ...f, full: true })}><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}>${escapeHtml(f.value ?? "")}</textarea></label>`;
+    return `<label${editModalLabelClassAttr({ ...f, full: true })}><span>${escapeHtml(f.label)}</span><textarea name="${escapeAttr(f.name)}" rows="${f.rows || 3}" ${f.required ? "required" : ""}${editModalAntaresAttrString(f)}>${escapeHtml(f.value ?? "")}</textarea></label>`;
   }
   if (f.type === "file") {
     return `<label${editModalLabelClassAttr({ ...f, full: true })}><span>${escapeHtml(f.label)}</span><input type="file" name="${escapeAttr(f.name)}" ${f.accept ? `accept="${escapeAttr(f.accept)}"` : ""} ${f.multiple ? "multiple" : ""} ${f.required ? "required" : ""} /></label>`;
@@ -520,7 +520,7 @@ function renderEditModalFieldRow(f, fieldIdx) {
     ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
     : `<span>${labelInner}</span>`;
   const fullCls = f.full ? "full" : "";
-  return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""} /></label>`;
+  return `<label${fullCls ? ` class="${fullCls}"` : ""}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
 }
 
 /**
@@ -4241,6 +4241,11 @@ function syncPhoneHiddenFull(form, presetKey) {
 }
 
 function clearFieldError(field) {
+  const V = window.AntaresValidation;
+  if (V && typeof V.clearFieldError === "function") {
+    V.clearFieldError(field);
+    return;
+  }
   if (!field) return;
   field.classList.remove("field-invalid");
   const label = field.closest("label");
@@ -4249,6 +4254,11 @@ function clearFieldError(field) {
 }
 
 function setFieldError(field, message) {
+  const V = window.AntaresValidation;
+  if (V && typeof V.setFieldError === "function") {
+    V.setFieldError(field, message);
+    return;
+  }
   if (!field) return;
   const label = field.closest("label");
   if (!label) return;
@@ -23699,8 +23709,7 @@ function openPublicVacancyApplyModal(vacancy) {
 /** Cobertura pública: GET /api/public/transport-request-coverage-stats (sin JWT). */
 let publicCoverageStatsView = null;
 
-/** Ciudades fijas en «Rutas principales» (cobertura pública); no dependen de la API. */
-const COVERAGE_PRINCIPAL_HUBS_ES = [
+const COVERAGE_FALLBACK_HUBS_ES = [
   "Santa Marta",
   "Barranquilla",
   "Cartagena",
@@ -23796,7 +23805,7 @@ function renderPublicCoverageFromView() {
   const view = publicCoverageStatsView;
   if (!view || view.kind === "fallback") {
     hubGrid.innerHTML = renderPublicCoverageHubGrid(
-      COVERAGE_PRINCIPAL_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
+      COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
       false
     );
     corridorGrid.innerHTML = renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
@@ -23820,13 +23829,16 @@ function renderPublicCoverageFromView() {
   const total = Number(data?.totalRequestsAnalyzed) || 0;
   const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
   const topCorridors = Array.isArray(data?.topCorridors) ? data.topCorridors : [];
+
   const hubsOk = topHubs.length > 0;
   const corOk = topCorridors.length > 0;
 
-  hubGrid.innerHTML = renderPublicCoverageHubGrid(
-    COVERAGE_PRINCIPAL_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
-    false
-  );
+  hubGrid.innerHTML = hubsOk
+    ? renderPublicCoverageHubGrid(topHubs, true)
+    : renderPublicCoverageHubGrid(
+        COVERAGE_FALLBACK_HUBS_ES.map((city) => ({ city, department: null, requestCount: null })),
+        false
+      );
 
   corridorGrid.innerHTML = corOk
     ? renderPublicCoverageCorridorGrid(topCorridors, true)

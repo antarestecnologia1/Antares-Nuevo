@@ -758,19 +758,41 @@
                 <div class="form-grid contact-form-premium">
                   <label>
                     <span>Nombre</span>
-                    <input name="name" placeholder="Ej. Laura Castaneda" required />
+                    <input
+                      name="name"
+                      placeholder="Ej. Laura Castaneda"
+                      required
+                      data-antares-restrict="person-name"
+                      data-antares-validate-blur="person-name"
+                      data-antares-field="person-name"
+                      autocomplete="name"
+                    />
                   </label>
                   <label>
                     <span>Empresa</span>
-                    <input name="company" placeholder="Ej. FloraExport SAS" required />
+                    <input name="company" placeholder="Ej. FloraExport SAS" required data-antares-max="255" />
                   </label>
                   <label>
                     <span>NIT/RUT</span>
-                    <input name="taxId" placeholder="Ej. 900123456-7" required />
+                    <input
+                      name="taxId"
+                      placeholder="Ej. 900123456-7"
+                      required
+                      data-antares-restrict="alnum-doc"
+                      data-antares-field="nit"
+                      autocomplete="off"
+                    />
                   </label>
                   <label>
                     <span>Cargo</span>
-                    <input name="position" placeholder="Ej. Directora de Operaciones" required />
+                    <input
+                      name="position"
+                      placeholder="Ej. Directora de Operaciones"
+                      required
+                      data-antares-restrict="person-name"
+                      data-antares-validate-blur="person-name"
+                      data-antares-field="person-name"
+                    />
                   </label>
                   <label class="phone-field-b2b">
                     <span>Telefono</span>
@@ -795,7 +817,15 @@
                   </label>
                   <label>
                     <span>Correo</span>
-                    <input name="email" type="email" placeholder="nombre@empresa.com" required />
+                    <input
+                      name="email"
+                      type="email"
+                      placeholder="nombre@empresa.com"
+                      required
+                      data-antares-validate-blur="email"
+                      data-antares-restrict="email-local"
+                      autocomplete="email"
+                    />
                   </label>
                 </div>
               </div>
@@ -845,7 +875,13 @@
                 <div class="form-grid contact-form-premium">
                   <label class="full">
                     <span>Mensaje</span>
-                    <textarea name="message" rows="6" placeholder="Cuéntanos origen/destino, volumen aproximado, frecuencia y ventana de entrega." required></textarea>
+                    <textarea
+                      name="message"
+                      rows="6"
+                      placeholder="Cuéntanos origen/destino, volumen aproximado, frecuencia y ventana de entrega."
+                      required
+                      data-antares-max="8000"
+                    ></textarea>
                   </label>
                   <div class="full contact-submit-wrap">
                     <small class="muted">Al enviar, un asesor B2B te contactará para validar requerimientos técnicos y comerciales.</small>
@@ -1136,6 +1172,7 @@
     <script defer src="./config/antares.public.js?v=20260507-render-only"></script>
     <script defer src="./config/supabase.public.js?v=20260503-1"></script>
     <script defer src="./modules/core/runtime-security.js?v=20260503-runtime-sec"></script>
+    <script defer src="./modules/core/validation.js?v=20260516-validation-core"></script>
     <script defer src="./modules/core/persistence.js"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

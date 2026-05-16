@@ -353,9 +353,15 @@
   }
 
   function inferHtmlValidation(el, form) {
-    const tag = el.tagName;
     const type = String(el.type || "").toLowerCase();
     const raw = String(el.value ?? "").trim();
+    const maxLenAttr = el.getAttribute("data-antares-max");
+    if (maxLenAttr && raw) {
+      const m = Number(maxLenAttr);
+      if (Number.isFinite(m) && raw.length > m) {
+        return { ok: false, message: MSG.maxLen(m), patchValue: undefined };
+      }
+    }
     if (el.required && !raw && type !== "number") {
       return { ok: false, message: MSG.required, patchValue: undefined };
     }
@@ -383,13 +389,6 @@
     if (type === "tel" && raw && !el.matches(".js-b2b-phone-national, .js-register-phone-national")) {
       const d = raw.replace(/\D/g, "");
       if (d.length < 7 || d.length > 15) return { ok: false, message: MSG.phoneLoose, patchValue: undefined };
-    }
-    const maxLen = el.getAttribute("data-antares-max");
-    if (maxLen && raw) {
-      const m = Number(maxLen);
-      if (Number.isFinite(m) && raw.length > m) {
-        return { ok: false, message: MSG.maxLen(m), patchValue: undefined };
-      }
     }
     return { ok: true, message: "", patchValue: undefined };
   }

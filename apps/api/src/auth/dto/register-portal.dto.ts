@@ -1,19 +1,24 @@
 import { Transform } from "class-transformer";
-import { IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, MaxLength, MinLength } from "class-validator";
+import { IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, Matches, MaxLength, MinLength } from "class-validator";
+import { TransformStripNulTrim } from "../../common/transformers/strip-nul-trim.transform";
 
 /** Cadenas vacías del JSON → undefined (class-validator trata "" como valor presente). */
 function emptyToUndefined({ value }: { value: unknown }) {
   if (value === "" || value === null) return undefined;
+  if (typeof value === "string") {
+    const t = value.replace(/\u0000/g, "").trim();
+    return t === "" ? undefined : t;
+  }
   return value;
 }
 
 /** Registro cliente (#form-register) → tabla usuarios. */
 export class RegisterPortalDto {
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   firstName!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   lastName!: string;
 
@@ -25,15 +30,15 @@ export class RegisterPortalDto {
   @IsOptional()
   middleName?: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   personType!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   documentType!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   taxId!: string;
 
@@ -51,39 +56,40 @@ export class RegisterPortalDto {
   @MaxLength(8)
   personalDocumentType?: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha de nacimiento debe tener formato AAAA-MM-DD." })
   birthDate!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   gender!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   position!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   workArea!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   phone!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   department!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   city!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @TransformStripNulTrim()
   @IsNotEmpty()
   address!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? String(value).trim().toLowerCase() : value))
+  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "").trim().toLowerCase() : value))
   @IsEmail()
   email!: string;
 
@@ -91,6 +97,7 @@ export class RegisterPortalDto {
   @IsIn(["cliente", "empleado_interno"])
   registrationKind!: "cliente" | "empleado_interno";
 
+  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "") : value))
   @MinLength(10)
   password!: string;
 
