@@ -136,6 +136,146 @@
     return s;
   }
 
+  const FORM_GUARD_SELECTOR =
+    "form.p-form, form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, #b2b-form";
+
+  /** Nombres de campo → reglas Antares (solo si el input aún no tiene `data-antares-field`). */
+  const FIELD_NAME_RULES = [
+    { re: /^email$/i, attrs: { field: "email", blur: "email", restrict: "email-local" } },
+    {
+      re: /^(firstName|lastName|middleName|secondLastName|legalRep|contactName|siteContactName|emergencyContact|emergencyRelation)$/i,
+      attrs: { field: "person-name", blur: "person-name", restrict: "person-name" }
+    },
+    { re: /^name$/i, attrs: { field: "person-name", blur: "person-name", restrict: "person-name" } },
+    { re: /^(taxId|idDoc)$/i, attrs: { field: "doc", restrict: "alnum-doc" } },
+    { re: /^(companyNit|nit)$/i, attrs: { field: "nit", restrict: "alnum-doc" } },
+    { re: /^personalTaxId$/i, attrs: { field: "doc", restrict: "alnum-doc" } },
+    {
+      re: /phone/i,
+      attrs: { blur: "phone-loose", restrict: "digits" },
+      skip: (el) => el.matches(".js-b2b-phone-national, .js-register-phone-national")
+    },
+    {
+      re: /(Salary|salary|Cost|cost|Cop|cop|Amount|amount|Price|price|Value|value|Reimbursement|Allowance|allowance|bonus|Bonus|indemnization|cesantias|prima|vacaciones|otrosSettlement|tripValue|tripRate|totalCost|fuelReimbursement|baseSalary|liters|odometerKm|weightKg|capacityKg|fuelles|openings|experienceYears|expectedSalary|salaryOffer|extras|aux|primaServicios|interesesCesantias|vacationDays|days360|primaProp)/,
+      attrs: { blur: "decimal", restrict: "decimal" }
+    },
+    { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
+    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|endDate|deadline|when|soat|techInspection|rcPolicy)/i, attrs: { blur: "date-iso" } }
+  ];
+
+  function applyFieldRuleAttrs(el, attrs) {
+    if (!el || !attrs) return;
+    if (attrs.field && !el.getAttribute("data-antares-field")) el.setAttribute("data-antares-field", attrs.field);
+    if (attrs.blur && !el.getAttribute("data-antares-validate-blur")) el.setAttribute("data-antares-validate-blur", attrs.blur);
+    if (attrs.restrict && !el.getAttribute("data-antares-restrict")) el.setAttribute("data-antares-restrict", attrs.restrict);
+    if (attrs.max != null && !el.getAttribute("data-antares-max")) el.setAttribute("data-antares-max", String(attrs.max));
+  }
+
+  function resolveFieldRules(name, el) {
+    const n = String(name || "");
+    for (const rule of FIELD_NAME_RULES) {
+      if (rule.skip && rule.skip(el)) continue;
+      if (rule.re.test(n)) return rule.attrs;
+    }
+    const type = String(el.type || "").toLowerCase();
+    if (type === "email") return { field: "email", blur: "email", restrict: "email-local" };
+    if (type === "date") return { blur: "date-iso" };
+    if (type === "number") return { blur: "decimal", restrict: "decimal" };
+    return null;
+  }
+
+  function isInsideHiddenSection(el, form) {
+    let node = el.parentElement;
+    while (node && node !== form) {
+      if (node.hidden) return true;
+      if (node.id === "register-doc-persona" && node.classList.contains("hidden")) return true;
+      if (node.id === "register-doc-empresa" && node.classList.contains("hidden")) return true;
+      if (node.id === "emp-illness-detail-label" && node.classList.contains("hidden")) return true;
+      if (node.id === "emp-contract-duration-block" && (node.hidden || node.classList.contains("hidden"))) return true;
+      if (node.classList?.contains("request-truck-field") && node.hidden) return true;
+      if (node.classList?.contains("hidden") && !node.classList?.contains("hr-form-step")) return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function shouldValidateField(el, form) {
+    if (!el || el.disabled || el.readOnly) return false;
+    if (el.closest("[data-antares-skip-validate]")) return false;
+    if (el.matches(".js-b2b-phone-national, .js-register-phone-national")) return false;
+    if (el.type === "hidden" && el.name === "phone") return false;
+    if (el.type === "hidden" || el.type === "file" || el.type === "checkbox" || el.type === "radio") return false;
+    if (isInsideHiddenSection(el, form)) return false;
+    return true;
+  }
+
+  function decorateFormFields(form) {
+    if (!form || typeof form.querySelectorAll !== "function") return;
+    const fields = form.querySelectorAll("input, select, textarea");
+    fields.forEach((el) => {
+      if (!el.name && !el.id) return;
+      const name = el.name || el.id;
+      if (name === "company" || name === "position" || name === "workArea" || name === "cargoDescription") {
+        if (!el.getAttribute("data-antares-max")) el.setAttribute("data-antares-max", name === "cargoDescription" ? "500" : "255");
+        return;
+      }
+      if (name === "address" || name === "originAddress" || name === "destinationAddress" || name === "notes" || name === "message") {
+        if (!el.getAttribute("data-antares-max")) {
+          el.setAttribute("data-antares-max", name === "message" ? "8000" : name === "notes" ? "2000" : "500");
+        }
+        return;
+      }
+      const rules = resolveFieldRules(name, el);
+      if (rules) applyFieldRuleAttrs(el, rules);
+      if (el.tagName === "SELECT" && el.required && !el.getAttribute("data-antares-validate-blur")) {
+        el.setAttribute("data-antares-validate-blur", "required-select");
+      }
+    });
+    form.setAttribute("data-antares-decorated", "1");
+  }
+
+  function prepareFormsInRoot(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll(FORM_GUARD_SELECTOR).forEach((form) => decorateFormFields(form));
+  }
+
+  let submitGuardInstalled = false;
+
+  function installFormSubmitGuard(root, options) {
+    const rootEl = root && root.addEventListener ? root : document;
+    if (submitGuardInstalled && rootEl === document) return;
+    if (rootEl === document) submitGuardInstalled = true;
+    const onInvalid =
+      typeof options?.onInvalid === "function"
+        ? options.onInvalid
+        : (form, firstInvalid) => {
+            try {
+              firstInvalid?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+            } catch (_e) {
+              /* noop */
+            }
+            firstInvalid?.focus?.();
+          };
+
+    rootEl.addEventListener(
+      "submit",
+      (ev) => {
+        const form = ev.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        if (form.getAttribute("data-antares-no-guard") === "1") return;
+        if (!form.matches(FORM_GUARD_SELECTOR)) return;
+        decorateFormFields(form);
+        const result = validateDomForm(form);
+        if (!result.ok) {
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+          onInvalid(form, result.firstInvalid);
+        }
+      },
+      true
+    );
+  }
+
   function findFieldErrorMount(field) {
     if (!field) return null;
     return (
@@ -407,12 +547,15 @@
       "input:not([type=hidden]):not([type=button]):not([type=submit]):not([type=reset]):not([type=file]):not([type=checkbox]):not([type=radio]), select, textarea";
     const fields = [...form.querySelectorAll(selector)];
     for (const el of fields) {
-      if (el.disabled) continue;
-      if (el.closest("[data-antares-skip-validate]")) continue;
-      if (el.matches(".js-b2b-phone-national, .js-register-phone-national")) continue;
-      if (el.type === "hidden" && el.name === "phone") continue;
+      if (!shouldValidateField(el, form)) continue;
 
       clearFieldError(el);
+
+      if (el.tagName === "SELECT" && el.required && !String(el.value || "").trim()) {
+        setFieldError(el, MSG.required);
+        if (!firstInvalid) firstInvalid = el;
+        continue;
+      }
 
       const blurCheck = el.getAttribute("data-antares-validate-blur");
       if (blurCheck && !runBlurValidation(el, blurCheck)) {
@@ -607,6 +750,11 @@
         if (!t || !t.getAttribute) return;
         const check = t.getAttribute("data-antares-validate-blur");
         if (!check) return;
+        if (check === "required-select") {
+          if (t.required && !String(t.value || "").trim()) setFieldError(t, MSG.required);
+          else clearFieldError(t);
+          return;
+        }
         runBlurValidation(t, check);
       },
       true
@@ -629,6 +777,9 @@
     validateB2bProspectClient,
     validateProfileForm,
     validateDomForm,
+    decorateFormFields,
+    prepareFormsInRoot,
+    installFormSubmitGuard,
     installLiveValidation,
     applyRestrictToValue
   };

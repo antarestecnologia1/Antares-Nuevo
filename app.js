@@ -192,30 +192,6 @@ function hrWorkspaceTabIcon(iconKey) {
   return `<span class="hr-workspace-tab-ico" aria-hidden="true">${svg}</span>`;
 }
 
-function hrModuleOverviewGuide(variant) {
-  const cls = variant === "payroll" ? "hr-overview-guide--payroll" : "hr-overview-guide--hiring";
-  if (variant === "payroll") {
-    return `<aside class="hr-overview-guide ${cls}" role="note">
-      <p class="hr-overview-guide-kicker">¿Qué puedes hacer aquí?</p>
-      <p class="hr-overview-guide-lead">Administra a tus empleados, calcula la nómina cada mes y registra ausencias o incapacidades. Usa las pestañas de arriba para moverte por las tres áreas:</p>
-      <ol class="hr-overview-guide-steps">
-        <li><span class="hr-overview-guide-step-num">1</span><div><strong>Inicio</strong> — bienvenida, resumen general y accesos rápidos.</div></li>
-        <li><span class="hr-overview-guide-step-num">2</span><div><strong>Nuevos registros</strong> — agrega empleados, calcula la nómina o registra ausencias.</div></li>
-        <li><span class="hr-overview-guide-step-num">3</span><div><strong>Información y reportes</strong> — consulta listas, filtros e historial. Exporta a CSV cuando lo necesites.</div></li>
-      </ol>
-    </aside>`;
-  }
-  return `<aside class="hr-overview-guide ${cls}" role="note">
-      <p class="hr-overview-guide-kicker">¿Qué puedes hacer aquí?</p>
-      <p class="hr-overview-guide-lead">Sigue el proceso completo de contratación: del cargo a la vacante, del candidato al contrato. Usa las pestañas de arriba para moverte por las tres áreas:</p>
-      <ol class="hr-overview-guide-steps">
-        <li><span class="hr-overview-guide-step-num">1</span><div><strong>Inicio</strong> — bienvenida, métricas del proceso y accesos rápidos.</div></li>
-        <li><span class="hr-overview-guide-step-num">2</span><div><strong>Proceso</strong> — define cargos, publica vacantes, evalúa candidatos y genera contratos.</div></li>
-        <li><span class="hr-overview-guide-step-num">3</span><div><strong>Seguimiento del proceso</strong> — alertas de plazos, candidatos en proceso, vacantes activas, entrevistas y contratos. Cada tabla a ancho completo para leerla sin deslizamientos.</div></li>
-      </ol>
-    </aside>`;
-}
-
 function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs }) {
   const safeModule = escapeAttr(module);
   const safeAria = escapeAttr(ariaLabel);
@@ -740,6 +716,16 @@ function openEditModal({
       }
     };
     const currentForm = event.currentTarget;
+    const V = window.AntaresValidation;
+    if (V && typeof V.validateDomForm === "function") {
+      const domVal = V.validateDomForm(currentForm);
+      if (!domVal.ok) {
+        domVal.firstInvalid?.focus?.();
+        notify(userMessage("validationStep"), "error");
+        releaseLock();
+        return;
+      }
+    }
     const payload = Object.fromEntries(new FormData(currentForm).entries());
     const fileInputs = [...currentForm.querySelectorAll("input[type='file']")];
     fileInputs.forEach((input) => {
@@ -2726,13 +2712,13 @@ let state = {
   },
   payrollUi: {
     runSort: "recent",
-    workspace: "overview"
+    workspace: "operate"
   },
   hiringUi: {
     candidateFilter: "active",
     vacancyFilter: "open",
     candidateSort: "recent",
-    workspace: "overview"
+    workspace: "operate"
   },
   registrationSuccessBanner: null,
   contactLeadsLoading: false,
@@ -2794,18 +2780,30 @@ const CLIENT_DATA_SCOPE = {
   COMPANY: "company",
   INDIVIDUAL: "individual"
 };
-const HR_VALID_PAYROLL_WS = new Set(["overview", "operate", "data"]);
-const HR_VALID_HIRING_WS = new Set(["overview", "operate", "track"]);
+const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
+const HR_VALID_HIRING_WS = new Set(["operate", "track"]);
+
+function normalizeHrWorkspace(moduleId, workspace) {
+  const ws = String(workspace || "");
+  if (ws === "overview") return "operate";
+  if (moduleId === "payroll") return HR_VALID_PAYROLL_WS.has(ws) ? ws : "operate";
+  if (moduleId === "hiring") return HR_VALID_HIRING_WS.has(ws) ? ws : "operate";
+  return ws;
+}
 
 function hydrateHrWorkspaceFromStorage() {
   try {
     const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
-    if (p && HR_VALID_PAYROLL_WS.has(p)) {
-      state.payrollUi = { ...(state.payrollUi || {}), workspace: p };
+    if (p) {
+      const ws = normalizeHrWorkspace("payroll", p);
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
+      if (p !== ws) persistHrWorkspace("payroll", ws);
     }
-    if (h && HR_VALID_HIRING_WS.has(h)) {
-      state.hiringUi = { ...(state.hiringUi || {}), workspace: h };
+    if (h) {
+      const ws = normalizeHrWorkspace("hiring", h);
+      state.hiringUi = { ...(state.hiringUi || {}), workspace: ws };
+      if (h !== ws) persistHrWorkspace("hiring", ws);
     }
   } catch (_e) {}
 }
@@ -4392,12 +4390,20 @@ function initB2BFormExperience() {
   const validateStep = (index) => {
     const pane = panes[index];
     if (!pane) return true;
+    const V = window.AntaresValidation;
+    if (V && typeof V.validateDomForm === "function") {
+      const domVal = V.validateDomForm(pane);
+      if (!domVal.ok) {
+        domVal.firstInvalid?.focus?.();
+        return false;
+      }
+    }
     const requiredFields = [...pane.querySelectorAll("input[required], select[required], textarea[required]")];
     let firstInvalid = null;
     requiredFields.forEach((field) => {
       const value = String(field.value || "").trim();
       if (!value) {
-        setFieldError(field, "Este campo es obligatorio.");
+        setFieldError(field, V?.MSG?.required || "Este campo es obligatorio.");
         if (!firstInvalid) firstInvalid = field;
       }
     });
@@ -5487,6 +5493,7 @@ function refreshCreateTripModuleForm(formEl) {
 
   const needsTermoking = requestRequiresTermoking(request);
   const assignableByDate = isRequestPickupSameDayOrFuture(request);
+  void refreshTransportScheduleBusyFromApi(request, requestId);
   const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
   const driverCandidates = getDriverCandidatesForRequest(request, requestId);
   const vehicles = vehicleCandidates.filter(
@@ -7752,6 +7759,15 @@ function bindAuthForms() {
       try {
       syncPhoneHiddenFull(register, "register");
       const data = Object.fromEntries(new FormData(register).entries());
+      const Vreg = window.AntaresValidation;
+      if (Vreg && typeof Vreg.validateDomForm === "function") {
+        const domVal = Vreg.validateDomForm(register);
+        if (!domVal.ok) {
+          domVal.firstInvalid?.focus?.();
+          notify(userMessage("validationStep"), "error");
+          return;
+        }
+      }
       const fullName = [
         normalizeLatinUpperForDb(data.firstName),
         normalizeLatinUpperForDb(data.middleName),
@@ -8156,6 +8172,8 @@ function bindAuthForms() {
       }
     });
   }
+
+  window.AntaresValidation?.prepareFormsInRoot?.(document.getElementById("auth-content"));
 }
 
 function parseNum(v) {
@@ -8885,6 +8903,31 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
   }
 }
 
+/** Prefetch POST /portal/transport-schedule-busy y refresca selects al responder (modales + crear viaje). */
+function wireTripAssignmentScheduleBusyRefresh(formEl, request, requestId, needsTermoking) {
+  if (!formEl || !request) return;
+  const rid = String(requestId || request.id || "").trim();
+  formEl.dataset.scheduleBusyRequestId = rid;
+  const refreshUi = () => {
+    if (String(formEl.id || "") === "form-create-trip") {
+      refreshCreateTripModuleForm(formEl);
+      return;
+    }
+    rebuildTripAssignmentSelectOptions(formEl, request, rid, needsTermoking);
+  };
+  if (formEl._scheduleBusyHandler) {
+    document.removeEventListener("transport-schedule-busy-updated", formEl._scheduleBusyHandler);
+  }
+  const onBusy = (ev) => {
+    const d = ev?.detail || {};
+    if (String(d.requestId || "") !== rid) return;
+    refreshUi();
+  };
+  formEl._scheduleBusyHandler = onBusy;
+  document.addEventListener("transport-schedule-busy-updated", onBusy);
+  void refreshTransportScheduleBusyFromApi(request, rid).then(refreshUi);
+}
+
 function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestId = null, options = {}) {
   const requiresRefrigeration = Boolean(options.requiresRefrigeration);
   const reqForType = options.request && typeof options.request === "object" ? options.request : null;
@@ -9304,6 +9347,7 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
   const usedTripNumbers = new Set(
     requests.map((request) => String(request.trip?.tripNumber || "").trim()).filter(Boolean)
   );
+  invalidateTransportScheduleBusyCache();
   const trip = {
     id: newUuidV4(),
     tripNumber: makeTripNumber(usedTripNumbers),
@@ -10375,7 +10419,7 @@ function viewDashboard() {
     </div>
     <div class="dash-grid ops-dash-insights">
       ${pcardWrap("truck", "Por Termoking", `${list.length} solicitudes`, vehicleStats || emptyState("Sin datos aún"))}
-      ${pcardWrap("activity", "Por estado", "Distribución general", statusStats || emptyState("Sin solicitudes aún"))}
+      ${pcardWrapPro("activity", "Por estado", "Distribución general", statusStats || emptyState("Sin solicitudes aún"))}
       ${qualityCard}
     </div>
   </section>`;
@@ -11519,7 +11563,7 @@ function transportCalendarHtml() {
     </div>
     <div class="calendar-side-grid">
       ${pcardWrap("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
-      ${pcardWrap("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
+      ${pcardWrapPro("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
     </div>
   </section>`;
 
@@ -13435,9 +13479,9 @@ function payrollHtml() {
   const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
   const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
-  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "overview" };
+  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate" };
   const runSort = String(payrollUi.runSort || "recent");
-  const payrollWorkspace = String(payrollUi.workspace || "overview");
+  const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
@@ -13913,7 +13957,7 @@ function payrollHtml() {
         <h3>¿Qué deseas registrar?</h3>
         <p class="ops-block-lead muted">Selecciona la tarjeta correspondiente: agregar un empleado, calcular la nómina del mes o cargar una ausencia.</p>
       </header>
-      <div class="dash-grid payroll-actions-grid">${createCollapsibleCard("create-employee", "userPlus", "Agregar empleado", null, formEmp, "Guardar empleado")}${createCollapsibleCard("create-payroll", "dollar", "Calcular nómina del mes", null, formPay, "Generar liquidación")}${createCollapsibleCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones (orientativo Ley colombiana).", formPayrollSettlement, "Abrir liquidación")}${createCollapsibleCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", null, formAbsence, "Guardar ausencia")}</div>
+      <div class="dash-grid payroll-actions-grid hr-action-cards-grid">${createHrActionCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social.", formEmp, "Abrir formulario")}${createHrActionCard("create-payroll", "dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades.", formPay, "Calcular nómina")}${createHrActionCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones (orientativo Ley colombiana).", formPayrollSettlement, "Abrir liquidación")}${createHrActionCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica.", formAbsence, "Registrar ausencia")}</div>
     </section>`;
   const payrollDataBlock = `<section class="ops-block ops-block--payroll-data">
       <header class="ops-block-head">
@@ -13921,9 +13965,9 @@ function payrollHtml() {
         <p class="ops-block-lead muted">Listas de empleados, ausencias e historial de nóminas pagadas. Puedes filtrar por mes, empleado y estado.</p>
       </header>
       <div class="payroll-data-grid">
-        ${pcardWrap("user", "Lista de empleados", employees.length + " colaboradores" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
-        ${pcardWrap("activity", "Ausencias registradas", absences.length + " registros", absenceTable)}
-        ${pcardWrap("clock", "Nóminas pagadas", runs.length + " liquidaciones", runTable)}
+        ${pcardWrapPro("user", "Lista de empleados", employees.length + " colaboradores" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
+        ${pcardWrapPro("activity", "Ausencias registradas", absences.length + " registros", absenceTable)}
+        ${pcardWrapPro("clock", "Nóminas pagadas", runs.length + " liquidaciones", runTable)}
       </div>
     </section>`;
   const payrollFleetHero = moduleFleetHeroStrip(
@@ -13944,24 +13988,12 @@ function payrollHtml() {
     ariaLabel: "Secciones del módulo Personal y nómina",
     activeId: payrollWorkspace,
     tabs: [
-      { id: "overview", label: "Inicio", icon: "compass" },
-      { id: "operate", label: "Nuevos registros", icon: "userPlus" },
-      { id: "data", label: "Información y reportes", icon: "layers" }
+      { id: "operate", label: "Nuevos registros", icon: "userPlus", hint: "Altas y liquidaciones" },
+      { id: "data", label: "Información y reportes", icon: "layers", hint: "Listas, filtros y CSV" }
     ]
   });
-  const payrollWorkspaceJumps = `<div class="hr-workspace-jumps">
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="operate">${IC.userPlus} Crear nuevo registro</button>
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="payroll" data-tab="data">${IC.layers} Ver listas y reportes</button>
-    </div>`;
-  const payrollOverviewPanel = `<div class="hr-workspace-panel${payrollWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="overview">
-      ${payrollHead}
-      ${hrModuleOverviewGuide("payroll")}
-      <div class="hr-workspace-quicknav">
-        <p class="hr-workspace-quicknav-label">Atajos para empezar</p>
-        ${payrollWorkspaceJumps}
-      </div>
-    </div>`;
   const payrollOperatePanel = `<div class="hr-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
+      ${payrollHead}
       ${payrollActions}
       ${payrollExecutionBlock}
     </div>`;
@@ -13971,13 +14003,12 @@ function payrollHtml() {
           <h3>Buscar y filtrar</h3>
           <p class="ops-block-lead muted">Aplica filtros antes de exportar o revisar los datos del personal y los pagos.</p>
         </header>
-        ${pcardWrap("filter", "Filtros disponibles", null, filtersHtml)}
+        ${pcardWrapPro("filter", "Filtros disponibles", "Periodo, empleado y estado de pago", filtersHtml)}
       </section>
       ${payrollDataBlock}
     </div>`;
   return `<section class="payroll-shell payroll-shell--workspace hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollFleetHero}${payrollTabsNav}
       <div class="hr-workspace-panels">
-        ${payrollOverviewPanel}
         ${payrollOperatePanel}
         ${payrollDataPanel}
       </div>
@@ -14202,12 +14233,12 @@ function hiringHtml() {
     candidateFilter: "active",
     vacancyFilter: "open",
     candidateSort: "recent",
-    workspace: "overview"
+    workspace: "operate"
   };
   const candidateFilter = String(hiringUi.candidateFilter || "active");
   const vacancyFilter = String(hiringUi.vacancyFilter || "open");
   const candidateSort = String(hiringUi.candidateSort || "recent");
-  const hiringWorkspace = String(hiringUi.workspace || "overview");
+  const hiringWorkspace = normalizeHrWorkspace("hiring", hiringUi.workspace);
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
     return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -14607,7 +14638,7 @@ function hiringHtml() {
             <p class="hr-flow-step-lead muted">Define el cargo, abre la vacante y registra a los candidatos que se postulen.</p>
           </div>
         </div>
-        <div class="hiring-actions-grid hiring-actions-row--three">${createCollapsibleCard("create-position", "briefcase", "Definir cargo", null, fPosition, "Guardar cargo")}${createCollapsibleCard("create-vacancy", "plus", "Publicar vacante", null, fVac, "Publicar vacante")}${createCollapsibleCard("create-candidate", "userPlus", "Agregar candidato", null, fCand, "Guardar candidato")}</div>
+        <div class="hiring-actions-grid hiring-actions-row--three hr-action-cards-grid">${createHrActionCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida.", fPosition, "Definir cargo")}${createHrActionCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas.", fVac, "Publicar vacante")}${createHrActionCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline.", fCand, "Agregar candidato")}</div>
       </div>
       <div class="hr-flow-block hr-flow-block--step" data-flow-step="2">
         <div class="hr-flow-step-head">
@@ -14617,14 +14648,7 @@ function hiringHtml() {
             <p class="hr-flow-step-lead muted">Programa entrevistas y, cuando estés listo, genera el contrato en Word.</p>
           </div>
         </div>
-        <div class="hiring-actions-grid hiring-actions-row--two">${createCollapsibleCard(
-          "create-interview",
-          "calendar",
-          "Programar entrevista",
-          "Candidato en proceso, fecha y hora (calendario del navegador) y entrevistador.",
-          fInt,
-          "Agendar entrevista"
-        )}${createCollapsibleCard("create-contract", "file", "Generar contrato (Word)", null, fCon, "Generar contrato")}</div>
+        <div class="hiring-actions-grid hiring-actions-row--two hr-action-cards-grid">${createHrActionCard("create-interview", "calendar", "Programar entrevista", "Candidato en proceso, fecha, hora y entrevistador responsable.", fInt, "Agendar entrevista")}${createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana.", fCon, "Generar contrato")}</div>
       </div>
     </section>`;
   const hiringDataBlock = `<section class="ops-block ops-block--hiring-data">
@@ -14633,12 +14657,12 @@ function hiringHtml() {
         <p class="ops-block-lead muted">Aquí ves, de un vistazo, qué necesita atención hoy: alertas de plazos, candidatos en proceso, vacantes activas, entrevistas agendadas y contratos firmados. Cada bloque ocupa el ancho completo para que puedas leer las tablas sin tener que deslizarte de lado a lado.</p>
       </header>
       <div class="hiring-data-grid hiring-results-grid hiring-results-grid--stacked">
-        ${pcardWrap("activity", "Lo que necesita atención hoy", "Alertas y plazos clave", alertsBody)}
-        ${pcardWrap("users", "Candidatos en proceso", sortedCandidates.length + " personas en seguimiento", tCand)}
-        ${pcardWrap("briefcase", "Vacantes activas", filteredVacancies.length + " visibles para postular", tVac)}
-        ${pcardWrap("calendar", "Próximas entrevistas", interviews.length + " agendadas", tInt)}
-        ${pcardWrap("file", "Contratos firmados", contracts.length + " en el histórico", tCon)}
-        ${pcardWrap("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+        ${pcardWrapPro("activity", "Lo que necesita atención hoy", "Alertas y plazos clave", alertsBody)}
+        ${pcardWrapPro("users", "Candidatos en proceso", sortedCandidates.length + " personas en seguimiento", tCand)}
+        ${pcardWrapPro("briefcase", "Vacantes activas", filteredVacancies.length + " visibles para postular", tVac)}
+        ${pcardWrapPro("calendar", "Próximas entrevistas", interviews.length + " agendadas", tInt)}
+        ${pcardWrapPro("file", "Contratos firmados", contracts.length + " en el histórico", tCon)}
+        ${pcardWrapPro("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
       </div>
     </section>`;
   const hiringFleetHero = moduleFleetHeroStrip(
@@ -14659,24 +14683,12 @@ function hiringHtml() {
     ariaLabel: "Secciones del módulo Selección y contratación",
     activeId: hiringWorkspace,
     tabs: [
-      { id: "overview", label: "Inicio", icon: "compass" },
-      { id: "operate", label: "Proceso", icon: "briefcase" },
-      { id: "track", label: "Seguimiento del proceso", icon: "activity" }
+      { id: "operate", label: "Proceso", icon: "briefcase", hint: "Cargos, vacantes y contratos" },
+      { id: "track", label: "Seguimiento", icon: "activity", hint: "Alertas y tablas en vivo" }
     ]
   });
-  const hiringWorkspaceJumps = `<div class="hr-workspace-jumps">
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="operate">${IC.briefcase} Empezar contratación</button>
-      <button type="button" class="btn btn-primary hr-workspace-jump-btn" data-action="hr-workspace-tab" data-module="hiring" data-tab="track">${IC.activity} Ver estado y alertas</button>
-    </div>`;
-  const hiringOverviewPanel = `<div class="hr-workspace-panel${hiringWorkspace === "overview" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="overview">
-      ${hiringHead}
-      ${hrModuleOverviewGuide("hiring")}
-      <div class="hr-workspace-quicknav">
-        <p class="hr-workspace-quicknav-label">Atajos para empezar</p>
-        ${hiringWorkspaceJumps}
-      </div>
-    </div>`;
   const hiringOperatePanel = `<div class="hr-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
+      ${hiringHead}
       ${hiringActions}
       ${hiringExecutionBlock}
     </div>`;
@@ -14685,7 +14697,6 @@ function hiringHtml() {
     </div>`;
   return `<section class="hiring-shell hiring-shell--workspace hr-flow-shell hr-module-pro hr-module-pro--hiring" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringFleetHero}${hiringTabsNav}
       <div class="hr-workspace-panels">
-        ${hiringOverviewPanel}
         ${hiringOperatePanel}
         ${hiringTrackPanel}
       </div>
@@ -15527,6 +15538,14 @@ function enforceColombianFormStandards() {
     requestPrice.value = "0";
     requestPrice.setAttribute("readonly", "true");
     requestPrice.setAttribute("aria-readonly", "true");
+  }
+
+  const V = window.AntaresValidation;
+  if (V?.prepareFormsInRoot) {
+    if (nodes.viewRoot) V.prepareFormsInRoot(nodes.viewRoot);
+    const authContent = document.getElementById("auth-content");
+    if (authContent) V.prepareFormsInRoot(authContent);
+    if (nodes.b2bForm) V.decorateFormFields(nodes.b2bForm);
   }
 }
 
@@ -16488,13 +16507,15 @@ function bindDynamicEvents() {
       const moduleId = String(btn.dataset.module || "");
       if (!tab || !moduleId) return;
       if (moduleId === "payroll") {
-        if (!HR_VALID_PAYROLL_WS.has(tab)) return;
-        state.payrollUi = { ...(state.payrollUi || {}), workspace: tab };
-        persistHrWorkspace("payroll", tab);
+        const ws = normalizeHrWorkspace("payroll", tab);
+        if (!HR_VALID_PAYROLL_WS.has(ws)) return;
+        state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
+        persistHrWorkspace("payroll", ws);
       } else if (moduleId === "hiring") {
-        if (!HR_VALID_HIRING_WS.has(tab)) return;
-        state.hiringUi = { ...(state.hiringUi || {}), workspace: tab };
-        persistHrWorkspace("hiring", tab);
+        const ws = normalizeHrWorkspace("hiring", tab);
+        if (!HR_VALID_HIRING_WS.has(ws)) return;
+        state.hiringUi = { ...(state.hiringUi || {}), workspace: ws };
+        persistHrWorkspace("hiring", ws);
       }
       renderPortalView();
     });
@@ -18066,7 +18087,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-sort-runs']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.payrollUi = state.payrollUi || { runSort: "recent", workspace: "overview" };
+      state.payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate" };
       state.payrollUi.runSort = String(btn.dataset.sort || "recent");
       state.payrollUi.workspace = "data";
       persistHrWorkspace("payroll", "data");
@@ -18670,6 +18691,7 @@ function bindDynamicEvents() {
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) return;
       const needsTermoking = requestRequiresTermoking(request);
+      void refreshTransportScheduleBusyFromApi(request, requestId);
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
@@ -18684,6 +18706,7 @@ function bindDynamicEvents() {
         afterMount: (formEl) => {
           if (typeof tripRateUi.afterMount === "function") tripRateUi.afterMount(formEl);
           wireTripApprovalModeFields(formEl);
+          wireTripAssignmentScheduleBusyRefresh(formEl, request, requestId, needsTermoking);
         },
         fields: [
           {
@@ -18774,12 +18797,14 @@ function bindDynamicEvents() {
           },
           ...tripRateUi.fields.map((tf) => ({ ...tf, full: true }))
         ],
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const selectedMode = String(form.mode || "pending");
           const vehicleId = String(form.vehicleId || "").trim();
           const driverId = String(form.driverId || "").trim();
           const tripValue = parseNum(form.tripValue);
           const mode = vehicleId && driverId ? "assign_now" : selectedMode;
+          const schedPickup = requestSchedulingPickupIso(request);
+          const schedDelivery = requestSchedulingDeliveryIso(request);
           if (mode === "assign_now" && !isRequestPickupSameDayOrFuture(request)) {
             notify(userMessage("assignPastRequestDate"), "error");
             return false;
@@ -18791,6 +18816,23 @@ function bindDynamicEvents() {
           if (mode === "assign_now" && tripValue <= 0) {
             notify(userMessage("assignPriceRequired"), "error");
             return false;
+          }
+          if (mode === "assign_now") {
+            await refreshTransportScheduleBusyFromApi(request, requestId);
+            if (
+              notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehículo", (t) =>
+                String(t.vehicleId || "").trim() === vehicleId
+              )
+            ) {
+              return false;
+            }
+            if (
+              notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "conductor", (t) =>
+                String(t.driverId || "").trim() === driverId
+              )
+            ) {
+              return false;
+            }
           }
           if (mode === "assign_now" && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
             notify(userMessage("assignResourcesBusy"), "error");
@@ -18844,11 +18886,31 @@ function bindDynamicEvents() {
   if (createTripForm) {
     const selectReq = createTripForm.querySelector("select[name='requestId']");
     if (selectReq) {
-      selectReq.addEventListener("change", () => refreshCreateTripModuleForm(createTripForm));
+      selectReq.addEventListener("change", () => {
+        const rid = String(selectReq.value || "").trim();
+        const req = rid ? reqRead().find((r) => String(r.id) === rid) : null;
+        if (req) wireTripAssignmentScheduleBusyRefresh(createTripForm, req, rid, requestRequiresTermoking(req));
+        else refreshCreateTripModuleForm(createTripForm);
+      });
+      if (!createTripForm.dataset.scheduleBusyWired) {
+        createTripForm.dataset.scheduleBusyWired = "1";
+        const onBusy = (ev) => {
+          const form = document.getElementById("form-create-trip");
+          if (!form) return;
+          const rid = String(form.querySelector("select[name='requestId']")?.value || "").trim();
+          if (!rid || String(ev?.detail?.requestId || "") !== rid) return;
+          refreshCreateTripModuleForm(form);
+        };
+        createTripForm._scheduleBusyHandler = onBusy;
+        document.addEventListener("transport-schedule-busy-updated", onBusy);
+      }
       refreshCreateTripModuleForm(createTripForm);
+      const initRid = String(selectReq.value || "").trim();
+      const initReq = initRid ? reqRead().find((r) => String(r.id) === initRid) : null;
+      if (initReq) wireTripAssignmentScheduleBusyRefresh(createTripForm, initReq, initRid, requestRequiresTermoking(initReq));
     }
 
-    createTripForm.addEventListener("submit", (event) => {
+    createTripForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
@@ -18865,16 +18927,33 @@ function bindDynamicEvents() {
         notify(userMessage("assignPastRequestDate"), "error");
         return;
       }
+      await refreshTransportScheduleBusyFromApi(request, requestId);
       const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
       const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
       const vehicleId = String(data.vehicleId || "").trim();
       const driverId = String(data.driverId || "").trim();
-      if (!compatibleVehicles.length || !compatibleDrivers.length) {
-        notify(userMessage("tripAssignNoMatch"), "error");
-        return;
-      }
+      const schedPickup = requestSchedulingPickupIso(request);
+      const schedDelivery = requestSchedulingDeliveryIso(request);
       if (!vehicleId || !driverId) {
         notify(userMessage("assignSelectResources"), "error");
+        return;
+      }
+      if (
+        notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehículo", (t) =>
+          String(t.vehicleId || "").trim() === vehicleId
+        )
+      ) {
+        return;
+      }
+      if (
+        notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "conductor", (t) =>
+          String(t.driverId || "").trim() === driverId
+        )
+      ) {
+        return;
+      }
+      if (!compatibleVehicles.length || !compatibleDrivers.length) {
+        notify(userMessage("tripAssignNoMatch"), "error");
         return;
       }
       if (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId)) {
@@ -21283,7 +21362,7 @@ function bindDynamicEvents() {
         notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
         return;
       }
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = "open";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -21320,7 +21399,7 @@ function bindDynamicEvents() {
         notify(String(err?.message || "No fue posible guardar el cargo en el servidor."), "error");
         return;
       }
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
       collapseCreatePanel("create-position");
@@ -21418,7 +21497,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-active']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -21428,7 +21507,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "all";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -21438,7 +21517,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-open']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -21448,7 +21527,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-sort-candidates']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -21538,7 +21617,7 @@ function bindDynamicEvents() {
       try {
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
@@ -21640,7 +21719,7 @@ function bindDynamicEvents() {
       try {
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "track";
       persistHrWorkspace("hiring", "track");
       collapseCreatePanel("create-interview");
@@ -21794,7 +21873,7 @@ function bindDynamicEvents() {
         const deduped = dedupContracts(all);
         try {
           await writeAwaitServer(KEYS.contracts, deduped);
-          state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "overview" };
+          state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
           state.hiringUi.workspace = "track";
           persistHrWorkspace("hiring", "track");
           collapseCreatePanel("create-contract");
@@ -22085,6 +22164,7 @@ function bindDynamicEvents() {
         }
 
         const needsTermoking = requestRequiresTermoking(request);
+        void refreshTransportScheduleBusyFromApi(request, requestId);
         const compatibleVehicles = getCompatibleVehiclesForRequest(request, requestId);
         const compatibleDrivers = getCompatibleDriversForRequest(request, requestId);
         const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
@@ -22099,6 +22179,7 @@ function bindDynamicEvents() {
           submitText: "Aprobar",
           afterMount: (formEl) => {
             if (typeof tripRateUi.afterMount === "function") tripRateUi.afterMount(formEl);
+            wireTripAssignmentScheduleBusyRefresh(formEl, request, requestId, needsTermoking);
           },
           fields: [
             {
@@ -22160,6 +22241,8 @@ function bindDynamicEvents() {
             const vehicleId = String(form.vehicleId || "").trim();
             const driverId = String(form.driverId || "").trim();
             const tripValue = parseNum(form.tripValue);
+            const schedPickup = requestSchedulingPickupIso(request);
+            const schedDelivery = requestSchedulingDeliveryIso(request);
 
             if ((vehicleId && !driverId) || (!vehicleId && driverId)) {
               notify(userMessage("assignAutoPickResources"), "error");
@@ -22168,6 +22251,23 @@ function bindDynamicEvents() {
             if (vehicleId && driverId && tripValue <= 0) {
               notify(userMessage("assignPriceRequired"), "error");
               return false;
+            }
+            if (vehicleId && driverId) {
+              await refreshTransportScheduleBusyFromApi(request, requestId);
+              if (
+                notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehículo", (t) =>
+                  String(t.vehicleId || "").trim() === vehicleId
+                )
+              ) {
+                return false;
+              }
+              if (
+                notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "conductor", (t) =>
+                  String(t.driverId || "").trim() === driverId
+                )
+              ) {
+                return false;
+              }
             }
             if (vehicleId && driverId && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
               notify(userMessage("assignResourcesBusy"), "error");
@@ -22326,8 +22426,22 @@ function bindDynamicEvents() {
 }
 
 function initGlobalEvents() {
-  if (window.AntaresValidation?.installLiveValidation) {
-    window.AntaresValidation.installLiveValidation(document);
+  const V = window.AntaresValidation;
+  if (V?.installLiveValidation) {
+    V.installLiveValidation(document);
+  }
+  if (V?.installFormSubmitGuard) {
+    V.installFormSubmitGuard(document, {
+      onInvalid(_form, firstInvalid) {
+        try {
+          firstInvalid?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        } catch (_e) {
+          /* noop */
+        }
+        firstInvalid?.focus?.();
+        if (typeof notify === "function") notify(userMessage("validationStep"), "error");
+      }
+    });
   }
   document.addEventListener("click", (event) => {
     const target = event.target;

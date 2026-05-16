@@ -2047,11 +2047,8 @@ export class PortalService implements OnModuleInit {
          FROM viajes_transporte v
          JOIN solicitudes_transporte s ON s.id = v.id_solicitud
          WHERE s.estado::text = ANY($1::text[])
-           AND tstzrange(
-                 v.fecha_hora_recogida_programada,
-                 COALESCE(v.fecha_hora_entrega_programada, v.fecha_hora_recogida_programada + interval '1 minute'),
-                 '[)'
-               ) @> $2::timestamptz`,
+           AND v.fecha_hora_recogida_programada <= $2::timestamptz
+           AND ${PortalService.VIAJE_FIN_PROGRAMADO_SQL} > $2::timestamptz`,
         [activeStatuses, now.toISOString()]
       );
     } catch (err: any) {
@@ -3312,6 +3309,9 @@ export class PortalService implements OnModuleInit {
   /** Estados operativos donde el viaje sigue reservando vehículo/conductor (texto = enum en BD). */
   private static readonly SOLICITUD_ACTIVE_OVERLAP_STATUSES = ["Viaje asignado", "En transito", "Espera standby"];
 
+  /** Fin de franja programada (equivalente a tstzrange '[)' sin usar GiST en índices). */
+  private static readonly VIAJE_FIN_PROGRAMADO_SQL = `COALESCE(v.fecha_hora_entrega_programada, v.fecha_hora_recogida_programada + interval '1 minute')`;
+
   private stripDiacritics(input: string): string {
     return input.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   }
@@ -3356,7 +3356,7 @@ export class PortalService implements OnModuleInit {
   }
 
   /**
-   * POST /portal/transport-schedule-busy — una query con `tstzrange &&` (rápido vs N×flota en cliente).
+   * POST /portal/transport-schedule-busy — una query (solape por comparación; índices btree en 35_*).
    */
   async getTransportScheduleBusy(userId: string, role: JwtRole, dto: TransportScheduleBusyDto) {
     void userId;
@@ -3381,14 +3381,8 @@ export class PortalService implements OnModuleInit {
          INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
          WHERE s.estado::text = ANY($1::text[])
            AND ($2::uuid IS NULL OR v.id_solicitud <> $2::uuid)
-           AND tstzrange(
-                 v.fecha_hora_recogida_programada,
-                 COALESCE(
-                   v.fecha_hora_entrega_programada,
-                   v.fecha_hora_recogida_programada + interval '1 minute'
-                 ),
-                 '[)'
-               ) && tstzrange($3::timestamptz, $4::timestamptz, '[)')`,
+           AND v.fecha_hora_recogida_programada < $4::timestamptz
+           AND ${PortalService.VIAJE_FIN_PROGRAMADO_SQL} > $3::timestamptz`,
         [statuses, excludeId, pickup.toISOString(), delivery.toISOString()]
       );
       const busyVehicleIds = new Set<string>();

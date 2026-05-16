@@ -2687,7 +2687,9 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
 .dash-grid > .p-card,
 .hiring-actions-grid > .p-card,
 .hiring-data-grid > .p-card,
-.payroll-actions-grid > .p-card {
+.payroll-actions-grid > .p-card,
+.payroll-actions-grid > .hr-action-card,
+.hiring-actions-grid > .hr-action-card {
   margin-top: 0;
 }
 
@@ -10415,6 +10417,28 @@ body[data-theme="dark"] tr[data-payroll-state="paid"] {
 
 .hr-workspace-tab-hint {
   display: none;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.82;
+  line-height: 1.25;
+}
+
+@media (min-width: 720px) {
+  .hr-workspace-tab--pro .hr-workspace-tab-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.08rem;
+  }
+
+  .hr-workspace-tab--pro .hr-workspace-tab-hint {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .hr-workspace-tab--pro.is-active .hr-workspace-tab-hint {
+    opacity: 0.9;
+  }
 }
 
 .hr-workspace-tabs--pro {
@@ -10926,16 +10950,16 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   transition: padding 0.2s ease, opacity 0.2s ease;
 }
 
-.hr-flow-shell:not([data-hr-workspace="overview"]) .fleet-hero-strip {
+.hr-flow-shell .fleet-hero-strip {
   padding: 0.4rem 0.55rem;
   opacity: 0.96;
 }
 
-.hr-flow-shell:not([data-hr-workspace="overview"]) .fleet-hero-metric span {
+.hr-flow-shell .fleet-hero-metric span {
   font-size: 0.68rem;
 }
 
-.hr-flow-shell:not([data-hr-workspace="overview"]) .fleet-hero-metric strong {
+.hr-flow-shell .fleet-hero-metric strong {
   font-size: 0.98rem;
 }
 
@@ -10954,14 +10978,18 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 }
 
 .hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid > .p-card,
-.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .p-card {
+.hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid > .hr-action-card,
+.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .p-card,
+.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .hr-action-card {
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
 .hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid > .p-card.p-card--expanded,
-.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .p-card.p-card--expanded {
+.hr-flow-shell[data-hr-workspace="operate"] .payroll-actions-grid > .hr-action-card.hr-action-card--open,
+.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .p-card.p-card--expanded,
+.hr-flow-shell[data-hr-workspace="operate"] .hiring-actions-grid > .hr-action-card.hr-action-card--open {
   grid-column: 1 / -1;
 }
 
@@ -14117,8 +14145,11 @@ body[data-theme="dark"] .hiring-results-grid--stacked .table-wrap {
 
 .portal-main .dash-grid > .p-card,
 .portal-main .hiring-actions-grid > .p-card,
+.portal-main .hiring-actions-grid > .hr-action-card,
 .portal-main .hiring-data-grid > .p-card,
+.portal-main .hiring-data-grid > .hr-data-card,
 .portal-main .payroll-data-grid > .p-card,
+.portal-main .payroll-data-grid > .hr-data-card,
 .portal-main .user-grid > .user-card,
 .portal-main .user-grid-pending > .user-card,
 .portal-main .kpi-grid > .kpi,
@@ -14130,8 +14161,11 @@ body[data-theme="dark"] .hiring-results-grid--stacked .table-wrap {
 
 .portal-main .dash-grid > .p-card,
 .portal-main .hiring-actions-grid > .p-card,
+.portal-main .hiring-actions-grid > .hr-action-card,
 .portal-main .hiring-data-grid > .p-card,
+.portal-main .hiring-data-grid > .hr-data-card,
 .portal-main .payroll-data-grid > .p-card,
+.portal-main .payroll-data-grid > .hr-data-card,
 .portal-main .user-grid > .user-card,
 .portal-main .user-grid-pending > .user-card {
   display: flex;
@@ -14140,8 +14174,11 @@ body[data-theme="dark"] .hiring-results-grid--stacked .table-wrap {
 
 .portal-main .dash-grid > .p-card .p-card-body,
 .portal-main .hiring-actions-grid > .p-card .p-card-body,
+.portal-main .hiring-actions-grid > .hr-action-card .hr-action-card__panel,
 .portal-main .hiring-data-grid > .p-card .p-card-body,
-.portal-main .payroll-data-grid > .p-card .p-card-body {
+.portal-main .hiring-data-grid > .hr-data-card .hr-data-card__body,
+.portal-main .payroll-data-grid > .p-card .p-card-body,
+.portal-main .payroll-data-grid > .hr-data-card .hr-data-card__body {
   flex: 1;
 }
 
@@ -14902,7 +14939,9 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   align-items: stretch;
 }
 .hiring-data-grid > .p-card,
+.hiring-data-grid > .hr-data-card,
 .hiring-actions-grid > .p-card,
+.hiring-actions-grid > .hr-action-card,
 .hr-flow-block .hiring-actions-grid > * {
   display: flex;
   flex-direction: column;
@@ -16645,6 +16684,285 @@ body[data-theme="dark"] .request-company-hub-metrics small {
 .hiring-shell .table-wrap {
   overflow-x: visible;
   overflow-y: auto;
+}
+
+/* Tarjetas pro — Gestión humana y Contratación */
+.hr-action-cards-grid {
+  gap: 1rem;
+}
+
+.hr-action-card {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: linear-gradient(165deg, #ffffff 0%, #f8fafc 58%, #f1f5f9 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 10px 28px rgba(15, 23, 42, 0.06);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s ease;
+}
+
+.hr-action-card:hover {
+  border-color: rgba(var(--primary-rgb), 0.28);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 16px 36px rgba(var(--primary-rgb), 0.1);
+  transform: translateY(-2px);
+}
+
+.hr-action-card--open,
+.hr-action-card.p-card--expanded {
+  border-color: rgba(var(--primary-rgb), 0.34);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.92) inset,
+    0 18px 42px rgba(var(--primary-rgb), 0.12);
+  transform: none;
+}
+
+.hr-action-card__head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.85rem 1rem;
+  padding: 1.05rem 1.15rem 1rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: linear-gradient(135deg, rgba(var(--brand-blue-soft-rgb), 0.35), rgba(255, 255, 255, 0.4));
+}
+
+.hr-action-card--open .hr-action-card__head,
+.hr-action-card.p-card--expanded .hr-action-card__head {
+  border-bottom-color: rgba(var(--primary-rgb), 0.14);
+}
+
+.hr-card-icon {
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, var(--brand-blue-deep), var(--primary-dark));
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(var(--primary-rgb), 0.28);
+  flex-shrink: 0;
+}
+
+.hr-card-icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.hr-module-pro--payroll .hr-action-card .hr-card-icon {
+  background: linear-gradient(145deg, #0f766e, #14b8a6);
+  box-shadow: 0 8px 18px rgba(20, 184, 166, 0.28);
+}
+
+.hr-module-pro--hiring .hr-action-card .hr-card-icon {
+  background: linear-gradient(145deg, #4338ca, #6366f1);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.28);
+}
+
+.hr-action-card__copy {
+  min-width: 0;
+}
+
+.hr-action-card__copy h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.hr-action-card__desc {
+  margin: 0.28rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+
+.hr-action-card__cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--primary-rgb), 0.22);
+  background: #ffffff;
+  color: var(--brand-blue-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.hr-action-card__cta:hover {
+  border-color: rgba(var(--primary-rgb), 0.4);
+  background: rgba(var(--brand-blue-soft-rgb), 0.55);
+}
+
+.hr-action-card__cta.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--brand-blue-deep), var(--primary-dark));
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.28);
+}
+
+.hr-module-pro--payroll .hr-action-card__cta.is-active {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.3);
+}
+
+.hr-module-pro--hiring .hr-action-card__cta.is-active {
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.32);
+}
+
+.hr-action-card__cta-ico .btn-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.hr-action-card__panel {
+  padding: 0.15rem 1.15rem 1.2rem;
+  animation: hr-panel-in 0.22s ease-out;
+}
+
+.hr-action-card__panel[hidden] {
+  display: none !important;
+}
+
+.hr-data-card {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+}
+
+.hr-data-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  padding: 0.95rem 1.15rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: linear-gradient(180deg, #f8fafc, #ffffff);
+}
+
+.hr-data-card__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.hr-data-card__titles h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.hr-data-card__stat {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.32rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--primary-rgb), 0.18);
+  background: rgba(var(--brand-blue-soft-rgb), 0.45);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--brand-blue-deep);
+  letter-spacing: -0.01em;
+}
+
+.hr-module-pro--payroll .hr-data-card__stat {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: rgba(45, 212, 191, 0.14);
+  color: #0f766e;
+}
+
+.hr-module-pro--hiring .hr-data-card__stat {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: rgba(129, 140, 248, 0.14);
+  color: #4338ca;
+}
+
+.hr-data-card__body {
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.hr-data-card .table-wrap {
+  margin: 0 -1.15rem;
+  padding: 0 1.15rem;
+}
+
+@media (max-width: 640px) {
+  .hr-action-card__head {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .hr-action-card__cta {
+    grid-column: 1 / -1;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .hr-data-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+body[data-theme="dark"] .hr-action-card {
+  border-color: rgba(148, 196, 255, 0.14);
+  background: linear-gradient(165deg, rgba(18, 32, 52, 0.98), rgba(12, 24, 40, 0.95));
+  box-shadow: 0 12px 32px rgba(2, 8, 18, 0.45);
+}
+
+body[data-theme="dark"] .hr-action-card__head {
+  border-bottom-color: rgba(148, 196, 255, 0.1);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.16), rgba(12, 24, 40, 0.4));
+}
+
+body[data-theme="dark"] .hr-action-card__cta {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(148, 196, 255, 0.22);
+  color: #dbeafe;
+}
+
+body[data-theme="dark"] .hr-data-card {
+  border-color: rgba(148, 196, 255, 0.14);
+  background: rgba(14, 28, 46, 0.92);
+  box-shadow: 0 12px 32px rgba(2, 8, 18, 0.4);
+}
+
+body[data-theme="dark"] .hr-data-card__head {
+  border-bottom-color: rgba(148, 196, 255, 0.1);
+  background: linear-gradient(180deg, rgba(18, 32, 52, 0.95), rgba(14, 28, 46, 0.88));
+}
+
+body[data-theme="dark"] .hr-data-card__stat {
+  background: rgba(var(--primary-rgb), 0.14);
+  border-color: rgba(148, 196, 255, 0.2);
+  color: #cfe9fc;
 }
 
 /* Ajuste corporativo final RRHH + Contratación */
