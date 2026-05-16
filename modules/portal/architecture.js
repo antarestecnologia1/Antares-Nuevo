@@ -5,7 +5,7 @@ window.PortalArchitecture = (() => {
       access: "any",
       shell: true,
       renderer: [{ module: "dashboard", exportName: "viewDashboard" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".client-data-scope-bar", ".ops-dash", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     requests: {
       title: "Solicitudes",

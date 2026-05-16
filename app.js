@@ -59,6 +59,57 @@ function pcardWrap(iconKey, title, subtitle, bodyHtml, extraClass = "") {
   return `<div class="p-card ${extraClass}"><div class="p-card-header"><div class="p-card-header-left"><svg class="p-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${IC[iconKey]?.replace(/<svg[^>]*>|<\/svg>/g, "") || ""}</svg><div><h2>${escapeHtml(title)}</h2>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}</div></div></div><div class="p-card-body">${bodyHtml}</div></div>`;
 }
 
+function hrCardIconMarkup(iconKey) {
+  const inner = IC[String(iconKey || "")]?.replace(/<svg[^>]*>|<\/svg>/g, "") || "";
+  if (!inner) return "";
+  return `<span class="hr-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></span>`;
+}
+
+function pcardWrapPro(iconKey, title, subtitle, bodyHtml, extraClass = "") {
+  const stat = subtitle
+    ? `<span class="hr-data-card__stat">${escapeHtml(String(subtitle))}</span>`
+    : "";
+  return `<article class="p-card hr-data-card ${extraClass}">
+    <header class="hr-data-card__head">
+      <div class="hr-data-card__brand">
+        ${hrCardIconMarkup(iconKey)}
+        <div class="hr-data-card__titles">
+          <h2>${escapeHtml(title)}</h2>
+        </div>
+      </div>
+      ${stat}
+    </header>
+    <div class="p-card-body hr-data-card__body">${bodyHtml}</div>
+  </article>`;
+}
+
+function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
+  const expanded = Boolean(state.createPanels?.[panelId]);
+  const toggleText = expanded ? "Ocultar formulario" : expandLabel;
+  const tone = String(iconKey || "plus").replace(/[^a-z0-9_-]/gi, "");
+  const extraClass = expanded ? "p-card--expanded hr-action-card--open" : "p-card--collapsed";
+  const desc = subtitle
+    ? `<p class="hr-action-card__desc">${escapeHtml(String(subtitle))}</p>`
+    : "";
+  const cardBody = `<div class="hr-action-card__panel${expanded ? " is-open" : ""}" data-create-panel="${escapeAttr(panelId)}"${expanded ? "" : ' hidden'}>
+    ${bodyHtml}
+  </div>`;
+  return `<article class="p-card hr-action-card hr-action-card--${escapeAttr(tone)} ${extraClass}" data-hr-panel="${escapeAttr(panelId)}">
+    <header class="hr-action-card__head">
+      ${hrCardIconMarkup(iconKey)}
+      <div class="hr-action-card__copy">
+        <h3>${escapeHtml(title)}</h3>
+        ${desc}
+      </div>
+      <button type="button" class="btn hr-action-card__cta${expanded ? " is-active" : ""}" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}" aria-expanded="${expanded ? "true" : "false"}">
+        <span class="hr-action-card__cta-ico" aria-hidden="true">${expanded ? IC.x : IC.plus}</span>
+        <span class="hr-action-card__cta-label">${escapeHtml(toggleText)}</span>
+      </button>
+    </header>
+    ${cardBody}
+  </article>`;
+}
+
 function emptyState(text) {
   return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${escapeHtml(text)}</p></div>`;
 }
@@ -7249,7 +7300,7 @@ function authView() {
             </label>
             <p class="muted register-doc-empresa-note">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
           </div>
-        </motion.div>
+        </div>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.users, "Género")}
           <select name="gender" required>
@@ -7360,7 +7411,7 @@ function authView() {
         <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo registrado")}</span>
         <div class="auth-input-row">
           <span class="auth-input-prefix" aria-hidden="true">${IC.mail}</span>
-          <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required />
+          <input class="auth-input-control" type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required data-antares-validate-blur="email" data-antares-restrict="email-local" />
         </div>
       </label>
       <div class="auth-recover-hint" role="note">
@@ -10216,25 +10267,120 @@ function viewDashboard() {
     ? ""
     : pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody);
 
-  const pendientes = list.filter((r) =>
-    [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
+  const todayIso = colombiaTodayIsoDate();
+  const todayTrips = list.filter((r) => {
+    const pickupDay = requestPickupIsoDate(r);
+    if (pickupDay === todayIso) return true;
+    return r.trip && tripRequestStatusIsOperational(r.status);
+  });
+  const activeTrips = todayTrips.filter((r) => r.trip && tripRequestStatusIsOperational(r.status));
+  const vehicleIdsEnRuta = new Set(
+    activeTrips.map((r) => String(r.trip?.vehicleId || "").trim()).filter(Boolean)
+  );
+  const assignedToday = todayTrips.filter((r) => r.trip).length;
+  const completedToday = todayTrips.filter((r) =>
+    [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)
   ).length;
-  const conViaje = list.filter((r) => r.trip).length;
-  const enOperacion = list.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
-  const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
-  const primaryLabel = isPortalClientUser(user) ? clientRequestsScopePrimaryLabel() : "Solicitudes visibles";
-  const dashHero = moduleFleetHeroStrip([
-    { label: primaryLabel, value: list.length },
-    { label: "Con viaje", value: conViaje },
-    { label: "En operacion", value: enOperacion },
-    { label: "Pendientes / asignacion", value: pendientes, tone: pendientes ? "warn" : undefined }
-  ]);
+  const compliancePct = assignedToday ? Math.round((completedToday / assignedToday) * 100) : 0;
+  const okDeliveries = todayTrips.filter((r) => dashRequestOutcomeTone(r.status) === "ok").length;
+  const issueDeliveries = todayTrips.filter((r) =>
+    ["fail", "warn"].includes(dashRequestOutcomeTone(r.status))
+  ).length;
+  const deliveryBarPct = assignedToday ? Math.round((okDeliveries / assignedToday) * 100) : 0;
 
-  return `${scopeBar}${dashHero}<div class="dash-grid">
-    ${pcardWrap("truck", "Por Termoking (solicitud)", list.length + " solicitudes registradas", vehicleStats || emptyState("Sin datos aun"))}
-    ${pcardWrap("activity", "Por estado", "Distribucion de solicitudes", statusStats || emptyState("Sin solicitudes aun"))}
-    ${qualityCard}
-  </div>`;
+  const allVehicles = read(KEYS.vehicles, []);
+  const vehicleById = new Map(allVehicles.map((v) => [String(v.id), v]));
+  const groups = new Map();
+  todayTrips
+    .filter((r) => r.trip?.vehicleId)
+    .forEach((r) => {
+      const vid = String(r.trip.vehicleId);
+      if (!groups.has(vid)) {
+        groups.set(vid, {
+          vehicleId: vid,
+          plate: r.trip.vehiclePlate,
+          driverName: r.trip.driverName,
+          trips: []
+        });
+      }
+      groups.get(vid).trips.push(r);
+    });
+  const fleetCards = [...groups.values()]
+    .sort((a, b) => String(a.plate).localeCompare(String(b.plate), "es"))
+    .map((g) => dashBuildVehicleCard(g, vehicleById))
+    .join("");
+
+  const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
+  const canTrips = isViewAllowedForUser(user, "transport-trips");
+  const canReports = isViewAllowedForUser(user, "reports") || isViewAllowedForUser(user, "history");
+  const assignTarget = canTrips ? "transport-trips" : "requests";
+  const reportsTarget = isViewAllowedForUser(user, "reports") ? "reports" : "history";
+  const longDate = formatColombiaLongDate(new Date());
+
+  const opsDash = `<section class="ops-dash" aria-label="Torre de control operativa">
+    <nav class="ops-dash-tabs" aria-label="Accesos rápidos">
+      <button type="button" class="ops-dash-tab is-active" aria-current="page">${IC.truck} Vehículos en ruta</button>
+      <button type="button" class="ops-dash-tab" data-action="dash-nav" data-target-view="${escapeAttr(assignTarget)}">${IC.compass} Asignar rutas</button>
+      <button type="button" class="ops-dash-tab" data-action="dash-nav" data-target-view="${escapeAttr(canReports ? reportsTarget : "requests")}">${IC.file} Informes</button>
+    </nav>
+    <div class="ops-dash-kpis">
+      <div class="ops-dash-kpi ops-dash-kpi--primary">
+        <span class="ops-dash-kpi-value">${vehicleIdsEnRuta.size}</span>
+        <span class="ops-dash-kpi-label">Vehículos en ruta</span>
+        <span class="ops-dash-kpi-date">Hoy, ${escapeHtml(longDate)}</span>
+      </div>
+      <div class="ops-dash-kpi">
+        <span class="ops-dash-kpi-value">${assignedToday}</span>
+        <span class="ops-dash-kpi-label">Viajes asignados hoy</span>
+      </div>
+      <div class="ops-dash-kpi">
+        <span class="ops-dash-kpi-value">${completedToday}</span>
+        <span class="ops-dash-kpi-label">Viajes cumplidos</span>
+      </div>
+      <div class="ops-dash-kpi ops-dash-kpi--ring">
+        <div class="ops-dash-ring" style="--pct:${compliancePct}">
+          <svg viewBox="0 0 36 36" aria-hidden="true">
+            <path class="ops-dash-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <path class="ops-dash-ring-fg" stroke-dasharray="${compliancePct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+          </svg>
+          <strong>${compliancePct}%</strong>
+        </div>
+        <span class="ops-dash-kpi-label">Cumplimiento</span>
+      </div>
+      <div class="ops-dash-kpi ops-dash-kpi--bar">
+        <span class="ops-dash-kpi-label">Entregas del día</span>
+        <div class="ops-dash-progress" role="progressbar" aria-valuenow="${deliveryBarPct}" aria-valuemin="0" aria-valuemax="100">
+          <i style="width:${deliveryBarPct}%"></i>
+        </div>
+        <div class="ops-dash-legend">
+          <span class="ops-dash-legend-item ops-dash-legend-item--ok">${okDeliveries} Sin novedad</span>
+          <span class="ops-dash-legend-item ops-dash-legend-item--warn">${issueDeliveries} Con incidencia</span>
+        </div>
+      </div>
+    </div>
+    <div class="ops-dash-toolbar">
+      <label class="ops-dash-search">${IC.search}<input id="dash-search" type="search" placeholder="Buscar vehículo, placa o conductor..." autocomplete="off" /></label>
+      <label class="ops-dash-filter">Filtrar por
+        <select id="dash-filter">
+          <option value="all">Todos</option>
+          <option value="en-ruta">En ruta</option>
+          <option value="programado">Programados</option>
+          <option value="cerrado">Cerrados hoy</option>
+        </select>
+      </label>
+      <span class="ops-dash-fleet-count" id="dash-fleet-count">${groups.size} vehículos</span>
+    </div>
+    <div class="ops-dash-fleet-list">
+      ${fleetCards || emptyState("No hay vehículos con viajes programados para hoy. Asigne rutas desde Transporte · Viajes.")}
+    </div>
+    <div class="dash-grid ops-dash-insights">
+      ${pcardWrap("truck", "Por Termoking", `${list.length} solicitudes`, vehicleStats || emptyState("Sin datos aún"))}
+      ${pcardWrap("activity", "Por estado", "Distribución general", statusStats || emptyState("Sin solicitudes aún"))}
+      ${qualityCard}
+    </div>
+  </section>`;
+
+  return `${scopeBar}${opsDash}`;
 }
 
 /** Selector de empresa en nueva solicitud: obligatorio; cliente solo su empresa; admin elige de la lista. */
@@ -15515,6 +15661,7 @@ function renderPortalViewImpl() {
   applyManualModuleLayout();
   mountUniversalModuleFilters();
   bindDynamicEvents();
+  bindDashboardControls();
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
   enforceColombianFormStandards();
@@ -21714,6 +21861,15 @@ function bindDynamicEvents() {
       const actor = currentUser();
       if (!actor) return;
       const data = Object.fromEntries(new FormData(profileForm).entries());
+      const Vprof = window.AntaresValidation;
+      if (Vprof && typeof Vprof.validateProfileForm === "function") {
+        const pv = Vprof.validateProfileForm(data);
+        if (!pv.ok) {
+          notify(pv.message, "error");
+          return;
+        }
+        Object.assign(data, pv.sanitized);
+      }
       const fileInput = profileForm.querySelector("input[name='avatarFile']");
       const file = fileInput?.files?.[0];
       const persistProfile = async (avatarUrlValue = "") => {
@@ -22170,6 +22326,9 @@ function bindDynamicEvents() {
 }
 
 function initGlobalEvents() {
+  if (window.AntaresValidation?.installLiveValidation) {
+    window.AntaresValidation.installLiveValidation(document);
+  }
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
