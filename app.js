@@ -5294,7 +5294,7 @@ function wireRouteRateScopeSection(formEl) {
         : `${totalCompanies} empresa${totalCompanies === 1 ? "" : "s"}`;
     }
     if (selectVisibleBtn) {
-      selectVisibleBtn.textContent = `${IC.check} Visibles (${visible})`;
+      selectVisibleBtn.innerHTML = `${IC.check} Visibles (${visible})`;
     }
   };
 
