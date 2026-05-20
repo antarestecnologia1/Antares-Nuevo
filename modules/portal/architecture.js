@@ -50,7 +50,12 @@ window.PortalArchitecture = (() => {
       access: "admin",
       shell: true,
       renderer: [{ module: "transporte", exportName: "historyHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [
+        {
+          container: ".module-shell-body",
+          order: [".fleet-hero-strip", ".history-module", ".history-section", ".dash-grid", ".p-card", ".table-wrap", ".empty-state", "[id^='create-']"]
+        }
+      ]
     },
     reports: {
       title: "Centro de reporteria",

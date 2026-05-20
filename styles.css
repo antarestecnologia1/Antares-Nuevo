@@ -10199,7 +10199,98 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   background: rgba(251, 191, 36, 0.12);
 }
 
-.history-filter-form .form-section-grid input[type="search"] {
+.history-module {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.history-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.history-section-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.history-section-lead {
+  margin: 0;
+  font-size: 0.88rem;
+  max-width: 52rem;
+}
+
+.history-insight-value {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.history-consult-card .p-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.history-result-meta {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.history-result-meta #history-result-count {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.history-filter-lead {
+  margin: 0 0 0.35rem;
+  font-size: 0.86rem;
+}
+
+.history-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+}
+
+.history-filter-search {
+  grid-column: 1 / -1;
+}
+
+.history-filter-grid > label {
+  grid-column: span 3;
+}
+
+@media (max-width: 900px) {
+  .history-filter-grid > label {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 560px) {
+  .history-filter-grid > label {
+    grid-column: 1 / -1;
+  }
+}
+
+.history-filter-form input[type="search"],
+.history-filter-form input[type="date"],
+.history-filter-form select {
   width: 100%;
   padding: 0.55rem 0.75rem;
   border: 1px solid #cbd5e1;
@@ -10209,7 +10300,9 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.history-filter-form .form-section-grid input[type="search"]:focus {
+.history-filter-form input[type="search"]:focus,
+.history-filter-form input[type="date"]:focus,
+.history-filter-form select:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.22);
@@ -10219,7 +10312,46 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.history-route {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.35rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  max-width: 14rem;
+}
+
+.history-route-cities {
+  font-weight: 600;
+}
+
+.history-route-arrow {
+  color: var(--muted, #64748b);
+  font-weight: 500;
+}
+
+.history-ref,
+.history-trip-ref {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.history-plate {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.86rem;
+}
+
+.history-money {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .history-empty-row {
@@ -10231,7 +10363,9 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   font-size: 0.9rem;
 }
 
-body[data-theme="dark"] .history-filter-form .form-section-grid input[type="search"] {
+body[data-theme="dark"] .history-filter-form input[type="search"],
+body[data-theme="dark"] .history-filter-form input[type="date"],
+body[data-theme="dark"] .history-filter-form select {
   background: #0f172a;
   border-color: #1e293b;
   color: #e2e8f0;
@@ -16884,12 +17018,26 @@ body[data-theme="dark"] .detail-pre {
 }
 
 .portal-main .history-table-wrap table {
-  min-width: 60rem;
+  min-width: 72rem;
 }
 
 .portal-main .history-table-wrap table thead th:nth-child(4),
 .portal-main .history-table-wrap table tbody td:nth-child(4) {
-  min-width: 12rem;
+  min-width: 10rem;
+}
+
+.portal-main .history-table-wrap table thead th:nth-child(7),
+.portal-main .history-table-wrap table tbody td:nth-child(7) {
+  min-width: 11rem;
+}
+
+.portal-main .history-table-wrap .history-col-client {
+  min-width: 8rem;
+  max-width: 12rem;
+}
+
+.portal-main .history-table-wrap .history-col-status {
+  white-space: nowrap;
 }
 
 .portal-main .history-report-table-wrap {

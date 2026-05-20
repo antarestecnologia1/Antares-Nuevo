@@ -11124,7 +11124,6 @@ function requestFormHtml() {
       </div>
     </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
-    <label class="full">Adjuntos opcionales <input type="file" name="attachments" multiple /></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
   return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
@@ -12869,67 +12868,123 @@ function adminUsersHtml(current) {
   return html;
 }
 
+/** Texto buscable para filas del módulo Historial. */
+function historyHaystack(request) {
+  return `${request.requestNumber || request.id || ""} ${request.clientName || ""} ${formatRoute(request)} ${historyVehicleColumn(request)} ${historyDriverLabel(request)} ${historyPlateLabel(request)} ${request.trip?.tripNumber || ""} ${request.serviceType || ""}`
+    .toLowerCase();
+}
+
+function historyDriverLabel(request) {
+  const direct = String(request?.trip?.driverName || "").trim();
+  if (direct) return direct;
+  const id = String(request?.trip?.driverId || "").trim();
+  if (!id) return "";
+  const driver = read(KEYS.drivers, []).find((d) => String(d.id) === id);
+  return String(driver?.name || "").trim();
+}
+
+function historyPlateLabel(request) {
+  return String(request?.trip?.vehiclePlate || "").trim();
+}
+
+function historyTripValueCell(request) {
+  const value = parseNum(request?.trip?.tripValue ?? request?.tripValue ?? 0);
+  if (value <= 0) return '<span class="muted">—</span>';
+  return `<span class="history-money">$${value.toLocaleString("es-CO")}</span>`;
+}
+
+function historyRouteCell(request) {
+  const origin = String(request?.originCity || "").trim() || "—";
+  const dest = String(request?.destinationCity || "").trim() || "—";
+  const full = formatRoute(request);
+  return `<span class="history-route" title="${escapeAttr(full)}"><span class="history-route-cities">${escapeHtml(origin)}</span><span class="history-route-arrow" aria-hidden="true">→</span><span class="history-route-cities">${escapeHtml(dest)}</span></span>`;
+}
+
+function historyStatusFilterOptions() {
+  const groups = [
+    { label: "En gestión", values: [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION] },
+    { label: "En operación", values: [STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY] },
+    { label: "Cerradas", values: [STATUS.COMPLETADA, STATUS.CERRADA] },
+    { label: "Anuladas", values: [STATUS.CANCELADA, STATUS.RECHAZADA] }
+  ];
+  let html = '<option value="">Todos los estados</option>';
+  groups.forEach((group) => {
+    html += `<optgroup label="${escapeAttr(group.label)}">`;
+    group.values.forEach((status) => {
+      html += `<option value="${escapeAttr(status)}">${escapeHtml(status)}</option>`;
+    });
+    html += "</optgroup>";
+  });
+  return html;
+}
+
+function sortHistoryRequests(items) {
+  return [...items].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+}
+
+function renderHistoryTableRow(request) {
+  const number = String(request.requestNumber || request.id || "").trim();
+  const client = String(request.clientName || "").trim();
+  const driver = historyDriverLabel(request);
+  const plate = historyPlateLabel(request);
+  const fleet = historyVehicleColumn(request);
+  const trip = String(request.trip?.tripNumber || "").trim();
+  return `<tr data-history-row data-haystack="${escapeAttr(historyHaystack(request))}">
+    <td class="history-col-date"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${fmtDate(request.createdAt)}</time></td>
+    <td class="history-col-ref"><strong class="history-ref">${escapeHtml(number)}</strong></td>
+    <td class="history-col-client">${escapeHtml(client)}</td>
+    <td class="history-col-route">${historyRouteCell(request)}</td>
+    <td class="history-col-driver">${driver ? escapeHtml(driver) : '<span class="muted">—</span>'}</td>
+    <td class="history-col-plate">${plate ? `<span class="history-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</td>
+    <td class="history-col-fleet">${escapeHtml(fleet)}</td>
+    <td class="history-col-value">${historyTripValueCell(request)}</td>
+    <td class="history-col-status">${prettyStatus(request.status)}</td>
+    <td class="history-col-trip">${trip ? `<span class="history-trip-ref">${escapeHtml(trip)}</span>` : '<span class="muted">—</span>'}</td>
+  </tr>`;
+}
+
 function historyHtml() {
-  const requests = reqRead();
+  const requests = sortHistoryRequests(reqRead());
+  const closedCount = requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+  const operationalCount = requests.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
+  const pendingTripCount = requests.filter(
+    (r) => !r.trip && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
+  ).length;
   const histHero = moduleFleetHeroStrip([
     { label: "Registros", value: requests.length },
+    { label: "Cerradas", value: closedCount },
+    { label: "En operación", value: operationalCount },
     {
-      label: "Finalizadas",
-      value: requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length
-    },
-    {
-      label: "En curso",
-      value: requests.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length
-    },
-    {
-      label: "Sin viaje",
+      label: "Sin viaje asignado",
       value: requests.filter((r) => !r.trip).length,
-      tone: requests.some((r) => !r.trip && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status))
-        ? "warn"
-        : undefined
+      tone: pendingTripCount ? "warn" : undefined
     }
   ]);
   const users = read(KEYS.users, []);
   const drivers = read(KEYS.drivers, []);
   const vehicles = read(KEYS.vehicles, []);
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
-  const options = users
+  const clientOptions = users
     .filter((u) => u.role === ROLES.CLIENT)
-    .map((u) => `<option value="${u.id}">${u.company}</option>`)
+    .map((u) => `<option value="${u.id}">${escapeHtml(String(u.company || u.name || ""))}</option>`)
     .join("");
-  const driverOptions = drivers.map((d) => `<option value="${d.id}">${d.name}</option>`).join("");
-  const vehicleOptions = vehicles.map((v) => `<option value="${v.id}">${v.plate} · ${v.type}</option>`).join("");
-  const renderHistoryRow = (r) => {
-    const number = String(r.requestNumber || r.id || "").trim();
-    const client = String(r.clientName || "").trim();
-    const vehicle = historyVehicleColumn(r);
-    const trip = String(r.trip?.tripNumber || "").trim();
-    const haystack = `${number} ${client} ${vehicle} ${trip} ${r.serviceType || ""}`.toLowerCase();
-    return `<tr data-history-row data-haystack="${escapeAttr(haystack)}">
-      <td>${fmtDate(r.createdAt)}</td>
-      <td><strong>${escapeHtml(number)}</strong></td>
-      <td>${escapeHtml(client)}</td>
-      <td>${escapeHtml(vehicle)}</td>
-      <td>${prettyStatus(r.status)}</td>
-      <td>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
-    </tr>`;
-  };
-  const rows = requests.map(renderHistoryRow).join("");
+  const driverOptions = drivers.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
+  const vehicleOptions = vehicles
+    .map((v) => `<option value="${v.id}">${escapeHtml(`${v.plate} · ${v.type}`)}</option>`)
+    .join("");
+  const rows = requests.map(renderHistoryTableRow).join("");
 
-  const filterBody = `<form id="history-filter" class="p-form p-form-colored history-filter-form">
-    <fieldset class="form-section form-section-blue full">
-      <legend>${IC.filter} Periodo y criterios</legend>
-      <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.search || IC.filter, "Búsqueda libre")}<input type="search" name="q" placeholder="Buscar por solicitud, cliente, Termoking, tipo asignado, viaje..." autocomplete="off" /></label>
-        <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
-        <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
-        <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${options}</select></label>
-        <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${Object.values(STATUS).map((s) => `<option>${s}</option>`).join("")}</select></label>
-      </div>
-    </fieldset>
+  const filterBody = `<form id="history-filter" class="p-form p-form-colored history-filter-form" novalidate>
+    <p class="history-filter-lead muted">Filtra por periodo, cliente o estado. La búsqueda incluye solicitud, trayecto, conductor, placa y viaje.</p>
+    <div class="history-filter-grid">
+      <label class="history-filter-search">${fieldLabel(IC.search || IC.filter, "Búsqueda")}<input type="search" name="q" placeholder="Ej. VIA-001, Bogotá, placa, conductor…" autocomplete="off" /></label>
+      <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+      <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+      <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${clientOptions}</select></label>
+      <label>${fieldLabel(IC.activity, "Estado")}<select name="status">${historyStatusFilterOptions()}</select></label>
+    </div>
     <div class="history-filter-actions">
-      <button class="btn btn-primary" type="submit">${IC.filter} Aplicar filtro</button>
-      <button class="btn btn-action" type="reset" data-action="history-clear-filter">${IC.x} Limpiar</button>
+      <button class="btn btn-action" type="reset">${IC.x} Limpiar filtros</button>
     </div>
   </form>`;
   const driverReportBody = `<form id="driver-month-report-form" class="p-form p-form-colored">
@@ -12997,20 +13052,70 @@ function historyHtml() {
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
   </form>`;
+  const historyTableHead = `<thead><tr>
+    <th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Trayecto</th><th>Conductor</th><th>Placa</th><th>Flota / Termoking</th><th>Valor</th><th>Estado</th><th>Viaje</th>
+  </tr></thead>`;
   const tableBody = rows
-    ? `<div class="table-wrap transport-exec-table-wrap history-table-wrap"><table><thead><tr><th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Termoking / asignado</th><th>Estado</th><th>Viaje</th></tr></thead><tbody id="history-body">${rows}</tbody></table></div>`
-    : emptyState("Sin registros.");
-  const reportBody = `<div class="dash-grid history-insights-grid">
-    ${pcardWrap("user", "Clientes mas activos", null, `<p>${topClients(requests).join(", ") || "Sin datos"}</p>`)}
-    ${pcardWrap("truck", "Vehiculos mas usados", null, `<p>${topVehicles(requests).join(", ") || "Sin datos"}</p>`)}
-    ${pcardWrap("dollar", "Regla actual de viaticos", null, `<p>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} por viaje entre departamentos</p>`)}
+    ? `<div class="table-wrap transport-exec-table-wrap history-table-wrap"><table>${historyTableHead}<tbody id="history-body">${rows}</tbody></table></div>`
+    : emptyState("Sin registros en el historial.");
+  const insightsBody = `<div class="dash-grid history-insights-grid">
+    ${pcardWrap("user", "Clientes con más movimientos", "Top 3 por solicitudes", `<p class="history-insight-value">${topClients(requests).join(" · ") || "Sin datos"}</p>`)}
+    ${pcardWrap("truck", "Tipos de flota asignados", "Top 3 en viajes", `<p class="history-insight-value">${topVehicles(requests).join(" · ") || "Sin datos"}</p>`)}
+    ${pcardWrap("dollar", "Viáticos interdepartamentales", "Regla vigente", `<p class="history-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} <span class="muted">por viaje entre departamentos</span></p>`)}
   </div>`;
-  return histHero
-    + pcardWrap("filter", "Filtros", null, filterBody)
-    + pcardWrap("clock", "Historial de viajes", requests.length + " registros", tableBody)
-    + pcardWrap("activity", "Reporte mensual por conductor (viaticos)", null, driverReportBody)
-    + `<div class="dash-grid history-ops-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Control de costos y reembolsos de conductor", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades tecnicas de camiones", "Mantenimiento, fallas y disponibilidad operativa", technicalForm, "Registrar novedad tecnica")}</div>`
-    + reportBody;
+  const consultBody =
+    `<p class="history-result-meta muted"><span id="history-result-count">${requests.length}</span> registro${requests.length === 1 ? "" : "s"} · más recientes primero</p>` +
+    filterBody +
+    tableBody;
+  const consultCard = pcardWrap(
+    "clock",
+    "Registro de solicitudes y viajes",
+    "Trazabilidad operativa completa",
+    consultBody,
+    "history-consult-card"
+  );
+  const driverReportCard = pcardWrap(
+    "activity",
+    "Análisis mensual por conductor",
+    "Viáticos, combustible y viajes del periodo",
+    driverReportBody,
+    "history-driver-report-card"
+  );
+  const opsBody = `<div class="dash-grid history-ops-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Cargas, reembolsos y trazabilidad por viaje", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades técnicas", "Mantenimiento, fallas y horas fuera de servicio", technicalForm, "Registrar novedad técnica")}</div>`;
+  const opsCard = pcardWrap("truck", "Registro operativo de flota", "Datos complementarios al historial de viajes", opsBody, "history-ops-card");
+  return (
+    histHero +
+    `<div class="history-module">
+      <section class="history-section history-section--insights" aria-labelledby="history-insights-heading">
+        <div class="history-section-head">
+          <h2 id="history-insights-heading" class="history-section-title">${IC.activity} Panorama</h2>
+          <p class="history-section-lead muted">Indicadores rápidos antes de consultar el detalle.</p>
+        </div>
+        ${insightsBody}
+      </section>
+      <section class="history-section history-section--consult" aria-labelledby="history-consult-heading">
+        <div class="history-section-head">
+          <h2 id="history-consult-heading" class="history-section-title">${IC.clock} Consulta de historial</h2>
+          <p class="history-section-lead muted">Trazabilidad completa: solicitud, trayecto, asignación y estado del viaje.</p>
+        </div>
+        ${consultCard}
+      </section>
+      <section class="history-section history-section--driver" aria-labelledby="history-driver-heading">
+        <div class="history-section-head">
+          <h2 id="history-driver-heading" class="history-section-title">${IC.user} Costos por conductor</h2>
+          <p class="history-section-lead muted">Consolidado de viajes, viáticos y combustible de un mes.</p>
+        </div>
+        ${driverReportCard}
+      </section>
+      <section class="history-section history-section--ops" aria-labelledby="history-ops-heading">
+        <div class="history-section-head">
+          <h2 id="history-ops-heading" class="history-section-title">${IC.truck} Operación de flota</h2>
+          <p class="history-section-lead muted">Registre combustible y novedades técnicas vinculadas a la operación.</p>
+        </div>
+        ${opsCard}
+      </section>
+    </div>`
+  );
 }
 
 function topClients(requests) {
@@ -18576,8 +18681,6 @@ function bindDynamicEvents() {
       const contactPhone = String(siteContactPhone ?? "").trim();
       const boxesCount = 0;
       const notesTrim = String(notes ?? "").trim();
-      const files = requestForm.querySelector("input[name='attachments']").files;
-      const attachments = [...files].map((f) => f.name);
       const all = reqRead();
       const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
       const requestNumber = makeRequestNumber(usedRequestNumbers);
@@ -20533,35 +20636,22 @@ function bindDynamicEvents() {
       if (data.status) items = items.filter((i) => i.status === data.status);
       if (data.from) items = items.filter((i) => new Date(i.createdAt) >= new Date(`${data.from}T00:00`));
       if (data.to) items = items.filter((i) => new Date(i.createdAt) <= new Date(`${data.to}T23:59`));
-      if (q) {
-        items = items.filter((i) => {
-          const hay = `${i.requestNumber || i.id || ""} ${i.clientName || ""} ${historyVehicleColumn(i)} ${i.trip?.tripNumber || ""} ${i.serviceType || ""}`.toLowerCase();
-          return hay.includes(q);
-        });
-      }
+      if (q) items = items.filter((i) => historyHaystack(i).includes(q));
+      items = sortHistoryRequests(items);
       const body = document.getElementById("history-body");
+      const countEl = document.getElementById("history-result-count");
+      if (countEl) countEl.textContent = String(items.length);
       if (!body) return;
       body.innerHTML = items.length
-        ? items
-            .map((r) => {
-              const number = String(r.requestNumber || r.id || "").trim();
-              const client = String(r.clientName || "").trim();
-              const vehicle = historyVehicleColumn(r);
-              const trip = String(r.trip?.tripNumber || "").trim();
-              return `<tr>
-                <td>${fmtDate(r.createdAt)}</td>
-                <td><strong>${escapeHtml(number)}</strong></td>
-                <td>${escapeHtml(client)}</td>
-                <td>${escapeHtml(vehicle)}</td>
-                <td>${prettyStatus(r.status)}</td>
-                <td>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
-              </tr>`;
-            })
-            .join("")
-        : "<tr><td colspan='6'><div class='history-empty-row'>Sin registros para los filtros aplicados.</div></td></tr>";
+        ? items.map(renderHistoryTableRow).join("")
+        : "<tr><td colspan='10'><div class='history-empty-row'>Sin registros para los filtros aplicados.</div></td></tr>";
     };
-    wireFormSubmitGuard(historyFilter, (event) => {
+    historyFilter.addEventListener("submit", (event) => {
+      event.preventDefault();
       filterRows();
+    });
+    historyFilter.querySelectorAll("select, input[type='date']").forEach((field) => {
+      field.addEventListener("change", () => filterRows());
     });
     const liveSearch = historyFilter.querySelector("input[name='q']");
     if (liveSearch) {
