@@ -5133,10 +5133,10 @@ function buildRouteRateCompanyCheckboxesHtml(companies, selectedIds = []) {
       const labelKey = `${name} ${String(c.taxId || "")}`.trim().toLowerCase();
       const checked = selected.has(id) ? " checked" : "";
       const tax = c.taxId ? `<span class="route-rate-company-tax muted">${escapeHtml(String(c.taxId))}</span>` : "";
-      return `<label class="route-rate-company-item" data-company-label="${escapeAttr(labelKey)}">
-        <input type="checkbox" name="rateClientCompanies" value="${escapeAttr(id)}"${checked} />
-        <span class="route-rate-company-item-text"><strong>${escapeHtml(name)}</strong>${tax}</span>
-      </label>`;
+      return `<div class="route-rate-company-item" data-company-label="${escapeAttr(labelKey)}" role="listitem">
+        <input type="checkbox" name="rateClientCompanies" value="${escapeAttr(id)}" id="${escapeAttr(`route-rate-co-${id}`)}"${checked} />
+        <label class="route-rate-company-item-text" for="${escapeAttr(`route-rate-co-${id}`)}"><span class="route-rate-company-name">${escapeHtml(name)}</span>${tax}</label>
+      </div>`;
     })
     .join("");
 }
@@ -5183,7 +5183,7 @@ function buildRouteRateScopeStepInnerHtml(companies, opts = {}) {
         <input type="search" data-route-rate-clients-search placeholder="Buscar por nombre o NIT…" autocomplete="off" ${scope === "specific" ? "" : "disabled"} />
         <span class="route-rate-clients-filter-meta muted" data-route-rate-clients-filter-meta>${totalCompanies} empresa${totalCompanies === 1 ? "" : "s"}</span>
       </div>
-      <div class="route-rate-clients-list" data-route-rate-clients-list role="group" aria-label="Empresas cliente">
+      <div class="route-rate-clients-list" data-route-rate-clients-list role="list" aria-label="Empresas cliente">
         ${checkboxes}
       </div>
     </div>
@@ -5316,6 +5316,16 @@ function wireRouteRateScopeSection(formEl) {
   });
   if (clientsList) {
     clientsList.addEventListener("change", syncUi);
+    clientsList.addEventListener("click", (ev) => {
+      if (getScope() !== "specific") return;
+      const row = ev.target.closest(".route-rate-company-item");
+      if (!row || ev.target.matches('input[type="checkbox"]') || ev.target.closest("label")) return;
+      const cb = row.querySelector('input[name="rateClientCompanies"]');
+      if (cb && !cb.disabled) {
+        cb.checked = !cb.checked;
+        syncUi();
+      }
+    });
   }
   if (selectAllBtn) {
     selectAllBtn.addEventListener("click", () => {
