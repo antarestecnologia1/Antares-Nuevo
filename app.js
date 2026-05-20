@@ -2712,6 +2712,8 @@ let state = {
   deletedTransportRequestsLogMinimized: true,
   /** Transporte · Admin: historial de viajes desasignados/eliminados (inicia colapsado). */
   deletedTransportTripsLogMinimized: true,
+  /** Historial: pestaña activa (explore | driver | fleet) y filtro rápido de listado. */
+  historyUi: { workspace: "explore", quickFilter: "all" },
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
   notificationPreferences: {
     notificacionesHabilitadas: true,
@@ -12934,41 +12936,109 @@ function sortHistoryRequests(items) {
   return [...items].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 }
 
-function renderHistoryTableRow(request) {
+function historyMatchesQuickFilter(request, filterKey) {
+  const key = String(filterKey || "all");
+  if (key === "closed") return [STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status);
+  if (key === "active") return Boolean(request.trip) && tripRequestStatusIsOperational(request.status);
+  if (key === "pending") {
+    return !request.trip && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(request.status);
+  }
+  if (key === "cancelled") return [STATUS.CANCELADA, STATUS.RECHAZADA].includes(request.status);
+  return true;
+}
+
+function applyHistoryFilters(items, opts = {}) {
+  let out = [...items];
+  const quickFilter = String(opts.quickFilter || "all");
+  if (quickFilter !== "all") out = out.filter((r) => historyMatchesQuickFilter(r, quickFilter));
+  const data = opts.formData || {};
+  if (data.client) out = out.filter((i) => i.clientUserId === data.client);
+  if (data.status) out = out.filter((i) => i.status === data.status);
+  if (data.from) out = out.filter((i) => new Date(i.createdAt) >= new Date(`${data.from}T00:00`));
+  if (data.to) out = out.filter((i) => new Date(i.createdAt) <= new Date(`${data.to}T23:59`));
+  const q = String(data.q || "").trim().toLowerCase();
+  if (q) out = out.filter((i) => historyHaystack(i).includes(q));
+  return sortHistoryRequests(out);
+}
+
+function historyQuickFilterCounts(all) {
+  return {
+    all: all.length,
+    closed: all.filter((r) => historyMatchesQuickFilter(r, "closed")).length,
+    active: all.filter((r) => historyMatchesQuickFilter(r, "active")).length,
+    pending: all.filter((r) => historyMatchesQuickFilter(r, "pending")).length,
+    cancelled: all.filter((r) => historyMatchesQuickFilter(r, "cancelled")).length
+  };
+}
+
+function renderHistoryCard(request) {
+  const statusSlug = slugStatus(request.status);
   const number = String(request.requestNumber || request.id || "").trim();
-  const client = String(request.clientName || "").trim();
+  const client = String(request.clientName || "").trim() || "—";
+  const origin = String(request.originCity || "").trim() || "—";
+  const dest = String(request.destinationCity || "").trim() || "—";
   const driver = historyDriverLabel(request);
   const plate = historyPlateLabel(request);
   const fleet = historyVehicleColumn(request);
   const trip = String(request.trip?.tripNumber || "").trim();
-  return `<tr data-history-row data-haystack="${escapeAttr(historyHaystack(request))}">
-    <td class="history-col-date"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${fmtDate(request.createdAt)}</time></td>
-    <td class="history-col-ref"><strong class="history-ref">${escapeHtml(number)}</strong></td>
-    <td class="history-col-client">${escapeHtml(client)}</td>
-    <td class="history-col-route">${historyRouteCell(request)}</td>
-    <td class="history-col-driver">${driver ? escapeHtml(driver) : '<span class="muted">—</span>'}</td>
-    <td class="history-col-plate">${plate ? `<span class="history-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</td>
-    <td class="history-col-fleet">${escapeHtml(fleet)}</td>
-    <td class="history-col-value">${historyTripValueCell(request)}</td>
-    <td class="history-col-status">${prettyStatus(request.status)}</td>
-    <td class="history-col-trip">${trip ? `<span class="history-trip-ref">${escapeHtml(trip)}</span>` : '<span class="muted">—</span>'}</td>
-  </tr>`;
+  const tripValue = parseNum(request.trip?.tripValue ?? request.tripValue ?? 0);
+  const valueLabel =
+    tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "—";
+  const created = fmtDate(request.createdAt);
+  const pickup = fmtDate(request.pickupAt);
+  return `<article class="history-card history-card--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
+    <header class="history-card-head">
+      <div class="history-card-head-main">
+        <p class="history-card-kicker"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</p>
+        <h3 class="history-card-title">${escapeHtml(number)}</h3>
+        <p class="history-card-client">${escapeHtml(client)}</p>
+      </div>
+      <div class="history-card-status">${prettyStatus(request.status)}</div>
+    </header>
+    <div class="history-card-route" title="${escapeAttr(formatRoute(request))}">
+      <span class="history-card-route-node"><span class="history-card-route-label">Origen</span><strong>${escapeHtml(origin)}</strong></span>
+      <span class="history-card-route-arrow" aria-hidden="true">→</span>
+      <span class="history-card-route-node"><span class="history-card-route-label">Destino</span><strong>${escapeHtml(dest)}</strong></span>
+    </div>
+    <dl class="history-card-meta">
+      <div><dt>${IC.user}<span>Conductor</span></dt><dd>${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</dd></div>
+      <div><dt>${IC.truck}<span>Placa</span></dt><dd>${plate ? `<span class="history-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</dd></div>
+      <div><dt>${IC.compass}<span>Viaje</span></dt><dd>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</dd></div>
+      <div class="history-card-meta--value"><dt>${IC.dollar}<span>Tarifa</span></dt><dd>${escapeHtml(valueLabel)}</dd></div>
+      <div class="history-card-meta--full"><dt>${IC.truck}<span>Flota / Termoking</span></dt><dd>${escapeHtml(fleet)}</dd></div>
+    </dl>
+    <footer class="history-card-actions">
+      <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.eye} Ver ficha</button>
+      ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
+    </footer>
+  </article>`;
+}
+
+function renderHistoryResultsList(items) {
+  if (!items.length) {
+    return `<div class="history-empty-state"><p class="muted">No hay registros con los filtros actuales. Prueba otro periodo, cliente o quita el filtro rápido.</p></div>`;
+  }
+  return `<div class="history-cards-grid" id="history-results-grid">${items.map(renderHistoryCard).join("")}</div>`;
 }
 
 function historyHtml() {
-  const requests = sortHistoryRequests(reqRead());
-  const closedCount = requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
-  const operationalCount = requests.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
-  const pendingTripCount = requests.filter(
-    (r) => !r.trip && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
-  ).length;
+  const allRequests = reqRead();
+  const histUi = state.historyUi || { workspace: "explore", quickFilter: "all" };
+  state.historyUi = histUi;
+  const workspace = String(histUi.workspace || "explore");
+  const quickFilter = String(histUi.quickFilter || "all");
+  const counts = historyQuickFilterCounts(allRequests);
+  const filteredExplore = applyHistoryFilters(allRequests, { quickFilter });
+  const closedCount = counts.closed;
+  const operationalCount = counts.active;
+  const pendingTripCount = counts.pending;
   const histHero = moduleFleetHeroStrip([
-    { label: "Registros", value: requests.length },
+    { label: "Total registros", value: allRequests.length },
     { label: "Cerradas", value: closedCount },
     { label: "En operación", value: operationalCount },
     {
-      label: "Sin viaje asignado",
-      value: requests.filter((r) => !r.trip).length,
+      label: "Pendientes de viaje",
+      value: pendingTripCount,
       tone: pendingTripCount ? "warn" : undefined
     }
   ]);
@@ -12984,32 +13054,83 @@ function historyHtml() {
   const vehicleOptions = vehicles
     .map((v) => `<option value="${v.id}">${escapeHtml(`${v.plate} · ${v.type}`)}</option>`)
     .join("");
-  const rows = requests.map(renderHistoryTableRow).join("");
 
-  const filterBody = `<form id="history-filter" class="p-form p-form-colored history-filter-form" novalidate>
-    <p class="history-filter-lead muted">Filtra por periodo, cliente o estado. La búsqueda incluye solicitud, trayecto, conductor, placa y viaje.</p>
-    <div class="history-filter-grid">
-      <label class="history-filter-search">${fieldLabel(IC.search || IC.filter, "Búsqueda")}<input type="search" name="q" placeholder="Ej. VIA-001, Bogotá, placa, conductor…" autocomplete="off" /></label>
-      <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
-      <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
-      <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${clientOptions}</select></label>
-      <label>${fieldLabel(IC.activity, "Estado")}<select name="status">${historyStatusFilterOptions()}</select></label>
-    </div>
-    <div class="history-filter-actions">
-      <button class="btn btn-action" type="reset">${IC.x} Limpiar filtros</button>
+  const histTab = (id, label, iconKey) => {
+    const active = workspace === id;
+    return `<button type="button" role="tab" class="history-workspace-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="history-workspace" data-workspace="${escapeAttr(id)}">${IC[iconKey] || ""}<span>${escapeHtml(label)}</span></button>`;
+  };
+  const workspaceNav = `<nav class="history-workspace-nav" role="tablist" aria-label="Secciones del historial">
+    ${histTab("explore", "Explorar historial", "clock")}
+    ${histTab("driver", "Costos conductor", "user")}
+    ${histTab("fleet", "Registro flota", "truck")}
+  </nav>`;
+
+  const quickPill = (key, label) =>
+    `<button type="button" class="ops-filter-pill${quickFilter === key ? " is-active" : ""}" data-action="history-quick-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${counts[key] ?? 0}</strong></button>`;
+
+  const filterBody = `<form id="history-filter" class="history-filter-form" novalidate>
+    <div class="history-toolbar">
+      <label class="history-toolbar-search">
+        <span class="visually-hidden">Buscar</span>
+        ${IC.search || IC.filter}
+        <input type="search" name="q" placeholder="Solicitud, cliente, ciudad, placa, conductor, viaje…" autocomplete="off" />
+      </label>
+      <details class="history-advanced-filters">
+        <summary class="btn btn-sm btn-action">${IC.filter} Más filtros</summary>
+        <div class="history-advanced-filters-body">
+          <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+          <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+          <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${clientOptions}</select></label>
+          <label>${fieldLabel(IC.activity, "Estado exacto")}<select name="status">${historyStatusFilterOptions()}</select></label>
+          <button class="btn btn-sm btn-action" type="reset">${IC.x} Limpiar</button>
+        </div>
+      </details>
     </div>
   </form>`;
-  const driverReportBody = `<form id="driver-month-report-form" class="p-form p-form-colored">
-    <fieldset class="form-section form-section-violet full">
-      <legend>${IC.activity} Reporte conductor</legend>
+
+  const topClientsList = topClients(allRequests);
+  const topVehiclesList = topVehicles(allRequests);
+  const explorePanel = `<div class="history-panel${workspace === "explore" ? "" : " hidden"}" data-history-panel="explore" role="tabpanel">
+    <div class="history-quick-bar ops-filters-bar" role="group" aria-label="Filtro rápido">
+      ${quickPill("all", "Todos")}
+      ${quickPill("active", "En operación")}
+      ${quickPill("closed", "Cerradas")}
+      ${quickPill("pending", "Sin viaje")}
+      ${quickPill("cancelled", "Anuladas")}
+    </div>
+    <aside class="history-insight-strip" aria-label="Resumen rápido">
+      <div class="history-insight-item">
+        <span class="history-insight-label">${IC.user} Clientes activos</span>
+        <p class="history-insight-value">${topClientsList.length ? escapeHtml(topClientsList.join(" · ")) : "Sin datos"}</p>
+      </div>
+      <div class="history-insight-item">
+        <span class="history-insight-label">${IC.truck} Flota asignada</span>
+        <p class="history-insight-value">${topVehiclesList.length ? escapeHtml(topVehiclesList.join(" · ")) : "Sin datos"}</p>
+      </div>
+      <div class="history-insight-item">
+        <span class="history-insight-label">${IC.dollar} Viático interdepartamental</span>
+        <p class="history-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} <span class="muted">/ viaje</span></p>
+      </div>
+    </aside>
+    ${filterBody}
+    <p class="history-result-meta"><span id="history-result-count">${filteredExplore.length}</span> resultado${filteredExplore.length === 1 ? "" : "s"} · orden: más recientes primero</p>
+    <div id="history-results">${renderHistoryResultsList(filteredExplore)}</div>
+  </div>`;
+
+  const driverReportBody = `<div class="history-panel${workspace === "driver" ? "" : " hidden"}" data-history-panel="driver" role="tabpanel">
+    <div class="history-panel-intro">
+      <p class="muted">Consolidado mensual de viajes del conductor, viáticos entre departamentos y combustible registrado en el periodo.</p>
+    </div>
+    <form id="driver-month-report-form" class="p-form p-form-colored history-driver-form">
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
         <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
       </div>
-    </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.activity} Generar reporte mensual</button>
-  </form>
-  <div id="driver-month-report-output" class="muted" style="margin-top:0.75rem">Selecciona conductor y mes para ver viaticos, combustible y viajes realizados.</div>`;
+      <button class="btn btn-primary" type="submit">${IC.activity} Generar reporte</button>
+    </form>
+    <div id="driver-month-report-output" class="history-driver-output muted">Selecciona conductor y mes, luego pulsa Generar reporte.</div>
+  </div>`;
+
   const fuelForm = `<form id="form-fuel-log" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.calendar} Carga de combustible</legend>
@@ -13064,69 +13185,28 @@ function historyHtml() {
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
   </form>`;
-  const historyTableHead = `<thead><tr>
-    <th>Fecha</th><th>Solicitud</th><th>Cliente</th><th>Trayecto</th><th>Conductor</th><th>Placa</th><th>Flota / Termoking</th><th>Valor</th><th>Estado</th><th>Viaje</th>
-  </tr></thead>`;
-  const tableBody = rows
-    ? `<div class="table-wrap transport-exec-table-wrap history-table-wrap"><table>${historyTableHead}<tbody id="history-body">${rows}</tbody></table></div>`
-    : emptyState("Sin registros en el historial.");
-  const insightsBody = `<div class="dash-grid history-insights-grid">
-    ${pcardWrap("user", "Clientes con más movimientos", "Top 3 por solicitudes", `<p class="history-insight-value">${topClients(requests).join(" · ") || "Sin datos"}</p>`)}
-    ${pcardWrap("truck", "Tipos de flota asignados", "Top 3 en viajes", `<p class="history-insight-value">${topVehicles(requests).join(" · ") || "Sin datos"}</p>`)}
-    ${pcardWrap("dollar", "Viáticos interdepartamentales", "Regla vigente", `<p class="history-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} <span class="muted">por viaje entre departamentos</span></p>`)}
+
+  const fleetPanel = `<div class="history-panel${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
+    <div class="history-panel-intro">
+      <p class="muted">Registre cargas de combustible y novedades de taller. Estos datos alimentan el reporte mensual por conductor.</p>
+    </div>
+    <div class="history-fleet-grid">
+      ${createCollapsibleCard("create-fuel-log", "plus", "Combustible", "Litros, costo, estación y vínculo opcional al viaje", fuelForm, "Registrar carga")}
+      ${createCollapsibleCard("create-technical-log", "plus", "Taller", "Preventivo, correctivo o falla con costo y horas fuera de servicio", technicalForm, "Registrar novedad")}
+    </div>
   </div>`;
-  const consultBody =
-    `<p class="history-result-meta muted"><span id="history-result-count">${requests.length}</span> registro${requests.length === 1 ? "" : "s"} · más recientes primero</p>` +
-    filterBody +
-    tableBody;
-  const consultCard = pcardWrap(
-    "clock",
-    "Registro de solicitudes y viajes",
-    "Trazabilidad operativa completa",
-    consultBody,
-    "history-consult-card"
-  );
-  const driverReportCard = pcardWrap(
-    "activity",
-    "Análisis mensual por conductor",
-    "Viáticos, combustible y viajes del periodo",
-    driverReportBody,
-    "history-driver-report-card"
-  );
-  const opsBody = `<div class="dash-grid history-ops-grid">${createCollapsibleCard("create-fuel-log", "plus", "Combustibles", "Cargas, reembolsos y trazabilidad por viaje", fuelForm, "Registrar combustible")}${createCollapsibleCard("create-technical-log", "plus", "Novedades técnicas", "Mantenimiento, fallas y horas fuera de servicio", technicalForm, "Registrar novedad técnica")}</div>`;
-  const opsCard = pcardWrap("truck", "Registro operativo de flota", "Datos complementarios al historial de viajes", opsBody, "history-ops-card");
+
+  const moduleHead = `<header class="ops-module-head ops-module-head--rich history-module-head">
+    <div class="ops-module-title">
+      <span class="ops-module-kicker">Transporte · Consulta</span>
+      <h2>Historial y operación</h2>
+      <p class="ops-module-subtitle">Explora solicitudes y viajes, revisa costos por conductor y registra combustible o novedades de taller sin mezclarlo todo en una sola lista.</p>
+    </div>
+  </header>`;
+
   return (
     histHero +
-    `<div class="history-module">
-      <section class="history-section history-section--insights" aria-labelledby="history-insights-heading">
-        <div class="history-section-head">
-          <h2 id="history-insights-heading" class="history-section-title">${IC.activity} Panorama</h2>
-          <p class="history-section-lead muted">Indicadores rápidos antes de consultar el detalle.</p>
-        </div>
-        ${insightsBody}
-      </section>
-      <section class="history-section history-section--consult" aria-labelledby="history-consult-heading">
-        <div class="history-section-head">
-          <h2 id="history-consult-heading" class="history-section-title">${IC.clock} Consulta de historial</h2>
-          <p class="history-section-lead muted">Trazabilidad completa: solicitud, trayecto, asignación y estado del viaje.</p>
-        </div>
-        ${consultCard}
-      </section>
-      <section class="history-section history-section--driver" aria-labelledby="history-driver-heading">
-        <div class="history-section-head">
-          <h2 id="history-driver-heading" class="history-section-title">${IC.user} Costos por conductor</h2>
-          <p class="history-section-lead muted">Consolidado de viajes, viáticos y combustible de un mes.</p>
-        </div>
-        ${driverReportCard}
-      </section>
-      <section class="history-section history-section--ops" aria-labelledby="history-ops-heading">
-        <div class="history-section-head">
-          <h2 id="history-ops-heading" class="history-section-title">${IC.truck} Operación de flota</h2>
-          <p class="history-section-lead muted">Registre combustible y novedades técnicas vinculadas a la operación.</p>
-        </div>
-        ${opsCard}
-      </section>
-    </div>`
+    `<div class="history-module history-module--v2">${moduleHead}${workspaceNav}${explorePanel}${driverReportBody}${fleetPanel}</div>`
   );
 }
 
@@ -20631,44 +20711,56 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = String(btn.dataset.workspace || "explore");
+      state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: next };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='history-quick-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = String(btn.dataset.filter || "all");
+      state.historyUi = { ...(state.historyUi || { workspace: "explore" }), quickFilter: next };
+      document.querySelectorAll("[data-action='history-quick-filter']").forEach((pill) => {
+        pill.classList.toggle("is-active", String(pill.dataset.filter || "") === next);
+      });
+      const historyFilter = document.getElementById("history-filter");
+      if (typeof window.__historyApplyFilters === "function") window.__historyApplyFilters();
+      else if (historyFilter) historyFilter.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+
   const historyFilter = document.getElementById("history-filter");
   if (historyFilter) {
-    /**
-     * Filtrado del módulo Historial: combina criterios estructurados (cliente, estado, rango de
-     * fechas) con búsqueda libre (`q`) sobre número de solicitud, cliente, Termoking, tipo de
-     * flota asignado y viaje. Mantiene los pills de estado (`prettyStatus`) para conservar la UX.
-     */
-    const filterRows = () => {
+    const refreshHistoryResults = () => {
+      const histUi = state.historyUi || { quickFilter: "all" };
       const data = Object.fromEntries(new FormData(historyFilter).entries());
-      const q = String(data.q || "").trim().toLowerCase();
-      let items = reqRead();
-      if (data.client) items = items.filter((i) => i.clientUserId === data.client);
-      if (data.status) items = items.filter((i) => i.status === data.status);
-      if (data.from) items = items.filter((i) => new Date(i.createdAt) >= new Date(`${data.from}T00:00`));
-      if (data.to) items = items.filter((i) => new Date(i.createdAt) <= new Date(`${data.to}T23:59`));
-      if (q) items = items.filter((i) => historyHaystack(i).includes(q));
-      items = sortHistoryRequests(items);
-      const body = document.getElementById("history-body");
+      const items = applyHistoryFilters(reqRead(), {
+        quickFilter: histUi.quickFilter,
+        formData: data
+      });
+      const mount = document.getElementById("history-results");
       const countEl = document.getElementById("history-result-count");
       if (countEl) countEl.textContent = String(items.length);
-      if (!body) return;
-      body.innerHTML = items.length
-        ? items.map(renderHistoryTableRow).join("")
-        : "<tr><td colspan='10'><div class='history-empty-row'>Sin registros para los filtros aplicados.</div></td></tr>";
+      if (mount) mount.innerHTML = renderHistoryResultsList(items);
     };
+    window.__historyApplyFilters = refreshHistoryResults;
     historyFilter.addEventListener("submit", (event) => {
       event.preventDefault();
-      filterRows();
+      refreshHistoryResults();
     });
+    historyFilter.addEventListener("change", () => refreshHistoryResults());
     historyFilter.querySelectorAll("select, input[type='date']").forEach((field) => {
-      field.addEventListener("change", () => filterRows());
+      field.addEventListener("change", () => refreshHistoryResults());
     });
     const liveSearch = historyFilter.querySelector("input[name='q']");
     if (liveSearch) {
-      liveSearch.addEventListener("input", () => filterRows());
+      liveSearch.addEventListener("input", () => refreshHistoryResults());
     }
     historyFilter.addEventListener("reset", () => {
-      window.requestAnimationFrame(() => filterRows());
+      window.requestAnimationFrame(() => refreshHistoryResults());
     });
   }
 
@@ -20693,17 +20785,22 @@ function bindDynamicEvents() {
           <td>${prettyStatus(trip.status, "trip")}</td>
         </tr>`)
         .join("");
+      output.classList.remove("muted");
       output.innerHTML = `
-        <div class="dash-grid driver-report-kpi-grid">
-          <div class="p-card driver-report-kpi"><h4>Viajes del mes</h4><strong>${report.tripCount}</strong></div>
-          <div class="p-card driver-report-kpi"><h4>Interdepartamentales</h4><strong>${report.interDepartmentTrips}</strong></div>
-          <div class="p-card driver-report-kpi"><h4>Viáticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
-          <div class="p-card driver-report-kpi"><h4>Combustible registrado</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
-          <div class="p-card driver-report-kpi"><h4>Costo técnico flota asociada</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
+        <div class="history-driver-report">
+          <div class="dash-grid driver-report-kpi-grid">
+            <div class="p-card driver-report-kpi"><h4>Viajes del mes</h4><strong>${report.tripCount}</strong></div>
+            <div class="p-card driver-report-kpi"><h4>Interdepartamentales</h4><strong>${report.interDepartmentTrips}</strong></div>
+            <div class="p-card driver-report-kpi"><h4>Viáticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
+            <div class="p-card driver-report-kpi"><h4>Combustible</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
+            <div class="p-card driver-report-kpi"><h4>Técnico flota</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
+          </div>
+          ${
+            rows
+              ? `<div class="table-wrap transport-exec-table-wrap history-report-table-wrap"><table><thead><tr><th>Viaje</th><th>Fecha</th><th>Ruta</th><th>Camión</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+              : `<p class="muted history-driver-report-empty">No hay viajes cerrados en ese mes para este conductor.</p>`
+          }
         </div>
-        ${rows
-          ? `<div class="table-wrap transport-exec-table-wrap history-report-table-wrap"><table><thead><tr><th>Viaje</th><th>Fecha cierre</th><th>Ruta departamentos</th><th>Camion</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
-          : `<p class="muted">No hay viajes finalizados para ese periodo.</p>`}
       `;
     });
   }

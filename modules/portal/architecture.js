@@ -53,7 +53,17 @@ window.PortalArchitecture = (() => {
       layoutPlan: [
         {
           container: ".module-shell-body",
-          order: [".fleet-hero-strip", ".history-module", ".history-section", ".dash-grid", ".p-card", ".table-wrap", ".empty-state", "[id^='create-']"]
+          order: [
+            ".fleet-hero-strip",
+            ".history-module",
+            ".history-workspace-nav",
+            ".history-panel",
+            ".history-cards-grid",
+            ".history-card",
+            ".dash-grid",
+            ".p-card",
+            "[id^='create-']"
+          ]
         }
       ]
     },
