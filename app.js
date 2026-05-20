@@ -2656,10 +2656,10 @@ let state = {
   adminUserSessionsError: null,
   /** Administración · Usuarios: tarjeta «Sesiones» colapsada para ganar espacio vertical. */
   adminSessionsLogMinimized: true,
-  /** Solicitudes · Admin: historial de solicitudes eliminadas (minimizar para ganar espacio). */
-  deletedTransportRequestsLogMinimized: false,
-  /** Transporte · Admin: historial de viajes desasignados/eliminados (minimizar). */
-  deletedTransportTripsLogMinimized: false,
+  /** Solicitudes · Admin: historial de solicitudes eliminadas (inicia colapsado). */
+  deletedTransportRequestsLogMinimized: true,
+  /** Transporte · Admin: historial de viajes desasignados/eliminados (inicia colapsado). */
+  deletedTransportTripsLogMinimized: true,
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
   notificationPreferences: {
     notificacionesHabilitadas: true,
@@ -7295,8 +7295,8 @@ function clearSession() {
   state.adminUserSessionsLoading = false;
   state.adminUserSessionsError = null;
   state.adminSessionsLogMinimized = true;
-  state.deletedTransportRequestsLogMinimized = false;
-  state.deletedTransportTripsLogMinimized = false;
+  state.deletedTransportRequestsLogMinimized = true;
+  state.deletedTransportTripsLogMinimized = true;
   state.notificationPreferences = {
     notificacionesHabilitadas: true,
     sonidoNotificacionesHabilitadas: true
@@ -16189,6 +16189,12 @@ function renderPortalViewImpl() {
     } else if (prevPortalView !== "admin-users") {
       state.adminUserSessionsLoading = false;
     }
+  }
+  if (view === "requests" && prevPortalView !== "requests") {
+    state.deletedTransportRequestsLogMinimized = true;
+  }
+  if (view === "transport-trips" && prevPortalView !== "transport-trips") {
+    state.deletedTransportTripsLogMinimized = true;
   }
   const viewTitle = PortalArch.getTitle(view);
   nodes.viewTitle.textContent = viewTitle;
