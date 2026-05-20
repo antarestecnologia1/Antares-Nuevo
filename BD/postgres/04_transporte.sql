@@ -121,7 +121,6 @@ CREATE TABLE solicitudes_transporte (
   nombre_contacto_en_sitio        VARCHAR(255) NOT NULL,
   telefono_contacto_en_sitio      VARCHAR(32) NOT NULL,
   observaciones                   TEXT,
-  adjuntos_nombres_json           JSONB NOT NULL DEFAULT '[]',
   estado                          estado_solicitud_transporte NOT NULL DEFAULT 'Pendiente',
   valor_tarifa_viaje             NUMERIC(18,2) NOT NULL DEFAULT 0,
   valor_asegurado                 NUMERIC(18,2),

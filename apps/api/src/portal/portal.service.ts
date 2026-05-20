@@ -1854,7 +1854,6 @@ export class PortalService implements OnModuleInit {
              s.nombre_contacto_en_sitio AS "contactName",
              s.telefono_contacto_en_sitio AS "contactPhone",
              s.observaciones AS observations,
-             s.adjuntos_nombres_json AS attachments,
              s.estado::text AS status,
              s.valor_tarifa_viaje AS "tripValue",
              s.total_cargos_standby AS "standbyChargeTotal",
@@ -1965,7 +1964,6 @@ export class PortalService implements OnModuleInit {
       contactName: row.contactName,
       contactPhone: row.contactPhone,
       observations: row.observations,
-      attachments: Array.isArray(row.attachments) ? row.attachments : JSON.parse(String(row.attachments || "[]")),
       status: row.status,
       tripValue: row.tripValue,
       standbyChargeTotal: row.standbyChargeTotal,
@@ -3722,12 +3720,12 @@ export class PortalService implements OnModuleInit {
           fecha_hora_recogida, fecha_hora_entrega_estimada, tipo_vehiculo_solicitado, descripcion_carga, tipo_servicio,
           refrigeracion_termoking,
           numero_cajas, peso_kg, numero_fuelles, nombre_contacto_en_sitio, telefono_contacto_en_sitio, observaciones,
-          adjuntos_nombres_json, estado, valor_tarifa_viaje, total_cargos_standby, eventos_standby_json,
+          estado, valor_tarifa_viaje, total_cargos_standby, eventos_standby_json,
           motivo_rechazo, fecha_aprobacion, aprobado_por, fecha_entrega_efectiva, fecha_cierre
         ) VALUES (
           $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::timestamptz,
-          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26::estado_solicitud_transporte, $27, $28, $29::jsonb,
-          $30, $31::timestamptz, $32, $33::timestamptz, $34::timestamptz
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::estado_solicitud_transporte, $26, $27, $28::jsonb,
+          $29, $30::timestamptz, $31, $32::timestamptz, $33::timestamptz
         )
         ON CONFLICT (id) DO UPDATE SET
           numero_solicitud = EXCLUDED.numero_solicitud,
@@ -3753,7 +3751,6 @@ export class PortalService implements OnModuleInit {
           nombre_contacto_en_sitio = EXCLUDED.nombre_contacto_en_sitio,
           telefono_contacto_en_sitio = EXCLUDED.telefono_contacto_en_sitio,
           observaciones = EXCLUDED.observaciones,
-          adjuntos_nombres_json = EXCLUDED.adjuntos_nombres_json,
           estado = EXCLUDED.estado,
           valor_tarifa_viaje = EXCLUDED.valor_tarifa_viaje,
           total_cargos_standby = EXCLUDED.total_cargos_standby,
@@ -3788,7 +3785,6 @@ export class PortalService implements OnModuleInit {
           contactName,
           contactPhone,
           observations,
-          JSON.stringify(Array.isArray(req.attachments) ? req.attachments : []),
           req.status,
           Number(req.tripValue) || 0,
           Number(req.standbyChargeTotal) || 0,

@@ -283,7 +283,7 @@ def _module_contract_matrix() -> list[list[str]]:
             "Módulo 2 — Portal clientes empresariales",
             "Operativo",
             "95 %",
-            "JWT, registro con aprobación admin, solicitudes, estados, adjuntos, notificaciones",
+            "JWT, registro con aprobación admin, solicitudes, estados, notificaciones",
         ],
         [
             "Módulo 3 — Panel administración",

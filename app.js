@@ -3265,6 +3265,18 @@ function __applyPortalBootstrapPayloadInner(p) {
       write(KEYS.companies, merged);
       continue;
     }
+    if (prop === "requests") {
+      const raw = Array.isArray(p.requests) ? p.requests : [];
+      write(
+        KEYS.requests,
+        raw.map((row) => {
+          if (!row || typeof row !== "object") return row;
+          const { attachments: _attachments, ...rest } = row;
+          return rest;
+        })
+      );
+      continue;
+    }
     if (prop === "notifications") {
       const raw = Array.isArray(p.notifications) ? p.notifications : [];
       const actor = currentUser();
@@ -18708,7 +18720,6 @@ function bindDynamicEvents() {
         weightKg: requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType) ? weightKgVal : 0,
         pickupAt,
         etaDelivery,
-        attachments,
         status: STATUS.PENDIENTE,
         createdAt: nowIso(),
         approvedAt: null,
@@ -19107,7 +19118,6 @@ function bindDynamicEvents() {
               <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
               <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
               <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
-              <div><strong>Adjuntos</strong><br /><span class="muted">${escapeHtml((req.attachments || []).join(", ") || "Ninguno")}</span></div>
               ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
               ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
             </div>

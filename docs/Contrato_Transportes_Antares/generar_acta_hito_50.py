@@ -227,7 +227,7 @@ def main():
             ["Login, registro empresas, recuperación contraseña", "Implementado", "auth + aprobación admin de cuentas"],
             ["Sesiones JWT + refresh tokens", "Implementado", "apps/api/auth, columna refresh_token_hash"],
             ["Dashboard solicitudes activas", "Implementado", "Vista dashboard / solicitudes cliente"],
-            ["Creación solicitud de viaje (origen, destino, carga, adjuntos)", "Implementado", "Módulo solicitudes + validaciones"],
+            ["Creación solicitud de viaje (origen, destino, carga)", "Implementado", "Módulo solicitudes + validaciones"],
             ["Estados Pendiente → Aprobada → En tránsito → Completada/Cancelada", "Implementado", "Flujo operativo en BD y UI"],
             ["Flujo aprobación 10 min + auto-aprobación", "Implementado", "Centro autorizaciones + temporizador"],
             ["Detalle viaje asignado (vehículo, conductor, ruta)", "Implementado", "Vista detalle y notificaciones"],
