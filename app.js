@@ -11645,23 +11645,36 @@ function transportTripsHtml() {
     ? `${opsFiltersBar}<div class="trip-ops-cards">${sortedFilteredTrips.map(buildTripOpsCard).join("")}</div>`
     : `${opsFiltersBar}${emptyState("No hay viajes para el filtro seleccionado.")}`;
 
+  const formatRatePlaceLabel = (part) => {
+    const s = String(part || "").trim();
+    if (!s) return "—";
+    return s
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+  };
   const formatRateRouteCell = (storageKey) => {
     const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
     const routeOnly = sepIdx === -1 ? String(storageKey) : String(storageKey).slice(0, sepIdx);
     const [orig, dest] = String(routeOnly).split("->");
     const [od, oc] = String(orig || "").split("|");
     const [dd, dc] = String(dest || "").split("|");
+    const originCity = formatRatePlaceLabel(oc);
+    const originDept = formatRatePlaceLabel(od);
+    const destCity = formatRatePlaceLabel(dc);
+    const destDept = formatRatePlaceLabel(dd);
     return `<div class="route-rate-route-cell">
       <div class="route-rate-route-leg">
         <span class="route-rate-route-label">Origen</span>
-        <strong>${escapeHtml(oc || "-")}</strong>
-        <span class="muted">${escapeHtml(od || "-")}</span>
+        <span class="route-rate-route-city">${escapeHtml(originCity)}</span>
+        <span class="route-rate-route-dept">${escapeHtml(originDept)}</span>
       </div>
-      <span class="route-rate-route-arrow" aria-hidden="true">→</span>
+      <span class="route-rate-route-arrow" aria-hidden="true">${IC.mapPin}</span>
       <div class="route-rate-route-leg">
         <span class="route-rate-route-label">Destino</span>
-        <strong>${escapeHtml(dc || "-")}</strong>
-        <span class="muted">${escapeHtml(dd || "-")}</span>
+        <span class="route-rate-route-city">${escapeHtml(destCity)}</span>
+        <span class="route-rate-route-dept">${escapeHtml(destDept)}</span>
       </div>
     </div>`;
   };
@@ -11670,7 +11683,7 @@ function transportTripsHtml() {
     if (!ids.length) {
       return {
         scope: '<span class="route-rate-scope-badge route-rate-scope-badge--all" title="Esta tarifa es estándar y aplica a todos los clientes">General</span>',
-        clients: '<span class="muted">Todos los clientes</span>'
+        clients: '<span class="route-rate-clients-all">Todos los clientes</span>'
       };
     }
     const chips = ids
@@ -11690,7 +11703,7 @@ function transportTripsHtml() {
           <td>${formatRateRouteCell(storageKey)}</td>
           <td>${clientCell.scope}</td>
           <td>${clientCell.clients}</td>
-          <td><strong class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</strong><br><span class="muted" style="font-size:0.7rem;letter-spacing:0.02em">COP por viaje</span></td>
+          <td><div class="route-rate-money-cell"><span class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</span><span class="route-rate-value-unit">COP · por viaje</span></div></td>
           <td>${isAdmin ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar el valor o el alcance de esta tarifa">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Quitar esta tarifa del catálogo (solo administradores)">${IC.trash} Quitar</button></div>` : '<span class="muted">—</span>'}</td>
         </tr>`;
         })
@@ -11698,17 +11711,19 @@ function transportTripsHtml() {
     : "";
   const ratesTable = ratesRows
     ? `<div class="route-rates-intro">
-        <p><strong>${IC.dollar} Catálogo de tarifas pactadas</strong> · Estos precios se autocompletan cuando creas un viaje con la misma ruta. <span class="muted">Si la tarifa es "General" aplica a cualquier cliente; "Por empresa" solo aplica a las empresas seleccionadas.</span></p>
+        <p class="route-rates-intro-title">${IC.dollar} Catálogo de tarifas pactadas</p>
+        <p class="route-rates-intro-body">Estos precios se autocompletan al crear un viaje en la misma ruta.</p>
+        <p class="route-rates-intro-note"><span class="route-rate-scope-badge route-rate-scope-badge--all">General</span> aplica a cualquier cliente · <span class="route-rate-scope-badge route-rate-scope-badge--specific">Por empresa</span> solo a los clientes indicados.</p>
       </div>
       <div class="table-wrap route-rates-table-wrap">
         <table class="route-rates-table">
           <thead>
             <tr>
-              <th>Trayecto (origen → destino)</th>
-              <th>Aplica a</th>
-              <th>Clientes específicos</th>
-              <th>Valor del viaje</th>
-              <th>Acciones</th>
+              <th scope="col">Trayecto</th>
+              <th scope="col">Alcance</th>
+              <th scope="col">Clientes</th>
+              <th scope="col">Tarifa</th>
+              <th scope="col">Acciones</th>
             </tr>
           </thead>
           <tbody>${ratesRows}</tbody>
