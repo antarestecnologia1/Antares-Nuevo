@@ -535,7 +535,10 @@ function renderEditModalFieldRow(f, fieldIdx) {
       ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
       : `<span>${labelInner}</span>`;
     const hiddenAttr = f.hidden ? " hidden" : "";
-    return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<select name="${escapeAttr(f.name)}" ${f.required ? "required" : ""}${editModalAntaresAttrString(f)}>${options}</select></label>`;
+    const searchableAttr = f.searchable
+      ? ` class="searchable-select-native" data-searchable-select="1" data-searchable-placeholder="${escapeAttr(String(f.searchablePlaceholder || "Escriba placa, nombre o documento…"))}"`
+      : "";
+    return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<select name="${escapeAttr(f.name)}"${searchableAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)}>${options}</select></label>`;
   }
   if (f.type === "hidden") {
     return `<input type="hidden" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}" />`;
@@ -691,6 +694,7 @@ function openEditModal({
       devWarn("openEditModal afterMount", err);
     }
   }
+  enhanceTripAssignmentSelects(formEl);
   window.AntaresValidation?.decorateFormFields?.(formEl);
   scrollIntoViewSmoothBlockStart(formEl);
   scrollOpenCrudModalIntoView();
@@ -5332,6 +5336,157 @@ function wireTripRateChoiceSelect(formEl) {
   renderMeta(String(sel.value || "").trim());
 }
 
+/** Select con búsqueda por texto (listas largas de flota / conductores). */
+const SEARCHABLE_SELECT_MIN_OPTIONS = 8;
+
+function getSearchableSelectParts(selectEl) {
+  const wrap = selectEl?.closest?.(".searchable-select");
+  if (!wrap) return null;
+  return {
+    wrap,
+    input: wrap.querySelector(".searchable-select-input"),
+    list: wrap.querySelector(".searchable-select-dropdown"),
+    select: selectEl
+  };
+}
+
+function syncSearchableSelectInputFromValue(selectEl) {
+  const parts = getSearchableSelectParts(selectEl);
+  if (!parts?.input) return;
+  const opt = selectEl.options[selectEl.selectedIndex];
+  parts.input.value = opt && String(opt.value || "").trim() ? String(opt.textContent || "").trim() : "";
+}
+
+function renderSearchableSelectDropdown(selectEl, filterText = "") {
+  const parts = getSearchableSelectParts(selectEl);
+  if (!parts?.list) return;
+  const needle = String(filterText || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const rows = [...selectEl.options]
+    .map((opt) => {
+      const text = String(opt.textContent || "").trim();
+      const value = String(opt.value || "");
+      if (!text && !value) return null;
+      const hay = `${text} ${value}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      if (needle && !hay.includes(needle)) return null;
+      return { text, value, disabled: opt.disabled };
+    })
+    .filter(Boolean);
+  if (!rows.length) {
+    parts.list.innerHTML = `<li class="searchable-select-empty" role="presentation">Sin coincidencias</li>`;
+    parts.list.classList.remove("hidden");
+    return;
+  }
+  parts.list.innerHTML = rows
+    .map(
+      (row) =>
+        `<li role="option" data-value="${escapeAttr(row.value)}" class="searchable-select-option${row.disabled ? " is-disabled" : ""}"${row.disabled ? ' aria-disabled="true"' : ""} tabindex="-1">${escapeHtml(row.text)}</li>`
+    )
+    .join("");
+  parts.list.classList.remove("hidden");
+}
+
+function refreshSearchableSelect(selectEl) {
+  if (!selectEl || selectEl.dataset.searchableMounted !== "1") return;
+  syncSearchableSelectInputFromValue(selectEl);
+  const parts = getSearchableSelectParts(selectEl);
+  if (parts?.list) parts.list.classList.add("hidden");
+}
+
+function mountSearchableSelect(selectEl, opts = {}) {
+  if (!selectEl || selectEl.tagName !== "SELECT") return;
+  const force = !!(opts && opts.force);
+  if (selectEl.dataset.searchableMounted === "1") {
+    refreshSearchableSelect(selectEl);
+    return;
+  }
+  if (!force && selectEl.options.length < SEARCHABLE_SELECT_MIN_OPTIONS) return;
+
+  const placeholder =
+    String(selectEl.getAttribute("data-searchable-placeholder") || "").trim() || "Escriba para buscar…";
+  const wrap = document.createElement("div");
+  wrap.className = "searchable-select";
+  selectEl.parentNode.insertBefore(wrap, selectEl);
+  wrap.appendChild(selectEl);
+
+  const input = document.createElement("input");
+  input.type = "search";
+  input.className = "searchable-select-input";
+  input.setAttribute("autocomplete", "off");
+  input.setAttribute("spellcheck", "false");
+  input.setAttribute("aria-autocomplete", "list");
+  input.placeholder = placeholder;
+  wrap.insertBefore(input, selectEl);
+
+  const list = document.createElement("ul");
+  list.className = "searchable-select-dropdown hidden";
+  list.setAttribute("role", "listbox");
+  wrap.appendChild(list);
+
+  selectEl.classList.add("searchable-select-native");
+  selectEl.dataset.searchableMounted = "1";
+
+  const pickValue = (value) => {
+    const v = String(value ?? "");
+    const match = [...selectEl.options].find((o) => String(o.value) === v && !o.disabled);
+    if (!match) return;
+    selectEl.value = v;
+    syncSearchableSelectInputFromValue(selectEl);
+    list.classList.add("hidden");
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  input.addEventListener("focus", () => {
+    renderSearchableSelectDropdown(selectEl, input.value);
+  });
+  input.addEventListener("input", () => {
+    renderSearchableSelectDropdown(selectEl, input.value);
+  });
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      list.classList.add("hidden");
+      syncSearchableSelectInputFromValue(selectEl);
+      return;
+    }
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      const first = list.querySelector(".searchable-select-option:not(.is-disabled)");
+      if (first) pickValue(first.getAttribute("data-value"));
+    }
+  });
+  list.addEventListener("mousedown", (ev) => {
+    const li = ev.target.closest(".searchable-select-option:not(.is-disabled)");
+    if (!li) return;
+    ev.preventDefault();
+    pickValue(li.getAttribute("data-value"));
+  });
+  input.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      if (!wrap.contains(document.activeElement)) {
+        list.classList.add("hidden");
+        syncSearchableSelectInputFromValue(selectEl);
+      }
+    }, 120);
+  });
+  selectEl.addEventListener("change", () => syncSearchableSelectInputFromValue(selectEl));
+
+  refreshSearchableSelect(selectEl);
+}
+
+/** Vehículo y conductor en crear viaje, aprobar solicitud y autorizaciones. */
+function enhanceTripAssignmentSelects(rootEl) {
+  const root = rootEl && rootEl.querySelector ? rootEl : document;
+  root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
+    mountSearchableSelect(sel, { force: true });
+  });
+}
+
 function setTripAssignmentFieldsDisabled(formEl, disabled) {
   if (!formEl) return;
   [
@@ -5342,6 +5497,16 @@ function setTripAssignmentFieldsDisabled(formEl, disabled) {
   ].forEach((selector) => {
     const el = formEl.querySelector(selector);
     if (!el) return;
+    const searchable = getSearchableSelectParts(el);
+    if (searchable?.input) {
+      if (disabled) {
+        searchable.input.setAttribute("disabled", "disabled");
+        searchable.input.setAttribute("aria-disabled", "true");
+      } else {
+        searchable.input.removeAttribute("disabled");
+        searchable.input.removeAttribute("aria-disabled");
+      }
+    }
     if (disabled) {
       el.setAttribute("disabled", "disabled");
     } else {
@@ -5599,6 +5764,7 @@ function refreshCreateTripModuleForm(formEl) {
     rateMount.innerHTML = `<div class="form-section-grid">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
     wireTripRateChoiceSelect(formEl);
   }
+  enhanceTripAssignmentSelects(formEl);
 }
 
 function prettyStatus(status, scope = "general") {
@@ -8894,6 +9060,7 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
       })
     ].join("");
     if (prev && [...vehSel.options].some((o) => o.value === prev && !o.disabled)) vehSel.value = prev;
+    refreshSearchableSelect(vehSel);
   }
   if (drvSel) {
     const prev = String(drvSel.value || "");
@@ -8910,6 +9077,7 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
       })
     ].join("");
     if (prev && [...drvSel.options].some((o) => o.value === prev && !o.disabled)) drvSel.value = prev;
+    refreshSearchableSelect(drvSel);
   }
 }
 
@@ -11356,14 +11524,14 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full create-trip-fieldset">
       <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
-        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Para <strong>camión y conductor</strong>, el sistema compara la <strong>hora de recogida y la hora de entrega estimada</strong> de esta solicitud con los viajes ya programados: solo hay conflicto si los intervalos se cruzan; si entre el fin de un viaje y el inicio del siguiente hay tiempo libre, el mismo recurso puede reutilizarse. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
+        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Use el campo de búsqueda para filtrar por placa, nombre o documento cuando la lista es larga. Para <strong>camión y conductor</strong>, el sistema compara la <strong>hora de recogida y la hora de entrega estimada</strong> de esta solicitud con los viajes ya programados: solo hay conflicto si los intervalos se cruzan; si entre el fin de un viaje y el inicio del siguiente hay tiempo libre, el mismo recurso puede reutilizarse. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
         <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">Ocupado</span><span class="create-trip-flag create-trip-flag--offline">No disponible</span><span class="create-trip-flag create-trip-flag--expired">Documentación vencida</span></p>
         <div class="create-trip-fleet-grid">
           <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
-            <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
+            <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por placa, tipo o capacidad…" disabled><option value="">— Elija solicitud primero —</option></select>
           </label>
           <label class="create-trip-fleet-field">${fieldLabel(IC.user, "Conductor", { required: true })}
-            <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select" disabled><option value="">— Elija solicitud primero —</option></select>
+            <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o teléfono…" disabled><option value="">— Elija solicitud primero —</option></select>
           </label>
         </div>
       </div>
@@ -18851,6 +19019,8 @@ function bindDynamicEvents() {
             name: "vehicleId",
             labelHtml: `${IC.truck}<span>Vehículo</span>`,
             type: "select",
+            searchable: true,
+            searchablePlaceholder: "Buscar por placa, tipo o capacidad…",
             required: false,
             full: true,
             options: [
@@ -18880,6 +19050,8 @@ function bindDynamicEvents() {
             name: "driverId",
             labelHtml: `${IC.user}<span>Conductor</span>`,
             type: "select",
+            searchable: true,
+            searchablePlaceholder: "Buscar por nombre, documento o teléfono…",
             required: false,
             full: true,
             options: [
@@ -22300,6 +22472,8 @@ function bindDynamicEvents() {
               name: "vehicleId",
               labelHtml: `${IC.truck}<span>Vehículo</span>`,
               type: "select",
+              searchable: true,
+              searchablePlaceholder: "Buscar por placa, tipo o capacidad…",
               full: true,
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },
@@ -22321,6 +22495,8 @@ function bindDynamicEvents() {
               name: "driverId",
               labelHtml: `${IC.user}<span>Conductor</span>`,
               type: "select",
+              searchable: true,
+              searchablePlaceholder: "Buscar por nombre, documento o teléfono…",
               full: true,
               options: [
                 { value: "", label: "Dejar sin asignar por ahora" },

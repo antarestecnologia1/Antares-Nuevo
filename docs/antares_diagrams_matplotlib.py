@@ -323,17 +323,18 @@ def draw_components_api(out: Path) -> None:
     ax.text(7.14, 6.92, "Aplicación servidor — prefijo REST global `/api`", ha="center", fontsize=10.8, weight="bold", color=C_BRAND)
 
     boxes = [
-        (0.75, 4.92, "AuthModule", "JWT · Passport · Turnstile\nbcrypt usuarios portal"),
-        (3.92, 4.92, "PortalModule", "Bootstrap/sync entidades KEYS.*\nemails · empresas · operación"),
-        (7.42, 4.92, "PayrollModule", "Liquidación Colombia\ncorte America/Bogota · cron"),
-        (10.92, 4.92, "MailModule\nFilesModule\nUploadsModule", "Resend SMTP\nfirmas objetos/R2 opcional"),
-        (0.75, 2.35, "B2bProspectModule", "Prospectos formulario institucional"),
-        (4.82, 2.35, "DatabaseModule\n+ Throttler", "Pool PostgreSQL TZ Bogotá\nrate limit entrada"),
-        (8.92, 2.35, "Cross-cutting", "Config global\nValidationPipe class-validator"),
+        (0.75, 4.92, 2.85, 1.55, "AuthModule", "JWT · Passport · Turnstile\nbcrypt · refresh tokens"),
+        (3.72, 4.92, 2.95, 1.55, "PortalModule", "Bootstrap · sync-key KEYS.*\noperación transporte · RRHH"),
+        (7.12, 4.92, 2.85, 1.55, "PayrollModule", "Liquidación Colombia\nAmerica/Bogotá · cron"),
+        (10.52, 4.92, 2.85, 1.55, "Mail · Files · Uploads", "Resend SMTP · R2/S3\npresigned URLs"),
+        (0.75, 2.35, 2.85, 1.45, "B2bProspectModule", "Prospectos formulario web"),
+        (3.72, 2.35, 3.25, 1.45, "DatabaseModule + Throttler", "Pool PostgreSQL TZ Bogotá\n80 req/min por IP"),
+        (7.42, 2.35, 5.95, 1.45, "Cross-cutting", "ConfigModule · ScheduleModule · ValidationPipe · CORS · helmet headers"),
     ]
+    for x, y, w, h, label, sub in boxes:
+        _rounded_box(ax, x, y, w, h, label, sub, fontsize=9.5, fontsize_sub=7.8)
 
-
-
+    plt.tight_layout()
     plt.savefig(out, dpi=220, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close()
 
