@@ -483,6 +483,82 @@ function suppressSelfInboxPollToastIfRecipientIsCurrentUser(recipientUserId) {
   state.portalSuppressSelfPollToastUntil = Date.now() + 5200;
 }
 
+/** Deshabilita el botón principal de envío y opcionalmente botones auxiliares del formulario. */
+function lockFormSubmitUi(formEl, opts = {}) {
+  const submitBtn =
+    opts.submitButton ??
+    formEl.querySelector?.("button[type='submit']") ??
+    formEl.querySelector?.("[data-step-submit]");
+  if (!submitBtn) return;
+  if (!submitBtn.dataset.submitOrigHtml) submitBtn.dataset.submitOrigHtml = submitBtn.innerHTML;
+  const labelEl = submitBtn.querySelector(".auth-submit-label");
+  if (labelEl && !labelEl.dataset.submitOrigText) labelEl.dataset.submitOrigText = labelEl.textContent || "";
+  submitBtn.disabled = true;
+  submitBtn.setAttribute("aria-busy", "true");
+  if (opts.busyText) {
+    if (labelEl) labelEl.textContent = opts.busyText;
+    else if (!opts.busyHtml) submitBtn.textContent = opts.busyText;
+  }
+  if (opts.busyHtml) submitBtn.innerHTML = opts.busyHtml;
+  if (opts.loadingClass) submitBtn.classList.add(opts.loadingClass);
+  (opts.lockExtraButtons || []).forEach((btn) => {
+    if (!btn) return;
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+  });
+}
+
+/** Restaura el estado del botón de envío tras `lockFormSubmitUi`. */
+function releaseFormSubmitUi(formEl, opts = {}) {
+  if (!formEl) return;
+  formEl.dataset.submitting = "0";
+  const submitBtn =
+    opts.submitButton ??
+    formEl.querySelector?.("button[type='submit']") ??
+    formEl.querySelector?.("[data-step-submit]");
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.removeAttribute("aria-busy");
+    if (submitBtn.dataset.submitOrigHtml) submitBtn.innerHTML = submitBtn.dataset.submitOrigHtml;
+    const labelEl = submitBtn.querySelector(".auth-submit-label");
+    if (labelEl?.dataset.submitOrigText) labelEl.textContent = labelEl.dataset.submitOrigText;
+    if (opts.loadingClass) submitBtn.classList.remove(opts.loadingClass);
+  }
+  (opts.lockExtraButtons || []).forEach((btn) => {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+  });
+}
+
+/**
+ * Evita doble envío en formularios async: bloquea el submit hasta que termina el handler.
+ * @param {HTMLFormElement} formEl
+ * @param {(event: SubmitEvent) => void|boolean|Promise<void|boolean>} onSubmit
+ * @param {{ busyText?: string, busyHtml?: string, loadingClass?: string, submitButton?: HTMLElement, lockExtraButtons?: HTMLElement[], wireKey?: string, onFinally?: (formEl: HTMLFormElement) => void }} [opts]
+ */
+function wireFormSubmitGuard(formEl, onSubmit, opts = {}) {
+  if (!formEl || typeof onSubmit !== "function") return;
+  const wireKey = opts.wireKey || "submitGuardWired";
+  if (formEl.dataset[wireKey] === "1") return;
+  formEl.dataset[wireKey] = "1";
+  formEl.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (formEl.dataset.submitting === "1") return;
+    formEl.dataset.submitting = "1";
+    lockFormSubmitUi(formEl, opts);
+    try {
+      await onSubmit(event);
+    } catch (err) {
+      releaseFormSubmitUi(formEl, opts);
+      throw err;
+    } finally {
+      releaseFormSubmitUi(formEl, opts);
+      opts.onFinally?.(formEl);
+    }
+  });
+}
+
 /** Mensajes en {@link window.AntaresFeedback} (modules/core/feedback-messages.js). */
 function userMessage(key, ...args) {
   const M = window.AntaresFeedback;
@@ -698,67 +774,43 @@ function openEditModal({
   window.AntaresValidation?.decorateFormFields?.(formEl);
   scrollIntoViewSmoothBlockStart(formEl);
   scrollOpenCrudModalIntoView();
-  /**
-   * Misma guardia de idempotencia que en `openConfirmModal`: si el submit del
-   * modal de edición se llegara a disparar dos veces (doble click rápido al
-   * botón principal, Enter + click, listeners residuales por re-renders), solo
-   * la primera invocación corre `onSubmit`. Las siguientes son no-op hasta que
-   * el modal se cierre y se vuelva a abrir.
-   */
-  let submitInFlight = false;
-  formEl.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (submitInFlight) return;
-    submitInFlight = true;
-    const submitBtn = formEl.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.setAttribute("aria-busy", "true");
-    }
-    const releaseLock = () => {
-      submitInFlight = false;
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.removeAttribute("aria-busy");
+  wireFormSubmitGuard(
+    formEl,
+    async (event) => {
+      const currentForm = event.currentTarget;
+      const V = window.AntaresValidation;
+      if (V && typeof V.validateDomForm === "function") {
+        const domVal = V.validateDomForm(currentForm);
+        if (!domVal.ok) {
+          domVal.firstInvalid?.focus?.();
+          notify(userMessage("validationStep"), "error");
+          return false;
+        }
       }
-    };
-    const currentForm = event.currentTarget;
-    const V = window.AntaresValidation;
-    if (V && typeof V.validateDomForm === "function") {
-      const domVal = V.validateDomForm(currentForm);
-      if (!domVal.ok) {
-        domVal.firstInvalid?.focus?.();
-        notify(userMessage("validationStep"), "error");
-        releaseLock();
-        return;
+      const payload = Object.fromEntries(new FormData(currentForm).entries());
+      const fileInputs = [...currentForm.querySelectorAll("input[type='file']")];
+      fileInputs.forEach((input) => {
+        if (input.multiple) {
+          payload[input.name] = [...input.files].map((file) => file.name).join(", ");
+        } else if (input.files?.[0]) {
+          payload[input.name] = input.files[0].name;
+        }
+      });
+      let result;
+      try {
+        result = onSubmit?.(payload, currentForm);
+        if (result && typeof result.then === "function") {
+          result = await result;
+        }
+      } catch (err) {
+        devWarn("openEditModal onSubmit", err);
+        return false;
       }
-    }
-    const payload = Object.fromEntries(new FormData(currentForm).entries());
-    const fileInputs = [...currentForm.querySelectorAll("input[type='file']")];
-    fileInputs.forEach((input) => {
-      if (input.multiple) {
-        payload[input.name] = [...input.files].map((file) => file.name).join(", ");
-      } else if (input.files?.[0]) {
-        payload[input.name] = input.files[0].name;
-      }
-    });
-    let result;
-    try {
-      result = onSubmit?.(payload, currentForm);
-      if (result && typeof result.then === "function") {
-        result = await result;
-      }
-    } catch (err) {
-      devWarn("openEditModal onSubmit", err);
-      releaseLock();
-      return;
-    }
-    if (result === false) {
-      releaseLock();
-      return;
-    }
-    close();
-  });
+      if (result === false) return false;
+      close();
+    },
+    { busyText: "Guardando…", wireKey: "crudSubmitGuardWired" }
+  );
 }
 
 function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm }) {
@@ -7975,24 +8027,9 @@ function bindAuthForms() {
       if (cb) cb.checked = true;
     }
     const loginSubmitBtn = login.querySelector("[data-login-submit]");
-    const setLoginSubmitLoading = (loading) => {
-      if (!loginSubmitBtn) return;
-      if (loading) {
-        loginSubmitBtn.disabled = true;
-        loginSubmitBtn.classList.add("is-loading");
-        loginSubmitBtn.setAttribute("aria-busy", "true");
-        const labelEl = loginSubmitBtn.querySelector(".auth-submit-label");
-        if (labelEl) labelEl.textContent = "Ingresando…";
-      } else {
-        loginSubmitBtn.disabled = false;
-        loginSubmitBtn.classList.remove("is-loading");
-        loginSubmitBtn.removeAttribute("aria-busy");
-        const labelEl = loginSubmitBtn.querySelector(".auth-submit-label");
-        if (labelEl) labelEl.textContent = "Ingresar al portal";
-      }
-    };
-    login.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(
+      login,
+      async (event) => {
       if (Date.now() < state.authSecurity.lockUntil) {
         const secs = Math.ceil((state.authSecurity.lockUntil - Date.now()) / 1000);
         notify(userMessage("authLoginLock", secs), "error");
@@ -8012,8 +8049,6 @@ function bindAuthForms() {
         data.email = loginVal.sanitized.email;
       }
 
-      setLoginSubmitLoading(true);
-      try {
         /**
          * Si hay URL de API, la autenticacion es SOLO contra el servidor (PostgreSQL).
          * No se usa fallback local respecto a credenciales guardadas solo en el navegador.
@@ -8126,12 +8161,16 @@ function bindAuthForms() {
         hideAuth();
         startSessionSecurityWatch();
         renderPortal();
-      } finally {
-        setLoginSubmitLoading(false);
-        // Cada token Turnstile es de un solo uso: si la sesión no se cerró (error o bloqueo), refrescamos.
-        if (!state.session) resetTurnstile(login);
+      },
+      {
+        submitButton: loginSubmitBtn,
+        busyText: "Ingresando…",
+        loadingClass: "is-loading",
+        onFinally: () => {
+          if (!state.session) resetTurnstile(login);
+        }
       }
-    });
+    );
   }
 
   if (register) {
@@ -8219,13 +8258,9 @@ function bindAuthForms() {
     regPass?.addEventListener("input", syncRegisterPasswordMatchState);
     regPassConfirm?.addEventListener("input", syncRegisterPasswordMatchState);
     bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
-    register.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (register.dataset.submitting === "1") return;
-      register.dataset.submitting = "1";
-      const submitBtn = register.querySelector("button[type='submit']");
-      if (submitBtn) submitBtn.disabled = true;
-      try {
+    wireFormSubmitGuard(
+      register,
+      async (event) => {
       syncPhoneHiddenFull(register, "register");
       const data = Object.fromEntries(new FormData(register).entries());
       const Vreg = window.AntaresValidation;
@@ -8478,16 +8513,13 @@ function bindAuthForms() {
       notify(userMessage("registerOfflineToast"), "success", 12000);
       state.authTab = "login";
       renderAuthTab();
-      } finally {
-        register.dataset.submitting = "0";
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    });
+      },
+      { busyText: "Registrando…" }
+    );
   }
 
   if (recover) {
-    recover.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(recover, async (event) => {
       const data = Object.fromEntries(new FormData(recover).entries());
       const V = window.AntaresValidation;
       if (V && typeof V.validateDomForm === "function") {
@@ -8573,8 +8605,7 @@ function bindAuthForms() {
     recoverPass?.addEventListener("input", syncRecoverPasswordMatchState);
     recoverPassConfirm?.addEventListener("input", syncRecoverPasswordMatchState);
 
-    recoverComplete.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(recoverComplete, async (event) => {
       const apiBase = window.AntaresApi?.getBase?.();
       if (!apiBase) {
         notify(userMessage("recoverCompleteNeedsApi"), "error");
@@ -17445,8 +17476,7 @@ function bindDynamicEvents() {
       adminUserCreate.querySelector("#admin-password-strength-suite")
     );
     wireAdminUserFormPermGridOnRoleChange(adminUserCreate);
-    adminUserCreate.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(adminUserCreate, async (event) => {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(adminUserCreate).entries());
       const permissions = [...adminUserCreate.querySelectorAll("input[name='permissions']:checked")].map(
@@ -17522,8 +17552,7 @@ function bindDynamicEvents() {
 
   const adminCompanyCreate = document.getElementById("form-admin-company-create");
   if (adminCompanyCreate) {
-    adminCompanyCreate.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(adminCompanyCreate, async (event) => {
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
       const logoFile = adminCompanyCreate.querySelector("input[name='logoFile']")?.files?.[0] || null;
       if (!logoFile) {
@@ -17626,8 +17655,7 @@ function bindDynamicEvents() {
 
   const adminCompanyEdit = document.getElementById("form-admin-company-edit");
   if (adminCompanyEdit) {
-    adminCompanyEdit.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(adminCompanyEdit, async (event) => {
       const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
       const logoFile = adminCompanyEdit.querySelector("input[name='logoFile']")?.files?.[0] || null;
       let logoUrlResolved = String(data.logoUrlExisting || "").trim();
@@ -17759,8 +17787,7 @@ function bindDynamicEvents() {
     }
     syncPermGridFromSelectedUser();
 
-    adminUserPermissions.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(adminUserPermissions, async (event) => {
       const form = new FormData(adminUserPermissions);
       const userId = String(form.get("userId") || "");
       if (!userId) {
@@ -17824,8 +17851,7 @@ function bindDynamicEvents() {
     const adminEditAvatarLabel = document.getElementById("admin-edit-user-avatar-label");
     bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
     wireAdminUserFormPermGridOnRoleChange(adminUserEdit);
-    adminUserEdit.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(adminUserEdit, async (event) => {
       const data = Object.fromEntries(new FormData(adminUserEdit).entries());
       const userId = String(data.id || "");
       if (!userId) return;
@@ -18454,17 +18480,9 @@ function bindDynamicEvents() {
 
     attachRequestTruckTypeFields(requestForm);
 
-    requestForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (requestForm.dataset.submitting === "1") return;
-      requestForm.dataset.submitting = "1";
-      const submitBtn = requestForm.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
-      const releaseSubmitLock = () => {
-        requestForm.dataset.submitting = "0";
-        if (submitBtn) submitBtn.disabled = false;
-      };
-      try {
+    wireFormSubmitGuard(
+      requestForm,
+      async (event) => {
       const user = currentUser();
       const data = Object.fromEntries(new FormData(requestForm).entries());
       const requestCompanyId = String(data.companyId || "").trim();
@@ -18637,10 +18655,9 @@ function bindDynamicEvents() {
       notify(userMessage("requestCreated"), "success");
       collapseCreatePanel("create-request");
       renderPortalView();
-      } finally {
-        releaseSubmitLock();
-      }
-    });
+      },
+      { busyText: "Creando solicitud…" }
+    );
   }
 
   const payrollFiltersForm = document.getElementById("payroll-filters");
@@ -19477,8 +19494,7 @@ function bindDynamicEvents() {
       if (initReq) wireTripAssignmentScheduleBusyRefresh(createTripForm, initReq, initRid, requestRequiresTermoking(initReq));
     }
 
-    createTripForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(createTripForm, async (event) => {
       const data = Object.fromEntries(new FormData(createTripForm).entries());
       const requestId = String(data.requestId || "");
       if (!requestId) {
@@ -19545,7 +19561,7 @@ function bindDynamicEvents() {
       notify(userMessage("tripCreatedAssigned"), "success");
       collapseCreatePanel("create-trip");
       renderPortalView();
-    });
+    }, { busyText: "Asignando viaje…" });
   }
 
   const routeRateFormEl = document.getElementById("form-route-rate");
@@ -19610,8 +19626,7 @@ function bindDynamicEvents() {
       populateRouteRateInlineForm(pendingEditKey);
       scrollToCreatePanelForm("create-route-rate");
     }
-    routeRateFormEl.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(routeRateFormEl, async (event) => {
       const fd = new FormData(routeRateFormEl);
       const data = Object.fromEntries(fd.entries());
       const scopeField = routeRateFormEl.querySelector("[data-route-rate-scope-field]");
@@ -19653,7 +19668,7 @@ function bindDynamicEvents() {
       resetRateEditMode();
       collapseCreatePanel("create-route-rate");
       renderPortalView();
-    });
+    }, { busyText: "Guardando tarifa…" });
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='trip-detail']").forEach((btn) => {
@@ -20035,8 +20050,7 @@ function bindDynamicEvents() {
   const vehicleForm = document.getElementById("form-vehicle");
   if (vehicleForm) {
     bindVehicleDocExpiryAutoFill(vehicleForm);
-    vehicleForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(vehicleForm, async (event) => {
       const data = Object.fromEntries(new FormData(vehicleForm).entries());
       const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
@@ -20099,7 +20113,7 @@ function bindDynamicEvents() {
       notify(userMessage("vehicleRegistered"), "success");
       collapseCreatePanel("create-vehicle");
       renderPortalView();
-    });
+    }, { busyText: "Registrando vehículo…" });
   }
 
   const driverForm = document.getElementById("form-driver");
@@ -20108,8 +20122,7 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
-    driverForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(driverForm, async (event) => {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(driverForm).entries());
       if (!/^\d{10,15}$/.test(String(data.phone || "").trim())) {
@@ -20177,7 +20190,7 @@ function bindDynamicEvents() {
         if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
       } catch (_e) {}
       renderPortalView();
-    });
+    }, { busyText: "Registrando conductor…" });
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-vehicle']").forEach((btn) => {
@@ -20547,8 +20560,7 @@ function bindDynamicEvents() {
             .join("")
         : "<tr><td colspan='6'><div class='history-empty-row'>Sin registros para los filtros aplicados.</div></td></tr>";
     };
-    historyFilter.addEventListener("submit", (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(historyFilter, (event) => {
       filterRows();
     });
     const liveSearch = historyFilter.querySelector("input[name='q']");
@@ -20562,8 +20574,7 @@ function bindDynamicEvents() {
 
   const driverMonthReportForm = document.getElementById("driver-month-report-form");
   if (driverMonthReportForm) {
-    driverMonthReportForm.addEventListener("submit", (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(driverMonthReportForm, (event) => {
       const data = Object.fromEntries(new FormData(driverMonthReportForm).entries());
       const output = document.getElementById("driver-month-report-output");
       if (!output) return;
@@ -20599,8 +20610,7 @@ function bindDynamicEvents() {
 
   const fuelLogForm = document.getElementById("form-fuel-log");
   if (fuelLogForm) {
-    fuelLogForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(fuelLogForm, async (event) => {
       const data = Object.fromEntries(new FormData(fuelLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
@@ -20645,8 +20655,7 @@ function bindDynamicEvents() {
 
   const technicalLogForm = document.getElementById("form-technical-log");
   if (technicalLogForm) {
-    technicalLogForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(technicalLogForm, async (event) => {
       const data = Object.fromEntries(new FormData(technicalLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       if (!vehicle) {
@@ -20786,8 +20795,7 @@ function bindDynamicEvents() {
         }
       });
     });
-    employeeForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(employeeForm, async (event) => {
       const actor = currentUser();
       const raw = Object.fromEntries(new FormData(employeeForm).entries());
       const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
@@ -20866,8 +20874,7 @@ function bindDynamicEvents() {
 
   const absenceForm = document.getElementById("form-hr-absence");
   if (absenceForm) {
-    absenceForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(absenceForm, async (event) => {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(absenceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
@@ -21154,8 +21161,7 @@ function bindDynamicEvents() {
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
     wireMonthlyPayrollConcepts(payrollForm);
-    payrollForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(payrollForm, async (event) => {
       const data = Object.fromEntries(new FormData(payrollForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
@@ -21319,8 +21325,7 @@ function bindDynamicEvents() {
   const settlementForm = document.getElementById("form-payroll-settlement");
   if (settlementForm) {
     wireTerminationSettlementForm(settlementForm);
-    settlementForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(settlementForm, async (event) => {
       const data = Object.fromEntries(new FormData(settlementForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
@@ -21832,8 +21837,7 @@ function bindDynamicEvents() {
       syncTitleFromPosition();
     }
 
-    vacancyForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(vacancyForm, async (event) => {
       const data = Object.fromEntries(new FormData(vacancyForm).entries());
       const deadlineOk = (() => {
         const s = String(data.deadline || "").trim();
@@ -21901,8 +21905,7 @@ function bindDynamicEvents() {
 
   const positionForm = document.getElementById("form-position");
   if (positionForm) {
-    positionForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(positionForm, async (event) => {
       const data = Object.fromEntries(new FormData(positionForm).entries());
       const minSalary = CO_HR_RULES.minMonthlySalary;
       if (parseNum(data.baseSalary) < minSalary) {
@@ -22069,8 +22072,7 @@ function bindDynamicEvents() {
       citySelector: "select[name='city']"
     });
     bindHrFormWizard(candidateForm);
-    candidateForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(candidateForm, async (event) => {
       const data = Object.fromEntries(new FormData(candidateForm).entries());
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
       if (!docValidation.ok) {
@@ -22191,8 +22193,7 @@ function bindDynamicEvents() {
 
   const interviewForm = document.getElementById("form-interview");
   if (interviewForm) {
-    interviewForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(interviewForm, async (event) => {
       const data = Object.fromEntries(new FormData(interviewForm).entries());
       const interviewTs = new Date(String(data.when || "")).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
@@ -22303,9 +22304,9 @@ function bindDynamicEvents() {
 
     bindHrFormWizard(contractForm);
 
-    contractForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (contractForm.dataset.submitting === "1") return;
+    wireFormSubmitGuard(
+      contractForm,
+      async (event) => {
       const data = Object.fromEntries(new FormData(contractForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
       if (!employee) {
@@ -22335,19 +22336,6 @@ function bindDynamicEvents() {
         `Plantilla: ${payload.contractTemplateKind}\n` +
         `Salario: ${payload.salario}\n` +
         `Firma constancia: ${signDate}\n`;
-      const submitBtn = contractForm.querySelector("button[type='submit']");
-      const restoreSubmitState = () => {
-        contractForm.dataset.submitting = "";
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.removeAttribute("aria-busy");
-        }
-      };
-      contractForm.dataset.submitting = "1";
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.setAttribute("aria-busy", "true");
-      }
       try {
         await generateOfficialWordContract(payload);
         const all = read(KEYS.contracts, []);
@@ -22409,17 +22397,16 @@ function bindDynamicEvents() {
         }
       } catch (wordErr) {
         notify(userMessage("contractWordError", String(wordErr?.message || "error")), "error");
-      } finally {
-        restoreSubmitState();
       }
       renderPortalView();
-    });
+      },
+      { busyText: "Generando contrato…" }
+    );
   }
 
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
-    sstComplianceForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(sstComplianceForm, async (event) => {
       const data = Object.fromEntries(new FormData(sstComplianceForm).entries());
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
@@ -22462,8 +22449,7 @@ function bindDynamicEvents() {
     const profileAvatarInput = document.getElementById("profile-avatar-input");
     const profileAvatarLabel = document.querySelector('label[for="profile-avatar-input"]');
     bindEmployeeAvatarFilePreview(profileAvatarInput, profileAvatarLabel);
-    profileForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    wireFormSubmitGuard(profileForm, async (event) => {
       const actor = currentUser();
       if (!actor) return;
       const data = Object.fromEntries(new FormData(profileForm).entries());
@@ -23075,8 +23061,13 @@ function initGlobalEvents() {
 
   wireSupabasePasswordRecoveryUi();
 
-  nodes.b2bForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  if (nodes.b2bForm) {
+    const b2bSubmitBtn = nodes.b2bForm.querySelector("[data-step-submit]");
+    const b2bStepPrev = nodes.b2bForm.querySelector("[data-step-prev]");
+    const b2bStepNext = nodes.b2bForm.querySelector("[data-step-next]");
+    wireFormSubmitGuard(
+      nodes.b2bForm,
+      async (event) => {
     setB2bFormFeedback("", "");
     syncPhoneHiddenFull(nodes.b2bForm, "b2b");
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
@@ -23173,58 +23164,45 @@ function initGlobalEvents() {
       return;
     }
 
-    const submitBtn = nodes.b2bForm.querySelector("[data-step-submit]");
-    const stepPrev = nodes.b2bForm.querySelector("[data-step-prev]");
-    const stepNext = nodes.b2bForm.querySelector("[data-step-next]");
-    const submitHtml = submitBtn ? submitBtn.innerHTML : "";
-    const sendingLabel = state.publicLang === "en" ? "Sending…" : "Enviando…";
-    try {
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.setAttribute("aria-busy", "true");
-        submitBtn.innerHTML = sendingLabel;
+      try {
+        await api.postJsonPublic("/public/b2b-prospect", {
+          name: data.name,
+          company: data.company,
+          taxId: data.taxId,
+          position: data.position,
+          phone: data.phone,
+          email: data.email,
+          serviceType: data.serviceType,
+          operationType: data.operationType,
+          operationFrequency: data.operationFrequency,
+          startWindow: data.startWindow,
+          message: messageValue
+        });
+        nodes.b2bForm.reset();
+        if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
+        const sentOk =
+          state.publicLang === "en"
+            ? "Your request was submitted successfully. Our commercial team has received it and will contact you shortly. Thank you for contacting Transportes Antares."
+            : userMessage("b2bContactSent");
+        setB2bFormFeedback("success", sentOk);
+        notify(sentOk, "success", 5600);
+      } catch (err) {
+        const errBody =
+          state.publicLang === "en"
+            ? String(err?.message || "").trim() ||
+              "Could not save to the server. Please try again or contact us by phone or email."
+            : String(err?.message || userMessage("b2bServerError"));
+        setB2bFormFeedback("error", errBody);
+        notify(errBody, "error");
       }
-      if (stepPrev) stepPrev.disabled = true;
-      if (stepNext) stepNext.disabled = true;
-      await api.postJsonPublic("/public/b2b-prospect", {
-        name: data.name,
-        company: data.company,
-        taxId: data.taxId,
-        position: data.position,
-        phone: data.phone,
-        email: data.email,
-        serviceType: data.serviceType,
-        operationType: data.operationType,
-        operationFrequency: data.operationFrequency,
-        startWindow: data.startWindow,
-        message: messageValue
-      });
-      nodes.b2bForm.reset();
-      if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
-      const sentOk =
-        state.publicLang === "en"
-          ? "Your request was submitted successfully. Our commercial team has received it and will contact you shortly. Thank you for contacting Transportes Antares."
-          : userMessage("b2bContactSent");
-      setB2bFormFeedback("success", sentOk);
-      notify(sentOk, "success", 5600);
-    } catch (err) {
-      const errBody =
-        state.publicLang === "en"
-          ? String(err?.message || "").trim() ||
-            "Could not save to the server. Please try again or contact us by phone or email."
-          : String(err?.message || userMessage("b2bServerError"));
-      setB2bFormFeedback("error", errBody);
-      notify(errBody, "error");
-    } finally {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.removeAttribute("aria-busy");
-        submitBtn.innerHTML = submitHtml;
+      },
+      {
+        submitButton: b2bSubmitBtn,
+        busyText: state.publicLang === "en" ? "Sending…" : "Enviando…",
+        lockExtraButtons: [b2bStepPrev, b2bStepNext]
       }
-      if (stepPrev) stepPrev.disabled = false;
-      if (stepNext) stepNext.disabled = false;
-    }
-  });
+    );
+  }
 
   nodes.sideLinks.forEach((link) => {
     link.addEventListener("click", (ev) => {
