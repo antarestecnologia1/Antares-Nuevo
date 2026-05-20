@@ -1454,8 +1454,8 @@ function openEditRouteRateModal(storageKey) {
     },
     onSubmit: async (payload, formEl) => {
       const fd = new FormData(formEl);
-      const scopeRadio = formEl.querySelector('input[name="rateScope"]:checked');
-      const scope = String(scopeRadio?.value || payload.rateScope || "all");
+      const scopeField = formEl.querySelector("[data-route-rate-scope-field]");
+      const scope = String(scopeField?.value || payload.rateScope || "all");
       const companyIdsRaw = [...fd.getAll("rateClientCompanies")].map((v) => String(v || "").trim()).filter(Boolean);
       const companyIds = scope === "specific" ? companyIdsRaw : [];
       const od = String(payload.originDepartment || "").trim();
@@ -5148,67 +5148,92 @@ function buildRouteRateScopeStepInnerHtml(companies, opts = {}) {
     .map((id) => String(id).trim())
     .filter(Boolean);
   const scope = o.scopeValue === "specific" || selectedIds.length ? "specific" : "all";
-  const checkboxes = buildRouteRateCompanyCheckboxesHtml(companies, selectedIds);
+  const companyList = Array.isArray(companies) ? companies : [];
+  const checkboxes = buildRouteRateCompanyCheckboxesHtml(companyList, selectedIds);
+  const totalCompanies = companyList.length;
   return `
+    <input type="hidden" name="rateScope" value="${escapeAttr(scope)}" data-route-rate-scope-field />
     <div class="route-rate-scope-cards" role="radiogroup" aria-label="Alcance de la tarifa">
-      <label class="route-rate-scope-card${scope === "all" ? " is-selected" : ""}">
-        <input type="radio" name="rateScope" value="all"${scope === "all" ? " checked" : ""} />
+      <button type="button" class="route-rate-scope-card${scope === "all" ? " is-selected" : ""}" data-route-rate-scope-pick="all" aria-pressed="${scope === "all" ? "true" : "false"}">
         <span class="route-rate-scope-card-body">
           <strong class="route-rate-scope-card-title">${IC.grid} General</strong>
           <span class="muted">La misma tarifa para todos los clientes en esta ruta</span>
         </span>
-      </label>
-      <label class="route-rate-scope-card${scope === "specific" ? " is-selected" : ""}">
-        <input type="radio" name="rateScope" value="specific"${scope === "specific" ? " checked" : ""} />
+      </button>
+      <button type="button" class="route-rate-scope-card${scope === "specific" ? " is-selected" : ""}" data-route-rate-scope-pick="specific" aria-pressed="${scope === "specific" ? "true" : "false"}">
         <span class="route-rate-scope-card-body">
           <strong class="route-rate-scope-card-title">${IC.briefcase} Por empresa</strong>
           <span class="muted">Solo para clientes con precio negociado</span>
         </span>
-      </label>
+      </button>
     </div>
-    <div class="route-rate-clients-block${scope === "specific" ? "" : " is-disabled"}" data-route-rate-clients-panel>
+    <div class="route-rate-clients-block${scope === "specific" ? " is-active" : " is-disabled"}" data-route-rate-clients-panel>
       <div class="route-rate-clients-block-head">
         <div class="route-rate-company-count-wrap">
           <span class="route-rate-company-count-label">Empresas seleccionadas</span>
           <strong class="route-rate-company-count-value" data-route-rate-company-count>${scope === "specific" ? String(selectedIds.length) : "Todas"}</strong>
         </div>
         <div class="toolbar route-rate-clients-toolbar">
-          <button type="button" class="btn btn-sm btn-outline" data-route-rate-select-all>${IC.check} Todas</button>
+          <button type="button" class="btn btn-sm btn-outline" data-route-rate-select-visible>${IC.check} Visibles</button>
+          <button type="button" class="btn btn-sm btn-outline" data-route-rate-select-all>${IC.check} Todas (${totalCompanies})</button>
           <button type="button" class="btn btn-sm btn-outline" data-route-rate-clear-all>${IC.x} Ninguna</button>
         </div>
       </div>
-      <label class="route-rate-clients-search-label full">
-        <span class="visually-hidden">Buscar empresa</span>
+      <div class="route-rate-clients-search-row">
         <input type="search" data-route-rate-clients-search placeholder="Buscar por nombre o NIT…" autocomplete="off" ${scope === "specific" ? "" : "disabled"} />
-      </label>
+        <span class="route-rate-clients-filter-meta muted" data-route-rate-clients-filter-meta>${totalCompanies} empresa${totalCompanies === 1 ? "" : "s"}</span>
+      </div>
       <div class="route-rate-clients-list" data-route-rate-clients-list role="group" aria-label="Empresas cliente">
         ${checkboxes}
       </div>
     </div>
-    <p class="muted full route-rate-scope-help" data-route-rate-scope-help></p>`;
+    <p class="muted route-rate-scope-help" data-route-rate-scope-help></p>`;
 }
 
 function wireRouteRateScopeSection(formEl) {
   if (!formEl) return;
-  const scopeRadios = formEl.querySelectorAll('input[name="rateScope"]');
-  if (!scopeRadios.length) return;
-  const clientsPanel = formEl.querySelector("[data-route-rate-clients-panel]");
-  const clientsList = formEl.querySelector("[data-route-rate-clients-list]");
-  const searchInput = formEl.querySelector("[data-route-rate-clients-search]");
-  const countEl = formEl.querySelector("[data-route-rate-company-count]");
-  const scopeHelp = formEl.querySelector("[data-route-rate-scope-help]");
-  const selectAllBtn = formEl.querySelector("[data-route-rate-select-all]");
-  const clearAllBtn = formEl.querySelector("[data-route-rate-clear-all]");
-  const scopeCards = formEl.querySelectorAll(".route-rate-scope-card");
+  const scopeMount = formEl.querySelector("[data-route-rate-scope-mount]") || formEl;
+  const scopeField = scopeMount.querySelector("[data-route-rate-scope-field]");
+  const scopePickBtns = scopeMount.querySelectorAll("[data-route-rate-scope-pick]");
+  if (!scopeField || !scopePickBtns.length) return;
+
+  const clientsPanel = scopeMount.querySelector("[data-route-rate-clients-panel]");
+  const clientsList = scopeMount.querySelector("[data-route-rate-clients-list]");
+  const searchInput = scopeMount.querySelector("[data-route-rate-clients-search]");
+  const countEl = scopeMount.querySelector("[data-route-rate-company-count]");
+  const filterMeta = scopeMount.querySelector("[data-route-rate-clients-filter-meta]");
+  const scopeHelp = scopeMount.querySelector("[data-route-rate-scope-help]");
+  const selectAllBtn = scopeMount.querySelector("[data-route-rate-select-all]");
+  const selectVisibleBtn = scopeMount.querySelector("[data-route-rate-select-visible]");
+  const clearAllBtn = scopeMount.querySelector("[data-route-rate-clear-all]");
+  const scopeCards = scopeMount.querySelectorAll(".route-rate-scope-card");
+  const totalCompanies = clientsList
+    ? clientsList.querySelectorAll('input[name="rateClientCompanies"]').length
+    : 0;
 
   const getScope = () => {
-    const checked = [...scopeRadios].find((r) => r.checked);
-    return String(checked?.value || "all");
+    const v = String(scopeField?.value || "all").trim();
+    return v === "specific" ? "specific" : "all";
+  };
+
+  const setScope = (value) => {
+    const v = value === "specific" ? "specific" : "all";
+    scopeField.value = v;
+    scopePickBtns.forEach((btn) => {
+      const on = String(btn.getAttribute("data-route-rate-scope-pick") || "") === v;
+      btn.classList.toggle("is-selected", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   };
 
   const countSelected = () => {
     if (!clientsList) return 0;
-    return clientsList.querySelectorAll('input[name="rateClientCompanies"]:checked:not(:disabled)').length;
+    return clientsList.querySelectorAll('input[name="rateClientCompanies"]:checked').length;
+  };
+
+  const visibleCompanyItems = () => {
+    if (!clientsList) return [];
+    return [...clientsList.querySelectorAll(".route-rate-company-item")].filter((item) => !item.hidden);
   };
 
   const clearCompanySelection = () => {
@@ -5218,18 +5243,14 @@ function wireRouteRateScopeSection(formEl) {
     });
   };
 
-  const syncScopeCards = () => {
-    const scope = getScope();
-    scopeCards.forEach((card) => {
-      const radio = card.querySelector('input[name="rateScope"]');
-      card.classList.toggle("is-selected", String(radio?.value || "") === scope);
-    });
-  };
-
   const syncUi = () => {
     const specific = getScope() === "specific";
-    if (clientsPanel) clientsPanel.classList.toggle("is-disabled", !specific);
+    if (clientsPanel) {
+      clientsPanel.classList.toggle("is-disabled", !specific);
+      clientsPanel.classList.toggle("is-active", specific);
+    }
     if (selectAllBtn) selectAllBtn.disabled = !specific;
+    if (selectVisibleBtn) selectVisibleBtn.disabled = !specific;
     if (clearAllBtn) clearAllBtn.disabled = !specific;
     if (searchInput) searchInput.disabled = !specific;
     if (clientsList) {
@@ -5239,11 +5260,16 @@ function wireRouteRateScopeSection(formEl) {
     }
     if (scopeHelp) {
       scopeHelp.textContent = specific
-        ? "Marque una o más empresas. Esta tarifa solo se sugerirá cuando la solicitud sea de esos clientes."
+        ? totalCompanies > 80
+          ? `Marque las empresas aplicables (hay ${totalCompanies} registradas). Use la búsqueda para filtrar por nombre o NIT.`
+          : "Marque una o más empresas. Esta tarifa solo se sugerirá cuando la solicitud sea de esos clientes."
         : "Modo general: la tarifa aplica a todos los clientes en esta ruta.";
     }
     if (countEl) countEl.textContent = specific ? String(countSelected()) : "Todas";
-    syncScopeCards();
+    scopeCards.forEach((card) => {
+      const pick = String(card.getAttribute("data-route-rate-scope-pick") || "");
+      card.classList.toggle("is-selected", pick === getScope());
+    });
   };
 
   const filterCompanies = () => {
@@ -5253,26 +5279,39 @@ function wireRouteRateScopeSection(formEl) {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
     if (!clientsList) return;
+    let visible = 0;
     clientsList.querySelectorAll(".route-rate-company-item").forEach((item) => {
-      const label = String(item.getAttribute("data-company-label") || "");
-      const hay = label
+      const label = String(item.getAttribute("data-company-label") || "")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
-      item.hidden = !!(needle && !hay.includes(needle));
+      const show = !needle || label.includes(needle);
+      item.hidden = !show;
+      if (show) visible += 1;
     });
+    if (filterMeta) {
+      filterMeta.textContent = needle
+        ? `${visible} de ${totalCompanies} coinciden con la búsqueda`
+        : `${totalCompanies} empresa${totalCompanies === 1 ? "" : "s"}`;
+    }
+    if (selectVisibleBtn) {
+      selectVisibleBtn.textContent = `${IC.check} Visibles (${visible})`;
+    }
   };
 
-  if (formEl.dataset.routeRateScopeWired === "1") {
+  if (scopeMount.dataset.routeRateScopeWired === "1") {
     syncUi();
     filterCompanies();
     return;
   }
-  formEl.dataset.routeRateScopeWired = "1";
+  scopeMount.dataset.routeRateScopeWired = "1";
 
-  scopeRadios.forEach((radio) => {
-    radio.addEventListener("change", () => {
-      if (getScope() !== "specific") clearCompanySelection();
+  scopePickBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = String(btn.getAttribute("data-route-rate-scope-pick") || "all");
+      setScope(next);
+      if (next !== "specific") clearCompanySelection();
       syncUi();
+      if (next === "specific") searchInput?.focus();
     });
   });
   if (clientsList) {
@@ -5281,8 +5320,18 @@ function wireRouteRateScopeSection(formEl) {
   if (selectAllBtn) {
     selectAllBtn.addEventListener("click", () => {
       if (getScope() !== "specific" || !clientsList) return;
-      clientsList.querySelectorAll('input[name="rateClientCompanies"]:not(:disabled)').forEach((cb) => {
-        if (!cb.closest(".route-rate-company-item")?.hidden) cb.checked = true;
+      clientsList.querySelectorAll('input[name="rateClientCompanies"]').forEach((cb) => {
+        cb.checked = true;
+      });
+      syncUi();
+    });
+  }
+  if (selectVisibleBtn) {
+    selectVisibleBtn.addEventListener("click", () => {
+      if (getScope() !== "specific" || !clientsList) return;
+      visibleCompanyItems().forEach((item) => {
+        const cb = item.querySelector('input[name="rateClientCompanies"]');
+        if (cb) cb.checked = true;
       });
       syncUi();
     });
@@ -5294,7 +5343,10 @@ function wireRouteRateScopeSection(formEl) {
     });
   }
   if (searchInput) {
-    searchInput.addEventListener("input", filterCompanies);
+    searchInput.addEventListener("input", () => {
+      filterCompanies();
+      syncUi();
+    });
   }
   syncUi();
   filterCompanies();
@@ -5340,6 +5392,8 @@ function populateRouteRateInlineForm(storageKey) {
       selectedCompanyIds: companyIds
     });
     delete form.dataset.routeRateScopeWired;
+    const scopeMountNode = form.querySelector("[data-route-rate-scope-mount]");
+    if (scopeMountNode) delete scopeMountNode.dataset.routeRateScopeWired;
     wireRouteRateScopeSection(form);
   }
 
@@ -11679,8 +11733,8 @@ function transportTripsHtml() {
     </fieldset>
     <fieldset class="form-section form-section-amber full route-rate-scope-fieldset">
       <legend>${IC.briefcase} Paso 4 · ¿A qué clientes aplica?</legend>
-      <p class="muted form-section-hint">Elija <strong>General</strong> si la tarifa es la misma para todos, o <strong>Por empresa</strong> para negociaciones con clientes concretos. Marque las empresas con un clic (sin Ctrl).</p>
-      <div class="form-section-grid route-rate-scope-grid" data-route-rate-scope-mount>
+      <p class="muted form-section-hint">Elija <strong>General</strong> si la tarifa es la misma para todos, o <strong>Por empresa</strong> y marque los clientes. Use la búsqueda si tiene muchas empresas registradas.</p>
+      <div class="route-rate-scope-mount" data-route-rate-scope-mount>
         ${buildRouteRateScopeStepInnerHtml(companiesForRates)}
       </div>
       <p class="muted full" id="route-rate-editing-hint" style="margin:0.35rem 0 0;display:none">Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
@@ -19492,6 +19546,7 @@ function bindDynamicEvents() {
       if (!scopeMount) return;
       scopeMount.innerHTML = buildRouteRateScopeStepInnerHtml(companies);
       delete routeRateFormEl.dataset.routeRateScopeWired;
+      delete scopeMount.dataset.routeRateScopeWired;
       wireRouteRateScopeSection(routeRateFormEl);
     };
     const resetRateEditMode = () => {
@@ -19534,8 +19589,8 @@ function bindDynamicEvents() {
       event.preventDefault();
       const fd = new FormData(routeRateFormEl);
       const data = Object.fromEntries(fd.entries());
-      const scopeRadio = routeRateFormEl.querySelector('input[name="rateScope"]:checked');
-      const scope = String(scopeRadio?.value || data.rateScope || "all");
+      const scopeField = routeRateFormEl.querySelector("[data-route-rate-scope-field]");
+      const scope = String(scopeField?.value || data.rateScope || "all");
       const companyIdsRaw = [...fd.getAll("rateClientCompanies")]
         .map((v) => String(v || "").trim())
         .filter(Boolean);
