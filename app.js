@@ -165,6 +165,77 @@ function renderHrAlertCards(items = []) {
   return `<div class="hr-alert-grid">${cards}</div>`;
 }
 
+const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs"]);
+
+function normalizePayrollDataSection(value) {
+  const v = String(value || "employees");
+  return PAYROLL_DATA_SECTIONS.has(v) ? v : "employees";
+}
+
+function renderPayrollRunCard(run) {
+  const paid = Boolean(run.paid);
+  const stateTone = paid ? "paid" : "pending";
+  const monthLabel = String(run.month || "").trim() || "—";
+  const pk = String(run.payrollKind || "mensual");
+  const typeLabel = pk === "terminacion" ? "Terminación contractual" : "Nómina mensual";
+  const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
+  const tags = [];
+  if (orig === "automatica") tags.push("Automática");
+  if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
+  if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
+  if (Array.isArray(run.noveltiesDetail?.incapacity?.episodes) && run.noveltiesDetail.incapacity.episodes.length) {
+    tags.push("Incapacidad");
+  }
+  const tagsHtml = tags.length
+    ? `<p class="payroll-run-card-tags">${tags.map((t) => `<span>${escapeHtml(t)}</span>`).join("")}</p>`
+    : "";
+  const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
+  const statusHtml = paid
+    ? '<span class="status status-viaje_asignado">Pagado</span>'
+    : '<span class="status status-pendiente">Pendiente</span>';
+  const actions = `<div class="payroll-run-card-actions toolbar">
+      <button class="btn btn-sm btn-action" type="button" data-action="payslip" data-id="${escapeAttr(String(run.id))}">${IC.printer} Desprendible</button>
+      ${!paid ? `<button class="btn btn-sm btn-approve" type="button" data-action="mark-payroll-paid" data-id="${escapeAttr(String(run.id))}">${IC.check} Marcar pagado</button>` : ""}
+      ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(run.id))}" title="Eliminar liquidación">${IC.trash}</button>` : ""}
+    </div>`;
+  return `<article class="payroll-run-card payroll-run-card--${stateTone}" data-payroll-state="${stateTone}">
+    <header class="payroll-run-card-head">
+      <div>
+        <p class="payroll-run-card-kicker">${escapeHtml(typeLabel)}</p>
+        <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>
+        <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}</p>
+        ${tagsHtml}
+      </div>
+      ${statusHtml}
+    </header>
+    <dl class="payroll-run-card-metrics">
+      <div><dt>Devengado</dt><dd>$${parseNum(run.gross).toLocaleString("es-CO")}</dd></div>
+      <div><dt>Viáticos</dt><dd>$${parseNum(run.travelAllowance || 0).toLocaleString("es-CO")}</dd></div>
+      <div><dt>Combustible</dt><dd>$${parseNum(run.fuelReimbursement || 0).toLocaleString("es-CO")}</dd></div>
+      <div><dt>Deducciones</dt><dd>$${parseNum(run.deductions).toLocaleString("es-CO")}</dd></div>
+      <div class="payroll-run-card-net"><dt>Neto a pagar</dt><dd>$${parseNum(run.net).toLocaleString("es-CO")}</dd></div>
+    </dl>
+    ${actions}
+  </article>`;
+}
+
+function renderPayrollDataSectionNav(activeId, counts = {}) {
+  const tabs = [
+    { id: "employees", label: "Empleados", count: counts.employees ?? 0, icon: "user" },
+    { id: "absences", label: "Ausencias", count: counts.absences ?? 0, icon: "calendar" },
+    { id: "runs", label: "Liquidaciones", count: counts.runs ?? 0, icon: "dollar" }
+  ];
+  return `<nav class="payroll-data-nav" role="tablist" aria-label="Listas de personal y nómina">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const icon = IC[t.icon] ? `<span class="payroll-data-nav-ico" aria-hidden="true">${IC[t.icon]}</span>` : "";
+        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-data-section" data-section="${escapeAttr(t.id)}">${icon}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
 function isAntaresDebugEnabled() {
   try {
     if (typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true) return true;
@@ -11851,7 +11922,6 @@ function transportTripsHtml() {
     <fieldset class="form-section form-section-emerald full create-trip-fieldset">
       <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
-        <p class="muted create-trip-assign-intro">Se muestran vehículos de <strong>flota operativa</strong> (Camión, Turbo o Tractomula) con capacidad y refrigeración adecuadas, y conductores registrados. Use el campo de búsqueda para filtrar por placa, nombre o documento cuando la lista es larga. Para <strong>camión y conductor</strong>, el sistema compara la <strong>hora de recogida y la hora de entrega estimada</strong> de esta solicitud con los viajes ya programados: solo hay conflicto si los intervalos se cruzan; si entre el fin de un viaje y el inicio del siguiente hay tiempo libre, el mismo recurso puede reutilizarse. Las opciones no asignables aparecen bloqueadas y marcadas con bandera.</p>
         <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">Ocupado</span><span class="create-trip-flag create-trip-flag--offline">No disponible</span><span class="create-trip-flag create-trip-flag--expired">Documentación vencida</span></p>
         <div class="create-trip-fleet-grid">
           <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
@@ -14258,9 +14328,10 @@ function payrollHtml() {
   const allRuns = read(KEYS.payrollRuns, []);
   const absences = read(KEYS.hrAbsences, []);
   const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
-  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate" };
+  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
   const runSort = String(payrollUi.runSort || "recent");
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
+  const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
@@ -14678,76 +14749,118 @@ function payrollHtml() {
   const empTable = employeeRows
     ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
-  const runTable = runRows
-    ? `<div style="margin-bottom:0.8rem"><button id="export-payroll" class="btn btn-sm btn-action">${IC.download} Exportar CSV</button></div><div class="table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viaticos</th><th>Reembolso combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>`
-    : emptyState("Sin liquidaciones registradas.");
+  const runCardsGrid = sortedRuns.length
+    ? `<div class="payroll-run-cards-grid">${sortedRuns.map((r) => renderPayrollRunCard(r)).join("")}</div>`
+    : emptyState("Sin liquidaciones que coincidan con los filtros.");
+  const runTableLegacy = runRows
+    ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div></details>`
+    : "";
+  const runsPaneBody = `${runCardsGrid}${runTableLegacy}`;
   const employeeOpts = employees
     .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
     .join("");
-  const filtersHtml = `<form id="payroll-filters" class="payroll-filters-bar">
-      <label>${fieldLabel(IC.calendar, "Periodo")}<select name="period">
-        <option value="all" ${filterPeriod === "all" ? "selected" : ""}>Todos los periodos</option>
+  const filtersHtml = `<form id="payroll-filters" class="payroll-data-toolbar-filters">
+      <label class="payroll-filter-field">${fieldLabel(IC.calendar, "Periodo")}<select name="period">
+        <option value="all" ${filterPeriod === "all" ? "selected" : ""}>Todos</option>
         <option value="current" ${filterPeriod === "current" ? "selected" : ""}>Mes actual</option>
         <option value="previous" ${filterPeriod === "previous" ? "selected" : ""}>Mes anterior</option>
       </select></label>
-      <label>${fieldLabel(IC.user, "Empleado")}<select name="employee">
+      <label class="payroll-filter-field">${fieldLabel(IC.user, "Empleado")}<select name="employee">
         <option value="">Todos</option>${employeeOpts}
       </select></label>
-      <label>${fieldLabel(IC.activity, "Estado")}<select name="status">
+      <label class="payroll-filter-field">${fieldLabel(IC.activity, "Estado pago")}<select name="status">
         <option value="all" ${filterStatus === "all" ? "selected" : ""}>Todos</option>
         <option value="paid" ${filterStatus === "paid" ? "selected" : ""}>Pagado</option>
         <option value="pending" ${filterStatus === "pending" ? "selected" : ""}>Pendiente</option>
       </select></label>
-      <button type="button" class="btn btn-action btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
+      <button type="button" class="btn btn-outline btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
     </form>`;
-  const payrollHead = `<div class="ops-module-head ops-module-head--rich">
+  const payrollModuleHead = `<header class="payroll-module-head ops-module-head ops-module-head--rich">
       <div class="ops-module-title">
         <span class="ops-module-kicker">Personal · Recursos humanos</span>
-        <h2>Personal y nómina</h2>
-        <p class="ops-module-subtitle">Administra empleados, calcula la nómina del mes y registra ausencias o incapacidades. Todo queda con respaldo para tu equipo contable.</p>
+        <h2>Gestión humana</h2>
+        <p class="ops-module-subtitle">Altas, liquidaciones y novedades de personal. Use <strong>Nuevos registros</strong> para crear y <strong>Consultar datos</strong> para listas, filtros y exportación.</p>
       </div>
       <div class="ops-module-chips">
         <span class="ops-chip"><strong>${employees.length}</strong> colaboradores</span>
-        <span class="ops-chip"><strong>${pending}</strong> pagos pendientes</span>
-        <span class="ops-chip"><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
+        <span class="ops-chip${pending ? " ops-chip--warn" : ""}"><strong>${pending}</strong> pagos pendientes</span>
+        <span class="ops-chip${pendingAbsenceApprovals ? " ops-chip--warn" : ""}"><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
       </div>
-    </div>`;
-  const payrollActions = `<div class="ops-command-bar">
-      <div class="ops-command-cluster">
-        <p class="ops-command-cluster-label">Crear nuevo</p>
-        <div class="ops-command-group">
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-employee">${IC.userPlus} Agregar empleado</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-payroll-settlement">${IC.file} Liquidación contractual</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-hr-absence">${IC.calendar} Registrar ausencia</button>
-        </div>
-      </div>
-      <div class="ops-command-cluster">
-        <p class="ops-command-cluster-label">Filtrar historial</p>
-        <div class="ops-command-group">
-        <button class="btn btn-sm btn-outline ${filterStatus === "pending" ? "is-active" : ""}" type="button" data-action="payroll-focus-pending">${IC.alertTriangle} Solo pendientes</button>
-        <button class="btn btn-sm btn-outline ${filterStatus === "all" ? "is-active" : ""}" type="button" data-action="payroll-focus-all">${IC.layers} Ver todo</button>
-        <button class="btn btn-sm btn-outline ${runSort === "pending_first" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="pending_first">${IC.activity} Pendientes primero</button>
-        <button class="btn btn-sm btn-outline ${runSort === "net_desc" ? "is-active" : ""}" type="button" data-action="payroll-sort-runs" data-sort="net_desc">${IC.dollar} Mayor monto</button>
-        </div>
-      </div>
-    </div>`;
-  const payrollExecutionBlock = `<section class="ops-block ops-block--payroll-flow">
-      <header class="ops-block-head">
-        <h3>¿Qué deseas registrar?</h3>
-        <p class="ops-block-lead muted">Selecciona la tarjeta correspondiente: agregar un empleado, calcular la nómina del mes o cargar una ausencia.</p>
+    </header>`;
+  const payrollOperateAlerts = renderHrAlertCards([
+    {
+      icon: IC.alertTriangle,
+      label: "Liquidaciones pendientes de pago",
+      value: pending,
+      help: pending ? "Revise y marque como pagadas en Consultar datos → Liquidaciones." : "No hay pagos pendientes en el historial.",
+      tone: pending ? "warn" : "ok"
+    },
+    {
+      icon: IC.dollar,
+      label: "Neto liquidado (mes actual)",
+      value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}`,
+      help: `Periodo ${currentYm}. Incluye liquidaciones registradas para el mes.`,
+      tone: "info"
+    },
+    {
+      icon: IC.calendar,
+      label: "Ausencias por aprobar",
+      value: pendingAbsenceApprovals,
+      help: "Solicitudes de registro de ausencia en bandeja de aprobaciones.",
+      tone: pendingAbsenceApprovals ? "warn" : "ok"
+    },
+    {
+      icon: IC.users,
+      label: "Colaboradores activos",
+      value: employees.length,
+      help: "Fichas con contrato y datos de seguridad social.",
+      tone: "ok"
+    }
+  ]);
+  const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
+      <header class="payroll-panel-intro ops-block-head">
+        <h3>Nuevos registros</h3>
+        <p class="ops-block-lead muted">Abra la tarjeta del trámite: empleado, nómina del mes, liquidación por terminación o ausencia/incapacidad.</p>
       </header>
       <div class="dash-grid payroll-actions-grid hr-action-cards-grid">${createHrActionCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social.", formEmp, "Abrir formulario")}${createHrActionCard("create-payroll", "dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades.", formPay, "Calcular nómina")}${createHrActionCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones (orientativo Ley colombiana).", formPayrollSettlement, "Abrir liquidación")}${createHrActionCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica.", formAbsence, "Registrar ausencia")}</div>
     </section>`;
-  const payrollDataBlock = `<section class="ops-block ops-block--payroll-data">
-      <header class="ops-block-head">
-        <h3>Información del personal</h3>
-        <p class="ops-block-lead muted">Listas de empleados, ausencias e historial de nóminas pagadas. Puedes filtrar por mes, empleado y estado.</p>
-      </header>
-      <div class="payroll-data-grid">
-        ${pcardWrapPro("user", "Lista de empleados", employees.length + " colaboradores" + (pending > 0 ? ` · ${pending} pagos pendientes` : ""), empTable)}
-        ${pcardWrapPro("activity", "Ausencias registradas", absences.length + " registros", absenceTable)}
-        ${pcardWrapPro("clock", "Nóminas pagadas", runs.length + " liquidaciones", runTable)}
+  const payrollQuickActive =
+    filterStatus === "pending" ? "pending" : filterPeriod === "current" ? "current" : "all";
+  const payrollQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos">
+      <button type="button" class="payroll-quick-pill${payrollQuickActive === "all" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="all">Todos</button>
+      <button type="button" class="payroll-quick-pill${payrollQuickActive === "current" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="current">Mes actual</button>
+      <button type="button" class="payroll-quick-pill${payrollQuickActive === "pending" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="pending">Solo pendientes</button>
+      <button type="button" class="payroll-quick-pill${runSort === "pending_first" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="pending_first">Pendientes primero</button>
+      <button type="button" class="payroll-quick-pill${runSort === "net_desc" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="net_desc">Mayor neto</button>
+    </div>`;
+  const payrollDataInsight = `<div class="payroll-insight-strip" aria-label="Resumen de consulta">
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Liquidaciones visibles</span><p class="payroll-insight-value"><strong>${runs.length}</strong> de ${allRuns.length}</p></div>
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Viático interdepartamental</span><p class="payroll-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} / viaje</p></div>
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Acciones</span><p class="payroll-insight-value"><button type="button" class="btn btn-sm btn-action" id="export-payroll">${IC.download} Exportar CSV</button></p></div>
+    </div>`;
+  const payrollDataNav = renderPayrollDataSectionNav(payrollDataSection, {
+    employees: employees.length,
+    absences: absences.length,
+    runs: runs.length
+  });
+  const employeesPane = `<div class="payroll-data-pane${payrollDataSection === "employees" ? "" : " hidden"}" data-payroll-section="employees">
+      <div class="payroll-table-shell">${empTable}</div>
+    </div>`;
+  const absencesPane = `<div class="payroll-data-pane${payrollDataSection === "absences" ? "" : " hidden"}" data-payroll-section="absences">
+      <div class="payroll-table-shell">${absenceTable}</div>
+    </div>`;
+  const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
+      <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> liquidación${runs.length === 1 ? "" : "es"} con los filtros actuales.</p>
+      ${runsPaneBody}
+    </div>`;
+  const payrollDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
+      ${payrollDataInsight}
+      <div class="payroll-data-toolbar">
+        ${payrollQuickBar}
+        ${filtersHtml}
       </div>
+      ${payrollDataNav}
+      <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}</div>
     </section>`;
   const payrollFleetHero = moduleFleetHeroStrip(
     [
@@ -14768,25 +14881,21 @@ function payrollHtml() {
     activeId: payrollWorkspace,
     tabs: [
       { id: "operate", label: "Nuevos registros", icon: "userPlus", hint: "Altas y liquidaciones" },
-      { id: "data", label: "Información y reportes", icon: "layers", hint: "Listas, filtros y CSV" }
+      { id: "data", label: "Consultar datos", icon: "layers", hint: "Empleados, ausencias y nómina" }
     ]
   });
-  const payrollOperatePanel = `<div class="hr-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
-      ${payrollHead}
-      ${payrollActions}
+  const payrollOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
+      ${payrollOperateAlerts}
       ${payrollExecutionBlock}
     </div>`;
-  const payrollDataPanel = `<div class="hr-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
-      <section class="ops-block">
-        <header class="ops-block-head">
-          <h3>Buscar y filtrar</h3>
-          <p class="ops-block-lead muted">Aplica filtros antes de exportar o revisar los datos del personal y los pagos.</p>
-        </header>
-        ${pcardWrapPro("filter", "Filtros disponibles", "Periodo, empleado y estado de pago", filtersHtml)}
-      </section>
+  const payrollDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
+      <header class="payroll-panel-intro ops-block-head">
+        <h3>Consultar datos</h3>
+        <p class="ops-block-lead muted">Navegue entre empleados, ausencias y liquidaciones. Los filtros aplican sobre las listas y la exportación CSV.</p>
+      </header>
       ${payrollDataBlock}
     </div>`;
-  return `<section class="payroll-shell payroll-shell--workspace hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollFleetHero}${payrollTabsNav}
+  return `<section class="payroll-shell payroll-shell--workspace payroll-module--v2 hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollFleetHero}${payrollTabsNav}${payrollModuleHead}
       <div class="hr-workspace-panels">
         ${payrollOperatePanel}
         ${payrollDataPanel}
@@ -18877,7 +18986,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-pending']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.payrollFilters = { ...(state.payrollFilters || {}), status: "pending" };
-      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data" };
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "runs" };
       persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
@@ -18885,8 +18994,36 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.payrollFilters = { ...(state.payrollFilters || {}), status: "all" };
-      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data" };
+      state.payrollFilters = { ...(state.payrollFilters || {}), status: "all", period: "all" };
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "runs" };
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-quick-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const quick = String(btn.dataset.quick || "all");
+      state.payrollFilters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+      if (quick === "pending") {
+        state.payrollFilters.status = "pending";
+        state.payrollFilters.period = state.payrollFilters.period || "all";
+      } else if (quick === "current") {
+        state.payrollFilters.period = "current";
+        state.payrollFilters.status = state.payrollFilters.status || "all";
+      } else {
+        state.payrollFilters = { period: "all", employee: "", status: "all" };
+      }
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: quick === "all" ? state.payrollUi?.dataSection || "employees" : "runs" };
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-data-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizePayrollDataSection(btn.dataset.section);
+      state.payrollUi = { ...(state.payrollUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
@@ -18894,9 +19031,10 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-sort-runs']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate" };
+      state.payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "runs" };
       state.payrollUi.runSort = String(btn.dataset.sort || "recent");
       state.payrollUi.workspace = "data";
+      state.payrollUi.dataSection = "runs";
       persistHrWorkspace("payroll", "data");
       renderPortalView();
     });

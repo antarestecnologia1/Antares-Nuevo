@@ -79,7 +79,21 @@ window.PortalArchitecture = (() => {
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "payrollHtml" }],
-      layoutPlan: [{ container: ".payroll-shell", order: [".fleet-hero-strip", ".ops-module-head", ".ops-command-bar", ".ops-block", ".p-card", ".payroll-data-grid"] }]
+      layoutPlan: [
+        {
+          container: ".payroll-shell",
+          order: [
+            ".fleet-hero-strip",
+            ".hr-workspace-tabs",
+            ".payroll-module-head",
+            ".hr-alert-grid",
+            ".payroll-operate-panel",
+            ".payroll-data-panel",
+            ".payroll-run-cards-grid",
+            ".payroll-table-shell"
+          ]
+        }
+      ]
     },
     hiring: {
       title: "Contratación",
