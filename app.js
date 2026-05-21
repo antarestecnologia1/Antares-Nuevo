@@ -2785,6 +2785,9 @@ let state = {
   deletedTransportTripsLogMinimized: true,
   /** Historial: pestaña activa (explore | driver | fleet) y filtro rápido de listado. */
   historyUi: { workspace: "explore", quickFilter: "all" },
+  /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
+  reportsUi: { tab: "export", period: "90d" },
+  reportsChartInstances: [],
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
   notificationPreferences: {
     notificacionesHabilitadas: true,
@@ -13486,6 +13489,11 @@ const REPORT_RULES = {
   trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  fuel_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  maintenance_fleet: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  revenue_by_route: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  request_funnel: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  document_compliance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
   payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
   hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
   labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
@@ -13951,6 +13959,153 @@ function buildReportDataset(reportId, actor = currentUser()) {
       fileName: "reporte_autorizaciones.csv"
     };
   }
+  if (reportId === "fuel_operations") {
+    const rows = read(KEYS.fuelLogs, []).map((log) => ({
+      date: log.date || "-",
+      driver: log.driverName || "-",
+      vehicle: log.vehiclePlate || "-",
+      station: log.station || "-",
+      liters: parseNum(log.liters),
+      totalCost: parseNum(log.totalCost),
+      tripRef: log.tripNumber || log.requestNumber || "-"
+    }));
+    return {
+      title: "Reporte de combustible",
+      columns: [
+        { key: "date", label: "Fecha" },
+        { key: "driver", label: "Conductor" },
+        { key: "vehicle", label: "Vehículo" },
+        { key: "station", label: "Estación" },
+        { key: "liters", label: "Litros" },
+        { key: "totalCost", label: "Costo COP" },
+        { key: "tripRef", label: "Viaje / solicitud" }
+      ],
+      rows,
+      fileName: "reporte_combustible.csv"
+    };
+  }
+  if (reportId === "maintenance_fleet") {
+    const rows = read(KEYS.vehicleTechnicalLogs, []).map((log) => ({
+      date: log.date || "-",
+      vehicle: log.vehiclePlate || "-",
+      kind: log.kind || log.type || "-",
+      description: String(log.description || "-").slice(0, 120),
+      cost: parseNum(log.cost),
+      downtimeHours: parseNum(log.downtimeHours || log.hoursOut || 0),
+      status: log.status || "-"
+    }));
+    return {
+      title: "Reporte de taller y mantenimiento",
+      columns: [
+        { key: "date", label: "Fecha" },
+        { key: "vehicle", label: "Vehículo" },
+        { key: "kind", label: "Tipo" },
+        { key: "description", label: "Descripción" },
+        { key: "cost", label: "Costo COP" },
+        { key: "downtimeHours", label: "Horas fuera" },
+        { key: "status", label: "Estado" }
+      ],
+      rows,
+      fileName: "reporte_taller.csv"
+    };
+  }
+  if (reportId === "revenue_by_route") {
+    const byRoute = {};
+    requests
+      .filter((r) => r.trip)
+      .forEach((r) => {
+        const route = formatRoute(r);
+        if (!byRoute[route]) byRoute[route] = { trips: 0, revenue: 0 };
+        byRoute[route].trips += 1;
+        byRoute[route].revenue += deriveRequestOperationalValue(r);
+      });
+    const rows = Object.entries(byRoute)
+      .map(([route, data]) => ({
+        route,
+        trips: data.trips,
+        revenue: parseNum(data.revenue),
+        avgTicket: data.trips ? Math.round(data.revenue / data.trips) : 0
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+    return {
+      title: "Reporte de recaudo por ruta",
+      columns: [
+        { key: "route", label: "Ruta" },
+        { key: "trips", label: "Viajes" },
+        { key: "revenue", label: "Recaudo COP" },
+        { key: "avgTicket", label: "Ticket promedio" }
+      ],
+      rows,
+      fileName: "reporte_recaudo_rutas.csv"
+    };
+  }
+  if (reportId === "request_funnel") {
+    const counts = {
+      [STATUS.PENDIENTE]: 0,
+      [STATUS.APROBADA_PENDIENTE_ASIGNACION]: 0,
+      [STATUS.VIAJE_ASIGNADO]: 0,
+      [STATUS.EN_TRANSITO]: 0,
+      [STATUS.ESPERA_STANDBY]: 0,
+      [STATUS.COMPLETADA]: 0,
+      [STATUS.CERRADA]: 0,
+      [STATUS.CANCELADA]: 0,
+      [STATUS.RECHAZADA]: 0
+    };
+    requests.forEach((r) => {
+      if (counts[r.status] != null) counts[r.status] += 1;
+      else counts[r.status] = 1;
+    });
+    const rows = Object.entries(counts)
+      .filter(([, n]) => n > 0)
+      .map(([status, count]) => ({
+        stage: prettyStatus(status, "request").replace(/<[^>]+>/g, ""),
+        statusKey: status,
+        count,
+        pct: requests.length ? `${Number(((count / requests.length) * 100).toFixed(1))}%` : "0%"
+      }))
+      .sort((a, b) => b.count - a.count);
+    return {
+      title: "Reporte embudo de solicitudes",
+      columns: [
+        { key: "stage", label: "Etapa" },
+        { key: "count", label: "Cantidad" },
+        { key: "pct", label: "% del total" }
+      ],
+      rows,
+      fileName: "reporte_embudo_solicitudes.csv"
+    };
+  }
+  if (reportId === "document_compliance") {
+    const rows = read(KEYS.vehicles, []).map((vehicle) => {
+      const soat = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate);
+      const tech = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate);
+      const worst = Math.min(soat.days, tech.days);
+      return {
+        plate: vehicle.plate,
+        type: vehicle.type,
+        soatDays: soat.days,
+        techDays: tech.days,
+        risk:
+          worst < 0 ? "Vencido" : worst <= 15 ? "Crítico (15d)" : worst <= 30 ? "Atención (30d)" : "Al día",
+        soatExpiry: vehicle.soatExpiryDate || "-",
+        techExpiry: vehicle.techInspectionExpiryDate || "-"
+      };
+    });
+    return {
+      title: "Reporte cumplimiento documental flota",
+      columns: [
+        { key: "plate", label: "Placa" },
+        { key: "type", label: "Tipo" },
+        { key: "soatDays", label: "Días SOAT" },
+        { key: "techDays", label: "Días tecnomecánica" },
+        { key: "risk", label: "Riesgo" },
+        { key: "soatExpiry", label: "Vence SOAT" },
+        { key: "techExpiry", label: "Vence técnico" }
+      ],
+      rows,
+      fileName: "reporte_documentos_flota.csv"
+    };
+  }
   return {
     title: "Reporte",
     columns: [{ key: "message", label: "Detalle" }],
@@ -13959,53 +14114,757 @@ function buildReportDataset(reportId, actor = currentUser()) {
   };
 }
 
-function reportsHtml() {
+function reportsPeriodStart(period) {
+  const key = String(period || "all").trim();
+  const now = new Date();
+  if (key === "30d") return new Date(now.getTime() - 30 * 86400000);
+  if (key === "90d") return new Date(now.getTime() - 90 * 86400000);
+  if (key === "ytd") return new Date(now.getFullYear(), 0, 1);
+  if (key === "month") {
+    const p = getColombiaDateParts(now);
+    return new Date(Number(p.year), Number(p.month) - 1, 1);
+  }
+  return null;
+}
+
+function reportsFilterByPeriod(requests, period) {
+  const start = reportsPeriodStart(period);
+  if (!start) return requests;
+  const t0 = start.getTime();
+  return requests.filter((r) => {
+    const ts = new Date(r.createdAt || r.pickupAt || 0).getTime();
+    return Number.isFinite(ts) && ts >= t0;
+  });
+}
+
+function reportsMonthKey(isoValue) {
+  const ts = new Date(isoValue || "").getTime();
+  if (!Number.isFinite(ts)) return "";
+  const p = getColombiaDateParts(new Date(ts));
+  return `${p.year}-${p.month}`;
+}
+
+function destroyReportsCharts() {
+  const list = state.reportsChartInstances || [];
+  list.forEach((ch) => {
+    try {
+      ch.destroy();
+    } catch (_e) {
+      /* noop */
+    }
+  });
+  state.reportsChartInstances = [];
+}
+
+function loadChartJsLib() {
+  if (window.Chart) return Promise.resolve(window.Chart);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-antares-chartjs]");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.Chart));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+    s.crossOrigin = "anonymous";
+    s.referrerPolicy = "no-referrer";
+    s.dataset.antaresChartjs = "1";
+    s.onload = () => resolve(window.Chart);
+    s.onerror = () => reject(new Error("Chart.js no cargó"));
+    document.head.appendChild(s);
+  });
+}
+
+function reportsHumanMonth(key) {
+  const k = String(key || "");
+  if (!/^\d{4}-\d{2}$/.test(k)) return k || "—";
+  const [y, m] = k.split("-");
+  const names = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const mi = Number(m);
+  return `${names[mi - 1] || m} ${y}`;
+}
+
+function reportsPctDelta(current, previous) {
+  const c = parseNum(current);
+  const p = parseNum(previous);
+  if (p <= 0) return c > 0 ? 100 : 0;
+  return Math.round(((c - p) / p) * 100);
+}
+
+function reportsFilterPreviousPeriod(all, period) {
+  const start = reportsPeriodStart(period);
+  if (!start) return [];
+  const t0 = start.getTime();
+  const duration = Date.now() - t0;
+  const prevStart = t0 - duration;
+  return all.filter((r) => {
+    const ts = new Date(r.createdAt || r.pickupAt || 0).getTime();
+    return Number.isFinite(ts) && ts >= prevStart && ts < t0;
+  });
+}
+
+function reportsWeekKey(isoValue) {
+  const ts = new Date(isoValue || "").getTime();
+  if (!Number.isFinite(ts)) return "";
+  const d = new Date(ts);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  const p = getColombiaDateParts(monday);
+  return `${p.year}-W${p.month}-${p.day}`;
+}
+
+function reportsBuildInsights(snapshot) {
+  const insights = [];
+  const k = snapshot.kpis;
+  if (k.slaPct >= 90) insights.push({ tone: "ok", title: "SLA sólido", text: `El ${k.slaPct}% de viajes cumple entrega a tiempo en el periodo.` });
+  else if (k.slaPct > 0) insights.push({ tone: "warn", title: "SLA mejorable", text: `Solo ${k.slaPct}% cumple SLA. Revise rutas con retraso en el tablero operativo.` });
+  if (k.trends.revenue > 15) insights.push({ tone: "ok", title: "Recaudo al alza", text: `Ingresos +${k.trends.revenue}% vs periodo anterior.` });
+  else if (k.trends.revenue < -10) insights.push({ tone: "warn", title: "Recaudo a la baja", text: `Ingresos ${k.trends.revenue}% vs periodo anterior.` });
+  if (k.docRisk > 0) insights.push({ tone: "alert", title: "Flota en riesgo", text: `${k.docRisk} vehículo(s) con SOAT o tecnomecánica vencida o por vencer.` });
+  if (k.assignRate < 70 && k.requests > 5) insights.push({ tone: "warn", title: "Cola de asignación", text: `Solo ${k.assignRate}% de solicitudes tiene viaje. Priorice pendientes de asignar.` });
+  if (k.avgTicket > 0) insights.push({ tone: "neutral", title: "Ticket promedio", text: `${snapshot.fmtCop(k.avgTicket)} por operación en el periodo.` });
+  return insights.slice(0, 4);
+}
+
+function buildReportsAnalyticsSnapshot(user, period = "90d") {
+  const all = getVisibleRequestsForUser(user);
+  const requests = reportsFilterByPeriod(all, period);
+  const prevRequests = reportsFilterPreviousPeriod(all, period);
+  const trips = requests.filter((r) => r.trip);
+  const prevTrips = prevRequests.filter((r) => r.trip);
+  const closed = requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status));
+  const revenue = requests.reduce((acc, r) => acc + deriveRequestOperationalValue(r), 0);
+  const prevRevenue = prevRequests.reduce((acc, r) => acc + deriveRequestOperationalValue(r), 0);
+  const slaOk = trips.filter((r) => slaStatusForRequest(r) === "Cumple SLA").length;
+  const slaPct = trips.length ? Math.round((slaOk / trips.length) * 100) : 0;
+  const standbyTotal = requests.reduce((acc, r) => acc + parseNum(r.standbyChargeTotal || 0), 0);
+
+  const approvalSamples = requests.filter((r) => r.approvedAt).length;
+  const approvalMinSum = requests.reduce((acc, r) => acc + minutesBetween(r.createdAt, r.approvedAt), 0);
+  const avgApprovalMin = approvalSamples ? Math.round(approvalMinSum / approvalSamples) : 0;
+
+  const cycleSamples = closed.filter((r) => r.deliveredAt || r.closedAt).length;
+  const cycleSum = closed.reduce(
+    (acc, r) => acc + hoursBetween(r.createdAt, r.deliveredAt || r.closedAt || r.trip?.etaDelivery),
+    0
+  );
+  const avgCycleHours = cycleSamples ? Number((cycleSum / cycleSamples).toFixed(1)) : 0;
+  const avgTicket = trips.length ? Math.round(revenue / trips.length) : 0;
+  const assignRate = requests.length ? Math.round((trips.length / requests.length) * 100) : 0;
+  const closeRate = requests.length ? Math.round((closed.length / requests.length) * 100) : 0;
+
+  const statusCounts = {};
+  requests.forEach((r) => {
+    const label = String(r.status || "sin_estado");
+    statusCounts[label] = (statusCounts[label] || 0) + 1;
+  });
+  const statusChart = Object.entries(statusCounts)
+    .map(([label, value]) => ({ label: prettyStatus(label, "request").replace(/<[^>]+>/g, ""), value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  const monthRevenue = {};
+  const monthTrips = {};
+  trips.forEach((r) => {
+    const mk = reportsMonthKey(r.trip?.assignedAt || r.approvedAt || r.createdAt);
+    if (!mk) return;
+    monthRevenue[mk] = (monthRevenue[mk] || 0) + deriveRequestOperationalValue(r);
+    monthTrips[mk] = (monthTrips[mk] || 0) + 1;
+  });
+  const revenueMonths = Object.keys(monthRevenue).sort().slice(-8);
+  const revenueSeries = revenueMonths.map((m) => monthRevenue[m] || 0);
+  const tripsSeries = revenueMonths.map((m) => monthTrips[m] || 0);
+  const revenueLabels = revenueMonths.map(reportsHumanMonth);
+
+  const weekTrips = {};
+  trips.forEach((r) => {
+    const wk = reportsWeekKey(r.trip?.assignedAt || r.createdAt);
+    if (!wk) return;
+    weekTrips[wk] = (weekTrips[wk] || 0) + 1;
+  });
+  const weekKeys = Object.keys(weekTrips).sort().slice(-10);
+  const weekSeries = weekKeys.map((k) => weekTrips[k] || 0);
+
+  const clientRevenue = {};
+  requests.forEach((r) => {
+    const c = String(r.clientName || "Sin cliente").trim();
+    clientRevenue[c] = (clientRevenue[c] || 0) + deriveRequestOperationalValue(r);
+  });
+  const topClients = Object.entries(clientRevenue)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
+
+  const routeTrips = {};
+  trips.forEach((r) => {
+    const route = formatRoute(r);
+    routeTrips[route] = (routeTrips[route] || 0) + 1;
+  });
+  const topRoutes = Object.entries(routeTrips)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
+
+  const driverTrips = {};
+  trips.forEach((r) => {
+    const d = String(r.trip?.driverName || "Sin conductor").trim();
+    driverTrips[d] = (driverTrips[d] || 0) + 1;
+  });
+  const topDrivers = Object.entries(driverTrips)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 7);
+
+  const tkYes = requests.filter((r) => requestRequiresTermoking(r)).length;
+  const tkNo = Math.max(0, requests.length - tkYes);
+
+  const funnel = [
+    { label: "Solicitudes", value: requests.length },
+    { label: "Aprobadas", value: requests.filter((r) => r.approvedAt).length },
+    { label: "Con viaje", value: trips.length },
+    { label: "En operación", value: requests.filter((r) => [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.VIAJE_ASIGNADO].includes(r.status)).length },
+    { label: "Cerradas", value: closed.length }
+  ];
+
+  const fuelLogs = reportsFilterByPeriod(
+    read(KEYS.fuelLogs, []).map((log) => ({ ...log, createdAt: log.date })),
+    period
+  );
+  const fuelCost = fuelLogs.reduce((acc, log) => acc + parseNum(log.totalCost), 0);
+  const fuelLiters = fuelLogs.reduce((acc, log) => acc + parseNum(log.liters), 0);
+  const maintCost = reportsFilterByPeriod(
+    read(KEYS.vehicleTechnicalLogs, []).map((log) => ({ ...log, createdAt: log.date })),
+    period
+  ).reduce((acc, log) => acc + parseNum(log.cost), 0);
+
+  const vehicles = read(KEYS.vehicles, []);
+  const activeTrips = getActiveTrips();
+  const busyIds = new Set(activeTrips.map((r) => String(r.trip?.vehicleId || "")).filter(Boolean));
+  const fleetBusy = busyIds.size;
+  const fleetAvailable = vehicles.filter((v) => v.available !== false && !busyIds.has(String(v.id))).length;
+  const docRisk = vehicles.filter((v) => {
+    const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+    const tech = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
+    return soat.days < 0 || tech.days < 0 || soat.days <= 30 || tech.days <= 30;
+  }).length;
+  const fleetUtilPct = vehicles.length ? Math.round((fleetBusy / vehicles.length) * 100) : 0;
+
+  const periodLabels = { "30d": "Últimos 30 días", "90d": "Últimos 90 días", month: "Mes actual", ytd: "Año en curso", all: "Histórico completo" };
+  const fmtCop = (n) => `$${parseNum(n).toLocaleString("es-CO")}`;
+
+  const snapshot = {
+    period,
+    periodLabel: periodLabels[period] || periodLabels["90d"],
+    generatedAt: fmtDate(nowIso()),
+    fmtCop,
+    kpis: {
+      requests: requests.length,
+      trips: trips.length,
+      revenue,
+      slaPct,
+      fuelCost,
+      maintCost,
+      standbyTotal,
+      fleetAvailable,
+      fleetTotal: vehicles.length,
+      fleetBusy,
+      fleetUtilPct,
+      docRisk,
+      avgTicket,
+      avgApprovalMin,
+      avgCycleHours,
+      assignRate,
+      closeRate,
+      trends: {
+        revenue: reportsPctDelta(revenue, prevRevenue),
+        trips: reportsPctDelta(trips.length, prevTrips.length),
+        requests: reportsPctDelta(requests.length, prevRequests.length)
+      }
+    },
+    statusChart,
+    revenueMonths,
+    revenueLabels,
+    revenueSeries,
+    tripsSeries,
+    weekKeys,
+    weekSeries,
+    topClients,
+    topRoutes,
+    topDrivers,
+    funnel,
+    fuelLiters,
+    thermoking: { yes: tkYes, no: tkNo },
+    slaOk,
+    slaTotal: trips.length,
+    activeOps: requests.filter((r) => tripRequestStatusIsOperational(r.status)).length
+  };
+  snapshot.insights = reportsBuildInsights(snapshot);
+  return snapshot;
+}
+
+function reportsBiTrendHtml(delta) {
+  const d = parseNum(delta);
+  const cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
+  const sign = d > 0 ? "+" : "";
+  return `<span class="reports-bi-trend reports-bi-trend--${cls}" title="Vs periodo anterior">${sign}${d}%</span>`;
+}
+
+function reportsBiKpiCard(opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const mod = o.mod ? ` reports-bi-kpi--${o.mod}` : "";
+  const trend = o.trend != null ? reportsBiTrendHtml(o.trend) : "";
+  const meta = o.meta ? `<span class="reports-bi-kpi-meta">${escapeHtml(o.meta)}</span>` : "";
+  const icon = o.icon ? `<span class="reports-bi-kpi-ico" aria-hidden="true">${o.icon}</span>` : "";
+  return `<article class="reports-bi-kpi${mod}">
+    ${icon}
+    <div class="reports-bi-kpi-body">
+      <span class="reports-bi-kpi-val">${o.value}</span>
+      <span class="reports-bi-kpi-lbl">${escapeHtml(o.label)}</span>
+      ${meta}
+    </div>
+    ${trend}
+  </article>`;
+}
+
+function reportsBiLeaderboardHtml(title, rows, valueKey, format = "num") {
+  if (!rows.length) return `<p class="reports-bi-empty">Sin datos en el periodo.</p>`;
+  const max = Math.max(...rows.map((r) => parseNum(r[1])), 1);
+  const items = rows
+    .map((row, i) => {
+      const pct = Math.round((parseNum(row[1]) / max) * 100);
+      const val =
+        format === "cop" ? `$${parseNum(row[1]).toLocaleString("es-CO")}` : String(parseNum(row[1]));
+      return `<li class="reports-bi-lb-item">
+        <span class="reports-bi-lb-rank">${i + 1}</span>
+        <div class="reports-bi-lb-main">
+          <span class="reports-bi-lb-name" title="${escapeAttr(row[0])}">${escapeHtml(row[0].length > 32 ? `${row[0].slice(0, 30)}…` : row[0])}</span>
+          <span class="reports-bi-lb-bar"><i style="width:${pct}%"></i></span>
+        </div>
+        <span class="reports-bi-lb-val">${val}</span>
+      </li>`;
+    })
+    .join("");
+  return `<div class="reports-bi-lb"><h4>${escapeHtml(title)}</h4><ol>${items}</ol></div>`;
+}
+
+function reportsAnalyticsPanelHtml(snapshot) {
+  const k = snapshot.kpis;
+  const fmtCop = snapshot.fmtCop;
+  const insightsHtml = (snapshot.insights || [])
+    .map(
+      (ins) =>
+        `<article class="reports-bi-insight reports-bi-insight--${escapeAttr(ins.tone || "neutral")}">
+          <strong>${escapeHtml(ins.title)}</strong>
+          <p>${escapeHtml(ins.text)}</p>
+        </article>`
+    )
+    .join("");
+  return `<section class="reports-bi" aria-label="Inteligencia de negocio">
+    <header class="reports-bi-hero">
+      <div class="reports-bi-hero-glow" aria-hidden="true"></div>
+      <div class="reports-bi-hero-grid" aria-hidden="true"></div>
+      <div class="reports-bi-hero-copy">
+        <span class="reports-bi-eyebrow"><span class="reports-bi-live" aria-hidden="true"></span> Antares Intelligence</span>
+        <h2 class="reports-bi-title">Torre analítica ejecutiva</h2>
+        <p class="reports-bi-sub">Analítica operativa, financiera y de cumplimiento · <strong>${escapeHtml(snapshot.periodLabel)}</strong></p>
+        <span class="reports-bi-updated">Actualizado ${escapeHtml(snapshot.generatedAt)}</span>
+      </div>
+      <div class="reports-bi-hero-actions">
+        <label class="reports-bi-period">${IC.calendar} Periodo analizado
+          <select id="reports-bi-period" data-action="reports-bi-period">
+            <option value="30d"${snapshot.period === "30d" ? " selected" : ""}>30 días</option>
+            <option value="90d"${snapshot.period === "90d" ? " selected" : ""}>90 días</option>
+            <option value="month"${snapshot.period === "month" ? " selected" : ""}>Mes actual</option>
+            <option value="ytd"${snapshot.period === "ytd" ? " selected" : ""}>Año en curso</option>
+            <option value="all"${snapshot.period === "all" ? " selected" : ""}>Histórico completo</option>
+          </select>
+        </label>
+        <div class="reports-bi-hero-pills">
+          <span class="reports-bi-pill">${k.activeOps} en operación</span>
+          <span class="reports-bi-pill">${k.assignRate}% asignadas</span>
+          <span class="reports-bi-pill">${k.closeRate}% cerradas</span>
+        </div>
+      </div>
+    </header>
+    ${insightsHtml ? `<div class="reports-bi-insights">${insightsHtml}</div>` : ""}
+    <div class="reports-bi-kpis">
+      ${reportsBiKpiCard({ mod: "primary", icon: IC.dollar, value: fmtCop(k.revenue), label: "Recaudo operativo", trend: k.trends.revenue })}
+      ${reportsBiKpiCard({ icon: IC.truck, value: String(k.trips), label: "Viajes", trend: k.trends.trips, meta: `Ticket ${fmtCop(k.avgTicket)}` })}
+      ${reportsBiKpiCard({ icon: IC.file, value: String(k.requests), label: "Solicitudes", trend: k.trends.requests })}
+      ${reportsBiKpiCard({ mod: "sla", icon: IC.check, value: `${k.slaPct}%`, label: "SLA cumplido", meta: `${k.slaOk}/${k.slaTotal} viajes` })}
+      ${reportsBiKpiCard({ icon: IC.clock, value: `${k.avgCycleHours}h`, label: "Ciclo promedio", meta: `Aprob. ${k.avgApprovalMin} min` })}
+      ${reportsBiKpiCard({ icon: IC.fuel, value: fmtCop(k.fuelCost), label: "Combustible", meta: `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L` })}
+      ${reportsBiKpiCard({ icon: IC.activity, value: fmtCop(k.maintCost), label: "Taller", meta: k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby" })}
+      ${reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupación` })}
+      ${reportsBiKpiCard({ mod: k.docRisk ? "warn" : "", icon: IC.shield, value: String(k.docRisk), label: "Alertas documentales" })}
+    </div>
+    <div class="reports-bi-score-row">
+      <article class="reports-bi-score-card">
+        <div class="reports-bi-ring" style="--pct:${k.slaPct}">
+          <svg viewBox="0 0 36 36" aria-hidden="true">
+            <path class="reports-bi-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <path class="reports-bi-ring-fg" stroke-dasharray="${k.slaPct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+          </svg>
+          <strong>${k.slaPct}%</strong>
+        </div>
+        <div>
+          <h3>${IC.check} Cumplimiento SLA</h3>
+          <p>${k.slaOk} de ${k.slaTotal} viajes entregan a tiempo</p>
+        </div>
+      </article>
+      <article class="reports-bi-score-card">
+        <div class="reports-bi-ring reports-bi-ring--assign" style="--pct:${k.assignRate}">
+          <svg viewBox="0 0 36 36" aria-hidden="true">
+            <path class="reports-bi-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <path class="reports-bi-ring-fg" stroke-dasharray="${k.assignRate}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+          </svg>
+          <strong>${k.assignRate}%</strong>
+        </div>
+        <div>
+          <h3>${IC.compass} Conversión a viaje</h3>
+          <p>${k.trips} viajes sobre ${k.requests} solicitudes</p>
+        </div>
+      </article>
+      <article class="reports-bi-score-card reports-bi-score-card--chart">
+        <h3>${IC.truck} Termoking vs seco</h3>
+        <div class="reports-bi-chart-wrap reports-bi-chart-wrap--mini"><canvas id="reports-chart-thermoking" aria-label="Termoking"></canvas></div>
+      </article>
+    </div>
+    <div class="reports-bi-grid">
+      <article class="reports-bi-card reports-bi-card--xl">
+        <header class="reports-bi-card-head">
+          <div><h3>${IC.dollar} Recaudo y volumen mensual</h3><p class="reports-bi-card-sub">Ingresos (barras) y viajes (línea)</p></div>
+          <span class="reports-bi-card-stat">${fmtCop(k.revenue)}</span>
+        </header>
+        <div class="reports-bi-chart-wrap reports-bi-chart-wrap--tall"><canvas id="reports-chart-revenue" aria-label="Recaudo mensual"></canvas></div>
+      </article>
+      <article class="reports-bi-card reports-bi-card--wide">
+        <header class="reports-bi-card-head">
+          <div><h3>${IC.activity} Actividad semanal</h3><p class="reports-bi-card-sub">Viajes por semana</p></div>
+        </header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-weekly" aria-label="Tendencia semanal"></canvas></div>
+      </article>
+      <article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.layers} Embudo operativo</h3><p class="reports-bi-card-sub">Del pedido al cierre</p></div></header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-funnel" aria-label="Embudo"></canvas></div>
+      </article>
+      <article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.activity} Estados</h3><p class="reports-bi-card-sub">Distribución actual</p></div></header>
+        <div class="reports-bi-chart-wrap reports-bi-chart-wrap--donut"><canvas id="reports-chart-status" aria-label="Estados"></canvas></div>
+      </article>
+      <article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.briefcase} Top clientes</h3><p class="reports-bi-card-sub">Por recaudo</p></div></header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-clients" aria-label="Clientes"></canvas></div>
+      </article>
+      <article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.mapPin} Rutas activas</h3><p class="reports-bi-card-sub">Por viajes</p></div></header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-routes" aria-label="Rutas"></canvas></div>
+      </article>
+      <article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.user} Top conductores</h3><p class="reports-bi-card-sub">Viajes asignados</p></div></header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-drivers" aria-label="Conductores"></canvas></div>
+      </article>
+      <article class="reports-bi-card reports-bi-card--wide reports-bi-card--rankings">
+        <header class="reports-bi-card-head"><div><h3>${IC.star} Rankings del periodo</h3><p class="reports-bi-card-sub">Mayor impacto comercial y operativo</p></div></header>
+        <div class="reports-bi-rankings">
+          ${reportsBiLeaderboardHtml("Clientes por recaudo", snapshot.topClients, 1, "cop")}
+          ${reportsBiLeaderboardHtml("Conductores por viajes", snapshot.topDrivers, 1, "num")}
+        </div>
+      </article>
+    </div>
+    <p class="reports-bi-foot">Datos alineados con exportación PDF/CSV · Comparativa vs periodo anterior equivalente · ${escapeHtml(snapshot.periodLabel)}</p>
+  </section>`;
+}
+
+function reportsBiChartTheme() {
+  const text = "#e2e8f0";
+  const muted = "#94a3b8";
+  const grid = "rgba(148, 163, 184, 0.14)";
+  const font = { family: "'Montserrat', 'Roboto', system-ui, sans-serif", size: 11, weight: "600" };
+  const copTooltip = {
+    callbacks: {
+      label(ctx) {
+        const raw = ctx.parsed?.y ?? ctx.parsed?.x ?? ctx.raw;
+        const n = parseNum(raw);
+        if (String(ctx.dataset?.label || "").toLowerCase().includes("cop") || ctx.chart?.canvas?.id === "reports-chart-clients") {
+          return `${ctx.dataset.label || ""}: $${n.toLocaleString("es-CO")}`;
+        }
+        return `${ctx.dataset.label || ""}: ${n.toLocaleString("es-CO")}`;
+      }
+    }
+  };
+  return { text, muted, grid, font, copTooltip };
+}
+
+function wireReportsCharts(snapshot) {
+  destroyReportsCharts();
+  const root = nodes.viewRoot?.querySelector(".reports-bi");
+  if (!root || !window.Chart) return;
+  const Chart = window.Chart;
+  const { text, muted, grid, font, copTooltip } = reportsBiChartTheme();
+  const palette = ["#38bdf8", "#2563eb", "#10b981", "#f59e0b", "#a78bfa", "#f472b6", "#2dd4bf", "#818cf8"];
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 720, easing: "easeOutQuart" },
+    plugins: {
+      legend: { labels: { color: text, font, boxWidth: 12, padding: 14 } },
+      tooltip: { ...copTooltip, backgroundColor: "rgba(15, 23, 42, 0.92)", titleColor: "#f8fafc", bodyColor: "#cbd5e1", borderColor: "rgba(56, 189, 248, 0.35)", borderWidth: 1, padding: 10 }
+    }
+  };
+  const scaleOpts = {
+    x: { ticks: { color: muted, font }, grid: { color: grid } },
+    y: { ticks: { color: muted, font }, grid: { color: grid } }
+  };
+
+  const push = (id, config) => {
+    const canvas = root.querySelector(id);
+    if (!canvas) return;
+    state.reportsChartInstances.push(new Chart(canvas, config));
+  };
+
+  const labels = snapshot.revenueLabels || snapshot.revenueMonths;
+
+  push("#reports-chart-revenue", {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Recaudo COP",
+          data: snapshot.revenueSeries,
+          backgroundColor: "rgba(37, 99, 235, 0.85)",
+          borderRadius: 8,
+          yAxisID: "y"
+        },
+        {
+          type: "line",
+          label: "Viajes",
+          data: snapshot.tripsSeries,
+          borderColor: "#2dd4bf",
+          backgroundColor: "rgba(45, 212, 191, 0.15)",
+          fill: true,
+          tension: 0.35,
+          yAxisID: "y1"
+        }
+      ]
+    },
+    options: {
+      ...baseOpts,
+      scales: {
+        x: scaleOpts.x,
+        y: { ...scaleOpts.y, position: "left" },
+        y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#2dd4bf", font } }
+      }
+    }
+  });
+
+  push("#reports-chart-weekly", {
+    type: "line",
+    data: {
+      labels: snapshot.weekKeys.map((k, i) => `S${i + 1}`),
+      datasets: [
+        {
+          label: "Viajes / semana",
+          data: snapshot.weekSeries,
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56, 189, 248, 0.12)",
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }
+      ]
+    },
+    options: { ...baseOpts, plugins: { ...baseOpts.plugins, legend: { display: false } }, scales: scaleOpts }
+  });
+
+  push("#reports-chart-status", {
+    type: "doughnut",
+    data: {
+      labels: snapshot.statusChart.map((x) => x.label),
+      datasets: [{ data: snapshot.statusChart.map((x) => x.value), backgroundColor: palette, borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: { ...baseOpts, cutout: "62%", plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font, boxWidth: 10 } } } }
+  });
+
+  push("#reports-chart-thermoking", {
+    type: "doughnut",
+    data: {
+      labels: ["Con Termoking", "Carga seca"],
+      datasets: [{ data: [snapshot.thermoking.yes, snapshot.thermoking.no], backgroundColor: ["#0ea5e9", "#64748b"], borderWidth: 0 }]
+    },
+    options: { ...baseOpts, cutout: "65%", plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font } } } }
+  });
+
+  const hBar = (id, rows, label, color) => {
+    push(id, {
+      type: "bar",
+      data: {
+        labels: rows.map((x) => (x[0].length > 24 ? `${x[0].slice(0, 22)}…` : x[0])),
+        datasets: [{ label, data: rows.map((x) => x[1]), backgroundColor: color, borderRadius: 6 }]
+      },
+      options: { indexAxis: "y", ...baseOpts, plugins: { ...baseOpts.plugins, legend: { display: false } }, scales: scaleOpts }
+    });
+  };
+
+  hBar("#reports-chart-clients", snapshot.topClients, "COP", "rgba(56, 189, 248, 0.85)");
+  hBar("#reports-chart-routes", snapshot.topRoutes, "Viajes", "rgba(167, 139, 250, 0.85)");
+  hBar("#reports-chart-drivers", snapshot.topDrivers, "Viajes", "rgba(16, 185, 129, 0.85)");
+
+  const funnelColors = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#22c55e"];
+  push("#reports-chart-funnel", {
+    type: "bar",
+    data: {
+      labels: snapshot.funnel.map((x) => x.label),
+      datasets: [{ label: "Cantidad", data: snapshot.funnel.map((x) => x.value), backgroundColor: funnelColors, borderRadius: 10 }]
+    },
+    options: {
+      ...baseOpts,
+      plugins: { legend: { display: false }, tooltip: baseOpts.plugins.tooltip },
+      scales: { x: { ...scaleOpts.x, grid: { display: false } }, y: scaleOpts.y }
+    }
+  });
+}
+
+function bindReportsWorkspaceControls() {
+  if (String(state.currentView || "") !== "reports" || !nodes.viewRoot) return;
+  const root = nodes.viewRoot.querySelector(".reports-workspace");
+  if (!root) return;
+
+  root.querySelectorAll("[data-action='reports-set-tab']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = String(btn.dataset.tab || "export").trim();
+      if (!["export", "bi"].includes(tab)) return;
+      state.reportsUi = { ...state.reportsUi, tab };
+      destroyReportsCharts();
+      renderPortalView();
+    });
+  });
+
+  const periodSel = root.querySelector("#reports-bi-period");
+  periodSel?.addEventListener("change", () => {
+    state.reportsUi = { ...state.reportsUi, period: String(periodSel.value || "90d"), tab: "bi" };
+    destroyReportsCharts();
+    renderPortalView();
+  });
+
+  if (String(state.reportsUi?.tab || "export") !== "bi") return;
+
   const user = currentUser();
+  const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
+  loadChartJsLib()
+    .then(() => wireReportsCharts(snapshot))
+    .catch(() => {
+      const foot = root.querySelector(".reports-bi-foot");
+      if (foot) foot.textContent = "No se pudieron cargar las gráficas. Verifique su conexión o recargue la página.";
+    });
+}
+
+function reportsExportPanelHtml(user) {
   const cards = [
-    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", subtitle: "Vista integral de operación y desempeño." },
-    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", subtitle: "Cumplimiento de tiempos y calidad del servicio." },
-    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", subtitle: "Disponibilidad, ocupación y rendimiento de flota." },
-    { id: "trips_operations", icon: "compass", title: "Viajes operativos", subtitle: "Seguimiento consolidado de viajes y estados." },
-    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", subtitle: "Ciclo completo desde creación hasta cierre." },
-    { id: "drivers_performance", icon: "user", title: "Conductores", subtitle: "Actividad y desempeño operativo por conductor." },
-    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada", subtitle: "Resumen financiero y novedades de gestión humana." },
-    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline", subtitle: "Evolución del embudo de contratación." },
-    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Indicadores de control normativo y SST." },
-    { id: "users_access", icon: "shield", title: "Usuarios y accesos", subtitle: "Trazabilidad de permisos y seguridad de acceso." },
-    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", subtitle: "Seguimiento de solicitudes y aprobaciones." }
+    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", subtitle: "Vista integral de operación y desempeño.", group: "Estrategia" },
+    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", subtitle: "Cumplimiento de tiempos y calidad del servicio.", group: "Operación" },
+    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", subtitle: "Disponibilidad, ocupación y rendimiento de flota.", group: "Operación" },
+    { id: "trips_operations", icon: "compass", title: "Viajes operativos", subtitle: "Seguimiento consolidado de viajes y estados.", group: "Operación" },
+    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", subtitle: "Ciclo completo desde creación hasta cierre.", group: "Operación" },
+    { id: "drivers_performance", icon: "user", title: "Conductores", subtitle: "Actividad y desempeño operativo por conductor.", group: "Operación" },
+    { id: "fuel_operations", icon: "fuel", title: "Combustible", subtitle: "Cargas, litros, costos y vínculo al viaje.", group: "Costos" },
+    { id: "maintenance_fleet", icon: "activity", title: "Taller y mantenimiento", subtitle: "Novedades técnicas, costos y horas fuera de servicio.", group: "Costos" },
+    { id: "revenue_by_route", icon: "dollar", title: "Recaudo por ruta", subtitle: "Ingresos y ticket promedio por trayecto.", group: "Finanzas" },
+    { id: "request_funnel", icon: "layers", title: "Embudo de solicitudes", subtitle: "Volumen por etapa del ciclo operativo.", group: "Finanzas" },
+    { id: "document_compliance", icon: "shield", title: "Documentos de flota", subtitle: "SOAT, tecnomecánica y alertas de vencimiento.", group: "Cumplimiento" },
+    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada", subtitle: "Resumen financiero y novedades de gestión humana.", group: "RRHH" },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline", subtitle: "Evolución del embudo de contratación.", group: "RRHH" },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Indicadores de control normativo y SST.", group: "Cumplimiento" },
+    { id: "users_access", icon: "shield", title: "Usuarios y accesos", subtitle: "Trazabilidad de permisos y seguridad de acceso.", group: "Gobierno" },
+    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", subtitle: "Seguimiento de solicitudes y aprobaciones.", group: "Gobierno" }
   ];
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
-  const reportsHero = moduleFleetHeroStrip([
-    { label: "Disponibles para ti", value: visibleCards.length },
-    { label: "Catalogo total", value: cards.length },
-    { label: "Sin acceso", value: cards.length - visibleCards.length, tone: cards.length - visibleCards.length ? "warn" : undefined },
-    { label: "Formatos", value: "PDF + XLSX" }
-  ]);
-  const body = visibleCards.length
-    ? `<div class="dash-grid">
-    ${visibleCards
-      .map((card) => `
+  if (!visibleCards.length) {
+    return `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
+  }
+  const groups = [...new Set(visibleCards.map((c) => c.group))];
+  const sections = groups
+    .map((group) => {
+      const groupCards = visibleCards.filter((c) => c.group === group);
+      return `<div class="reports-export-group">
+        <h3 class="reports-export-group-title">${escapeHtml(group)}</h3>
+        <div class="dash-grid reports-export-grid">
+        ${groupCards
+          .map(
+            (card) => `
       <article class="p-card reports-card-pro">
         <div class="p-card-header">
           <div class="p-card-header-left">
             <div class="p-card-icon">${IC[card.icon] || IC.activity}</div>
             <div>
-              <h2>${card.title}</h2>
-              <p class="reports-card-subtitle">${card.subtitle}</p>
+              <h2>${escapeHtml(card.title)}</h2>
+              <p class="reports-card-subtitle">${escapeHtml(card.subtitle)}</p>
             </div>
           </div>
         </div>
         <div class="p-card-body">
           <div class="toolbar reports-card-actions">
-            <button class="btn btn-sm btn-action" data-action="generate-report" data-report="${card.id}" data-format="pdf">${IC.file} PDF</button>
-            <button class="btn btn-sm btn-approve" data-action="generate-report" data-report="${card.id}" data-format="excel">${IC.download} Excel</button>
+            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf">${IC.file} PDF</button>
+            <button class="btn btn-sm btn-approve" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel">${IC.download} Excel</button>
           </div>
         </div>
-      </article>`)
-      .join("")}
-  </div>`
-    : `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
-  return reportsHero + pcardWrap("activity", "Reportería", null, body);
+      </article>`
+          )
+          .join("")}
+        </div>
+      </div>`;
+    })
+    .join("");
+  return sections;
+}
+
+function reportsHtml() {
+  const user = currentUser();
+  if (!state.reportsUi || typeof state.reportsUi !== "object") state.reportsUi = { tab: "export", period: "90d" };
+  const tab = String(state.reportsUi.tab || "export");
+  const cards = [
+    { id: "executive_control_tower" },
+    { id: "service_levels" },
+    { id: "fleet_summary" },
+    { id: "trips_operations" },
+    { id: "requests_lifecycle" },
+    { id: "drivers_performance" },
+    { id: "fuel_operations" },
+    { id: "maintenance_fleet" },
+    { id: "revenue_by_route" },
+    { id: "request_funnel" },
+    { id: "document_compliance" },
+    { id: "payroll_summary" },
+    { id: "hiring_pipeline" },
+    { id: "labor_compliance" },
+    { id: "users_access" },
+    { id: "authorizations_traceability" }
+  ];
+  const visibleCount = cards.filter((c) => canAccessReport(user, c.id)).length;
+  const reportsHero = moduleFleetHeroStrip([
+    { label: "Reportes disponibles", value: visibleCount },
+    { label: "Catálogo", value: cards.length },
+    { label: "Vista activa", value: tab === "bi" ? "BI + gráficas" : "Exportar" },
+    { label: "Formatos", value: "PDF + CSV" }
+  ]);
+  const exportActive = tab === "export";
+  const biActive = tab === "bi";
+  const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi.period || "90d");
+  const workspace = `<div class="reports-workspace">
+    <nav class="reports-workspace-tabs" aria-label="Secciones de reportería">
+      <button type="button" class="reports-workspace-tab${exportActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="export" aria-current="${exportActive ? "page" : "false"}">${IC.download} Exportar reportes</button>
+      <button type="button" class="reports-workspace-tab${biActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="bi" aria-current="${biActive ? "page" : "false"}">${IC.activity} Inteligencia BI</button>
+    </nav>
+    <div class="reports-workspace-panel${exportActive ? "" : " hidden"}" data-reports-panel="export" role="tabpanel"${exportActive ? "" : " hidden"}>
+      ${pcardWrap("file", "Catálogo de reportes", "Descargue PDF o Excel (CSV) por área de negocio", reportsExportPanelHtml(user))}
+    </div>
+    <div class="reports-workspace-panel${biActive ? "" : " hidden"}" data-reports-panel="bi" role="tabpanel"${biActive ? "" : " hidden"}>
+      ${reportsAnalyticsPanelHtml(snapshot)}
+    </div>
+  </div>`;
+  return reportsHero + workspace;
 }
 
 function monthRange(month) {
@@ -16810,6 +17669,8 @@ function renderPortalViewImpl() {
   mountUniversalModuleFilters();
   bindDynamicEvents();
   bindDashboardControls();
+  if (String(view || "") === "reports") bindReportsWorkspaceControls();
+  else destroyReportsCharts();
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
   enforceColombianFormStandards();

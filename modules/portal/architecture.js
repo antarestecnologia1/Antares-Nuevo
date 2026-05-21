@@ -72,7 +72,12 @@ window.PortalArchitecture = (() => {
       access: "admin-or-rrhh",
       shell: true,
       renderer: [{ module: "transporte", exportName: "reportsHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [
+        {
+          container: ".module-shell-body",
+          order: [".fleet-hero-strip", ".reports-workspace", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"]
+        }
+      ]
     },
     payroll: {
       title: "Gestión humana",
