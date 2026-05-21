@@ -5767,7 +5767,7 @@ function wireTripRateChoiceSelect(formEl) {
   const renderMeta = (storageKey = "") => {
     if (!meta) return;
     if (!storageKey) {
-      meta.innerHTML = `<span class="muted">Seleccione una tarifa para ver ruta y alcance de aplicación.</span>`;
+      meta.innerHTML = `<span class="muted">Modo manual: ingrese el precio del viaje (debe ser mayor a cero para poder asignar).</span>`;
       return;
     }
     const rates = getTripRouteRatesNormalized();
@@ -6152,15 +6152,15 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     })
     .join("");
 
-  const catalogBlock = items.length
-    ? `<label class="full create-trip-rate-catalog">${fieldLabel(IC.layers, "Tarifa por trayecto (catálogo)")}
-      <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
-    </label>
-    <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>`
-    : `<input type="hidden" name="tripRateChoice" value="" />`;
+  const catalogMetaHint = items.length
+    ? `<span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span>`
+    : `<span class="muted">No hay tarifa en catálogo para esta ruta. Queda en modo manual con precio en cero hasta que lo indique (obligatorio mayor a cero para crear el viaje).</span>`;
 
   return `<div class="create-trip-rate-inner">
-    ${catalogBlock}
+    <label class="full create-trip-rate-catalog">${fieldLabel(IC.layers, "Tarifa por trayecto (catálogo)")}
+      <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
+    </label>
+    <div class="trip-rate-meta full" data-trip-rate-meta">${catalogMetaHint}</div>
     <label class="full create-trip-price-field create-trip-price-field--hero">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required: true })}
       <div class="create-trip-price-wrap">
         <span class="create-trip-price-prefix" aria-hidden="true">$</span>
@@ -25148,7 +25148,7 @@ function initRequiredFieldIndicators() {
   const markerClass = "required-marker";
 
   const placeMarker = (label) => {
-    if (!label || label.querySelector(`.${markerClass}`)) return;
+    if (!label || label.querySelector(`.${markerClass}`) || label.querySelector(".field-required-mark")) return;
     const marker = document.createElement("span");
     marker.className = markerClass;
     marker.textContent = "*";
