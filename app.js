@@ -5726,12 +5726,44 @@ function initialTripValueForAssignment(request, preferredStorageKey) {
   return parseNum(request.tripValue || 0);
 }
 
+function wireTripValueMoneyInput(formEl) {
+  const num = formEl?.querySelector?.("input[name='tripValue'][data-trip-money-input]");
+  if (!num || num.dataset.tripMoneyWired === "1") return;
+  num.dataset.tripMoneyWired = "1";
+  const formatLive = () => {
+    const n = parseMoneyFieldValue(num.value);
+    const end = num.selectionEnd;
+    num.value = formatMoneyFieldValue(n);
+    if (typeof end === "number") {
+      const len = num.value.length;
+      num.setSelectionRange(len, len);
+    }
+  };
+  num.addEventListener("input", () => {
+    formatLive();
+    updateCreateTripStepper(formEl);
+  });
+  num.addEventListener("blur", () => {
+    num.value = formatMoneyFieldValue(parseMoneyFieldValue(num.value));
+    updateCreateTripStepper(formEl);
+  });
+  if (num.value) num.value = formatMoneyFieldValue(parseMoneyFieldValue(num.value));
+}
+
 /** Enlaza el selector de tarifa con el campo numérico de precio en el modal de asignación. */
 function wireTripRateChoiceSelect(formEl) {
   const sel = formEl.querySelector("select[name='tripRateChoice']");
   const num = formEl.querySelector("input[name='tripValue']");
   const meta = formEl.querySelector("[data-trip-rate-meta]");
-  if (!sel || !num) return;
+  wireTripValueMoneyInput(formEl);
+  if (!num) return;
+  const setTripValueAmount = (amount) => {
+    const n = Math.max(0, parseNum(amount));
+    if (num.dataset.tripMoneyInput === "1") num.value = formatMoneyFieldValue(n);
+    else num.value = String(n);
+    updateCreateTripStepper(formEl);
+  };
+  if (!sel) return;
   const renderMeta = (storageKey = "") => {
     if (!meta) return;
     if (!storageKey) {
@@ -5756,17 +5788,18 @@ function wireTripRateChoiceSelect(formEl) {
     const key = String(sel.value || "").trim();
     if (!key) {
       renderMeta("");
-      updateCreateTripStepper(formEl);
+      setTripValueAmount(0);
       return;
     }
     const rates = getTripRouteRatesNormalized();
     const entry = rates[key];
-    if (entry && parseNum(entry.value) > 0) num.value = String(parseNum(entry.value));
+    if (entry && parseNum(entry.value) > 0) setTripValueAmount(entry.value);
     renderMeta(key);
-    updateCreateTripStepper(formEl);
   };
   sel.addEventListener("change", onRateChange);
-  num.addEventListener("input", () => updateCreateTripStepper(formEl));
+  if (num.dataset.tripMoneyInput !== "1") {
+    num.addEventListener("input", () => updateCreateTripStepper(formEl));
+  }
   renderMeta(String(sel.value || "").trim());
 }
 
@@ -5800,7 +5833,7 @@ function updateCreateTripStepper(formEl) {
   const assignable = !!(request && isRequestPickupSameDayOrFuture(request));
   const vehicleId = String(formEl.querySelector("select[name='vehicleId']")?.value || "").trim();
   const driverId = String(formEl.querySelector("select[name='driverId']")?.value || "").trim();
-  const tripValue = parseNum(formEl.querySelector("input[name='tripValue']")?.value || 0);
+  const tripValue = parseMoneyFieldValue(formEl.querySelector("input[name='tripValue']")?.value || 0);
   const step1Done = !!requestId && assignable;
   const step2Done = step1Done && !!vehicleId && !!driverId;
   const step3Done = step2Done && tripValue > 0;
@@ -6094,25 +6127,22 @@ function buildTripRateModalFields(request, opts) {
 function buildTripRateInlineFieldsHtml(request, opts) {
   const o = opts && typeof opts === "object" ? opts : {};
   const required = !!o.required;
-  const items = listTripRateOptionsWithFallback(request);
-  const defaultKey = defaultTripRateStorageKeyForRequest(request);
-  const initial = initialTripValueForAssignment(request, defaultKey);
-  const fallbackVal = initial > 0 ? initial : parseNum(request?.tripValue || 0);
+  const items = listTripRateOptionsForRequest(request);
+  let defaultKey = "";
+  let fallbackVal = 0;
+  if (items.length) {
+    const pref = items.find((i) => i.appliesToRequest) || items[0];
+    defaultKey = pref.storageKey;
+    fallbackVal = parseNum(pref.value);
+  }
 
-  const optRows = items.length
-    ? [
-        { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
-        ...items.map((i) => ({
-          value: i.storageKey,
-          label: `Trayecto: ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
-        }))
-      ]
-    : [
-        {
-          value: "",
-          label: "Sin tarifas guardadas — definalas en Viajes · Tarifas o indique solo el precio manual"
-        }
-      ];
+  const optRows = [
+    { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
+    ...items.map((i) => ({
+      value: i.storageKey,
+      label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}`
+    }))
+  ];
 
   const optionsHtml = optRows
     .map((row) => {
@@ -6122,13 +6152,20 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     })
     .join("");
 
-  return `<div class="create-trip-rate-inner">
-    <label class="full create-trip-rate-catalog">${fieldLabel(IC.layers, items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto")}
+  const catalogBlock = items.length
+    ? `<label class="full create-trip-rate-catalog">${fieldLabel(IC.layers, "Tarifa por trayecto (catálogo)")}
       <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
     </label>
-    <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>
-    <label class="full create-trip-price-field create-trip-price-field--hero">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
-      <input type="number" name="tripValue" id="create-trip-trip-value" min="0" step="1" placeholder="Ej: 4.200.000" ${required ? "required" : ""} value="${escapeAttr(String(fallbackVal))}" />
+    <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>`
+    : `<input type="hidden" name="tripRateChoice" value="" />`;
+
+  return `<div class="create-trip-rate-inner">
+    ${catalogBlock}
+    <label class="full create-trip-price-field create-trip-price-field--hero">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required: true })}
+      <div class="create-trip-price-wrap">
+        <span class="create-trip-price-prefix" aria-hidden="true">$</span>
+        <input type="text" name="tripValue" id="create-trip-trip-value" inputmode="numeric" autocomplete="off" data-trip-money-input="1" placeholder="0" ${required ? "required" : ""} value="${escapeAttr(formatMoneyFieldValue(fallbackVal))}" />
+      </div>
       <span class="create-trip-price-hint muted">Valor acordado para facturación del viaje</span>
     </label>
   </div>`;
@@ -8855,6 +8892,21 @@ function bindAuthForms() {
 function parseNum(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Valor monetario desde input con formato es-CO ($ y separadores de miles). */
+function parseMoneyFieldValue(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return 0;
+  const digits = s.replace(/[^\d]/g, "");
+  if (digits) return parseInt(digits, 10) || 0;
+  return parseNum(s);
+}
+
+function formatMoneyFieldValue(amount) {
+  const n = Math.max(0, Math.floor(parseNum(amount)));
+  if (n <= 0) return "0";
+  return n.toLocaleString("es-CO");
 }
 
 function diffMinutes(fromIso) {
@@ -20000,7 +20052,7 @@ function bindDynamicEvents() {
         notify(userMessage("assignResourcesBusy"), "error");
         return;
       }
-      const tripValue = parseNum(data.tripValue);
+      const tripValue = parseMoneyFieldValue(data.tripValue);
       if (tripValue <= 0) {
         notify(userMessage("assignPriceRequired"), "error");
         return;

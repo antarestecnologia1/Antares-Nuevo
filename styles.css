@@ -5081,18 +5081,45 @@ body[data-theme="dark"] .searchable-select-dropdown {
   gap: 0.75rem;
 }
 
-.create-trip-price-field--hero input {
-  font-size: 1.12rem;
-  font-weight: 800;
-  padding: 0.65rem 0.75rem;
+.create-trip-price-wrap {
+  display: flex;
+  align-items: stretch;
   border-radius: 10px;
   border: 2px solid color-mix(in srgb, #8b5cf6 35%, var(--line));
   background: var(--white);
+  overflow: hidden;
 }
 
-.create-trip-price-field--hero:focus-within input {
+.create-trip-price-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--primary-dark, #0d3f78);
+  background: color-mix(in srgb, #8b5cf6 8%, var(--white));
+  border-right: 1px solid color-mix(in srgb, #8b5cf6 22%, var(--line));
+}
+
+.create-trip-price-field--hero input {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.12rem;
+  font-weight: 800;
+  padding: 0.65rem 0.75rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.create-trip-price-field--hero:focus-within .create-trip-price-wrap {
   border-color: color-mix(in srgb, #8b5cf6 55%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, #8b5cf6 16%, transparent);
+}
+
+.create-trip-price-field--hero input:focus {
+  outline: none;
 }
 
 .create-trip-price-hint {
@@ -5302,9 +5329,18 @@ body[data-theme="dark"] .create-trip-readiness-item.is-done {
   border-color: rgba(52, 211, 153, 0.35);
 }
 
-body[data-theme="dark"] .create-trip-price-field--hero input {
+body[data-theme="dark"] .create-trip-price-wrap {
   background: rgba(8, 18, 32, 0.7);
   border-color: rgba(167, 139, 250, 0.4);
+}
+
+body[data-theme="dark"] .create-trip-price-prefix {
+  background: rgba(88, 28, 135, 0.25);
+  color: #e9d5ff;
+  border-right-color: rgba(167, 139, 250, 0.35);
+}
+
+body[data-theme="dark"] .create-trip-price-field--hero input {
   color: #e8f4fc;
 }
 
