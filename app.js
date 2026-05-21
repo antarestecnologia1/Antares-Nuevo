@@ -5752,18 +5752,79 @@ function wireTripRateChoiceSelect(formEl) {
       <span class="trip-rate-meta-chip"><strong>Alcance:</strong> ${escapeHtml(clientsLabel)}</span>
       <span class="trip-rate-meta-chip"><strong>Valor:</strong> $${parseNum(entry.value).toLocaleString("es-CO")}</span>`;
   };
-  sel.addEventListener("change", () => {
+  const onRateChange = () => {
     const key = String(sel.value || "").trim();
     if (!key) {
       renderMeta("");
+      updateCreateTripStepper(formEl);
       return;
     }
     const rates = getTripRouteRatesNormalized();
     const entry = rates[key];
     if (entry && parseNum(entry.value) > 0) num.value = String(parseNum(entry.value));
     renderMeta(key);
-  });
+    updateCreateTripStepper(formEl);
+  };
+  sel.addEventListener("change", onRateChange);
+  num.addEventListener("input", () => updateCreateTripStepper(formEl));
   renderMeta(String(sel.value || "").trim());
+}
+
+function createTripEmptyHint(iconKey, title, detail = "") {
+  const inner = IC[String(iconKey || "inbox")]?.replace(/<svg[^>]*>|<\/svg>/g, "") || "";
+  const detailHtml = detail ? `<p class="create-trip-empty-detail">${escapeHtml(detail)}</p>` : "";
+  return `<div class="create-trip-empty-hint" role="status">
+    <span class="create-trip-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></span>
+    <div class="create-trip-empty-copy"><p class="create-trip-empty-title">${escapeHtml(title)}</p>${detailHtml}</div>
+  </div>`;
+}
+
+/** Actualiza stepper y checklist de preparación del formulario asignar viaje. */
+function updateCreateTripStepper(formEl) {
+  if (!formEl) return;
+  const steps = [...formEl.querySelectorAll(".create-trip-step")];
+  if (!steps.length) return;
+  const requestId = String(formEl.querySelector("select[name='requestId']")?.value || "").trim();
+  const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
+  const assignable = !!(request && isRequestPickupSameDayOrFuture(request));
+  const vehicleId = String(formEl.querySelector("select[name='vehicleId']")?.value || "").trim();
+  const driverId = String(formEl.querySelector("select[name='driverId']")?.value || "").trim();
+  const tripValue = parseNum(formEl.querySelector("input[name='tripValue']")?.value || 0);
+  const step1Done = !!requestId && assignable;
+  const step2Done = step1Done && !!vehicleId && !!driverId;
+  const step3Done = step2Done && tripValue > 0;
+  let current = 1;
+  if (step1Done) current = 2;
+  if (step2Done) current = 3;
+
+  steps.forEach((el, i) => {
+    const n = i + 1;
+    el.classList.remove("create-trip-step--current", "create-trip-step--done", "create-trip-step--locked");
+    if ((n === 1 && step1Done) || (n === 2 && step2Done) || (n === 3 && step3Done)) el.classList.add("create-trip-step--done");
+    if (n === current) el.classList.add("create-trip-step--current");
+    if ((n === 2 && !step1Done) || (n === 3 && !step2Done)) el.classList.add("create-trip-step--locked");
+    el.setAttribute("aria-current", n === current ? "step" : "false");
+  });
+
+  const checklist = formEl.querySelector("[data-create-trip-readiness]");
+  if (checklist) {
+    const items = [
+      { done: !!requestId, label: "Solicitud" },
+      { done: assignable, label: "Fecha válida" },
+      { done: !!vehicleId, label: "Vehículo" },
+      { done: !!driverId, label: "Conductor" },
+      { done: tripValue > 0, label: "Precio" }
+    ];
+    checklist.innerHTML = items
+      .map(
+        (it) =>
+          `<li class="create-trip-readiness-item${it.done ? " is-done" : ""}"><span class="create-trip-readiness-mark" aria-hidden="true">${it.done ? IC.check : ""}</span><span>${escapeHtml(it.label)}</span></li>`
+      )
+      .join("");
+  }
+
+  const submitBtn = formEl.querySelector(".create-trip-submit-btn");
+  if (submitBtn) submitBtn.classList.toggle("create-trip-submit-btn--ready", step1Done && step2Done && tripValue > 0);
 }
 
 /** Select con búsqueda por texto (listas largas de flota / conductores). */
@@ -6050,14 +6111,16 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     })
     .join("");
 
-  return `
-    <label class="full">${fieldLabel(IC.dollar, items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto")}
+  return `<div class="create-trip-rate-inner">
+    <label class="full create-trip-rate-catalog">${fieldLabel(IC.layers, items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto")}
       <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
     </label>
     <div class="trip-rate-meta full" data-trip-rate-meta><span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span></div>
-    <label class="full create-trip-price-field">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
-      <input type="number" name="tripValue" id="create-trip-trip-value" min="0" step="1" placeholder="Ej: 4200000" ${required ? "required" : ""} value="${escapeAttr(String(fallbackVal))}" />
-    </label>`;
+    <label class="full create-trip-price-field create-trip-price-field--hero">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required })}
+      <input type="number" name="tripValue" id="create-trip-trip-value" min="0" step="1" placeholder="Ej: 4.200.000" ${required ? "required" : ""} value="${escapeAttr(String(fallbackVal))}" />
+      <span class="create-trip-price-hint muted">Valor acordado para facturación del viaje</span>
+    </label>
+  </div>`;
 }
 
 /** Sincroniza resumen, listas de flota y tarifas al elegir solicitud (formulario crear viaje). */
@@ -6071,11 +6134,18 @@ function refreshCreateTripModuleForm(formEl) {
   const rateMount = formEl.querySelector("#create-trip-rate-fields");
   const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
 
+  const fleetStats = formEl.querySelector("#create-trip-fleet-stats");
+
   if (!request) {
     if (preview) {
-      preview.innerHTML = `<p class="muted create-trip-summary-placeholder">Seleccione una solicitud pendiente para ver el resumen y habilitar vehículo, conductor y precio.</p>`;
+      preview.innerHTML = createTripEmptyHint(
+        "inbox",
+        "Sin solicitud seleccionada",
+        "Elija una solicitud aprobada para ver el resumen del trayecto y habilitar flota y tarifa."
+      );
       preview.classList.remove("create-trip-summary-panel--active");
     }
+    if (fleetStats) fleetStats.innerHTML = "";
     if (vehSel) {
       vehSel.innerHTML = `<option value="">— Elija solicitud primero —</option>`;
       vehSel.disabled = true;
@@ -6085,8 +6155,9 @@ function refreshCreateTripModuleForm(formEl) {
       drvSel.disabled = true;
     }
     if (rateMount) {
-      rateMount.innerHTML = `<p class="muted create-trip-rate-placeholder">Seleccione una solicitud para cargar tarifas sugeridas.</p>`;
+      rateMount.innerHTML = createTripEmptyHint("dollar", "Tarifa pendiente", "Al elegir la solicitud se cargarán las tarifas sugeridas para la ruta.");
     }
+    updateCreateTripStepper(formEl);
     return;
   }
 
@@ -6113,17 +6184,25 @@ function refreshCreateTripModuleForm(formEl) {
     preview.innerHTML = `
       <div class="create-trip-summary-top">
         <span class="create-trip-summary-ref">${escapeHtml(String(request.requestNumber || request.id))}</span>
-        ${tkBadge}
-        ${dateBadge}
+        <span class="create-trip-summary-badges">${tkBadge}${dateBadge}</span>
       </div>
-      <div class="create-trip-summary-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
+      <div class="create-trip-summary-route-card">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
       <div class="create-trip-summary-grid">
-        <div class="create-trip-summary-cell"><span class="create-trip-sk">Cliente</span><span class="create-trip-sv">${escapeHtml(String(request.clientName || "-"))}</span></div>
-        <div class="create-trip-summary-cell"><span class="create-trip-sk">Solicita</span><span class="create-trip-sv">${escapeHtml(String(request.requestedByName || "-"))}</span></div>
-        <div class="create-trip-summary-cell"><span class="create-trip-sk">Camión / requisitos</span><span class="create-trip-sv">${requestTruckRequirementSummaryHtml(request)}</span></div>
-        <div class="create-trip-summary-cell"><span class="create-trip-sk">Recogida</span><span class="create-trip-sv">${fmtDate(request.pickupAt)}</span></div>
-        <div class="create-trip-summary-cell create-trip-summary-cell--wide"><span class="create-trip-sk">Carga</span><span class="create-trip-sv">${cargoShort}</span></div>
+        <div class="create-trip-summary-tile">${IC.briefcase}<div><span class="create-trip-sk">Cliente</span><span class="create-trip-sv">${escapeHtml(String(request.clientName || "-"))}</span></div></div>
+        <div class="create-trip-summary-tile">${IC.user}<div><span class="create-trip-sk">Solicita</span><span class="create-trip-sv">${escapeHtml(String(request.requestedByName || "-"))}</span></div></div>
+        <div class="create-trip-summary-tile">${IC.truck}<div><span class="create-trip-sk">Requisitos</span><span class="create-trip-sv">${requestTruckRequirementSummaryHtml(request)}</span></div></div>
+        <div class="create-trip-summary-tile">${IC.calendar}<div><span class="create-trip-sk">Recogida</span><span class="create-trip-sv">${fmtDate(request.pickupAt)}</span></div></div>
+        <div class="create-trip-summary-tile create-trip-summary-tile--wide">${IC.package}<div><span class="create-trip-sk">Carga</span><span class="create-trip-sv">${cargoShort}</span></div></div>
       </div>`;
+  }
+
+  if (fleetStats && assignableByDate) {
+    fleetStats.innerHTML = `
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok"><strong>${vehicles.length}</strong> vehículo${vehicles.length === 1 ? "" : "s"} listo${vehicles.length === 1 ? "" : "s"}</span>
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok"><strong>${drivers.length}</strong> conductor${drivers.length === 1 ? "" : "es"} listo${drivers.length === 1 ? "" : "s"}</span>
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--muted">${vehicleCandidates.length} veh. · ${driverCandidates.length} cond. en lista</span>`;
+  } else if (fleetStats) {
+    fleetStats.innerHTML = "";
   }
 
   if (!assignableByDate) {
@@ -6136,8 +6215,9 @@ function refreshCreateTripModuleForm(formEl) {
       drvSel.disabled = true;
     }
     if (rateMount) {
-      rateMount.innerHTML = `<div class="create-trip-rate-guard"><span class="create-trip-rate-guard-pill">🔒 Asignación bloqueada por fecha</span><p class="muted" style="margin:0.45rem 0 0">La solicitud tiene fecha de recogida anterior al día actual. Solo se permite asignar viajes para hoy o fechas futuras.</p></div>`;
+      rateMount.innerHTML = `<div class="create-trip-rate-guard"><span class="create-trip-rate-guard-pill">${IC.lock} Asignación bloqueada por fecha</span><p class="muted" style="margin:0.45rem 0 0">La solicitud tiene fecha de recogida anterior al día actual. Solo se permite asignar viajes para hoy o fechas futuras.</p></div>`;
     }
+    updateCreateTripStepper(formEl);
     return;
   }
 
@@ -6191,10 +6271,11 @@ function refreshCreateTripModuleForm(formEl) {
   }
 
   if (rateMount) {
-    rateMount.innerHTML = `<div class="form-section-grid">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
+    rateMount.innerHTML = `<div class="form-section-grid create-trip-rate-mount">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
     wireTripRateChoiceSelect(formEl);
   }
   enhanceTripAssignmentSelects(formEl);
+  updateCreateTripStepper(formEl);
 }
 
 function prettyStatus(status, scope = "general") {
@@ -11897,17 +11978,28 @@ function transportTripsHtml() {
       return `<option value="${escapeAttr(r.id)}" disabled>${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${pickup} · 🔴 fecha vencida</option>`;
     })
     .join("");
+  const pendingBadge =
+    pendingForTrip.length > 0
+      ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"}</span>`
+      : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Sin pendientes</span>`;
   const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored create-trip-form" autocomplete="off">
-    <ol class="create-trip-stepper" aria-label="Pasos para crear el viaje">
-      <li class="create-trip-step create-trip-step--current"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
-      <li class="create-trip-step"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Flota</span></li>
-      <li class="create-trip-step"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
+    <header class="create-trip-hero">
+      <div class="create-trip-hero-icon" aria-hidden="true">${IC.truck}</div>
+      <div class="create-trip-hero-copy">
+        <h3 class="create-trip-hero-title">Asignación de viaje</h3>
+        <p class="create-trip-hero-sub">Solicitud → recursos → tarifa en un solo flujo</p>
+      </div>
+      ${pendingBadge}
+    </header>
+    <ol class="create-trip-stepper create-trip-stepper--track" aria-label="Pasos para crear el viaje">
+      <li class="create-trip-step create-trip-step--current" data-step="1" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
+      <li class="create-trip-step create-trip-step--locked" data-step="2"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Recursos</span></li>
+      <li class="create-trip-step create-trip-step--locked" data-step="3"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
     </ol>
-    <fieldset class="form-section form-section-blue full create-trip-fieldset">
-      <legend>${IC.compass} Paso 1 · Solicitud a asignar</legend>
-      <p class="muted create-trip-fieldset-hint">Elija una solicitud aprobada pendiente de viaje; el resumen aparece debajo y habilita vehículo, conductor y precio.</p>
+    <fieldset class="form-section form-section-blue full create-trip-fieldset create-trip-fieldset--step1">
+      <legend>${IC.compass} Solicitud</legend>
       <div class="create-trip-request-stack">
-        <label class="create-trip-request-select-label">${fieldLabel(IC.compass, "Solicitud pendiente de asignación", { required: true })}
+        <label class="create-trip-request-select-label">${fieldLabel(IC.inbox, "Solicitud pendiente de asignación", { required: true })}
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
             <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : pendingExpired.length ? "No hay solicitudes asignables hoy (hay vencidas)" : "No hay solicitudes pendientes"}</option>
             ${pendingSelectOpts}
@@ -11915,34 +12007,49 @@ function transportTripsHtml() {
           </select>
         </label>
         <div id="trip-request-preview" class="create-trip-summary-panel">
-          <p class="muted create-trip-summary-placeholder">Seleccione una solicitud pendiente para ver el resumen y habilitar vehículo, conductor y precio.</p>
+          ${createTripEmptyHint("inbox", "Sin solicitud seleccionada", "Elija una solicitud aprobada para ver el resumen del trayecto.")}
         </div>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-emerald full create-trip-fieldset">
-      <legend>${IC.truck} Paso 2 · Vehículo y conductor</legend>
+    <fieldset class="form-section form-section-emerald full create-trip-fieldset create-trip-fieldset--step2">
+      <legend>${IC.truck} Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
-        <p class="create-trip-flag-legend"><span class="create-trip-flag create-trip-flag--busy">Ocupado</span><span class="create-trip-flag create-trip-flag--offline">No disponible</span><span class="create-trip-flag create-trip-flag--expired">Documentación vencida</span></p>
+        <div class="create-trip-fleet-head">
+          <div id="create-trip-fleet-stats" class="create-trip-fleet-stats" aria-live="polite"></div>
+          <div class="create-trip-flag-legend" role="list" aria-label="Significado de banderas">
+            <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
+            <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
+            <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
+          </div>
+        </div>
         <div class="create-trip-fleet-grid">
-          <label class="create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
+          <label class="create-trip-fleet-field create-trip-resource-card">
+            <span class="create-trip-resource-card-head">${IC.truck}<span>Vehículo</span><span class="create-trip-required">*</span></span>
             <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por placa, tipo o capacidad…" disabled><option value="">— Elija solicitud primero —</option></select>
           </label>
-          <label class="create-trip-fleet-field">${fieldLabel(IC.user, "Conductor", { required: true })}
+          <label class="create-trip-fleet-field create-trip-resource-card">
+            <span class="create-trip-resource-card-head">${IC.user}<span>Conductor</span><span class="create-trip-required">*</span></span>
             <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o teléfono…" disabled><option value="">— Elija solicitud primero —</option></select>
           </label>
         </div>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-violet full create-trip-fieldset">
-      <legend>${IC.dollar} Paso 3 · Tarifa y precio</legend>
-      <p class="muted create-trip-fieldset-hint">Se sugieren tarifas del catálogo por ruta; puede ajustar el valor antes de confirmar.</p>
+    <fieldset class="form-section form-section-violet full create-trip-fieldset create-trip-fieldset--step3">
+      <legend>${IC.dollar} Tarifa y precio</legend>
       <div id="create-trip-rate-fields" class="create-trip-rate-surface create-trip-surface create-trip-surface--premium">
-        <p class="muted create-trip-rate-placeholder">Seleccione una solicitud para cargar tarifas sugeridas.</p>
+        ${createTripEmptyHint("dollar", "Tarifa pendiente", "Al elegir la solicitud se cargarán las tarifas sugeridas para la ruta.")}
       </div>
     </fieldset>
-    <div class="create-trip-submit-wrap">
-      <button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.plus} Crear viaje y asignar</button>
-    </div>
+    <footer class="create-trip-submit-wrap">
+      <ul class="create-trip-readiness" data-create-trip-readiness aria-label="Estado de la asignación">
+        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Solicitud</span></li>
+        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Fecha válida</span></li>
+        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Vehículo</span></li>
+        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Conductor</span></li>
+        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Precio</span></li>
+      </ul>
+      <button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje y asignar</button>
+    </footer>
   </form>`;
 
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
@@ -11959,7 +12066,7 @@ function transportTripsHtml() {
     </div>`;
 
   const actionGrid = `<div class="dash-grid trips-actions-row--two">
-    ${createCollapsibleCard("create-trip", "plus", "Crear viaje", "Selecciona solicitud, vehículo, conductor y precio de forma guiada (mismo estilo que nueva solicitud)", createTripForm, "Asignar viaje")}
+    ${createCollapsibleCard("create-trip", "truck", "Asignar viaje", `${pendingForTrip.length} solicitud${pendingForTrip.length === 1 ? "" : "es"} pendiente${pendingForTrip.length === 1 ? "" : "s"} · flujo guiado en 3 pasos`, createTripForm, "Abrir asignación")}
     ${createCollapsibleCard("create-route-rate", "dollar", "Configurar nueva tarifa por trayecto", "Define el precio sugerido para una ruta. Al crear un viaje con esa misma ruta, este valor se autocompletará en la asignación.", routeRateForm, "Configurar tarifa")}
   </div>`;
 
@@ -19799,6 +19906,14 @@ function bindDynamicEvents() {
 
   const createTripForm = document.getElementById("form-create-trip");
   if (createTripForm) {
+    const onCreateTripProgress = () => updateCreateTripStepper(createTripForm);
+    createTripForm.addEventListener("change", (ev) => {
+      const t = ev.target;
+      if (t?.matches?.("select[name='vehicleId'], select[name='driverId']")) onCreateTripProgress();
+    });
+    createTripForm.addEventListener("input", (ev) => {
+      if (ev.target?.matches?.("input[name='tripValue']")) onCreateTripProgress();
+    });
     const selectReq = createTripForm.querySelector("select[name='requestId']");
     if (selectReq) {
       selectReq.addEventListener("change", () => {
@@ -19806,6 +19921,7 @@ function bindDynamicEvents() {
         const req = rid ? reqRead().find((r) => String(r.id) === rid) : null;
         if (req) wireTripAssignmentScheduleBusyRefresh(createTripForm, req, rid, requestRequiresTermoking(req));
         else refreshCreateTripModuleForm(createTripForm);
+        onCreateTripProgress();
       });
       if (!createTripForm.dataset.scheduleBusyWired) {
         createTripForm.dataset.scheduleBusyWired = "1";
