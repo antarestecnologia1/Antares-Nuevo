@@ -6166,7 +6166,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
         <span class="create-trip-price-prefix" aria-hidden="true">$</span>
         <input type="text" name="tripValue" id="create-trip-trip-value" inputmode="numeric" autocomplete="off" data-trip-money-input="1" placeholder="0" ${required ? "required" : ""} value="${escapeAttr(formatMoneyFieldValue(fallbackVal))}" />
       </div>
-      <span class="create-trip-price-hint muted">Valor acordado para facturación del viaje</span>
+      <span class="create-trip-price-hint muted">Valor acordado para facturación del viaje (obligatorio, mayor a cero)</span>
     </label>
   </div>`;
 }
