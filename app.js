@@ -5770,6 +5770,17 @@ function wireTripRateChoiceSelect(formEl) {
   renderMeta(String(sel.value || "").trim());
 }
 
+function createTripSummaryTile(iconKey, label, valueHtml) {
+  const inner = IC[String(iconKey || "file")]?.replace(/<svg[^>]*>|<\/svg>/g, "") || "";
+  return `<div class="create-trip-summary-tile">
+    <span class="create-trip-summary-tile-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></span>
+    <div class="create-trip-summary-tile-body">
+      <span class="create-trip-sk">${escapeHtml(label)}</span>
+      <span class="create-trip-sv">${valueHtml}</span>
+    </div>
+  </div>`;
+}
+
 function createTripEmptyHint(iconKey, title, detail = "") {
   const inner = IC[String(iconKey || "inbox")]?.replace(/<svg[^>]*>|<\/svg>/g, "") || "";
   const detailHtml = detail ? `<p class="create-trip-empty-detail">${escapeHtml(detail)}</p>` : "";
@@ -6174,25 +6185,24 @@ function refreshCreateTripModuleForm(formEl) {
   if (preview) {
     preview.classList.add("create-trip-summary-panel--active");
     const tkBadge = needsTermoking
-      ? `<span class="create-trip-tk-badge create-trip-tk-badge--yes">Termoking</span>`
-      : `<span class="create-trip-tk-badge create-trip-tk-badge--no">Sin Termoking</span>`;
+      ? `<span class="create-trip-status-pill create-trip-status-pill--info">Termoking</span>`
+      : `<span class="create-trip-status-pill create-trip-status-pill--neutral">Carga seca</span>`;
     const dateBadge = assignableByDate
-      ? `<span class="create-trip-eligibility-badge create-trip-eligibility-badge--ok">🟢 Asignable hoy</span>`
-      : `<span class="create-trip-eligibility-badge create-trip-eligibility-badge--blocked">🔴 Fecha vencida (solo misma fecha o futura)</span>`;
+      ? `<span class="create-trip-status-pill create-trip-status-pill--ok">Asignable hoy</span>`
+      : `<span class="create-trip-status-pill create-trip-status-pill--bad">Fecha vencida</span>`;
     const cargo = String(request.cargoDescription || "-").trim();
-    const cargoShort = cargo.length > 100 ? `${escapeHtml(cargo.slice(0, 100))}…` : escapeHtml(cargo);
+    const cargoShort = cargo.length > 120 ? `${escapeHtml(cargo.slice(0, 120))}…` : escapeHtml(cargo);
     preview.innerHTML = `
-      <div class="create-trip-summary-top">
-        <span class="create-trip-summary-ref">${escapeHtml(String(request.requestNumber || request.id))}</span>
-        <span class="create-trip-summary-badges">${tkBadge}${dateBadge}</span>
+      <div class="create-trip-summary-head">
+        <div class="create-trip-summary-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
+        <div class="create-trip-summary-status">${tkBadge}${dateBadge}</div>
       </div>
-      <div class="create-trip-summary-route-card">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
       <div class="create-trip-summary-grid">
-        <div class="create-trip-summary-tile">${IC.briefcase}<div><span class="create-trip-sk">Cliente</span><span class="create-trip-sv">${escapeHtml(String(request.clientName || "-"))}</span></div></div>
-        <div class="create-trip-summary-tile">${IC.user}<div><span class="create-trip-sk">Solicita</span><span class="create-trip-sv">${escapeHtml(String(request.requestedByName || "-"))}</span></div></div>
-        <div class="create-trip-summary-tile">${IC.truck}<div><span class="create-trip-sk">Requisitos</span><span class="create-trip-sv">${requestTruckRequirementSummaryHtml(request)}</span></div></div>
-        <div class="create-trip-summary-tile">${IC.calendar}<div><span class="create-trip-sk">Recogida</span><span class="create-trip-sv">${fmtDate(request.pickupAt)}</span></div></div>
-        <div class="create-trip-summary-tile create-trip-summary-tile--wide">${IC.package}<div><span class="create-trip-sk">Carga</span><span class="create-trip-sv">${cargoShort}</span></div></div>
+        ${createTripSummaryTile("briefcase", "Cliente", escapeHtml(String(request.clientName || "-")))}
+        ${createTripSummaryTile("user", "Solicita", escapeHtml(String(request.requestedByName || "-")))}
+        ${createTripSummaryTile("truck", "Camión requerido", requestTruckRequirementSummaryHtml(request))}
+        ${createTripSummaryTile("calendar", "Recogida", escapeHtml(fmtDate(request.pickupAt)))}
+        ${createTripSummaryTile("package", "Carga", cargoShort)}
       </div>`;
   }
 
@@ -11996,10 +12006,10 @@ function transportTripsHtml() {
       <li class="create-trip-step create-trip-step--locked" data-step="2"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Recursos</span></li>
       <li class="create-trip-step create-trip-step--locked" data-step="3"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
     </ol>
-    <fieldset class="form-section form-section-blue full create-trip-fieldset create-trip-fieldset--step1">
+    <fieldset class="form-section full create-trip-fieldset create-trip-fieldset--step1">
       <legend>${IC.compass} Solicitud</legend>
       <div class="create-trip-request-stack">
-        <label class="create-trip-request-select-label">${fieldLabel(IC.inbox, "Solicitud pendiente de asignación", { required: true })}
+        <label class="create-trip-request-select-label">${fieldLabel(IC.inbox, "Solicitud pendiente", { required: true })}
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
             <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : pendingExpired.length ? "No hay solicitudes asignables hoy (hay vencidas)" : "No hay solicitudes pendientes"}</option>
             ${pendingSelectOpts}
