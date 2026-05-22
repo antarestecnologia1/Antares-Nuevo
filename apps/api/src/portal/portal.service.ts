@@ -4905,36 +4905,128 @@ export class PortalService implements OnModuleInit {
     return this.generateAutomaticLiquidacionesForReferenceDate(refDate);
   }
 
-  private async syncFuelLogs(c: PoolClient, data: unknown) {
-    if (!Array.isArray(data)) throw new ForbiddenException();
-    await this.deleteRowsNotInIncomingList(c, "registros_combustible", data);
-    for (const raw of data) {
-      const row = raw as Record<string, unknown>;
-      if (!row?.id) continue;
-      if (this.skipUnlessPersistUuid("syncFuelLogs", row.id)) continue;
-      if (this.skipUnlessPersistUuid("syncFuelLogs.vehicleId", row.vehicleId)) continue;
-      if (this.skipUnlessPersistUuid("syncFuelLogs.driverId", row.driverId)) continue;
-      const plate = await this.resolveVehiclePlateForSync(
-        c,
-        row.vehicleId,
-        pickPortalField(row, "plate", "vehiclePlate", "placa_vehiculo")
-      );
-      const liters = Number(row.liters ?? row.litros ?? 0);
-      const totalCost = Number(row.totalCost ?? row.costo_total ?? 0);
-      const costPerLiterRaw = row.costPerLiter ?? row.costo_por_litro;
-      const costPerLiter =
-        costPerLiterRaw != null
-          ? Number(costPerLiterRaw)
-          : liters > 0
-            ? Math.round(totalCost / liters)
-            : null;
-      const paidRaw = String(pickPortalField(row, "paidBy", "pagado_por") ?? "empresa").toLowerCase();
-      const paidBy = paidRaw === "conductor" ? "conductor" : "empresa";
-      await c.query(
-        `INSERT INTO registros_combustible (
+  /**
+   * Alta directa en PostgreSQL (Historial → Combustible). No reemplaza toda la tabla.
+   */
+  async createFleetFuelLog(userId: string, role: JwtRole, body: Record<string, unknown>) {
+    if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const saved = await this.upsertFleetFuelLogRow(client, body, userId);
+      await client.query("COMMIT");
+      return saved;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Alta directa en PostgreSQL (Historial → Taller). No reemplaza toda la tabla.
+   */
+  async createFleetMaintenanceLog(userId: string, role: JwtRole, body: Record<string, unknown>) {
+    if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const saved = await this.upsertFleetMaintenanceLogRow(client, body, userId);
+      await client.query("COMMIT");
+      return saved;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  private mapFuelLogDbRow(row: Record<string, unknown>) {
+    const plate = String(row.placa_vehiculo ?? "").trim().toUpperCase();
+    return {
+      id: row.id,
+      date: row.fecha,
+      vehicleId: row.id_vehiculo,
+      plate,
+      vehiclePlate: plate,
+      driverId: row.id_conductor,
+      driverName: row.nombre_conductor,
+      tripNumber: row.numero_viaje,
+      liters: Number(row.litros),
+      totalCost: Number(row.costo_total),
+      costPerLiter: row.costo_por_litro != null ? Number(row.costo_por_litro) : null,
+      odometerKm: row.kilometraje_odometro != null ? Number(row.kilometraje_odometro) : null,
+      station: row.estacion,
+      paidBy: row.pagado_por,
+      createdAt: row.fecha_registro ? new Date(String(row.fecha_registro)).toISOString() : new Date().toISOString()
+    };
+  }
+
+  private mapMaintenanceLogDbRow(row: Record<string, unknown>) {
+    const plate = String(row.placa_vehiculo ?? "").trim().toUpperCase();
+    const interventionType = String(row.tipo_intervencion ?? "preventivo");
+    const followUpStatus = String(row.estado_seguimiento ?? "Pendiente");
+    return {
+      id: row.id,
+      date: row.fecha,
+      vehicleId: row.id_vehiculo,
+      plate,
+      vehiclePlate: plate,
+      interventionType,
+      type: interventionType,
+      description: row.descripcion,
+      cost: Number(row.costo),
+      downtimeHours: Number(row.horas_inactividad),
+      followUpStatus,
+      status: followUpStatus,
+      createdAt: row.fecha_registro ? new Date(String(row.fecha_registro)).toISOString() : new Date().toISOString()
+    };
+  }
+
+  private async upsertFleetFuelLogRow(
+    c: PoolClient,
+    raw: Record<string, unknown>,
+    registeredByUserId?: string
+  ) {
+    if (!raw?.id) throw new BadRequestException("id requerido");
+    if (this.skipUnlessPersistUuid("upsertFleetFuelLogRow", raw.id)) {
+      throw new BadRequestException("id UUID inválido");
+    }
+    if (this.skipUnlessPersistUuid("upsertFleetFuelLogRow.vehicleId", raw.vehicleId)) {
+      throw new BadRequestException("vehicleId UUID inválido");
+    }
+    if (this.skipUnlessPersistUuid("upsertFleetFuelLogRow.driverId", raw.driverId)) {
+      throw new BadRequestException("driverId UUID inválido");
+    }
+    const plate = await this.resolveVehiclePlateForSync(
+      c,
+      raw.vehicleId,
+      pickPortalField(raw, "plate", "vehiclePlate", "placa_vehiculo")
+    );
+    const liters = Number(raw.liters ?? raw.litros ?? 0);
+    const totalCost = Number(raw.totalCost ?? raw.costo_total ?? 0);
+    if (!(liters > 0)) throw new BadRequestException("litros debe ser mayor que 0");
+    if (totalCost < 0) throw new BadRequestException("costo_total inválido");
+    const costPerLiterRaw = raw.costPerLiter ?? raw.costo_por_litro;
+    const costPerLiter =
+      costPerLiterRaw != null
+        ? Number(costPerLiterRaw)
+        : liters > 0
+          ? Math.round(totalCost / liters)
+          : null;
+    const paidRaw = String(pickPortalField(raw, "paidBy", "pagado_por") ?? "empresa").toLowerCase();
+    const paidBy = paidRaw === "conductor" ? "conductor" : "empresa";
+    const regUser =
+      registeredByUserId && PG_UUID_V4_RE.test(String(registeredByUserId).trim())
+        ? String(registeredByUserId).trim()
+        : null;
+    await c.query(
+      `INSERT INTO registros_combustible (
           id, fecha, id_vehiculo, placa_vehiculo, id_conductor, nombre_conductor, numero_viaje, litros, costo_total,
-          costo_por_litro, kilometraje_odometro, estacion, pagado_por
-        ) VALUES ($1::uuid, $2::date, $3::uuid, $4, $5::uuid, $6, $7, $8, $9, $10, $11, $12, $13)
+          costo_por_litro, kilometraje_odometro, estacion, pagado_por, id_usuario_registro
+        ) VALUES ($1::uuid, $2::date, $3::uuid, $4, $5::uuid, $6, $7, $8, $9, $10, $11, $12, $13, $14::uuid)
         ON CONFLICT (id) DO UPDATE SET
           fecha = EXCLUDED.fecha,
           id_vehiculo = EXCLUDED.id_vehiculo,
@@ -4947,53 +5039,67 @@ export class PortalService implements OnModuleInit {
           costo_por_litro = EXCLUDED.costo_por_litro,
           kilometraje_odometro = EXCLUDED.kilometraje_odometro,
           estacion = EXCLUDED.estacion,
-          pagado_por = EXCLUDED.pagado_por`,
-        [
-          row.id,
-          row.date ?? row.fecha,
-          row.vehicleId,
-          plate,
-          row.driverId,
-          String(pickPortalField(row, "driverName", "nombre_conductor") ?? "").trim() || "—",
-          pickPortalField(row, "tripNumber", "numero_viaje") || null,
-          liters,
-          totalCost,
-          costPerLiter,
-          row.odometerKm != null || row.kilometraje_odometro != null
-            ? Number(row.odometerKm ?? row.kilometraje_odometro)
-            : null,
-          pickPortalField(row, "station", "estacion") || null,
-          paidBy
-        ]
-      );
-    }
+          pagado_por = EXCLUDED.pagado_por,
+          id_usuario_registro = COALESCE(EXCLUDED.id_usuario_registro, registros_combustible.id_usuario_registro)`,
+      [
+        raw.id,
+        raw.date ?? raw.fecha,
+        raw.vehicleId,
+        plate,
+        raw.driverId,
+        String(pickPortalField(raw, "driverName", "nombre_conductor") ?? "").trim() || "—",
+        pickPortalField(raw, "tripNumber", "numero_viaje") || null,
+        liters,
+        totalCost,
+        costPerLiter,
+        raw.odometerKm != null || raw.kilometraje_odometro != null
+          ? Number(raw.odometerKm ?? raw.kilometraje_odometro)
+          : null,
+        pickPortalField(raw, "station", "estacion") || null,
+        paidBy,
+        regUser
+      ]
+    );
+    const r = await c.query(`SELECT * FROM registros_combustible WHERE id = $1::uuid LIMIT 1`, [raw.id]);
+    if (!r.rows[0]) throw new BadRequestException("No se pudo leer el registro de combustible");
+    return this.mapFuelLogDbRow(r.rows[0] as Record<string, unknown>);
   }
 
-  private async syncVehicleTechnicalLogs(c: PoolClient, data: unknown) {
-    if (!Array.isArray(data)) throw new ForbiddenException();
-    await this.deleteRowsNotInIncomingList(c, "registros_mantenimiento_vehiculo", data);
-    for (const raw of data) {
-      const row = raw as Record<string, unknown>;
-      if (!row?.id) continue;
-      if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs", row.id)) continue;
-      if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs.vehicleId", row.vehicleId)) continue;
-      const plate = await this.resolveVehiclePlateForSync(
-        c,
-        row.vehicleId,
-        pickPortalField(row, "plate", "vehiclePlate", "placa_vehiculo")
-      );
-      const interventionType = String(
-        pickPortalField(row, "interventionType", "type", "tipo_intervencion") ?? "preventivo"
-      )
-        .trim()
-        .toLowerCase();
-      const followUpStatus = String(
-        pickPortalField(row, "followUpStatus", "status", "estado_seguimiento") ?? "Pendiente"
-      ).trim();
-      await c.query(
-        `INSERT INTO registros_mantenimiento_vehiculo (
-          id, fecha, id_vehiculo, placa_vehiculo, tipo_intervencion, descripcion, costo, horas_inactividad, estado_seguimiento
-        ) VALUES ($1::uuid, $2::date, $3::uuid, $4, $5, $6, $7, $8, $9)
+  private async upsertFleetMaintenanceLogRow(
+    c: PoolClient,
+    raw: Record<string, unknown>,
+    registeredByUserId?: string
+  ) {
+    if (!raw?.id) throw new BadRequestException("id requerido");
+    if (this.skipUnlessPersistUuid("upsertFleetMaintenanceLogRow", raw.id)) {
+      throw new BadRequestException("id UUID inválido");
+    }
+    if (this.skipUnlessPersistUuid("upsertFleetMaintenanceLogRow.vehicleId", raw.vehicleId)) {
+      throw new BadRequestException("vehicleId UUID inválido");
+    }
+    const plate = await this.resolveVehiclePlateForSync(
+      c,
+      raw.vehicleId,
+      pickPortalField(raw, "plate", "vehiclePlate", "placa_vehiculo")
+    );
+    const interventionType = String(
+      pickPortalField(raw, "interventionType", "type", "tipo_intervencion") ?? "preventivo"
+    )
+      .trim()
+      .toLowerCase();
+    const followUpStatus = String(
+      pickPortalField(raw, "followUpStatus", "status", "estado_seguimiento") ?? "Pendiente"
+    ).trim();
+    const description = String(pickPortalField(raw, "description", "descripcion") ?? "").trim();
+    if (!description) throw new BadRequestException("descripcion requerida");
+    const regUser =
+      registeredByUserId && PG_UUID_V4_RE.test(String(registeredByUserId).trim())
+        ? String(registeredByUserId).trim()
+        : null;
+    await c.query(
+      `INSERT INTO registros_mantenimiento_vehiculo (
+          id, fecha, id_vehiculo, placa_vehiculo, tipo_intervencion, descripcion, costo, horas_inactividad, estado_seguimiento, id_usuario_registro
+        ) VALUES ($1::uuid, $2::date, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid)
         ON CONFLICT (id) DO UPDATE SET
           fecha = EXCLUDED.fecha,
           id_vehiculo = EXCLUDED.id_vehiculo,
@@ -5002,19 +5108,56 @@ export class PortalService implements OnModuleInit {
           descripcion = EXCLUDED.descripcion,
           costo = EXCLUDED.costo,
           horas_inactividad = EXCLUDED.horas_inactividad,
-          estado_seguimiento = EXCLUDED.estado_seguimiento`,
-        [
-          row.id,
-          row.date ?? row.fecha,
-          row.vehicleId,
-          plate,
-          interventionType || "preventivo",
-          String(pickPortalField(row, "description", "descripcion") ?? "").trim() || "—",
-          Number(row.cost ?? row.costo ?? 0),
-          Number(row.downtimeHours ?? row.horas_inactividad ?? 0),
-          followUpStatus || "Pendiente"
-        ]
-      );
+          estado_seguimiento = EXCLUDED.estado_seguimiento,
+          id_usuario_registro = COALESCE(EXCLUDED.id_usuario_registro, registros_mantenimiento_vehiculo.id_usuario_registro)`,
+      [
+        raw.id,
+        raw.date ?? raw.fecha,
+        raw.vehicleId,
+        plate,
+        interventionType || "preventivo",
+        description,
+        Number(raw.cost ?? raw.costo ?? 0),
+        Number(raw.downtimeHours ?? raw.horas_inactividad ?? 0),
+        followUpStatus || "Pendiente",
+        regUser
+      ]
+    );
+    const r = await c.query(`SELECT * FROM registros_mantenimiento_vehiculo WHERE id = $1::uuid LIMIT 1`, [raw.id]);
+    if (!r.rows[0]) throw new BadRequestException("No se pudo leer el registro de mantenimiento");
+    return this.mapMaintenanceLogDbRow(r.rows[0] as Record<string, unknown>);
+  }
+
+  private async syncFuelLogs(c: PoolClient, data: unknown) {
+    if (!Array.isArray(data)) throw new ForbiddenException();
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
+      if (!row?.id) continue;
+      if (this.skipUnlessPersistUuid("syncFuelLogs", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncFuelLogs.vehicleId", row.vehicleId)) continue;
+      if (this.skipUnlessPersistUuid("syncFuelLogs.driverId", row.driverId)) continue;
+      try {
+        await this.upsertFleetFuelLogRow(c, row);
+      } catch (e) {
+        if (e instanceof BadRequestException) continue;
+        throw e;
+      }
+    }
+  }
+
+  private async syncVehicleTechnicalLogs(c: PoolClient, data: unknown) {
+    if (!Array.isArray(data)) throw new ForbiddenException();
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
+      if (!row?.id) continue;
+      if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs.vehicleId", row.vehicleId)) continue;
+      try {
+        await this.upsertFleetMaintenanceLogRow(c, row);
+      } catch (e) {
+        if (e instanceof BadRequestException) continue;
+        throw e;
+      }
     }
   }
 

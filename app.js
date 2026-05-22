@@ -2786,7 +2786,7 @@ let state = {
   /** Historial: pestaña activa (explore | driver | fleet), subpestaña flota (fuel | technical) y filtro rápido. */
   historyUi: { workspace: "explore", quickFilter: "all", fleetTab: "fuel" },
   /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
-  reportsUi: { tab: "export", period: "90d" },
+  reportsUi: { tab: "export", period: "90d", layout: null },
   reportsChartInstances: [],
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
   notificationPreferences: {
@@ -9076,13 +9076,61 @@ function readVehicleTechnicalLogs() {
 async function writeFuelLogsAwait(list) {
   const normalized = normalizeFuelLogsList(list);
   write(KEYS.fuelLogs, normalized);
+  const sync = window.AntaresPortalSync;
+  const api = window.AntaresApi;
+  if (sync?.flushEntityNow && api?.getBase?.() && String(api.getAccessToken?.() || "").trim()) {
+    await sync.flushEntityNow("fuelLogs", normalized.map(fuelLogRowForServer));
+    return;
+  }
   await writeAwaitServer(KEYS.fuelLogs, normalized.map(fuelLogRowForServer));
 }
 
 async function writeVehicleTechnicalLogsAwait(list) {
   const normalized = normalizeVehicleTechnicalLogsList(list);
   write(KEYS.vehicleTechnicalLogs, normalized);
+  const sync = window.AntaresPortalSync;
+  const api = window.AntaresApi;
+  if (sync?.flushEntityNow && api?.getBase?.() && String(api.getAccessToken?.() || "").trim()) {
+    await sync.flushEntityNow("vehicleTechnicalLogs", normalized.map(vehicleTechnicalLogRowForServer));
+    return;
+  }
   await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized.map(vehicleTechnicalLogRowForServer));
+}
+
+/** Alta de combustible: INSERT en registros_combustible y actualiza caché del portal. */
+async function appendFuelLogAwait(row) {
+  const draft = normalizeFuelLogPortalRow(row);
+  const api = window.AntaresApi;
+  if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
+    const saved = await api.postJson("/portal/fleet/fuel-logs", fuelLogRowForServer(draft));
+    const merged = normalizeFuelLogPortalRow(saved);
+    const list = readFuelLogs().filter((l) => String(l.id) !== String(merged.id));
+    list.unshift(merged);
+    write(KEYS.fuelLogs, list);
+    return merged;
+  }
+  const list = readFuelLogs();
+  list.unshift(draft);
+  await writeFuelLogsAwait(list);
+  return draft;
+}
+
+/** Alta de taller: INSERT en registros_mantenimiento_vehiculo y actualiza caché del portal. */
+async function appendVehicleTechnicalLogAwait(row) {
+  const draft = normalizeVehicleTechnicalLogPortalRow(row);
+  const api = window.AntaresApi;
+  if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
+    const saved = await api.postJson("/portal/fleet/maintenance-logs", vehicleTechnicalLogRowForServer(draft));
+    const merged = normalizeVehicleTechnicalLogPortalRow(saved);
+    const list = readVehicleTechnicalLogs().filter((l) => String(l.id) !== String(merged.id));
+    list.unshift(merged);
+    write(KEYS.vehicleTechnicalLogs, list);
+    return merged;
+  }
+  const list = readVehicleTechnicalLogs();
+  list.unshift(draft);
+  await writeVehicleTechnicalLogsAwait(list);
+  return draft;
 }
 
 function diffMinutes(fromIso) {
@@ -13594,6 +13642,11 @@ function historyFleetKpiStrip(metrics) {
     .join("")}</div>`;
 }
 
+function refreshHistoryFleetKpiStrip(selector, metrics) {
+  const root = document.querySelector(selector);
+  if (root) root.outerHTML = historyFleetKpiStrip(metrics);
+}
+
 function historyFleetFilterToolbar(formId, fieldsHtml) {
   return `<form id="${escapeAttr(formId)}" class="history-fleet-filter-form" novalidate>
     <div class="history-toolbar history-fleet-toolbar">
@@ -13646,6 +13699,13 @@ function historyHtml() {
     .map((v) => `<option value="${v.id}">${escapeHtml(`${v.plate} · ${v.type}`)}</option>`)
     .join("");
 
+  const fuelLogsAll = readFuelLogs();
+  const technicalLogsAll = readVehicleTechnicalLogs();
+  const fleetTab = String(histUi.fleetTab || "fuel");
+  const fuelKpisAll = historyFleetFuelKpis(fuelLogsAll);
+  const techKpisAll = historyFleetTechnicalKpis(technicalLogsAll);
+  const todayIsoDate = nowIso().slice(0, 10);
+
   const histTab = (id, label, iconKey) => {
     const active = workspace === id;
     return `<button type="button" role="tab" class="history-workspace-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="history-workspace" data-workspace="${escapeAttr(id)}">${IC[iconKey] || ""}<span>${escapeHtml(label)}</span></button>`;
@@ -13653,7 +13713,7 @@ function historyHtml() {
   const workspaceNav = `<nav class="history-workspace-nav" role="tablist" aria-label="Secciones del historial">
     ${histTab("explore", "Explorar historial", "clock")}
     ${histTab("driver", "Costos conductor", "user")}
-    ${histTab("fleet", "Registro flota", "truck")}
+    ${histTab("fleet", `Combustible y taller (${fuelLogsAll.length + technicalLogsAll.length})`, "fuel")}
   </nav>`;
 
   const quickPill = (key, label) =>
@@ -13722,48 +13782,90 @@ function historyHtml() {
     <div id="driver-month-report-output" class="history-driver-output muted">Selecciona conductor y mes, luego pulsa Generar reporte.</div>
   </div>`;
 
-  const fuelForm = `<form id="form-fuel-log" class="p-form p-form-colored">
+  const fleetTabBtn = (id, label, iconKey, count) => {
+    const active = fleetTab === id;
+    return `<button type="button" role="tab" class="history-fleet-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="history-fleet-tab" data-fleet-tab="${escapeAttr(id)}">${IC[iconKey] || ""}<span>${escapeHtml(label)}</span><strong class="history-fleet-tab-count">${count}</strong></button>`;
+  };
+
+  const fuelFilterFields = `
+    <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+    <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+    <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicleId"><option value="">Todos</option>${vehicleOptions}</select></label>
+    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId"><option value="">Todos</option>${driverOptions}</select></label>
+    <label>${fieldLabel(IC.briefcase, "Pagado por")}
+      <select name="paidBy">
+        <option value="">Todos</option>
+        <option value="empresa">Empresa</option>
+        <option value="conductor">Conductor (reembolso)</option>
+      </select>
+    </label>`;
+
+  const techFilterFields = `
+    <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+    <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+    <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicleId"><option value="">Todos</option>${vehicleOptions}</select></label>
+    <label>${fieldLabel(IC.activity, "Tipo")}
+      <select name="type">
+        <option value="">Todos</option>
+        <option value="preventivo">Preventivo</option>
+        <option value="correctivo">Correctivo</option>
+        <option value="falla">Falla técnica</option>
+      </select>
+    </label>
+    <label>${fieldLabel(IC.check, "Estado")}
+      <select name="status">
+        <option value="">Todos</option>
+        <option>Pendiente</option>
+        <option>En proceso</option>
+        <option>Resuelto</option>
+      </select>
+    </label>`;
+
+  const fuelForm = `<form id="form-fuel-log" class="p-form p-form-colored history-fleet-create-form">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.calendar} Carga de combustible</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
-        <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
-        <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
-        <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
+        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.user, "Conductor", { required: true })}<select name="driverId" required><option value="">Seleccione…</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" autocomplete="off" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.dollar} Montos y trazabilidad</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.activity, "Litros")}<input type="number" step="0.01" min="0.01" name="liters" required /></label>
-        <label>${fieldLabel(IC.dollar, "Valor total")}<input type="number" min="0" name="totalCost" required /></label>
-        <label>${fieldLabel(IC.clock, "Odometro km")}<input type="number" min="0" name="odometerKm" /></label>
-        <label>${fieldLabel(IC.mapPin, "Estacion")}<input name="station" placeholder="EDS..." /></label>
+        <label>${fieldLabel(IC.activity, "Litros", { required: true })}<input type="number" step="0.01" min="0.01" name="liters" required data-fuel-liters-input="1" /></label>
+        ${historyFleetMoneyField("totalCost", "Valor total (COP)", { required: true })}
+        <label>${fieldLabel(IC.clock, "Odómetro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
+        <label>${fieldLabel(IC.mapPin, "Estación / EDS")}<input name="station" placeholder="EDS Roscombustible…" autocomplete="off" /></label>
         <label>${fieldLabel(IC.briefcase, "Pagado por")}
           <select name="paidBy">
             <option value="empresa">Empresa</option>
-            <option value="conductor">Conductor (reembolso nomina)</option>
+            <option value="conductor">Conductor (reembolso nómina)</option>
           </select>
         </label>
       </div>
+      <p class="history-fleet-live-hint muted" id="fuel-price-per-liter-hint" hidden aria-live="polite"></p>
+      <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_combustible</strong> (PostgreSQL) al enviar.</p>
     </fieldset>
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
   </form>`;
-  const technicalForm = `<form id="form-technical-log" class="p-form p-form-colored">
+
+  const technicalForm = `<form id="form-technical-log" class="p-form p-form-colored history-fleet-create-form">
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.truck} Novedad de taller</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.calendar, "Fecha")}<input type="date" name="date" required /></label>
-        <label>${fieldLabel(IC.truck, "Camion")}<select name="vehicleId" required><option value="">Seleccione...</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
+        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo")}
           <select name="type">
             <option value="preventivo">Mantenimiento preventivo</option>
             <option value="correctivo">Mantenimiento correctivo</option>
-            <option value="falla">Falla tecnica</option>
+            <option value="falla">Falla técnica</option>
           </select>
         </label>
-        <label>${fieldLabel(IC.file, "Descripcion")}<input name="description" required /></label>
-        <label>${fieldLabel(IC.dollar, "Costo")}<input type="number" min="0" name="cost" required /></label>
+        <label class="full">${fieldLabel(IC.file, "Descripción", { required: true })}<input name="description" required placeholder="Ej. cambio de aceite, frenos, refrigeración…" /></label>
+        ${historyFleetMoneyField("cost", "Costo (COP)", { required: true })}
         <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
         <label>${fieldLabel(IC.check, "Estado")}
           <select name="status">
@@ -13773,17 +13875,54 @@ function historyHtml() {
           </select>
         </label>
       </div>
+      <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_mantenimiento_vehiculo</strong> (PostgreSQL) al enviar.</p>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad tecnica</button>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad de taller</button>
   </form>`;
 
-  const fleetPanel = `<div class="history-panel${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
-    <div class="history-panel-intro">
-      <p class="muted">Registre cargas de combustible y novedades de taller. Estos datos alimentan el reporte mensual por conductor.</p>
+  const fuelKpiStrip = historyFleetKpiStrip([
+    { label: "Cargas registradas", value: fuelKpisAll.count },
+    { label: "Litros", value: `${fuelKpisAll.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
+    { label: "Costo total", value: `$${fuelKpisAll.cost.toLocaleString("es-CO")}` },
+    {
+      label: "Promedio $/L",
+      value: fuelKpisAll.avgPerLiter > 0 ? `$${fuelKpisAll.avgPerLiter.toLocaleString("es-CO")}` : "—"
+    },
+    {
+      label: "Reembolso conductor",
+      value: `$${fuelKpisAll.reimburse.toLocaleString("es-CO")}`,
+      tone: fuelKpisAll.reimburse > 0 ? "warn" : undefined
+    }
+  ]);
+
+  const techKpiStrip = historyFleetKpiStrip([
+    { label: "Novedades", value: techKpisAll.count },
+    { label: "Costo taller", value: `$${techKpisAll.cost.toLocaleString("es-CO")}` },
+    { label: "Horas fuera de servicio", value: `${techKpisAll.downtime.toLocaleString("es-CO")} h` },
+    { label: "Abiertas", value: techKpisAll.open, tone: techKpisAll.open > 0 ? "warn" : "ok" }
+  ]);
+
+  const fleetPanel = `<div class="history-panel history-panel--fleet${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
+    <div class="history-panel-intro history-fleet-intro">
+      <p>Historial en base de datos: cargas en <strong>registros_combustible</strong> y novedades en <strong>registros_mantenimiento_vehiculo</strong>. Filtra, consulta y registra sin perder datos del servidor.</p>
     </div>
-    <div class="history-fleet-grid">
-      ${createCollapsibleCard("create-fuel-log", "plus", "Combustible", "Litros, costo, estación y vínculo opcional al viaje", fuelForm, "Registrar carga")}
-      ${createCollapsibleCard("create-technical-log", "plus", "Taller", "Preventivo, correctivo o falla con costo y horas fuera de servicio", technicalForm, "Registrar novedad")}
+    <nav class="history-fleet-tabs" role="tablist" aria-label="Combustible o taller">
+      ${fleetTabBtn("fuel", "Combustible", "fuel", fuelLogsAll.length)}
+      ${fleetTabBtn("technical", "Taller", "activity", technicalLogsAll.length)}
+    </nav>
+    <div class="history-fleet-panel${fleetTab === "fuel" ? "" : " hidden"}" data-fleet-panel="fuel" role="tabpanel">
+      ${fuelKpiStrip}
+      ${historyFleetFilterToolbar("history-fuel-filter", fuelFilterFields)}
+      <p class="history-result-meta history-fleet-result-meta"><span id="history-fuel-result-count">${fuelLogsAll.length}</span> carga${fuelLogsAll.length === 1 ? "" : "s"} · más recientes primero</p>
+      <div id="history-fuel-results">${renderHistoryFuelLogsList(fuelLogsAll)}</div>
+      ${createCollapsibleCard("create-fuel-log", "fuel", "Nueva carga de combustible", "Litros, costo COP, estación y vínculo opcional al viaje", fuelForm, "Registrar carga")}
+    </div>
+    <div class="history-fleet-panel${fleetTab === "technical" ? "" : " hidden"}" data-fleet-panel="technical" role="tabpanel">
+      ${techKpiStrip}
+      ${historyFleetFilterToolbar("history-technical-filter", techFilterFields)}
+      <p class="history-result-meta history-fleet-result-meta"><span id="history-technical-result-count">${technicalLogsAll.length}</span> novedad${technicalLogsAll.length === 1 ? "" : "es"} · más recientes primero</p>
+      <div id="history-technical-results">${renderHistoryTechnicalLogsList(technicalLogsAll)}</div>
+      ${createCollapsibleCard("create-technical-log", "activity", "Nueva novedad de taller", "Preventivo, correctivo o falla con costo y horas fuera de servicio", technicalForm, "Registrar novedad")}
     </div>
   </div>`;
 
@@ -14723,6 +14862,9 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
       avgCycleHours,
       assignRate,
       closeRate,
+      slaOk,
+      slaTotal: trips.length,
+      activeOps: requests.filter((r) => tripRequestStatusIsOperational(r.status)).length,
       trends: {
         revenue: reportsPctDelta(revenue, prevRevenue),
         trips: reportsPctDelta(trips.length, prevTrips.length),
@@ -14743,8 +14885,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
     fuelLiters,
     thermoking: { yes: tkYes, no: tkNo },
     slaOk,
-    slaTotal: trips.length,
-    activeOps: requests.filter((r) => tripRequestStatusIsOperational(r.status)).length
+    slaTotal: trips.length
   };
   snapshot.insights = reportsBuildInsights(snapshot);
   return snapshot;
@@ -14760,14 +14901,14 @@ function reportsBiTrendHtml(delta) {
 function reportsBiKpiCard(opts) {
   const o = opts && typeof opts === "object" ? opts : {};
   const mod = o.mod ? ` reports-bi-kpi--${o.mod}` : "";
-  const trend = o.trend != null ? reportsBiTrendHtml(o.trend) : "";
+  const trend = o.trend != null && o.trend !== "" ? reportsBiTrendHtml(o.trend) : "";
   const meta = o.meta ? `<span class="reports-bi-kpi-meta">${escapeHtml(o.meta)}</span>` : "";
   const icon = o.icon ? `<span class="reports-bi-kpi-ico" aria-hidden="true">${o.icon}</span>` : "";
   return `<article class="reports-bi-kpi${mod}">
     ${icon}
     <div class="reports-bi-kpi-body">
-      <span class="reports-bi-kpi-val">${o.value}</span>
-      <span class="reports-bi-kpi-lbl">${escapeHtml(o.label)}</span>
+      <span class="reports-bi-kpi-val">${reportsBiDisplayVal(o.value)}</span>
+      <span class="reports-bi-kpi-lbl">${escapeHtml(o.label || "")}</span>
       ${meta}
     </div>
     ${trend}
@@ -14800,9 +14941,200 @@ function reportsBiPeriodChip(value, label, current) {
   return `<button type="button" class="reports-bi-chip${active}" data-action="reports-bi-period-chip" data-period="${escapeAttr(value)}" aria-pressed="${current === value ? "true" : "false"}">${escapeHtml(label)}</button>`;
 }
 
-function reportsAnalyticsPanelHtml(snapshot) {
+const REPORTS_BI_LAYOUT_STORAGE = "antares_reports_bi_layout_v1";
+
+function reportsBiDefaultLayout() {
+  return {
+    insights: true,
+    kpis: {
+      revenue: true,
+      trips: true,
+      requests: true,
+      sla: true,
+      cycle: true,
+      fuel: true,
+      maint: true,
+      fleet: true,
+      docs: true
+    },
+    scores: { sla: true, assign: true, thermoking: true },
+    charts: {
+      revenue: true,
+      weekly: true,
+      funnel: true,
+      status: true,
+      clients: true,
+      routes: true,
+      drivers: true,
+      rankings: true
+    }
+  };
+}
+
+function normalizeReportsBiLayout(raw) {
+  const def = reportsBiDefaultLayout();
+  if (!raw || typeof raw !== "object") return def;
+  return {
+    insights: raw.insights !== false,
+    kpis: { ...def.kpis, ...(raw.kpis && typeof raw.kpis === "object" ? raw.kpis : {}) },
+    scores: { ...def.scores, ...(raw.scores && typeof raw.scores === "object" ? raw.scores : {}) },
+    charts: { ...def.charts, ...(raw.charts && typeof raw.charts === "object" ? raw.charts : {}) }
+  };
+}
+
+function reportsBiLayoutStorageKey() {
+  const u = currentUser();
+  const id = String(u?.id || u?.email || "anon").trim() || "anon";
+  return `${REPORTS_BI_LAYOUT_STORAGE}_${id}`;
+}
+
+function loadReportsBiLayout() {
+  if (state.reportsUi?.layout) return normalizeReportsBiLayout(state.reportsUi.layout);
+  try {
+    const raw = localStorage.getItem(reportsBiLayoutStorageKey());
+    if (raw) return normalizeReportsBiLayout(JSON.parse(raw));
+  } catch (_e) {
+    /* noop */
+  }
+  return reportsBiDefaultLayout();
+}
+
+function persistReportsBiLayout(layout) {
+  const normalized = normalizeReportsBiLayout(layout);
+  state.reportsUi = { ...(state.reportsUi || {}), layout: normalized };
+  try {
+    localStorage.setItem(reportsBiLayoutStorageKey(), JSON.stringify(normalized));
+  } catch (_e) {
+    /* noop */
+  }
+  return normalized;
+}
+
+function reportsBiLayoutFromPanel(root) {
+  const panel = root?.querySelector(".reports-bi-customizer");
+  if (!panel) return loadReportsBiLayout();
+  const readChecked = (sel) => panel.querySelector(sel)?.checked === true;
+  const layout = reportsBiDefaultLayout();
+  layout.insights = readChecked('[data-bi-scope="insights"]');
+  Object.keys(layout.kpis).forEach((key) => {
+    layout.kpis[key] = readChecked(`[data-bi-scope="kpis"][data-bi-key="${key}"]`);
+  });
+  Object.keys(layout.scores).forEach((key) => {
+    layout.scores[key] = readChecked(`[data-bi-scope="scores"][data-bi-key="${key}"]`);
+  });
+  Object.keys(layout.charts).forEach((key) => {
+    layout.charts[key] = readChecked(`[data-bi-scope="charts"][data-bi-key="${key}"]`);
+  });
+  return normalizeReportsBiLayout(layout);
+}
+
+function reportsBiLayoutPreset(preset) {
+  const all = reportsBiDefaultLayout();
+  if (preset === "all") return all;
+  if (preset === "min") {
+    return normalizeReportsBiLayout({
+      insights: false,
+      kpis: { revenue: true, trips: true, requests: true, sla: true, cycle: false, fuel: false, maint: false, fleet: false, docs: false },
+      scores: { sla: true, assign: true, thermoking: false },
+      charts: { revenue: true, weekly: false, funnel: true, status: true, clients: false, routes: false, drivers: false, rankings: false }
+    });
+  }
+  if (preset === "finance") {
+    return normalizeReportsBiLayout({
+      insights: true,
+      kpis: { revenue: true, trips: true, requests: false, sla: false, cycle: false, fuel: true, maint: true, fleet: false, docs: false },
+      scores: { sla: false, assign: false, thermoking: false },
+      charts: { revenue: true, weekly: false, funnel: false, status: false, clients: true, routes: false, drivers: false, rankings: true }
+    });
+  }
+  if (preset === "ops") {
+    return normalizeReportsBiLayout({
+      insights: true,
+      kpis: { revenue: false, trips: true, requests: true, sla: true, cycle: true, fuel: false, maint: false, fleet: true, docs: true },
+      scores: { sla: true, assign: true, thermoking: true },
+      charts: { revenue: false, weekly: true, funnel: true, status: true, clients: false, routes: true, drivers: true, rankings: false }
+    });
+  }
+  return all;
+}
+
+function reportsBiDisplayVal(value, fallback = "—") {
+  if (value === undefined || value === null) return fallback;
+  const s = String(value);
+  if (s === "undefined" || s === "NaN" || s === "[object Object]") return fallback;
+  return s;
+}
+
+function reportsBiCustomizerHtml(layout) {
+  const L = normalizeReportsBiLayout(layout);
+  const chk = (scope, key, label, checked) =>
+    `<label class="reports-bi-customizer-item"><input type="checkbox" data-bi-scope="${escapeAttr(scope)}" data-bi-key="${escapeAttr(key)}"${checked ? " checked" : ""}/> ${escapeHtml(label)}</label>`;
+  const kpiChecks = [
+    chk("kpis", "revenue", "Recaudo", L.kpis.revenue),
+    chk("kpis", "trips", "Viajes", L.kpis.trips),
+    chk("kpis", "requests", "Solicitudes", L.kpis.requests),
+    chk("kpis", "sla", "SLA", L.kpis.sla),
+    chk("kpis", "cycle", "Ciclo / aprobación", L.kpis.cycle),
+    chk("kpis", "fuel", "Combustible", L.kpis.fuel),
+    chk("kpis", "maint", "Taller", L.kpis.maint),
+    chk("kpis", "fleet", "Flota", L.kpis.fleet),
+    chk("kpis", "docs", "Documentos", L.kpis.docs)
+  ].join("");
+  const scoreChecks = [
+    chk("scores", "sla", "Anillo SLA", L.scores.sla),
+    chk("scores", "assign", "Conversión a viaje", L.scores.assign),
+    chk("scores", "thermoking", "Termoking vs seco", L.scores.thermoking)
+  ].join("");
+  const chartChecks = [
+    chk("charts", "revenue", "Recaudo mensual", L.charts.revenue),
+    chk("charts", "weekly", "Actividad semanal", L.charts.weekly),
+    chk("charts", "funnel", "Embudo", L.charts.funnel),
+    chk("charts", "status", "Estados", L.charts.status),
+    chk("charts", "clients", "Top clientes", L.charts.clients),
+    chk("charts", "routes", "Rutas", L.charts.routes),
+    chk("charts", "drivers", "Conductores", L.charts.drivers),
+    chk("charts", "rankings", "Rankings", L.charts.rankings)
+  ].join("");
+  return `<div class="reports-bi-customizer" aria-label="Personalizar analítica">
+    <div class="reports-bi-customizer-head">
+      <h3 class="reports-bi-customizer-title">${IC.grid} Arme su vista</h3>
+      <p class="reports-bi-customizer-hint">Elija indicadores y gráficas. La selección se guarda en este equipo y aplica al Excel.</p>
+      <div class="reports-bi-customizer-presets">
+        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="all">Todo</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="min">Mínimo</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="finance">Finanzas</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="ops">Operación</button>
+        <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-layout-apply">${IC.check} Aplicar vista</button>
+      </div>
+    </div>
+    <div class="reports-bi-customizer-grid">
+      <fieldset class="reports-bi-customizer-group">
+        <legend>General</legend>
+        ${chk("insights", "insights", "Hallazgos automáticos", L.insights)}
+      </fieldset>
+      <fieldset class="reports-bi-customizer-group">
+        <legend>Indicadores</legend>
+        ${kpiChecks}
+      </fieldset>
+      <fieldset class="reports-bi-customizer-group">
+        <legend>Cumplimiento</legend>
+        ${scoreChecks}
+      </fieldset>
+      <fieldset class="reports-bi-customizer-group reports-bi-customizer-group--wide">
+        <legend>Gráficas y rankings</legend>
+        ${chartChecks}
+      </fieldset>
+    </div>
+  </div>`;
+}
+
+function reportsAnalyticsPanelHtml(snapshot, layout) {
+  const L = normalizeReportsBiLayout(layout);
   const k = snapshot.kpis;
   const fmtCop = snapshot.fmtCop;
+  const slaOk = k.slaOk ?? snapshot.slaOk ?? 0;
+  const slaTotal = k.slaTotal ?? snapshot.slaTotal ?? 0;
+  const activeOps = k.activeOps ?? snapshot.activeOps ?? 0;
   const period = snapshot.period || "90d";
   const insightsHtml = (snapshot.insights || [])
     .map(
@@ -14845,31 +15177,40 @@ function reportsAnalyticsPanelHtml(snapshot) {
         </div>
       </div>
       <div class="reports-bi-toolbar-stats" aria-label="Resumen del periodo">
-        <span class="reports-bi-stat"><strong>${k.activeOps}</strong><span>En operación</span></span>
+        <span class="reports-bi-stat"><strong>${activeOps}</strong><span>En operación</span></span>
         <span class="reports-bi-stat"><strong>${k.assignRate}%</strong><span>Asignadas</span></span>
         <span class="reports-bi-stat"><strong>${k.closeRate}%</strong><span>Cerradas</span></span>
         <span class="reports-bi-stat"><strong>${k.slaPct}%</strong><span>SLA</span></span>
       </div>
     </header>
-    ${insightsHtml ? `<div class="reports-bi-insights" role="region" aria-label="Hallazgos">${insightsHtml}</div>` : ""}
-    <div class="reports-bi-section">
+    ${reportsBiCustomizerHtml(L)}
+    ${L.insights && insightsHtml ? `<div class="reports-bi-insights" role="region" aria-label="Hallazgos">${insightsHtml}</div>` : ""}
+    ${
+      Object.values(L.kpis).some(Boolean)
+        ? `<div class="reports-bi-section">
       <h3 class="reports-bi-section-title">Indicadores clave</h3>
       <div class="reports-bi-kpis">
-      ${reportsBiKpiCard({ mod: "primary", icon: IC.dollar, value: fmtCop(k.revenue), label: "Recaudo operativo", trend: k.trends.revenue })}
-      ${reportsBiKpiCard({ icon: IC.truck, value: String(k.trips), label: "Viajes", trend: k.trends.trips, meta: `Ticket ${fmtCop(k.avgTicket)}` })}
-      ${reportsBiKpiCard({ icon: IC.file, value: String(k.requests), label: "Solicitudes", trend: k.trends.requests })}
-      ${reportsBiKpiCard({ mod: "sla", icon: IC.check, value: `${k.slaPct}%`, label: "SLA cumplido", meta: `${k.slaOk}/${k.slaTotal} viajes` })}
-      ${reportsBiKpiCard({ icon: IC.clock, value: `${k.avgCycleHours}h`, label: "Ciclo promedio", meta: `Aprob. ${k.avgApprovalMin} min` })}
-      ${reportsBiKpiCard({ icon: IC.fuel, value: fmtCop(k.fuelCost), label: "Combustible", meta: `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L` })}
-      ${reportsBiKpiCard({ icon: IC.activity, value: fmtCop(k.maintCost), label: "Taller", meta: k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby" })}
-      ${reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupación` })}
-      ${reportsBiKpiCard({ mod: k.docRisk ? "warn" : "", icon: IC.shield, value: String(k.docRisk), label: "Alertas documentales" })}
+      ${L.kpis.revenue ? reportsBiKpiCard({ mod: "primary", icon: IC.dollar, value: fmtCop(k.revenue), label: "Recaudo operativo", trend: k.trends?.revenue }) : ""}
+      ${L.kpis.trips ? reportsBiKpiCard({ icon: IC.truck, value: k.trips, label: "Viajes", trend: k.trends?.trips, meta: `Ticket ${fmtCop(k.avgTicket)}` }) : ""}
+      ${L.kpis.requests ? reportsBiKpiCard({ icon: IC.file, value: k.requests, label: "Solicitudes", trend: k.trends?.requests }) : ""}
+      ${L.kpis.sla ? reportsBiKpiCard({ mod: "sla", icon: IC.check, value: `${k.slaPct}%`, label: "SLA cumplido", meta: `${slaOk}/${slaTotal} viajes` }) : ""}
+      ${L.kpis.cycle ? reportsBiKpiCard({ icon: IC.clock, value: `${k.avgCycleHours}h`, label: "Ciclo promedio", meta: `Aprob. ${k.avgApprovalMin} min` }) : ""}
+      ${L.kpis.fuel ? reportsBiKpiCard({ icon: IC.fuel, value: fmtCop(k.fuelCost), label: "Combustible", meta: `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L` }) : ""}
+      ${L.kpis.maint ? reportsBiKpiCard({ icon: IC.activity, value: fmtCop(k.maintCost), label: "Taller", meta: k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby" }) : ""}
+      ${L.kpis.fleet ? reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupación` }) : ""}
+      ${L.kpis.docs ? reportsBiKpiCard({ mod: k.docRisk ? "warn" : "", icon: IC.shield, value: k.docRisk, label: "Alertas documentales" }) : ""}
     </div>
-    </div>
-    <div class="reports-bi-section reports-bi-section--compact">
+    </div>`
+        : ""
+    }
+    ${
+      Object.values(L.scores).some(Boolean)
+        ? `<div class="reports-bi-section reports-bi-section--compact">
       <h3 class="reports-bi-section-title">Cumplimiento y conversión</h3>
     <div class="reports-bi-score-row">
-      <article class="reports-bi-score-card">
+      ${
+        L.scores.sla
+          ? `<article class="reports-bi-score-card">
         <div class="reports-bi-ring" style="--pct:${k.slaPct}">
           <svg viewBox="0 0 36 36" aria-hidden="true">
             <path class="reports-bi-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
@@ -14879,10 +15220,14 @@ function reportsAnalyticsPanelHtml(snapshot) {
         </div>
         <div>
           <h3>${IC.check} Cumplimiento SLA</h3>
-          <p>${k.slaOk} de ${k.slaTotal} viajes entregan a tiempo</p>
+          <p>${slaOk} de ${slaTotal} viajes entregan a tiempo</p>
         </div>
-      </article>
-      <article class="reports-bi-score-card">
+      </article>`
+          : ""
+      }
+      ${
+        L.scores.assign
+          ? `<article class="reports-bi-score-card">
         <div class="reports-bi-ring reports-bi-ring--assign" style="--pct:${k.assignRate}">
           <svg viewBox="0 0 36 36" aria-hidden="true">
             <path class="reports-bi-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
@@ -14894,58 +15239,102 @@ function reportsAnalyticsPanelHtml(snapshot) {
           <h3>${IC.compass} Conversión a viaje</h3>
           <p>${k.trips} viajes sobre ${k.requests} solicitudes</p>
         </div>
-      </article>
-      <article class="reports-bi-score-card reports-bi-score-card--chart">
+      </article>`
+          : ""
+      }
+      ${
+        L.scores.thermoking
+          ? `<article class="reports-bi-score-card reports-bi-score-card--chart">
         <h3>${IC.truck} Termoking vs seco</h3>
         <div class="reports-bi-chart-wrap reports-bi-chart-wrap--mini"><canvas id="reports-chart-thermoking" aria-label="Termoking"></canvas></div>
-      </article>
+      </article>`
+          : ""
+      }
     </div>
-    </div>
-    <div class="reports-bi-section">
+    </div>`
+        : ""
+    }
+    ${
+      Object.values(L.charts).some(Boolean)
+        ? `<div class="reports-bi-section">
       <h3 class="reports-bi-section-title">Visualizaciones</h3>
     <div class="reports-bi-grid">
-      <article class="reports-bi-card reports-bi-card--xl">
+      ${
+        L.charts.revenue
+          ? `<article class="reports-bi-card reports-bi-card--xl">
         <header class="reports-bi-card-head">
           <div><h3>${IC.dollar} Recaudo y volumen mensual</h3><p class="reports-bi-card-sub">Ingresos (barras) y viajes (línea)</p></div>
           <span class="reports-bi-card-stat">${fmtCop(k.revenue)}</span>
         </header>
         <div class="reports-bi-chart-wrap reports-bi-chart-wrap--tall"><canvas id="reports-chart-revenue" aria-label="Recaudo mensual"></canvas></div>
-      </article>
-      <article class="reports-bi-card reports-bi-card--wide">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.weekly
+          ? `<article class="reports-bi-card reports-bi-card--wide">
         <header class="reports-bi-card-head">
           <div><h3>${IC.activity} Actividad semanal</h3><p class="reports-bi-card-sub">Viajes por semana</p></div>
         </header>
         <div class="reports-bi-chart-wrap"><canvas id="reports-chart-weekly" aria-label="Tendencia semanal"></canvas></div>
-      </article>
-      <article class="reports-bi-card">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.funnel
+          ? `<article class="reports-bi-card">
         <header class="reports-bi-card-head"><div><h3>${IC.layers} Embudo operativo</h3><p class="reports-bi-card-sub">Del pedido al cierre</p></div></header>
         <div class="reports-bi-chart-wrap"><canvas id="reports-chart-funnel" aria-label="Embudo"></canvas></div>
-      </article>
-      <article class="reports-bi-card">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.status
+          ? `<article class="reports-bi-card">
         <header class="reports-bi-card-head"><div><h3>${IC.activity} Estados</h3><p class="reports-bi-card-sub">Distribución actual</p></div></header>
         <div class="reports-bi-chart-wrap reports-bi-chart-wrap--donut"><canvas id="reports-chart-status" aria-label="Estados"></canvas></div>
-      </article>
-      <article class="reports-bi-card">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.clients
+          ? `<article class="reports-bi-card">
         <header class="reports-bi-card-head"><div><h3>${IC.briefcase} Top clientes</h3><p class="reports-bi-card-sub">Por recaudo</p></div></header>
         <div class="reports-bi-chart-wrap"><canvas id="reports-chart-clients" aria-label="Clientes"></canvas></div>
-      </article>
-      <article class="reports-bi-card">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.routes
+          ? `<article class="reports-bi-card">
         <header class="reports-bi-card-head"><div><h3>${IC.mapPin} Rutas activas</h3><p class="reports-bi-card-sub">Por viajes</p></div></header>
         <div class="reports-bi-chart-wrap"><canvas id="reports-chart-routes" aria-label="Rutas"></canvas></div>
-      </article>
-      <article class="reports-bi-card">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.drivers
+          ? `<article class="reports-bi-card">
         <header class="reports-bi-card-head"><div><h3>${IC.user} Top conductores</h3><p class="reports-bi-card-sub">Viajes asignados</p></div></header>
         <div class="reports-bi-chart-wrap"><canvas id="reports-chart-drivers" aria-label="Conductores"></canvas></div>
-      </article>
-      <article class="reports-bi-card reports-bi-card--wide reports-bi-card--rankings">
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.rankings
+          ? `<article class="reports-bi-card reports-bi-card--wide reports-bi-card--rankings">
         <header class="reports-bi-card-head"><div><h3>${IC.star} Rankings del periodo</h3><p class="reports-bi-card-sub">Mayor impacto comercial y operativo</p></div></header>
         <div class="reports-bi-rankings">
           ${reportsBiLeaderboardHtml("Clientes por recaudo", snapshot.topClients, 1, "cop")}
           ${reportsBiLeaderboardHtml("Conductores por viajes", snapshot.topDrivers, 1, "num")}
         </div>
-      </article>
+      </article>`
+          : ""
+      }
     </div>
-    </div>
+    </div>`
+        : `<p class="reports-bi-empty reports-bi-section">Seleccione al menos una gráfica en «Arme su vista» y pulse Aplicar.</p>`
+    }
     <p class="reports-bi-foot muted">Mismos criterios que exportación PDF/CSV · Tendencias vs periodo anterior equivalente · ${escapeHtml(snapshot.periodLabel)}</p>
   </section>`;
 }
@@ -15069,28 +15458,30 @@ function reportsBiExcelChartBlock(title, subtitle, imageData, tableHtml) {
   </td></tr>`;
 }
 
-function buildReportsBiExcelHtml(snapshot, chartImages = {}) {
+function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
   const b = REPORTS_BI_BRAND;
+  const L = normalizeReportsBiLayout(layout || loadReportsBiLayout());
   const k = snapshot.kpis;
   const fmtCop = snapshot.fmtCop;
+  const slaOk = k.slaOk ?? snapshot.slaOk ?? 0;
+  const slaTotal = k.slaTotal ?? snapshot.slaTotal ?? 0;
   const trendTxt = (d) => {
     const n = parseNum(d);
     if (n > 0) return `+${n}%`;
     if (n < 0) return `${n}%`;
     return "0%";
   };
-  const kpiRows = [
-    ["Recaudo operativo", fmtCop(k.revenue), trendTxt(k.trends.revenue), `Ticket ${fmtCop(k.avgTicket)}`],
-    ["Viajes", String(k.trips), trendTxt(k.trends.trips), ""],
-    ["Solicitudes", String(k.requests), trendTxt(k.trends.requests), ""],
-    ["SLA cumplido", `${k.slaPct}%`, "", `${k.slaOk}/${k.slaTotal} viajes`],
-    ["Ciclo promedio", `${k.avgCycleHours} h`, "", `Aprob. ${k.avgApprovalMin} min`],
-    ["Combustible", fmtCop(k.fuelCost), "", `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L`],
-    ["Taller", fmtCop(k.maintCost), "", k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby"],
-    ["Flota libre", `${k.fleetAvailable}/${k.fleetTotal}`, "", `${k.fleetUtilPct}% ocupación`],
-    ["Alertas documentales", String(k.docRisk), "", ""]
-  ];
-  const insightRows = (snapshot.insights || []).map((ins) => [ins.title, ins.text]);
+  const kpiRows = [];
+  if (L.kpis.revenue) kpiRows.push(["Recaudo operativo", fmtCop(k.revenue), trendTxt(k.trends?.revenue), `Ticket ${fmtCop(k.avgTicket)}`]);
+  if (L.kpis.trips) kpiRows.push(["Viajes", String(k.trips), trendTxt(k.trends?.trips), ""]);
+  if (L.kpis.requests) kpiRows.push(["Solicitudes", String(k.requests), trendTxt(k.trends?.requests), ""]);
+  if (L.kpis.sla) kpiRows.push(["SLA cumplido", `${k.slaPct}%`, "", `${slaOk}/${slaTotal} viajes`]);
+  if (L.kpis.cycle) kpiRows.push(["Ciclo promedio", `${k.avgCycleHours} h`, "", `Aprob. ${k.avgApprovalMin} min`]);
+  if (L.kpis.fuel) kpiRows.push(["Combustible", fmtCop(k.fuelCost), "", `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L`]);
+  if (L.kpis.maint) kpiRows.push(["Taller", fmtCop(k.maintCost), "", k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby"]);
+  if (L.kpis.fleet) kpiRows.push(["Flota libre", `${k.fleetAvailable}/${k.fleetTotal}`, "", `${k.fleetUtilPct}% ocupación`]);
+  if (L.kpis.docs) kpiRows.push(["Alertas documentales", String(k.docRisk), "", ""]);
+  const insightRows = L.insights ? (snapshot.insights || []).map((ins) => [ins.title, ins.text]) : [];
   const revenueRows = (snapshot.revenueLabels || snapshot.revenueMonths || []).map((label, i) => [
     label,
     fmtCop(snapshot.revenueSeries[i] || 0),
@@ -15104,58 +15495,76 @@ function buildReportsBiExcelHtml(snapshot, chartImages = {}) {
   const driverRows = (snapshot.topDrivers || []).map((x) => [x[0], String(x[1])]);
 
   const chartBlocks = [
-    reportsBiExcelChartBlock(
-      "Recaudo y volumen mensual",
-      "Barras: ingresos · Línea: viajes",
-      chartImages["reports-chart-revenue"],
-      reportsBiExcelTable(["Mes", "Recaudo COP", "Viajes"], revenueRows)
-    ),
-    reportsBiExcelChartBlock(
-      "Actividad semanal",
-      "Viajes por semana",
-      chartImages["reports-chart-weekly"],
-      reportsBiExcelTable(["Semana", "Viajes"], weeklyRows)
-    ),
-    reportsBiExcelChartBlock(
-      "Embudo operativo",
-      "Del pedido al cierre",
-      chartImages["reports-chart-funnel"],
-      reportsBiExcelTable(["Etapa", "Cantidad"], funnelRows)
-    ),
-    reportsBiExcelChartBlock(
-      "Estados de solicitudes",
-      "Distribución en el periodo",
-      chartImages["reports-chart-status"],
-      reportsBiExcelTable(["Estado", "Cantidad"], statusRows)
-    ),
-    reportsBiExcelChartBlock(
-      "Termoking vs carga seca",
-      "",
-      chartImages["reports-chart-thermoking"],
-      reportsBiExcelTable(["Tipo", "Solicitudes"], [
-        ["Con Termoking", String(snapshot.thermoking?.yes || 0)],
-        ["Carga seca", String(snapshot.thermoking?.no || 0)]
-      ])
-    ),
-    reportsBiExcelChartBlock(
-      "Top clientes por recaudo",
-      "",
-      chartImages["reports-chart-clients"],
-      reportsBiExcelTable(["Cliente", "Recaudo COP"], clientRows)
-    ),
-    reportsBiExcelChartBlock(
-      "Rutas activas",
-      "Por cantidad de viajes",
-      chartImages["reports-chart-routes"],
-      reportsBiExcelTable(["Ruta", "Viajes"], routeRows)
-    ),
-    reportsBiExcelChartBlock(
-      "Top conductores",
-      "Viajes asignados",
-      chartImages["reports-chart-drivers"],
-      reportsBiExcelTable(["Conductor", "Viajes"], driverRows)
-    )
-  ].join("");
+    L.charts.revenue
+      ? reportsBiExcelChartBlock(
+          "Recaudo y volumen mensual",
+          "Barras: ingresos · Línea: viajes",
+          chartImages["reports-chart-revenue"],
+          reportsBiExcelTable(["Mes", "Recaudo COP", "Viajes"], revenueRows)
+        )
+      : "",
+    L.charts.weekly
+      ? reportsBiExcelChartBlock(
+          "Actividad semanal",
+          "Viajes por semana",
+          chartImages["reports-chart-weekly"],
+          reportsBiExcelTable(["Semana", "Viajes"], weeklyRows)
+        )
+      : "",
+    L.charts.funnel
+      ? reportsBiExcelChartBlock(
+          "Embudo operativo",
+          "Del pedido al cierre",
+          chartImages["reports-chart-funnel"],
+          reportsBiExcelTable(["Etapa", "Cantidad"], funnelRows)
+        )
+      : "",
+    L.charts.status
+      ? reportsBiExcelChartBlock(
+          "Estados de solicitudes",
+          "Distribución en el periodo",
+          chartImages["reports-chart-status"],
+          reportsBiExcelTable(["Estado", "Cantidad"], statusRows)
+        )
+      : "",
+    L.scores.thermoking
+      ? reportsBiExcelChartBlock(
+          "Termoking vs carga seca",
+          "",
+          chartImages["reports-chart-thermoking"],
+          reportsBiExcelTable(["Tipo", "Solicitudes"], [
+            ["Con Termoking", String(snapshot.thermoking?.yes || 0)],
+            ["Carga seca", String(snapshot.thermoking?.no || 0)]
+          ])
+        )
+      : "",
+    L.charts.clients
+      ? reportsBiExcelChartBlock(
+          "Top clientes por recaudo",
+          "",
+          chartImages["reports-chart-clients"],
+          reportsBiExcelTable(["Cliente", "Recaudo COP"], clientRows)
+        )
+      : "",
+    L.charts.routes
+      ? reportsBiExcelChartBlock(
+          "Rutas activas",
+          "Por cantidad de viajes",
+          chartImages["reports-chart-routes"],
+          reportsBiExcelTable(["Ruta", "Viajes"], routeRows)
+        )
+      : "",
+    L.charts.drivers
+      ? reportsBiExcelChartBlock(
+          "Top conductores",
+          "Viajes asignados",
+          chartImages["reports-chart-drivers"],
+          reportsBiExcelTable(["Conductor", "Viajes"], driverRows)
+        )
+      : ""
+  ]
+    .filter(Boolean)
+    .join("");
 
   return `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" lang="es">
@@ -15183,34 +15592,42 @@ body{font-family:Montserrat,Arial,sans-serif;color:${b.text};font-size:11pt}
 <table width="100%" cellspacing="0" cellpadding="0">
 <tr><td colspan="4" class="xls-banner">Transportes Antares — Analítica operativa</td></tr>
 <tr><td colspan="4" class="xls-subbanner">${reportsBiExcelEsc(snapshot.periodLabel)} · Corte ${reportsBiExcelEsc(snapshot.generatedAt)}</td></tr>
-<tr><td colspan="4" class="xls-meta">En operación: ${k.activeOps} · Asignadas: ${k.assignRate}% · Cerradas: ${k.closeRate}% · SLA: ${k.slaPct}% · Conversión: ${k.assignRate}%</td></tr>
+<tr><td colspan="4" class="xls-meta">En operación: ${k.activeOps ?? snapshot.activeOps ?? 0} · Asignadas: ${k.assignRate}% · Cerradas: ${k.closeRate}% · SLA: ${k.slaPct}% · Conversión: ${k.assignRate}%</td></tr>
 <tr><td colspan="4" class="xls-section-title">Indicadores clave</td></tr>
 <tr>
   <th class="xls-th">Indicador</th><th class="xls-th">Valor</th><th class="xls-th">Tendencia</th><th class="xls-th">Detalle</th>
 </tr>
-${kpiRows
-  .map(
-    (row, i) =>
-      `<tr class="${i === 0 ? "xls-kpi-primary" : row[0] === "Alertas documentales" && k.docRisk ? "xls-kpi-warn" : ""}">
+${
+  kpiRows.length
+    ? kpiRows
+        .map(
+          (row, i) =>
+            `<tr class="${i === 0 ? "xls-kpi-primary" : row[0] === "Alertas documentales" && k.docRisk ? "xls-kpi-warn" : ""}">
         <td class="xls-td">${reportsBiExcelEsc(row[0])}</td>
         <td class="xls-td">${reportsBiExcelEsc(row[1])}</td>
         <td class="xls-td">${reportsBiExcelEsc(row[2])}</td>
         <td class="xls-td">${reportsBiExcelEsc(row[3])}</td>
       </tr>`
-  )
-  .join("")}
+        )
+        .join("")
+    : `<tr><td class="xls-td" colspan="4">Sin indicadores seleccionados en la vista personalizada.</td></tr>`
+}
 ${
   insightRows.length
     ? `<tr><td colspan="4" class="xls-section-title">Hallazgos automáticos</td></tr>
 ${insightRows.map((r) => `<tr><td class="xls-td"><strong>${reportsBiExcelEsc(r[0])}</strong></td><td class="xls-td" colspan="3">${reportsBiExcelEsc(r[1])}</td></tr>`).join("")}`
     : ""
 }
-<tr><td colspan="4" class="xls-section-title">Cumplimiento y conversión</td></tr>
+${
+  L.scores.sla || L.scores.assign
+    ? `<tr><td colspan="4" class="xls-section-title">Cumplimiento y conversión</td></tr>
 <tr>
-  <td class="xls-td"><strong>SLA</strong></td><td class="xls-td">${k.slaPct}%</td>
-  <td class="xls-td"><strong>Conversión a viaje</strong></td><td class="xls-td">${k.assignRate}% (${k.trips}/${k.requests})</td>
-</tr>
-<tr><td colspan="4" class="xls-section-title">Visualizaciones (gráficas + datos)</td></tr>
+  ${L.scores.sla ? `<td class="xls-td"><strong>SLA</strong></td><td class="xls-td">${k.slaPct}% (${slaOk}/${slaTotal})</td>` : "<td colspan=\"2\"></td>"}
+  ${L.scores.assign ? `<td class="xls-td"><strong>Conversión a viaje</strong></td><td class="xls-td">${k.assignRate}% (${k.trips}/${k.requests})</td>` : "<td colspan=\"2\"></td>"}
+</tr>`
+    : ""
+}
+${chartBlocks ? `<tr><td colspan="4" class="xls-section-title">Visualizaciones (gráficas + datos)</td></tr>` : ""}
 ${chartBlocks}
 <tr><td colspan="4" class="xls-meta">Exportado desde Antares · Mismos criterios que el panel BI · ${reportsBiExcelEsc(snapshot.periodLabel)}</td></tr>
 </table>
@@ -15227,28 +15644,30 @@ function downloadReportsBiExcel(filename, html) {
   URL.revokeObjectURL(url);
 }
 
-async function exportReportsBiToExcel(snapshot, root) {
+async function exportReportsBiToExcel(snapshot, root, layout) {
   if (!root) throw new Error("Panel BI no visible");
+  const L = normalizeReportsBiLayout(layout || loadReportsBiLayout());
   await loadChartJsLib();
   if (!state.reportsChartInstances?.length) {
-    wireReportsCharts(snapshot);
+    wireReportsCharts(snapshot, L);
   }
   await new Promise((resolve) => setTimeout(resolve, 560));
   const chartImages = reportsBiCaptureChartImages(root);
   const hasAnyChart = Object.values(chartImages).some((src) => String(src || "").startsWith("data:image"));
-  if (!hasAnyChart) {
+  if (!hasAnyChart && Object.values(L.charts).some(Boolean)) {
     notify(userMessage("reportBiExcelChartsPending"), "warn");
   }
   const stamp = new Date().toISOString().slice(0, 10);
   const period = String(snapshot.period || "90d");
-  const html = buildReportsBiExcelHtml(snapshot, chartImages);
+  const html = buildReportsBiExcelHtml(snapshot, chartImages, L);
   downloadReportsBiExcel(`analitica_operativa_${period}_${stamp}.xls`, html);
 }
 
-function wireReportsCharts(snapshot) {
+function wireReportsCharts(snapshot, layout) {
   destroyReportsCharts();
   const root = nodes.viewRoot?.querySelector(".reports-bi");
   if (!root || !window.Chart) return;
+  const L = normalizeReportsBiLayout(layout || loadReportsBiLayout());
   const Chart = window.Chart;
   const { text, muted, grid, font, copTooltip } = reportsBiChartTheme();
   const c = reportsBiChartColors();
@@ -15285,7 +15704,7 @@ function wireReportsCharts(snapshot) {
 
   const labels = snapshot.revenueLabels || snapshot.revenueMonths;
 
-  push("#reports-chart-revenue", {
+  if (L.charts.revenue) push("#reports-chart-revenue", {
     type: "bar",
     data: {
       labels,
@@ -15320,7 +15739,7 @@ function wireReportsCharts(snapshot) {
     }
   });
 
-  push("#reports-chart-weekly", {
+  if (L.charts.weekly) push("#reports-chart-weekly", {
     type: "line",
     data: {
       labels: snapshot.weekKeys.map((k, i) => `S${i + 1}`),
@@ -15340,7 +15759,7 @@ function wireReportsCharts(snapshot) {
     options: { ...baseOpts, plugins: { ...baseOpts.plugins, legend: { display: false } }, scales: scaleOpts }
   });
 
-  push("#reports-chart-status", {
+  if (L.charts.status) push("#reports-chart-status", {
     type: "doughnut",
     data: {
       labels: snapshot.statusChart.map((x) => x.label),
@@ -15349,7 +15768,7 @@ function wireReportsCharts(snapshot) {
     options: { ...baseOpts, cutout: "62%", plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font, boxWidth: 10 } } } }
   });
 
-  push("#reports-chart-thermoking", {
+  if (L.scores.thermoking) push("#reports-chart-thermoking", {
     type: "doughnut",
     data: {
       labels: ["Con Termoking", "Carga seca"],
@@ -15369,11 +15788,11 @@ function wireReportsCharts(snapshot) {
     });
   };
 
-  hBar("#reports-chart-clients", snapshot.topClients, "COP", barPrimary);
-  hBar("#reports-chart-routes", snapshot.topRoutes, "Viajes", barDeep);
-  hBar("#reports-chart-drivers", snapshot.topDrivers, "Viajes", barSuccess);
+  if (L.charts.clients) hBar("#reports-chart-clients", snapshot.topClients, "COP", barPrimary);
+  if (L.charts.routes) hBar("#reports-chart-routes", snapshot.topRoutes, "Viajes", barDeep);
+  if (L.charts.drivers) hBar("#reports-chart-drivers", snapshot.topDrivers, "Viajes", barSuccess);
 
-  push("#reports-chart-funnel", {
+  if (L.charts.funnel) push("#reports-chart-funnel", {
     type: "bar",
     data: {
       labels: snapshot.funnel.map((x) => x.label),
@@ -15422,16 +15841,35 @@ function bindReportsWorkspaceControls() {
     renderPortalView();
   });
 
+  const applyBiLayout = (layout, notifyUser = true) => {
+    persistReportsBiLayout(layout);
+    destroyReportsCharts();
+    renderPortalView();
+    if (notifyUser) notify(userMessage("reportBiLayoutSaved"), "success");
+  };
+
+  root.querySelector("[data-action='reports-bi-layout-apply']")?.addEventListener("click", () => {
+    applyBiLayout(reportsBiLayoutFromPanel(root));
+  });
+
+  root.querySelectorAll("[data-action='reports-bi-layout-preset']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const preset = String(btn.dataset.preset || "all");
+      applyBiLayout(reportsBiLayoutPreset(preset));
+    });
+  });
+
   root.querySelector("[data-action='reports-bi-export-excel']")?.addEventListener("click", async () => {
     const user = currentUser();
-    if (!canAccessReport(user, "executive_control_tower")) {
+    if (!user || !isViewAllowedForUser(user, "reports")) {
       notify(userMessage("reportNoPermission"), "error");
       return;
     }
     const biRoot = root.querySelector(".reports-bi");
+    const layout = loadReportsBiLayout();
     const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
     try {
-      await exportReportsBiToExcel(snapshot, biRoot);
+      await exportReportsBiToExcel(snapshot, biRoot, layout);
       notify(userMessage("reportBiExcelExported"), "success");
     } catch (_e) {
       notify(userMessage("reportBiExcelError"), "error");
@@ -15441,9 +15879,10 @@ function bindReportsWorkspaceControls() {
   if (String(state.reportsUi?.tab || "export") !== "bi") return;
 
   const user = currentUser();
+  const layout = loadReportsBiLayout();
   const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
   loadChartJsLib()
-    .then(() => wireReportsCharts(snapshot))
+    .then(() => wireReportsCharts(snapshot, layout))
     .catch(() => {
       const foot = root.querySelector(".reports-bi-foot");
       if (foot) foot.textContent = "No se pudieron cargar las gráficas. Verifique su conexión o recargue la página.";
@@ -15511,7 +15950,9 @@ function reportsExportPanelHtml(user) {
 
 function reportsHtml() {
   const user = currentUser();
-  if (!state.reportsUi || typeof state.reportsUi !== "object") state.reportsUi = { tab: "export", period: "90d" };
+  if (!state.reportsUi || typeof state.reportsUi !== "object") state.reportsUi = { tab: "export", period: "90d", layout: null };
+  const biLayout = loadReportsBiLayout();
+  state.reportsUi = { ...state.reportsUi, layout: biLayout };
   const tab = String(state.reportsUi.tab || "export");
   const cards = [
     { id: "executive_control_tower" },
@@ -15550,7 +15991,7 @@ function reportsHtml() {
       ${pcardWrap("file", "Catálogo de reportes", "Descargue PDF o Excel (CSV) por área de negocio", reportsExportPanelHtml(user))}
     </div>
     <div class="reports-workspace-panel${biActive ? "" : " hidden"}" data-reports-panel="bi" role="tabpanel"${biActive ? "" : " hidden"}>
-      ${reportsAnalyticsPanelHtml(snapshot)}
+      ${reportsAnalyticsPanelHtml(snapshot, biLayout)}
     </div>
   </div>`;
   return reportsHero + workspace;
@@ -22767,9 +23208,8 @@ function bindDynamicEvents() {
         notify(userMessage("fuelInvalidAmounts"), "error");
         return;
       }
-      const list = readFuelLogs();
-      list.unshift(
-        normalizeFuelLogPortalRow({
+      try {
+        await appendFuelLogAwait({
           id: newUuidV4(),
           date: data.date || nowIso().slice(0, 10),
           vehicleId: vehicle.id,
@@ -22785,10 +23225,7 @@ function bindDynamicEvents() {
           station: String(data.station || "").trim(),
           paidBy: String(data.paidBy || "empresa"),
           createdAt: nowIso()
-        })
-      );
-      try {
-        await writeFuelLogsAwait(list);
+        });
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar el combustible en el servidor."), "error");
         return;
@@ -22815,9 +23252,8 @@ function bindDynamicEvents() {
         notify("Indique una descripción de la novedad de taller.", "error");
         return;
       }
-      const list = readVehicleTechnicalLogs();
-      list.unshift(
-        normalizeVehicleTechnicalLogPortalRow({
+      try {
+        await appendVehicleTechnicalLogAwait({
           id: newUuidV4(),
           date: data.date || nowIso().slice(0, 10),
           vehicleId: vehicle.id,
@@ -22831,10 +23267,7 @@ function bindDynamicEvents() {
           followUpStatus: String(data.status || "Pendiente"),
           status: String(data.status || "Pendiente"),
           createdAt: nowIso()
-        })
-      );
-      try {
-        await writeVehicleTechnicalLogsAwait(list);
+        });
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar el mantenimiento en el servidor."), "error");
         return;
@@ -23377,7 +23810,7 @@ function bindDynamicEvents() {
       const monthlyDriver = linkedDriver ? calculateDriverTripReport(linkedDriver.id, data.month) : null;
       const autoTravelAllowance = monthlyDriver ? monthlyDriver.viaticTotal : 0;
       const autoFuelReimbursement = linkedDriver
-        ? read(KEYS.fuelLogs, [])
+        ? readFuelLogs()
             .filter((log) => String(log.driverId || "") === String(linkedDriver.id) && String(log.paidBy || "empresa") === "conductor" && dateInRange(log.date, monthRange(data.month)))
             .reduce((acc, log) => acc + parseNum(log.totalCost), 0)
         : 0;

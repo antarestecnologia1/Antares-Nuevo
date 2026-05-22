@@ -180,11 +180,26 @@
     await flush(entity, data);
   }
 
+  /** Envía un payload explícito (p. ej. filas ya mapeadas para PostgreSQL) sin leer de memoria. */
+  async function flushEntityNow(entity, data) {
+    if (bootstrapDepth > 0) return;
+    if (!entity || data === undefined || data === null) return;
+    const storageKey = Object.keys(STORAGE_TO_ENTITY).find((k) => STORAGE_TO_ENTITY[k] === entity);
+    if (storageKey) {
+      clearTimeout(timers[storageKey]);
+      delete timers[storageKey];
+      delete pending[storageKey];
+      scheduleGeneration[storageKey] = (scheduleGeneration[storageKey] || 0) + 1;
+    }
+    await flush(entity, data);
+  }
+
   window.AntaresPortalSync = {
     schedule,
     STORAGE_TO_ENTITY,
     EXCLUDED_STORAGE_KEYS,
     flushStorageKeyNow,
+    flushEntityNow,
     beginBootstrap() {
       bootstrapDepth += 1;
     },

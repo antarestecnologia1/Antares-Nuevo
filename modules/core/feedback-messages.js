@@ -131,6 +131,7 @@
     reportBiExcelExported: "Analítica exportada a Excel con gráficas y estilo corporativo.",
     reportBiExcelChartsPending: "Espere a que carguen las gráficas y vuelva a exportar.",
     reportBiExcelError: "No se pudo generar el Excel de analítica. Intente actualizar el panel.",
+    reportBiLayoutSaved: "Vista de analítica actualizada según su selección.",
     reportPdfOk: "Reporte PDF generado correctamente.",
     requestRejected: "Solicitud rechazada correctamente.",
     requestScheduleInvalid: "La fecha de entrega debe ser posterior a la de recogida.",

@@ -19,6 +19,8 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 13. `postgres/13_usuarios_nit_empresa.sql` — `nit_empresa_registro` e índice de documento personal
 14. `postgres/14_contacto_web_b2b.sql` — prospectos B2B (si aplica)
 15. `postgres/15_usuario_aprobacion_admin.sql` — `fecha_aprobacion_cuenta`, `cuenta_aprobada_por` (auditoría al aprobar registro; usado por `POST /api/portal/approve-pending-user` con cuerpo `userId`, `companyId`, `role` — el rol persiste en `usuarios.rol` y se regeneran filas en `permisos_usuario` según el rol)
+16. `postgres/38_registros_flota_constraints.sql` — CHECK `pagado_por` y `tipo_intervencion` (portal Historial flota)
+17. `postgres/39_registros_flota_usuario_registro.sql` — columna `id_usuario_registro` en combustible y taller (auditoría de quién registró)
 
 **Manual de despliegue (Word):** generar con `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 
@@ -39,8 +41,8 @@ En despliegue con Supabase, la base de datos es la fuente de verdad; `localStora
 | Tarifas por trayecto | `tarifas_trayecto` | `tripRouteRates` |
 | Solicitudes de viaje | `solicitudes_transporte` | `requests` |
 | Viajes asignados | `viajes_transporte` | (objeto `trip` dentro de `requests`) |
-| Combustible | `registros_combustible` | `fuelLogs` |
-| Mantenimiento flota | `registros_mantenimiento_vehiculo` | `vehicleTechnicalLogs` |
+| Combustible | `registros_combustible` | `fuelLogs` — alta: `POST /api/portal/fleet/fuel-logs`; sync: `fuelLogs` |
+| Mantenimiento flota | `registros_mantenimiento_vehiculo` | `vehicleTechnicalLogs` — alta: `POST /api/portal/fleet/maintenance-logs`; sync: `vehicleTechnicalLogs` |
 | Cargos | `cargos` | `positions` |
 | Vacantes | `vacantes` | `vacancies` |
 | Candidatos | `candidatos` | `candidates` |

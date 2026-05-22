@@ -11370,9 +11370,15 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
 }
 
-.history-fleet-live-hint {
+.history-fleet-live-hint,
+.history-fleet-sync-hint {
   margin: 0.35rem 0 0;
   font-size: 0.82rem;
+}
+
+.history-fleet-sync-hint strong {
+  font-weight: 700;
+  color: #0f3f75;
 }
 
 .history-fleet-create-form {
@@ -11789,6 +11795,99 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--primary-dark);
+}
+
+.reports-bi-customizer {
+  margin: 0 1rem 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--white);
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.06);
+}
+
+.reports-bi-customizer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.reports-bi-customizer-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reports-bi-customizer-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-soft);
+  max-width: 28rem;
+}
+
+.reports-bi-customizer-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.reports-bi-customizer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.65rem;
+}
+
+.reports-bi-customizer-group {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--primary-rgb), 0.03);
+}
+
+.reports-bi-customizer-group--wide {
+  grid-column: span 2;
+}
+
+.reports-bi-customizer-group legend {
+  padding: 0 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary-dark);
+}
+
+.reports-bi-customizer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text);
+  margin-top: 0.35rem;
+  cursor: pointer;
+}
+
+.reports-bi-customizer-item input {
+  accent-color: var(--primary);
+}
+
+@media (max-width: 720px) {
+  .reports-bi-customizer-group--wide {
+    grid-column: span 1;
+  }
+}
+
+body[data-theme="dark"] .reports-bi-customizer,
+body[data-theme="dark"] .reports-bi-customizer-group {
+  background: rgba(15, 28, 46, 0.55);
 }
 
 .reports-bi-insights {

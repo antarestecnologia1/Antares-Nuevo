@@ -95,6 +95,18 @@ export class PortalController {
     return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role);
   }
 
+  /** Historial flota: alta en registros_combustible (PostgreSQL). */
+  @Post("fleet/fuel-logs")
+  createFleetFuelLog(@Req() req: { user: ReqUser }, @Body() body: Record<string, unknown>) {
+    return this.portal.createFleetFuelLog(req.user.userId, req.user.role, body);
+  }
+
+  /** Historial flota: alta en registros_mantenimiento_vehiculo (PostgreSQL). */
+  @Post("fleet/maintenance-logs")
+  createFleetMaintenanceLog(@Req() req: { user: ReqUser }, @Body() body: Record<string, unknown>) {
+    return this.portal.createFleetMaintenanceLog(req.user.userId, req.user.role, body);
+  }
+
   /**
    * Una sola consulta: vehículos y conductores con viaje activo que se cruza con la franja indicada.
    * Para marcar «ocupado» en asignación sin recorrer toda la flota en el cliente.
