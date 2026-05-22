@@ -4375,7 +4375,7 @@ export class PortalService implements OnModuleInit {
       if (t === 0) {
         this.logger.warn(
           "empleados_nomina: sin columnas de condición médica (migr. 19). " +
-            "Ejecute BD/postgres/05_rrhh.sql (instalación nueva) o BD/postgres/migrations/19_empleados_condicion_medica.sql. " +
+            "Ejecute npm run db:init o BD/postgres/migrations/19_empleados_condicion_medica.sql. " +
             "Hasta entonces ese dato solo quedará persistido en el navegador."
         );
       }
@@ -4774,8 +4774,8 @@ export class PortalService implements OnModuleInit {
         this.logger.warn(
           `liquidaciones_nomina: esquema nivel ${t}. ` +
             (t === 0
-              ? "Ejecute BD/postgres/05_rrhh.sql (nuevo) o migrations/20_liquidaciones_nomina_prima_terminacion.sql y 21_liquidaciones_intereses_cesantias.sql."
-              : "Falta migrations/21_liquidaciones_intereses_cesantias.sql o esquema 05_rrhh unificado.") +
+              ? "Ejecute npm run db:init o migrations/20_liquidaciones_nomina_prima_terminacion.sql y 21_liquidaciones_intereses_cesantias.sql."
+              : "Falta migrations/21_liquidaciones_intereses_cesantias.sql o npm run db:init.") +
             " Hasta entonces algunos rubros solo quedarán persistidos en el navegador."
         );
       }
@@ -4811,7 +4811,7 @@ export class PortalService implements OnModuleInit {
       this.payrollLiquNovedadesCols = ok;
       if (!ok) {
         this.logger.warn(
-          "liquidaciones_nomina: ejecute 05_rrhh.sql (nuevo) o migrations/22_liquidaciones_nomina_automatica.sql para origen y novedades JSON."
+          "liquidaciones_nomina: ejecute npm run db:init o migrations/22_liquidaciones_nomina_automatica.sql para origen y novedades JSON."
         );
       }
       return ok;

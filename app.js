@@ -15608,8 +15608,8 @@ const REPORTS_BI_BRAND = Object.freeze({
   primary: "#377cc0",
   primaryDeep: "#2a6399",
   primaryDeeper: "#1e4a73",
-  accent: "#83bee9",
-  soft: "#cce5f8",
+  accent: "#5a94c8",
+  soft: "#dceaf7",
   success: "#1b8e5f",
   warning: "#d97706",
   danger: "#d62828",
@@ -15617,12 +15617,13 @@ const REPORTS_BI_BRAND = Object.freeze({
   text: "#0b2138",
   muted: "#64748b",
   line: "#b8d4eb",
+  onPrimary: "#f0f7ff",
   white: "#ffffff"
 });
 
 function reportsBiBrandPalette() {
   const b = REPORTS_BI_BRAND;
-  return [b.primary, b.primaryDeep, b.accent, b.success, b.warning, "#4a7fb8", "#6a9fc9", b.neutral];
+  return [b.primaryDeep, b.primary, b.primaryDeeper, b.success, b.warning, "#356fa8", "#4a7fb8", b.neutral];
 }
 
 function reportsBiChartColors() {
@@ -15637,12 +15638,12 @@ function reportsBiChartColors() {
     warning: dark ? "#f5b84a" : b.warning,
     neutral: dark ? "#64748b" : b.neutral,
     palette: reportsBiBrandPalette(),
-    barPrimary: dark ? "rgba(55, 124, 192, 0.78)" : "rgba(55, 124, 192, 0.9)",
-    barDeep: dark ? "rgba(42, 99, 153, 0.78)" : "rgba(42, 99, 153, 0.9)",
-    barSuccess: dark ? "rgba(27, 142, 95, 0.78)" : "rgba(27, 142, 95, 0.9)",
-    fillPrimary: dark ? "rgba(55, 124, 192, 0.14)" : "rgba(55, 124, 192, 0.1)",
+    barPrimary: dark ? "rgba(42, 99, 153, 0.88)" : "rgba(42, 99, 153, 0.92)",
+    barDeep: dark ? "rgba(30, 74, 115, 0.88)" : "rgba(30, 74, 115, 0.92)",
+    barSuccess: dark ? "rgba(27, 142, 95, 0.82)" : "rgba(27, 142, 95, 0.9)",
+    fillPrimary: dark ? "rgba(42, 99, 153, 0.2)" : "rgba(42, 99, 153, 0.14)",
     fillSuccess: dark ? "rgba(27, 142, 95, 0.16)" : "rgba(27, 142, 95, 0.12)",
-    funnel: [b.primaryDeep, b.primary, b.accent, b.success, "#4a7fb8"]
+    funnel: [b.primaryDeeper, b.primaryDeep, b.primary, b.success, "#356fa8"]
   };
 }
 
@@ -15838,17 +15839,17 @@ function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Analitica</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
 body{font-family:Montserrat,Arial,sans-serif;color:${b.text};font-size:11pt}
-.xls-banner{background:${b.primaryDeeper};color:#fff;font-size:18pt;font-weight:700;padding:14px 16px}
-.xls-subbanner{background:${b.primary};color:#fff;font-size:10pt;padding:8px 16px}
+.xls-banner{background:${b.primaryDeeper};color:${b.onPrimary};font-size:18pt;font-weight:700;padding:14px 16px}
+.xls-subbanner{background:${b.primaryDeep};color:${b.onPrimary};font-size:10pt;padding:8px 16px}
 .xls-meta{color:${b.muted};font-size:9pt;padding:10px 16px;border-bottom:2px solid ${b.line}}
 .xls-section{padding:12px 8px;vertical-align:top;border-bottom:1px solid ${b.line}}
-.xls-section-title{background:${b.soft};color:${b.primaryDeeper};font-size:11pt;font-weight:700;padding:8px 12px;border-left:4px solid ${b.primary}}
+.xls-section-title{background:${b.soft};color:${b.primaryDeeper};font-size:11pt;font-weight:700;padding:8px 12px;border-left:4px solid ${b.primaryDeep}}
 .xls-chart-title{margin:0 0 4px;color:${b.primaryDeep};font-size:12pt;font-weight:700}
 .xls-muted{margin:0 0 6px;color:${b.muted};font-size:9pt}
 .xls-table{width:100%;border-collapse:collapse;margin-top:8px}
-.xls-th{background:${b.primary};color:#fff;font-size:9pt;font-weight:700;padding:7px 8px;text-align:left;border:1px solid ${b.primaryDeep}}
+.xls-th{background:${b.primaryDeep};color:${b.onPrimary};font-size:9pt;font-weight:700;padding:7px 8px;text-align:left;border:1px solid ${b.primaryDeeper}}
 .xls-td{font-size:9pt;padding:6px 8px;border:1px solid ${b.line};vertical-align:top}
-.xls-kpi-primary{background:${b.primary};color:#fff;font-weight:700}
+.xls-kpi-primary{background:${b.primaryDeeper};color:${b.onPrimary};font-weight:700}
 .xls-kpi-warn{background:rgba(217,119,6,0.12);color:${b.text}}
 .xls-stat strong{color:${b.primaryDeep};font-size:14pt}
 </style>
@@ -15936,7 +15937,7 @@ function wireReportsCharts(snapshot, layout) {
   const Chart = window.Chart;
   const { text, muted, grid, font, copTooltip } = reportsBiChartTheme();
   const c = reportsBiChartColors();
-  const { primary, success, palette, barPrimary, barDeep, barSuccess, fillPrimary, fillSuccess, funnel } = c;
+  const { primary, primaryDeep, success, palette, barPrimary, barDeep, barSuccess, fillPrimary, fillSuccess, funnel } = c;
   const tooltipBg = c.dark ? "rgba(15, 28, 46, 0.96)" : "rgba(255, 255, 255, 0.98)";
   const tooltipBorder = c.dark ? "rgba(131, 190, 233, 0.35)" : "rgba(55, 124, 192, 0.35)";
   const baseOpts = {
@@ -15979,6 +15980,7 @@ function wireReportsCharts(snapshot, layout) {
           label: "Recaudo COP",
           data: snapshot.revenueSeries,
           backgroundColor: barPrimary,
+          borderColor: barPrimary,
           borderRadius: 6,
           yAxisID: "y"
         },
@@ -16012,12 +16014,13 @@ function wireReportsCharts(snapshot, layout) {
         {
           label: "Viajes / semana",
           data: snapshot.weekSeries,
-          borderColor: primary,
+          borderColor: primaryDeep,
           backgroundColor: fillPrimary,
           fill: true,
           tension: 0.4,
           pointRadius: 4,
-          pointHoverRadius: 6
+          pointHoverRadius: 6,
+          pointBackgroundColor: primaryDeep
         }
       ]
     },
@@ -16028,7 +16031,13 @@ function wireReportsCharts(snapshot, layout) {
     type: "doughnut",
     data: {
       labels: snapshot.statusChart.map((x) => x.label),
-      datasets: [{ data: snapshot.statusChart.map((x) => x.value), backgroundColor: palette, borderWidth: 0, hoverOffset: 6 }]
+      datasets: [{
+        data: snapshot.statusChart.map((x) => x.value),
+        backgroundColor: palette,
+        borderColor: c.dark ? "rgba(15, 28, 46, 0.9)" : "#ffffff",
+        borderWidth: 2,
+        hoverOffset: 6
+      }]
     },
     options: { ...baseOpts, cutout: "62%", plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font, boxWidth: 10 } } } }
   });
@@ -16037,7 +16046,12 @@ function wireReportsCharts(snapshot, layout) {
     type: "doughnut",
     data: {
       labels: ["Con Termoking", "Carga seca"],
-      datasets: [{ data: [snapshot.thermoking.yes, snapshot.thermoking.no], backgroundColor: [primary, c.neutral], borderWidth: 0 }]
+      datasets: [{
+        data: [snapshot.thermoking.yes, snapshot.thermoking.no],
+        backgroundColor: [c.primaryDeep, c.neutral],
+        borderColor: c.dark ? "rgba(15, 28, 46, 0.9)" : "#ffffff",
+        borderWidth: 2
+      }]
     },
     options: { ...baseOpts, cutout: "65%", plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font } } } }
   });

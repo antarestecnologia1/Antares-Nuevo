@@ -613,7 +613,7 @@ def main():
     add_bullets(
         doc,
         [
-            f"Núcleo: `01_extensions` … `07_indices` — enums, empresas, usuarios, transporte, RRHH, sistema.",
+            f"Núcleo: `01_extensions`, `02_enums`, `tablas/` (30 tablas), `08`–`10` — enums, DDL y RLS.",
             f"Evolución: {max(0, n_sql - 7)} migraciones incrementales (08–36+) — tarifas, RLS, nómina automática, B2B, SST.",
             "Índices de rendimiento: cobertura pública solicitudes, solape horarios viajes.",
             "Auditoría: `25_transporte_auditoria_eliminados` y soft-delete operativo en API.",

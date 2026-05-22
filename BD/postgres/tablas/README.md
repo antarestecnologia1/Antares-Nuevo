@@ -52,12 +52,4 @@ Automático: `npm run db:init` o `npm run db:init:supabase` (usa `apps/api/scrip
 
 ## Mantenimiento
 
-Tras editar un módulo agregado (`03`–`06` en `postgres/`), regenerar desde la fuente:
-
-```bash
-node BD/postgres/tablas/generar-desde-modulos.mjs
-```
-
-O editar directamente el `.sql` de la tabla en esta carpeta (recomendado).
-
-Los archivos `03_nucleo_*.sql`, `04_transporte.sql`, etc. en el directorio padre quedan como **referencia agrupada**; el despliegue usa `tablas/`.
+Editar directamente el `.sql` de la tabla en esta carpeta. El despliegue (`npm run db:init`) lee `orden_ejecucion.txt`.

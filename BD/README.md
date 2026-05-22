@@ -20,8 +20,6 @@ No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas que
 5. `postgres/09_rls_tablas.sql` — RLS (Supabase)
 6. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
 
-Los archivos `03`–`07` agrupan el mismo DDL por módulo (referencia); el despliegue usa `tablas/`.
-
 ### Comandos (raíz del monorepo)
 
 | Comando | Cuándo |

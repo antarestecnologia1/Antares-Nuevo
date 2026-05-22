@@ -11,3 +11,13 @@ coverage
 /apps/web/.env
 # Artefactos generados documentación
 /docs/_diagramas_antares_build/
+/docs/_tmp_fig/
+docs/__pycache__/
+**/__pycache__/
+*.pyc
+*.tsbuildinfo
+.wrangler/
+
+# Parches / pruebas puntuales
+test.txt
+_patch_company_card.py
