@@ -1,5 +1,5 @@
--- Índices (nombres en español) para consultas frecuentes del portal
--- CREATE — índices (incluye antes migrations/09, 13, 14, 17, 30, 35, 38).
+-- Índices globales (opcional si ya aplicó tablas/*.sql — cada tabla incluye sus índices).
+-- Instalación nueva vía tablas/: este archivo es redundante salvo re-ejecución idempotente.
 
 CREATE INDEX idx_usuarios_id_empresa ON usuarios (id_empresa);
 CREATE INDEX idx_usuarios_correo_lower ON usuarios (lower(correo_electronico));

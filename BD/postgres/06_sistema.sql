@@ -1,4 +1,4 @@
--- Módulo: Sistema — Notificaciones, correo, contactos B2B, contadores, autorizaciones, sesiones, preferencias
+-- Módulo: Sistema (agrupado). Instalación nueva: BD/postgres/tablas/22_notificaciones … 28_preferencias_*.sql
 
 CREATE TABLE notificaciones (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),

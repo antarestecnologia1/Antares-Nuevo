@@ -1,5 +1,4 @@
--- Módulo: RRHH — Cargos, vacantes, candidatos, entrevistas, contratos, nómina, ausencias, SST
--- CREATE — instalación nueva. RRHH/nómina completo (antes migrations/19–23, 31, 33–34).
+-- Módulo: RRHH (agrupado). Instalación nueva: BD/postgres/tablas/04_cargos … 21_registros_cumplimiento_sst.sql
 
 CREATE TABLE cargos (
   id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),

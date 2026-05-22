@@ -1,5 +1,4 @@
--- Módulo: Transporte — Flota, conductores, solicitudes, viajes, combustible, mantenimiento técnico
--- CREATE — instalación nueva. Transporte completo (antes migrations/24–38, 09_tarifas, 25 auditoría).
+-- Módulo: Transporte (agrupado). Instalación nueva: BD/postgres/tablas/05_vehiculos … 30_auditoria_*.sql
 
 CREATE TABLE vehiculos (
   id                                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),

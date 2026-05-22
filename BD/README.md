@@ -6,7 +6,7 @@ Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas 
 
 | Capa | Ubicación | Uso |
 |------|-----------|-----|
-| **Creación (esquema completo)** | `postgres/01` … `postgres/10` | Instalación nueva o base vacía |
+| **Creación (esquema completo)** | `postgres/01`, `02`, **`postgres/tablas/`** (30 tablas), `08`–`10` | Instalación nueva o base vacía |
 | **Migraciones legacy (ALTER)** | `postgres/migrations/` | Solo bases ya desplegadas sin el esquema unificado |
 
 No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas quedan con todos los campos actuales.
@@ -15,14 +15,12 @@ No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas que
 
 1. `postgres/01_extensions.sql`
 2. `postgres/02_enums.sql`
-3. `postgres/03_nucleo_empresa_usuarios.sql`
-4. `postgres/04_transporte.sql`
-5. `postgres/05_rrhh.sql`
-6. `postgres/06_sistema.sql`
-7. `postgres/07_indices.sql`
-8. `postgres/08_seed_tarifas_trayecto.sql` — sin datos de prueba
-9. `postgres/09_rls_tablas.sql` — RLS (Supabase)
-10. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
+3. `postgres/tablas/` — **un `.sql` por tabla** (orden en `tablas/orden_ejecucion.txt` y `tablas/README.md`)
+4. `postgres/08_seed_tarifas_trayecto.sql` — sin datos de prueba
+5. `postgres/09_rls_tablas.sql` — RLS (Supabase)
+6. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
+
+Los archivos `03`–`07` agrupan el mismo DDL por módulo (referencia); el despliegue usa `tablas/`.
 
 ### Comandos (raíz del monorepo)
 

@@ -1,5 +1,5 @@
 -- Módulo: Núcleo — Empresas, usuarios del portal, permisos, parámetros y reglas de viáticos
--- CREATE — instalación nueva (01–10). Campos antes en migrations/11–20 empresas, 11–16 usuarios.
+-- Instalación nueva: preferir BD/postgres/tablas/ (un archivo por tabla). Este archivo agrupa el mismo contenido.
 
 CREATE TABLE empresas (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

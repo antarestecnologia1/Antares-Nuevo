@@ -96,18 +96,58 @@ function extractCreateAndComments(sql, table) {
     }
   }
   let out = sql.slice(i, j).trim();
-  const rest = sql.slice(j);
-  const patterns = [
-    new RegExp(`COMMENT ON TABLE ${table}[^;]*;`, "gi"),
-    new RegExp(`COMMENT ON COLUMN ${table}\\.[^;]*;`, "gi"),
-    new RegExp(`COMMENT ON CONSTRAINT [^;]* ON ${table}[^;]*;`, "gi")
-  ];
-  for (const re of patterns) {
-    for (const m of rest.matchAll(re)) {
-      out += `\n\n${m[0]}`;
-    }
+  for (const comment of extractCommentsForTable(sql, table)) {
+    out += `\n\n${comment}`;
   }
   return out;
+}
+
+/** COMMENT ON … IS '…'; (soporta comillas y punto y coma dentro del literal). */
+function extractCommentsForTable(sql, table) {
+  const results = [];
+  const prefixes = [
+    `COMMENT ON TABLE ${table} `,
+    `COMMENT ON COLUMN ${table}.`,
+    `COMMENT ON CONSTRAINT `
+  ];
+  let pos = 0;
+  while (pos < sql.length) {
+    const idx = sql.indexOf("COMMENT ON ", pos);
+    if (idx < 0) break;
+    const head = sql.slice(idx, idx + 200);
+    const isTableComment =
+      head.startsWith(`COMMENT ON TABLE ${table} `) ||
+      head.startsWith(`COMMENT ON COLUMN ${table}.`) ||
+      (head.startsWith("COMMENT ON CONSTRAINT ") && head.includes(` ON ${table} `));
+    if (!isTableComment) {
+      pos = idx + 11;
+      continue;
+    }
+    const isPos = sql.indexOf(" IS '", idx);
+    if (isPos < 0) {
+      pos = idx + 11;
+      continue;
+    }
+    let j = isPos + 5;
+    while (j < sql.length) {
+      if (sql[j] === "'" && sql[j + 1] === "'") {
+        j += 2;
+        continue;
+      }
+      if (sql[j] === "'") {
+        j++;
+        if (sql[j] === ";") {
+          j++;
+          break;
+        }
+      } else {
+        j++;
+      }
+    }
+    results.push(sql.slice(idx, j).trim());
+    pos = j;
+  }
+  return results;
 }
 
 const map = {
@@ -157,6 +197,7 @@ for (const file of orden) {
       path.join(__dirname, file),
       `-- Función auxiliar (trigger opcional en tablas con fecha_actualizacion)\n\n${fn}\n`
     );
+    console.log("OK", file);
     continue;
   }
   const table = file.replace(/^\d+_/, "").replace(/\.sql$/, "");

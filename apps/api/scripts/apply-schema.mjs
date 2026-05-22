@@ -2,13 +2,12 @@
  * Aplica el esquema Antares en PostgreSQL.
  *
  * Uso (desde la raíz del repo, con DATABASE_URL en apps/api/.env o entorno):
- *   node apps/api/scripts/apply-schema.mjs              → CREATE 01–08 (Postgres vacío)
- *   node apps/api/scripts/apply-schema.mjs --supabase     → CREATE 01–10 (producción Supabase)
+ *   node apps/api/scripts/apply-schema.mjs              → CREATE (01, 02, 30 tablas, 08)
+ *   node apps/api/scripts/apply-schema.mjs --supabase     → + 09 RLS tablas, 10 RLS storage
  *   node apps/api/scripts/apply-schema.mjs --migrations   → solo migrations/ (BD existente)
- *   node apps/api/scripts/apply-schema.mjs --supabase --migrations  → CREATE + legacy (raro)
  *
- * --skip-storage  Omite 10_rls_storage_supabase.sql (ejecutar tras crear buckets en el panel).
- * --force         Ejecuta CREATE aunque ya exista la tabla empresas (fallará si hay conflicto).
+ * --skip-storage  Omite 10_rls_storage_supabase.sql (ejecutar tras crear buckets).
+ * --force         Ejecuta CREATE aunque ya exista empresas (solo BD vacía de prueba).
  */
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -19,18 +18,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const API_ROOT = path.join(__dirname, "..");
 const REPO_ROOT = path.join(__dirname, "..", "..", "..");
 const POSTGRES_DIR = path.join(REPO_ROOT, "BD", "postgres");
+const TABLAS_DIR = path.join(POSTGRES_DIR, "tablas");
 const MIGRATIONS_DIR = path.join(POSTGRES_DIR, "migrations");
-
-const CREATE_CORE = [
-  "01_extensions.sql",
-  "02_enums.sql",
-  "03_nucleo_empresa_usuarios.sql",
-  "04_transporte.sql",
-  "05_rrhh.sql",
-  "06_sistema.sql",
-  "07_indices.sql",
-  "08_seed_tarifas_trayecto.sql"
-];
 
 const CREATE_SUPABASE = ["09_rls_tablas.sql", "10_rls_storage_supabase.sql"];
 
@@ -41,6 +30,26 @@ const skipStorage = args.has("--skip-storage");
 const force = args.has("--force");
 const runCreate = !withMigrations || args.has("--create");
 const runMigrations = withMigrations;
+
+function loadTableScripts() {
+  const ordenPath = path.join(TABLAS_DIR, "orden_ejecucion.txt");
+  if (!existsSync(ordenPath)) {
+    throw new Error("Falta BD/postgres/tablas/orden_ejecucion.txt");
+  }
+  return readFileSync(ordenPath, "utf8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+}
+
+function buildCreatePlan() {
+  const plan = ["01_extensions.sql", "02_enums.sql"];
+  for (const f of loadTableScripts()) {
+    plan.push(path.join("tablas", f));
+  }
+  plan.push("08_seed_tarifas_trayecto.sql");
+  return plan;
+}
 
 function loadEnvFile() {
   const envPath = path.join(API_ROOT, ".env");
@@ -101,56 +110,44 @@ async function main() {
       const hasSchema = await tableExists(pool, "empresas");
       if (hasSchema && !force) {
         console.warn(
-          "[apply-schema] La tabla empresas ya existe. CREATE omitido (use --force solo en BD vacía de prueba, o --migrations para actualizar)."
+          "[apply-schema] La tabla empresas ya existe. CREATE omitido (use --migrations o autocura API al arrancar)."
         );
       } else {
-        for (const name of CREATE_CORE) {
-          const fp = path.join(POSTGRES_DIR, name);
+        for (const rel of buildCreatePlan()) {
+          const fp = path.join(POSTGRES_DIR, rel);
           if (!existsSync(fp)) throw new Error(`No encontrado: ${fp}`);
-          await runSqlFile(pool, fp, name);
+          await runSqlFile(pool, fp, rel.replace(/\\/g, "/"));
         }
         if (withSupabase) {
           const supa = skipStorage ? CREATE_SUPABASE.slice(0, 1) : CREATE_SUPABASE;
           for (const name of supa) {
-            const fp = path.join(POSTGRES_DIR, name);
-            if (!existsSync(fp)) throw new Error(`No encontrado: ${fp}`);
-            await runSqlFile(pool, fp, name);
+            await runSqlFile(pool, path.join(POSTGRES_DIR, name), name);
           }
           if (skipStorage) {
-            console.warn("[apply-schema] Omitido 10_rls_storage_supabase.sql — créelo tras los buckets.");
+            console.warn("[apply-schema] Omitido 10_rls_storage — créelo tras los buckets.");
           }
         }
       }
     }
 
     if (runMigrations) {
-      const files = listMigrationFiles();
-      if (!files.length) {
-        console.warn("[apply-schema] No hay archivos en migrations/");
-      }
-      for (const name of files) {
+      for (const name of listMigrationFiles()) {
         await runSqlFile(pool, path.join(MIGRATIONS_DIR, name), `migrations/${name}`);
       }
     }
 
-    const checks = [
-      "empresas",
-      "usuarios",
-      "vehiculos",
-      "solicitudes_transporte",
-      "liquidaciones_nomina",
-      "preferencias_notificacion_usuario",
-      "auditoria_viajes_eliminados"
-    ];
+    const expectedTables = loadTableScripts()
+      .filter((f) => f.endsWith(".sql") && !f.includes("funciones"))
+      .map((f) => f.replace(/^\d+_/, "").replace(/\.sql$/, ""));
     const missing = [];
-    for (const t of checks) {
+    for (const t of expectedTables) {
       if (!(await tableExists(pool, t))) missing.push(t);
     }
     if (missing.length) {
-      console.error(`[apply-schema] Faltan tablas: ${missing.join(", ")}`);
+      console.error(`[apply-schema] Faltan tablas (${missing.length}): ${missing.join(", ")}`);
       process.exit(1);
     }
-    console.log("[apply-schema] OK — esquema verificado.");
+    console.log(`[apply-schema] OK — ${expectedTables.length} tablas verificadas.`);
   } finally {
     await pool.end();
   }
