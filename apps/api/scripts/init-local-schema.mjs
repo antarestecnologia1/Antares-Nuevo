@@ -1,7 +1,6 @@
 /**
- * Aplica scripts BD/postgres en orden (omite 09 y 10: específicos Supabase).
- */
-import { readFileSync, existsSync } from "node:fs";
+ * Aplica esquema de CREACIÓN BD/postgres/01–08 (omite 09/10 Supabase y migrations/ legacy).
+ */import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
@@ -19,14 +18,7 @@ const FILES = [
   "05_rrhh.sql",
   "06_sistema.sql",
   "07_indices.sql",
-  "08_seed_tarifas_trayecto.sql",
-  "11_alter_usuarios_campos_registro.sql",
-  "12_usuarios_refresh_token_api.sql",
-  "13_usuarios_nit_empresa.sql",
-  "14_contacto_web_b2b.sql",
-  "15_usuario_aprobacion_admin.sql",
-  "16_usuarios_tipo_vinculo_registro.sql",
-  "25_transporte_auditoria_eliminados.sql"
+  "08_seed_tarifas_trayecto.sql"
 ];
 
 function loadEnvFile() {
@@ -74,7 +66,7 @@ async function main() {
   }
 
   await pool.end();
-  console.log("[init-local-schema] Esquema aplicado (sin 09/10 Supabase).");
+  console.log("[init-local-schema] Esquema CREATE 01–08 aplicado (sin 09/10 Supabase; sin migrations/ legacy).");
 }
 
 main().catch((err) => {

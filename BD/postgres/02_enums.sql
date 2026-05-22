@@ -10,13 +10,13 @@ CREATE TYPE rol_usuario AS ENUM (
   'lider_administrativo'
 );
 
-/** Declaración en el formulario de registro público: cliente externo vs personal interno Antares. */
+-- Declaración en el formulario de registro público: cliente externo vs personal interno Antares.
 CREATE TYPE tipo_vinculo_registro AS ENUM (
   'cliente',
   'empleado_interno'
 );
 
-/** Clasificación comercial/operativa de la fila en empresas: cliente del servicio, tercero o empresa propia (Antares). */
+-- Clasificación comercial/operativa de la fila en empresas: cliente, tercero o empresa propia (Antares).
 CREATE TYPE tipo_relacion_empresa AS ENUM (
   'cliente',
   'tercero',

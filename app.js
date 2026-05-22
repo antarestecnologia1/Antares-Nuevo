@@ -2788,6 +2788,7 @@ let state = {
   /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
   reportsUi: { tab: "export", period: "90d", layout: null },
   reportsChartInstances: [],
+  reportPreviewPayload: null,
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
   notificationPreferences: {
     notificacionesHabilitadas: true,
@@ -14000,46 +14001,300 @@ function canAccessReport(user, reportId) {
   return true;
 }
 
-function downloadCsv(filename, rows = [], columns = []) {
-  const csv = toCsv(rows, columns);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+const REPORT_EXPORT_BRAND = Object.freeze({
+  primary: "#377cc0",
+  primaryDeep: "#2a6399",
+  primaryDeeper: "#1e4a73",
+  soft: "#cce5f8",
+  text: "#0b2138",
+  muted: "#64748b",
+  line: "#b8d4eb"
+});
+
+function downloadBlobFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 400);
 }
 
-function openReportPdf(title, columns = [], rows = []) {
-  const thead = `<tr>${columns.map((col) => `<th>${col.label}</th>`).join("")}</tr>`;
-  const tbody = rows.length
-    ? rows
-        .map((row) => `<tr>${columns.map((col) => `<td>${String(row[col.key] ?? "-")}</td>`).join("")}</tr>`)
+function downloadCsv(filename, rows = [], columns = []) {
+  downloadBlobFile(filename, toCsv(rows, columns), "text/csv;charset=utf-8;");
+}
+
+function reportExportStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function reportExportSlug(title) {
+  return String(title || "reporte")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 48);
+}
+
+function reportExportFilename(report, ext) {
+  const base = String(report?.fileName || "reporte")
+    .replace(/\.(csv|html|xls|pdf)$/i, "")
+    .trim();
+  const slug = reportExportSlug(report?.title || base);
+  return `${slug || base || "reporte"}_${reportExportStamp()}.${ext}`;
+}
+
+function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
+  const b = REPORT_EXPORT_BRAND;
+  const safeTitle = reportsBiExcelEsc(title || "Reporte");
+  const cols = Array.isArray(columns) ? columns : [];
+  const dataRows = Array.isArray(rows) ? rows : [];
+  const thead = cols.map((col) => `<th>${reportsBiExcelEsc(col.label)}</th>`).join("");
+  const tbody = dataRows.length
+    ? dataRows
+        .map(
+          (row) =>
+            `<tr>${cols.map((col) => `<td>${reportsBiExcelEsc(row[col.key] ?? "-")}</td>`).join("")}</tr>`
+        )
         .join("")
-    : `<tr><td colspan="${Math.max(1, columns.length)}">Sin datos para el periodo seleccionado.</td></tr>`;
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><title>${title}</title>
-    <style>
-      body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}
-      h1{margin:0 0 8px;font-size:22px;color:#0b3f8a}
-      .m{color:#64748b;font-size:12px;margin-bottom:14px}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border:1px solid #dbe3ee;padding:7px 8px;text-align:left}
-      th{background:#eef4ff;color:#1e3a8a}
-      @media print{body{padding:0}}
-    </style></head><body>
-      <h1>${title}</h1><div class="m">Generado: ${fmtDate(nowIso())}</div>
-      <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-      <script>window.print()</script>
-    </body></html>`;
-  const pop = window.open("", "_blank");
-  if (!pop) {
-    notify(userMessage("reportPdfBlocked"), "error");
+    : `<tr><td colspan="${Math.max(1, cols.length)}" class="empty">Sin datos para el periodo o filtros seleccionados.</td></tr>`;
+  const generatedAt = reportsBiExcelEsc(meta.generatedAt || fmtDate(nowIso()));
+  const generatedBy = meta.generatedBy ? reportsBiExcelEsc(meta.generatedBy) : "";
+  const rowCount = dataRows.length;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>${safeTitle} — Transportes Antares</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Montserrat, Arial, sans-serif; color: ${b.text}; background: #f5fbff; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 32px; }
+  .banner { background: linear-gradient(135deg, ${b.primaryDeeper}, ${b.primary}); color: #fff; padding: 18px 20px; border-radius: 12px 12px 0 0; }
+  .banner h1 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 700; }
+  .banner p { margin: 0; font-size: 0.82rem; opacity: 0.92; }
+  .meta { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 12px 20px; background: ${b.soft}; border: 1px solid ${b.line}; border-top: none; font-size: 0.78rem; color: ${b.muted}; }
+  .meta strong { color: ${b.primaryDeep}; }
+  .table-shell { background: #fff; border: 1px solid ${b.line}; border-top: none; border-radius: 0 0 12px 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(55, 124, 192, 0.1); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th { background: ${b.primary}; color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; border: 1px solid ${b.primaryDeep}; }
+  td { padding: 8px 12px; border: 1px solid ${b.line}; vertical-align: top; }
+  tr:nth-child(even) td { background: rgba(204, 229, 248, 0.25); }
+  td.empty { text-align: center; color: ${b.muted}; font-style: italic; }
+  .foot { margin-top: 14px; font-size: 0.72rem; color: ${b.muted}; text-align: center; }
+  .print-hint { margin-top: 16px; padding: 10px 14px; background: #fff; border: 1px dashed ${b.line}; border-radius: 8px; font-size: 0.78rem; color: ${b.muted}; }
+  @media print {
+    body { background: #fff; }
+    .wrap { padding: 0; max-width: none; }
+    .print-hint { display: none; }
+    .table-shell { box-shadow: none; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="banner">
+      <h1>${safeTitle}</h1>
+      <p>Transportes Antares · Centro de reportería</p>
+    </header>
+    <div class="meta">
+      <span><strong>Generado:</strong> ${generatedAt}</span>
+      ${generatedBy ? `<span><strong>Usuario:</strong> ${generatedBy}</span>` : ""}
+      <span><strong>Registros:</strong> ${rowCount}</span>
+    </div>
+    <div class="table-shell">
+      <table>
+        <thead><tr>${thead}</tr></thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>
+    <p class="print-hint">Para guardar como PDF: abra este archivo en el navegador y use <strong>Imprimir → Guardar como PDF</strong> (Ctrl+P).</p>
+    <p class="foot">Documento generado por Antares. Uso interno y operativo.</p>
+  </div>
+</body>
+</html>`;
+}
+
+function buildCatalogReportExcelHtml(title, columns = [], rows = []) {
+  const safeTitle = reportsBiExcelEsc(title || "Reporte");
+  const tableHtml = reportsBiExcelTable(
+    (columns || []).map((c) => c.label),
+    (rows || []).map((row) => (columns || []).map((col) => row[col.key] ?? "-"))
+  );
+  const b = REPORT_EXPORT_BRAND;
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" lang="es">
+<head><meta charset="utf-8"/>
+<style>
+body{font-family:Montserrat,Arial,sans-serif;color:${b.text}}
+.xls-banner{background:${b.primaryDeeper};color:#fff;font-size:16pt;font-weight:700;padding:12px 14px}
+.xls-meta{color:${b.muted};font-size:9pt;padding:8px 14px}
+</style>
+</head>
+<body>
+<table width="100%" cellspacing="0" cellpadding="0">
+<tr><td class="xls-banner" colspan="${Math.max(4, (columns || []).length)}">${safeTitle}</td></tr>
+<tr><td class="xls-meta" colspan="${Math.max(4, (columns || []).length)}">Transportes Antares · ${reportsBiExcelEsc(fmtDate(nowIso()))}</td></tr>
+<tr><td colspan="${Math.max(4, (columns || []).length)}">${tableHtml}</td></tr>
+</table>
+</body></html>`;
+}
+
+function exportCatalogReport(report, format = "pdf") {
+  const title = report?.title || "Reporte";
+  const columns = report?.columns || [];
+  const rows = report?.rows || [];
+  const actor = currentUser();
+  const meta = {
+    generatedAt: fmtDate(nowIso()),
+    generatedBy: actor?.name || actor?.email || ""
+  };
+  if (format === "excel") {
+    const html = buildCatalogReportExcelHtml(title, columns, rows);
+    downloadBlobFile(reportExportFilename(report, "xls"), "\ufeff" + html, "application/vnd.ms-excel;charset=utf-8;");
     return;
   }
-  pop.document.open();
-  pop.document.write(html);
-  pop.document.close();
+  const html = buildReportExportHtml(title, columns, rows, meta);
+  downloadBlobFile(reportExportFilename(report, "html"), html, "text/html;charset=utf-8;");
+}
+
+function renderReportPreviewTableHtml(columns = [], rows = []) {
+  const cols = Array.isArray(columns) ? columns : [];
+  const dataRows = Array.isArray(rows) ? rows : [];
+  const thead = cols.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("");
+  const tbody = dataRows.length
+    ? dataRows
+        .map((row) => `<tr>${cols.map((col) => `<td>${escapeHtml(row[col.key] ?? "—")}</td>`).join("")}</tr>`)
+        .join("")
+    : `<tr><td colspan="${Math.max(1, cols.length)}" class="muted">Sin datos para el periodo o filtros seleccionados.</td></tr>`;
+  return `<table class="table report-preview-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+}
+
+function ensureReportPreviewModal() {
+  let modal = document.getElementById("report-preview-modal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "report-preview-modal";
+  modal.className = "modal hidden";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-labelledby", "report-preview-title");
+  modal.innerHTML = `<div class="modal-card modal-card-report-preview">
+    <div class="modal-head report-preview-head">
+      <div>
+        <p class="report-preview-kicker">Centro de reportería</p>
+        <h2 id="report-preview-title">Reporte</h2>
+        <p id="report-preview-meta" class="report-preview-meta muted"></p>
+      </div>
+      <button type="button" class="btn btn-sm btn-action" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
+    </div>
+    <div id="report-preview-body" class="report-preview-body table-wrap"></div>
+    <div class="report-preview-actions modal-edit-actions">
+      <button type="button" class="btn btn-sm btn-approve" data-action="report-preview-download-html">${IC.download} Descargar HTML</button>
+      <button type="button" class="btn btn-sm btn-action" data-action="report-preview-download-excel">${IC.file} Excel</button>
+      <button type="button" class="btn btn-sm btn-action" data-action="report-preview-print">${IC.printer} Imprimir</button>
+      <button type="button" class="btn btn-sm" data-action="report-preview-close">Cerrar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  const close = () => modal.classList.add("hidden");
+  modal.querySelectorAll("[data-action='report-preview-close']").forEach((btn) => {
+    btn.addEventListener("click", close);
+  });
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) close();
+  });
+  modal.querySelector("[data-action='report-preview-download-html']")?.addEventListener("click", () => {
+    const payload = state.reportPreviewPayload;
+    if (!payload) return;
+    try {
+      exportCatalogReport(payload, "pdf");
+      notify(userMessage("reportDownloaded"), "success");
+    } catch (_e) {
+      notify(userMessage("reportExportError"), "error");
+    }
+  });
+  modal.querySelector("[data-action='report-preview-download-excel']")?.addEventListener("click", () => {
+    const payload = state.reportPreviewPayload;
+    if (!payload) return;
+    try {
+      exportCatalogReport(payload, "excel");
+      notify(userMessage("reportExcelExported"), "success");
+    } catch (_e) {
+      notify(userMessage("reportExportError"), "error");
+    }
+  });
+  modal.querySelector("[data-action='report-preview-print']")?.addEventListener("click", () => {
+    printReportPreviewDocument();
+  });
+  return modal;
+}
+
+function printReportPreviewDocument() {
+  const report = state.reportPreviewPayload;
+  if (!report) return;
+  const actor = currentUser();
+  const html = buildReportExportHtml(report.title, report.columns, report.rows, {
+    generatedAt: fmtDate(nowIso()),
+    generatedBy: actor?.name || actor?.email || ""
+  });
+  let frame = document.getElementById("report-print-frame");
+  if (!frame) {
+    frame = document.createElement("iframe");
+    frame.id = "report-print-frame";
+    frame.setAttribute("title", "Impresión de reporte");
+    frame.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+    document.body.appendChild(frame);
+  }
+  const doc = frame.contentWindow?.document;
+  if (!doc) {
+    notify(userMessage("reportExportError"), "error");
+    return;
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  frame.contentWindow.focus();
+  setTimeout(() => {
+    try {
+      frame.contentWindow.print();
+    } catch (_e) {
+      notify(userMessage("reportExportError"), "error");
+    }
+  }, 320);
+}
+
+function openReportPreviewModal(report) {
+  const payload = {
+    title: report?.title || "Reporte",
+    columns: report?.columns || [],
+    rows: report?.rows || [],
+    fileName: report?.fileName || "reporte.html"
+  };
+  state.reportPreviewPayload = payload;
+  const modal = ensureReportPreviewModal();
+  const actor = currentUser();
+  const titleEl = modal.querySelector("#report-preview-title");
+  const metaEl = modal.querySelector("#report-preview-meta");
+  const bodyEl = modal.querySelector("#report-preview-body");
+  if (titleEl) titleEl.textContent = payload.title;
+  if (metaEl) {
+    metaEl.textContent = `Generado ${fmtDate(nowIso())}${actor?.name ? ` · ${actor.name}` : ""} · ${payload.rows.length} registro${payload.rows.length === 1 ? "" : "s"}`;
+  }
+  if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
+  modal.classList.remove("hidden");
+}
+
+/** @deprecated Usar openReportPreviewModal o exportCatalogReport */
+function openReportPdf(title, columns = [], rows = []) {
+  openReportPreviewModal({ title, columns, rows, fileName: "reporte.html" });
 }
 
 function deriveRequestOperationalValue(request) {
@@ -15173,7 +15428,7 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
         <div class="reports-bi-toolbar-btns">
           <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-refresh" title="Recalcular indicadores">${IC.clock} Actualizar</button>
           <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-export-excel" title="Excel con gráficas y datos del periodo">${IC.download} Excel</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="generate-report" data-report="executive_control_tower" data-format="pdf" title="Exportar torre ejecutiva">${IC.file} PDF ejecutivo</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="generate-report" data-report="executive_control_tower" data-format="preview" title="Vista previa sin ventana emergente">${IC.eye} Torre ejecutiva</button>
         </div>
       </div>
       <div class="reports-bi-toolbar-stats" aria-label="Resumen del periodo">
@@ -15934,8 +16189,9 @@ function reportsExportPanelHtml(user) {
         </div>
         <div class="p-card-body">
           <div class="toolbar reports-card-actions">
-            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf">${IC.file} PDF</button>
-            <button class="btn btn-sm btn-approve" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel">${IC.download} Excel</button>
+            <button class="btn btn-sm btn-approve" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="preview" title="Ver en pantalla, sin ventanas emergentes">${IC.eye} Vista previa</button>
+            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf" title="Descarga archivo HTML (abrir e imprimir a PDF)">${IC.download} Descargar</button>
+            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel" title="Descarga Excel (.xls) con formato corporativo">${IC.file} Excel</button>
           </div>
         </div>
       </article>`
@@ -22201,20 +22457,24 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='generate-report']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const reportId = String(btn.dataset.report || "");
-      const format = String(btn.dataset.format || "pdf");
+      const format = String(btn.dataset.format || "preview");
       const actor = currentUser();
       if (!canAccessReport(actor, reportId)) {
         notify(userMessage("reportNoPermission"), "error");
         return;
       }
       const report = buildReportDataset(reportId, actor);
-      if (format === "excel") {
-        downloadCsv(report.fileName || "reporte.csv", report.rows || [], report.columns || []);
-        notify(userMessage("reportCsvExported"), "success");
-        return;
+      try {
+        if (format === "preview") {
+          openReportPreviewModal(report);
+          notify(userMessage("reportPreviewReady"), "success");
+          return;
+        }
+        exportCatalogReport(report, format === "excel" ? "excel" : "pdf");
+        notify(userMessage(format === "excel" ? "reportExcelExported" : "reportDownloaded"), "success");
+      } catch (_e) {
+        notify(userMessage("reportExportError"), "error");
       }
-      openReportPdf(report.title || "Reporte", report.columns || [], report.rows || []);
-      notify(userMessage("reportPdfOk"), "success");
     });
   });
 

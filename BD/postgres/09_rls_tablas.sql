@@ -108,6 +108,7 @@ ALTER TABLE public.prospectos_contacto_b2b ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contadores_secuencia ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.solicitudes_autorizacion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sesiones_usuario ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.preferencias_notificacion_usuario ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------------------
 -- empresas
@@ -482,3 +483,8 @@ CREATE POLICY sesiones_propias
   ON public.sesiones_usuario FOR ALL TO authenticated
   USING (id_usuario = auth.uid() OR public.es_administrador_global())
   WITH CHECK (id_usuario = auth.uid() OR public.es_administrador_global());
+
+CREATE POLICY preferencias_notificacion_propias
+  ON public.preferencias_notificacion_usuario FOR ALL TO authenticated
+  USING (id_usuario = auth.uid())
+  WITH CHECK (id_usuario = auth.uid());

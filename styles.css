@@ -11631,6 +11631,78 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   gap: 0.75rem;
 }
 
+.reports-card-actions {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.modal-card-report-preview {
+  width: min(1120px, 96vw);
+  max-height: min(92vh, 920px);
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem 1.2rem 1rem;
+  min-height: 0;
+}
+
+.report-preview-head {
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.report-preview-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-dark);
+}
+
+.report-preview-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+
+.report-preview-body {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  max-height: min(58vh, 620px);
+  overflow: auto;
+  margin: 0.75rem 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+}
+
+.report-preview-table {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.report-preview-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-deep);
+}
+
+.report-preview-actions {
+  flex-shrink: 0;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+body[data-theme="dark"] .report-preview-body {
+  background: rgba(15, 28, 46, 0.65);
+}
+
+body[data-theme="dark"] .report-preview-table thead th {
+  background: var(--primary-deeper);
+}
+
 /* Panel BI — analítica corporativa */
 .reports-bi {
   border-radius: var(--radius);

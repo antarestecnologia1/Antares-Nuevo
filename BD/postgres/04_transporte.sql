@@ -1,4 +1,5 @@
 -- Módulo: Transporte — Flota, conductores, solicitudes, viajes, combustible, mantenimiento técnico
+-- CREATE — instalación nueva. Transporte completo (antes migrations/24–38, 09_tarifas, 25 auditoría).
 
 CREATE TABLE vehiculos (
   id                                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,6 +57,7 @@ CREATE TABLE conductores (
   fecha_vencimiento_examen_ocupacional DATE,
   fecha_examen_instruvial DATE,
   fecha_vencimiento_examen_instruvial DATE,
+  url_foto                      TEXT,
   curso_conduccion_defensiva VARCHAR(32),
   fecha_vencimiento_curso_defensivo DATE,
   tipo_sangre                 VARCHAR(8),
@@ -77,6 +79,7 @@ CREATE TABLE conductores (
 );
 
 COMMENT ON TABLE conductores IS 'KEYS.drivers; sincronizado con empleados conductor en RRHH.';
+COMMENT ON COLUMN conductores.url_foto IS 'Foto perfil conductor (HTTPS); KEYS.drivers[].photoUrl.';
 
 CREATE TABLE tarifas_trayecto (
   id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -185,11 +188,18 @@ CREATE TABLE registros_combustible (
   kilometraje_odometro  NUMERIC(14,2),
   estacion              VARCHAR(255),
   pagado_por            VARCHAR(32) NOT NULL DEFAULT 'empresa',
-  fecha_registro        TIMESTAMPTZ NOT NULL DEFAULT now()
+  id_usuario_registro   UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+  fecha_registro        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_registros_combustible_pagado_por
+    CHECK (pagado_por IN ('empresa', 'conductor'))
 );
 
-COMMENT ON TABLE registros_combustible IS 'KEYS.fuelLogs; pagado_por: empresa | conductor.';
-COMMENT ON COLUMN registros_combustible.pagado_por IS 'Si conductor, puede incluirse en reembolso de nómina.';
+COMMENT ON TABLE registros_combustible IS 'KEYS.fuelLogs; alta POST /api/portal/fleet/fuel-logs.';
+COMMENT ON COLUMN registros_combustible.pagado_por IS 'Portal paidBy: empresa | conductor (reembolso nómina).';
+COMMENT ON COLUMN registros_combustible.id_usuario_registro IS
+  'Usuario autenticado que registró la carga (POST /portal/fleet/fuel-logs).';
+COMMENT ON CONSTRAINT chk_registros_combustible_pagado_por ON registros_combustible IS
+  'Portal: paidBy empresa | conductor (reembolso nómina).';
 
 CREATE TABLE registros_mantenimiento_vehiculo (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -201,7 +211,43 @@ CREATE TABLE registros_mantenimiento_vehiculo (
   costo                 NUMERIC(18,2) NOT NULL DEFAULT 0 CHECK (costo >= 0),
   horas_inactividad     NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (horas_inactividad >= 0),
   estado_seguimiento    VARCHAR(64) NOT NULL DEFAULT 'Pendiente',
-  fecha_registro        TIMESTAMPTZ NOT NULL DEFAULT now()
+  id_usuario_registro   UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+  fecha_registro        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_registros_mantenimiento_tipo
+    CHECK (tipo_intervencion IN ('preventivo', 'correctivo', 'falla'))
 );
 
-COMMENT ON TABLE registros_mantenimiento_vehiculo IS 'KEYS.vehicleTechnicalLogs.';
+COMMENT ON TABLE registros_mantenimiento_vehiculo IS 'KEYS.vehicleTechnicalLogs; alta POST /api/portal/fleet/maintenance-logs.';
+COMMENT ON COLUMN registros_mantenimiento_vehiculo.tipo_intervencion IS
+  'Portal interventionType: preventivo | correctivo | falla.';
+COMMENT ON COLUMN registros_mantenimiento_vehiculo.id_usuario_registro IS
+  'Usuario autenticado que registró la novedad (POST /portal/fleet/maintenance-logs).';
+COMMENT ON CONSTRAINT chk_registros_mantenimiento_tipo ON registros_mantenimiento_vehiculo IS
+  'Portal: interventionType / type preventivo | correctivo | falla.';
+
+-- Auditoría de eliminaciones (antes en 25_transporte_auditoria_eliminados.sql)
+CREATE TABLE auditoria_viajes_eliminados (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id_solicitud      UUID NOT NULL,
+  id_viaje          UUID,
+  numero_solicitud  VARCHAR(32),
+  numero_viaje      VARCHAR(32),
+  motivo            TEXT NOT NULL,
+  datos_json        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  eliminado_por     UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+  eliminado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE auditoria_viajes_eliminados IS 'Registro cuando operaciones elimina la asignación (fila viajes_transporte).';
+
+CREATE TABLE auditoria_solicitudes_eliminadas (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id_solicitud      UUID NOT NULL,
+  numero_solicitud  VARCHAR(32),
+  motivo            TEXT NOT NULL,
+  datos_json        JSONB NOT NULL DEFAULT '{}'::jsonb,
+  eliminado_por     UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+  eliminado_en      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE auditoria_solicitudes_eliminadas IS 'Registro antes de borrar solicitudes_transporte (definitivo).';

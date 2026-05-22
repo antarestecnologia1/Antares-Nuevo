@@ -66,7 +66,7 @@
       const base = `Conflicto de horario: el ${resourceLabel} ya tiene programado el viaje ${tripNumber || "-"}`;
       return windowLabel ? `${base} (${windowLabel}).` : `${base}.`;
     },
-    reportPdfBlocked: "No se pudo abrir la ventana del reporte PDF. Revise el bloqueador de ventanas.",
+    reportPdfBlocked: "No se pudo abrir la ventana del reporte. Use Descargar en el catálogo (sin ventanas emergentes).",
     payrollDriverLicenseSync:
       "Los conductores requieren licencia, categoría y fecha de vencimiento para sincronizar.",
     payrollLicenseExpired: "No se puede registrar un conductor con licencia vencida.",
@@ -127,6 +127,10 @@
     routeRateInvalidCop: "Indique un valor mayor que cero en pesos colombianos (COP).",
     routeRateSaved: "Tarifa de trayecto guardada correctamente.",
     reportNoPermission: "No tiene permiso para generar este reporte.",
+    reportDownloaded: "Reporte descargado. Ábralo desde Descargas o use Vista previa sin ventanas emergentes.",
+    reportExcelExported: "Reporte Excel descargado correctamente.",
+    reportExportError: "No se pudo exportar el reporte. Intente de nuevo.",
+    reportPreviewReady: "Vista previa del reporte lista.",
     reportCsvExported: "Reporte exportado en formato Excel (CSV).",
     reportBiExcelExported: "Analítica exportada a Excel con gráficas y estilo corporativo.",
     reportBiExcelChartsPending: "Espere a que carguen las gráficas y vuelva a exportar.",

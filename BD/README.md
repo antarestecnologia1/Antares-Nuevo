@@ -2,27 +2,35 @@
 
 Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas y columnas en español** (sin tildes en identificadores SQL para compatibilidad).
 
-## Orden de ejecución
+## Dos capas de scripts
+
+| Capa | Ubicación | Uso |
+|------|-----------|-----|
+| **Creación (esquema completo)** | `postgres/01` … `postgres/10` | Instalación nueva o base vacía |
+| **Migraciones legacy (ALTER)** | `postgres/migrations/` | Solo bases ya desplegadas sin el esquema unificado |
+
+No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas quedan con todos los campos actuales.
+
+## Orden de ejecución — instalación nueva
 
 1. `postgres/01_extensions.sql`
-2. `postgres/02_enums.sql` — `rol_usuario`, `estado_cuenta_usuario`, `estado_solicitud_transporte`, `estado_aprobacion`, `estado_vacante`
+2. `postgres/02_enums.sql`
 3. `postgres/03_nucleo_empresa_usuarios.sql`
 4. `postgres/04_transporte.sql`
 5. `postgres/05_rrhh.sql`
 6. `postgres/06_sistema.sql`
 7. `postgres/07_indices.sql`
-8. `postgres/08_seed_tarifas_trayecto.sql` — sin datos de prueba (solo documentación; tarifas vía portal / sync)
-9. `postgres/09_rls_tablas.sql` — RLS (tablas públicas) para roles `anon` / `authenticated` de Supabase
-10. `postgres/10_rls_storage_supabase.sql` — RLS de Storage (tras crear en el panel los buckets indicados en el script)
-11. *(Solo bases ya creadas sin campos de registro)* `postgres/11_alter_usuarios_campos_registro.sql`
-12. `postgres/12_usuarios_refresh_token_api.sql` — columna `refresh_token_hash` para rotación de JWT en la API Nest
-13. `postgres/13_usuarios_nit_empresa.sql` — `nit_empresa_registro` e índice de documento personal
-14. `postgres/14_contacto_web_b2b.sql` — prospectos B2B (si aplica)
-15. `postgres/15_usuario_aprobacion_admin.sql` — `fecha_aprobacion_cuenta`, `cuenta_aprobada_por` (auditoría al aprobar registro; usado por `POST /api/portal/approve-pending-user` con cuerpo `userId`, `companyId`, `role` — el rol persiste en `usuarios.rol` y se regeneran filas en `permisos_usuario` según el rol)
-16. `postgres/38_registros_flota_constraints.sql` — CHECK `pagado_por` y `tipo_intervencion` (portal Historial flota)
-17. `postgres/39_registros_flota_usuario_registro.sql` — columna `id_usuario_registro` en combustible y taller (auditoría de quién registró)
+8. `postgres/08_seed_tarifas_trayecto.sql` — sin datos de prueba
+9. `postgres/09_rls_tablas.sql` — RLS (Supabase)
+10. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
 
-**Manual de despliegue (Word):** generar con `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
+Local sin Supabase: `npm run init-schema` en `apps/api` aplica `01`–`08` (ver `scripts/init-local-schema.mjs`).
+
+## Bases ya existentes
+
+Ver `postgres/migrations/README.md` y ejecutar solo los scripts que falten (idempotentes).
+
+**Manual de despliegue (Word):** `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 
 ## Mapa módulo ↔ tablas ↔ `localStorage` (app.js)
 
@@ -34,6 +42,7 @@ En despliegue con Supabase, la base de datos es la fuente de verdad; `localStora
 |---------------|----------|-----------------|
 | Empresas | `empresas` | `companies` |
 | Usuarios y permisos | `usuarios`, `permisos_usuario` | `users` |
+| Preferencias notificaciones | `preferencias_notificacion_usuario` | — |
 | Viáticos interdepartamentales | `reglas_viatico_interdepartamental` | `travelAllowanceRules` |
 | Parámetros legales (SMMLV, etc.) | `parametros_sistema` | — |
 | Vehículos | `vehiculos` | `vehicles` |
@@ -41,8 +50,8 @@ En despliegue con Supabase, la base de datos es la fuente de verdad; `localStora
 | Tarifas por trayecto | `tarifas_trayecto` | `tripRouteRates` |
 | Solicitudes de viaje | `solicitudes_transporte` | `requests` |
 | Viajes asignados | `viajes_transporte` | (objeto `trip` dentro de `requests`) |
-| Combustible | `registros_combustible` | `fuelLogs` — alta: `POST /api/portal/fleet/fuel-logs`; sync: `fuelLogs` |
-| Mantenimiento flota | `registros_mantenimiento_vehiculo` | `vehicleTechnicalLogs` — alta: `POST /api/portal/fleet/maintenance-logs`; sync: `vehicleTechnicalLogs` |
+| Combustible | `registros_combustible` | `fuelLogs` |
+| Mantenimiento flota | `registros_mantenimiento_vehiculo` | `vehicleTechnicalLogs` |
 | Cargos | `cargos` | `positions` |
 | Vacantes | `vacantes` | `vacancies` |
 | Candidatos | `candidatos` | `candidates` |
@@ -83,16 +92,14 @@ En despliegue con Supabase, la base de datos es la fuente de verdad; `localStora
 ## Notas
 
 - **Migración desde el prototipo**: los nombres JSON del front siguen en camelCase; al importar, mapear campo a columna española según este esquema.
-- Campos extra en BD respecto al JSON actual: p. ej. `liquidaciones_nomina.horas_extras_cop` guarda el desglose del formulario cuando la API persista `extras`/`aux`/`bonus` (hoy el front solo almacena totales agregados en `gross`).
 - Función de trigger de ejemplo: `trg_marcar_fecha_actualizacion()` en `03_*`.
 
 ## Configuración con Supabase / Render / Vercel (bases ya creadas)
 
-1. **PostgreSQL**: en el panel de Supabase → *Database* → copiar URI (directa o pooler según el cliente).
-2. **API Nest (`apps/api`)**: crear `apps/api/.env` y pegar `DATABASE_URL`. El esquema se aplica con los scripts SQL numerados de esta carpeta (`postgres/`), no con migraciones Prisma.
-3. **Portal estático**: editar `config/antares.public.js` con la URL del backend (`window.__ANTARES_API_BASE__`, sin `/api`).
-4. **Next opcional (`apps/web`)**: `NEXT_PUBLIC_API_URL` apuntando al mismo backend.
-5. **Variables Supabase**: en `apps/api/.env` → `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` (solo servidor). En el portal estático, completar `config/supabase.public.js` con URL del proyecto y **anon** (no usar service_role en el navegador). Tras filtrar claves, rotarlas en el panel de Supabase.
+1. **PostgreSQL**: en el panel de Supabase → *Database* → copiar URI.
+2. **API Nest (`apps/api`)**: `apps/api/.env` con `DATABASE_URL`. Esquema vía scripts numerados, no Prisma migrate.
+3. **Portal estático**: `config/antares.public.js` con URL del backend.
+4. **Variables Supabase**: service_role solo en servidor; anon en el navegador.
 
 ## Documentación de reglas
 
@@ -100,10 +107,8 @@ Ver `reglas_negocio.md`.
 
 ## Plantillas de correo Auth (Supabase)
 
-Archivos listos para pegar en **Authentication → Email Templates**: carpeta `email_templates/` (`01_` … `06_`) y asuntos en `email_templates/plantilla_asuntos.txt`.
+Carpeta `email_templates/` y asuntos en `email_templates/plantilla_asuntos.txt`.
 
 ## Prueba de inserción REST
 
-Desde la raíz del repo (requiere `apps/api/.env` con `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`):
-
-`node qa/supabase-rest-insert-test.mjs`
+`node qa/supabase-rest-insert-test.mjs` (requiere `apps/api/.env` con Supabase).
