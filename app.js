@@ -14204,18 +14204,11 @@ function ensureReportPreviewModal() {
     </div>
   </div>`;
   document.body.appendChild(modal);
-  const close = () => {
-    modal.classList.add("hidden");
-    document.removeEventListener("keydown", onReportPreviewEsc);
-  };
-  function onReportPreviewEsc(event) {
-    if (event.key === "Escape") close();
-  }
   modal.querySelectorAll("[data-action='report-preview-close']").forEach((btn) => {
-    btn.addEventListener("click", close);
+    btn.addEventListener("click", closeReportPreviewModal);
   });
   modal.addEventListener("click", (event) => {
-    if (event.target === modal) close();
+    if (event.target === modal) closeReportPreviewModal();
   });
   modal.querySelector("[data-action='report-preview-download-html']")?.addEventListener("click", () => {
     const payload = state.reportPreviewPayload;
@@ -14277,6 +14270,16 @@ function printReportPreviewDocument() {
   }, 320);
 }
 
+function closeReportPreviewModal() {
+  const modal = document.getElementById("report-preview-modal");
+  if (modal) modal.classList.add("hidden");
+  document.removeEventListener("keydown", reportPreviewEscHandler);
+}
+
+function reportPreviewEscHandler(event) {
+  if (event.key === "Escape") closeReportPreviewModal();
+}
+
 function openReportPreviewModal(report) {
   const payload = {
     title: report?.title || "Reporte",
@@ -14296,13 +14299,7 @@ function openReportPreviewModal(report) {
   }
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
   modal.classList.remove("hidden");
-  document.addEventListener("keydown", onReportPreviewEsc);
-  const onReportPreviewEsc = (event) => {
-    if (event.key !== "Escape") return;
-    modal.classList.add("hidden");
-    document.removeEventListener("keydown", onReportPreviewEsc);
-  };
-  document.addEventListener("keydown", onReportPreviewEsc);
+  document.addEventListener("keydown", reportPreviewEscHandler);
 }
 
 /** @deprecated Usar openReportPreviewModal o exportCatalogReport */
