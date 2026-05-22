@@ -4135,8 +4135,6 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage-headline":
       "Ciudades y trayectos con mayor demanda registrada en solicitudes de transporte (se actualiza con los datos del servidor).",
     "#news .section-head p": "Cambios recientes en operacion, tecnologia y servicio para mantener a nuestros clientes informados.",
-    "#careers .muted":
-      "Con el servidor de la empresa configurado, las vacantes y postulaciones quedan registradas de forma centralizada; sin esa conexión solo verá datos de demostración en este equipo.",
     "#contact .container > article:nth-child(2) .muted":
       "Con el servidor configurado, las solicitudes se registran de forma segura. Sin conexión, la información puede quedar solo en este navegador."
   },
@@ -4152,8 +4150,6 @@ const PUBLIC_TEXT_OVERRIDES = {
     "#coverage-headline":
       "Main routes and frequent corridors for floriculture and exports.",
     "#news .section-head p": "Recent updates in operations, technology, and service to keep our clients informed.",
-    "#careers .muted":
-      "With your organization server configured, openings and applications are stored centrally; without it you only see demo data in this browser.",
     "#contact .container > article:nth-child(2) .muted":
       "With the server configured, requests are stored securely. Without a connection, information may remain only in this browser."
   }
