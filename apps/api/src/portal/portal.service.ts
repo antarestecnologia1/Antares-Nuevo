@@ -2888,40 +2888,74 @@ export class PortalService implements OnModuleInit {
 
   private async loadFuelLogs() {
     const r = await this.pool.query(`SELECT * FROM registros_combustible ORDER BY fecha_registro DESC LIMIT 1000`);
-    return r.rows.map((row) => ({
-      id: row.id,
-      date: row.fecha,
-      vehicleId: row.id_vehiculo,
-      plate: row.placa_vehiculo,
-      driverId: row.id_conductor,
-      driverName: row.nombre_conductor,
-      tripNumber: row.numero_viaje,
-      liters: Number(row.litros),
-      totalCost: Number(row.costo_total),
-      costPerLiter: row.costo_por_litro != null ? Number(row.costo_por_litro) : null,
-      odometerKm: row.kilometraje_odometro != null ? Number(row.kilometraje_odometro) : null,
-      station: row.estacion,
-      paidBy: row.pagado_por,
-      createdAt: row.fecha_registro ? new Date(row.fecha_registro).toISOString() : new Date().toISOString()
-    }));
+    return r.rows.map((row) => {
+      const plate = String(row.placa_vehiculo ?? "").trim().toUpperCase();
+      return {
+        id: row.id,
+        date: row.fecha,
+        vehicleId: row.id_vehiculo,
+        plate,
+        vehiclePlate: plate,
+        driverId: row.id_conductor,
+        driverName: row.nombre_conductor,
+        tripNumber: row.numero_viaje,
+        liters: Number(row.litros),
+        totalCost: Number(row.costo_total),
+        costPerLiter: row.costo_por_litro != null ? Number(row.costo_por_litro) : null,
+        odometerKm: row.kilometraje_odometro != null ? Number(row.kilometraje_odometro) : null,
+        station: row.estacion,
+        paidBy: row.pagado_por,
+        createdAt: row.fecha_registro ? new Date(row.fecha_registro).toISOString() : new Date().toISOString()
+      };
+    });
   }
 
   private async loadVehicleTechnicalLogs() {
     const r = await this.pool.query(
       `SELECT * FROM registros_mantenimiento_vehiculo ORDER BY fecha_registro DESC LIMIT 1000`
     );
-    return r.rows.map((row) => ({
-      id: row.id,
-      date: row.fecha,
-      vehicleId: row.id_vehiculo,
-      plate: row.placa_vehiculo,
-      interventionType: row.tipo_intervencion,
-      description: row.descripcion,
-      cost: Number(row.costo),
-      downtimeHours: Number(row.horas_inactividad),
-      followUpStatus: row.estado_seguimiento,
-      createdAt: row.fecha_registro ? new Date(row.fecha_registro).toISOString() : new Date().toISOString()
-    }));
+    return r.rows.map((row) => {
+      const plate = String(row.placa_vehiculo ?? "").trim().toUpperCase();
+      const interventionType = String(row.tipo_intervencion ?? "preventivo");
+      const followUpStatus = String(row.estado_seguimiento ?? "Pendiente");
+      return {
+        id: row.id,
+        date: row.fecha,
+        vehicleId: row.id_vehiculo,
+        plate,
+        vehiclePlate: plate,
+        interventionType,
+        type: interventionType,
+        description: row.descripcion,
+        cost: Number(row.costo),
+        downtimeHours: Number(row.horas_inactividad),
+        followUpStatus,
+        status: followUpStatus,
+        createdAt: row.fecha_registro ? new Date(row.fecha_registro).toISOString() : new Date().toISOString()
+      };
+    });
+  }
+
+  private async resolveVehiclePlateForSync(
+    c: PoolClient,
+    vehicleId: unknown,
+    incomingPlate: unknown
+  ): Promise<string> {
+    const fromRow = String(incomingPlate ?? "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 8);
+    if (fromRow) return fromRow;
+    const vid = String(vehicleId ?? "").trim();
+    if (!PG_UUID_V4_RE.test(vid)) return "SINPLACA";
+    const r = await c.query<{ placa: string }>(`SELECT placa FROM vehiculos WHERE id = $1::uuid LIMIT 1`, [vid]);
+    const p = String(r.rows[0]?.placa ?? "")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 8);
+    return p || "SINPLACA";
   }
 
   private async loadHrAbsences() {
@@ -4874,11 +4908,28 @@ export class PortalService implements OnModuleInit {
   private async syncFuelLogs(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     await this.deleteRowsNotInIncomingList(c, "registros_combustible", data);
-    for (const row of data) {
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
       if (!row?.id) continue;
       if (this.skipUnlessPersistUuid("syncFuelLogs", row.id)) continue;
       if (this.skipUnlessPersistUuid("syncFuelLogs.vehicleId", row.vehicleId)) continue;
       if (this.skipUnlessPersistUuid("syncFuelLogs.driverId", row.driverId)) continue;
+      const plate = await this.resolveVehiclePlateForSync(
+        c,
+        row.vehicleId,
+        pickPortalField(row, "plate", "vehiclePlate", "placa_vehiculo")
+      );
+      const liters = Number(row.liters ?? row.litros ?? 0);
+      const totalCost = Number(row.totalCost ?? row.costo_total ?? 0);
+      const costPerLiterRaw = row.costPerLiter ?? row.costo_por_litro;
+      const costPerLiter =
+        costPerLiterRaw != null
+          ? Number(costPerLiterRaw)
+          : liters > 0
+            ? Math.round(totalCost / liters)
+            : null;
+      const paidRaw = String(pickPortalField(row, "paidBy", "pagado_por") ?? "empresa").toLowerCase();
+      const paidBy = paidRaw === "conductor" ? "conductor" : "empresa";
       await c.query(
         `INSERT INTO registros_combustible (
           id, fecha, id_vehiculo, placa_vehiculo, id_conductor, nombre_conductor, numero_viaje, litros, costo_total,
@@ -4899,18 +4950,20 @@ export class PortalService implements OnModuleInit {
           pagado_por = EXCLUDED.pagado_por`,
         [
           row.id,
-          row.date,
+          row.date ?? row.fecha,
           row.vehicleId,
-          row.plate,
+          plate,
           row.driverId,
-          row.driverName,
-          row.tripNumber || null,
-          Number(row.liters),
-          Number(row.totalCost),
-          row.costPerLiter != null ? Number(row.costPerLiter) : null,
-          row.odometerKm != null ? Number(row.odometerKm) : null,
-          row.station || null,
-          row.paidBy || "empresa"
+          String(pickPortalField(row, "driverName", "nombre_conductor") ?? "").trim() || "—",
+          pickPortalField(row, "tripNumber", "numero_viaje") || null,
+          liters,
+          totalCost,
+          costPerLiter,
+          row.odometerKm != null || row.kilometraje_odometro != null
+            ? Number(row.odometerKm ?? row.kilometraje_odometro)
+            : null,
+          pickPortalField(row, "station", "estacion") || null,
+          paidBy
         ]
       );
     }
@@ -4919,10 +4972,24 @@ export class PortalService implements OnModuleInit {
   private async syncVehicleTechnicalLogs(c: PoolClient, data: unknown) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     await this.deleteRowsNotInIncomingList(c, "registros_mantenimiento_vehiculo", data);
-    for (const row of data) {
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
       if (!row?.id) continue;
       if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs", row.id)) continue;
       if (this.skipUnlessPersistUuid("syncVehicleTechnicalLogs.vehicleId", row.vehicleId)) continue;
+      const plate = await this.resolveVehiclePlateForSync(
+        c,
+        row.vehicleId,
+        pickPortalField(row, "plate", "vehiclePlate", "placa_vehiculo")
+      );
+      const interventionType = String(
+        pickPortalField(row, "interventionType", "type", "tipo_intervencion") ?? "preventivo"
+      )
+        .trim()
+        .toLowerCase();
+      const followUpStatus = String(
+        pickPortalField(row, "followUpStatus", "status", "estado_seguimiento") ?? "Pendiente"
+      ).trim();
       await c.query(
         `INSERT INTO registros_mantenimiento_vehiculo (
           id, fecha, id_vehiculo, placa_vehiculo, tipo_intervencion, descripcion, costo, horas_inactividad, estado_seguimiento
@@ -4938,14 +5005,14 @@ export class PortalService implements OnModuleInit {
           estado_seguimiento = EXCLUDED.estado_seguimiento`,
         [
           row.id,
-          row.date,
+          row.date ?? row.fecha,
           row.vehicleId,
-          row.plate,
-          row.interventionType || "preventivo",
-          row.description || "",
-          Number(row.cost ?? 0),
-          Number(row.downtimeHours ?? 0),
-          row.followUpStatus || "Pendiente"
+          plate,
+          interventionType || "preventivo",
+          String(pickPortalField(row, "description", "descripcion") ?? "").trim() || "—",
+          Number(row.cost ?? row.costo ?? 0),
+          Number(row.downtimeHours ?? row.horas_inactividad ?? 0),
+          followUpStatus || "Pendiente"
         ]
       );
     }

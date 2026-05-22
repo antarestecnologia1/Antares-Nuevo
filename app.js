@@ -2783,8 +2783,8 @@ let state = {
   deletedTransportRequestsLogMinimized: true,
   /** Transporte · Admin: historial de viajes desasignados/eliminados (inicia colapsado). */
   deletedTransportTripsLogMinimized: true,
-  /** Historial: pestaña activa (explore | driver | fleet) y filtro rápido de listado. */
-  historyUi: { workspace: "explore", quickFilter: "all" },
+  /** Historial: pestaña activa (explore | driver | fleet), subpestaña flota (fuel | technical) y filtro rápido. */
+  historyUi: { workspace: "explore", quickFilter: "all", fleetTab: "fuel" },
   /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
   reportsUi: { tab: "export", period: "90d" },
   reportsChartInstances: [],
@@ -3317,6 +3317,14 @@ function __applyPortalBootstrapPayloadInner(p) {
       const raw = Array.isArray(p.users) ? p.users : [];
       write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
       ensureUsersPermissions();
+      continue;
+    }
+    if (prop === "fuelLogs") {
+      write(key, normalizeFuelLogsList(Array.isArray(p.fuelLogs) ? p.fuelLogs : []));
+      continue;
+    }
+    if (prop === "vehicleTechnicalLogs") {
+      write(key, normalizeVehicleTechnicalLogsList(Array.isArray(p.vehicleTechnicalLogs) ? p.vehicleTechnicalLogs : []));
       continue;
     }
     if (prop === "companies") {
@@ -5751,6 +5759,28 @@ function wireTripValueMoneyInput(formEl) {
     updateCreateTripStepper(formEl);
   });
   if (num.value) num.value = formatMoneyFieldValue(parseMoneyFieldValue(num.value));
+}
+
+/** Campos COP con prefijo $ (formularios de historial flota, etc.). */
+function wireMoneyInputs(formEl) {
+  if (!formEl) return;
+  formEl.querySelectorAll("input[data-money-input='1']").forEach((num) => {
+    if (num.dataset.moneyWired === "1") return;
+    num.dataset.moneyWired = "1";
+    const formatLive = () => {
+      num.value = formatMoneyFieldValue(parseMoneyFieldValue(num.value));
+      const end = num.selectionEnd;
+      if (typeof end === "number") {
+        const len = num.value.length;
+        num.setSelectionRange(len, len);
+      }
+    };
+    num.addEventListener("input", formatLive);
+    num.addEventListener("blur", () => {
+      num.value = formatMoneyFieldValue(parseMoneyFieldValue(num.value));
+    });
+    if (num.value) num.value = formatMoneyFieldValue(parseMoneyFieldValue(num.value));
+  });
 }
 
 /** Enlaza el selector de tarifa con el campo numérico de precio en el modal de asignación. */
@@ -8910,6 +8940,149 @@ function formatMoneyFieldValue(amount) {
   const n = Math.max(0, Math.floor(parseNum(amount)));
   if (n <= 0) return "0";
   return n.toLocaleString("es-CO");
+}
+
+/** Normaliza fila de combustible (bootstrap API ↔ portal). */
+function normalizeFuelLogPortalRow(log) {
+  if (!log || typeof log !== "object") return log;
+  const plate = String(log.vehiclePlate || log.plate || log.placa_vehiculo || "").trim().toUpperCase();
+  const dateRaw = log.date || log.fecha;
+  const date =
+    typeof dateRaw === "string" && dateRaw.length >= 10
+      ? dateRaw.slice(0, 10)
+      : dateRaw
+        ? String(new Date(dateRaw).toISOString()).slice(0, 10)
+        : "";
+  const liters = parseNum(log.liters ?? log.litros);
+  const totalCost = parseNum(log.totalCost ?? log.costo_total ?? log.total_cost);
+  return {
+    ...log,
+    id: log.id,
+    date,
+    vehicleId: log.vehicleId || log.id_vehiculo || log.vehicle_id,
+    plate,
+    vehiclePlate: plate,
+    driverId: log.driverId || log.id_conductor,
+    driverName: String(log.driverName || log.nombre_conductor || "").trim(),
+    tripNumber: String(log.tripNumber || log.numero_viaje || "").trim(),
+    liters,
+    totalCost,
+    costPerLiter:
+      log.costPerLiter != null
+        ? parseNum(log.costPerLiter)
+        : log.costo_por_litro != null
+          ? parseNum(log.costo_por_litro)
+          : liters > 0
+            ? Math.round(totalCost / liters)
+            : 0,
+    odometerKm:
+      log.odometerKm != null
+        ? parseNum(log.odometerKm)
+        : log.kilometraje_odometro != null
+          ? parseNum(log.kilometraje_odometro)
+          : null,
+    station: String(log.station || log.estacion || "").trim(),
+    paidBy: String(log.paidBy || log.pagado_por || "empresa").toLowerCase() === "conductor" ? "conductor" : "empresa",
+    createdAt: log.createdAt || log.fecha_registro || nowIso()
+  };
+}
+
+/** Payload alineado con registros_combustible (sync-key / PostgreSQL). */
+function fuelLogRowForServer(log) {
+  const n = normalizeFuelLogPortalRow(log);
+  const liters = parseNum(n.liters);
+  const totalCost = parseNum(n.totalCost);
+  return {
+    id: n.id,
+    date: n.date || nowIso().slice(0, 10),
+    vehicleId: n.vehicleId,
+    plate: n.plate || n.vehiclePlate,
+    driverId: n.driverId,
+    driverName: n.driverName,
+    tripNumber: n.tripNumber || null,
+    liters,
+    totalCost,
+    costPerLiter: liters > 0 ? Math.round(totalCost / liters) : parseNum(n.costPerLiter) || null,
+    odometerKm: parseNum(n.odometerKm) > 0 ? parseNum(n.odometerKm) : null,
+    station: n.station || null,
+    paidBy: n.paidBy || "empresa",
+    createdAt: n.createdAt
+  };
+}
+
+function normalizeFuelLogsList(list) {
+  return (Array.isArray(list) ? list : []).map(normalizeFuelLogPortalRow);
+}
+
+/** Normaliza fila de taller (bootstrap API ↔ portal). */
+function normalizeVehicleTechnicalLogPortalRow(log) {
+  if (!log || typeof log !== "object") return log;
+  const plate = String(log.vehiclePlate || log.plate || log.placa_vehiculo || "").trim().toUpperCase();
+  const typeKey = String(log.interventionType || log.type || log.tipo_intervencion || "preventivo").toLowerCase();
+  const status = String(log.followUpStatus || log.status || log.estado_seguimiento || "Pendiente").trim();
+  const dateRaw = log.date || log.fecha;
+  const date =
+    typeof dateRaw === "string" && dateRaw.length >= 10
+      ? dateRaw.slice(0, 10)
+      : dateRaw
+        ? String(new Date(dateRaw).toISOString()).slice(0, 10)
+        : "";
+  return {
+    ...log,
+    id: log.id,
+    date,
+    vehicleId: log.vehicleId || log.id_vehiculo,
+    plate,
+    vehiclePlate: plate,
+    interventionType: typeKey,
+    type: typeKey,
+    description: String(log.description || log.descripcion || "").trim(),
+    cost: parseNum(log.cost ?? log.costo),
+    downtimeHours: parseNum(log.downtimeHours ?? log.horas_inactividad ?? log.hoursOut),
+    followUpStatus: status,
+    status,
+    createdAt: log.createdAt || log.fecha_registro || nowIso()
+  };
+}
+
+function vehicleTechnicalLogRowForServer(log) {
+  const n = normalizeVehicleTechnicalLogPortalRow(log);
+  return {
+    id: n.id,
+    date: n.date || nowIso().slice(0, 10),
+    vehicleId: n.vehicleId,
+    plate: n.plate || n.vehiclePlate,
+    interventionType: n.interventionType || n.type || "preventivo",
+    description: n.description || "",
+    cost: parseNum(n.cost),
+    downtimeHours: parseNum(n.downtimeHours),
+    followUpStatus: n.followUpStatus || n.status || "Pendiente",
+    createdAt: n.createdAt
+  };
+}
+
+function normalizeVehicleTechnicalLogsList(list) {
+  return (Array.isArray(list) ? list : []).map(normalizeVehicleTechnicalLogPortalRow);
+}
+
+function readFuelLogs() {
+  return normalizeFuelLogsList(read(KEYS.fuelLogs, []));
+}
+
+function readVehicleTechnicalLogs() {
+  return normalizeVehicleTechnicalLogsList(read(KEYS.vehicleTechnicalLogs, []));
+}
+
+async function writeFuelLogsAwait(list) {
+  const normalized = normalizeFuelLogsList(list);
+  write(KEYS.fuelLogs, normalized);
+  await writeAwaitServer(KEYS.fuelLogs, normalized.map(fuelLogRowForServer));
+}
+
+async function writeVehicleTechnicalLogsAwait(list) {
+  const normalized = normalizeVehicleTechnicalLogsList(list);
+  write(KEYS.vehicleTechnicalLogs, normalized);
+  await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized.map(vehicleTechnicalLogRowForServer));
 }
 
 function diffMinutes(fromIso) {
@@ -13263,6 +13436,182 @@ function renderHistoryResultsList(items) {
   return `<div class="history-cards-grid" id="history-results-grid">${items.map(renderHistoryCard).join("")}</div>`;
 }
 
+const HISTORY_FLEET_TECH_LABELS = {
+  preventivo: "Preventivo",
+  correctivo: "Correctivo",
+  falla: "Falla técnica"
+};
+
+function fmtFleetLogDate(value) {
+  const s = String(value || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(value);
+  const [y, m, d] = s.split("-").map((x) => parseInt(x, 10));
+  return new Date(y, m - 1, d).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function sortFleetLogsByDate(logs) {
+  return [...logs].sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+}
+
+function historyFleetFuelHaystack(log) {
+  return `${log.vehiclePlate || ""} ${log.driverName || ""} ${log.tripNumber || ""} ${log.station || ""} ${log.paidBy || ""} ${log.date || ""}`
+    .toLowerCase();
+}
+
+function historyFleetTechnicalHaystack(log) {
+  return `${log.vehiclePlate || ""} ${log.description || ""} ${log.type || ""} ${log.status || ""} ${log.date || ""}`
+    .toLowerCase();
+}
+
+function applyHistoryFleetFuelFilters(logs, formData = {}) {
+  let out = sortFleetLogsByDate(logs);
+  if (formData.vehicleId) out = out.filter((l) => String(l.vehicleId) === String(formData.vehicleId));
+  if (formData.driverId) out = out.filter((l) => String(l.driverId) === String(formData.driverId));
+  if (formData.paidBy) out = out.filter((l) => String(l.paidBy) === String(formData.paidBy));
+  if (formData.from) out = out.filter((l) => String(l.date || "") >= String(formData.from));
+  if (formData.to) out = out.filter((l) => String(l.date || "") <= String(formData.to));
+  const q = String(formData.q || "").trim().toLowerCase();
+  if (q) out = out.filter((l) => historyFleetFuelHaystack(l).includes(q));
+  return out;
+}
+
+function applyHistoryFleetTechnicalFilters(logs, formData = {}) {
+  let out = sortFleetLogsByDate(logs);
+  if (formData.vehicleId) out = out.filter((l) => String(l.vehicleId) === String(formData.vehicleId));
+  if (formData.type) out = out.filter((l) => String(l.type) === String(formData.type));
+  if (formData.status) out = out.filter((l) => String(l.status) === String(formData.status));
+  if (formData.from) out = out.filter((l) => String(l.date || "") >= String(formData.from));
+  if (formData.to) out = out.filter((l) => String(l.date || "") <= String(formData.to));
+  const q = String(formData.q || "").trim().toLowerCase();
+  if (q) out = out.filter((l) => historyFleetTechnicalHaystack(l).includes(q));
+  return out;
+}
+
+function historyFleetFuelKpis(logs) {
+  const liters = logs.reduce((acc, log) => acc + parseNum(log.liters), 0);
+  const cost = logs.reduce((acc, log) => acc + parseNum(log.totalCost), 0);
+  const reimburse = logs
+    .filter((l) => String(l.paidBy) === "conductor")
+    .reduce((acc, log) => acc + parseNum(log.totalCost), 0);
+  return {
+    count: logs.length,
+    liters,
+    cost,
+    avgPerLiter: liters > 0 ? Math.round(cost / liters) : 0,
+    reimburse
+  };
+}
+
+function historyFleetTechnicalKpis(logs) {
+  const cost = logs.reduce((acc, log) => acc + parseNum(log.cost), 0);
+  const downtime = logs.reduce((acc, log) => acc + parseNum(log.downtimeHours), 0);
+  const open = logs.filter((l) => !["Resuelto"].includes(String(l.status || ""))).length;
+  return { count: logs.length, cost, downtime, open };
+}
+
+function historyFleetMoneyField(name, label, opts = {}) {
+  const req = opts.required ? { required: true } : {};
+  return `<label class="history-fleet-money-field">${fieldLabel(IC.dollar, label, req)}
+    <span class="history-fleet-money-wrap">
+      <span class="history-fleet-money-prefix" aria-hidden="true">$</span>
+      <input type="text" name="${escapeAttr(name)}" inputmode="numeric" autocomplete="off" data-money-input="1" placeholder="0" ${opts.required ? "required" : ""} />
+    </span>
+  </label>`;
+}
+
+function renderHistoryFuelLogCard(log) {
+  const liters = parseNum(log.liters);
+  const total = parseNum(log.totalCost);
+  const perLiter = parseNum(log.costPerLiter) || (liters > 0 ? Math.round(total / liters) : 0);
+  const paid = String(log.paidBy || "empresa") === "conductor" ? "conductor" : "empresa";
+  const paidLabel = paid === "conductor" ? "Reembolso nómina" : "Empresa";
+  const trip = String(log.tripNumber || "").trim();
+  return `<article class="history-fleet-log-card history-fleet-log-card--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
+    <header class="history-fleet-log-head">
+      <div>
+        <time class="history-fleet-log-date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
+        <h3 class="history-fleet-log-plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
+        <p class="history-fleet-log-sub">${escapeHtml(String(log.driverName || "—"))}${trip ? ` · ${escapeHtml(trip)}` : ""}</p>
+      </div>
+      <span class="history-fleet-badge history-fleet-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span>
+    </header>
+    <dl class="history-fleet-log-meta">
+      <div><dt>${IC.activity} Litros</dt><dd>${liters.toLocaleString("es-CO", { maximumFractionDigits: 2 })} L</dd></div>
+      <div><dt>${IC.dollar} Total</dt><dd class="history-fleet-log-money">$${total.toLocaleString("es-CO")}</dd></div>
+      <div><dt>${IC.dollar} $/L</dt><dd>$${perLiter.toLocaleString("es-CO")}</dd></div>
+      <div><dt>${IC.mapPin} Estación</dt><dd>${log.station ? escapeHtml(log.station) : '<span class="muted">—</span>'}</dd></div>
+      ${parseNum(log.odometerKm) > 0 ? `<div><dt>${IC.clock} Odómetro</dt><dd>${parseNum(log.odometerKm).toLocaleString("es-CO")} km</dd></div>` : ""}
+    </dl>
+  </article>`;
+}
+
+function renderHistoryTechnicalLogCard(log) {
+  const typeKey = String(log.type || "preventivo");
+  const typeLabel = HISTORY_FLEET_TECH_LABELS[typeKey] || typeKey;
+  const status = String(log.status || "Pendiente");
+  const statusSlug = slugStatus(status);
+  const cost = parseNum(log.cost);
+  const hours = parseNum(log.downtimeHours);
+  return `<article class="history-fleet-log-card history-fleet-log-card--technical history-fleet-log-card--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
+    <header class="history-fleet-log-head">
+      <div>
+        <time class="history-fleet-log-date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
+        <h3 class="history-fleet-log-plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
+        <p class="history-fleet-log-desc">${escapeHtml(String(log.description || "—"))}</p>
+      </div>
+      <div class="history-fleet-log-badges">
+        <span class="history-fleet-badge history-fleet-badge--type">${escapeHtml(typeLabel)}</span>
+        <span class="history-fleet-badge history-fleet-badge--status">${escapeHtml(status)}</span>
+      </div>
+    </header>
+    <dl class="history-fleet-log-meta">
+      <div><dt>${IC.dollar} Costo</dt><dd class="history-fleet-log-money">$${cost.toLocaleString("es-CO")}</dd></div>
+      <div><dt>${IC.clock} Fuera de servicio</dt><dd>${hours > 0 ? `${hours.toLocaleString("es-CO")} h` : '<span class="muted">0 h</span>'}</dd></div>
+    </dl>
+  </article>`;
+}
+
+function renderHistoryFuelLogsList(logs) {
+  if (!logs.length) {
+    return `<div class="history-empty-state history-fleet-empty"><p class="muted">Aún no hay cargas de combustible registradas. Usa el formulario inferior para registrar la primera.</p></div>`;
+  }
+  return `<div class="history-fleet-log-grid" id="history-fuel-results-grid">${logs.map(renderHistoryFuelLogCard).join("")}</div>`;
+}
+
+function renderHistoryTechnicalLogsList(logs) {
+  if (!logs.length) {
+    return `<div class="history-empty-state history-fleet-empty"><p class="muted">No hay novedades de taller en este periodo. Registra preventivos, correctivos o fallas desde el formulario.</p></div>`;
+  }
+  return `<div class="history-fleet-log-grid" id="history-technical-results-grid">${logs.map(renderHistoryTechnicalLogCard).join("")}</div>`;
+}
+
+function historyFleetKpiStrip(metrics) {
+  return `<div class="history-fleet-kpis" role="group" aria-label="Resumen del periodo">${metrics
+    .map(
+      ({ label, value, tone }) =>
+        `<div class="history-fleet-kpi${tone ? ` history-fleet-kpi--${tone}` : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`
+    )
+    .join("")}</div>`;
+}
+
+function historyFleetFilterToolbar(formId, fieldsHtml) {
+  return `<form id="${escapeAttr(formId)}" class="history-fleet-filter-form" novalidate>
+    <div class="history-toolbar history-fleet-toolbar">
+      <label class="history-toolbar-search">
+        <span class="visually-hidden">Buscar</span>
+        ${IC.search || IC.filter}
+        <input type="search" name="q" placeholder="Placa, conductor, estación, viaje…" autocomplete="off" />
+      </label>
+      <details class="history-advanced-filters history-fleet-advanced">
+        <summary class="btn btn-sm btn-action">${IC.filter} Filtros</summary>
+        <div class="history-advanced-filters-body history-fleet-filters-body">${fieldsHtml}
+          <button class="btn btn-sm btn-action" type="reset">${IC.x} Limpiar</button>
+        </div>
+      </details>
+    </div>
+  </form>`;
+}
+
 function historyHtml() {
   const allRequests = reqRead();
   const histUi = state.historyUi || { workspace: "explore", quickFilter: "all" };
@@ -13960,7 +14309,7 @@ function buildReportDataset(reportId, actor = currentUser()) {
     };
   }
   if (reportId === "fuel_operations") {
-    const rows = read(KEYS.fuelLogs, []).map((log) => ({
+    const rows = readFuelLogs().map((log) => ({
       date: log.date || "-",
       driver: log.driverName || "-",
       vehicle: log.vehiclePlate || "-",
@@ -13985,7 +14334,7 @@ function buildReportDataset(reportId, actor = currentUser()) {
     };
   }
   if (reportId === "maintenance_fleet") {
-    const rows = read(KEYS.vehicleTechnicalLogs, []).map((log) => ({
+    const rows = readVehicleTechnicalLogs().map((log) => ({
       date: log.date || "-",
       vehicle: log.vehiclePlate || "-",
       kind: log.kind || log.type || "-",
@@ -14326,13 +14675,13 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
   ];
 
   const fuelLogs = reportsFilterByPeriod(
-    read(KEYS.fuelLogs, []).map((log) => ({ ...log, createdAt: log.date })),
+    readFuelLogs().map((log) => ({ ...log, createdAt: log.date })),
     period
   );
   const fuelCost = fuelLogs.reduce((acc, log) => acc + parseNum(log.totalCost), 0);
   const fuelLiters = fuelLogs.reduce((acc, log) => acc + parseNum(log.liters), 0);
   const maintCost = reportsFilterByPeriod(
-    read(KEYS.vehicleTechnicalLogs, []).map((log) => ({ ...log, createdAt: log.date })),
+    readVehicleTechnicalLogs().map((log) => ({ ...log, createdAt: log.date })),
     period
   ).reduce((acc, log) => acc + parseNum(log.cost), 0);
 
@@ -14446,9 +14795,15 @@ function reportsBiLeaderboardHtml(title, rows, valueKey, format = "num") {
   return `<div class="reports-bi-lb"><h4>${escapeHtml(title)}</h4><ol>${items}</ol></div>`;
 }
 
+function reportsBiPeriodChip(value, label, current) {
+  const active = current === value ? " is-active" : "";
+  return `<button type="button" class="reports-bi-chip${active}" data-action="reports-bi-period-chip" data-period="${escapeAttr(value)}" aria-pressed="${current === value ? "true" : "false"}">${escapeHtml(label)}</button>`;
+}
+
 function reportsAnalyticsPanelHtml(snapshot) {
   const k = snapshot.kpis;
   const fmtCop = snapshot.fmtCop;
+  const period = snapshot.period || "90d";
   const insightsHtml = (snapshot.insights || [])
     .map(
       (ins) =>
@@ -14458,35 +14813,48 @@ function reportsAnalyticsPanelHtml(snapshot) {
         </article>`
     )
     .join("");
-  return `<section class="reports-bi" aria-label="Inteligencia de negocio">
-    <header class="reports-bi-hero">
-      <div class="reports-bi-hero-glow" aria-hidden="true"></div>
-      <div class="reports-bi-hero-grid" aria-hidden="true"></div>
-      <div class="reports-bi-hero-copy">
-        <span class="reports-bi-eyebrow"><span class="reports-bi-live" aria-hidden="true"></span> Antares Intelligence</span>
-        <h2 class="reports-bi-title">Torre analítica ejecutiva</h2>
-        <p class="reports-bi-sub">Analítica operativa, financiera y de cumplimiento · <strong>${escapeHtml(snapshot.periodLabel)}</strong></p>
-        <span class="reports-bi-updated">Actualizado ${escapeHtml(snapshot.generatedAt)}</span>
+  return `<section class="reports-bi" aria-label="Analítica operativa">
+    <header class="reports-bi-toolbar">
+      <div class="reports-bi-toolbar-intro">
+        <p class="reports-bi-kicker">Reportería · BI</p>
+        <h2 class="reports-bi-title">Analítica operativa</h2>
+        <p class="reports-bi-sub">${escapeHtml(snapshot.periodLabel)} · comparativa vs periodo anterior</p>
+        <span class="reports-bi-updated">Corte ${escapeHtml(snapshot.generatedAt)}</span>
       </div>
-      <div class="reports-bi-hero-actions">
-        <label class="reports-bi-period">${IC.calendar} Periodo analizado
-          <select id="reports-bi-period" data-action="reports-bi-period">
-            <option value="30d"${snapshot.period === "30d" ? " selected" : ""}>30 días</option>
-            <option value="90d"${snapshot.period === "90d" ? " selected" : ""}>90 días</option>
-            <option value="month"${snapshot.period === "month" ? " selected" : ""}>Mes actual</option>
-            <option value="ytd"${snapshot.period === "ytd" ? " selected" : ""}>Año en curso</option>
-            <option value="all"${snapshot.period === "all" ? " selected" : ""}>Histórico completo</option>
+      <div class="reports-bi-toolbar-controls">
+        <div class="reports-bi-period-chips" role="group" aria-label="Periodo rápido">
+          ${reportsBiPeriodChip("30d", "30 d", period)}
+          ${reportsBiPeriodChip("90d", "90 d", period)}
+          ${reportsBiPeriodChip("month", "Mes", period)}
+          ${reportsBiPeriodChip("ytd", "Año", period)}
+          ${reportsBiPeriodChip("all", "Todo", period)}
+        </div>
+        <label class="reports-bi-period-select">${IC.calendar} Periodo
+          <select id="reports-bi-period" data-action="reports-bi-period" aria-label="Periodo analizado">
+            <option value="30d"${period === "30d" ? " selected" : ""}>Últimos 30 días</option>
+            <option value="90d"${period === "90d" ? " selected" : ""}>Últimos 90 días</option>
+            <option value="month"${period === "month" ? " selected" : ""}>Mes actual</option>
+            <option value="ytd"${period === "ytd" ? " selected" : ""}>Año en curso</option>
+            <option value="all"${period === "all" ? " selected" : ""}>Histórico completo</option>
           </select>
         </label>
-        <div class="reports-bi-hero-pills">
-          <span class="reports-bi-pill">${k.activeOps} en operación</span>
-          <span class="reports-bi-pill">${k.assignRate}% asignadas</span>
-          <span class="reports-bi-pill">${k.closeRate}% cerradas</span>
+        <div class="reports-bi-toolbar-btns">
+          <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-refresh" title="Recalcular indicadores">${IC.clock} Actualizar</button>
+          <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-export-excel" title="Excel con gráficas y datos del periodo">${IC.download} Excel</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="generate-report" data-report="executive_control_tower" data-format="pdf" title="Exportar torre ejecutiva">${IC.file} PDF ejecutivo</button>
         </div>
       </div>
+      <div class="reports-bi-toolbar-stats" aria-label="Resumen del periodo">
+        <span class="reports-bi-stat"><strong>${k.activeOps}</strong><span>En operación</span></span>
+        <span class="reports-bi-stat"><strong>${k.assignRate}%</strong><span>Asignadas</span></span>
+        <span class="reports-bi-stat"><strong>${k.closeRate}%</strong><span>Cerradas</span></span>
+        <span class="reports-bi-stat"><strong>${k.slaPct}%</strong><span>SLA</span></span>
+      </div>
     </header>
-    ${insightsHtml ? `<div class="reports-bi-insights">${insightsHtml}</div>` : ""}
-    <div class="reports-bi-kpis">
+    ${insightsHtml ? `<div class="reports-bi-insights" role="region" aria-label="Hallazgos">${insightsHtml}</div>` : ""}
+    <div class="reports-bi-section">
+      <h3 class="reports-bi-section-title">Indicadores clave</h3>
+      <div class="reports-bi-kpis">
       ${reportsBiKpiCard({ mod: "primary", icon: IC.dollar, value: fmtCop(k.revenue), label: "Recaudo operativo", trend: k.trends.revenue })}
       ${reportsBiKpiCard({ icon: IC.truck, value: String(k.trips), label: "Viajes", trend: k.trends.trips, meta: `Ticket ${fmtCop(k.avgTicket)}` })}
       ${reportsBiKpiCard({ icon: IC.file, value: String(k.requests), label: "Solicitudes", trend: k.trends.requests })}
@@ -14497,6 +14865,9 @@ function reportsAnalyticsPanelHtml(snapshot) {
       ${reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupación` })}
       ${reportsBiKpiCard({ mod: k.docRisk ? "warn" : "", icon: IC.shield, value: String(k.docRisk), label: "Alertas documentales" })}
     </div>
+    </div>
+    <div class="reports-bi-section reports-bi-section--compact">
+      <h3 class="reports-bi-section-title">Cumplimiento y conversión</h3>
     <div class="reports-bi-score-row">
       <article class="reports-bi-score-card">
         <div class="reports-bi-ring" style="--pct:${k.slaPct}">
@@ -14529,6 +14900,9 @@ function reportsAnalyticsPanelHtml(snapshot) {
         <div class="reports-bi-chart-wrap reports-bi-chart-wrap--mini"><canvas id="reports-chart-thermoking" aria-label="Termoking"></canvas></div>
       </article>
     </div>
+    </div>
+    <div class="reports-bi-section">
+      <h3 class="reports-bi-section-title">Visualizaciones</h3>
     <div class="reports-bi-grid">
       <article class="reports-bi-card reports-bi-card--xl">
         <header class="reports-bi-card-head">
@@ -14571,15 +14945,60 @@ function reportsAnalyticsPanelHtml(snapshot) {
         </div>
       </article>
     </div>
-    <p class="reports-bi-foot">Datos alineados con exportación PDF/CSV · Comparativa vs periodo anterior equivalente · ${escapeHtml(snapshot.periodLabel)}</p>
+    </div>
+    <p class="reports-bi-foot muted">Mismos criterios que exportación PDF/CSV · Tendencias vs periodo anterior equivalente · ${escapeHtml(snapshot.periodLabel)}</p>
   </section>`;
 }
 
+const REPORTS_BI_BRAND = Object.freeze({
+  primary: "#377cc0",
+  primaryDeep: "#2a6399",
+  primaryDeeper: "#1e4a73",
+  accent: "#83bee9",
+  soft: "#cce5f8",
+  success: "#1b8e5f",
+  warning: "#d97706",
+  danger: "#d62828",
+  neutral: "#94a3b8",
+  text: "#0b2138",
+  muted: "#64748b",
+  line: "#b8d4eb",
+  white: "#ffffff"
+});
+
+function reportsBiBrandPalette() {
+  const b = REPORTS_BI_BRAND;
+  return [b.primary, b.primaryDeep, b.accent, b.success, b.warning, "#4a7fb8", "#6a9fc9", b.neutral];
+}
+
+function reportsBiChartColors() {
+  const b = REPORTS_BI_BRAND;
+  const dark = String(document.body?.dataset?.theme || "light") === "dark";
+  return {
+    dark,
+    primary: dark ? b.accent : b.primary,
+    primaryDeep: dark ? "#5a9fd4" : b.primaryDeep,
+    accent: dark ? "#6eb5e8" : b.accent,
+    success: dark ? "#3ecf9a" : b.success,
+    warning: dark ? "#f5b84a" : b.warning,
+    neutral: dark ? "#64748b" : b.neutral,
+    palette: reportsBiBrandPalette(),
+    barPrimary: dark ? "rgba(55, 124, 192, 0.78)" : "rgba(55, 124, 192, 0.9)",
+    barDeep: dark ? "rgba(42, 99, 153, 0.78)" : "rgba(42, 99, 153, 0.9)",
+    barSuccess: dark ? "rgba(27, 142, 95, 0.78)" : "rgba(27, 142, 95, 0.9)",
+    fillPrimary: dark ? "rgba(55, 124, 192, 0.14)" : "rgba(55, 124, 192, 0.1)",
+    fillSuccess: dark ? "rgba(27, 142, 95, 0.16)" : "rgba(27, 142, 95, 0.12)",
+    funnel: [b.primaryDeep, b.primary, b.accent, b.success, "#4a7fb8"]
+  };
+}
+
 function reportsBiChartTheme() {
-  const text = "#e2e8f0";
-  const muted = "#94a3b8";
-  const grid = "rgba(148, 163, 184, 0.14)";
-  const font = { family: "'Montserrat', 'Roboto', system-ui, sans-serif", size: 11, weight: "600" };
+  const b = REPORTS_BI_BRAND;
+  const dark = String(document.body?.dataset?.theme || "light") === "dark";
+  const text = dark ? "#e8f4fc" : b.text;
+  const muted = dark ? "#9ec7e8" : b.muted;
+  const grid = dark ? "rgba(148, 163, 184, 0.14)" : "rgba(184, 212, 235, 0.55)";
+  const font = { family: "'Montserrat', system-ui, sans-serif", size: 11, weight: "600" };
   const copTooltip = {
     callbacks: {
       label(ctx) {
@@ -14595,20 +15014,262 @@ function reportsBiChartTheme() {
   return { text, muted, grid, font, copTooltip };
 }
 
+function reportsBiExcelEsc(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function reportsBiExcelTable(headers, rows) {
+  const th = headers.map((h) => `<th class="xls-th">${reportsBiExcelEsc(h)}</th>`).join("");
+  const body = (rows || [])
+    .map(
+      (row) =>
+        `<tr>${row.map((cell) => `<td class="xls-td">${reportsBiExcelEsc(cell)}</td>`).join("")}</tr>`
+    )
+    .join("");
+  return `<table class="xls-table" cellspacing="0" cellpadding="0"><thead><tr>${th}</tr></thead><tbody>${body || `<tr><td class="xls-td" colspan="${headers.length}">Sin datos</td></tr>`}</tbody></table>`;
+}
+
+function reportsBiCaptureChartImages(root) {
+  const ids = [
+    "reports-chart-revenue",
+    "reports-chart-weekly",
+    "reports-chart-funnel",
+    "reports-chart-status",
+    "reports-chart-thermoking",
+    "reports-chart-clients",
+    "reports-chart-routes",
+    "reports-chart-drivers"
+  ];
+  const out = {};
+  ids.forEach((id) => {
+    const canvas = root?.querySelector(`#${id}`);
+    if (!canvas) return;
+    try {
+      out[id] = canvas.toDataURL("image/png");
+    } catch (_e) {
+      out[id] = "";
+    }
+  });
+  return out;
+}
+
+function reportsBiExcelChartBlock(title, subtitle, imageData, tableHtml) {
+  const img = imageData
+    ? `<img src="${imageData}" alt="${reportsBiExcelEsc(title)}" width="560" height="280" style="display:block;margin:8px 0;border:1px solid ${REPORTS_BI_BRAND.line};"/>`
+    : `<p class="xls-muted">Gráfica no disponible — consulte la tabla de datos.</p>`;
+  return `<tr><td colspan="4" class="xls-section">
+    <h3 class="xls-chart-title">${reportsBiExcelEsc(title)}</h3>
+    ${subtitle ? `<p class="xls-muted">${reportsBiExcelEsc(subtitle)}</p>` : ""}
+    ${img}
+    ${tableHtml}
+  </td></tr>`;
+}
+
+function buildReportsBiExcelHtml(snapshot, chartImages = {}) {
+  const b = REPORTS_BI_BRAND;
+  const k = snapshot.kpis;
+  const fmtCop = snapshot.fmtCop;
+  const trendTxt = (d) => {
+    const n = parseNum(d);
+    if (n > 0) return `+${n}%`;
+    if (n < 0) return `${n}%`;
+    return "0%";
+  };
+  const kpiRows = [
+    ["Recaudo operativo", fmtCop(k.revenue), trendTxt(k.trends.revenue), `Ticket ${fmtCop(k.avgTicket)}`],
+    ["Viajes", String(k.trips), trendTxt(k.trends.trips), ""],
+    ["Solicitudes", String(k.requests), trendTxt(k.trends.requests), ""],
+    ["SLA cumplido", `${k.slaPct}%`, "", `${k.slaOk}/${k.slaTotal} viajes`],
+    ["Ciclo promedio", `${k.avgCycleHours} h`, "", `Aprob. ${k.avgApprovalMin} min`],
+    ["Combustible", fmtCop(k.fuelCost), "", `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L`],
+    ["Taller", fmtCop(k.maintCost), "", k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby"],
+    ["Flota libre", `${k.fleetAvailable}/${k.fleetTotal}`, "", `${k.fleetUtilPct}% ocupación`],
+    ["Alertas documentales", String(k.docRisk), "", ""]
+  ];
+  const insightRows = (snapshot.insights || []).map((ins) => [ins.title, ins.text]);
+  const revenueRows = (snapshot.revenueLabels || snapshot.revenueMonths || []).map((label, i) => [
+    label,
+    fmtCop(snapshot.revenueSeries[i] || 0),
+    String(snapshot.tripsSeries[i] || 0)
+  ]);
+  const weeklyRows = (snapshot.weekKeys || []).map((wk, i) => [wk, String(snapshot.weekSeries[i] || 0)]);
+  const statusRows = (snapshot.statusChart || []).map((x) => [x.label, String(x.value)]);
+  const funnelRows = (snapshot.funnel || []).map((x) => [x.label, String(x.value)]);
+  const clientRows = (snapshot.topClients || []).map((x) => [x[0], fmtCop(x[1])]);
+  const routeRows = (snapshot.topRoutes || []).map((x) => [x[0], String(x[1])]);
+  const driverRows = (snapshot.topDrivers || []).map((x) => [x[0], String(x[1])]);
+
+  const chartBlocks = [
+    reportsBiExcelChartBlock(
+      "Recaudo y volumen mensual",
+      "Barras: ingresos · Línea: viajes",
+      chartImages["reports-chart-revenue"],
+      reportsBiExcelTable(["Mes", "Recaudo COP", "Viajes"], revenueRows)
+    ),
+    reportsBiExcelChartBlock(
+      "Actividad semanal",
+      "Viajes por semana",
+      chartImages["reports-chart-weekly"],
+      reportsBiExcelTable(["Semana", "Viajes"], weeklyRows)
+    ),
+    reportsBiExcelChartBlock(
+      "Embudo operativo",
+      "Del pedido al cierre",
+      chartImages["reports-chart-funnel"],
+      reportsBiExcelTable(["Etapa", "Cantidad"], funnelRows)
+    ),
+    reportsBiExcelChartBlock(
+      "Estados de solicitudes",
+      "Distribución en el periodo",
+      chartImages["reports-chart-status"],
+      reportsBiExcelTable(["Estado", "Cantidad"], statusRows)
+    ),
+    reportsBiExcelChartBlock(
+      "Termoking vs carga seca",
+      "",
+      chartImages["reports-chart-thermoking"],
+      reportsBiExcelTable(["Tipo", "Solicitudes"], [
+        ["Con Termoking", String(snapshot.thermoking?.yes || 0)],
+        ["Carga seca", String(snapshot.thermoking?.no || 0)]
+      ])
+    ),
+    reportsBiExcelChartBlock(
+      "Top clientes por recaudo",
+      "",
+      chartImages["reports-chart-clients"],
+      reportsBiExcelTable(["Cliente", "Recaudo COP"], clientRows)
+    ),
+    reportsBiExcelChartBlock(
+      "Rutas activas",
+      "Por cantidad de viajes",
+      chartImages["reports-chart-routes"],
+      reportsBiExcelTable(["Ruta", "Viajes"], routeRows)
+    ),
+    reportsBiExcelChartBlock(
+      "Top conductores",
+      "Viajes asignados",
+      chartImages["reports-chart-drivers"],
+      reportsBiExcelTable(["Conductor", "Viajes"], driverRows)
+    )
+  ].join("");
+
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" lang="es">
+<head>
+<meta charset="utf-8"/>
+<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Analitica</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+<style>
+body{font-family:Montserrat,Arial,sans-serif;color:${b.text};font-size:11pt}
+.xls-banner{background:${b.primaryDeeper};color:#fff;font-size:18pt;font-weight:700;padding:14px 16px}
+.xls-subbanner{background:${b.primary};color:#fff;font-size:10pt;padding:8px 16px}
+.xls-meta{color:${b.muted};font-size:9pt;padding:10px 16px;border-bottom:2px solid ${b.line}}
+.xls-section{padding:12px 8px;vertical-align:top;border-bottom:1px solid ${b.line}}
+.xls-section-title{background:${b.soft};color:${b.primaryDeeper};font-size:11pt;font-weight:700;padding:8px 12px;border-left:4px solid ${b.primary}}
+.xls-chart-title{margin:0 0 4px;color:${b.primaryDeep};font-size:12pt;font-weight:700}
+.xls-muted{margin:0 0 6px;color:${b.muted};font-size:9pt}
+.xls-table{width:100%;border-collapse:collapse;margin-top:8px}
+.xls-th{background:${b.primary};color:#fff;font-size:9pt;font-weight:700;padding:7px 8px;text-align:left;border:1px solid ${b.primaryDeep}}
+.xls-td{font-size:9pt;padding:6px 8px;border:1px solid ${b.line};vertical-align:top}
+.xls-kpi-primary{background:${b.primary};color:#fff;font-weight:700}
+.xls-kpi-warn{background:rgba(217,119,6,0.12);color:${b.text}}
+.xls-stat strong{color:${b.primaryDeep};font-size:14pt}
+</style>
+</head>
+<body>
+<table width="100%" cellspacing="0" cellpadding="0">
+<tr><td colspan="4" class="xls-banner">Transportes Antares — Analítica operativa</td></tr>
+<tr><td colspan="4" class="xls-subbanner">${reportsBiExcelEsc(snapshot.periodLabel)} · Corte ${reportsBiExcelEsc(snapshot.generatedAt)}</td></tr>
+<tr><td colspan="4" class="xls-meta">En operación: ${k.activeOps} · Asignadas: ${k.assignRate}% · Cerradas: ${k.closeRate}% · SLA: ${k.slaPct}% · Conversión: ${k.assignRate}%</td></tr>
+<tr><td colspan="4" class="xls-section-title">Indicadores clave</td></tr>
+<tr>
+  <th class="xls-th">Indicador</th><th class="xls-th">Valor</th><th class="xls-th">Tendencia</th><th class="xls-th">Detalle</th>
+</tr>
+${kpiRows
+  .map(
+    (row, i) =>
+      `<tr class="${i === 0 ? "xls-kpi-primary" : row[0] === "Alertas documentales" && k.docRisk ? "xls-kpi-warn" : ""}">
+        <td class="xls-td">${reportsBiExcelEsc(row[0])}</td>
+        <td class="xls-td">${reportsBiExcelEsc(row[1])}</td>
+        <td class="xls-td">${reportsBiExcelEsc(row[2])}</td>
+        <td class="xls-td">${reportsBiExcelEsc(row[3])}</td>
+      </tr>`
+  )
+  .join("")}
+${
+  insightRows.length
+    ? `<tr><td colspan="4" class="xls-section-title">Hallazgos automáticos</td></tr>
+${insightRows.map((r) => `<tr><td class="xls-td"><strong>${reportsBiExcelEsc(r[0])}</strong></td><td class="xls-td" colspan="3">${reportsBiExcelEsc(r[1])}</td></tr>`).join("")}`
+    : ""
+}
+<tr><td colspan="4" class="xls-section-title">Cumplimiento y conversión</td></tr>
+<tr>
+  <td class="xls-td"><strong>SLA</strong></td><td class="xls-td">${k.slaPct}%</td>
+  <td class="xls-td"><strong>Conversión a viaje</strong></td><td class="xls-td">${k.assignRate}% (${k.trips}/${k.requests})</td>
+</tr>
+<tr><td colspan="4" class="xls-section-title">Visualizaciones (gráficas + datos)</td></tr>
+${chartBlocks}
+<tr><td colspan="4" class="xls-meta">Exportado desde Antares · Mismos criterios que el panel BI · ${reportsBiExcelEsc(snapshot.periodLabel)}</td></tr>
+</table>
+</body></html>`;
+}
+
+function downloadReportsBiExcel(filename, html) {
+  const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportReportsBiToExcel(snapshot, root) {
+  if (!root) throw new Error("Panel BI no visible");
+  await loadChartJsLib();
+  if (!state.reportsChartInstances?.length) {
+    wireReportsCharts(snapshot);
+  }
+  await new Promise((resolve) => setTimeout(resolve, 560));
+  const chartImages = reportsBiCaptureChartImages(root);
+  const hasAnyChart = Object.values(chartImages).some((src) => String(src || "").startsWith("data:image"));
+  if (!hasAnyChart) {
+    notify(userMessage("reportBiExcelChartsPending"), "warn");
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  const period = String(snapshot.period || "90d");
+  const html = buildReportsBiExcelHtml(snapshot, chartImages);
+  downloadReportsBiExcel(`analitica_operativa_${period}_${stamp}.xls`, html);
+}
+
 function wireReportsCharts(snapshot) {
   destroyReportsCharts();
   const root = nodes.viewRoot?.querySelector(".reports-bi");
   if (!root || !window.Chart) return;
   const Chart = window.Chart;
   const { text, muted, grid, font, copTooltip } = reportsBiChartTheme();
-  const palette = ["#38bdf8", "#2563eb", "#10b981", "#f59e0b", "#a78bfa", "#f472b6", "#2dd4bf", "#818cf8"];
+  const c = reportsBiChartColors();
+  const { primary, success, palette, barPrimary, barDeep, barSuccess, fillPrimary, fillSuccess, funnel } = c;
+  const tooltipBg = c.dark ? "rgba(15, 28, 46, 0.96)" : "rgba(255, 255, 255, 0.98)";
+  const tooltipBorder = c.dark ? "rgba(131, 190, 233, 0.35)" : "rgba(55, 124, 192, 0.35)";
   const baseOpts = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: { duration: 720, easing: "easeOutQuart" },
+    animation: { duration: 480, easing: "easeOutQuart" },
     plugins: {
-      legend: { labels: { color: text, font, boxWidth: 12, padding: 14 } },
-      tooltip: { ...copTooltip, backgroundColor: "rgba(15, 23, 42, 0.92)", titleColor: "#f8fafc", bodyColor: "#cbd5e1", borderColor: "rgba(56, 189, 248, 0.35)", borderWidth: 1, padding: 10 }
+      legend: { labels: { color: text, font, boxWidth: 12, padding: 12 } },
+      tooltip: {
+        ...copTooltip,
+        backgroundColor: tooltipBg,
+        titleColor: text,
+        bodyColor: muted,
+        borderColor: tooltipBorder,
+        borderWidth: 1,
+        padding: 10
+      }
     }
   };
   const scaleOpts = {
@@ -14633,16 +15294,16 @@ function wireReportsCharts(snapshot) {
           type: "bar",
           label: "Recaudo COP",
           data: snapshot.revenueSeries,
-          backgroundColor: "rgba(37, 99, 235, 0.85)",
-          borderRadius: 8,
+          backgroundColor: barPrimary,
+          borderRadius: 6,
           yAxisID: "y"
         },
         {
           type: "line",
           label: "Viajes",
           data: snapshot.tripsSeries,
-          borderColor: "#2dd4bf",
-          backgroundColor: "rgba(45, 212, 191, 0.15)",
+          borderColor: success,
+          backgroundColor: fillSuccess,
           fill: true,
           tension: 0.35,
           yAxisID: "y1"
@@ -14654,7 +15315,7 @@ function wireReportsCharts(snapshot) {
       scales: {
         x: scaleOpts.x,
         y: { ...scaleOpts.y, position: "left" },
-        y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#2dd4bf", font } }
+        y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: success, font } }
       }
     }
   });
@@ -14667,8 +15328,8 @@ function wireReportsCharts(snapshot) {
         {
           label: "Viajes / semana",
           data: snapshot.weekSeries,
-          borderColor: "#38bdf8",
-          backgroundColor: "rgba(56, 189, 248, 0.12)",
+          borderColor: primary,
+          backgroundColor: fillPrimary,
           fill: true,
           tension: 0.4,
           pointRadius: 4,
@@ -14692,7 +15353,7 @@ function wireReportsCharts(snapshot) {
     type: "doughnut",
     data: {
       labels: ["Con Termoking", "Carga seca"],
-      datasets: [{ data: [snapshot.thermoking.yes, snapshot.thermoking.no], backgroundColor: ["#0ea5e9", "#64748b"], borderWidth: 0 }]
+      datasets: [{ data: [snapshot.thermoking.yes, snapshot.thermoking.no], backgroundColor: [primary, c.neutral], borderWidth: 0 }]
     },
     options: { ...baseOpts, cutout: "65%", plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font } } } }
   });
@@ -14708,16 +15369,15 @@ function wireReportsCharts(snapshot) {
     });
   };
 
-  hBar("#reports-chart-clients", snapshot.topClients, "COP", "rgba(56, 189, 248, 0.85)");
-  hBar("#reports-chart-routes", snapshot.topRoutes, "Viajes", "rgba(167, 139, 250, 0.85)");
-  hBar("#reports-chart-drivers", snapshot.topDrivers, "Viajes", "rgba(16, 185, 129, 0.85)");
+  hBar("#reports-chart-clients", snapshot.topClients, "COP", barPrimary);
+  hBar("#reports-chart-routes", snapshot.topRoutes, "Viajes", barDeep);
+  hBar("#reports-chart-drivers", snapshot.topDrivers, "Viajes", barSuccess);
 
-  const funnelColors = ["#6366f1", "#8b5cf6", "#0ea5e9", "#10b981", "#22c55e"];
   push("#reports-chart-funnel", {
     type: "bar",
     data: {
       labels: snapshot.funnel.map((x) => x.label),
-      datasets: [{ label: "Cantidad", data: snapshot.funnel.map((x) => x.value), backgroundColor: funnelColors, borderRadius: 10 }]
+      datasets: [{ label: "Cantidad", data: snapshot.funnel.map((x) => x.value), backgroundColor: funnel, borderRadius: 8 }]
     },
     options: {
       ...baseOpts,
@@ -14742,11 +15402,40 @@ function bindReportsWorkspaceControls() {
     });
   });
 
-  const periodSel = root.querySelector("#reports-bi-period");
-  periodSel?.addEventListener("change", () => {
-    state.reportsUi = { ...state.reportsUi, period: String(periodSel.value || "90d"), tab: "bi" };
+  const applyBiPeriod = (period) => {
+    const p = String(period || "90d").trim();
+    if (!["30d", "90d", "month", "ytd", "all"].includes(p)) return;
+    state.reportsUi = { ...state.reportsUi, period: p, tab: "bi" };
     destroyReportsCharts();
     renderPortalView();
+  };
+
+  const periodSel = root.querySelector("#reports-bi-period");
+  periodSel?.addEventListener("change", () => applyBiPeriod(periodSel.value));
+
+  root.querySelectorAll("[data-action='reports-bi-period-chip']").forEach((btn) => {
+    btn.addEventListener("click", () => applyBiPeriod(btn.dataset.period));
+  });
+
+  root.querySelector("[data-action='reports-bi-refresh']")?.addEventListener("click", () => {
+    destroyReportsCharts();
+    renderPortalView();
+  });
+
+  root.querySelector("[data-action='reports-bi-export-excel']")?.addEventListener("click", async () => {
+    const user = currentUser();
+    if (!canAccessReport(user, "executive_control_tower")) {
+      notify(userMessage("reportNoPermission"), "error");
+      return;
+    }
+    const biRoot = root.querySelector(".reports-bi");
+    const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
+    try {
+      await exportReportsBiToExcel(snapshot, biRoot);
+      notify(userMessage("reportBiExcelExported"), "success");
+    } catch (_e) {
+      notify(userMessage("reportBiExcelError"), "error");
+    }
   });
 
   if (String(state.reportsUi?.tab || "export") !== "bi") return;
@@ -14846,7 +15535,7 @@ function reportsHtml() {
   const reportsHero = moduleFleetHeroStrip([
     { label: "Reportes disponibles", value: visibleCount },
     { label: "Catálogo", value: cards.length },
-    { label: "Vista activa", value: tab === "bi" ? "BI + gráficas" : "Exportar" },
+    { label: "Vista activa", value: tab === "bi" ? "Analítica" : "Exportar" },
     { label: "Formatos", value: "PDF + CSV" }
   ]);
   const exportActive = tab === "export";
@@ -14855,7 +15544,7 @@ function reportsHtml() {
   const workspace = `<div class="reports-workspace">
     <nav class="reports-workspace-tabs" aria-label="Secciones de reportería">
       <button type="button" class="reports-workspace-tab${exportActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="export" aria-current="${exportActive ? "page" : "false"}">${IC.download} Exportar reportes</button>
-      <button type="button" class="reports-workspace-tab${biActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="bi" aria-current="${biActive ? "page" : "false"}">${IC.activity} Inteligencia BI</button>
+      <button type="button" class="reports-workspace-tab${biActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="bi" aria-current="${biActive ? "page" : "false"}">${IC.activity} Analítica operativa</button>
     </nav>
     <div class="reports-workspace-panel${exportActive ? "" : " hidden"}" data-reports-panel="export" role="tabpanel"${exportActive ? "" : " hidden"}>
       ${pcardWrap("file", "Catálogo de reportes", "Descargue PDF o Excel (CSV) por área de negocio", reportsExportPanelHtml(user))}
@@ -15334,9 +16023,9 @@ function calculateDriverTripReport(driverId, month) {
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const interDepartmentTrips = trips.filter((trip) => String(trip.originDepartment || "") !== String(trip.destinationDepartment || "")).length;
   const viaticTotal = interDepartmentTrips * parseNum(rules.interDepartmentTripAmount);
-  const fuelLogs = read(KEYS.fuelLogs, []).filter((log) => String(log.driverId || "") === String(driver.id) && dateInRange(log.date, range));
+  const fuelLogs = readFuelLogs().filter((log) => String(log.driverId || "") === String(driver.id) && dateInRange(log.date, range));
   const fuelTotal = fuelLogs.reduce((acc, log) => acc + parseNum(log.totalCost), 0);
-  const technicalTotal = read(KEYS.vehicleTechnicalLogs, [])
+  const technicalTotal = readVehicleTechnicalLogs()
     .filter((log) => dateInRange(log.date, range) && trips.some((t) => String(t.trip?.vehicleId || "") === String(log.vehicleId || "")))
     .reduce((acc, log) => acc + parseNum(log.cost), 0);
   const kmEstimated = trips.reduce((acc, trip) => acc + Math.max(0, parseNum(trip.distanceKm || 0)), 0);
@@ -21891,9 +22580,70 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const next = String(btn.dataset.workspace || "explore");
-      state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: next };
+      state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel" }), workspace: next };
       renderPortalView();
     });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='history-fleet-tab']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = String(btn.dataset.fleetTab || "fuel");
+      if (!["fuel", "technical"].includes(next)) return;
+      state.historyUi = { ...(state.historyUi || { workspace: "fleet", quickFilter: "all" }), workspace: "fleet", fleetTab: next };
+      renderPortalView();
+    });
+  });
+
+  const bindHistoryFleetFilters = (formId, applyFn) => {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const refresh = () => applyFn(Object.fromEntries(new FormData(form).entries()));
+    form.addEventListener("change", refresh);
+    form.addEventListener("input", (event) => {
+      if (event.target?.matches?.("input[type='search']")) refresh();
+    });
+    form.addEventListener("reset", () => {
+      setTimeout(refresh, 0);
+    });
+    refresh();
+  };
+
+  bindHistoryFleetFilters("history-fuel-filter", (data) => {
+    const items = applyHistoryFleetFuelFilters(readFuelLogs(), data);
+    const mount = document.getElementById("history-fuel-results");
+    const countEl = document.getElementById("history-fuel-result-count");
+    if (countEl) countEl.textContent = String(items.length);
+    if (mount) mount.innerHTML = renderHistoryFuelLogsList(items);
+    const kpis = historyFleetFuelKpis(items);
+    refreshHistoryFleetKpiStrip('[data-fleet-panel="fuel"] .history-fleet-kpis', [
+      { label: "Cargas registradas", value: kpis.count },
+      { label: "Litros", value: `${kpis.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
+      { label: "Costo total", value: `$${kpis.cost.toLocaleString("es-CO")}` },
+      {
+        label: "Promedio $/L",
+        value: kpis.avgPerLiter > 0 ? `$${kpis.avgPerLiter.toLocaleString("es-CO")}` : "—"
+      },
+      {
+        label: "Reembolso conductor",
+        value: `$${kpis.reimburse.toLocaleString("es-CO")}`,
+        tone: kpis.reimburse > 0 ? "warn" : undefined
+      }
+    ]);
+  });
+
+  bindHistoryFleetFilters("history-technical-filter", (data) => {
+    const items = applyHistoryFleetTechnicalFilters(readVehicleTechnicalLogs(), data);
+    const mount = document.getElementById("history-technical-results");
+    const countEl = document.getElementById("history-technical-result-count");
+    if (countEl) countEl.textContent = String(items.length);
+    if (mount) mount.innerHTML = renderHistoryTechnicalLogsList(items);
+    const kpis = historyFleetTechnicalKpis(items);
+    refreshHistoryFleetKpiStrip('[data-fleet-panel="technical"] .history-fleet-kpis', [
+      { label: "Novedades", value: kpis.count },
+      { label: "Costo taller", value: `$${kpis.cost.toLocaleString("es-CO")}` },
+      { label: "Horas fuera de servicio", value: `${kpis.downtime.toLocaleString("es-CO")} h` },
+      { label: "Abiertas", value: kpis.open, tone: kpis.open > 0 ? "warn" : "ok" }
+    ]);
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='history-quick-filter']").forEach((btn) => {
@@ -21984,6 +22734,25 @@ function bindDynamicEvents() {
 
   const fuelLogForm = document.getElementById("form-fuel-log");
   if (fuelLogForm) {
+    wireMoneyInputs(fuelLogForm);
+    const fuelLitersInput = fuelLogForm.querySelector("[data-fuel-liters-input]");
+    const fuelCostInput = fuelLogForm.querySelector("input[name='totalCost']");
+    const fuelHint = document.getElementById("fuel-price-per-liter-hint");
+    const refreshFuelPerLiterHint = () => {
+      if (!fuelHint) return;
+      const liters = parseNum(fuelLitersInput?.value);
+      const total = parseMoneyFieldValue(fuelCostInput?.value);
+      if (liters > 0 && total > 0) {
+        const per = Math.round(total / liters);
+        fuelHint.hidden = false;
+        fuelHint.textContent = `Precio estimado: $${per.toLocaleString("es-CO")} por litro`;
+      } else {
+        fuelHint.hidden = true;
+        fuelHint.textContent = "";
+      }
+    };
+    fuelLitersInput?.addEventListener("input", refreshFuelPerLiterHint);
+    fuelCostInput?.addEventListener("input", refreshFuelPerLiterHint);
     wireFormSubmitGuard(fuelLogForm, async (event) => {
       const data = Object.fromEntries(new FormData(fuelLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
@@ -21993,35 +22762,39 @@ function bindDynamicEvents() {
         return;
       }
       const liters = parseNum(data.liters);
-      const totalCost = parseNum(data.totalCost);
+      const totalCost = parseMoneyFieldValue(data.totalCost);
       if (liters <= 0 || totalCost < 0) {
         notify(userMessage("fuelInvalidAmounts"), "error");
         return;
       }
-      const list = read(KEYS.fuelLogs, []);
-      list.unshift({
-        id: newUuidV4(),
-        date: data.date || nowIso().slice(0, 10),
-        vehicleId: vehicle.id,
-        vehiclePlate: vehicle.plate,
-        driverId: driver.id,
-        driverName: driver.name,
-        tripNumber: String(data.tripNumber || "").trim(),
-        liters,
-        totalCost,
-        costPerLiter: liters > 0 ? Math.round(totalCost / liters) : 0,
-        odometerKm: parseNum(data.odometerKm),
-        station: String(data.station || "").trim(),
-        paidBy: String(data.paidBy || "empresa"),
-        createdAt: nowIso()
-      });
+      const list = readFuelLogs();
+      list.unshift(
+        normalizeFuelLogPortalRow({
+          id: newUuidV4(),
+          date: data.date || nowIso().slice(0, 10),
+          vehicleId: vehicle.id,
+          plate: vehicle.plate,
+          vehiclePlate: vehicle.plate,
+          driverId: driver.id,
+          driverName: driver.name,
+          tripNumber: String(data.tripNumber || "").trim(),
+          liters,
+          totalCost,
+          costPerLiter: liters > 0 ? Math.round(totalCost / liters) : 0,
+          odometerKm: parseNum(data.odometerKm),
+          station: String(data.station || "").trim(),
+          paidBy: String(data.paidBy || "empresa"),
+          createdAt: nowIso()
+        })
+      );
       try {
-        await writeAwaitServer(KEYS.fuelLogs, list);
+        await writeFuelLogsAwait(list);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar el combustible en el servidor."), "error");
         return;
       }
       notify(userMessage("fuelLogged"), "success");
+      state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: "fleet", fleetTab: "fuel" };
       collapseCreatePanel("create-fuel-log");
       renderPortalView();
     });
@@ -22029,6 +22802,7 @@ function bindDynamicEvents() {
 
   const technicalLogForm = document.getElementById("form-technical-log");
   if (technicalLogForm) {
+    wireMoneyInputs(technicalLogForm);
     wireFormSubmitGuard(technicalLogForm, async (event) => {
       const data = Object.fromEntries(new FormData(technicalLogForm).entries());
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
@@ -22036,26 +22810,37 @@ function bindDynamicEvents() {
         notify(userMessage("fuelSelectVehicle"), "error");
         return;
       }
-      const list = read(KEYS.vehicleTechnicalLogs, []);
-      list.unshift({
-        id: newUuidV4(),
-        date: data.date || nowIso().slice(0, 10),
-        vehicleId: vehicle.id,
-        vehiclePlate: vehicle.plate,
-        type: String(data.type || "preventivo"),
-        description: String(data.description || "").trim(),
-        cost: parseNum(data.cost),
-        downtimeHours: parseNum(data.downtimeHours),
-        status: String(data.status || "Pendiente"),
-        createdAt: nowIso()
-      });
+      const cost = parseMoneyFieldValue(data.cost);
+      if (!String(data.description || "").trim()) {
+        notify("Indique una descripción de la novedad de taller.", "error");
+        return;
+      }
+      const list = readVehicleTechnicalLogs();
+      list.unshift(
+        normalizeVehicleTechnicalLogPortalRow({
+          id: newUuidV4(),
+          date: data.date || nowIso().slice(0, 10),
+          vehicleId: vehicle.id,
+          plate: vehicle.plate,
+          vehiclePlate: vehicle.plate,
+          interventionType: String(data.type || "preventivo"),
+          type: String(data.type || "preventivo"),
+          description: String(data.description || "").trim(),
+          cost,
+          downtimeHours: parseNum(data.downtimeHours),
+          followUpStatus: String(data.status || "Pendiente"),
+          status: String(data.status || "Pendiente"),
+          createdAt: nowIso()
+        })
+      );
       try {
-        await writeAwaitServer(KEYS.vehicleTechnicalLogs, list);
+        await writeVehicleTechnicalLogsAwait(list);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar el mantenimiento en el servidor."), "error");
         return;
       }
       notify(userMessage("technicalLogged"), "success");
+      state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: "fleet", fleetTab: "technical" };
       collapseCreatePanel("create-technical-log");
       renderPortalView();
     });
