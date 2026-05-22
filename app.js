@@ -14204,7 +14204,13 @@ function ensureReportPreviewModal() {
     </div>
   </div>`;
   document.body.appendChild(modal);
-  const close = () => modal.classList.add("hidden");
+  const close = () => {
+    modal.classList.add("hidden");
+    document.removeEventListener("keydown", onReportPreviewEsc);
+  };
+  function onReportPreviewEsc(event) {
+    if (event.key === "Escape") close();
+  }
   modal.querySelectorAll("[data-action='report-preview-close']").forEach((btn) => {
     btn.addEventListener("click", close);
   });
@@ -14290,6 +14296,13 @@ function openReportPreviewModal(report) {
   }
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
   modal.classList.remove("hidden");
+  document.addEventListener("keydown", onReportPreviewEsc);
+  const onReportPreviewEsc = (event) => {
+    if (event.key !== "Escape") return;
+    modal.classList.add("hidden");
+    document.removeEventListener("keydown", onReportPreviewEsc);
+  };
+  document.addEventListener("keydown", onReportPreviewEsc);
 }
 
 /** @deprecated Usar openReportPreviewModal o exportCatalogReport */

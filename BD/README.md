@@ -24,7 +24,16 @@ No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas que
 9. `postgres/09_rls_tablas.sql` — RLS (Supabase)
 10. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
 
-Local sin Supabase: `npm run init-schema` en `apps/api` aplica `01`–`08` (ver `scripts/init-local-schema.mjs`).
+### Comandos (raíz del monorepo)
+
+| Comando | Cuándo |
+|---------|--------|
+| `npm run db:init` | Postgres vacío (Docker local, Render sin RLS) → `01`–`08` |
+| `npm run db:init:supabase` | **Producción Supabase** (BD vacía) → `01`–`10` |
+| `npm run db:migrate` | BD existente: solo `postgres/migrations/` |
+| `node apps/api/scripts/apply-schema.mjs --supabase --skip-storage` | RLS tablas sin Storage (buckets pendientes) |
+
+La API (`PortalService.onModuleInit`) aplica ALTER idempotentes al arrancar si faltan columnas en un deploy sobre BD vieja.
 
 ## Bases ya existentes
 

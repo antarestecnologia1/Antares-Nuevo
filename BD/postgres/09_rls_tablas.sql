@@ -91,6 +91,8 @@ ALTER TABLE public.solicitudes_transporte ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.viajes_transporte ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registros_combustible ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registros_mantenimiento_vehiculo ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditoria_viajes_eliminados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditoria_solicitudes_eliminadas ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.cargos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vacantes ENABLE ROW LEVEL SECURITY;
@@ -488,3 +490,13 @@ CREATE POLICY preferencias_notificacion_propias
   ON public.preferencias_notificacion_usuario FOR ALL TO authenticated
   USING (id_usuario = auth.uid())
   WITH CHECK (id_usuario = auth.uid());
+
+CREATE POLICY auditoria_viajes_eliminados_admin
+  ON public.auditoria_viajes_eliminados FOR ALL TO authenticated
+  USING (public.es_administrador_global() OR public.es_equipo_rrhh())
+  WITH CHECK (public.es_administrador_global() OR public.es_equipo_rrhh());
+
+CREATE POLICY auditoria_solicitudes_eliminadas_admin
+  ON public.auditoria_solicitudes_eliminadas FOR ALL TO authenticated
+  USING (public.es_administrador_global() OR public.es_equipo_rrhh())
+  WITH CHECK (public.es_administrador_global() OR public.es_equipo_rrhh());

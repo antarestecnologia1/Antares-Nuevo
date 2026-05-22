@@ -51,7 +51,7 @@ Variables locales: `npm run setup` crea `apps/api/.env` para Postgres Docker; pa
 
 **Mínimas para login y registro**
 
-- `DATABASE_URL` — Postgres (URL interna de Render Postgres en el mismo región, o Supabase, o local). Aplicar scripts `BD/postgres/*.sql` en orden sobre una base vacía o según `BD/README.md`.
+- `DATABASE_URL` — Postgres (Render Postgres, Supabase o local). **Primera vez (BD vacía):** desde la raíz del repo, con `DATABASE_URL` en `apps/api/.env` (o variable en CI), ejecutar `npm run db:init:supabase` (crea tablas `01`–`10` + RLS). **Render sin Supabase:** `npm run db:init` (solo `01`–`08`). Tras crear buckets en Supabase Storage, si omitió el script 10: `node apps/api/scripts/apply-schema.mjs --supabase` o aplicar `BD/postgres/10_rls_storage_supabase.sql` en el SQL Editor. **BD ya en producción con esquema viejo:** `npm run db:migrate` o confiar en la autocura al arrancar la API (`PortalService.onModuleInit`). Ver `BD/README.md`.
 - `JWT_ACCESS_SECRET` — cadena larga aleatoria (mínimo ~32 caracteres).
 - `JWT_REFRESH_SECRET` — otra cadena larga, distinta de la anterior.
 - `JWT_ACCESS_EXPIRES_IN` = `15m` (recomendado).
@@ -133,6 +133,13 @@ Debe incluir el sufijo **`/api`** porque el cliente Next (`AuthProvider`) llama 
 
 3. Registro portal / Postgres en Render: `apps/api/src/database/database.module.ts` habilita TLS para hostnames habituales (Render, Neon, etc.) para evitar fallos de conexión a Postgres gestionado.
 
+## Base de datos — checklist producción
+
+1. **BD vacía:** `npm run setup` (local) o variables en Render; `npm run db:init:supabase` una sola vez contra esa `DATABASE_URL`.
+2. **Supabase Storage:** buckets `documentos_contratos`, `documentos_adjuntos`, `documentos_rrhh` (privados); luego script `10_rls_storage_supabase.sql` si no corrió en el paso 1.
+3. **BD con datos antiguos:** desplegar API nueva (autocura columnas al iniciar) y/o `npm run db:migrate`.
+4. Logs API al arranque: mensajes `*: esquema verificado` sin errores fatales.
+
 ## Checklist de validacion
 
 1. Render API en estado `Live`.
@@ -154,7 +161,9 @@ En la raíz del repo:
 | `npm install` | Dependencias del monorepo. |
 | `npm run setup` | Crea `apps/api/.env` con JWT aleatorios y Postgres Docker si no existe (`setup:force` para regenerar). |
 | `npm run verify` | Setup + build API + build Next.js + ESLint (`apps/web`) + tests estáticos del portal (`qa/portal-regression-tests.mjs`). **No requiere Docker.** |
-| `npm run verify:stack` | Si **Docker Compose** está en PATH: borra volumen, levanta Postgres, aplica esquema `BD/postgres` (sin scripts 09/10 Supabase), ejecuta `verify` y **smoke** `POST /api/auth/login` → 401. Si Docker no está instalado, ejecuta solo `verify`. |
+| `npm run verify:stack` | Si **Docker Compose** está en PATH: borra volumen, levanta Postgres, `npm run db:init` (`01`–`08`), ejecuta `verify` y smoke API. Si Docker no está instalado, ejecuta solo `verify`. |
+| `npm run db:init:supabase` | Esquema completo `01`–`10` contra `DATABASE_URL` (producción Supabase o Render + RLS opcional). |
+| `npm run db:migrate` | Solo `BD/postgres/migrations/` (actualizar BD existente). |
 
 ### Postgres local (Docker)
 

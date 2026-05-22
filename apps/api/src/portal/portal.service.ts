@@ -223,6 +223,11 @@ export class PortalService implements OnModuleInit {
     await this.ensureEmpresasSchema();
     await this.ensureProspectosContactoB2bSchema();
     await this.ensureSolicitudesTransporteSchema();
+    await this.ensurePreferenciasNotificacionSchema();
+    await this.ensureEmpleadosNominaSchema();
+    await this.ensureLiquidacionesNominaSchema();
+    await this.ensureAuditoriaTransporteSchema();
+    await this.ensureRegistrosFlotaSchema();
   }
 
   /** Sincroniza `tarifas_trayecto` con migración `09_tarifas_trayecto_clientes.sql`. */
@@ -453,6 +458,185 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureProspectosContactoB2bSchema fallo no fatal: ${msg}`);
+    }
+  }
+
+  /** Tabla preferencias (28/29) + columna sonido. */
+  private async ensurePreferenciasNotificacionSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS public.preferencias_notificacion_usuario (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_usuario UUID NOT NULL UNIQUE REFERENCES public.usuarios (id) ON DELETE CASCADE,
+          notificaciones_habilitadas BOOLEAN NOT NULL DEFAULT true,
+          sonido_notificaciones_habilitadas BOOLEAN NOT NULL DEFAULT true,
+          fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now(),
+          fecha_actualizacion TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.pool.query(
+        `ALTER TABLE public.preferencias_notificacion_usuario
+           ADD COLUMN IF NOT EXISTS sonido_notificaciones_habilitadas BOOLEAN NOT NULL DEFAULT true`
+      );
+      this.logger.log("preferencias_notificacion_usuario: esquema verificado.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensurePreferenciasNotificacionSchema fallo no fatal: ${msg}`);
+    }
+  }
+
+  /** Condición médica empleados (19_empleados_condicion_medica.sql). */
+  private async ensureEmpleadosNominaSchema() {
+    if (!(await this.tableExists("empleados_nomina"))) return;
+    const alters = [
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tiene_condicion_medica BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS descripcion_condicion_medica TEXT`
+    ];
+    for (const q of alters) {
+      try {
+        await this.pool.query(q);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureEmpleadosNominaSchema: ${msg}`);
+      }
+    }
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.empleados_nomina DROP CONSTRAINT IF EXISTS chk_empleados_condicion_medica`
+      );
+      await this.pool.query(`
+        ALTER TABLE public.empleados_nomina
+          ADD CONSTRAINT chk_empleados_condicion_medica CHECK (
+            tiene_condicion_medica = true
+            OR descripcion_condicion_medica IS NULL
+            OR length(btrim(descripcion_condicion_medica)) = 0
+          )
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpleadosNominaSchema constraint: ${msg}`);
+    }
+  }
+
+  /** Liquidaciones: prima, cesantías, origen, período extendido (20–23). */
+  private async ensureLiquidacionesNominaSchema() {
+    if (!(await this.tableExists("liquidaciones_nomina"))) return;
+    const alters = [
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS tipo_registro VARCHAR(24) NOT NULL DEFAULT 'mensual'`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS incluye_prima_servicios BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS prima_servicios_cop NUMERIC(18,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS prima_dias_semestre INTEGER`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS liquidacion_terminacion_json JSONB`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS incluye_intereses_cesantias BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS intereses_cesantias_cop NUMERIC(18,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS base_cesantias_interes_cop NUMERIC(18,2)`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS dias_interes_cesantias INTEGER`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS origen_liquidacion VARCHAR(32) NOT NULL DEFAULT 'manual'`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS novedades_liquidacion_json JSONB`
+    ];
+    let ok = 0;
+    for (const q of alters) {
+      try {
+        await this.pool.query(q);
+        ok += 1;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureLiquidacionesNominaSchema: ${msg}`);
+      }
+    }
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.liquidaciones_nomina ALTER COLUMN periodo_mes TYPE VARCHAR(32)`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureLiquidacionesNominaSchema periodo_mes: ${msg}`);
+    }
+    this.logger.log(`liquidaciones_nomina: ${ok}/${alters.length} columnas verificadas.`);
+  }
+
+  /** Auditoría eliminaciones viajes/solicitudes (25). */
+  private async ensureAuditoriaTransporteSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS auditoria_viajes_eliminados (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_solicitud UUID NOT NULL,
+          id_viaje UUID,
+          numero_solicitud VARCHAR(32),
+          numero_viaje VARCHAR(32),
+          motivo TEXT NOT NULL,
+          datos_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+          eliminado_por UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+          eliminado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS auditoria_solicitudes_eliminadas (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_solicitud UUID NOT NULL,
+          numero_solicitud VARCHAR(32),
+          motivo TEXT NOT NULL,
+          datos_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+          eliminado_por UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+          eliminado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_aud_viajes_elim_en ON auditoria_viajes_eliminados (eliminado_en DESC)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_aud_sol_elim_en ON auditoria_solicitudes_eliminadas (eliminado_en DESC)`
+      );
+      this.logger.log("auditoria transporte: tablas verificadas.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureAuditoriaTransporteSchema fallo no fatal: ${msg}`);
+    }
+  }
+
+  /** Historial flota: CHECK pagado_por / tipo_intervencion, id_usuario_registro (38). */
+  private async ensureRegistrosFlotaSchema() {
+    if (!(await this.tableExists("registros_combustible"))) return;
+    const alters = [
+      `ALTER TABLE public.registros_combustible ADD COLUMN IF NOT EXISTS id_usuario_registro UUID REFERENCES usuarios (id) ON DELETE SET NULL`,
+      `ALTER TABLE public.registros_mantenimiento_vehiculo ADD COLUMN IF NOT EXISTS id_usuario_registro UUID REFERENCES usuarios (id) ON DELETE SET NULL`
+    ];
+    for (const q of alters) {
+      try {
+        await this.pool.query(q);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureRegistrosFlotaSchema: ${msg}`);
+      }
+    }
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.registros_combustible DROP CONSTRAINT IF EXISTS chk_registros_combustible_pagado_por`
+      );
+      await this.pool.query(`
+        ALTER TABLE public.registros_combustible
+          ADD CONSTRAINT chk_registros_combustible_pagado_por
+          CHECK (pagado_por IN ('empresa', 'conductor'))
+      `);
+      await this.pool.query(
+        `ALTER TABLE public.registros_mantenimiento_vehiculo DROP CONSTRAINT IF EXISTS chk_registros_mantenimiento_tipo`
+      );
+      await this.pool.query(`
+        ALTER TABLE public.registros_mantenimiento_vehiculo
+          ADD CONSTRAINT chk_registros_mantenimiento_tipo
+          CHECK (tipo_intervencion IN ('preventivo', 'correctivo', 'falla'))
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_combustible_usuario_registro ON registros_combustible (id_usuario_registro)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_mantenimiento_usuario_registro ON registros_mantenimiento_vehiculo (id_usuario_registro)`
+      );
+      this.logger.log("registros flota: esquema verificado.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureRegistrosFlotaSchema constraints: ${msg}`);
     }
   }
 
@@ -1805,7 +1989,7 @@ export class PortalService implements OnModuleInit {
       if (!isMissingColumn) throw err;
       this.logger.warn(
         "loadTripRouteRates: columna ids_empresas no existe; usando fallback sin segmentación por cliente. " +
-          "Aplique BD/postgres/09_tarifas_trayecto_clientes.sql o reinicie la API para auto-curar."
+          "Reinicie la API (auto-cura ids_empresas) o ejecute npm run db:migrate / esquema 04+07 unificado."
       );
       const r2 = await this.pool.query(
         `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
