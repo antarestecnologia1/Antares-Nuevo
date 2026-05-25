@@ -4235,14 +4235,8 @@ function applyPublicLanguage(lang = "es") {
   const waFab = document.querySelector(".whatsapp-fab");
   if (waFab) {
     const waLabel = lang === "en" ? "Contact via WhatsApp" : "Contactar por WhatsApp";
-    const waBadge = waFab.querySelector("[data-wa-badge]");
-    const waTitle = waFab.querySelector("[data-wa-title]");
-    const waSubtitle = waFab.querySelector("[data-wa-subtitle]");
     waFab.setAttribute("aria-label", waLabel);
     waFab.setAttribute("title", waLabel);
-    if (waBadge) waBadge.textContent = lang === "en" ? "Online" : "En linea";
-    if (waTitle) waTitle.textContent = "WhatsApp";
-    if (waSubtitle) waSubtitle.textContent = lang === "en" ? "Chat with us" : "Escribenos ahora";
   }
 
   if (nodes.themeTogglePublic) nodes.themeTogglePublic.setAttribute("aria-label", lang === "en" ? "Theme" : "Tema");

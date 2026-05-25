@@ -8905,10 +8905,11 @@ body[data-theme="dark"] .b2b-leads-brief {
   z-index: 40;
   display: inline-flex;
   align-items: center;
-  gap: 0.78rem;
-  min-height: 4.1rem;
-  border-radius: 1.5rem;
-  padding: 0.7rem 1rem 0.7rem 0.72rem;
+  justify-content: center;
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 50%;
+  padding: 0.55rem;
   text-decoration: none;
   color: #ffffff;
   background: linear-gradient(135deg, rgba(7, 32, 28, 0.96), rgba(18, 140, 126, 0.94));
@@ -8973,9 +8974,9 @@ body[data-theme="dark"] .b2b-leads-brief {
 .whatsapp-fab-icon-wrap {
   display: grid;
   place-items: center;
-  width: 2.7rem;
-  height: 2.7rem;
-  min-width: 2.7rem;
+  width: 2.95rem;
+  height: 2.95rem;
+  min-width: 2.95rem;
   border-radius: 50%;
   background: linear-gradient(135deg, #25d366, #1faa74);
   box-shadow:
@@ -8995,47 +8996,6 @@ body[data-theme="dark"] .b2b-leads-brief {
   width: 1.28rem;
   height: 1.28rem;
   min-width: 1.28rem;
-}
-
-.whatsapp-fab-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.05;
-}
-
-.whatsapp-fab-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.38rem;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.whatsapp-fab-badge::before {
-  content: "";
-  width: 0.46rem;
-  height: 0.46rem;
-  border-radius: 999px;
-  background: #92ffbe;
-  box-shadow: 0 0 0 0.32rem rgba(146, 255, 190, 0.12);
-}
-
-.whatsapp-fab-title {
-  margin-top: 0.2rem;
-  font-size: 0.97rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.whatsapp-fab-subtitle {
-  margin-top: 0.12rem;
-  font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.72);
-  white-space: nowrap;
 }
 
 /* ─── ANIMATIONS ─── */
@@ -9324,14 +9284,9 @@ body[data-theme="dark"] .b2b-leads-brief {
   .whatsapp-fab {
     bottom: 0.8rem;
     right: 0.8rem;
-    min-height: 3.4rem;
-    padding: 0.45rem;
-    border-radius: 999px;
-    gap: 0;
-  }
-
-  .whatsapp-fab-copy {
-    display: none;
+    width: 3.5rem;
+    height: 3.5rem;
+    padding: 0.42rem;
   }
 
   .whatsapp-fab-icon-wrap {
