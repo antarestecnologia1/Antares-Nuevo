@@ -269,6 +269,30 @@ export class PortalService implements OnModuleInit {
     return /^https?:\/\//i.test(raw) ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
   }
 
+  private async recordOutgoingEmailLog(params: {
+    to: string;
+    subject: string;
+    body: string;
+    sent: boolean;
+    error?: string | null;
+  }): Promise<void> {
+    const to = String(params.to || "").trim();
+    const subject = String(params.subject || "").trim();
+    const body = String(params.body || "").trim();
+    if (!to || !subject || !body) return;
+    try {
+      await this.pool.query(
+        `INSERT INTO correos_salida (direccion_destino, asunto, cuerpo, fecha_envio_real, error_envio)
+         VALUES ($1, $2, $3, CASE WHEN $4::boolean THEN now() ELSE NULL END, $5)`,
+        [to, subject, body, params.sent, params.sent ? null : sanitizeLogText(params.error)]
+      );
+    } catch (err: any) {
+      if (String(err?.code || "") === "42P01") return;
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`recordOutgoingEmailLog fallo no fatal: ${sanitizeLogText(detail)}`);
+    }
+  }
+
   /**
    * Notifica por correo al usuario que su cuenta fue aprobada. No debe romper la respuesta del endpoint
    * (admin ya recibió 200 antes), por eso se invoca con `void` y los errores quedan en logs.
@@ -284,32 +308,51 @@ export class PortalService implements OnModuleInit {
       const email = String(row.correo_electronico).trim();
       const name = String(row.nombre_completo || "").trim() || "Usuario";
       const portalUrl = this.resolvePortalPublicUrl();
+      const subject = "Cuenta aprobada - Antares Portal";
+      const bodySummary = `Cuenta aprobada para ${name}. Se intento notificar el acceso al portal.`;
+      let sent = false;
+      let deliveryError: string | null = null;
 
       if (this.mail.hasResend()) {
-        await this.mail.sendPortalRegistrationWelcome({
-          to: email,
-          recipientName: name,
-          portalUrl,
-          accountApproved: true
-        });
-        return;
+        try {
+          await this.mail.sendPortalRegistrationWelcome({
+            to: email,
+            recipientName: name,
+            portalUrl,
+            accountApproved: true
+          });
+          sent = true;
+        } catch (err) {
+          deliveryError = err instanceof Error ? err.message : String(err);
+        }
       }
 
-      // Sin Resend: aún podemos disparar un correo de Supabase (set-password) que sirve como activación.
-      if (this.supabaseAdmin) {
+      // Sin Resend o si falló, aún podemos disparar un correo de Supabase que sirve como activación.
+      if (!sent && this.supabaseAdmin) {
         const { error } = await this.supabaseAdmin.auth.resetPasswordForEmail(email, {
           redirectTo: portalUrl
         });
         if (error) {
+          deliveryError = error.message;
           this.logger.warn(
             `approve-pending-user: resetPasswordForEmail (${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`
           );
+        } else {
+          sent = true;
         }
-      } else {
+      } else if (!sent) {
+        deliveryError = deliveryError || "Ni Resend ni Supabase configurados";
         this.logger.warn(
           `approve-pending-user: ni Resend ni Supabase configurados. No se notifica al usuario ${redactEmailForLog(email)}.`
         );
       }
+      await this.recordOutgoingEmailLog({
+        to: email,
+        subject,
+        body: bodySummary,
+        sent,
+        error: deliveryError
+      });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       this.logger.warn(`sendAccountApprovedEmail (${userId}) fallo no fatal: ${sanitizeLogText(detail)}`);
@@ -2287,14 +2330,18 @@ export class PortalService implements OnModuleInit {
              s.observaciones AS observations,
              s.estado::text AS status,
              s.valor_tarifa_viaje AS "tripValue",
+             s.valor_asegurado AS "insuredValue",
              s.total_cargos_standby AS "standbyChargeTotal",
              s.eventos_standby_json AS "standbyEvents",
              s.motivo_rechazo AS "rejectionReason",
              s.fecha_aprobacion AS "approvedAt",
              s.aprobado_por AS "approvedBy",
+             s.aprobacion_automatica AS "autoApproved",
              s.fecha_entrega_efectiva AS "deliveredAt",
              s.fecha_cierre AS "closedAt",
              s.fecha_creacion AS "createdAt",
+             s.fecha_actualizacion AS "updatedAt",
+             s.distancia_km AS "distanceKm",
              v.id::text AS "trip_id",
              v.numero_viaje AS "trip_tripNumber",
              v.id_vehiculo::text AS "trip_vehicleId",
@@ -2397,14 +2444,27 @@ export class PortalService implements OnModuleInit {
       observations: row.observations,
       status: row.status,
       tripValue: row.tripValue,
+      insuredValue:
+        row.insuredValue != null && row.insuredValue !== "" && Number.isFinite(Number(row.insuredValue))
+          ? Number(row.insuredValue)
+          : null,
       standbyChargeTotal: row.standbyChargeTotal,
       standbyEvents: Array.isArray(row.standbyEvents) ? row.standbyEvents : JSON.parse(String(row.standbyEvents || "[]")),
       rejectionReason: row.rejectionReason || "",
       approvedAt: row.approvedAt ? new Date(row.approvedAt as string).toISOString() : null,
       approvedBy: row.approvedBy || null,
+      autoApproved:
+        typeof row.autoApproved === "boolean"
+          ? row.autoApproved
+          : String(row.autoApproved || "").toLowerCase() === "true",
       deliveredAt: row.deliveredAt ? new Date(row.deliveredAt as string).toISOString() : null,
       closedAt: row.closedAt ? new Date(row.closedAt as string).toISOString() : null,
       createdAt: row.createdAt ? new Date(row.createdAt as string).toISOString() : new Date().toISOString(),
+      updatedAt: row.updatedAt ? new Date(row.updatedAt as string).toISOString() : null,
+      distanceKm:
+        row.distanceKm != null && row.distanceKm !== "" && Number.isFinite(Number(row.distanceKm))
+          ? Number(row.distanceKm)
+          : null,
       trip,
       apiSynced: true
     };
@@ -2724,15 +2784,24 @@ export class PortalService implements OnModuleInit {
     if (!admin) return [];
     const r = await this.pool.query(
       `SELECT id::text, direccion_destino AS to, asunto AS subject,
-              fecha_envio_real AS sentAt, fecha_creacion AS "createdAt"
+              cuerpo AS body, fecha_envio_real AS sentAt, fecha_creacion AS "createdAt",
+              error_envio AS error,
+              CASE
+                WHEN error_envio IS NOT NULL AND btrim(error_envio) <> '' THEN 'error'
+                WHEN fecha_envio_real IS NOT NULL THEN 'sent'
+                ELSE 'queued'
+              END AS status
        FROM correos_salida ORDER BY fecha_creacion DESC LIMIT 500`
     );
     return r.rows.map((e) => ({
       id: e.id,
       to: maskPortalEmail(e.to),
       subject: e.subject,
+      body: e.body,
       sentAt: e.sentAt ? new Date(e.sentAt).toISOString() : null,
-      createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : new Date().toISOString()
+      createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : new Date().toISOString(),
+      error: e.error || null,
+      status: e.status
     }));
   }
 
@@ -4298,6 +4367,18 @@ export class PortalService implements OnModuleInit {
         String(req.observations ?? req.notes ?? "").trim() || null;
       const tipoServicio = this.solicitudModoTransporteFromPayload(req);
       const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req);
+      const insuredValue =
+        req.insuredValue != null && String(req.insuredValue).trim() !== ""
+          ? Math.max(0, Number(req.insuredValue) || 0)
+          : null;
+      const distanceKm =
+        req.distanceKm != null && String(req.distanceKm).trim() !== ""
+          ? Math.max(0, Number(req.distanceKm) || 0)
+          : null;
+      const autoApproved =
+        typeof req.autoApproved === "boolean"
+          ? req.autoApproved
+          : String(req.autoApproved || "").trim().toLowerCase() === "true";
 
       await c.query(
         `INSERT INTO solicitudes_transporte (
@@ -4306,12 +4387,12 @@ export class PortalService implements OnModuleInit {
           fecha_hora_recogida, fecha_hora_entrega_estimada, tipo_vehiculo_solicitado, descripcion_carga, tipo_servicio,
           refrigeracion_termoking,
           numero_cajas, peso_kg, numero_fuelles, nombre_contacto_en_sitio, telefono_contacto_en_sitio, observaciones,
-          estado, valor_tarifa_viaje, total_cargos_standby, eventos_standby_json,
-          motivo_rechazo, fecha_aprobacion, aprobado_por, fecha_entrega_efectiva, fecha_cierre
+          estado, valor_tarifa_viaje, valor_asegurado, total_cargos_standby, eventos_standby_json,
+          motivo_rechazo, fecha_aprobacion, aprobado_por, aprobacion_automatica, fecha_entrega_efectiva, fecha_cierre, distancia_km
         ) VALUES (
           $1::uuid, $2, $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::timestamptz,
-          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::estado_solicitud_transporte, $26, $27, $28::jsonb,
-          $29, $30::timestamptz, $31, $32::timestamptz, $33::timestamptz
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::estado_solicitud_transporte, $26, $27, $28, $29::jsonb,
+          $30, $31::timestamptz, $32, $33::boolean, $34::timestamptz, $35::timestamptz, $36
         )
         ON CONFLICT (id) DO UPDATE SET
           numero_solicitud = EXCLUDED.numero_solicitud,
@@ -4339,13 +4420,16 @@ export class PortalService implements OnModuleInit {
           observaciones = EXCLUDED.observaciones,
           estado = EXCLUDED.estado,
           valor_tarifa_viaje = EXCLUDED.valor_tarifa_viaje,
+          valor_asegurado = EXCLUDED.valor_asegurado,
           total_cargos_standby = EXCLUDED.total_cargos_standby,
           eventos_standby_json = EXCLUDED.eventos_standby_json,
           motivo_rechazo = EXCLUDED.motivo_rechazo,
           fecha_aprobacion = EXCLUDED.fecha_aprobacion,
           aprobado_por = EXCLUDED.aprobado_por,
+          aprobacion_automatica = EXCLUDED.aprobacion_automatica,
           fecha_entrega_efectiva = EXCLUDED.fecha_entrega_efectiva,
-          fecha_cierre = EXCLUDED.fecha_cierre`,
+          fecha_cierre = EXCLUDED.fecha_cierre,
+          distancia_km = EXCLUDED.distancia_km`,
         [
           req.id,
           req.requestNumber,
@@ -4373,13 +4457,16 @@ export class PortalService implements OnModuleInit {
           observations,
           req.status,
           Number(req.tripValue) || 0,
+          insuredValue,
           Number(req.standbyChargeTotal) || 0,
           JSON.stringify(Array.isArray(req.standbyEvents) ? req.standbyEvents : []),
           req.rejectionReason || null,
           req.approvedAt || null,
           req.approvedBy || null,
+          autoApproved,
           req.deliveredAt || null,
-          req.closedAt || null
+          req.closedAt || null,
+          distanceKm
         ]
       );
 
@@ -4720,10 +4807,14 @@ export class PortalService implements OnModuleInit {
       if (!e?.id) continue;
       if (this.skipUnlessPersistUuid("syncEmails", e.id)) continue;
       await c.query(
-        `INSERT INTO correos_salida (id, direccion_destino, asunto, cuerpo, fecha_envio_real)
-         VALUES ($1::uuid, $2, $3, $4, $5::timestamptz)
-         ON CONFLICT (id) DO UPDATE SET asunto = EXCLUDED.asunto, cuerpo = EXCLUDED.cuerpo`,
-        [e.id, e.to, e.subject, e.body, e.sentAt || null]
+        `INSERT INTO correos_salida (id, direccion_destino, asunto, cuerpo, fecha_envio_real, error_envio)
+         VALUES ($1::uuid, $2, $3, $4, $5::timestamptz, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           asunto = EXCLUDED.asunto,
+           cuerpo = EXCLUDED.cuerpo,
+           fecha_envio_real = COALESCE(EXCLUDED.fecha_envio_real, correos_salida.fecha_envio_real),
+           error_envio = EXCLUDED.error_envio`,
+        [e.id, e.to, e.subject, e.body, e.sentAt || null, e.error || null]
       );
     }
   }

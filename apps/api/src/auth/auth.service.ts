@@ -961,6 +961,30 @@ export class AuthService {
     }
   }
 
+  private async recordOutgoingEmailLog(params: {
+    to: string;
+    subject: string;
+    body: string;
+    sent: boolean;
+    error?: string | null;
+  }): Promise<void> {
+    const to = String(params.to || "").trim();
+    const subject = String(params.subject || "").trim();
+    const body = String(params.body || "").trim();
+    if (!to || !subject || !body) return;
+    try {
+      await this.pool.query(
+        `INSERT INTO correos_salida (direccion_destino, asunto, cuerpo, fecha_envio_real, error_envio)
+         VALUES ($1, $2, $3, CASE WHEN $4::boolean THEN now() ELSE NULL END, $5)`,
+        [to, subject, body, params.sent, params.sent ? null : sanitizeLogText(params.error)]
+      );
+    } catch (err: any) {
+      if (String(err?.code || "") === "42P01") return;
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`recordOutgoingEmailLog fallo no fatal: ${sanitizeLogText(detail)}`);
+    }
+  }
+
   /** Correo de bienvenida según `estado_cuenta` en BD (pendiente vs aprobado). No debe hacer fallar el registro. */
   private async sendRegistrationWelcomeEmail(email: string, displayName: string, userId: string): Promise<void> {
     try {
@@ -970,8 +994,13 @@ export class AuthService {
       );
       const approved = r.rows[0]?.s === "aprobado";
       const portalUrl = this.portalPublicBaseUrl();
+      const subject = approved ? "Cuenta aprobada - Antares Portal" : "Registro recibido - Antares Portal";
+      const bodySummary = approved
+        ? `Cuenta aprobada para ${displayName}. Se intento enviar acceso al portal.`
+        : `Registro recibido para ${displayName}. Se intento enviar correo de bienvenida.`;
 
       let sent = false;
+      let deliveryError: string | null = null;
       if (this.mail.hasResend()) {
         try {
           await this.mail.sendPortalRegistrationWelcome({
@@ -982,19 +1011,34 @@ export class AuthService {
           });
           sent = true;
         } catch (resendErr) {
-          const msg = resendErr instanceof Error ? resendErr.message : String(resendErr);
+          deliveryError = resendErr instanceof Error ? resendErr.message : String(resendErr);
           this.logger.warn(
-            `Bienvenida Resend falló (${redactEmailForLog(email)}), probando Supabase: ${sanitizeLogText(msg)}`
+            `Bienvenida Resend falló (${redactEmailForLog(email)}), probando Supabase: ${sanitizeLogText(deliveryError)}`
           );
         }
       }
 
       if (!sent) {
-        await this.sendRegistrationWelcomeViaSupabaseMagicLink(email, portalUrl, userId);
+        deliveryError = await this.sendRegistrationWelcomeViaSupabaseMagicLink(email, portalUrl, userId);
+        sent = deliveryError == null;
       }
+      await this.recordOutgoingEmailLog({
+        to: email,
+        subject,
+        body: bodySummary,
+        sent,
+        error: deliveryError
+      });
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       this.logger.error(`Correo de bienvenida no enviado (${redactEmailForLog(email)}): ${sanitizeLogText(detail)}`);
+      await this.recordOutgoingEmailLog({
+        to: email,
+        subject: "Registro recibido - Antares Portal",
+        body: `No fue posible completar el correo de bienvenida para ${displayName}.`,
+        sent: false,
+        error: detail
+      });
     }
   }
 
@@ -1006,12 +1050,12 @@ export class AuthService {
     email: string,
     portalUrl: string,
     userId: string
-  ): Promise<void> {
+  ): Promise<string | null> {
     if (!this.supabaseAdmin || !this.supabaseOtpMailer) {
-      this.logger.warn(
-        `Bienvenida sin Resend y sin Supabase completo: no se envía magic link a ${redactEmailForLog(email)}. Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (+ opcional SUPABASE_ANON_KEY).`
-      );
-      return;
+      const msg =
+        "Bienvenida sin Resend y sin Supabase completo: configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (+ opcional SUPABASE_ANON_KEY).";
+      this.logger.warn(`${msg} Destino ${redactEmailForLog(email)}.`);
+      return msg;
     }
     try {
       try {
@@ -1040,12 +1084,14 @@ export class AuthService {
         } else {
           this.logger.warn(`signInWithOtp bienvenida (${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`);
         }
-        return;
+        return error.message;
       }
       this.logger.log(`Correo de bienvenida (magic link Supabase) encolado/enviado a ${redactEmailForLog(email)}`);
+      return null;
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
       this.logger.warn(`Bienvenida vía Supabase falló (${redactEmailForLog(email)}): ${sanitizeLogText(detail)}`);
+      return detail;
     }
   }
 

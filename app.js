@@ -1205,11 +1205,14 @@ function openAssignedTripInfoModal(req) {
             <div><strong>Cliente:</strong> ${escapeHtml(String(req.clientName || "-"))}</div>
             <div class="full"><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
             <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${requestTruckRequirementSummaryHtml(req)}</div>
-            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || 0).toLocaleString("es-CO")}</div>
+            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</div>
+            ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado:</strong> $${parseNum(req.insuredValue).toLocaleString("es-CO")}</div>` : ""}
+            ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada:</strong> ${parseNum(req.distanceKm).toLocaleString("es-CO")} km</div>` : ""}
             <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
             <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
             <div><strong>Asignado por:</strong> ${escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))}</div>
             <div><strong>Fecha asignación:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
+            ${req.autoApproved ? `<div><strong>Aprobación:</strong> Automática</div>` : ""}
             <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
             <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
             ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
@@ -1260,6 +1263,9 @@ function openRequestDetailModal(req) {
           <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
           <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
           <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
+          ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado</strong><br /><span class="muted">$${parseNum(req.insuredValue).toLocaleString("es-CO")}</span></div>` : ""}
+          ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada</strong><br /><span class="muted">${parseNum(req.distanceKm).toLocaleString("es-CO")} km</span></div>` : ""}
+          ${req.autoApproved ? `<div><strong>Aprobación</strong><br /><span class="muted">Automática</span></div>` : ""}
         </div>
         ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
       </section>
@@ -6830,7 +6836,7 @@ function sendEmail({ to, subject, body }) {
     if (actor && actor.role !== ROLES.ADMIN) return;
   }
   const outbox = read(KEYS.emails, []);
-  outbox.unshift({ id: newUuidV4(), to, subject, body, createdAt: nowIso() });
+  outbox.unshift({ id: newUuidV4(), to, subject, body, createdAt: nowIso(), sentAt: null, error: null, status: "queued" });
   write(KEYS.emails, outbox);
 }
 
@@ -11787,6 +11793,8 @@ function requestFormHtml() {
         <label class="full">${fieldLabel(IC.truck, "Tipo de camion requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
         <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
         <label class="request-truck-field request-truck-field--kg" hidden>${fieldLabel(IC.scale, "Peso kg (tractomula)", { required: true })}<input type="number" min="0" step="0.01" name="weightKg" id="request-tractomula-kg" /></label>
+        <label>${fieldLabel(IC.dollar, "Valor asegurado (COP)")}<input type="number" min="0" step="0.01" name="insuredValue" placeholder="Opcional" /></label>
+        <label>${fieldLabel(IC.mapPin, "Distancia estimada (km)")}<input type="number" min="0" step="0.01" name="distanceKm" placeholder="Opcional" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">
@@ -14942,9 +14950,14 @@ function requestLifecycleSummary(request) {
   const rejection = String(request?.rejectionReason || "").trim();
   const cancellation = String(request?.cancellationReason || "").trim();
   const standby = parseNum(request?.standbyChargeTotal || 0);
+  const insuredValue = parseNum(request?.insuredValue || 0);
+  const distanceKm = parseNum(request?.distanceKm || 0);
   const invoiceNumber = String(request?.trip?.invoice?.number || "").trim();
   if (cancellation) notes.push(`Cancelación: ${cancellation}`);
   if (rejection) notes.push(`Rechazo: ${rejection}`);
+  if (request?.autoApproved) notes.push("Aprobación automática");
+  if (insuredValue > 0) notes.push(`Asegurado $${insuredValue.toLocaleString("es-CO")}`);
+  if (distanceKm > 0) notes.push(`${distanceKm.toLocaleString("es-CO")} km`);
   if (standby > 0) notes.push(`Standby $${standby.toLocaleString("es-CO")}`);
   if (invoiceNumber) notes.push(`Factura ${invoiceNumber}`);
   return notes.join(" · ") || "-";
@@ -22104,6 +22117,8 @@ function bindDynamicEvents() {
       const contactPhone = String(siteContactPhone ?? "").trim();
       const boxesCount = 0;
       const notesTrim = String(notes ?? "").trim();
+      const insuredValueNum = Math.max(0, parseNum(payloadRest.insuredValue));
+      const distanceKmNum = Math.max(0, parseNum(payloadRest.distanceKm));
       const all = reqRead();
       const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
       const requestNumber = makeRequestNumber(usedRequestNumbers);
@@ -22124,6 +22139,8 @@ function bindDynamicEvents() {
         siteContactPhone: contactPhone,
         boxesCount,
         boxes: boxesCount,
+        insuredValue: insuredValueNum > 0 ? insuredValueNum : null,
+        distanceKm: distanceKmNum > 0 ? distanceKmNum : null,
         notes: notesTrim,
         observations: notesTrim || null,
         vehicleType: requiredTruckType,
@@ -22135,6 +22152,7 @@ function bindDynamicEvents() {
         createdAt: nowIso(),
         approvedAt: null,
         approvedBy: null,
+        autoApproved: false,
         trip: null,
         standbyChargeTotal: 0,
         standbyEvents: [],
@@ -22558,6 +22576,9 @@ function bindDynamicEvents() {
               <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
               <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
               <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
+              ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado</strong><br /><span class="muted">$${parseNum(req.insuredValue).toLocaleString("es-CO")}</span></div>` : ""}
+              ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada</strong><br /><span class="muted">${parseNum(req.distanceKm).toLocaleString("es-CO")} km</span></div>` : ""}
+              ${req.autoApproved ? `<div><strong>Aprobación</strong><br /><span class="muted">Automática</span></div>` : ""}
               ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
               ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
             </div>
@@ -22665,6 +22686,8 @@ function bindDynamicEvents() {
           },
           ...buildRequestTruckTypeEditFieldRows(req),
           { name: "tripValue", label: "Valor del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || req.insuredValue || 0), required: false },
+          { name: "insuredValue", label: "Valor asegurado (COP)", type: "number", min: 0, value: parseNum(req.insuredValue || 0), required: false },
+          { name: "distanceKm", label: "Distancia estimada (km)", type: "number", min: 0, step: 0.01, value: parseNum(req.distanceKm || 0), required: false },
           { type: "section", id: "edit-req-contact", title: "Contacto en sitio", hint: "Persona que recibe / entrega." },
           { name: "siteContactName", label: "Nombre de contacto", value: req.siteContactName || req.contactName || "", required: true },
           { name: "siteContactPhone", label: "Teléfono de contacto", value: req.siteContactPhone || req.contactPhone || "", required: true },
@@ -22761,6 +22784,8 @@ function bindDynamicEvents() {
             boxesCount: 0,
             weightKg: requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType) ? weightKgVal : 0,
             tripValue: parseNum(form.tripValue),
+            insuredValue: Math.max(0, parseNum(form.insuredValue)) || null,
+            distanceKm: Math.max(0, parseNum(form.distanceKm)) || null,
             siteContactName: String(form.siteContactName || "").trim(),
             siteContactPhone: String(form.siteContactPhone || "").trim(),
             contactName: String(form.siteContactName || "").trim(),

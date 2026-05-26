@@ -43,6 +43,12 @@
       ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
       : `<span class="muted">${escapeHtml("Pendiente")}</span>`;
     const requestedBy = String(r.requestedByName || "").trim();
+    const metaHints = [
+      r.autoApproved ? "Autoaprobada" : "",
+      parseNum(r.distanceKm || 0) > 0 ? `${parseNum(r.distanceKm).toLocaleString("es-CO")} km` : ""
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const tripBadge = r.trip
       ? `<p class="trip-ops-card-standby request-ops-card-trip"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))} · <span class="muted">${escapeHtml(String(r.trip.driverName || "-"))}</span></span></p>`
       : "";
@@ -53,6 +59,7 @@
           <div class="trip-ops-card-head-info">
             <p class="trip-ops-card-kicker">Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}${requestedBy ? ` · ${escapeHtml(requestedBy)}` : ""}</p>
             <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+            ${metaHints ? `<p class="muted request-ops-card-meta">${escapeHtml(metaHints)}</p>` : ""}
           </div>
         </div>
         <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span>
