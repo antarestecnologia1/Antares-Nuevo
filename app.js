@@ -13722,7 +13722,7 @@ function historyHtml() {
   };
   const workspaceNav = `<nav class="history-workspace-nav" role="tablist" aria-label="Secciones del historial">
     ${histTab("explore", "Explorar historial", "clock")}
-    ${histTab("driver", "Costos conductor", "user")}
+    ${histTab("driver", "Consolidado conductor", "user")}
     ${histTab("fleet", `Combustible y taller (${fuelLogsAll.length + technicalLogsAll.length})`, "fuel")}
   </nav>`;
 
@@ -13780,7 +13780,7 @@ function historyHtml() {
 
   const driverReportBody = `<div class="history-panel${workspace === "driver" ? "" : " hidden"}" data-history-panel="driver" role="tabpanel">
     <div class="history-panel-intro">
-      <p class="muted">Consolidado mensual de viajes del conductor, viáticos entre departamentos y combustible registrado en el periodo.</p>
+      <p class="muted">Consolidado mensual del conductor con operación cerrada, viáticos, combustible, costos técnicos y kilometraje estimado.</p>
     </div>
     <form id="driver-month-report-form" class="p-form p-form-colored history-driver-form">
       <div class="form-section-grid">
@@ -14023,6 +14023,84 @@ const REPORT_EXPORT_BRAND = Object.freeze({
 const REPORT_BRAND_LOGO_PATH = "./imagenes%20empresa/Logo.png";
 let reportBrandLogoDataUrlPromise = null;
 
+function reportPreviewValueIsEmpty(value) {
+  const text = String(value ?? "").trim();
+  return !text || text === "-" || text === "—" || text.toLowerCase() === "null" || text.toLowerCase() === "undefined";
+}
+
+function reportPreviewSamples(rows = [], key = "") {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => row?.[key])
+    .filter((value) => !reportPreviewValueIsEmpty(value))
+    .slice(0, 8);
+}
+
+function reportPreviewInferColumnType(column = {}, rows = []) {
+  const key = String(column?.key || "").toLowerCase();
+  const label = String(column?.label || "").toLowerCase();
+  const meta = `${key} ${label}`;
+  const samples = reportPreviewSamples(rows, column?.key || "");
+  const sampleText = samples.map((value) => String(value).trim()).join(" | ");
+  const allBoolean = samples.length > 0 && samples.every((value) => /^(si|sí|no)$/i.test(String(value).trim()));
+
+  if (/(status|estado|sla)/i.test(meta)) return "status";
+  if (/(riesgo|risk|vigencia|vence|vencimiento)/i.test(meta)) return "risk";
+  if (allBoolean || /(termoking|tiene|entrevista|contrato)/i.test(meta)) return "boolean";
+  if (/(categor|tipo|rol|origen|modalidad|fuente)/i.test(meta)) return "tag";
+  if (/(cop|costo|cost|valor|neto|net|gross|devengado|deducc|reembolso|viatic|salario|aspiracion|combustible|standby)/i.test(meta)) return "currency";
+  if (/%/.test(sampleText) || /(porcentaje|tasa|pct|rate|closure|cierre)/i.test(meta)) return "percent";
+  if (/(fecha|date|venc|entrega|asign|cread|pago|revision|solicitud|ingreso|registro)/i.test(meta)) return "date";
+  if (/(min|hora|horas|hour|hours|dia|dias|days|kg|litro|liters|permis|edad|viajes|entrevistas|resoluci|capacidad|cantidad)/i.test(meta)) return "number";
+  if (/(detalle|novedad|observ|resumen|reason|nota)/i.test(meta)) return "longtext";
+  if (/(placa|solicitud|viaje|factura|documento|doc|codigo|correo|licencia)/i.test(meta)) return "id";
+  return "text";
+}
+
+function reportPreviewFormatValue(value, type = "text") {
+  if (reportPreviewValueIsEmpty(value)) return "—";
+  if (type === "currency" && (typeof value === "number" || /^-?\d+(?:[.,]\d+)?$/.test(String(value).trim()))) {
+    return `$${parseNum(value).toLocaleString("es-CO")}`;
+  }
+  if (type === "percent" && typeof value === "number") {
+    return `${parseNum(value).toLocaleString("es-CO")}%`;
+  }
+  if (type === "number" && typeof value === "number") {
+    return parseNum(value).toLocaleString("es-CO");
+  }
+  return String(value);
+}
+
+function reportPreviewTone(type = "text", value) {
+  const text = String(reportPreviewFormatValue(value, type)).toLowerCase();
+  if (type === "boolean") return /^(si|sí)$/i.test(text) ? "success" : "neutral";
+  if (type === "tag") return "info";
+  if (/(rechaz|vencid|crit|cr[ií]tic|no disponible|incumpl|cancel|alert|sin fecha|fuera)/i.test(text)) return "danger";
+  if (/(pendient|pr[oó]xim|atenci[oó]n|espera|riesgo)/i.test(text)) return "warning";
+  if (/(aprob|pagad|cumpl|complet|cerrad|controlad|vigent|disponible|si|sí)/i.test(text)) return "success";
+  if (/(ocupad|asignad|activo|operaci[oó]n|proceso|ruta|revisi[oó]n)/i.test(text)) return "info";
+  return "neutral";
+}
+
+function reportPreviewColumnMeta(columns = [], rows = []) {
+  return (Array.isArray(columns) ? columns : []).map((column, index) => ({
+    ...column,
+    type: reportPreviewInferColumnType(column, rows),
+    pinned: index === 0
+  }));
+}
+
+function reportPreviewCellInnerHtml(value, type = "text") {
+  const display = reportPreviewFormatValue(value, type);
+  if (display === "—") return `<span class="report-empty">—</span>`;
+  const safe = escapeHtml(display);
+  if (["status", "risk", "boolean", "tag"].includes(type)) {
+    return `<span class="report-badge report-badge--${reportPreviewTone(type, display)}">${safe}</span>`;
+  }
+  if (type === "id") return `<span class="report-code">${safe}</span>`;
+  if (type === "longtext") return `<span class="report-note">${safe}</span>`;
+  return `<span class="report-value">${safe}</span>`;
+}
+
 function downloadBlobFile(filename, content, mimeType) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -14252,12 +14330,34 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
   const safeTitle = reportsBiExcelEsc(title || "Reporte");
   const cols = Array.isArray(columns) ? columns : [];
   const dataRows = Array.isArray(rows) ? rows : [];
-  const thead = cols.map((col) => `<th>${reportsBiExcelEsc(col.label)}</th>`).join("");
+  const colMeta = reportPreviewColumnMeta(cols, dataRows);
+  const thead = colMeta
+    .map((col) => {
+      const classes = ["th", `th-${col.type}`];
+      if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
+      if (col.pinned) classes.push("is-primary");
+      return `<th class="${classes.join(" ")}">${reportsBiExcelEsc(col.label)}</th>`;
+    })
+    .join("");
   const tbody = dataRows.length
     ? dataRows
         .map(
           (row) =>
-            `<tr>${cols.map((col) => `<td>${reportsBiExcelEsc(row[col.key] ?? "-")}</td>`).join("")}</tr>`
+            `<tr>${colMeta
+              .map((col) => {
+                const classes = ["td", `td-${col.type}`];
+                if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
+                if (col.pinned) classes.push("is-primary");
+                const display = reportsBiExcelEsc(reportPreviewFormatValue(row[col.key], col.type));
+                if (display === "—") return `<td class="${classes.join(" ")}"><span class="empty-value">—</span></td>`;
+                if (["status", "risk", "boolean", "tag"].includes(col.type)) {
+                  return `<td class="${classes.join(" ")}"><span class="pill pill-${reportPreviewTone(col.type, row[col.key])}">${display}</span></td>`;
+                }
+                if (col.type === "id") return `<td class="${classes.join(" ")}"><span class="code">${display}</span></td>`;
+                if (col.type === "longtext") return `<td class="${classes.join(" ")}"><span class="note">${display}</span></td>`;
+                return `<td class="${classes.join(" ")}">${display}</td>`;
+              })
+              .join("")}</tr>`
         )
         .join("")
     : `<tr><td colspan="${Math.max(1, cols.length)}" class="empty">Sin datos para el periodo o filtros seleccionados.</td></tr>`;
@@ -14284,10 +14384,20 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
   .meta { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 12px 20px; background: ${b.soft}; border: 1px solid ${b.line}; border-top: none; font-size: 0.78rem; color: ${b.muted}; }
   .meta strong { color: ${b.primaryDeep}; }
   .table-shell { background: #fff; border: 1px solid ${b.line}; border-top: none; border-radius: 0 0 12px 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(55, 124, 192, 0.1); }
-  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  th { background: ${b.primary}; color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; border: 1px solid ${b.primaryDeep}; }
-  td { padding: 8px 12px; border: 1px solid ${b.line}; vertical-align: top; }
-  tr:nth-child(even) td { background: rgba(204, 229, 248, 0.25); }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; }
+  th { background: ${b.primary}; color: #fff; text-align: left; padding: 11px 12px; font-weight: 700; border: 1px solid ${b.primaryDeep}; vertical-align: bottom; }
+  td { padding: 9px 12px; border: 1px solid ${b.line}; vertical-align: top; background: #ffffff; }
+  tbody tr:nth-child(even) td { background: rgba(204, 229, 248, 0.22); }
+  .is-numeric { text-align: right; font-variant-numeric: tabular-nums; }
+  .code { display: inline-block; padding: 2px 7px; border-radius: 999px; background: rgba(55, 124, 192, 0.12); color: ${b.primaryDeeper}; font-weight: 700; }
+  .note { display: inline-block; line-height: 1.45; color: ${b.text}; }
+  .empty-value { color: ${b.muted}; }
+  .pill { display: inline-flex; align-items: center; justify-content: center; min-height: 26px; padding: 2px 10px; border-radius: 999px; font-size: 0.73rem; font-weight: 800; border: 1px solid transparent; white-space: nowrap; }
+  .pill-success { background: rgba(27, 142, 95, 0.12); color: #156f4b; border-color: rgba(27, 142, 95, 0.22); }
+  .pill-warning { background: rgba(217, 119, 6, 0.12); color: #9a5a04; border-color: rgba(217, 119, 6, 0.22); }
+  .pill-danger { background: rgba(214, 40, 40, 0.1); color: #a11d1d; border-color: rgba(214, 40, 40, 0.2); }
+  .pill-info { background: rgba(55, 124, 192, 0.12); color: ${b.primaryDeeper}; border-color: rgba(55, 124, 192, 0.2); }
+  .pill-neutral { background: rgba(100, 116, 139, 0.12); color: ${b.muted}; border-color: rgba(100, 116, 139, 0.18); }
   td.empty { text-align: center; color: ${b.muted}; font-style: italic; }
   .foot { margin-top: 14px; font-size: 0.72rem; color: ${b.muted}; text-align: center; }
   .print-hint { margin-top: 16px; padding: 10px 14px; background: #fff; border: 1px dashed ${b.line}; border-radius: 8px; font-size: 0.78rem; color: ${b.muted}; }
@@ -14393,12 +14503,30 @@ async function exportCatalogReport(report, format = "pdf") {
 function renderReportPreviewTableHtml(columns = [], rows = []) {
   const cols = Array.isArray(columns) ? columns : [];
   const dataRows = Array.isArray(rows) ? rows : [];
-  const thead = cols.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("");
+  const colMeta = reportPreviewColumnMeta(cols, dataRows);
+  const thead = colMeta
+    .map((col) => {
+      const classes = ["report-preview-header", `report-preview-header--${col.type}`];
+      if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
+      if (col.pinned) classes.push("is-primary");
+      return `<th class="${classes.join(" ")}">${escapeHtml(col.label)}</th>`;
+    })
+    .join("");
   const tbody = dataRows.length
     ? dataRows
-        .map((row) => `<tr>${cols.map((col) => `<td>${escapeHtml(row[col.key] ?? "—")}</td>`).join("")}</tr>`)
+        .map(
+          (row) =>
+            `<tr>${colMeta
+              .map((col) => {
+                const classes = ["report-preview-cell", `report-preview-cell--${col.type}`];
+                if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
+                if (col.pinned) classes.push("is-primary");
+                return `<td class="${classes.join(" ")}">${reportPreviewCellInnerHtml(row[col.key], col.type)}</td>`;
+              })
+              .join("")}</tr>`
+        )
         .join("")
-    : `<tr><td colspan="${Math.max(1, cols.length)}" class="muted">Sin datos para el periodo o filtros seleccionados.</td></tr>`;
+    : `<tr><td colspan="${Math.max(1, cols.length)}" class="report-preview-empty-row">Sin datos para el periodo o filtros seleccionados.</td></tr>`;
   return `<div class="report-preview-table-wrap"><table class="table report-preview-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
 }
 
@@ -14528,11 +14656,11 @@ function openReportPreviewModal(report) {
   const copyEl = modal.querySelector("#report-preview-copy");
   if (titleEl) titleEl.textContent = payload.title;
   if (metaEl) {
-    metaEl.textContent = `Generado ${fmtDate(nowIso())}${actor?.name ? ` · ${actor.name}` : ""} · ${payload.rows.length} registro${payload.rows.length === 1 ? "" : "s"}`;
+    metaEl.textContent = `Generado ${fmtDate(nowIso())}${actor?.name ? ` · ${actor.name}` : ""} · ${payload.rows.length} registro${payload.rows.length === 1 ? "" : "s"} · ${payload.columns.length} columna${payload.columns.length === 1 ? "" : "s"}`;
   }
   if (logoEl) logoEl.src = reportBrandLogoSrc();
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
-  if (copyEl) copyEl.textContent = reportBrandCopyrightText();
+  if (copyEl) copyEl.textContent = `${reportBrandCopyrightText()} · Estados, riesgos y valores destacados para facilitar la lectura del reporte.`;
   modal.classList.remove("hidden");
   document.addEventListener("keydown", reportPreviewEscHandler);
 }
@@ -14562,15 +14690,72 @@ function hoursBetween(startDate, endDate) {
   return Number((mins / 60).toFixed(2));
 }
 
+function requestExpectedDeliveryDate(request) {
+  return request?.trip?.etaDelivery || request?.etaDelivery || "";
+}
+
+function requestActualDeliveryDate(request) {
+  return request?.deliveredAt || request?.closedAt || "";
+}
+
+function requestIsOperationallyClosed(request) {
+  return Boolean(requestActualDeliveryDate(request)) || [STATUS.COMPLETADA, STATUS.CERRADA].includes(request?.status);
+}
+
+function reportPercent(value, total, digits = 1) {
+  const denom = parseNum(total);
+  if (denom <= 0) return 0;
+  return Number(((parseNum(value) / denom) * 100).toFixed(digits));
+}
+
+function slaDelayMinutesForRequest(request) {
+  if (!request?.trip || !requestIsOperationallyClosed(request)) return null;
+  const etaTs = new Date(requestExpectedDeliveryDate(request)).getTime();
+  const deliveredTs = new Date(requestActualDeliveryDate(request)).getTime();
+  if (!Number.isFinite(etaTs) || !Number.isFinite(deliveredTs)) return null;
+  return Math.max(0, Math.round((deliveredTs - etaTs) / 60000));
+}
+
 function slaStatusForRequest(request) {
   if (!request?.trip) return "Sin viaje";
-  const etaTs = new Date(request.trip.etaDelivery || "").getTime();
-  const deliveredTs = new Date(request.deliveredAt || request.closedAt || request.trip.etaDelivery || "").getTime();
-  if (!Number.isFinite(etaTs) || !Number.isFinite(deliveredTs)) return "Sin dato";
+  const etaTs = new Date(requestExpectedDeliveryDate(request)).getTime();
+  if (!Number.isFinite(etaTs)) return "Sin ETA";
+  if (!requestIsOperationallyClosed(request)) return "En curso";
+  const deliveredTs = new Date(requestActualDeliveryDate(request)).getTime();
+  if (!Number.isFinite(deliveredTs)) return "Sin dato";
   return deliveredTs <= etaTs ? "Cumple SLA" : "Incumple SLA";
 }
 
-function buildReportDataset(reportId, actor = currentUser()) {
+function requestLifecycleSummary(request) {
+  const notes = [];
+  const rejection = String(request?.rejectionReason || "").trim();
+  const cancellation = String(request?.cancellationReason || "").trim();
+  const standby = parseNum(request?.standbyChargeTotal || 0);
+  const invoiceNumber = String(request?.trip?.invoice?.number || "").trim();
+  if (cancellation) notes.push(`Cancelación: ${cancellation}`);
+  if (rejection) notes.push(`Rechazo: ${rejection}`);
+  if (standby > 0) notes.push(`Standby $${standby.toLocaleString("es-CO")}`);
+  if (invoiceNumber) notes.push(`Factura ${invoiceNumber}`);
+  return notes.join(" · ") || "-";
+}
+
+function requestFunnelStageDescription(status) {
+  const descriptions = {
+    [STATUS.PENDIENTE]: "Solicitud radicada y pendiente de revisión.",
+    [STATUS.APROBADA_PENDIENTE_ASIGNACION]: "Solicitud aprobada, pendiente de asignación de recursos.",
+    [STATUS.VIAJE_ASIGNADO]: "Viaje creado y listo para iniciar operación.",
+    [STATUS.EN_TRANSITO]: "Servicio en ejecución con recursos asignados.",
+    [STATUS.ESPERA_STANDBY]: "Operación en espera con cargos de standby activos.",
+    [STATUS.COMPLETADA]: "Servicio entregado y pendiente de cierre administrativo final.",
+    [STATUS.CERRADA]: "Proceso operativo y administrativo cerrado.",
+    [STATUS.CANCELADA]: "Solicitud cancelada antes del cierre.",
+    [STATUS.RECHAZADA]: "Solicitud rechazada en validación."
+  };
+  return descriptions[status] || "Estado operativo registrado en el portal.";
+}
+
+function buildReportDataset(reportId, actor = currentUser(), filters = null) {
+  const exportFilters = normalizeReportsExportFilters(filters || state.reportsUi?.exportFilters);
   if (!canAccessReport(actor, reportId)) {
     return {
       title: "Reporte restringido",
@@ -14579,17 +14764,18 @@ function buildReportDataset(reportId, actor = currentUser()) {
       fileName: "reporte_restringido.csv"
     };
   }
-  const requests = reqRead();
+  const requests = reportsFilterByPeriod(reqRead(), exportFilters.period);
   if (reportId === "executive_control_tower") {
     const trips = requests.filter((request) => request.trip);
     const closedTrips = requests.filter((request) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status));
     const pendingApprovals = requests.filter((request) => request.status === STATUS.PENDIENTE).length;
-    const sstControls = read(KEYS.sstCompliance, []);
-    const payrollRuns = read(KEYS.payrollRuns, []);
-    const contracts = read(KEYS.contracts, []);
+    const sstControls = reportsFilterItemsByPeriod(read(KEYS.sstCompliance, []), exportFilters.period, (item) => item.dueDate || item.createdAt);
+    const payrollRuns = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), exportFilters.period, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
+    const contracts = reportsFilterItemsByPeriod(read(KEYS.contracts, []), exportFilters.period, (item) => item.createdAt || item.generatedAt || item.signedAt);
     const totalRevenue = requests.reduce((acc, request) => acc + deriveRequestOperationalValue(request), 0);
     const paidPayroll = payrollRuns.filter((run) => run.paid).reduce((acc, run) => acc + parseNum(run.net), 0);
-    const openApprovals = read(KEYS.approvals, []).filter((approval) => approval.status === "pendiente").length;
+    const openApprovals = reportsFilterItemsByPeriod(read(KEYS.approvals, []), exportFilters.period, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt)
+      .filter((approval) => approval.status === "pendiente").length;
     const rows = [
       { metric: "Solicitudes totales", value: requests.length, detail: "Acumulado histórico", category: "Operación" },
       { metric: "Solicitudes pendientes", value: pendingApprovals, detail: "Esperando gestión operativa", category: "Operación" },
@@ -14601,7 +14787,7 @@ function buildReportDataset(reportId, actor = currentUser()) {
       { metric: "Aprobaciones abiertas", value: openApprovals, detail: "Solicitudes por decidir", category: "Gobierno" }
     ];
     return {
-      title: "Control Tower ejecutivo",
+      title: "Resumen ejecutivo de gestión",
       columns: [
         { key: "category", label: "Categoría" },
         { key: "metric", label: "Métrica" },
@@ -14609,40 +14795,51 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "detail", label: "Detalle" }
       ],
       rows,
-      fileName: "reporte_control_tower.csv"
+      fileName: "reporte_resumen_ejecutivo.csv"
     };
   }
   if (reportId === "service_levels") {
     const rows = requests
       .filter((request) => request.trip)
-      .map((request) => ({
-        requestNumber: request.requestNumber || request.id,
-        tripNumber: request.trip?.tripNumber || "-",
-        client: request.clientName || "-",
-        route: formatRoute(request),
-        pickupAt: fmtDate(request.trip?.etaPickup || request.pickupAt),
-        etaDelivery: fmtDate(request.trip?.etaDelivery || request.etaDelivery),
-        deliveredAt: fmtDate(request.deliveredAt || request.closedAt || request.trip?.etaDelivery),
-        cycleHours: hoursBetween(request.createdAt, request.deliveredAt || request.closedAt || request.trip?.etaDelivery),
-        approvalMinutes: minutesBetween(request.createdAt, request.approvedAt),
-        slaStatus: slaStatusForRequest(request)
-      }));
+      .map((request) => {
+        const expectedDelivery = requestExpectedDeliveryDate(request);
+        const actualDelivery = requestActualDeliveryDate(request);
+        const cycleHours = actualDelivery ? hoursBetween(request.createdAt, actualDelivery) : "-";
+        const approvalMinutes = request.approvedAt ? minutesBetween(request.createdAt, request.approvedAt) : "-";
+        const delayMinutes = slaDelayMinutesForRequest(request);
+        return {
+          requestNumber: request.requestNumber || request.id,
+          tripNumber: request.trip?.tripNumber || "-",
+          client: request.clientName || "-",
+          route: formatRoute(request),
+          assignedAt: fmtDate(request.trip?.assignedAt || request.approvedAt || request.createdAt),
+          etaDelivery: expectedDelivery ? fmtDate(expectedDelivery) : "-",
+          deliveredAt: actualDelivery ? fmtDate(actualDelivery) : "-",
+          status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
+          cycleHours,
+          approvalMinutes,
+          delayMinutes: delayMinutes == null ? "-" : delayMinutes,
+          slaStatus: slaStatusForRequest(request)
+        };
+      });
     return {
-      title: "Reporte de niveles de servicio (SLA)",
+      title: "Cumplimiento de nivel de servicio",
       columns: [
         { key: "requestNumber", label: "Solicitud" },
         { key: "tripNumber", label: "Viaje" },
+        { key: "slaStatus", label: "SLA" },
+        { key: "status", label: "Estado actual" },
         { key: "client", label: "Cliente" },
         { key: "route", label: "Ruta" },
-        { key: "pickupAt", label: "Recogida" },
+        { key: "assignedAt", label: "Asignación" },
         { key: "etaDelivery", label: "ETA entrega" },
         { key: "deliveredAt", label: "Entrega real" },
-        { key: "cycleHours", label: "Ciclo (h)" },
         { key: "approvalMinutes", label: "Aprobación (min)" },
-        { key: "slaStatus", label: "SLA" }
+        { key: "delayMinutes", label: "Desviación (min)" },
+        { key: "cycleHours", label: "Ciclo (h)" }
       ],
       rows,
-      fileName: "reporte_sla_servicio.csv"
+      fileName: "reporte_cumplimiento_nivel_servicio.csv"
     };
   }
   if (reportId === "fleet_summary") {
@@ -14650,8 +14847,9 @@ function buildReportDataset(reportId, actor = currentUser()) {
     const busyVehicleIds = new Set(activeTrips.map((r) => String(r.trip?.vehicleId || "")).filter(Boolean));
     const rows = read(KEYS.vehicles, []).map((vehicle) => {
       const trips = requests.filter((r) => r.trip?.vehicleId === vehicle.id);
+      const activeTripsForVehicle = trips.filter((r) => tripRequestStatusIsOperational(r.status)).length;
       const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
-      const utilizationPct = trips.length ? Number(((completed / trips.length) * 100).toFixed(1)) : 0;
+      const closurePct = reportPercent(completed, trips.length, 1);
       const soatRisk = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate);
       const techRisk = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate);
       const occupancy =
@@ -14664,130 +14862,165 @@ function buildReportDataset(reportId, actor = currentUser()) {
         plate: vehicle.plate,
         type: vehicle.type,
         capacityKg: parseNum(vehicle.capacityKg),
-        available: occupancy,
-        trips: trips.length,
+        operationalState: occupancy,
+        activeTrips: activeTripsForVehicle,
+        historicalTrips: trips.length,
         completedTrips: completed,
-        utilizationPct: `${utilizationPct}%`,
-        riskLevel: soatRisk.days < 0 || techRisk.days < 0 ? "Crítico" : (soatRisk.days <= 30 || techRisk.days <= 30 ? "Atención" : "Controlado"),
-        soat: vehicle.soatExpeditionDate || "-",
-        tech: vehicle.techInspectionExpeditionDate || "-"
+        closurePct: `${closurePct}%`,
+        documentRisk: soatRisk.days < 0 || techRisk.days < 0 ? "Crítico" : (soatRisk.days <= 30 || techRisk.days <= 30 ? "Atención" : "Controlado"),
+        soatExpiry: vehicle.soatExpiryDate || "-",
+        techExpiry: vehicle.techInspectionExpiryDate || "-"
       };
     });
     return {
-      title: "Reporte de camiones y utilización",
+      title: "Disponibilidad y productividad de flota",
       columns: [
         { key: "plate", label: "Placa" },
         { key: "type", label: "Tipo" },
         { key: "capacityKg", label: "Capacidad kg" },
-        { key: "available", label: "Estado" },
-        { key: "trips", label: "Viajes totales" },
+        { key: "operationalState", label: "Estado operativo" },
+        { key: "activeTrips", label: "Viajes activos" },
+        { key: "historicalTrips", label: "Viajes históricos" },
         { key: "completedTrips", label: "Viajes finalizados" },
-        { key: "utilizationPct", label: "Utilización" },
-        { key: "riskLevel", label: "Riesgo documental" },
-        { key: "soat", label: "SOAT" },
-        { key: "tech", label: "Tecnomecanica" }
+        { key: "closurePct", label: "Cierre histórico" },
+        { key: "documentRisk", label: "Riesgo documental" },
+        { key: "soatExpiry", label: "Vence SOAT" },
+        { key: "techExpiry", label: "Vence tecnomecánica" }
       ],
       rows,
-      fileName: "reporte_camiones.csv"
+      fileName: "reporte_disponibilidad_flota.csv"
     };
   }
   if (reportId === "trips_operations") {
-    const rows = requests.filter((r) => r.trip).map((request) => ({
-      tripNumber: request.trip.tripNumber,
-      requestNumber: request.requestNumber || request.id,
-      client: request.clientName,
-      driver: request.trip.driverName,
-      vehicle: request.trip.vehiclePlate,
-      route: formatRoute(request),
-      status: request.status,
-      slaStatus: slaStatusForRequest(request),
-      cycleHours: hoursBetween(request.createdAt, request.deliveredAt || request.closedAt || request.trip.etaDelivery),
-      assignedAt: fmtDate(request.trip.assignedAt || request.approvedAt || request.createdAt),
-      deliveredAt: fmtDate(request.deliveredAt || request.closedAt || request.trip.etaDelivery)
-    }));
+    const rows = requests.filter((r) => r.trip).map((request) => {
+      const actualDelivery = requestActualDeliveryDate(request);
+      return {
+        tripNumber: request.trip.tripNumber,
+        requestNumber: request.requestNumber || request.id,
+        client: request.clientName,
+        driver: request.trip.driverName,
+        vehicle: request.trip.vehiclePlate,
+        route: formatRoute(request),
+        serviceMode: normalizeRequestTransportMode(request.serviceType),
+        thermoking: requestRequiresTermoking(request) ? "Sí" : "No",
+        status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
+        slaStatus: slaStatusForRequest(request),
+        cycleHours: actualDelivery ? hoursBetween(request.createdAt, actualDelivery) : "-",
+        operationalValue: parseNum(deriveRequestOperationalValue(request)),
+        standbyValue: parseNum(request.standbyChargeTotal || 0),
+        invoiceNumber: request.trip?.invoice?.number || "-",
+        assignedAt: fmtDate(request.trip.assignedAt || request.approvedAt || request.createdAt),
+        deliveredAt: actualDelivery ? fmtDate(actualDelivery) : "-"
+      };
+    });
     return {
-      title: "Reporte operativo de viajes",
+      title: "Seguimiento operativo de viajes",
       columns: [
         { key: "tripNumber", label: "Viaje" },
-        { key: "requestNumber", label: "Solicitud" },
-        { key: "client", label: "Cliente" },
-        { key: "driver", label: "Conductor" },
-        { key: "vehicle", label: "Camion" },
-        { key: "route", label: "Ruta" },
         { key: "status", label: "Estado" },
         { key: "slaStatus", label: "SLA" },
-        { key: "cycleHours", label: "Ciclo (h)" },
+        { key: "client", label: "Cliente" },
+        { key: "route", label: "Ruta" },
+        { key: "driver", label: "Conductor" },
+        { key: "vehicle", label: "Camion" },
+        { key: "serviceMode", label: "Modalidad" },
+        { key: "thermoking", label: "Termoking" },
         { key: "assignedAt", label: "Asignado" },
-        { key: "deliveredAt", label: "Entrega/Cierre" }
+        { key: "deliveredAt", label: "Entrega/Cierre" },
+        { key: "cycleHours", label: "Ciclo (h)" },
+        { key: "operationalValue", label: "Valor operativo" },
+        { key: "standbyValue", label: "Standby" },
+        { key: "invoiceNumber", label: "Factura" },
+        { key: "requestNumber", label: "Solicitud" }
       ],
       rows,
-      fileName: "reporte_viajes.csv"
+      fileName: "reporte_seguimiento_viajes.csv"
     };
   }
   if (reportId === "requests_lifecycle") {
     const rows = requests.map((request) => ({
       requestNumber: request.requestNumber || request.id,
-      client: request.clientName,
+      requestedBy: request.requestedByName || request.clientName || "-",
       company: getCompanyById(request.clientCompanyId)?.name || "-",
       route: formatRoute(request),
+      serviceMode: normalizeRequestTransportMode(request.serviceType),
       value: parseNum(deriveRequestOperationalValue(request)),
-      status: request.status,
-      approvalMinutes: minutesBetween(request.createdAt, request.approvedAt),
+      status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
+      approvedBy: request.approvedBy || "-",
+      approvalMinutes: request.approvedAt ? minutesBetween(request.createdAt, request.approvedAt) : "-",
       hasTrip: request.trip ? "Sí" : "No",
       createdAt: fmtDate(request.createdAt),
-      approvedAt: fmtDate(request.approvedAt)
+      approvedAt: request.approvedAt ? fmtDate(request.approvedAt) : "-",
+      lifecycleNote: requestLifecycleSummary(request)
     }));
     return {
-      title: "Reporte de solicitudes",
+      title: "Trazabilidad de solicitudes",
       columns: [
         { key: "requestNumber", label: "Solicitud" },
-        { key: "client", label: "Solicitante" },
+        { key: "status", label: "Estado" },
+        { key: "requestedBy", label: "Solicitante" },
         { key: "company", label: "Empresa" },
         { key: "route", label: "Ruta" },
+        { key: "serviceMode", label: "Modalidad" },
         { key: "value", label: "Valor viaje" },
-        { key: "status", label: "Estado" },
-        { key: "approvalMinutes", label: "Aprobación (min)" },
         { key: "hasTrip", label: "Tiene viaje" },
+        { key: "approvedBy", label: "Responsable decisión" },
+        { key: "approvalMinutes", label: "Aprobación (min)" },
         { key: "createdAt", label: "Creada" },
-        { key: "approvedAt", label: "Aprobada" }
+        { key: "approvedAt", label: "Aprobada" },
+        { key: "lifecycleNote", label: "Novedad relevante" }
       ],
       rows,
-      fileName: "reporte_solicitudes.csv"
+      fileName: "reporte_trazabilidad_solicitudes.csv"
     };
   }
   if (reportId === "drivers_performance") {
     const rows = read(KEYS.drivers, []).map((driver) => {
       const trips = requests.filter((r) => r.trip?.driverId === driver.id);
       const licenseDays = daysUntil(driver.licenseExpiry);
+      const activeTrips = trips.filter((r) => tripRequestStatusIsOperational(r.status)).length;
+      const completedTrips = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
       return {
         name: driver.name,
         doc: driver.idDoc || "-",
         phone: driver.phone || "-",
         company: getCompanyById(driver.companyId)?.name || "-",
         license: `${driver.license || "-"} (${driver.licenseCategory || "-"})`,
-        licenseDays: Number.isFinite(licenseDays) ? licenseDays : "-",
+        licenseRisk:
+          !Number.isFinite(licenseDays)
+            ? "Sin fecha"
+            : licenseDays < 0
+              ? `Vencida (${Math.abs(licenseDays)} días)`
+              : licenseDays <= 30
+                ? `Por vencer (${licenseDays} días)`
+                : `Vigente (${licenseDays} días)`,
+        activeTrips,
         trips: trips.length,
-        completedTrips: trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length
+        completedTrips,
+        completionRate: `${reportPercent(completedTrips, trips.length, 1)}%`
       };
     });
     return {
-      title: "Reporte de conductores",
+      title: "Desempeño y habilitación de conductores",
       columns: [
         { key: "name", label: "Conductor" },
         { key: "doc", label: "Documento" },
         { key: "phone", label: "Telefono" },
         { key: "company", label: "Empresa" },
         { key: "license", label: "Licencia" },
-        { key: "licenseDays", label: "Días vigencia licencia" },
+        { key: "licenseRisk", label: "Vigencia licencia" },
+        { key: "activeTrips", label: "Viajes activos" },
         { key: "trips", label: "Viajes totales" },
-        { key: "completedTrips", label: "Viajes finalizados" }
+        { key: "completedTrips", label: "Viajes finalizados" },
+        { key: "completionRate", label: "Tasa de cierre" }
       ],
       rows,
-      fileName: "reporte_conductores.csv"
+      fileName: "reporte_desempeno_conductores.csv"
     };
   }
   if (reportId === "payroll_summary") {
-    const rows = read(KEYS.payrollRuns, []).map((run) => {
+    const payrollRuns = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), exportFilters.period, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
+    const rows = payrollRuns.map((run) => {
       const inc = run.noveltiesDetail?.incapacity;
       const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
       const incapacitySummary =
@@ -14806,11 +15039,13 @@ function buildReportDataset(reportId, actor = currentUser()) {
         fuelReimbursement: parseNum(run.fuelReimbursement || 0),
         deductions: parseNum(run.deductions),
         net: parseNum(run.net),
+        paidAt: run.paidAt ? fmtDate(run.paidAt) : "-",
+        paidApprovedBy: run.paidApprovedBy || "-",
         status: run.paid ? "Pagado" : "Pendiente"
       };
     });
     return {
-      title: "Reporte de nomina",
+      title: "Consolidado de nómina",
       columns: [
         { key: "month", label: "Mes" },
         { key: "employee", label: "Empleado" },
@@ -14821,17 +15056,22 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "fuelReimbursement", label: "Reembolso combustible" },
         { key: "deductions", label: "Deducciones" },
         { key: "net", label: "Neto" },
+        { key: "paidAt", label: "Fecha pago" },
+        { key: "paidApprovedBy", label: "Aprobado por" },
         { key: "status", label: "Estado" }
       ],
       rows,
-      fileName: "reporte_nomina.csv"
+      fileName: "reporte_consolidado_nomina.csv"
     };
   }
   if (reportId === "hiring_pipeline") {
     const interviews = read(KEYS.interviews, []);
-    const contracts = read(KEYS.contracts, []);
-    const rows = read(KEYS.candidates, []).map((candidate) => {
+    const contracts = reportsFilterItemsByPeriod(read(KEYS.contracts, []), exportFilters.period, (item) => item.createdAt || item.generatedAt || item.signedAt);
+    const candidates = reportsFilterItemsByPeriod(read(KEYS.candidates, []), exportFilters.period, (candidate) => candidate.createdAt);
+    const rows = candidates.map((candidate) => {
       const ai = portalCandidateAgeFromBirthIso(candidate.birthDate);
+      const interviewCount = interviews.filter((item) => String(item.candidateId || "") === String(candidate.id)).length;
+      const contract = contracts.find((item) => String(item.candidateId || "") === String(candidate.id));
       return {
         name: candidate.name,
         vacancy: candidate.vacancyTitle,
@@ -14841,14 +15081,16 @@ function buildReportDataset(reportId, actor = currentUser()) {
         ageYears: ai.age != null ? String(ai.age) : "-",
         expCargoYears: parseNum(candidate.experienceYears || 0),
         expectedSalary: parseNum(candidate.expectedSalary || 0),
-        hasInterview: interviews.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
-        hasContract: contracts.some((item) => String(item.candidateId || "") === String(candidate.id)) ? "Sí" : "No",
+        interviewCount,
+        hasInterview: interviewCount > 0 ? "Sí" : "No",
+        hasContract: contract ? "Sí" : "No",
+        contractDate: contract?.createdAt ? fmtDate(contract.createdAt) : "-",
         stageAgeDays: Math.max(0, Math.floor((Date.now() - new Date(candidate.createdAt || nowIso()).getTime()) / 86400000)),
         createdAt: fmtDate(candidate.createdAt)
       };
     });
     return {
-      title: "Reporte de contratacion y pipeline",
+      title: "Gestión de selección y contratación",
       columns: [
         { key: "name", label: "Candidato" },
         { key: "vacancy", label: "Vacante" },
@@ -14858,32 +15100,41 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "ageYears", label: "Edad" },
         { key: "expCargoYears", label: "Años exp. cargo" },
         { key: "expectedSalary", label: "Aspiracion" },
+        { key: "interviewCount", label: "Entrevistas" },
         { key: "hasInterview", label: "Entrevista" },
         { key: "hasContract", label: "Contrato" },
+        { key: "contractDate", label: "Fecha contrato" },
         { key: "stageAgeDays", label: "Edad etapa (días)" },
         { key: "createdAt", label: "Fecha" }
       ],
       rows,
-      fileName: "reporte_contratacion.csv"
+      fileName: "reporte_seleccion_contratacion.csv"
     };
   }
   if (reportId === "labor_compliance") {
-    const records = read(KEYS.sstCompliance, []);
-    const rows = records.map((item) => ({
-      employee: item.employeeName || "-",
-      control: item.recordType || "-",
-      provider: item.provider || "-",
-      dueDate: item.dueDate || "-",
-      daysToDue: Number.isFinite(daysUntil(item.dueDate)) ? daysUntil(item.dueDate) : "-",
-      riskLevel: Number.isFinite(daysUntil(item.dueDate)) ? (daysUntil(item.dueDate) < 0 ? "Vencido" : daysUntil(item.dueDate) <= 30 ? "Próximo a vencer" : "Controlado") : "Sin fecha",
-      status: item.status || "-",
-      documentCode: item.documentCode || "-",
-      createdAt: fmtDate(item.createdAt)
-    }));
+    const employees = read(KEYS.payrollEmployees, []);
+    const records = reportsFilterItemsByPeriod(read(KEYS.sstCompliance, []), exportFilters.period, (item) => item.dueDate || item.createdAt);
+    const rows = records.map((item) => {
+      const employee = employees.find((row) => String(row.id || "") === String(item.employeeId || ""));
+      const dueDays = Number.isFinite(daysUntil(item.dueDate)) ? daysUntil(item.dueDate) : null;
+      return {
+        employee: item.employeeName || employee?.name || "-",
+        employeeDoc: employee?.idDoc || "-",
+        control: item.recordType || "-",
+        provider: item.provider || "-",
+        dueDate: item.dueDate || "-",
+        daysToDue: dueDays == null ? "-" : dueDays,
+        riskLevel: dueDays == null ? "Sin fecha" : dueDays < 0 ? "Vencido" : dueDays <= 30 ? "Próximo a vencer" : "Controlado",
+        status: item.status || "-",
+        documentCode: item.documentCode || "-",
+        createdAt: fmtDate(item.createdAt)
+      };
+    });
     return {
-      title: "Reporte de cumplimiento laboral y SST",
+      title: "Cumplimiento laboral y SST",
       columns: [
         { key: "employee", label: "Empleado" },
+        { key: "employeeDoc", label: "Documento" },
         { key: "control", label: "Control" },
         { key: "provider", label: "Entidad" },
         { key: "dueDate", label: "Vencimiento" },
@@ -14894,34 +15145,40 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "createdAt", label: "Registro" }
       ],
       rows,
-      fileName: "reporte_cumplimiento_sst.csv"
+      fileName: "reporte_cumplimiento_laboral_sst.csv"
     };
   }
   if (reportId === "users_access") {
-    const rows = read(KEYS.users, []).map((user) => ({
+    const users = reportsFilterItemsByPeriod(read(KEYS.users, []), exportFilters.period, (user) => user.systemJoinDate || user.registeredAt || user.createdAt);
+    const rows = users.map((user) => ({
       name: user.name,
       email: user.email,
       role: user.role,
       company: getCompanyById(user.companyId)?.name || user.company || "-",
       status: user.accountStatus || "aprobado",
-      permissions: (user.permissions || []).length
+      permissions: (user.permissions || []).length,
+      source: user.source || "portal_db",
+      joinDate: fmtDate(user.systemJoinDate || user.registeredAt || user.createdAt)
     }));
     return {
-      title: "Reporte de usuarios y accesos",
+      title: "Gobierno de usuarios y accesos",
       columns: [
         { key: "name", label: "Nombre" },
         { key: "email", label: "Correo" },
         { key: "role", label: "Rol" },
         { key: "company", label: "Empresa" },
         { key: "status", label: "Estado cuenta" },
-        { key: "permissions", label: "Permisos" }
+        { key: "permissions", label: "Permisos" },
+        { key: "source", label: "Origen" },
+        { key: "joinDate", label: "Ingreso sistema" }
       ],
       rows,
-      fileName: "reporte_usuarios.csv"
+      fileName: "reporte_gobierno_accesos.csv"
     };
   }
   if (reportId === "authorizations_traceability") {
-    const rows = read(KEYS.approvals, []).map((approval) => ({
+    const approvals = reportsFilterItemsByPeriod(read(KEYS.approvals, []), exportFilters.period, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt);
+    const rows = approvals.map((approval) => ({
       title: approval.title,
       type: approval.type,
       status: approval.status,
@@ -14929,10 +15186,11 @@ function buildReportDataset(reportId, actor = currentUser()) {
       requestedAt: fmtDate(approval.requestedAt),
       reviewedBy: approval.reviewedBy || "-",
       reviewedAt: fmtDate(approval.reviewedAt),
-      resolutionHours: approval.reviewedAt ? hoursBetween(approval.requestedAt, approval.reviewedAt) : "-"
+      resolutionHours: approval.reviewedAt ? hoursBetween(approval.requestedAt, approval.reviewedAt) : "-",
+      rejectionReason: approval.rejectionReason || "-"
     }));
     return {
-      title: "Reporte de autorizaciones",
+      title: "Trazabilidad de autorizaciones",
       columns: [
         { key: "title", label: "Titulo" },
         { key: "type", label: "Tipo" },
@@ -14941,24 +15199,28 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "requestedAt", label: "Fecha solicitud" },
         { key: "reviewedBy", label: "Aprobador" },
         { key: "reviewedAt", label: "Fecha revision" },
-        { key: "resolutionHours", label: "Resolución (h)" }
+        { key: "resolutionHours", label: "Resolución (h)" },
+        { key: "rejectionReason", label: "Observación / rechazo" }
       ],
       rows,
-      fileName: "reporte_autorizaciones.csv"
+      fileName: "reporte_trazabilidad_autorizaciones.csv"
     };
   }
   if (reportId === "fuel_operations") {
-    const rows = readFuelLogs().map((log) => ({
+    const rows = reportsFilterItemsByPeriod(readFuelLogs(), exportFilters.period, (log) => log.date || log.createdAt).map((log) => ({
       date: log.date || "-",
       driver: log.driverName || "-",
       vehicle: log.vehiclePlate || "-",
       station: log.station || "-",
       liters: parseNum(log.liters),
       totalCost: parseNum(log.totalCost),
+      costPerLiter: parseNum(log.costPerLiter),
+      paidBy: String(log.paidBy || "empresa").toLowerCase() === "conductor" ? "Conductor (reembolso)" : "Empresa",
+      odometerKm: parseNum(log.odometerKm) > 0 ? parseNum(log.odometerKm) : "-",
       tripRef: log.tripNumber || log.requestNumber || "-"
     }));
     return {
-      title: "Reporte de combustible",
+      title: "Consumo y costos de combustible",
       columns: [
         { key: "date", label: "Fecha" },
         { key: "driver", label: "Conductor" },
@@ -14966,24 +15228,31 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "station", label: "Estación" },
         { key: "liters", label: "Litros" },
         { key: "totalCost", label: "Costo COP" },
+        { key: "costPerLiter", label: "Costo por litro" },
+        { key: "paidBy", label: "Pagado por" },
+        { key: "odometerKm", label: "Odómetro km" },
         { key: "tripRef", label: "Viaje / solicitud" }
       ],
       rows,
-      fileName: "reporte_combustible.csv"
+      fileName: "reporte_consumo_combustible.csv"
     };
   }
   if (reportId === "maintenance_fleet") {
-    const rows = readVehicleTechnicalLogs().map((log) => ({
+    const rows = reportsFilterItemsByPeriod(readVehicleTechnicalLogs(), exportFilters.period, (log) => log.date || log.createdAt).map((log) => ({
       date: log.date || "-",
       vehicle: log.vehiclePlate || "-",
       kind: log.kind || log.type || "-",
       description: String(log.description || "-").slice(0, 120),
       cost: parseNum(log.cost),
       downtimeHours: parseNum(log.downtimeHours || log.hoursOut || 0),
+      costPerDowntimeHour:
+        parseNum(log.downtimeHours || log.hoursOut || 0) > 0
+          ? Math.round(parseNum(log.cost) / parseNum(log.downtimeHours || log.hoursOut || 0))
+          : "-",
       status: log.status || "-"
     }));
     return {
-      title: "Reporte de taller y mantenimiento",
+      title: "Gestión de mantenimiento de flota",
       columns: [
         { key: "date", label: "Fecha" },
         { key: "vehicle", label: "Vehículo" },
@@ -14991,40 +15260,47 @@ function buildReportDataset(reportId, actor = currentUser()) {
         { key: "description", label: "Descripción" },
         { key: "cost", label: "Costo COP" },
         { key: "downtimeHours", label: "Horas fuera" },
+        { key: "costPerDowntimeHour", label: "Costo / hora fuera" },
         { key: "status", label: "Estado" }
       ],
       rows,
-      fileName: "reporte_taller.csv"
+      fileName: "reporte_mantenimiento_flota.csv"
     };
   }
   if (reportId === "revenue_by_route") {
     const byRoute = {};
+    const totalRevenue = requests.reduce((acc, request) => acc + deriveRequestOperationalValue(request), 0);
     requests
       .filter((r) => r.trip)
       .forEach((r) => {
         const route = formatRoute(r);
-        if (!byRoute[route]) byRoute[route] = { trips: 0, revenue: 0 };
+        if (!byRoute[route]) byRoute[route] = { trips: 0, revenue: 0, clients: new Set() };
         byRoute[route].trips += 1;
         byRoute[route].revenue += deriveRequestOperationalValue(r);
+        byRoute[route].clients.add(String(r.clientName || "Sin cliente").trim() || "Sin cliente");
       });
     const rows = Object.entries(byRoute)
       .map(([route, data]) => ({
         route,
+        clients: data.clients.size,
         trips: data.trips,
         revenue: parseNum(data.revenue),
-        avgTicket: data.trips ? Math.round(data.revenue / data.trips) : 0
+        avgTicket: data.trips ? Math.round(data.revenue / data.trips) : 0,
+        sharePct: `${reportPercent(data.revenue, totalRevenue, 1)}%`
       }))
       .sort((a, b) => b.revenue - a.revenue);
     return {
-      title: "Reporte de recaudo por ruta",
+      title: "Ingresos y ticket promedio por ruta",
       columns: [
         { key: "route", label: "Ruta" },
+        { key: "clients", label: "Clientes" },
         { key: "trips", label: "Viajes" },
         { key: "revenue", label: "Recaudo COP" },
-        { key: "avgTicket", label: "Ticket promedio" }
+        { key: "avgTicket", label: "Ticket promedio" },
+        { key: "sharePct", label: "% participación" }
       ],
       rows,
-      fileName: "reporte_recaudo_rutas.csv"
+      fileName: "reporte_ingresos_por_ruta.csv"
     };
   }
   if (reportId === "request_funnel") {
@@ -15047,20 +15323,21 @@ function buildReportDataset(reportId, actor = currentUser()) {
       .filter(([, n]) => n > 0)
       .map(([status, count]) => ({
         stage: prettyStatus(status, "request").replace(/<[^>]+>/g, ""),
-        statusKey: status,
+        description: requestFunnelStageDescription(status),
         count,
         pct: requests.length ? `${Number(((count / requests.length) * 100).toFixed(1))}%` : "0%"
       }))
       .sort((a, b) => b.count - a.count);
     return {
-      title: "Reporte embudo de solicitudes",
+      title: "Conversión operativa de solicitudes",
       columns: [
         { key: "stage", label: "Etapa" },
+        { key: "description", label: "Lectura de negocio" },
         { key: "count", label: "Cantidad" },
         { key: "pct", label: "% del total" }
       ],
       rows,
-      fileName: "reporte_embudo_solicitudes.csv"
+      fileName: "reporte_conversion_solicitudes.csv"
     };
   }
   if (reportId === "document_compliance") {
@@ -15071,7 +15348,9 @@ function buildReportDataset(reportId, actor = currentUser()) {
       return {
         plate: vehicle.plate,
         type: vehicle.type,
+        soatStatus: soat.label,
         soatDays: soat.days,
+        techStatus: tech.label,
         techDays: tech.days,
         risk:
           worst < 0 ? "Vencido" : worst <= 15 ? "Crítico (15d)" : worst <= 30 ? "Atención (30d)" : "Al día",
@@ -15080,18 +15359,20 @@ function buildReportDataset(reportId, actor = currentUser()) {
       };
     });
     return {
-      title: "Reporte cumplimiento documental flota",
+      title: "Cumplimiento documental de flota",
       columns: [
         { key: "plate", label: "Placa" },
         { key: "type", label: "Tipo" },
+        { key: "soatStatus", label: "Estado SOAT" },
         { key: "soatDays", label: "Días SOAT" },
+        { key: "techStatus", label: "Estado tecnomecánica" },
         { key: "techDays", label: "Días tecnomecánica" },
         { key: "risk", label: "Riesgo" },
         { key: "soatExpiry", label: "Vence SOAT" },
         { key: "techExpiry", label: "Vence técnico" }
       ],
       rows,
-      fileName: "reporte_documentos_flota.csv"
+      fileName: "reporte_cumplimiento_documental_flota.csv"
     };
   }
   return {
@@ -15115,12 +15396,48 @@ function reportsPeriodStart(period) {
   return null;
 }
 
+function reportsPeriodLabel(period) {
+  const labels = {
+    "30d": "Últimos 30 días",
+    "90d": "Últimos 90 días",
+    month: "Mes actual",
+    ytd: "Año en curso",
+    all: "Histórico completo"
+  };
+  return labels[String(period || "90d").trim()] || labels["90d"];
+}
+
+function reportsExportDefaultFilters() {
+  return { period: "90d" };
+}
+
+function normalizeReportsExportFilters(raw) {
+  const base = reportsExportDefaultFilters();
+  const next = raw && typeof raw === "object" ? { ...base, ...raw } : base;
+  const period = String(next.period || base.period).trim();
+  return {
+    period: ["30d", "90d", "month", "ytd", "all"].includes(period) ? period : base.period
+  };
+}
+
 function reportsFilterByPeriod(requests, period) {
   const start = reportsPeriodStart(period);
   if (!start) return requests;
   const t0 = start.getTime();
   return requests.filter((r) => {
     const ts = new Date(r.createdAt || r.pickupAt || 0).getTime();
+    return Number.isFinite(ts) && ts >= t0;
+  });
+}
+
+function reportsFilterItemsByPeriod(items, period, pickDateValue) {
+  const start = reportsPeriodStart(period);
+  const list = Array.isArray(items) ? items : [];
+  if (!start) return list;
+  const t0 = start.getTime();
+  return list.filter((item) => {
+    const raw = typeof pickDateValue === "function" ? pickDateValue(item) : item?.createdAt;
+    const ts = new Date(raw || "").getTime();
     return Number.isFinite(ts) && ts >= t0;
   });
 }
@@ -15441,6 +15758,11 @@ function reportsBiPeriodChip(value, label, current) {
   return `<button type="button" class="reports-bi-chip${active}" data-action="reports-bi-period-chip" data-period="${escapeAttr(value)}" aria-pressed="${current === value ? "true" : "false"}">${escapeHtml(label)}</button>`;
 }
 
+function reportsExportPeriodChip(value, label, current) {
+  const active = current === value ? " is-active" : "";
+  return `<button type="button" class="reports-bi-chip${active}" data-action="reports-export-period-chip" data-period="${escapeAttr(value)}" aria-pressed="${current === value ? "true" : "false"}">${escapeHtml(label)}</button>`;
+}
+
 const REPORTS_BI_LAYOUT_STORAGE = "antares_reports_bi_layout_v1";
 
 function reportsBiDefaultLayout() {
@@ -15588,7 +15910,7 @@ function reportsBiCustomizerHtml(layout) {
   const chartChecks = [
     chk("charts", "revenue", "Recaudo mensual", L.charts.revenue),
     chk("charts", "weekly", "Actividad semanal", L.charts.weekly),
-    chk("charts", "funnel", "Embudo", L.charts.funnel),
+    chk("charts", "funnel", "Conversión operativa", L.charts.funnel),
     chk("charts", "status", "Estados", L.charts.status),
     chk("charts", "clients", "Top clientes", L.charts.clients),
     chk("charts", "routes", "Rutas", L.charts.routes),
@@ -15661,19 +15983,14 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
           ${reportsBiPeriodChip("ytd", "Año", period)}
           ${reportsBiPeriodChip("all", "Todo", period)}
         </div>
-        <label class="reports-bi-period-select">${IC.calendar} Periodo
-          <select id="reports-bi-period" data-action="reports-bi-period" aria-label="Periodo analizado">
-            <option value="30d"${period === "30d" ? " selected" : ""}>Últimos 30 días</option>
-            <option value="90d"${period === "90d" ? " selected" : ""}>Últimos 90 días</option>
-            <option value="month"${period === "month" ? " selected" : ""}>Mes actual</option>
-            <option value="ytd"${period === "ytd" ? " selected" : ""}>Año en curso</option>
-            <option value="all"${period === "all" ? " selected" : ""}>Histórico completo</option>
-          </select>
-        </label>
+        <div class="reports-bi-period-summary" aria-label="Periodo analizado">
+          <span class="reports-bi-period-badge">${IC.calendar} ${escapeHtml(snapshot.periodLabel)}</span>
+          <span class="reports-bi-period-note">Corte activo del tablero</span>
+        </div>
         <div class="reports-bi-toolbar-btns">
           <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-refresh" title="Recalcular indicadores">${IC.clock} Actualizar</button>
           <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-export-excel" title="Excel con gráficas y datos del periodo">${IC.download} Excel</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="generate-report" data-report="executive_control_tower" data-format="preview" title="Vista previa sin ventana emergente">${IC.eye} Torre ejecutiva</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="generate-report" data-report="executive_control_tower" data-format="preview" title="Vista previa sin ventana emergente">${IC.eye} Resumen ejecutivo</button>
         </div>
       </div>
       <div class="reports-bi-toolbar-stats" aria-label="Resumen del periodo">
@@ -15783,8 +16100,8 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
       ${
         L.charts.funnel
           ? `<article class="reports-bi-card">
-        <header class="reports-bi-card-head"><div><h3>${IC.layers} Embudo operativo</h3><p class="reports-bi-card-sub">Del pedido al cierre</p></div></header>
-        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-funnel" aria-label="Embudo"></canvas></div>
+        <header class="reports-bi-card-head"><div><h3>${IC.layers} Conversión operativa de solicitudes</h3><p class="reports-bi-card-sub">Desde la radicación hasta el cierre</p></div></header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-funnel" aria-label="Conversión operativa"></canvas></div>
       </article>`
           : ""
       }
@@ -16016,8 +16333,8 @@ function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
       : "",
     L.charts.funnel
       ? reportsBiExcelChartBlock(
-          "Embudo operativo",
-          "Del pedido al cierre",
+          "Conversión operativa de solicitudes",
+          "Desde la radicación hasta el cierre",
           chartImages["reports-chart-funnel"],
           reportsBiExcelTable(["Etapa", "Cantidad"], funnelRows)
         )
@@ -16342,6 +16659,16 @@ function bindReportsWorkspaceControls() {
     });
   });
 
+  const applyExportPeriod = (period) => {
+    const filters = normalizeReportsExportFilters({ ...(state.reportsUi?.exportFilters || {}), period });
+    state.reportsUi = { ...state.reportsUi, exportFilters: filters };
+    renderPortalView();
+  };
+
+  root.querySelectorAll("[data-action='reports-export-period-chip']").forEach((btn) => {
+    btn.addEventListener("click", () => applyExportPeriod(btn.dataset.period));
+  });
+
   const applyBiPeriod = (period) => {
     const p = String(period || "90d").trim();
     if (!["30d", "90d", "month", "ytd", "all"].includes(p)) return;
@@ -16349,9 +16676,6 @@ function bindReportsWorkspaceControls() {
     destroyReportsCharts();
     renderPortalView();
   };
-
-  const periodSel = root.querySelector("#reports-bi-period");
-  periodSel?.addEventListener("change", () => applyBiPeriod(periodSel.value));
 
   root.querySelectorAll("[data-action='reports-bi-period-chip']").forEach((btn) => {
     btn.addEventListener("click", () => applyBiPeriod(btn.dataset.period));
@@ -16410,24 +16734,45 @@ function bindReportsWorkspaceControls() {
     });
 }
 
+function reportsExportFiltersHtml() {
+  const filters = normalizeReportsExportFilters(state.reportsUi?.exportFilters);
+  return `<section class="reports-export-filters" aria-label="Corte temporal de reportes">
+    <div class="reports-export-filters-head">
+      <div>
+        <p class="reports-export-filters-kicker">Corte exportable</p>
+        <h3>Periodo de análisis</h3>
+        <p class="reports-export-filters-copy">Este corte se aplica al generar reportes con fecha operativa. Inventarios y cumplimiento documental siguen mostrando estado vigente.</p>
+      </div>
+      <span class="reports-export-filters-badge">${escapeHtml(reportsPeriodLabel(filters.period))}</span>
+    </div>
+    <div class="reports-bi-period-chips" role="group" aria-label="Periodo exportable">
+      ${reportsExportPeriodChip("30d", "30 d", filters.period)}
+      ${reportsExportPeriodChip("90d", "90 d", filters.period)}
+      ${reportsExportPeriodChip("month", "Mes", filters.period)}
+      ${reportsExportPeriodChip("ytd", "Año", filters.period)}
+      ${reportsExportPeriodChip("all", "Todo", filters.period)}
+    </div>
+  </section>`;
+}
+
 function reportsExportPanelHtml(user) {
   const cards = [
-    { id: "executive_control_tower", icon: "activity", title: "Control Tower ejecutivo", subtitle: "Vista integral de operación y desempeño.", group: "Estrategia" },
-    { id: "service_levels", icon: "clock", title: "Niveles de servicio (SLA)", subtitle: "Cumplimiento de tiempos y calidad del servicio.", group: "Operación" },
-    { id: "fleet_summary", icon: "truck", title: "Camiones y utilización", subtitle: "Disponibilidad, ocupación y rendimiento de flota.", group: "Operación" },
-    { id: "trips_operations", icon: "compass", title: "Viajes operativos", subtitle: "Seguimiento consolidado de viajes y estados.", group: "Operación" },
-    { id: "requests_lifecycle", icon: "file", title: "Solicitudes", subtitle: "Ciclo completo desde creación hasta cierre.", group: "Operación" },
-    { id: "drivers_performance", icon: "user", title: "Conductores", subtitle: "Actividad y desempeño operativo por conductor.", group: "Operación" },
-    { id: "fuel_operations", icon: "fuel", title: "Combustible", subtitle: "Cargas, litros, costos y vínculo al viaje.", group: "Costos" },
-    { id: "maintenance_fleet", icon: "activity", title: "Taller y mantenimiento", subtitle: "Novedades técnicas, costos y horas fuera de servicio.", group: "Costos" },
-    { id: "revenue_by_route", icon: "dollar", title: "Recaudo por ruta", subtitle: "Ingresos y ticket promedio por trayecto.", group: "Finanzas" },
-    { id: "request_funnel", icon: "layers", title: "Embudo de solicitudes", subtitle: "Volumen por etapa del ciclo operativo.", group: "Finanzas" },
-    { id: "document_compliance", icon: "shield", title: "Documentos de flota", subtitle: "SOAT, tecnomecánica y alertas de vencimiento.", group: "Cumplimiento" },
-    { id: "payroll_summary", icon: "dollar", title: "Nómina consolidada", subtitle: "Resumen financiero y novedades de gestión humana.", group: "RRHH" },
-    { id: "hiring_pipeline", icon: "briefcase", title: "Contratación y pipeline", subtitle: "Evolución del embudo de contratación.", group: "RRHH" },
-    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Indicadores de control normativo y SST.", group: "Cumplimiento" },
-    { id: "users_access", icon: "shield", title: "Usuarios y accesos", subtitle: "Trazabilidad de permisos y seguridad de acceso.", group: "Gobierno" },
-    { id: "authorizations_traceability", icon: "check", title: "Autorizaciones", subtitle: "Seguimiento de solicitudes y aprobaciones.", group: "Gobierno" }
+    { id: "executive_control_tower", icon: "activity", title: "Resumen ejecutivo de gestión", subtitle: "Indicadores integrados de operación, finanzas, RRHH y cumplimiento.", group: "Estrategia" },
+    { id: "service_levels", icon: "clock", title: "Cumplimiento de nivel de servicio", subtitle: "Tiempos de respuesta, entrega y desviación frente al SLA.", group: "Operación" },
+    { id: "fleet_summary", icon: "truck", title: "Disponibilidad y productividad de flota", subtitle: "Estado operativo, cierres históricos y riesgo documental.", group: "Operación" },
+    { id: "trips_operations", icon: "compass", title: "Seguimiento operativo de viajes", subtitle: "Control de viajes, modalidad, SLA y facturación asociada.", group: "Operación" },
+    { id: "requests_lifecycle", icon: "file", title: "Trazabilidad de solicitudes", subtitle: "Seguimiento integral desde la radicación hasta la decisión final.", group: "Operación" },
+    { id: "drivers_performance", icon: "user", title: "Desempeño y habilitación de conductores", subtitle: "Productividad, vigencia documental y cierre de servicios.", group: "Operación" },
+    { id: "fuel_operations", icon: "fuel", title: "Consumo y costos de combustible", subtitle: "Litros, costo por litro, odómetro y responsable del pago.", group: "Costos" },
+    { id: "maintenance_fleet", icon: "activity", title: "Gestión de mantenimiento de flota", subtitle: "Intervenciones técnicas, costo e impacto por indisponibilidad.", group: "Costos" },
+    { id: "revenue_by_route", icon: "dollar", title: "Ingresos y ticket promedio por ruta", subtitle: "Recaudo, clientes atendidos y participación por trayecto.", group: "Finanzas" },
+    { id: "request_funnel", icon: "layers", title: "Conversión operativa de solicitudes", subtitle: "Evolución del volumen por etapa del proceso operativo.", group: "Operación" },
+    { id: "document_compliance", icon: "shield", title: "Cumplimiento documental de flota", subtitle: "Estado de SOAT, tecnomecánica y alertas por vencimiento.", group: "Cumplimiento" },
+    { id: "payroll_summary", icon: "dollar", title: "Consolidado de nómina", subtitle: "Devengados, deducciones, pagos y aprobaciones de gestión humana.", group: "RRHH" },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Gestión de selección y contratación", subtitle: "Seguimiento del proceso de reclutamiento, entrevistas y contratación.", group: "RRHH" },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Controles regulatorios, vencimientos y trazabilidad documental.", group: "Cumplimiento" },
+    { id: "users_access", icon: "shield", title: "Gobierno de usuarios y accesos", subtitle: "Roles, permisos, origen del usuario e ingreso al sistema.", group: "Gobierno" },
+    { id: "authorizations_traceability", icon: "check", title: "Trazabilidad de autorizaciones", subtitle: "Tiempos de resolución, aprobadores y observaciones de cierre.", group: "Gobierno" }
   ];
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
   if (!visibleCards.length) {
@@ -16467,14 +16812,20 @@ function reportsExportPanelHtml(user) {
       </div>`;
     })
     .join("");
-  return sections;
+  return reportsExportFiltersHtml() + sections;
 }
 
 function reportsHtml() {
   const user = currentUser();
-  if (!state.reportsUi || typeof state.reportsUi !== "object") state.reportsUi = { tab: "export", period: "90d", layout: null };
+  if (!state.reportsUi || typeof state.reportsUi !== "object") {
+    state.reportsUi = { tab: "export", period: "90d", layout: null, exportFilters: reportsExportDefaultFilters() };
+  }
   const biLayout = loadReportsBiLayout();
-  state.reportsUi = { ...state.reportsUi, layout: biLayout };
+  state.reportsUi = {
+    ...state.reportsUi,
+    layout: biLayout,
+    exportFilters: normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" })
+  };
   const tab = String(state.reportsUi.tab || "export");
   const cards = [
     { id: "executive_control_tower" },
@@ -16499,7 +16850,7 @@ function reportsHtml() {
     { label: "Reportes disponibles", value: visibleCount },
     { label: "Catálogo", value: cards.length },
     { label: "Vista activa", value: tab === "bi" ? "Analítica" : "Exportar" },
-    { label: "Formatos", value: "PDF + CSV" }
+    { label: "Formatos", value: "PDF + Excel" }
   ]);
   const exportActive = tab === "export";
   const biActive = tab === "bi";
@@ -22708,11 +23059,12 @@ function bindDynamicEvents() {
       const reportId = String(btn.dataset.report || "");
       const format = String(btn.dataset.format || "preview");
       const actor = currentUser();
+      const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
       if (!canAccessReport(actor, reportId)) {
         notify(userMessage("reportNoPermission"), "error");
         return;
       }
-      const report = buildReportDataset(reportId, actor);
+      const report = buildReportDataset(reportId, actor, exportFilters);
       try {
         if (format === "preview") {
           openReportPreviewModal(report);
@@ -23671,6 +24023,7 @@ function bindDynamicEvents() {
             <div class="p-card driver-report-kpi"><h4>Viáticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
             <div class="p-card driver-report-kpi"><h4>Combustible</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
             <div class="p-card driver-report-kpi"><h4>Técnico flota</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
+            <div class="p-card driver-report-kpi"><h4>Kilometraje estimado</h4><strong>${parseNum(report.kmEstimated).toLocaleString("es-CO")} km</strong></div>
           </div>
           ${
             rows
