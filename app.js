@@ -166,10 +166,49 @@ function renderHrAlertCards(items = []) {
 }
 
 const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs"]);
+const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "settlement", "absence"]);
+const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
+const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
+const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
+const ADMIN_USERS_SECTIONS = new Set(["actions", "pending", "users", "companies", "sessions"]);
+const HISTORY_WORKSPACES = new Set(["explore", "fleet", "audit"]);
 
 function normalizePayrollDataSection(value) {
   const v = String(value || "employees");
   return PAYROLL_DATA_SECTIONS.has(v) ? v : "employees";
+}
+
+function normalizePayrollOperateSection(value) {
+  const v = String(value || "employee");
+  return PAYROLL_OPERATE_SECTIONS.has(v) ? v : "employee";
+}
+
+function normalizeHiringOperateSection(value) {
+  const v = String(value || "position");
+  return HIRING_OPERATE_SECTIONS.has(v) ? v : "position";
+}
+
+function normalizeHiringDataSection(value) {
+  const v = String(value || "candidates");
+  return HIRING_DATA_SECTIONS.has(v) ? v : "candidates";
+}
+
+function normalizeVehicleWorkspaceSection(value) {
+  const v = String(value || "fleet");
+  return VEHICLE_MODULE_SECTIONS.has(v) ? v : "fleet";
+}
+
+function normalizeAdminUsersSection(value, hasPending = false) {
+  const v = String(value || (hasPending ? "pending" : "users"));
+  if (!ADMIN_USERS_SECTIONS.has(v)) return hasPending ? "pending" : "users";
+  if (v === "pending" && !hasPending) return "users";
+  return v;
+}
+
+function normalizeHistoryWorkspace(value) {
+  const v = String(value || "explore");
+  if (v === "driver") return "explore";
+  return HISTORY_WORKSPACES.has(v) ? v : "explore";
 }
 
 function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters || {}) {
@@ -283,6 +322,19 @@ function renderPayrollDataSectionNav(activeId, counts = {}) {
       })
       .join("")}
   </nav>`;
+}
+
+function renderModuleWindowTabs({ ariaLabel, activeId, action, valueAttr = "section", tabs = [] }) {
+  const attrName = String(valueAttr || "section").replace(/[^a-z0-9_-]/gi, "");
+  return `<div class="auth-tabs-layout"><nav class="auth-tabs-bar" role="tablist" aria-label="${escapeAttr(ariaLabel)}">
+    ${tabs
+      .map((tab) => {
+        const active = activeId === tab.id;
+        const badge = tab.count != null ? `<span class="auth-tab-badge">${escapeHtml(String(tab.count))}</span>` : "";
+        return `<button type="button" role="tab" class="auth-tab-btn${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="${escapeAttr(action)}" data-${attrName}="${escapeAttr(tab.id)}">${escapeHtml(String(tab.label))}${badge}</button>`;
+      })
+      .join("")}
+  </nav></div>`;
 }
 
 function isAntaresDebugEnabled() {
@@ -2952,7 +3004,7 @@ let state = {
   deletedTransportRequestsLogMinimized: true,
   /** Transporte · Admin: historial de viajes desasignados/eliminados (inicia colapsado). */
   deletedTransportTripsLogMinimized: true,
-  /** Historial: pestaña activa (explore | driver | fleet), subpestaña flota (fuel | technical) y filtro rápido. */
+  /** Historial: pestaña activa (explore | fleet | audit), subpestaña flota (fuel | technical) y filtro rápido. */
   historyUi: { workspace: "explore", quickFilter: "all", fleetTab: "fuel" },
   /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
   reportsUi: { tab: "export", period: "90d", layout: null },
@@ -2978,10 +3030,14 @@ let state = {
     panel: "",
     editUserId: "",
     editCompanyId: "",
+    section: "pending",
     /** Tarjeta «Editar usuario» colapsada (solo cabecera). */
     editMinimized: false,
     /** Tarjeta «Asignar permisos» colapsada tras guardar. */
     permissionsMinimized: false
+  },
+  vehiclesUi: {
+    workspace: "fleet"
   },
   requestsUi: {
     companyId: ""
@@ -3009,13 +3065,17 @@ let state = {
   },
   payrollUi: {
     runSort: "recent",
-    workspace: "operate"
+    workspace: "operate",
+    dataSection: "employees",
+    operateSection: "employee"
   },
   hiringUi: {
     candidateFilter: "active",
     vacancyFilter: "open",
     candidateSort: "recent",
-    workspace: "operate"
+    workspace: "operate",
+    operateSection: "position",
+    dataSection: "candidates"
   },
   registrationSuccessBanner: null,
   contactLeadsLoading: false,
@@ -3331,6 +3391,7 @@ function defaultAdminUsersUi() {
     panel: "",
     editUserId: "",
     editCompanyId: "",
+    section: "pending",
     editMinimized: false,
     permissionsMinimized: false
   };
@@ -12064,6 +12125,9 @@ function directoryPillHtml(label, tone = "neutral") {
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
+  const vehiclesUi = state.vehiclesUi || { workspace: "fleet" };
+  const vehicleWorkspace = normalizeVehicleWorkspaceSection(vehiclesUi.workspace);
+  state.vehiclesUi = { ...vehiclesUi, workspace: vehicleWorkspace };
   const isAdmin = isAdminActor();
   const activeTrips = getActiveTrips();
   const activeTripsByVehicleId = new Map();
@@ -12268,22 +12332,6 @@ function vehiclesHtml() {
 
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
-  const fuelLogCard = createCollapsibleCard(
-    "create-fuel-log",
-    "fuel",
-    "Combustible",
-    `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"} para la flota`,
-    historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions),
-    "Registrar carga"
-  );
-  const technicalLogCard = createCollapsibleCard(
-    "create-technical-log",
-    "activity",
-    "Taller",
-    `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`,
-    historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions),
-    "Registrar novedad"
-  );
   const tableBody = vehicleCards
     ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>`
     : emptyState("No hay vehículos registrados.");
@@ -12298,11 +12346,23 @@ function vehiclesHtml() {
         <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Docs. en riesgo</span><strong>${documentRiskCount}</strong></div>
       </div>
     </div>`;
-  return heroStrip
-    + createCollapsibleCard("create-vehicle", "plus", "Registrar vehículo", "Datos legales, capacidad y equipo de frío", formBody, "Registrar vehículo")
-    + fuelLogCard
-    + technicalLogCard
-    + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody);
+  const workspaceNav = renderModuleWindowTabs({
+    ariaLabel: "Opciones del módulo Camiones",
+    activeId: vehicleWorkspace,
+    action: "vehicles-workspace",
+    valueAttr: "workspace",
+    tabs: [
+      { id: "fleet", label: "Flota", count: vehicles.length },
+      { id: "create", label: "Registrar", count: totalCount },
+      { id: "fuel", label: "Combustible", count: fuelLogsCount },
+      { id: "technical", label: "Taller", count: technicalLogsCount }
+    ]
+  });
+  const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody)}</div>`;
+  const createPanel = `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${pcardWrapPro("plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card")}</div>`;
+  const fuelPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${pcardWrapPro("fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card")}</div>`;
+  const technicalPanel = `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${pcardWrapPro("activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card")}</div>`;
+  return `${heroStrip}${workspaceNav}<div class="auth-tab-panels">${fleetPanel}${createPanel}${fuelPanel}${technicalPanel}</div>`;
 }
 
 function driversHtml() {
@@ -13891,11 +13951,11 @@ function adminUsersHtml(current) {
   const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
   const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
   const focusCardClass = "admin-users-data-card admin-users-focus-card";
+  const adminUsersSection = normalizeAdminUsersSection(ui.section, pendingUsers.length > 0);
 
-  let html = "";
   const approvedCount = approvedUsers.length;
 
-  html += `<section class="users-hero-strip users-hero-strip--command">
+  const hero = `<section class="users-hero-strip users-hero-strip--command">
     <div class="admin-users-hero-main">
       <p class="users-hero-kicker">Sistema de acceso y gobierno</p>
       <h2>Usuarios y permisos con una lectura mas clara</h2>
@@ -13922,8 +13982,22 @@ function adminUsersHtml(current) {
     </div>
   </section>`;
 
+  let actionsPaneHtml = pcardWrapPro(
+    "shield",
+    "Acciones y flujos",
+    "Opciones separadas",
+    `<p class="admin-users-form-lead muted">Abra un flujo puntual y mantenga el resto del módulo fuera de pantalla para evitar saturación visual.</p>
+    <div class="users-hero-actions">
+      <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
+      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
+      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
+      <button class="btn btn-outline btn-sm" data-action="refresh-user-sessions">${IC.activity} Actualizar sesiones</button>
+    </div>`,
+    "admin-users-data-card"
+  );
+
   if (ui.panel === "create-user") {
-    html += pcardWrapPro(
+    actionsPaneHtml += pcardWrapPro(
       "userPlus",
       "Crear nuevo usuario",
       "Alta completa",
@@ -13935,7 +14009,7 @@ function adminUsersHtml(current) {
     );
   }
   if (ui.panel === "create-company") {
-    html += pcardWrapPro(
+    actionsPaneHtml += pcardWrapPro(
       "plus",
       "Registrar empresa",
       "Directorio empresarial",
@@ -13948,7 +14022,7 @@ function adminUsersHtml(current) {
   }
   if (ui.panel === "set-permissions") {
     const permExpanded = !ui.permissionsMinimized;
-    html += pcardWrapPro(
+    actionsPaneHtml += pcardWrapPro(
       "save",
       "Asignar permisos",
       "Gobierno granular",
@@ -13958,7 +14032,7 @@ function adminUsersHtml(current) {
   }
   if (editingUser) {
     const editExpanded = !ui.editMinimized;
-    html += pcardWrapPro(
+    actionsPaneHtml += pcardWrapPro(
       "edit",
       "Editar usuario",
       escapeHtml(getPortalUserDisplayName(editingUser)),
@@ -13967,7 +14041,7 @@ function adminUsersHtml(current) {
     );
   }
   if (editingCompany)
-    html += pcardWrapPro(
+    actionsPaneHtml += pcardWrapPro(
       "briefcase",
       "Editar empresa",
       escapeHtml(String(editingCompany.name || "")),
@@ -13975,18 +14049,25 @@ function adminUsersHtml(current) {
       focusCardClass
     );
 
-  if (pendingUsers.length > 0) {
-    const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
-    html += pcardWrapPro(
+  const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
+  const pendingPaneHtml =
+    pendingUsers.length > 0
+      ? pcardWrapPro(
       "shield",
       "Pendientes de aprobación",
       pendingSubtitle,
       `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div></div>`,
       "admin-users-data-card"
-    );
-  }
+        )
+      : pcardWrapPro(
+          "shield",
+          "Pendientes de aprobación",
+          "0 registros",
+          emptyState("No hay usuarios pendientes por revisar."),
+          "admin-users-data-card"
+        );
 
-  html += pcardWrapPro(
+  const usersPaneHtml = pcardWrapPro(
     "shield",
     "Usuarios del sistema",
     `${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"}${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}` : ""}`,
@@ -13996,15 +14077,22 @@ function adminUsersHtml(current) {
     "admin-users-data-card"
   );
 
-  if (companies.length > 0) {
-    html += pcardWrapPro(
+  const companiesPaneHtml =
+    companies.length > 0
+      ? pcardWrapPro(
       "briefcase",
       "Empresas registradas",
       `${companies.length} empresa${companies.length === 1 ? "" : "s"}`,
       `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div></div>`,
       "admin-users-data-card"
-    );
-  }
+        )
+      : pcardWrapPro(
+          "briefcase",
+          "Empresas registradas",
+          "0 empresas",
+          emptyState("No hay empresas registradas."),
+          "admin-users-data-card"
+        );
 
   const sessionsRows = sessions
     .map((s) => {
@@ -14045,15 +14133,32 @@ function adminUsersHtml(current) {
         : emptyState("No hay sesiones registradas todavía. Inicie sesión en el portal para empezar a ver actividad.")
     }
   </div>`;
-  html += pcardWrapPro(
+  const sessionsPaneHtml = pcardWrapPro(
     "activity",
     "Sesiones de usuarios",
     `${sessions.length} registro${sessions.length === 1 ? "" : "s"}`,
     sessionsCardBody,
     `${sessionsLogExpanded ? "p-card--expanded" : "p-card--collapsed"} admin-users-data-card`
   );
-
-  return html;
+  const workspaceNav = renderModuleWindowTabs({
+    ariaLabel: "Opciones del módulo Usuarios y permisos",
+    activeId: adminUsersSection,
+    action: "admin-users-section",
+    valueAttr: "section",
+    tabs: [
+      { id: "actions", label: "Acciones" },
+      { id: "pending", label: "Pendientes", count: pendingUsers.length },
+      { id: "users", label: "Usuarios", count: activeUsers.length },
+      { id: "companies", label: "Empresas", count: companies.length },
+      { id: "sessions", label: "Sesiones", count: sessions.length }
+    ]
+  });
+  const actionsPane = `<div class="auth-tab-panel${adminUsersSection === "actions" ? "" : " hidden"}" data-admin-users-panel="actions"${adminUsersSection === "actions" ? "" : " hidden"}>${actionsPaneHtml}</div>`;
+  const pendingPane = `<div class="auth-tab-panel${adminUsersSection === "pending" ? "" : " hidden"}" data-admin-users-panel="pending"${adminUsersSection === "pending" ? "" : " hidden"}>${pendingPaneHtml}</div>`;
+  const usersPane = `<div class="auth-tab-panel${adminUsersSection === "users" ? "" : " hidden"}" data-admin-users-panel="users"${adminUsersSection === "users" ? "" : " hidden"}>${usersPaneHtml}</div>`;
+  const companiesPane = `<div class="auth-tab-panel${adminUsersSection === "companies" ? "" : " hidden"}" data-admin-users-panel="companies"${adminUsersSection === "companies" ? "" : " hidden"}>${companiesPaneHtml}</div>`;
+  const sessionsPane = `<div class="auth-tab-panel${adminUsersSection === "sessions" ? "" : " hidden"}" data-admin-users-panel="sessions"${adminUsersSection === "sessions" ? "" : " hidden"}>${sessionsPaneHtml}</div>`;
+  return `${hero}${workspaceNav}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div>`;
 }
 
 /** Texto buscable para filas del módulo Historial. */
@@ -14732,6 +14837,7 @@ function renderHistoryAuditList(entries) {
 function historyHtml() {
   const allRequests = reqRead();
   const histUi = state.historyUi || { workspace: "explore", quickFilter: "all" };
+  histUi.workspace = normalizeHistoryWorkspace(histUi.workspace);
   state.historyUi = histUi;
   const workspace = String(histUi.workspace || "explore");
   const quickFilter = String(histUi.quickFilter || "all");
@@ -14779,9 +14885,8 @@ function historyHtml() {
     return `<button type="button" role="tab" class="history-workspace-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="history-workspace" data-workspace="${escapeAttr(id)}">${IC[iconKey] || ""}<span>${escapeHtml(label)}</span></button>`;
   };
   const workspaceNav = `<nav class="history-workspace-nav" role="tablist" aria-label="Secciones del historial">
-    ${histTab("explore", "Explorar historial", "clock")}
-    ${histTab("driver", "Consolidado conductor", "user")}
-    ${histTab("fleet", `Combustible y taller (${fuelLogsAll.length + technicalLogsAll.length})`, "fuel")}
+    ${histTab("explore", "Solicitudes y viajes", "clock")}
+    ${histTab("fleet", `Flota técnica (${fuelLogsAll.length + technicalLogsAll.length})`, "fuel")}
     ${histTab("audit", `Trazabilidad (${auditEntries.length})`, "activity")}
   </nav>`;
 
@@ -14793,10 +14898,10 @@ function historyHtml() {
       <label class="history-toolbar-search">
         <span class="visually-hidden">Buscar</span>
         ${IC.search || IC.filter}
-        <input type="search" name="q" placeholder="Solicitud, cliente, ciudad, placa, conductor, viaje…" autocomplete="off" />
+        <input type="search" name="q" placeholder="Solicitud, cliente, ruta, placa, viaje..." autocomplete="off" />
       </label>
       <details class="history-advanced-filters">
-        <summary class="btn btn-sm btn-action">${IC.filter} Más filtros</summary>
+        <summary class="btn btn-sm btn-action">${IC.filter} Filtros</summary>
         <div class="history-advanced-filters-body">
           <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
           <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
@@ -14812,10 +14917,10 @@ function historyHtml() {
   const topVehiclesList = topVehicles(allRequests);
   const explorePanel = `<div class="history-panel${workspace === "explore" ? "" : " hidden"}" data-history-panel="explore" role="tabpanel">
     <div class="history-quick-bar ops-filters-bar" role="group" aria-label="Filtro rápido">
-      ${quickPill("all", "Todos")}
-      ${quickPill("active", "En operación")}
+      ${quickPill("all", "Todo")}
+      ${quickPill("active", "En ruta")}
       ${quickPill("closed", "Cerradas")}
-      ${quickPill("pending", "Sin viaje")}
+      ${quickPill("pending", "Pend. viaje")}
       ${quickPill("cancelled", "Anuladas")}
     </div>
     <aside class="history-insight-strip" aria-label="Resumen rápido">
@@ -14836,20 +14941,6 @@ function historyHtml() {
     ${filterBody}
     <p class="history-result-meta"><span id="history-result-count">${filteredExplore.length}</span> resultado${filteredExplore.length === 1 ? "" : "s"} · orden: más recientes primero</p>
     <div id="history-results">${renderHistoryResultsList(filteredExplore)}</div>
-  </div>`;
-
-  const driverReportBody = `<div class="history-panel${workspace === "driver" ? "" : " hidden"}" data-history-panel="driver" role="tabpanel">
-    <div class="history-panel-intro">
-      <p class="muted">Consolidado mensual del conductor con operación cerrada, viáticos, combustible, costos técnicos y kilometraje estimado.</p>
-    </div>
-    <form id="driver-month-report-form" class="p-form p-form-colored history-driver-form">
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId" required><option value="">Seleccione...</option>${driverOptions}</select></label>
-        <label>${fieldLabel(IC.calendar, "Mes")}<input type="month" name="month" required /></label>
-      </div>
-      <button class="btn btn-primary" type="submit">${IC.activity} Generar reporte</button>
-    </form>
-    <div id="driver-month-report-output" class="history-driver-output muted">Selecciona conductor y mes, luego pulsa Generar reporte.</div>
   </div>`;
 
   const fleetTabBtn = (id, label, iconKey, count) => {
@@ -14915,7 +15006,7 @@ function historyHtml() {
 
   const fleetPanel = `<div class="history-panel history-panel--fleet${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
     <div class="history-panel-intro history-fleet-intro">
-      <p>Historial en base de datos: cargas en <strong>registros_combustible</strong> y novedades en <strong>registros_mantenimiento_vehiculo</strong>. Filtra y consulta la trazabilidad; las altas nuevas ahora viven en <strong>Camiones</strong>.</p>
+      <p>Consulta técnica de flota: cargas en <strong>registros_combustible</strong> y novedades en <strong>registros_mantenimiento_vehiculo</strong>. Las altas nuevas viven en <strong>Camiones</strong>.</p>
     </div>
     <nav class="history-fleet-tabs" role="tablist" aria-label="Combustible o taller">
       ${fleetTabBtn("fuel", "Combustible", "fuel", fuelLogsAll.length)}
@@ -14952,14 +15043,14 @@ function historyHtml() {
   const moduleHead = `<header class="ops-module-head ops-module-head--rich history-module-head">
     <div class="ops-module-title">
       <span class="ops-module-kicker">Transporte · Consulta</span>
-      <h2>Historial y operación</h2>
-      <p class="ops-module-subtitle">Explora solicitudes y viajes, revisa costos por conductor y consulta una trazabilidad central de movimientos sin mezclarlo todo en una sola lista.</p>
+      <h2>Historial operativo</h2>
+      <p class="ops-module-subtitle">Separe la revisión en tres vistas: solicitudes y viajes, flota técnica y trazabilidad central de movimientos.</p>
     </div>
   </header>`;
 
   return (
     histHero +
-    `<div class="history-module history-module--v2">${moduleHead}${workspaceNav}${explorePanel}${driverReportBody}${fleetPanel}${auditPanel}</div>`
+    `<div class="history-module history-module--v2">${moduleHead}${workspaceNav}${explorePanel}${fleetPanel}${auditPanel}</div>`
   );
 }
 
@@ -18402,6 +18493,7 @@ function payrollHtml() {
   const runSort = String(payrollUi.runSort || "recent");
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
+  const payrollOperateSection = normalizePayrollOperateSection(payrollUi.operateSection);
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
@@ -18867,12 +18959,29 @@ function payrollHtml() {
       tone: "ok"
     }
   ]);
+  const payrollOperateNav = renderModuleWindowTabs({
+    ariaLabel: "Flujos de Gestión humana",
+    activeId: payrollOperateSection,
+    action: "payroll-operate-section",
+    valueAttr: "section",
+    tabs: [
+      { id: "employee", label: "Empleado" },
+      { id: "payroll", label: "Nómina" },
+      { id: "settlement", label: "Terminación" },
+      { id: "absence", label: "Ausencia" }
+    ]
+  });
+  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card")}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${pcardWrapPro("dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card")}</div>`;
+  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${pcardWrapPro("hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card")}</div>`;
+  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${pcardWrapPro("calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica", formAbsence, "admin-users-data-card")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
-        <p class="ops-block-lead muted">Abra la tarjeta del trámite: empleado, nómina del mes, liquidación por terminación o ausencia/incapacidad.</p>
+        <p class="ops-block-lead muted">Abra solo el trámite que necesita y mantenga los demás fuera de pantalla para reducir scroll.</p>
       </header>
-      <div class="dash-grid payroll-actions-grid hr-action-cards-grid">${createHrActionCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social.", formEmp, "Abrir formulario")}${createHrActionCard("create-payroll", "dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades.", formPay, "Calcular nómina")}${createHrActionCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones (orientativo Ley colombiana).", formPayrollSettlement, "Abrir liquidación")}${createHrActionCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica.", formAbsence, "Registrar ausencia")}</div>
+      ${payrollOperateNav}
+      <div class="auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${settlementOperatePane}${absenceOperatePane}</div>
     </section>`;
   const payrollQuickActive =
     filterStatus === "pending" ? "pending" : filterPeriod === "current" ? "current" : "all";
@@ -19249,6 +19358,8 @@ function hiringHtml() {
   const vacancyFilter = String(hiringUi.vacancyFilter || "open");
   const candidateSort = String(hiringUi.candidateSort || "recent");
   const hiringWorkspace = normalizeHrWorkspace("hiring", hiringUi.workspace);
+  const hiringOperateSection = normalizeHiringOperateSection(hiringUi.operateSection);
+  const hiringDataSection = normalizeHiringDataSection(hiringUi.dataSection);
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
     return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -19656,18 +19767,31 @@ function hiringHtml() {
       </div>
     </header>`;
   const hiringOperateAlerts = renderHrAlertCards(hiringAlertItems);
+  const hiringOperateNav = renderModuleWindowTabs({
+    ariaLabel: "Flujos de Contratación",
+    activeId: hiringOperateSection,
+    action: "hiring-operate-section",
+    valueAttr: "section",
+    tabs: [
+      { id: "position", label: "Cargo" },
+      { id: "vacancy", label: "Vacante" },
+      { id: "candidate", label: "Candidato" },
+      { id: "interview", label: "Entrevista" },
+      { id: "contract", label: "Contrato" }
+    ]
+  });
+  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${pcardWrapPro("briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card")}</div>`;
+  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${pcardWrapPro("plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card")}</div>`;
+  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card")}</div>`;
+  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${pcardWrapPro("calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card")}</div>`;
+  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${pcardWrapPro("file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card")}</div>`;
   const hiringExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
-        <p class="ops-block-lead muted">Abra la tarjeta del trámite: cree cargos, publique vacantes, registre candidatos, agende entrevistas o genere contratos Word.</p>
+        <p class="ops-block-lead muted">Abra un flujo por vez para mantener el proceso separado por opción y con menos desplazamiento.</p>
       </header>
-      <div class="dash-grid payroll-actions-grid hiring-actions-grid hr-action-cards-grid">
-        ${createHrActionCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida.", fPosition, "Definir cargo")}
-        ${createHrActionCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas.", fVac, "Publicar vacante")}
-        ${createHrActionCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline.", fCand, "Agregar candidato")}
-        ${createHrActionCard("create-interview", "calendar", "Programar entrevista", "Candidato en proceso, fecha, hora y entrevistador responsable.", fInt, "Agendar entrevista")}
-        ${createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana.", fCon, "Generar contrato")}
-      </div>
+      ${hiringOperateNav}
+      <div class="auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>
     </section>`;
   const hiringQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos de contratación">
       <button type="button" class="payroll-quick-pill${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active">Candidatos activos</button>
@@ -19682,84 +19806,103 @@ function hiringHtml() {
       <div class="payroll-insight-item"><span class="payroll-insight-label">Vacantes visibles</span><p class="payroll-insight-value"><strong>${filteredVacancies.length}</strong> de ${vacancies.length}</p></div>
       <div class="payroll-insight-item"><span class="payroll-insight-label">Conversión y cierre</span><p class="payroll-insight-value"><strong>${candidateConversion}%</strong> conversión · ${contractsThisMonth.length} contratos del mes</p></div>
     </div>`;
+  const hiringDataNav = renderModuleWindowTabs({
+    ariaLabel: "Consultas de Contratación",
+    activeId: hiringDataSection,
+    action: "hiring-data-section",
+    valueAttr: "section",
+    tabs: [
+      { id: "candidates", label: "Candidatos", count: sortedCandidates.length },
+      { id: "vacancies", label: "Vacantes", count: filteredVacancies.length },
+      { id: "interviews", label: "Entrevistas", count: interviews.length },
+      { id: "contracts", label: "Contratos", count: contracts.length },
+      { id: "positions", label: "Cargos", count: positions.length }
+    ]
+  });
+  const hiringCandidatesCard = renderHiringWorkspaceDataCard({
+    icon: "users",
+    title: "Candidatos en proceso",
+    subtitle: `${sortedCandidates.length} personas en seguimiento`,
+    tone: "violet",
+    summaryTitle: "Pipeline visible",
+    summaryText: "Consulte rápidamente la mezcla entre candidatos activos, contratados y descartados antes de revisar la tabla completa.",
+    metrics: [
+      hiringMetricChip(activeCandidates.length, "activos", "ok"),
+      hiringMetricChip(hiredCandidates.length, "contratados"),
+      hiringMetricChip(discardedCandidates.length, "descartados")
+    ],
+    bodyHtml: tCand
+  });
+  const hiringVacanciesCard = renderHiringWorkspaceDataCard({
+    icon: "briefcase",
+    title: "Vacantes activas",
+    subtitle: `${filteredVacancies.length} visibles para postular`,
+    tone: "brand",
+    summaryTitle: "Demanda abierta",
+    summaryText: "Visualice cuántas vacantes siguen publicadas, cuántos cupos están disponibles y cuáles necesitan cierre o extensión.",
+    metrics: [
+      hiringMetricChip(openVacancies.length, "abiertas", "ok"),
+      hiringMetricChip(vacancyOpeningsVisible, "cupos visibles"),
+      hiringMetricChip(closedVacancies.length, "cerradas")
+    ],
+    bodyHtml: tVac
+  });
+  const hiringInterviewsCard = renderHiringWorkspaceDataCard({
+    icon: "calendar",
+    title: "Próximas entrevistas",
+    subtitle: `${interviews.length} agendadas`,
+    tone: "cyan",
+    summaryTitle: "Agenda de selección",
+    summaryText: "Mantenga a la vista las citas ya programadas y la carga próxima para no perder ritmo en el embudo de contratación.",
+    metrics: [
+      hiringMetricChip(interviewsUpcoming.length, "pendientes", "ok"),
+      hiringMetricChip(interviewsThisWeek.length, "esta semana"),
+      hiringMetricChip(interviews.length, "histórico")
+    ],
+    bodyHtml: tInt
+  });
+  const hiringContractsCard = renderHiringWorkspaceDataCard({
+    icon: "file",
+    title: "Contratos firmados",
+    subtitle: `${contracts.length} en el histórico`,
+    tone: "amber",
+    summaryTitle: "Cierre contractual",
+    summaryText: "Revise el volumen reciente de contratos, su tipo predominante y los casos que requerirán seguimiento por vencimiento.",
+    metrics: [
+      hiringMetricChip(contractsThisMonth.length, "este mes", "ok"),
+      hiringMetricChip(indefiniteContracts.length, "indefinidos"),
+      hiringMetricChip(fixedTermContracts.length, "plazo fijo/obra"),
+      hiringMetricChip(contractsEndingSoon.length, "por vencer", "warn")
+    ],
+    bodyHtml: tCon
+  });
+  const hiringPositionsCard = renderHiringWorkspaceDataCard({
+    icon: "briefcase",
+    title: "Catálogo de cargos",
+    subtitle: `${positions.length} cargos (${activePositions.length} activos)`,
+    tone: "emerald",
+    summaryTitle: "Base organizacional",
+    summaryText: "Tenga una lectura más clara del catálogo vigente para equilibrar cargos operativos, administrativos y nuevas aperturas.",
+    metrics: [
+      hiringMetricChip(activePositions.length, "activos", "ok"),
+      hiringMetricChip(driverPositions.length, "conductores"),
+      hiringMetricChip(employeePositions.length, "empleados")
+    ],
+    bodyHtml: tPos
+  });
   const hiringDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
       ${hiringDataInsight}
       <div class="payroll-data-toolbar">
         ${hiringQuickBar}
         <p class="payroll-result-meta muted">Filtre el pipeline y revise vacantes, entrevistas, contratos y cargos desde un mismo lugar.</p>
       </div>
-      <div class="hiring-data-grid hiring-results-grid hiring-results-grid--stacked">
-        ${renderHiringWorkspaceDataCard({
-          icon: "users",
-          title: "Candidatos en proceso",
-          subtitle: `${sortedCandidates.length} personas en seguimiento`,
-          tone: "violet",
-          summaryTitle: "Pipeline visible",
-          summaryText: "Consulte rápidamente la mezcla entre candidatos activos, contratados y descartados antes de revisar la tabla completa.",
-          metrics: [
-            hiringMetricChip(activeCandidates.length, "activos", "ok"),
-            hiringMetricChip(hiredCandidates.length, "contratados"),
-            hiringMetricChip(discardedCandidates.length, "descartados")
-          ],
-          bodyHtml: tCand
-        })}
-        ${renderHiringWorkspaceDataCard({
-          icon: "briefcase",
-          title: "Vacantes activas",
-          subtitle: `${filteredVacancies.length} visibles para postular`,
-          tone: "brand",
-          summaryTitle: "Demanda abierta",
-          summaryText: "Visualice cuántas vacantes siguen publicadas, cuántos cupos están disponibles y cuáles necesitan cierre o extensión.",
-          metrics: [
-            hiringMetricChip(openVacancies.length, "abiertas", "ok"),
-            hiringMetricChip(vacancyOpeningsVisible, "cupos visibles"),
-            hiringMetricChip(closedVacancies.length, "cerradas")
-          ],
-          bodyHtml: tVac
-        })}
-        ${renderHiringWorkspaceDataCard({
-          icon: "calendar",
-          title: "Próximas entrevistas",
-          subtitle: `${interviews.length} agendadas`,
-          tone: "cyan",
-          summaryTitle: "Agenda de selección",
-          summaryText: "Mantenga a la vista las citas ya programadas y la carga próxima para no perder ritmo en el embudo de contratación.",
-          metrics: [
-            hiringMetricChip(interviewsUpcoming.length, "pendientes", "ok"),
-            hiringMetricChip(interviewsThisWeek.length, "esta semana"),
-            hiringMetricChip(interviews.length, "histórico")
-          ],
-          bodyHtml: tInt
-        })}
-        ${renderHiringWorkspaceDataCard({
-          icon: "file",
-          title: "Contratos firmados",
-          subtitle: `${contracts.length} en el histórico`,
-          tone: "amber",
-          summaryTitle: "Cierre contractual",
-          summaryText: "Revise el volumen reciente de contratos, su tipo predominante y los casos que requerirán seguimiento por vencimiento.",
-          metrics: [
-            hiringMetricChip(contractsThisMonth.length, "este mes", "ok"),
-            hiringMetricChip(indefiniteContracts.length, "indefinidos"),
-            hiringMetricChip(fixedTermContracts.length, "plazo fijo/obra"),
-            hiringMetricChip(contractsEndingSoon.length, "por vencer", "warn")
-          ],
-          bodyHtml: tCon
-        })}
-        ${renderHiringWorkspaceDataCard({
-          icon: "briefcase",
-          title: "Catálogo de cargos",
-          subtitle: `${positions.length} cargos (${activePositions.length} activos)`,
-          tone: "emerald",
-          summaryTitle: "Base organizacional",
-          summaryText: "Tenga una lectura más clara del catálogo vigente para equilibrar cargos operativos, administrativos y nuevas aperturas.",
-          metrics: [
-            hiringMetricChip(activePositions.length, "activos", "ok"),
-            hiringMetricChip(driverPositions.length, "conductores"),
-            hiringMetricChip(employeePositions.length, "empleados")
-          ],
-          bodyHtml: tPos
-        })}
+      ${hiringDataNav}
+      <div class="auth-tab-panels">
+        <div class="auth-tab-panel${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-data-pane="candidates"${hiringDataSection === "candidates" ? "" : " hidden"}>${hiringCandidatesCard}</div>
+        <div class="auth-tab-panel${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-data-pane="vacancies"${hiringDataSection === "vacancies" ? "" : " hidden"}>${hiringVacanciesCard}</div>
+        <div class="auth-tab-panel${hiringDataSection === "interviews" ? "" : " hidden"}" data-hiring-data-pane="interviews"${hiringDataSection === "interviews" ? "" : " hidden"}>${hiringInterviewsCard}</div>
+        <div class="auth-tab-panel${hiringDataSection === "contracts" ? "" : " hidden"}" data-hiring-data-pane="contracts"${hiringDataSection === "contracts" ? "" : " hidden"}>${hiringContractsCard}</div>
+        <div class="auth-tab-panel${hiringDataSection === "positions" ? "" : " hidden"}" data-hiring-data-pane="positions"${hiringDataSection === "positions" ? "" : " hidden"}>${hiringPositionsCard}</div>
       </div>
     </section>`;
   const hiringFleetHero = moduleFleetHeroStrip(
@@ -21645,6 +21788,7 @@ function bindDynamicEvents() {
         panel: ui.panel === panel ? "" : panel,
         editUserId: "",
         editCompanyId: "",
+        section: "actions",
         editMinimized: false,
         permissionsMinimized: panel === "set-permissions" ? false : ui.permissionsMinimized
       });
@@ -21652,6 +21796,22 @@ function bindDynamicEvents() {
       if (willOpen && getAdminUsersUi().panel) {
         scrollToAdminUsersFocusedForm();
       }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='admin-users-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizeAdminUsersSection(btn.dataset.section, read(KEYS.users, []).some((u) => isPortalUserPendingApproval(u)));
+      setAdminUsersUi({ section });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='vehicles-workspace']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const workspace = normalizeVehicleWorkspaceSection(btn.dataset.workspace);
+      state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace };
+      renderPortalView();
     });
   });
 
@@ -21837,7 +21997,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      setAdminUsersUi({ panel: "", editUserId: id, editCompanyId: "", editMinimized: false });
+      setAdminUsersUi({ panel: "", editUserId: id, editCompanyId: "", section: "actions", editMinimized: false });
       renderPortalView();
       scrollToAdminUsersFocusedForm();
     });
@@ -21845,7 +22005,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", editMinimized: false });
+      setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", section: "actions", editMinimized: false });
       renderPortalView();
     });
   });
@@ -21854,7 +22014,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: id };
+      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: id, section: "actions" };
       renderPortalView();
       scrollToAdminUsersFocusedForm();
     });
@@ -21862,7 +22022,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-company']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
   });
@@ -21930,7 +22090,7 @@ function bindDynamicEvents() {
               summary: `${String(snapshotCompany.taxId || snapshotCompany.nit || "Sin NIT")} · ${String(snapshotCompany.city || "Sin ciudad")}`
             });
           }
-          state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+          state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
           notify(userMessage("companyDeleted"), "success");
           renderPortalView();
         }
@@ -21985,7 +22145,7 @@ function bindDynamicEvents() {
           requestedByName: actor?.name || "Usuario"
         });
         notify(userMessage("userApprovalQueued"), "info");
-        state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+        state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
         renderPortalView();
         return;
       }
@@ -22018,7 +22178,7 @@ function bindDynamicEvents() {
       });
       await writeAwaitServer(KEYS.users, users);
       notify(userMessage("userCreated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
   }
@@ -22120,7 +22280,7 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("companyCreated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
   }
@@ -22229,7 +22389,7 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("companyUpdated"), "success");
-      state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
+      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
   }
@@ -23207,6 +23367,15 @@ function bindDynamicEvents() {
       const section = normalizePayrollDataSection(btn.dataset.section);
       state.payrollUi = { ...(state.payrollUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-operate-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizePayrollOperateSection(btn.dataset.section);
+      state.payrollUi = { ...(state.payrollUi || {}), operateSection: section, workspace: "operate" };
+      persistHrWorkspace("payroll", "operate");
       renderPortalView();
     });
   });
@@ -25078,7 +25247,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const next = String(btn.dataset.workspace || "explore");
+      const next = normalizeHistoryWorkspace(btn.dataset.workspace);
       state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel" }), workspace: next };
       renderPortalView();
     });
@@ -25187,48 +25356,6 @@ function bindDynamicEvents() {
     }
     historyFilter.addEventListener("reset", () => {
       window.requestAnimationFrame(() => refreshHistoryResults());
-    });
-  }
-
-  const driverMonthReportForm = document.getElementById("driver-month-report-form");
-  if (driverMonthReportForm) {
-    wireFormSubmitGuard(driverMonthReportForm, (event) => {
-      const data = Object.fromEntries(new FormData(driverMonthReportForm).entries());
-      const output = document.getElementById("driver-month-report-output");
-      if (!output) return;
-      const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
-      if (!driver || !monthRange(data.month)) {
-        output.innerHTML = `<p class="muted">Selecciona conductor y mes valido.</p>`;
-        return;
-      }
-      const report = calculateDriverTripReport(driver.id, data.month);
-      const rows = report.trips
-        .map((trip) => `<tr>
-          <td>${trip.trip?.tripNumber || "-"}</td>
-          <td>${fmtDate(trip.deliveredAt || trip.closedAt || trip.trip?.etaDelivery || trip.trip?.etaPickup || trip.createdAt)}</td>
-          <td>${trip.originDepartment || "-"} → ${trip.destinationDepartment || "-"}</td>
-          <td>${trip.trip?.vehiclePlate || "-"}</td>
-          <td>${prettyStatus(trip.status, "trip")}</td>
-        </tr>`)
-        .join("");
-      output.classList.remove("muted");
-      output.innerHTML = `
-        <div class="history-driver-report">
-          <div class="dash-grid driver-report-kpi-grid">
-            <div class="p-card driver-report-kpi"><h4>Viajes del mes</h4><strong>${report.tripCount}</strong></div>
-            <div class="p-card driver-report-kpi"><h4>Interdepartamentales</h4><strong>${report.interDepartmentTrips}</strong></div>
-            <div class="p-card driver-report-kpi"><h4>Viáticos sugeridos</h4><strong>$${parseNum(report.viaticTotal).toLocaleString("es-CO")}</strong></div>
-            <div class="p-card driver-report-kpi"><h4>Combustible</h4><strong>$${parseNum(report.fuelTotal).toLocaleString("es-CO")}</strong></div>
-            <div class="p-card driver-report-kpi"><h4>Técnico flota</h4><strong>$${parseNum(report.technicalTotal).toLocaleString("es-CO")}</strong></div>
-            <div class="p-card driver-report-kpi"><h4>Kilometraje estimado</h4><strong>${parseNum(report.kmEstimated).toLocaleString("es-CO")} km</strong></div>
-          </div>
-          ${
-            rows
-              ? `<div class="table-wrap transport-exec-table-wrap history-report-table-wrap"><table><thead><tr><th>Viaje</th><th>Fecha</th><th>Ruta</th><th>Camión</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
-              : `<p class="muted history-driver-report-empty">No hay viajes cerrados en ese mes para este conductor.</p>`
-          }
-        </div>
-      `;
     });
   }
 
@@ -26719,6 +26846,7 @@ function bindDynamicEvents() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
       persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
@@ -26729,6 +26857,7 @@ function bindDynamicEvents() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "all";
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
       persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
@@ -26739,6 +26868,7 @@ function bindDynamicEvents() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "vacancies";
       persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
@@ -26749,6 +26879,25 @@ function bindDynamicEvents() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-operate-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizeHiringOperateSection(btn.dataset.section);
+      state.hiringUi = { ...(state.hiringUi || {}), operateSection: section, workspace: "operate" };
+      persistHrWorkspace("hiring", "operate");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-data-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizeHiringDataSection(btn.dataset.section);
+      state.hiringUi = { ...(state.hiringUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
