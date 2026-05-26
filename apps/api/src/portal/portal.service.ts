@@ -66,6 +66,16 @@ const SYSTEM_PARAMETER_ALIASES = {
 const PG_UUID_V4_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * Política de auditoría liviana:
+ * - create/update se reconstruyen desde las tablas vivas (`createdAt` / `updatedAt`)
+ * - delete conserva solo una instantánea compacta
+ * - la tabla física rota para no crecer indefinidamente
+ */
+const PORTAL_DELETION_AUDIT_RETENTION_DAYS = 180;
+const PORTAL_DELETION_AUDIT_BOOTSTRAP_LIMIT = 120;
+const PORTAL_DELETION_AUDIT_MAX_ROWS = 2000;
+
 /** Igual que `defaultPermissionsForRole` / ALL_PERMISSIONS en app.js */
 const ALL_PORTAL_PERMISSIONS: string[] = [
   "dashboard_view",
@@ -383,6 +393,10 @@ export class PortalService implements OnModuleInit {
     await this.ensureLiquidacionesNominaSchema();
     await this.ensureAuditoriaTransporteSchema();
     await this.ensureRegistrosFlotaSchema();
+    await this.pruneTransportDeletionAudits().catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`pruneTransportDeletionAudits startup: ${sanitizeLogText(msg)}`);
+    });
   }
 
   /** Sincroniza `tarifas_trayecto` con migración `09_tarifas_trayecto_clientes.sql`. */
@@ -805,6 +819,102 @@ export class PortalService implements OnModuleInit {
       return Boolean(r.rows[0]?.ok);
     } catch {
       return false;
+    }
+  }
+
+  private portalAuditIso(raw: unknown): string | null {
+    if (raw == null || raw === "") return null;
+    if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw.toISOString();
+    const txt = String(raw).trim();
+    if (!txt) return null;
+    const parsed = new Date(txt);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    return txt;
+  }
+
+  private buildDeletedRequestAuditSnapshot(row: Record<string, unknown>): Record<string, unknown> {
+    return {
+      requestId: row.id ?? null,
+      requestNumber: row.numero_solicitud ?? null,
+      clientName: row.nombre_cliente ?? null,
+      serviceType: row.tipo_servicio ?? null,
+      requiresThermoking: row.refrigeracion_termoking ?? null,
+      requestedVehicleType: row.tipo_vehiculo ?? null,
+      originDepartment: row.departamento_origen ?? null,
+      originCity: row.ciudad_origen ?? null,
+      originAddress: row.direccion_origen ?? null,
+      destinationDepartment: row.departamento_destino ?? null,
+      destinationCity: row.ciudad_destino ?? null,
+      destinationAddress: row.direccion_destino ?? null,
+      pickupAt: this.portalAuditIso(row.fecha_hora_recogida),
+      etaDelivery: this.portalAuditIso(row.fecha_hora_entrega_estimada),
+      requestedByName: row.nombre_quien_solicita ?? null,
+      contactName: row.nombre_contacto_en_sitio ?? null,
+      contactPhone: row.telefono_contacto_en_sitio ?? null,
+      cargoDescription: row.descripcion_carga ?? null,
+      weightKg: row.peso_kg ?? null,
+      boxesCount: row.numero_cajas ?? null,
+      status: row.estado ?? null,
+      notes: row.observaciones ?? null
+    };
+  }
+
+  private buildDeletedTripAuditSnapshot(
+    row: Record<string, unknown> & { sol_numero_solicitud?: string }
+  ): Record<string, unknown> {
+    return {
+      requestId: row.id_solicitud ?? null,
+      requestNumber: row.sol_numero_solicitud ?? null,
+      tripId: row.id ?? null,
+      tripNumber: row.numero_viaje ?? null,
+      liveOperationalStatus: row.estado_operativo_en_vivo ?? null,
+      etaPickup: this.portalAuditIso(row.fecha_hora_recogida_programada),
+      etaDelivery: this.portalAuditIso(row.fecha_hora_entrega_programada),
+      assignedBy: row.asignado_por ?? null,
+      assignedAt: this.portalAuditIso(row.fecha_hora_asignacion),
+      vehicleType: row.tipo_vehiculo_asignado ?? null,
+      vehiclePlate: row.placa_vehiculo ?? null,
+      driverName: row.nombre_conductor ?? null,
+      driverPhone: row.telefono_conductor ?? null,
+      routeDescription: row.descripcion_ruta ?? row.observaciones ?? null,
+      invoiceData: row.datos_factura_json ?? null
+    };
+  }
+
+  private async pruneDeletionAuditTableTx(client: PoolClient, tableName: string): Promise<void> {
+    await client.query(
+      `DELETE FROM ${tableName}
+       WHERE eliminado_en < now() - ($1::int * interval '1 day')`,
+      [PORTAL_DELETION_AUDIT_RETENTION_DAYS]
+    );
+    await client.query(
+      `DELETE FROM ${tableName}
+       WHERE id IN (
+         SELECT id
+         FROM ${tableName}
+         ORDER BY eliminado_en DESC
+         OFFSET $1
+       )`,
+      [PORTAL_DELETION_AUDIT_MAX_ROWS]
+    );
+  }
+
+  private async pruneTransportDeletionAudits(): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (await this.tableExists("auditoria_solicitudes_eliminadas")) {
+        await this.pruneDeletionAuditTableTx(client, "auditoria_solicitudes_eliminadas");
+      }
+      if (await this.tableExists("auditoria_viajes_eliminados")) {
+        await this.pruneDeletionAuditTableTx(client, "auditoria_viajes_eliminados");
+      }
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => null);
+      throw err;
+    } finally {
+      client.release();
     }
   }
 
@@ -1700,8 +1810,9 @@ export class PortalService implements OnModuleInit {
         await client.query(
           `INSERT INTO auditoria_solicitudes_eliminadas (id_solicitud, numero_solicitud, motivo, datos_json, eliminado_por)
            VALUES ($1::uuid, $2, $3, $4::jsonb, $5::uuid)`,
-          [rid, srow.numero_solicitud, motivoTrim, JSON.stringify(srow), actorUserId]
+          [rid, srow.numero_solicitud, motivoTrim, JSON.stringify(this.buildDeletedRequestAuditSnapshot(srow)), actorUserId]
         );
+        await this.pruneDeletionAuditTableTx(client, "auditoria_solicitudes_eliminadas");
       }
       await client.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
       await client.query("COMMIT");
@@ -1775,8 +1886,9 @@ export class PortalService implements OnModuleInit {
         await client.query(
           `INSERT INTO auditoria_solicitudes_eliminadas (id_solicitud, numero_solicitud, motivo, datos_json, eliminado_por)
            VALUES ($1::uuid, $2, $3, $4::jsonb, $5::uuid)`,
-          [rid, srow.numero_solicitud, motivoTrim, JSON.stringify(srow), actorUserId]
+          [rid, srow.numero_solicitud, motivoTrim, JSON.stringify(this.buildDeletedRequestAuditSnapshot(srow)), actorUserId]
         );
+        await this.pruneDeletionAuditTableTx(client, "auditoria_solicitudes_eliminadas");
       }
       await client.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
       await client.query("COMMIT");
@@ -1867,8 +1979,6 @@ export class PortalService implements OnModuleInit {
       }
       const row = tripRes.rows[0] as Record<string, unknown> & { sol_numero_solicitud?: string };
       if (await this.tableExists("auditoria_viajes_eliminados")) {
-        const snap = { ...row };
-        delete snap.sol_numero_solicitud;
         await client.query(
           `INSERT INTO auditoria_viajes_eliminados (
             id_solicitud, id_viaje, numero_solicitud, numero_viaje, motivo, datos_json, eliminado_por
@@ -1879,10 +1989,11 @@ export class PortalService implements OnModuleInit {
             row.sol_numero_solicitud || null,
             row.numero_viaje,
             motivoTrim,
-            JSON.stringify(snap),
+            JSON.stringify(this.buildDeletedTripAuditSnapshot(row)),
             actorUserId
           ]
         );
+        await this.pruneDeletionAuditTableTx(client, "auditoria_viajes_eliminados");
       }
       await client.query(`DELETE FROM viajes_transporte WHERE id_solicitud = $1::uuid`, [rid]);
       const up = await client.query(
@@ -2541,7 +2652,8 @@ export class PortalService implements OnModuleInit {
        FROM auditoria_viajes_eliminados l
        LEFT JOIN usuarios u ON u.id = l.eliminado_por
        ORDER BY l.eliminado_en DESC
-       LIMIT 400`
+       LIMIT $1`,
+      [PORTAL_DELETION_AUDIT_BOOTSTRAP_LIMIT]
     );
     return r.rows.map((row) => ({
       id: row.id,
@@ -2568,7 +2680,8 @@ export class PortalService implements OnModuleInit {
        FROM auditoria_solicitudes_eliminadas l
        LEFT JOIN usuarios u ON u.id = l.eliminado_por
        ORDER BY l.eliminado_en DESC
-       LIMIT 400`
+       LIMIT $1`,
+      [PORTAL_DELETION_AUDIT_BOOTSTRAP_LIMIT]
     );
     return r.rows.map((row) => ({
       id: row.id,

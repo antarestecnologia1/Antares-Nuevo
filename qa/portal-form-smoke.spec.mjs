@@ -46,6 +46,8 @@ function ymdhm(date) {
 const now = new Date();
 const nextWeek = plusDays(7);
 const nextWeek2 = plusDays(8);
+const tripCreatePickup = plusDays(10);
+const tripCreateDelivery = plusDays(11);
 const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 const secondNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 1);
 const afterTomorrow = plusDays(2);
@@ -280,8 +282,8 @@ const seedStore = {
       destinationDepartment: "Antioquia",
       destinationCity: "Medellin",
       destinationAddress: "Patio Medellín",
-      pickupAt: `${ymd(nextWeek)}T11:00:00.000Z`,
-      etaDelivery: `${ymd(nextWeek2)}T19:00:00.000Z`,
+      pickupAt: `${ymd(tripCreatePickup)}T11:00:00.000Z`,
+      etaDelivery: `${ymd(tripCreateDelivery)}T19:00:00.000Z`,
       serviceType: "Transporte nacional",
       cargoDescription: "Carga general",
       requiresThermoking: false,
@@ -859,8 +861,7 @@ test("portal form smoke", async ({ page, context }) => {
   });
 
   await record("Historial:fuel-technical", async () => {
-    await gotoView("history");
-    await clickDom("[data-action='history-workspace'][data-workspace='fleet']");
+    await gotoView("transport-vehicles");
     await ensureCreatePanelOpen("create-fuel-log");
     const fuelBefore = await arrayLen(KEYS.fuelLogs);
     await submitForm("#form-fuel-log", [
@@ -875,7 +876,6 @@ test("portal form smoke", async ({ page, context }) => {
       ["paidBy", "empresa"]
     ]);
     await waitForArrayLength(KEYS.fuelLogs, fuelBefore + 1, "Historial:create fuel");
-    await clickDom("[data-action='history-fleet-tab'][data-fleet-tab='technical']");
     await ensureCreatePanelOpen("create-technical-log");
     const techBefore = await arrayLen(KEYS.vehicleTechnicalLogs);
     await submitForm("#form-technical-log", [
@@ -888,6 +888,11 @@ test("portal form smoke", async ({ page, context }) => {
       ["status", "Pendiente"]
     ]);
     await waitForArrayLength(KEYS.vehicleTechnicalLogs, techBefore + 1, "Historial:create technical");
+    await gotoView("history");
+    await clickDom("[data-action='history-workspace'][data-workspace='fleet']");
+    await page.waitForSelector("#history-fuel-results", { state: "attached", timeout: 5000 });
+    await clickDom("[data-action='history-fleet-tab'][data-fleet-tab='technical']");
+    await page.waitForSelector("#history-technical-results", { state: "attached", timeout: 5000 });
   });
 
   await record("Reporteria:bi-layout", async () => {
