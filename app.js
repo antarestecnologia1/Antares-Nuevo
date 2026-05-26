@@ -12056,31 +12056,9 @@ function vehiclesHtml() {
     + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody);
 }
 
-function getDriversUi() {
-  const ui = state.driversUi || {};
-  const allowedStatus = new Set(["all", "available", "busy", "scheduled", "offline"]);
-  const allowedDocFilter = new Set(["all", "ok", "risk", "expired", "missing"]);
-  const allowedSort = new Set(["priority", "name", "company", "license", "experience"]);
-  const allowedQuick = new Set(["all", "available", "busy", "scheduled", "risk", "comparendos"]);
-  return {
-    search: String(ui.search || "").trim(),
-    companyId: String(ui.companyId || "").trim(),
-    status: allowedStatus.has(String(ui.status || "")) ? String(ui.status) : "all",
-    docFilter: allowedDocFilter.has(String(ui.docFilter || "")) ? String(ui.docFilter) : "all",
-    sort: allowedSort.has(String(ui.sort || "")) ? String(ui.sort) : "priority",
-    quick: allowedQuick.has(String(ui.quick || "")) ? String(ui.quick) : "all"
-  };
-}
-
-function setDriversUi(patch = {}, replace = false) {
-  const base = replace ? {} : getDriversUi();
-  state.driversUi = { ...base, ...patch };
-}
-
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
   const isAdmin = isAdminActor();
-  const ui = getDriversUi();
   const activeTrips = getActiveTrips();
   const activeTripsByDriverId = new Map();
   activeTrips.forEach((r) => {
@@ -12131,92 +12109,36 @@ function driversHtml() {
     if (!value) {
       return {
         bucket: "missing",
-        label: missingLabel,
-        statusHtml: `<span class="status status-pendiente">${escapeHtml(missingLabel)}</span>`,
-        sortValue: 999999
+        label: missingLabel
       };
     }
     const days = daysUntil(value);
     if (days < 0) {
-      const label = `Vencida hace ${Math.abs(days)}d`;
       return {
         bucket: "expired",
-        label,
-        days,
-        statusHtml: '<span class="status status-rechazada">Vencida</span>',
-        sortValue: days
+        label: `Vencida hace ${Math.abs(days)}d`,
+        days
       };
     }
     if (days <= warnDays) {
-      const label = days === 0 ? "Vence hoy" : `Vence en ${days}d`;
       return {
         bucket: "warning",
-        label,
-        days,
-        statusHtml: `<span class="status status-pendiente">${escapeHtml(label)}</span>`,
-        sortValue: days
+        label: days === 0 ? "Vence hoy" : `Vence en ${days}d`,
+        days
       };
     }
     return {
       bucket: "ok",
       label: `Vigente · ${days}d`,
-      days,
-      statusHtml: '<span class="status status-viaje_asignado">Vigente</span>',
-      sortValue: days
+      days
     };
   };
   const defensiveCourseMeta = (driver) => {
     const raw = String(driver.defensiveCourse || "").trim().toLowerCase();
-    if (raw === "no_aplica") {
-      return {
-        bucket: "ok",
-        label: "No aplica",
-        statusHtml: '<span class="status status-viaje_asignado">No aplica</span>'
-      };
-    }
-    if (raw === "vencido") {
-      return {
-        bucket: "expired",
-        label: "Curso vencido",
-        statusHtml: '<span class="status status-rechazada">Vencido</span>'
-      };
-    }
-    if (raw === "vigente") {
-      const meta = buildDateMeta(driver.defensiveCourseExpiry, "Sin fecha");
-      if (meta.bucket === "missing") {
-        return {
-          bucket: "warning",
-          label: "Vigente sin fecha",
-          statusHtml: '<span class="status status-pendiente">Vigente sin fecha</span>'
-        };
-      }
-      if (meta.bucket === "warning") {
-        return {
-          bucket: "warning",
-          label: meta.label,
-          statusHtml: meta.statusHtml
-        };
-      }
-      if (meta.bucket === "expired") {
-        return {
-          bucket: "expired",
-          label: "Curso vencido",
-          statusHtml: '<span class="status status-rechazada">Vencido</span>'
-        };
-      }
-      return {
-        bucket: "ok",
-        label: meta.label,
-        statusHtml: '<span class="status status-viaje_asignado">Vigente</span>'
-      };
-    }
-    if (!raw && !driver.defensiveCourseExpiry) {
-      return {
-        bucket: "missing",
-        label: "Sin registro",
-        statusHtml: '<span class="status status-pendiente">Sin registro</span>'
-      };
-    }
+    if (raw === "no_aplica") return { bucket: "ok", label: "No aplica" };
+    if (raw === "vencido") return { bucket: "expired", label: "Curso vencido" };
+    if (raw === "vigente") return buildDateMeta(driver.defensiveCourseExpiry, "Sin fecha");
+    if (!raw && !driver.defensiveCourseExpiry) return { bucket: "missing", label: "Sin registro" };
     return buildDateMeta(driver.defensiveCourseExpiry, "Sin registro");
   };
   const summaries = drivers.map((driver) => {
@@ -12241,19 +12163,6 @@ function driversHtml() {
         : statusSlug === "scheduled"
           ? '<span class="status status-fleet-programado">Reservado</span>'
           : '<span class="status status-fleet-disponible">Disponible</span>';
-    const requiredProfileFields = [
-      driver.name,
-      driver.idDoc,
-      driver.phone,
-      driver.license,
-      driver.licenseCategory,
-      driver.licenseExpiry,
-      driver.companyId,
-      driver.eps,
-      driver.arl
-    ];
-    const completedProfileFields = requiredProfileFields.filter((value) => String(value || "").trim() !== "").length;
-    const profileScore = Math.round((completedProfileFields / requiredProfileFields.length) * 100);
     const docBucket = (() => {
       if (licenseMeta.bucket === "expired" || courseMeta.bucket === "expired") return "expired";
       if (licenseMeta.bucket === "missing" || courseMeta.bucket === "missing" || !hasSocialSecurity) return "missing";
@@ -12267,15 +12176,6 @@ function driversHtml() {
         : docBucket === "warning"
           ? "Por vencer"
           : "Al dia";
-    const documentNote = docBucket === "expired"
-      ? "Requiere actualizacion documental antes de operar."
-      : docBucket === "missing"
-        ? "Complete licencia, seguridad social o formacion faltante."
-        : comparendos > 0
-          ? `Revisar ${comparendos} comparendo${comparendos === 1 ? "" : "s"} pendiente${comparendos === 1 ? "" : "s"}.`
-          : profileScore < 100
-            ? `Perfil ${profileScore}% completo.`
-            : "Ficha operativa al dia.";
     const tripHeadline = occupancy.trip
       ? `Viaje ${String(occupancy.trip.trip?.tripNumber || "-")}`
       : statusSlug === "offline"
@@ -12284,21 +12184,6 @@ function driversHtml() {
     const tripClient = occupancy.trip
       ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim()
       : "";
-    const searchText = [
-      driver.name,
-      driver.idDoc,
-      driver.phone,
-      driver.license,
-      driver.licenseCategory,
-      driver.eps,
-      driver.arl,
-      companyName,
-      occupancy.detail,
-      tripClient
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
     return {
       raw: driver,
       companyName,
@@ -12310,14 +12195,10 @@ function driversHtml() {
       hasSocialSecurity,
       comparendos,
       experienceYears,
-      profileScore,
       docBucket,
       docBadge,
-      documentNote,
       tripHeadline,
-      tripClient,
-      searchText,
-      licenseSortValue: Number.isFinite(licenseMeta.sortValue) ? licenseMeta.sortValue : 999999
+      tripClient
     };
   });
   const totalDrivers = summaries.length;
@@ -12327,136 +12208,7 @@ function driversHtml() {
   const offlineDrivers = summaries.filter((item) => item.statusSlug === "offline").length;
   const docRiskCount = summaries.filter((item) => item.docBucket !== "ok").length;
   const expiredDocsCount = summaries.filter((item) => item.docBucket === "expired").length;
-  const comparendosCount = summaries.filter((item) => item.comparendos > 0).length;
-  const incompleteProfileCount = summaries.filter((item) => item.profileScore < 100).length;
-  const companies = [...new Map(
-    summaries
-      .filter((item) => String(item.raw.companyId || "").trim())
-      .map((item) => [String(item.raw.companyId || "").trim(), item.companyName])
-  ).entries()].sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }));
-  const matchesQuick = (item) => {
-    if (ui.quick === "available") return item.statusSlug === "available";
-    if (ui.quick === "busy") return item.statusSlug === "busy";
-    if (ui.quick === "scheduled") return item.statusSlug === "scheduled";
-    if (ui.quick === "risk") return item.docBucket !== "ok";
-    if (ui.quick === "comparendos") return item.comparendos > 0;
-    return true;
-  };
-  const matchesDocFilter = (item) => {
-    if (ui.docFilter === "ok") return item.docBucket === "ok";
-    if (ui.docFilter === "risk") return item.docBucket !== "ok";
-    if (ui.docFilter === "expired") return item.docBucket === "expired";
-    if (ui.docFilter === "missing") return item.docBucket === "missing";
-    return true;
-  };
-  const filtered = summaries
-    .filter((item) => {
-      const matchesSearch = !ui.search || item.searchText.includes(ui.search.toLowerCase());
-      const matchesCompany = !ui.companyId || String(item.raw.companyId || "") === ui.companyId;
-      const matchesStatus = ui.status === "all" || item.statusSlug === ui.status;
-      return matchesSearch && matchesCompany && matchesStatus && matchesDocFilter(item) && matchesQuick(item);
-    })
-    .sort((a, b) => {
-      const docOrder = { expired: 0, missing: 1, warning: 2, ok: 3 };
-      const statusOrder = { busy: 0, scheduled: 1, available: 2, offline: 3 };
-      if (ui.sort === "name") {
-        return String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
-      }
-      if (ui.sort === "company") {
-        return a.companyName.localeCompare(b.companyName, "es", { sensitivity: "base" }) ||
-          String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
-      }
-      if (ui.sort === "license") {
-        return a.licenseSortValue - b.licenseSortValue ||
-          String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
-      }
-      if (ui.sort === "experience") {
-        return b.experienceYears - a.experienceYears ||
-          String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
-      }
-      return (docOrder[a.docBucket] - docOrder[b.docBucket]) ||
-        (statusOrder[a.statusSlug] - statusOrder[b.statusSlug]) ||
-        String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
-    });
-  const nextLicenseDriver = summaries
-    .filter((item) => Number.isFinite(item.licenseMeta.days) && item.licenseMeta.days >= 0)
-    .sort((a, b) => parseNum(a.licenseMeta.days) - parseNum(b.licenseMeta.days))[0] || null;
-  const toolbarInfo = renderHrAlertCards([
-    {
-      tone: expiredDocsCount ? "alert" : docRiskCount ? "warn" : "ok",
-      icon: IC.alertTriangle,
-      label: "Documentacion critica",
-      value: expiredDocsCount,
-      help: expiredDocsCount
-        ? "Hay conductores con licencia o curso vencido."
-        : docRiskCount
-          ? "Existen fichas con documentos por revisar."
-          : "Sin bloqueos documentales criticos."
-    },
-    {
-      tone: comparendosCount ? "warn" : "ok",
-      icon: IC.scale,
-      label: "Comparendos pendientes",
-      value: comparendosCount,
-      help: comparendosCount ? "Requieren validacion operativa antes de asignar viaje." : "Sin alertas disciplinarias registradas."
-    },
-    {
-      tone: incompleteProfileCount ? "info" : "ok",
-      icon: IC.activity,
-      label: "Perfiles por completar",
-      value: incompleteProfileCount,
-      help: incompleteProfileCount ? "Faltan datos clave como telefono, licencia o seguridad social." : "Todas las fichas visibles tienen campos esenciales."
-    },
-    {
-      tone: nextLicenseDriver && nextLicenseDriver.licenseMeta.days <= 30 ? "warn" : "info",
-      icon: IC.calendar,
-      label: "Proxima licencia",
-      value: nextLicenseDriver ? `${nextLicenseDriver.raw.name || "Conductor"} · ${nextLicenseDriver.licenseMeta.label}` : "Sin fechas",
-      help: "Prioriza renovaciones antes de comprometer capacidad operativa."
-    }
-  ]);
-  const quickCounts = {
-    all: totalDrivers,
-    available: availableDrivers,
-    busy: occupiedDrivers,
-    scheduled: scheduledDrivers,
-    risk: docRiskCount,
-    comparendos: comparendosCount
-  };
-  const quickLabels = {
-    all: "Todos",
-    available: "Disponibles",
-    busy: "En ruta",
-    scheduled: "Reservados",
-    risk: "Alertas",
-    comparendos: "Comparendos"
-  };
-  const activeFilters = [];
-  if (ui.search) activeFilters.push(`Busqueda: ${ui.search}`);
-  if (ui.companyId) {
-    const companyLabel = companies.find(([id]) => id === ui.companyId)?.[1];
-    if (companyLabel) activeFilters.push(`Empresa: ${companyLabel}`);
-  }
-  if (ui.status !== "all") {
-    const statusLabelMap = {
-      available: "Disponible",
-      busy: "Ocupado",
-      scheduled: "Reservado",
-      offline: "No disponible"
-    };
-    activeFilters.push(`Estado: ${statusLabelMap[ui.status] || ui.status}`);
-  }
-  if (ui.docFilter !== "all") {
-    const docLabelMap = {
-      ok: "Al dia",
-      risk: "Con alertas",
-      expired: "Vencidos",
-      missing: "Incompletos"
-    };
-    activeFilters.push(`Docs: ${docLabelMap[ui.docFilter] || ui.docFilter}`);
-  }
-  if (ui.quick !== "all") activeFilters.push(`Vista rapida: ${quickLabels[ui.quick] || ui.quick}`);
-  const cards = filtered
+  const cards = summaries
     .map((item) => {
       const d = item.raw;
       const initials = String(d.name || "C")
@@ -12472,17 +12224,17 @@ function driversHtml() {
         ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
         : initials;
       const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
-      const phoneValue = String(d.phone || "").trim() || "Sin telefono";
-      const expLabel = item.experienceYears ? `${item.experienceYears} ano${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
-      const securityStatus = item.hasSocialSecurity
-        ? '<span class="status status-viaje_asignado">Completa</span>'
-        : '<span class="status status-pendiente">Pendiente</span>';
+      const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin telefono";
+      const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
       const comparendosStatus = item.comparendos > 0
         ? `<span class="driver-meta-chip driver-meta-chip--warn">${item.comparendos} comparendo${item.comparendos === 1 ? "" : "s"}</span>`
         : '<span class="driver-meta-chip">Sin comparendos</span>';
-      const tripDetail = item.tripClient
+      const tripMeta = item.tripClient
         ? `${item.tripClient} · ${item.occupancy.detail}`
         : item.occupancy.detail;
+      const socialLabel = item.hasSocialSecurity
+        ? `${escapeHtml(String(d.eps || "-"))} · ${escapeHtml(String(d.arl || "-"))}`
+        : '<span class="muted">Pendiente afiliación</span>';
       return `<article class="driver-card driver-card--${escapeAttr(item.statusSlug)} driver-card--doc-${escapeAttr(item.docBucket)}">
         <header class="driver-card-head">
           <div class="driver-card-head-main">
@@ -12503,48 +12255,35 @@ function driversHtml() {
           </div>
         </header>
         <div class="driver-card-body">
-          <div class="driver-card-highlight">
-            <span class="driver-card-highlight-icon" aria-hidden="true">${IC.truck}</span>
-            <div>
-              <strong>${escapeHtml(item.tripHeadline)}</strong>
-              <p>${escapeHtml(tripDetail)}</p>
-            </div>
+          <div class="driver-card-summary">
+            <strong>${escapeHtml(item.tripHeadline)}</strong>
+            <p>${escapeHtml(tripMeta)}</p>
           </div>
-          <div class="driver-card-quickfacts">
-            <div class="driver-quickfact">
+          <div class="driver-card-facts">
+            <div class="driver-fact">
               <span>${IC.badge}<b>Documento</b></span>
               <strong>${escapeHtml(String(d.idDoc || "-"))}</strong>
             </div>
-            <div class="driver-quickfact">
+            <div class="driver-fact">
               <span>${IC.phone}<b>Telefono</b></span>
               <strong>${escapeHtml(phoneValue)}</strong>
             </div>
-            <div class="driver-quickfact">
+            <div class="driver-fact">
               <span>${IC.file}<b>Licencia</b></span>
-              <strong>${escapeHtml(String(d.license || "-"))}</strong>
+              <strong>${escapeHtml(`${String(d.license || "-")} · ${String(d.licenseCategory || "-")}`)}</strong>
             </div>
-            <div class="driver-quickfact">
-              <span>${IC.activity}<b>Perfil</b></span>
-              <strong>${escapeHtml(`${item.profileScore}%`)}</strong>
-            </div>
-          </div>
-          <div class="driver-doc-rows">
-            <div class="driver-doc-row">
-              <span>${IC.calendar}<b>Vigencia licencia</b></span>
-              <div>${item.licenseMeta.statusHtml}</div>
-            </div>
-            <div class="driver-doc-row">
-              <span>${IC.shield}<b>Seguridad social</b></span>
-              <div>${securityStatus}</div>
-            </div>
-            <div class="driver-doc-row">
-              <span>${IC.graduation}<b>Curso defensivo</b></span>
-              <div>${item.courseMeta.statusHtml}</div>
+            <div class="driver-fact">
+              <span>${IC.calendar}<b>Vigencia</b></span>
+              <strong>${escapeHtml(item.licenseMeta.label)}</strong>
             </div>
           </div>
-          <div class="driver-card-footnote">
-            <span aria-hidden="true">${IC.alertTriangle}</span>
-            <span>${escapeHtml(item.documentNote)}</span>
+          <div class="driver-card-inline-row">
+            <span>${IC.shield}<b>Seguridad social</b></span>
+            <span>${socialLabel}</span>
+          </div>
+          <div class="driver-card-inline-row">
+            <span>${IC.graduation}<b>Curso defensivo</b></span>
+            <span>${escapeHtml(item.courseMeta.label)}</span>
           </div>
         </div>
         <footer class="driver-card-actions">
@@ -12556,84 +12295,9 @@ function driversHtml() {
       </article>`;
     })
     .join("");
-  const companyOptions = companies
-    .map(([id, name]) => `<option value="${escapeAttr(id)}" ${ui.companyId === id ? "selected" : ""}>${escapeHtml(name)}</option>`)
-    .join("");
-  const quickPills = Object.entries(quickCounts)
-    .map(([key, count]) => `<button type="button" class="ops-filter-pill${ui.quick === key ? " is-active" : ""}" data-action="drivers-quick-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(quickLabels[key] || key)}</span><strong>${escapeHtml(String(count))}</strong></button>`)
-    .join("");
-  const searchValue = escapeAttr(ui.search);
-  const filtersHtml = activeFilters.length
-    ? activeFilters.map((label) => `<span class="drivers-filter-chip">${escapeHtml(label)}</span>`).join("")
-    : '<span class="muted">Sin filtros activos. Usa la barra superior para enfocar la operacion.</span>';
-  const commandBar = `<section class="drivers-command">
-    <div class="drivers-command-intro">
-      <p class="drivers-command-kicker">Centro operativo</p>
-      <h3>Disponibilidad, documentos y riesgos en una sola vista</h3>
-      <p>Los conductores se crean automaticamente desde <strong>Contratacion</strong> o desde <strong>Empleados</strong> cuando el cargo es conductor.</p>
-    </div>
-    <div class="drivers-command-controls">
-      <label class="drivers-toolbar-search">
-        <span aria-hidden="true">${IC.search}</span>
-        <input type="search" value="${searchValue}" placeholder="Buscar por nombre, documento, licencia, empresa..." data-action="drivers-search" />
-      </label>
-      <label class="drivers-toolbar-field">
-        <span>Empresa</span>
-        <select data-action="drivers-company-filter">
-          <option value="">Todas</option>
-          ${companyOptions}
-        </select>
-      </label>
-      <label class="drivers-toolbar-field">
-        <span>Estado</span>
-        <select data-action="drivers-status-filter">
-          <option value="all" ${ui.status === "all" ? "selected" : ""}>Todos</option>
-          <option value="available" ${ui.status === "available" ? "selected" : ""}>Disponibles</option>
-          <option value="busy" ${ui.status === "busy" ? "selected" : ""}>Ocupados</option>
-          <option value="scheduled" ${ui.status === "scheduled" ? "selected" : ""}>Reservados</option>
-          <option value="offline" ${ui.status === "offline" ? "selected" : ""}>No disponibles</option>
-        </select>
-      </label>
-      <label class="drivers-toolbar-field">
-        <span>Documentos</span>
-        <select data-action="drivers-doc-filter">
-          <option value="all" ${ui.docFilter === "all" ? "selected" : ""}>Todos</option>
-          <option value="risk" ${ui.docFilter === "risk" ? "selected" : ""}>Con alertas</option>
-          <option value="expired" ${ui.docFilter === "expired" ? "selected" : ""}>Vencidos</option>
-          <option value="missing" ${ui.docFilter === "missing" ? "selected" : ""}>Incompletos</option>
-          <option value="ok" ${ui.docFilter === "ok" ? "selected" : ""}>Al dia</option>
-        </select>
-      </label>
-      <label class="drivers-toolbar-field">
-        <span>Orden</span>
-        <select data-action="drivers-sort">
-          <option value="priority" ${ui.sort === "priority" ? "selected" : ""}>Prioridad operativa</option>
-          <option value="name" ${ui.sort === "name" ? "selected" : ""}>Nombre</option>
-          <option value="company" ${ui.sort === "company" ? "selected" : ""}>Empresa</option>
-          <option value="license" ${ui.sort === "license" ? "selected" : ""}>Vigencia licencia</option>
-          <option value="experience" ${ui.sort === "experience" ? "selected" : ""}>Experiencia</option>
-        </select>
-      </label>
-      <div class="drivers-toolbar-actions">
-        <button type="button" class="btn btn-sm btn-outline" data-action="drivers-clear-filters">${IC.x} Limpiar</button>
-      </div>
-    </div>
-  </section>`;
-  const resultsBody = filtered.length
+  const grid = cards
     ? `<div class="drivers-grid">${cards}</div>`
-    : emptyState(totalDrivers ? "No hay conductores que coincidan con los filtros actuales." : "No hay conductores registrados.");
-  const workspace = `<div class="drivers-workspace">
-    ${commandBar}
-    <div class="drivers-filter-pills">${quickPills}</div>
-    ${toolbarInfo}
-    <div class="drivers-results-bar">
-      <div>
-        <strong>${escapeHtml(String(filtered.length))}</strong> visibles de <strong>${escapeHtml(String(totalDrivers))}</strong> conductores
-      </div>
-      <div class="drivers-active-filters">${filtersHtml}</div>
-    </div>
-    ${resultsBody}
-  </div>`;
+    : emptyState("No hay conductores registrados.");
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: totalDrivers },
     { label: "Disponibles", value: availableDrivers },
@@ -12643,7 +12307,8 @@ function driversHtml() {
     { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
     { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
-  return heroStrip + pcardWrap("user", "Conductores", `${filtered.length} visibles · ${totalDrivers} total`, workspace);
+  const info = `<p class="muted" style="margin:0 0 0.75rem">Los conductores se crean automáticamente desde <strong>Contratación</strong> o desde <strong>Empleados</strong> cuando el cargo es de conductor.</p>`;
+  return heroStrip + pcardWrap("user", "Conductores", `${drivers.length} registrados`, info + grid);
 }
 
 /** Tabla de auditoría: viajes quitados (colapsable; detalle desde snapshot JSON en bootstrap). */
@@ -18152,7 +17817,17 @@ async function deleteEmployeesCascade(employeeIds = []) {
 function mountUniversalModuleFilters() {
   if (!nodes.viewRoot) return;
   const moduleView = String(state.currentView || "");
-  if (["profile", "hiring"].includes(moduleView)) return;
+  const cardFirstViews = new Set([
+    "profile",
+    "payroll",
+    "hiring",
+    "labor-compliance",
+    "admin-users",
+    "authorizations",
+    "contact-leads",
+    "notifications"
+  ]);
+  if (cardFirstViews.has(moduleView)) return;
   const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
   const tableRows = tableBodies.flatMap((tbody) => [...tbody.querySelectorAll("tr")]);
   const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card")];
@@ -19553,6 +19228,47 @@ function hiringHtml() {
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
+  const hiredCandidates = candidates.filter((candidate) => String(candidate.status || "") === "Contratado");
+  const discardedCandidates = candidates.filter((candidate) => String(candidate.status || "") === "Descartado");
+  const closedVacancies = vacancies.filter((vacancy) => String(vacancy.status || "") !== "Publicada");
+  const vacancyOpeningsVisible = filteredVacancies.reduce((acc, vacancy) => acc + Math.max(1, parseNum(vacancy.openings || 1)), 0);
+  const interviewsUpcoming = interviews.filter((interview) => {
+    const ts = new Date(interview.when || "").getTime();
+    return Number.isFinite(ts) && ts >= Date.now();
+  });
+  const interviewsThisWeek = interviewsUpcoming.filter((interview) => {
+    const ts = new Date(interview.when || "").getTime();
+    return Number.isFinite(ts) && ts - Date.now() <= 7 * 86400000;
+  });
+  const indefiniteContracts = contracts.filter((contract) =>
+    /indefinid/i.test(String(contract.contractType || ""))
+  );
+  const fixedTermContracts = contracts.filter((contract) =>
+    /fijo|obra|prestacion|aprendiz/i.test(String(contract.contractType || ""))
+  );
+  const driverPositions = positions.filter((position) => String(position.workerRole || "") === "conductor");
+  const employeePositions = positions.filter((position) => String(position.workerRole || "") !== "conductor");
+  const hiringMetricChip = (value, label, tone = "") => `<span class="hiring-data-card-metric${tone ? ` hiring-data-card-metric--${escapeAttr(tone)}` : ""}">
+      <strong>${escapeHtml(String(value))}</strong>
+      <small>${escapeHtml(String(label))}</small>
+    </span>`;
+  const renderHiringWorkspaceDataCard = ({ icon, title, subtitle, tone, summaryTitle, summaryText, metrics, bodyHtml }) =>
+    pcardWrapPro(
+      icon,
+      title,
+      subtitle,
+      `<div class="hiring-data-card-shell">
+        <div class="hiring-data-card-summary hiring-data-card-summary--${escapeAttr(String(tone || "brand"))}">
+          <div class="hiring-data-card-copy">
+            <p class="hiring-data-card-kicker">${escapeHtml(String(summaryTitle || ""))}</p>
+            <p class="hiring-data-card-text">${escapeHtml(String(summaryText || ""))}</p>
+          </div>
+          <div class="hiring-data-card-metrics">${Array.isArray(metrics) ? metrics.join("") : ""}</div>
+        </div>
+        ${bodyHtml}
+      </div>`,
+      `hiring-pro-data-card hiring-pro-data-card--${escapeAttr(String(tone || "brand"))}`
+    );
   const hiringAlertItems = [
     {
       icon: IC.alertTriangle,
@@ -19630,11 +19346,76 @@ function hiringHtml() {
         <p class="payroll-result-meta muted">Filtre el pipeline y revise vacantes, entrevistas, contratos y cargos desde un mismo lugar.</p>
       </div>
       <div class="hiring-data-grid hiring-results-grid hiring-results-grid--stacked">
-        ${pcardWrapPro("users", "Candidatos en proceso", sortedCandidates.length + " personas en seguimiento", tCand)}
-        ${pcardWrapPro("briefcase", "Vacantes activas", filteredVacancies.length + " visibles para postular", tVac)}
-        ${pcardWrapPro("calendar", "Próximas entrevistas", interviews.length + " agendadas", tInt)}
-        ${pcardWrapPro("file", "Contratos firmados", contracts.length + " en el histórico", tCon)}
-        ${pcardWrapPro("briefcase", "Catálogo de cargos", `${positions.length} cargos (${activePositions.length} activos)`, tPos)}
+        ${renderHiringWorkspaceDataCard({
+          icon: "users",
+          title: "Candidatos en proceso",
+          subtitle: `${sortedCandidates.length} personas en seguimiento`,
+          tone: "violet",
+          summaryTitle: "Pipeline visible",
+          summaryText: "Consulte rápidamente la mezcla entre candidatos activos, contratados y descartados antes de revisar la tabla completa.",
+          metrics: [
+            hiringMetricChip(activeCandidates.length, "activos", "ok"),
+            hiringMetricChip(hiredCandidates.length, "contratados"),
+            hiringMetricChip(discardedCandidates.length, "descartados")
+          ],
+          bodyHtml: tCand
+        })}
+        ${renderHiringWorkspaceDataCard({
+          icon: "briefcase",
+          title: "Vacantes activas",
+          subtitle: `${filteredVacancies.length} visibles para postular`,
+          tone: "brand",
+          summaryTitle: "Demanda abierta",
+          summaryText: "Visualice cuántas vacantes siguen publicadas, cuántos cupos están disponibles y cuáles necesitan cierre o extensión.",
+          metrics: [
+            hiringMetricChip(openVacancies.length, "abiertas", "ok"),
+            hiringMetricChip(vacancyOpeningsVisible, "cupos visibles"),
+            hiringMetricChip(closedVacancies.length, "cerradas")
+          ],
+          bodyHtml: tVac
+        })}
+        ${renderHiringWorkspaceDataCard({
+          icon: "calendar",
+          title: "Próximas entrevistas",
+          subtitle: `${interviews.length} agendadas`,
+          tone: "cyan",
+          summaryTitle: "Agenda de selección",
+          summaryText: "Mantenga a la vista las citas ya programadas y la carga próxima para no perder ritmo en el embudo de contratación.",
+          metrics: [
+            hiringMetricChip(interviewsUpcoming.length, "pendientes", "ok"),
+            hiringMetricChip(interviewsThisWeek.length, "esta semana"),
+            hiringMetricChip(interviews.length, "histórico")
+          ],
+          bodyHtml: tInt
+        })}
+        ${renderHiringWorkspaceDataCard({
+          icon: "file",
+          title: "Contratos firmados",
+          subtitle: `${contracts.length} en el histórico`,
+          tone: "amber",
+          summaryTitle: "Cierre contractual",
+          summaryText: "Revise el volumen reciente de contratos, su tipo predominante y los casos que requerirán seguimiento por vencimiento.",
+          metrics: [
+            hiringMetricChip(contractsThisMonth.length, "este mes", "ok"),
+            hiringMetricChip(indefiniteContracts.length, "indefinidos"),
+            hiringMetricChip(contractsEndingSoon.length, "por vencer", "warn")
+          ],
+          bodyHtml: tCon
+        })}
+        ${renderHiringWorkspaceDataCard({
+          icon: "briefcase",
+          title: "Catálogo de cargos",
+          subtitle: `${positions.length} cargos (${activePositions.length} activos)`,
+          tone: "emerald",
+          summaryTitle: "Base organizacional",
+          summaryText: "Tenga una lectura más clara del catálogo vigente para equilibrar cargos operativos, administrativos y nuevas aperturas.",
+          metrics: [
+            hiringMetricChip(activePositions.length, "activos", "ok"),
+            hiringMetricChip(driverPositions.length, "conductores"),
+            hiringMetricChip(employeePositions.length, "empleados")
+          ],
+          bodyHtml: tPos
+        })}
       </div>
     </section>`;
   const hiringFleetHero = moduleFleetHeroStrip(
@@ -21591,80 +21372,6 @@ function bindDynamicEvents() {
       const filterKey = String(btn.dataset.filter || "active");
       state.requestsFilter = filterKey;
       renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-quick-filter']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setDriversUi({ quick: String(btn.dataset.filter || "all") });
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-company-filter']").forEach((select) => {
-    select.addEventListener("change", () => {
-      setDriversUi({ companyId: String(select.value || "") });
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-status-filter']").forEach((select) => {
-    select.addEventListener("change", () => {
-      setDriversUi({ status: String(select.value || "all") });
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-doc-filter']").forEach((select) => {
-    select.addEventListener("change", () => {
-      setDriversUi({ docFilter: String(select.value || "all") });
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-sort']").forEach((select) => {
-    select.addEventListener("change", () => {
-      setDriversUi({ sort: String(select.value || "priority") });
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-clear-filters']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setDriversUi({}, true);
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='drivers-search']").forEach((input) => {
-    let searchTimer = 0;
-    input.addEventListener("input", () => {
-      const nextValue = String(input.value || "");
-      setDriversUi({ search: nextValue });
-      if (searchTimer) window.clearTimeout(searchTimer);
-      const caretStart = input.selectionStart ?? nextValue.length;
-      const caretEnd = input.selectionEnd ?? nextValue.length;
-      searchTimer = window.setTimeout(() => {
-        renderPortalView();
-        window.requestAnimationFrame(() => {
-          const nextInput = nodes.viewRoot.querySelector("[data-action='drivers-search']");
-          if (!nextInput) return;
-          nextInput.focus();
-          try {
-            nextInput.setSelectionRange(
-              Math.min(caretStart, String(nextInput.value || "").length),
-              Math.min(caretEnd, String(nextInput.value || "").length)
-            );
-          } catch (_e) {}
-        });
-      }, 120);
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setDriversUi({ search: "" });
-        renderPortalView();
-      }
     });
   });
 
@@ -28079,6 +27786,136 @@ function bindExtendedViewEditHandlers() {
         return;
       }
       const company = getCompanyById(d.companyId);
+      const companyName = String(company?.name || "").trim();
+      const avatarCss = employeeAvatarCssUrl(d.photoUrl);
+      const avatarUrlRaw = String(d.photoUrl || "").trim();
+      const avatarHero = avatarCss
+        ? `<div class="portal-detail-logo portal-detail-logo--avatar"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" /></div>`
+        : `<div class="portal-detail-logo portal-detail-logo--avatar portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(
+            (String(d.name || "C").charAt(0) || "C").toUpperCase()
+          )}</span></div>`;
+      const buildDateChip = (rawValue, missingLabel = "Sin fecha", warnDays = 60) => {
+        const ymd = normalizePortalDateYmd(rawValue);
+        if (!ymd) {
+          return {
+            bucket: "missing",
+            label: missingLabel,
+            chipHtml: `<span class="status status-pendiente">${escapeHtml(missingLabel)}</span>`
+          };
+        }
+        const days = daysUntil(ymd);
+        if (days < 0) {
+          return {
+            bucket: "expired",
+            label: `Vencida hace ${Math.abs(days)}d`,
+            chipHtml: '<span class="status status-rechazada">Vencida</span>'
+          };
+        }
+        if (days <= warnDays) {
+          const label = days === 0 ? "Vence hoy" : `Vence en ${days}d`;
+          return {
+            bucket: "warning",
+            label,
+            chipHtml: `<span class="status status-pendiente">${escapeHtml(label)}</span>`
+          };
+        }
+        return {
+          bucket: "ok",
+          label: `Vigente · ${days}d`,
+          chipHtml: '<span class="status status-viaje_asignado">Vigente</span>'
+        };
+      };
+      const licenseMeta = buildDateChip(d.licenseExpiry, "Sin fecha");
+      const courseMeta = (() => {
+        const raw = String(d.defensiveCourse || "").trim().toLowerCase();
+        if (raw === "no_aplica") {
+          return {
+            bucket: "ok",
+            label: "No aplica",
+            chipHtml: '<span class="status status-viaje_asignado">No aplica</span>'
+          };
+        }
+        if (raw === "vencido") {
+          return {
+            bucket: "expired",
+            label: "Curso vencido",
+            chipHtml: '<span class="status status-rechazada">Vencido</span>'
+          };
+        }
+        if (raw === "vigente") return buildDateChip(d.defensiveCourseExpiry, "Sin fecha");
+        if (!raw && !d.defensiveCourseExpiry) {
+          return {
+            bucket: "missing",
+            label: "Sin registro",
+            chipHtml: '<span class="status status-pendiente">Sin registro</span>'
+          };
+        }
+        return buildDateChip(d.defensiveCourseExpiry, "Sin registro");
+      })();
+      const driverTrips = getActiveTrips().filter((trip) => String(trip.trip?.driverId || "") === String(d.id || ""));
+      const nowTs = Date.now();
+      const occupancy = (() => {
+        if (isManuallyUnavailable(d)) return { tone: "offline", detail: "Marcado manualmente como no disponible", trip: null };
+        if (!driverTrips.length) return { tone: "available", detail: "Sin viaje activo", trip: null };
+        const ongoing = driverTrips.find((trip) => describeTripTimingVsNow(trip, nowTs).timing === "ongoing") || null;
+        if (ongoing) {
+          const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
+          return {
+            tone: "busy",
+            trip: ongoing,
+            detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+          };
+        }
+        const upcoming = driverTrips
+          .map((trip) => ({ trip, info: describeTripTimingVsNow(trip, nowTs) }))
+          .filter((item) => item.info.timing === "upcoming")
+          .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+        if (upcoming) {
+          return {
+            tone: "scheduled",
+            trip: upcoming.trip,
+            detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+          };
+        }
+        return { tone: "available", detail: "Sin cruce horario activo", trip: driverTrips[0] || null };
+      })();
+      const availabilityTag = occupancy.tone === "offline"
+        ? '<span class="status status-fleet-offline">No disponible</span>'
+        : occupancy.tone === "busy"
+          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
+          : occupancy.tone === "scheduled"
+            ? '<span class="status status-fleet-programado">Reservado</span>'
+            : '<span class="status status-fleet-disponible">Disponible</span>';
+      const comparendos = Math.max(0, parseNum(d.comparendos || 0));
+      const comparendosTag = comparendos > 0
+        ? `<span class="driver-doc-pill driver-doc-pill--warning">${comparendos} comparendo${comparendos === 1 ? "" : "s"}</span>`
+        : "";
+      const phoneDisp = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "";
+      const rawPhone = String(d.phone || "").trim();
+      const telDigits = rawPhone.replace(/\D/g, "");
+      const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
+      const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
+      const phoneBlock = telHref
+        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+      const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
+      const companyBlock = portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
+      const licenseBlock = portalDetailTile(
+        IC.file,
+        "Licencia",
+        escapeHtml(`${String(d.license || "Sin licencia")} · ${String(d.licenseCategory || "Sin categoría")}`),
+        { muted: !d.license }
+      );
+      const emergencyValue = String(d.emergencyPhone || "").trim() ? escapeHtml(String(d.emergencyPhone || "").trim()) : `<span class="muted">Sin teléfono</span>`;
+      const emergencyBlock = portalDetailTile(IC.heart, "Emergencia", emergencyValue, { muted: !String(d.emergencyPhone || "").trim() });
+      const tripTitle = occupancy.trip
+        ? `Viaje ${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}`
+        : occupancy.tone === "offline"
+          ? "Fuera de operación"
+          : "Disponible para asignación";
+      const tripSub = occupancy.trip
+        ? `${escapeHtml(String(occupancy.trip.clientName || occupancy.trip.companyName || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}`
+        : escapeHtml(String(occupancy.detail || "Sin viaje activo"));
       const sections = [
         {
           icon: "user",
@@ -28090,7 +27927,7 @@ function bindExtendedViewEditHandlers() {
             ["Tipo de sangre", escapeHtml(String(d.bloodType || "-"))],
             ["Contacto emergencia", escapeHtml(String(d.emergencyContact || "-"))],
             ["Tel. emergencia", escapeHtml(String(d.emergencyPhone || "-"))],
-            ["Empresa", escapeHtml(String(company?.name || "-"))]
+            ["Empresa", escapeHtml(String(companyName || "-"))]
           ])
         },
         {
@@ -28099,12 +27936,12 @@ function bindExtendedViewEditHandlers() {
           rows: renderDetailRows([
             ["N° licencia", escapeHtml(String(d.license || "-"))],
             ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
-            ["Vence licencia", fmtDateOr(d.licenseExpiry)],
+            ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
             ["Examen ocupacional", fmtDateOr(d.occupationalExamDate)],
             ["Vence examen ocupacional", fmtDateOr(d.occupationalExamExpiry)],
             ["Examen instruvial", fmtDateOr(d.instruvialExamDate)],
             ["Vence examen instruvial", fmtDateOr(d.instruvialExamExpiry)],
-            ["Curso defensivo", escapeHtml(String(d.defensiveCourse || "-"))],
+            ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "-"))} ${courseMeta.chipHtml}`],
             ["Vence curso defensivo", fmtDateOr(d.defensiveCourseExpiry)],
             ["Años experiencia", String(parseNum(d.experienceYears || 0))]
           ])
@@ -28116,16 +27953,39 @@ function bindExtendedViewEditHandlers() {
             ["EPS", escapeHtml(String(d.eps || "-"))],
             ["ARL", escapeHtml(String(d.arl || "-"))],
             ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
-            ["Disponible", fmtBool(d.available)],
+            ["Estado operativo", availabilityTag],
             ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
           ])
         }
       ];
+      const bodyHtml = `<div class="portal-detail-modal">
+  <div class="portal-detail-hero">
+    ${avatarHero}
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.user} Conductor operativo</p>
+      <div class="portal-detail-badges">${availabilityTag} ${licenseMeta.chipHtml} ${comparendosTag}</div>
+      <p class="portal-detail-meta"><span class="muted">Documento</span> <strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong></p>
+      <ul class="portal-detail-stats" aria-label="Resumen">
+        <li><strong>${companyName ? escapeHtml(companyName) : "—"}</strong><span>Empresa</span></li>
+        <li><strong>${escapeHtml(String(d.licenseCategory || "—"))}</strong><span>Categoría</span></li>
+        <li><strong>${escapeHtml(`${parseNum(d.experienceYears || 0)} año${parseNum(d.experienceYears || 0) === 1 ? "" : "s"}`)}</strong><span>Experiencia</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="portal-detail-tiles">${phoneBlock}${companyBlock}${licenseBlock}${emergencyBlock}</div>
+  <section class="portal-detail-loc" aria-label="Operación actual">
+    <h4 class="portal-detail-loc-title">${IC.truck} Operación actual</h4>
+    <p class="portal-detail-loc-line"><strong>${tripTitle}</strong></p>
+    <p class="portal-detail-loc-sub muted">${IC.clock} ${tripSub}</p>
+  </section>
+  <div class="detail-grid">${buildDetailGrid(sections)}</div>
+</div>`;
       openInfoModal({
         title: `Conductor ${String(d.name || "")}`,
         subtitle: `${String(d.licenseCategory || "")} · ${String(d.idDoc || "")}`,
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        bodyHtml,
+        wide: true,
+        extraModalCardClass: "modal-card--portal-detail"
       });
     });
   });

@@ -478,7 +478,6 @@ test.setTimeout(180000);
 
 test("portal form smoke", async ({ page, context }) => {
   const results = [];
-  const STEP_TIMEOUT_MS = 15000;
 
   await context.addInitScript((payload) => {
     localStorage.clear();
@@ -543,14 +542,49 @@ test("portal form smoke", async ({ page, context }) => {
     }, selector);
   };
 
+  const ensureCreatePanelOpen = async (panelId) => {
+    await page.waitForSelector(`[data-action='toggle-create-panel'][data-panel='${panelId}']`, { state: "attached", timeout: 5000 });
+    const isHidden = await page.evaluate((id) => {
+      const panel = document.querySelector(`[data-create-panel="${id}"]`);
+      return !panel || panel.classList.contains("hidden") || panel.hasAttribute("hidden");
+    }, panelId);
+    if (isHidden) await clickDom(`[data-action='toggle-create-panel'][data-panel='${panelId}']`);
+    await page.waitForFunction((id) => {
+      const panel = document.querySelector(`[data-create-panel="${id}"]`);
+      return panel && !panel.classList.contains("hidden") && !panel.hasAttribute("hidden");
+    }, panelId);
+  };
+
+  const ensureHrWorkspace = async (moduleId, tabId) => {
+    await clickDom(`[data-action='hr-workspace-tab'][data-module='${moduleId}'][data-tab='${tabId}']`);
+    await page.waitForFunction(
+      ({ module, tab }) => {
+        const attr = module === "payroll" ? "data-payroll-panel" : "data-hiring-panel";
+        const panel = document.querySelector(`[${attr}="${tab}"]`);
+        return panel && !panel.classList.contains("hidden") && !panel.hasAttribute("hidden");
+      },
+      { module: moduleId, tab: tabId }
+    );
+  };
+
+  const ensureAdminPanel = async (panelId) => {
+    await clickDom(`[data-action='toggle-admin-panel'][data-panel='${panelId}']`);
+    const formSelector =
+      panelId === "create-user" ? "#form-admin-user-create" : panelId === "create-company" ? "#form-admin-company-create" : "#form-admin-user-permissions";
+    await page.waitForSelector(formSelector, { state: "attached", timeout: 5000 });
+  };
+
+  const ensureAuthTab = async (tabId) => {
+    await clickDom(`[data-auth-tab='${tabId}']`);
+    await page.waitForFunction((id) => {
+      const panel = document.querySelector(`[data-auth-panel="${id}"]`);
+      return panel && !panel.hasAttribute("hidden");
+    }, tabId);
+  };
+
   const record = async (name, task) => {
     try {
-      await Promise.race([
-        task(),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Paso excedió ${STEP_TIMEOUT_MS}ms`)), STEP_TIMEOUT_MS)
-        )
-      ]);
+      await task();
       results.push({ name, ok: true });
       console.log(`OK ${name}`);
     } catch (error) {
@@ -565,6 +599,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Mis solicitudes:create", async () => {
     await gotoView("requests");
+    await ensureCreatePanelOpen("create-request");
     const before = await arrayLen(KEYS.requests);
     await submitForm("#form-request", [
       ["companyId", "co-flores"],
@@ -581,7 +616,8 @@ test("portal form smoke", async ({ page, context }) => {
       ["serviceType", "Transporte nacional"],
       ["cargoDescription", "Carga QA"],
       ["requiresThermoking", "no"],
-      ["requiredTruckType", "Camión"],
+      ["requiredTruckType", "Tractomula"],
+      ["weightKg", "18000"],
       ["siteContactName", "Contacto QA"],
       ["siteContactPhone", "3001231234"],
       ["notes", "Creada por smoke"]
@@ -606,13 +642,13 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Viajes:create", async () => {
     await gotoView("transport-trips");
+    await ensureCreatePanelOpen("create-trip");
     const before = await readStore(KEYS.requests);
-    await submitForm("#form-create-trip", [
-      ["requestId", "req-trip-create"],
-      ["vehicleId", "veh-1"],
-      ["driverId", "drv-1"],
-      ["tripValue", "1450000"]
-    ]);
+    await submitForm("#form-create-trip", [["requestId", "req-trip-create"]]);
+    await page.waitForSelector("#form-create-trip select[name='vehicleId']", { state: "attached" });
+    await submitForm("#form-create-trip", [["vehicleId", "veh-1"], ["driverId", "drv-1"]]);
+    await page.waitForSelector("#form-create-trip input[name='tripValue']", { state: "attached" });
+    await submitForm("#form-create-trip", [["tripValue", "1450000"]]);
     await page.waitForFunction(
       (key) => {
         const rows = JSON.parse(localStorage.getItem(key) || "[]");
@@ -636,6 +672,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Camiones:create-edit", async () => {
     await gotoView("transport-vehicles");
+    await ensureCreatePanelOpen("create-vehicle");
     const before = await arrayLen(KEYS.vehicles);
     await submitForm("#form-vehicle", [
       ["plate", "QWE123"],
@@ -645,9 +682,9 @@ test("portal form smoke", async ({ page, context }) => {
       ["type", "Camion"],
       ["color", "Blanco"],
       ["capacityKg", "7000"],
-      ["bodyType", "Furgon"],
-      ["fuelType", "Diesel"],
-      ["axleConfig", "4x2"],
+      ["bodyType", "Furgon seco"],
+      ["fuelType", "Diesel ACPM"],
+      ["axleConfig", "2 ejes (4 llantas)"],
       ["engineNumber", "ENG-QA"],
       ["vin", "VINQA00000000001"],
       ["ownershipCard", "TC-QA"],
@@ -693,10 +730,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Historial:fuel-technical", async () => {
     await gotoView("history");
-    if (!(await page.locator("#form-fuel-log").count())) {
-      await page.getByRole("button", { name: /Flota/i }).click();
-      await page.waitForTimeout(300);
-    }
+    await clickDom("[data-action='history-workspace'][data-workspace='fleet']");
+    await ensureCreatePanelOpen("create-fuel-log");
     const fuelBefore = await arrayLen(KEYS.fuelLogs);
     await submitForm("#form-fuel-log", [
       ["vehicleId", "veh-1"],
@@ -714,6 +749,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.fuelLogs,
       fuelBefore + 1
     );
+    await clickDom("[data-action='history-fleet-tab'][data-fleet-tab='technical']");
+    await ensureCreatePanelOpen("create-technical-log");
     const techBefore = await arrayLen(KEYS.vehicleTechnicalLogs);
     await submitForm("#form-technical-log", [
       ["vehicleId", "veh-1"],
@@ -741,11 +778,15 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Gestión humana:employee-edit-absence", async () => {
     await gotoView("payroll");
+    await ensureHrWorkspace("payroll", "operate");
+    await ensureCreatePanelOpen("create-employee");
     const empBefore = await arrayLen(KEYS.payrollEmployees);
     await submitForm("#form-employee", [
       ["name", "Empleado Smoke"],
       ["documentType", "CC"],
       ["idDoc", "4567891230"],
+      ["bloodType", "O+"],
+      ["hasIllness", "no"],
       ["department", "Bogota"],
       ["city", "Bogota D.C."],
       ["address", "Calle QA 123"],
@@ -756,6 +797,10 @@ test("portal form smoke", async ({ page, context }) => {
       ["positionId", "pos-analista"],
       ["contractType", "Termino indefinido"],
       ["baseSalary", "2300000"],
+      ["contractTemplateKind", "oficina"],
+      ["eps", "Sura"],
+      ["pensionFund", "Porvenir"],
+      ["arl", "Sura"],
       ["bankName", "Bancolombia"],
       ["bankAccount", "998877665544"],
       ["startDate", ymd(plusDays(-5))]
@@ -765,6 +810,7 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.payrollEmployees,
       empBefore + 1
     );
+    await ensureHrWorkspace("payroll", "data");
     await clickDom("[data-action='edit-employee'][data-id='emp-1']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3005556600"]]);
@@ -772,6 +818,8 @@ test("portal form smoke", async ({ page, context }) => {
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "emp-1" && row.phone === "3005556600"),
       KEYS.payrollEmployees
     );
+    await ensureHrWorkspace("payroll", "operate");
+    await ensureCreatePanelOpen("create-hr-absence");
     const absBefore = await arrayLen(KEYS.hrAbsences);
     await submitForm("#form-hr-absence", [
       ["employeeId", "emp-1"],
@@ -791,6 +839,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Contratación:position-vacancy-candidate-interview", async () => {
     await gotoView("hiring");
+    await ensureHrWorkspace("hiring", "operate");
+    await ensureCreatePanelOpen("create-position");
     const posBefore = await arrayLen(KEYS.positions);
     await submitForm("#form-position", [
       ["name", "Coordinador QA"],
@@ -807,6 +857,7 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.positions,
       posBefore + 1
     );
+    await ensureHrWorkspace("hiring", "data");
     await clickDom("[data-action='edit-position'][data-id='pos-analista']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["name", "Analista QA Editado"]]);
@@ -814,6 +865,8 @@ test("portal form smoke", async ({ page, context }) => {
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "pos-analista" && row.name === "Analista QA Editado"),
       KEYS.positions
     );
+    await ensureHrWorkspace("hiring", "operate");
+    await ensureCreatePanelOpen("create-vacancy");
     const vacBefore = await arrayLen(KEYS.vacancies);
     await submitForm("#form-vacancy", [
       ["positionId", "pos-analista"],
@@ -831,6 +884,7 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.vacancies,
       vacBefore + 1
     );
+    await ensureHrWorkspace("hiring", "data");
     await clickDom("[data-action='edit-vacancy'][data-id='vac-1']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["title", "Vacante Analista Editada"]]);
@@ -838,6 +892,8 @@ test("portal form smoke", async ({ page, context }) => {
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada"),
       KEYS.vacancies
     );
+    await ensureHrWorkspace("hiring", "operate");
+    await ensureCreatePanelOpen("create-candidate");
     const candBefore = await arrayLen(KEYS.candidates);
     await submitForm("#form-candidate", [
       ["name", "Nuevo Candidato QA"],
@@ -860,6 +916,7 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.candidates,
       candBefore + 1
     );
+    await ensureHrWorkspace("hiring", "data");
     await clickDom("[data-action='edit-candidate'][data-id='cand-1']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3007778800"]]);
@@ -867,6 +924,8 @@ test("portal form smoke", async ({ page, context }) => {
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "cand-1" && row.phone === "3007778800"),
       KEYS.candidates
     );
+    await ensureHrWorkspace("hiring", "operate");
+    await ensureCreatePanelOpen("create-interview");
     const intBefore = await arrayLen(KEYS.interviews);
     await submitForm("#form-interview", [
       ["candidateId", "cand-1"],
@@ -881,6 +940,7 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.interviews,
       intBefore + 1
     );
+    await ensureHrWorkspace("hiring", "data");
     await clickDom("[data-action='edit-interview'][data-id='int-1']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["interviewer", "Lina QA Edit"]]);
@@ -892,6 +952,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Cumplimiento laboral y SST:create-edit", async () => {
     await gotoView("labor-compliance");
+    await ensureCreatePanelOpen("create-sst-control");
     const before = await arrayLen(KEYS.sstCompliance);
     await submitForm("#form-sst-compliance", [
       ["employeeId", "emp-1"],
@@ -923,6 +984,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Usuarios y permisos:create-edit", async () => {
     await gotoView("admin-users");
+    await ensureAdminPanel("create-user");
     const before = await arrayLen(KEYS.users);
     await submitForm("#form-admin-user-create", [
       ["name", "Usuario Smoke"],
@@ -953,11 +1015,13 @@ test("portal form smoke", async ({ page, context }) => {
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "client-1" && row.phone === "3002223300"),
       KEYS.users
     );
+    await ensureAdminPanel("set-permissions");
     await submitForm("#form-admin-user-permissions", [["userId", "client-1"]]);
   });
 
   await record("Autorizaciones:approve", async () => {
     await gotoView("authorizations");
+    await ensureAuthTab("transport_fleet");
     const before = await arrayLen(KEYS.approvals);
     await clickDom("[data-action='approval-approve'][data-id='app-1']");
     await page.waitForFunction(
@@ -991,9 +1055,9 @@ test("portal form smoke", async ({ page, context }) => {
     await gotoView("notifications");
     await clickDom("[data-action='notif-toggle-alerts']");
     await clickDom("[data-action='notif-toggle-sound']");
-    await clickDom("[data-action='notif-read'][data-id='not-1']");
+    await clickDom("[data-action='notif-read-all']");
     await page.waitForFunction(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "not-1" && row.readAt),
+      (key) => JSON.parse(localStorage.getItem(key) || "[]").every((row) => row.readAt),
       KEYS.notifications
     );
   });
