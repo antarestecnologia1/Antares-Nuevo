@@ -1579,6 +1579,10 @@ function openEditRouteRateModal(storageKey) {
     .map((id) => String(id).trim())
     .filter(Boolean);
   const rateScopeValue = selectedCompanyIds.length ? "specific" : "all";
+  const auditSummary = `Registro ${String(entry.id || "").trim() || "pendiente"} · creado ${fmtDateOr(
+    entry.createdAt,
+    "—"
+  )} · actualizado ${fmtDateOr(entry.updatedAt || entry.createdAt, "—")}`;
   const scopeStepHtml = buildRouteRateScopeStepInnerHtml(companies, {
     scopeValue: rateScopeValue,
     selectedCompanyIds
@@ -1600,6 +1604,7 @@ function openEditRouteRateModal(storageKey) {
       { name: "destinationCity", label: "Ciudad de destino", type: "select", value: parts.destinationCity, required: true, options: cityPlaceholder },
       { type: "section", id: "edit-rate-money", title: "Tarifa pactada", hint: "Valor en COP que se sugiere al asignar un viaje en esta ruta." },
       { name: "tripRateCop", label: "Valor del viaje (COP)", type: "number", min: 1, step: 1, value: parseNum(entry.value), required: true },
+      { type: "custom", full: true, html: `<p class="muted" style="margin:0">${escapeHtml(auditSummary)}</p>` },
       {
         type: "section",
         id: "edit-rate-scope",
@@ -5738,7 +5743,13 @@ function populateRouteRateInlineForm(storageKey) {
   if (editingKeyInput) editingKeyInput.value = key;
   if (submitBtn) submitBtn.textContent = `${IC.save} Guardar cambios de tarifa`;
   if (cancelEditBtn) cancelEditBtn.style.display = "";
-  if (editingHint) editingHint.style.display = "";
+  if (editingHint) {
+    editingHint.style.display = "";
+    editingHint.textContent = `Editando registro ${String(entry.id || "").trim() || "pendiente"} · creado ${fmtDateOr(
+      entry.createdAt,
+      "—"
+    )} · actualizado ${fmtDateOr(entry.updatedAt || entry.createdAt, "—")}`;
+  }
   if (tripRateInput) tripRateInput.value = String(parseNum(entry.value));
 
   if (scopeMount) {
@@ -9595,7 +9606,8 @@ function closeCompletedTripsAndGenerateInvoices() {
       trip: {
         ...request.trip,
         realtimeStatus: STATUS.CERRADA,
-        invoice: buildTripInvoice(request)
+        invoice: buildTripInvoice(request),
+        updatedAt: nowIso()
       }
     };
   });
@@ -9619,7 +9631,11 @@ function openTripInvoicePdf(requestId) {
   const requests = reqRead();
   void (async () => {
     try {
-      await reqWriteAwait(requests.map((r) => (r.id === requestId ? { ...r, trip: { ...r.trip, invoice } } : r)));
+      await reqWriteAwait(
+        requests.map((r) =>
+          r.id === requestId ? { ...r, trip: { ...r.trip, invoice, updatedAt: nowIso() }, updatedAt: nowIso() } : r
+        )
+      );
     } catch (_e) {}
   })();
 
@@ -9886,7 +9902,8 @@ async function transitionRequestStatus(requestId, nextStatus, actorName = "Siste
             ? {
                 ...request.trip,
                 realtimeStatus: nextStatus,
-                invoice: nextStatus === STATUS.CERRADA ? request.trip.invoice || buildTripInvoice(request) : request.trip.invoice
+                invoice: nextStatus === STATUS.CERRADA ? request.trip.invoice || buildTripInvoice(request) : request.trip.invoice,
+                updatedAt: nowIso()
               }
             : request.trip
         }
@@ -10676,7 +10693,9 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     etaDelivery: schedDelivery || current.etaDelivery || current.pickupAt || "",
     assignedBy: actorName,
     assignedAt: nowLocalIso(),
-    realtimeStatus: STATUS.VIAJE_ASIGNADO
+    realtimeStatus: STATUS.VIAJE_ASIGNADO,
+    createdAt: nowIso(),
+    updatedAt: nowIso()
   };
 
   const next = requests.map((r) =>
@@ -11910,6 +11929,49 @@ function requestListClientHtml(user) {
   return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body) + delLog;
 }
 
+function directoryToneFromBucket(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (!value) return "neutral";
+  if (
+    value === "expired" ||
+    value === "alert" ||
+    value === "critico" ||
+    value === "inactive" ||
+    /rechazada|vencida|offline|no-disponible/.test(value)
+  ) {
+    return "alert";
+  }
+  if (
+    value === "warning" ||
+    value === "warn" ||
+    value === "missing" ||
+    value === "busy" ||
+    value === "scheduled" ||
+    value === "pending" ||
+    /pendiente|ocupado|reservado/.test(value)
+  ) {
+    return "warn";
+  }
+  return "ok";
+}
+
+function directoryChipHtml(label, value, tone = "neutral") {
+  const safeValue = String(value ?? "").trim() || "Sin dato";
+  const toneClass = tone && tone !== "neutral" ? ` directory-chip--${escapeAttr(tone)}` : "";
+  return `<span class="directory-chip${toneClass}"><small>${escapeHtml(label)}</small><strong>${escapeHtml(safeValue)}</strong></span>`;
+}
+
+function directoryFactHtml(label, value, opts = {}) {
+  const toneClass = opts.tone ? ` directory-card__fact--${escapeAttr(opts.tone)}` : "";
+  const content = opts.raw ? (value || '<span class="muted">Sin dato</span>') : escapeHtml(String(value ?? "").trim() || "Sin dato");
+  return `<div class="directory-card__fact${toneClass}"><dt>${escapeHtml(label)}</dt><dd>${content}</dd></div>`;
+}
+
+function directoryPillHtml(label, tone = "neutral") {
+  const toneClass = tone && tone !== "neutral" ? ` directory-pill--${escapeAttr(tone)}` : "";
+  return `<span class="directory-pill${toneClass}">${escapeHtml(String(label ?? "").trim() || "Sin dato")}</span>`;
+}
+
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const isAdmin = isAdminActor();
@@ -11974,9 +12036,7 @@ function vehiclesHtml() {
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
-      const refrigeratedTag = vehicleHasTermokingEquipment(v)
-        ? '<span class="status status-fleet-equipo-tk">Termoking</span>'
-        : '<span class="status status-fleet-equipo-seco">Carga seca</span>';
+      const isRefrigerated = vehicleHasTermokingEquipment(v);
       const occupancy = resolveVehicleOccupancy(v.id);
       const availabilityTag = isManuallyUnavailable(v)
         ? '<span class="status status-fleet-offline">No disponible</span>'
@@ -11985,9 +12045,6 @@ function vehiclesHtml() {
           : occupancy.tone === "scheduled"
             ? '<span class="status status-fleet-programado">Reservado</span>'
             : '<span class="status status-fleet-disponible">Disponible</span>';
-      const occupancyDetail = occupancy.trip
-        ? `<strong>${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}</strong> · <span class="muted">${escapeHtml(String(occupancy.trip.clientName || "-"))}</span>`
-        : `<span class="muted">${escapeHtml(String(occupancy.detail || "Sin viaje activo"))}</span>`;
       const occupancySlug = isManuallyUnavailable(v)
         ? "no-disponible"
         : occupancy.tone === "busy"
@@ -11998,27 +12055,61 @@ function vehiclesHtml() {
       const plate = String(v.plate || "—").toUpperCase();
       const typeLabel = String(v.type || "Vehículo").trim() || "Vehículo";
       const brandModel = `${String(v.brand || "").trim()}${v.brand && v.model ? " · " : ""}${String(v.model || "").trim()}${v.year ? ` · ${v.year}` : ""}`.trim() || "Sin marca/modelo";
-      return `<article class="trip-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${occupancySlug}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
-        <header class="trip-ops-card-head">
-          <div class="trip-ops-card-head-info">
-            <p class="trip-ops-card-kicker">${escapeHtml(typeLabel)} · ${escapeHtml(brandModel)}</p>
-            <h4 class="trip-ops-card-title vehicle-plate-title" title="${escapeAttr(plate)}">${escapeHtml(plate)}</h4>
+      const soatTone = directoryToneFromBucket(soat.cls);
+      const tecnoTone = directoryToneFromBucket(tecno.cls);
+      const gpsEnabled = String(v.hasGps ?? "true").trim().toLowerCase() !== "false";
+      const gpsProvider = String(v.gpsProvider || "").trim();
+      const gpsLabel = gpsEnabled ? (gpsProvider || "GPS activo") : "Sin GPS";
+      const occupancyTitle = occupancy.trip
+        ? `Viaje ${String(occupancy.trip.trip?.tripNumber || "-")}`
+        : isManuallyUnavailable(v)
+          ? "Disponibilidad suspendida"
+          : occupancy.tone === "scheduled"
+            ? "Salida programada"
+            : "Disponible para asignacion";
+      const occupancyCopy = occupancy.trip
+        ? `${String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || "Cliente sin nombre"} · ${occupancy.detail}`
+        : occupancy.detail;
+      const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin capacidad";
+      const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
+      const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
+      const vinLabel = String(v.vin || "").trim() || "Sin VIN";
+      return `<article class="directory-card directory-card--vehicle directory-card--${occupancySlug}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
+        <header class="directory-card__head">
+          <div class="directory-card__identity">
+            <div class="directory-card__avatar directory-card__avatar--plate" title="${escapeAttr(plate)}">${escapeHtml(plate)}</div>
+            <div class="directory-card__heading">
+              <p class="directory-card__kicker">${escapeHtml(typeLabel)} · ${escapeHtml(brandModel)}</p>
+              <h4 class="directory-card__title" title="${escapeAttr(plate)}">${escapeHtml(plate)}</h4>
+            </div>
           </div>
-          ${availabilityTag}
+          <div class="directory-card__status-stack">
+            ${availabilityTag}
+            ${directoryPillHtml(isRefrigerated ? "Termoking" : "Carga seca", isRefrigerated ? "ok" : "neutral")}
+          </div>
         </header>
-        <dl class="trip-ops-card-grid">
-          <div class="trip-ops-card-item"><dt>${IC.scale}<span>Capacidad</span></dt><dd><strong>${parseNum(v.capacityKg).toLocaleString("es-CO")}</strong> kg</dd></div>
-          <div class="trip-ops-card-item"><dt>${IC.activity}<span>Equipo</span></dt><dd>${refrigeratedTag}</dd></div>
-          <div class="trip-ops-card-item"><dt>${IC.shield}<span>SOAT</span></dt><dd><span class="status ${soat.cls}">${soat.label}</span><br><span class="muted vehicle-doc-date">${v.soatExpeditionDate || "-"}</span></dd></div>
-          <div class="trip-ops-card-item"><dt>${IC.shield}<span>Tecnomec.</span></dt><dd><span class="status ${tecno.cls}">${tecno.label}</span><br><span class="muted vehicle-doc-date">${v.techInspectionExpeditionDate || "-"}</span></dd></div>
+        <div class="directory-card__summary">
+          <strong>${escapeHtml(occupancyTitle)}</strong>
+          <p>${escapeHtml(occupancyCopy)}</p>
+        </div>
+        <div class="directory-card__metrics">
+          ${directoryChipHtml("Cap.", capacityLabel)}
+          ${directoryChipHtml("SOAT", soat.label, soatTone)}
+          ${directoryChipHtml("Tecno", tecno.label, tecnoTone)}
+          ${directoryChipHtml("GPS", gpsEnabled ? "Activo" : "No", gpsEnabled ? "ok" : "warn")}
+        </div>
+        <dl class="directory-card__facts">
+          ${directoryFactHtml("Tarjeta", ownershipCardLabel)}
+          ${directoryFactHtml("Motor", motorLabel)}
+          ${directoryFactHtml("VIN", vinLabel)}
+          ${directoryFactHtml("Trazabilidad", gpsLabel)}
         </dl>
-        <p class="trip-ops-card-standby vehicle-occupancy-note">${IC.truck}<span>${occupancyDetail}</span></p>
-        <div class="toolbar trip-ops-card-actions">
+        <footer class="directory-card__actions">
           <button class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${v.id}" title="Ver ficha del vehículo">${IC.eye} Ver</button>
           <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}" title="Editar datos del vehículo">${IC.edit} Editar</button>
           <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>
           ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-        </div>
+        </footer>
       </article>`;
     })
     .join("");
@@ -12079,7 +12170,7 @@ function vehiclesHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
   const tableBody = vehicleCards
-    ? `<div class="trip-ops-cards vehicle-ops-cards">${vehicleCards}</div>`
+    ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>`
     : emptyState("No hay vehículos registrados.");
   const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
       <div class="fleet-hero-metrics">
@@ -12264,70 +12355,48 @@ function driversHtml() {
       const avatarInner = hasDriverPhoto
         ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
         : initials;
-      const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
+      const avatarClass = hasDriverPhoto
+        ? "directory-card__avatar directory-card__avatar--photo"
+        : "directory-card__avatar";
       const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin telefono";
       const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
-      const comparendosStatus = item.comparendos > 0
-        ? `<span class="driver-meta-chip driver-meta-chip--warn">${item.comparendos} comparendo${item.comparendos === 1 ? "" : "s"}</span>`
-        : '<span class="driver-meta-chip">Sin comparendos</span>';
       const tripMeta = item.tripClient
         ? `${item.tripClient} · ${item.occupancy.detail}`
         : item.occupancy.detail;
-      const socialLabel = item.hasSocialSecurity
-        ? `${escapeHtml(String(d.eps || "-"))} · ${escapeHtml(String(d.arl || "-"))}`
-        : '<span class="muted">Pendiente afiliación</span>';
-      return `<article class="driver-card driver-card--${escapeAttr(item.statusSlug)} driver-card--doc-${escapeAttr(item.docBucket)}">
-        <header class="driver-card-head">
-          <div class="driver-card-head-main">
+      const docTone = directoryToneFromBucket(item.docBucket);
+      const courseTone = directoryToneFromBucket(item.courseMeta.bucket);
+      const licenseFact = `${String(d.license || "-")} · ${item.licenseMeta.label}`;
+      return `<article class="directory-card directory-card--driver directory-card--${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}">
+        <header class="directory-card__head">
+          <div class="directory-card__identity">
             <div class="${avatarClass}">${avatarInner}</div>
-            <div class="driver-card-title">
-              <p class="driver-card-kicker">${escapeHtml(item.companyName)}</p>
-              <h4>${escapeHtml(String(d.name || "Conductor"))}</h4>
-              <div class="driver-card-tags">
-                <span class="driver-meta-chip">${escapeHtml(String(d.licenseCategory || "Sin categoria"))}</span>
-                <span class="driver-meta-chip">${escapeHtml(expLabel)}</span>
-                ${comparendosStatus}
-              </div>
+            <div class="directory-card__heading">
+              <p class="directory-card__kicker">${escapeHtml(item.companyName)}</p>
+              <h4 class="directory-card__title">${escapeHtml(String(d.name || "Conductor"))}</h4>
             </div>
           </div>
-          <div class="driver-card-status-stack">
+          <div class="directory-card__status-stack">
             ${item.statusTag}
-            <span class="driver-doc-pill driver-doc-pill--${escapeAttr(item.docBucket)}">${escapeHtml(item.docBadge)}</span>
+            ${directoryPillHtml(item.docBadge, docTone)}
           </div>
         </header>
-        <div class="driver-card-body">
-          <div class="driver-card-summary">
-            <strong>${escapeHtml(item.tripHeadline)}</strong>
-            <p>${escapeHtml(tripMeta)}</p>
-          </div>
-          <div class="driver-card-facts">
-            <div class="driver-fact">
-              <span>${IC.badge}<b>Documento</b></span>
-              <strong>${escapeHtml(String(d.idDoc || "-"))}</strong>
-            </div>
-            <div class="driver-fact">
-              <span>${IC.phone}<b>Telefono</b></span>
-              <strong>${escapeHtml(phoneValue)}</strong>
-            </div>
-            <div class="driver-fact">
-              <span>${IC.file}<b>Licencia</b></span>
-              <strong>${escapeHtml(`${String(d.license || "-")} · ${String(d.licenseCategory || "-")}`)}</strong>
-            </div>
-            <div class="driver-fact">
-              <span>${IC.calendar}<b>Vigencia</b></span>
-              <strong>${escapeHtml(item.licenseMeta.label)}</strong>
-            </div>
-          </div>
-          <div class="driver-card-inline-row">
-            <span>${IC.shield}<b>Seguridad social</b></span>
-            <span>${socialLabel}</span>
-          </div>
-          <div class="driver-card-inline-row">
-            <span>${IC.graduation}<b>Curso defensivo</b></span>
-            <span>${escapeHtml(item.courseMeta.label)}</span>
-          </div>
+        <div class="directory-card__summary">
+          <strong>${escapeHtml(item.tripHeadline)}</strong>
+          <p>${escapeHtml(tripMeta)}</p>
         </div>
-        <footer class="driver-card-actions">
+        <div class="directory-card__metrics">
+          ${directoryChipHtml("Licencia", String(d.licenseCategory || "Sin cat."))}
+          ${directoryChipHtml("Exper.", expLabel)}
+          ${directoryChipHtml("Compar.", item.comparendos > 0 ? String(item.comparendos) : "0", item.comparendos > 0 ? "warn" : "ok")}
+          ${directoryChipHtml("SS", item.hasSocialSecurity ? "Al dia" : "Pendiente", item.hasSocialSecurity ? "ok" : "warn")}
+        </div>
+        <dl class="directory-card__facts">
+          ${directoryFactHtml("Documento", String(d.idDoc || "-"))}
+          ${directoryFactHtml("Telefono", phoneValue)}
+          ${directoryFactHtml("Licencia", licenseFact)}
+          ${directoryFactHtml("Curso", item.courseMeta.label, { tone: courseTone })}
+        </dl>
+        <footer class="directory-card__actions">
           <button class="btn btn-sm btn-outline" data-action="view-driver" data-id="${d.id}">${IC.eye} Ver</button>
           <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
           <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
@@ -12337,7 +12406,7 @@ function driversHtml() {
     })
     .join("");
   const grid = cards
-    ? `<div class="drivers-grid">${cards}</div>`
+    ? `<div class="drivers-grid directory-grid">${cards}</div>`
     : emptyState("No hay conductores registrados.");
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: totalDrivers },
@@ -13158,7 +13227,7 @@ function adminUsersHtml(current) {
   };
 
   const renderUserCard = (u, mode = "active") => {
-    const namedPerms = (u.permissions || []).map((p) => PERMISSION_META[p]?.title || p);
+    const namedPerms = effectiveUserPermissions(u).map((p) => PERMISSION_META[p]?.title || p);
     const visiblePerms = namedPerms.slice(0, 3);
     const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
     const permList = [
@@ -13167,47 +13236,75 @@ function adminUsersHtml(current) {
     ].join("");
     const isMe = u.id === current.id;
     const isPending = mode === "pending";
+    const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
+    const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin telefono";
+    const locationLabel = u.city ? `${String(u.city)}${u.department ? `, ${String(u.department)}` : ""}` : "Sin ubicacion";
+    const permissionCount = namedPerms.length;
+    const registrationLabel = u.registrationKind ? registrationKindLabel(u.registrationKind) : "Sin vinculo";
+    const roleTag = u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn");
     const note = isPending
-      ? `<p class="user-card-pending-note"><strong>Pendiente de aprobación.</strong> Asigne empresa, rol y permisos para activar la cuenta.</p>`
+      ? '<div class="directory-card__banner directory-card__banner--warn"><strong>Pendiente de aprobacion.</strong> Asigne empresa, rol y permisos para activar la cuenta.</div>'
       : "";
     const actions = isPending
-      ? `<div class="user-card-actions">
+      ? `<footer class="directory-card__actions">
           ${isAdmin ? `<button class="btn btn-sm btn-primary" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>` : ""}
           ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>` : ""}
-        </div>`
-      : `<div class="user-card-actions">
+        </footer>`
+      : `<footer class="directory-card__actions">
           <button class="btn btn-sm btn-outline" data-action="view-user" data-id="${escapeAttr(String(u.id))}">${IC.eye} Ver</button>
           ${isAdmin ? `<button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${escapeAttr(String(u.id))}">${IC.edit} Editar</button>` : ""}
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-        </div>`;
+        </footer>`;
     const avatarUrlRaw = String(u.avatarUrl || "").trim();
     const avatarCss = employeeAvatarCssUrl(u.avatarUrl);
     const userAvatarBlock = avatarCss
-      ? `<div class="user-avatar user-avatar--with-photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" /></div>`
-      : `<div class="user-avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>`;
-    return `<div class="user-card${isPending ? " user-card--pending" : ""}">
-      <div class="user-card-top">
-        ${userAvatarBlock}
-        <div class="user-card-info">
-          <h4>${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="muted" style="font-weight:400;font-size:0.78rem">(tu)</span>' : ""}</h4>
-          <p>${escapeHtml(String(u.email || ""))}</p>
+      ? `<div class="directory-card__avatar directory-card__avatar--photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" /></div>`
+      : `<div class="directory-card__avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>`;
+    const cardStateClass = isPending
+      ? " directory-card--pending"
+      : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
+        ? " directory-card--inactive"
+        : " directory-card--ok";
+    const summaryTitle = isPending
+      ? "Requiere activacion administrativa"
+      : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
+        ? "Acceso restringido"
+        : "Cuenta operativa";
+    const summaryCopy = `${String(u.email || "Sin correo")} · ${locationLabel}`;
+    return `<article class="directory-card directory-card--user${cardStateClass}">
+      <header class="directory-card__head">
+        <div class="directory-card__identity">
+          ${userAvatarBlock}
+          <div class="directory-card__heading">
+            <p class="directory-card__kicker">${escapeHtml(companyName)}</p>
+            <h4 class="directory-card__title">${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="directory-card__title-note">Tu cuenta</span>' : ""}</h4>
+          </div>
         </div>
-        <div class="user-card-badges">
-          ${roleBadge(u.role)}
+        <div class="directory-card__status-stack">
+          ${roleTag}
           ${statusBadge(u.accountStatus)}
         </div>
+      </header>
+      <div class="directory-card__summary">
+        <strong>${escapeHtml(summaryTitle)}</strong>
+        <p>${escapeHtml(summaryCopy)}</p>
       </div>
-      <div class="user-card-meta">
-        <span>${IC.briefcase} ${escapeHtml(getCompanyById(u.companyId)?.name || u.company || "Sin empresa")}</span>
-        ${u.phone ? `<span>${IC.user} ${escapeHtml(String(u.phone))}</span>` : ""}
-        ${u.city ? `<span>${IC.mapPin} ${escapeHtml(String(u.city))}${u.department ? `, ${escapeHtml(String(u.department))}` : ""}</span>` : ""}
-        ${u.registrationKind ? `<span>${IC.shield} ${escapeHtml(registrationKindLabel(u.registrationKind))}</span>` : ""}
+      <div class="directory-card__metrics">
+        ${directoryChipHtml("Permisos", String(permissionCount), permissionCount ? "ok" : "warn")}
+        ${directoryChipHtml("2FA", u.twoFactorEnabled ? "Activa" : "Pendiente", u.twoFactorEnabled ? "ok" : "warn")}
+        ${directoryChipHtml("Vinculo", registrationLabel)}
       </div>
       ${note}
-      ${permList ? `<div class="user-card-perms">${permList}</div>` : ""}
+      <dl class="directory-card__facts">
+        ${directoryFactHtml("Correo", String(u.email || "Sin correo"))}
+        ${directoryFactHtml("Telefono", phoneLabel)}
+        ${directoryFactHtml("Ubicacion", locationLabel)}
+        ${directoryFactHtml("Registro", registrationLabel)}
+      </dl>
+      ${permList ? `<div class="directory-card__tags">${permList}</div>` : ""}
       ${actions}
-    </div>`;
+    </article>`;
   };
 
   const renderCompanyCard = (c) => {
@@ -13982,7 +14079,7 @@ function adminUsersHtml(current) {
         </div>
       </div>
       ${pendingHelper}
-      <div class="user-grid user-grid-pending">${pendingCardsHtml}</div>`,
+      <div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div>`,
       "admin-users-data-card"
     );
   }
@@ -14003,7 +14100,7 @@ function adminUsersHtml(current) {
             <span class="status ${hero2faTone}">2FA ${twoFactorCount}</span>
           </div>
         </div>
-        <div class="user-grid user-grid-main">${userCards}</div>`
+        <div class="user-grid user-grid-main directory-grid">${userCards}</div>`
       : emptyState("Sin usuarios registrados.")}`,
     "admin-users-data-card"
   );
@@ -24218,7 +24315,8 @@ function bindDynamicEvents() {
                 trip: {
                   ...request.trip,
                   vehicleId: null,
-                  vehiclePlate: "CAMION ELIMINADO"
+                  vehiclePlate: "CAMION ELIMINADO",
+                  updatedAt: nowIso()
                 }
               };
             })
@@ -24262,7 +24360,8 @@ function bindDynamicEvents() {
                   ...request.trip,
                   driverId: null,
                   driverName: "CONDUCTOR ELIMINADO",
-                  driverPhone: "-"
+                  driverPhone: "-",
+                  updatedAt: nowIso()
                 }
               };
             })

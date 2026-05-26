@@ -88,6 +88,8 @@ const clientUser = {
 };
 
 const seedStore = {
+  antares_portal_data_ver: "v8-server-backed-memory-only",
+  antares_users_storage_ver: "v5-memory",
   [KEYS.users]: [
     adminUser,
     clientUser
@@ -480,9 +482,15 @@ test("portal form smoke", async ({ page, context }) => {
   const results = [];
 
   await context.addInitScript((payload) => {
+    const rawKeys = new Set([
+      "antares_portal_data_ver",
+      "antares_users_storage_ver",
+      "antares_hr_payroll_workspace_v1",
+      "antares_hr_hiring_workspace_v1"
+    ]);
     localStorage.clear();
     Object.entries(payload).forEach(([key, value]) => {
-      localStorage.setItem(key, JSON.stringify(value));
+      localStorage.setItem(key, rawKeys.has(key) ? String(value) : JSON.stringify(value));
     });
   }, seedStore);
 
