@@ -4777,6 +4777,21 @@ function nowIso() {
   return colombiaNowIso();
 }
 
+function stampCreatedRecord(record, ts = nowIso()) {
+  return {
+    ...record,
+    createdAt: record?.createdAt || ts,
+    updatedAt: record?.updatedAt || ts
+  };
+}
+
+function stampUpdatedRecord(record, ts = nowIso()) {
+  return {
+    ...record,
+    updatedAt: ts
+  };
+}
+
 function nowLocalIso() {
   return colombiaNowIso().slice(0, 19);
 }
@@ -10487,7 +10502,8 @@ function makeTripNumber(existingNumbers = new Set()) {
 
 async function setVehicleAvailability(vehicleId, available) {
   const vehicles = read(KEYS.vehicles, []);
-  const next = vehicles.map((v) => (v.id === vehicleId ? { ...v, available } : v));
+  const updatedTs = nowIso();
+  const next = vehicles.map((v) => (v.id === vehicleId ? { ...v, available, updatedAt: updatedTs } : v));
   try {
     await writeAwaitServer(KEYS.vehicles, next);
   } catch (_e) {}
@@ -10495,7 +10511,8 @@ async function setVehicleAvailability(vehicleId, available) {
 
 async function setDriverAvailability(driverId, available) {
   const drivers = read(KEYS.drivers, []);
-  const next = drivers.map((d) => (d.id === driverId ? { ...d, available } : d));
+  const updatedTs = nowIso();
+  const next = drivers.map((d) => (d.id === driverId ? { ...d, available, updatedAt: updatedTs } : d));
   try {
     await writeAwaitServer(KEYS.drivers, next);
   } catch (_e) {}
@@ -12039,9 +12056,31 @@ function vehiclesHtml() {
     + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody);
 }
 
+function getDriversUi() {
+  const ui = state.driversUi || {};
+  const allowedStatus = new Set(["all", "available", "busy", "scheduled", "offline"]);
+  const allowedDocFilter = new Set(["all", "ok", "risk", "expired", "missing"]);
+  const allowedSort = new Set(["priority", "name", "company", "license", "experience"]);
+  const allowedQuick = new Set(["all", "available", "busy", "scheduled", "risk", "comparendos"]);
+  return {
+    search: String(ui.search || "").trim(),
+    companyId: String(ui.companyId || "").trim(),
+    status: allowedStatus.has(String(ui.status || "")) ? String(ui.status) : "all",
+    docFilter: allowedDocFilter.has(String(ui.docFilter || "")) ? String(ui.docFilter) : "all",
+    sort: allowedSort.has(String(ui.sort || "")) ? String(ui.sort) : "priority",
+    quick: allowedQuick.has(String(ui.quick || "")) ? String(ui.quick) : "all"
+  };
+}
+
+function setDriversUi(patch = {}, replace = false) {
+  const base = replace ? {} : getDriversUi();
+  state.driversUi = { ...base, ...patch };
+}
+
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
   const isAdmin = isAdminActor();
+  const ui = getDriversUi();
   const activeTrips = getActiveTrips();
   const activeTripsByDriverId = new Map();
   activeTrips.forEach((r) => {
@@ -12087,25 +12126,342 @@ function driversHtml() {
     }
     return { tone: "available", trip: list[0] || null, detail: "Sin cruce horario activo" };
   };
-  const totalDrivers = drivers.length;
-  const availableDrivers = drivers.filter((d) => resolveDriverOccupancy(d.id).tone === "available" && !isManuallyUnavailable(d)).length;
-  const occupiedDrivers = drivers.filter((d) => resolveDriverOccupancy(d.id).tone === "busy").length;
-  const scheduledDrivers = drivers.filter((d) => resolveDriverOccupancy(d.id).tone === "scheduled").length;
-  const offlineDrivers = drivers.filter((d) => isManuallyUnavailable(d)).length;
-  const expiringSoon = drivers.filter((d) => {
-    if (!d.licenseExpiry) return false;
-    const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
-    return days >= 0 && days <= 60;
-  }).length;
-  const expired = drivers.filter((d) => {
-    if (!d.licenseExpiry) return false;
-    return new Date(`${d.licenseExpiry}T12:00:00`).getTime() < Date.now();
-  }).length;
-  const cards = drivers
-    .map((d) => {
+  const buildDateMeta = (rawValue, missingLabel = "Sin fecha", warnDays = 60) => {
+    const value = normalizePortalDateYmd(rawValue);
+    if (!value) {
+      return {
+        bucket: "missing",
+        label: missingLabel,
+        statusHtml: `<span class="status status-pendiente">${escapeHtml(missingLabel)}</span>`,
+        sortValue: 999999
+      };
+    }
+    const days = daysUntil(value);
+    if (days < 0) {
+      const label = `Vencida hace ${Math.abs(days)}d`;
+      return {
+        bucket: "expired",
+        label,
+        days,
+        statusHtml: '<span class="status status-rechazada">Vencida</span>',
+        sortValue: days
+      };
+    }
+    if (days <= warnDays) {
+      const label = days === 0 ? "Vence hoy" : `Vence en ${days}d`;
+      return {
+        bucket: "warning",
+        label,
+        days,
+        statusHtml: `<span class="status status-pendiente">${escapeHtml(label)}</span>`,
+        sortValue: days
+      };
+    }
+    return {
+      bucket: "ok",
+      label: `Vigente · ${days}d`,
+      days,
+      statusHtml: '<span class="status status-viaje_asignado">Vigente</span>',
+      sortValue: days
+    };
+  };
+  const defensiveCourseMeta = (driver) => {
+    const raw = String(driver.defensiveCourse || "").trim().toLowerCase();
+    if (raw === "no_aplica") {
+      return {
+        bucket: "ok",
+        label: "No aplica",
+        statusHtml: '<span class="status status-viaje_asignado">No aplica</span>'
+      };
+    }
+    if (raw === "vencido") {
+      return {
+        bucket: "expired",
+        label: "Curso vencido",
+        statusHtml: '<span class="status status-rechazada">Vencido</span>'
+      };
+    }
+    if (raw === "vigente") {
+      const meta = buildDateMeta(driver.defensiveCourseExpiry, "Sin fecha");
+      if (meta.bucket === "missing") {
+        return {
+          bucket: "warning",
+          label: "Vigente sin fecha",
+          statusHtml: '<span class="status status-pendiente">Vigente sin fecha</span>'
+        };
+      }
+      if (meta.bucket === "warning") {
+        return {
+          bucket: "warning",
+          label: meta.label,
+          statusHtml: meta.statusHtml
+        };
+      }
+      if (meta.bucket === "expired") {
+        return {
+          bucket: "expired",
+          label: "Curso vencido",
+          statusHtml: '<span class="status status-rechazada">Vencido</span>'
+        };
+      }
+      return {
+        bucket: "ok",
+        label: meta.label,
+        statusHtml: '<span class="status status-viaje_asignado">Vigente</span>'
+      };
+    }
+    if (!raw && !driver.defensiveCourseExpiry) {
+      return {
+        bucket: "missing",
+        label: "Sin registro",
+        statusHtml: '<span class="status status-pendiente">Sin registro</span>'
+      };
+    }
+    return buildDateMeta(driver.defensiveCourseExpiry, "Sin registro");
+  };
+  const summaries = drivers.map((driver) => {
+    const occupancy = resolveDriverOccupancy(driver.id);
+    const companyName = String(getCompanyById(driver.companyId)?.name || "").trim() || "Sin empresa";
+    const licenseMeta = buildDateMeta(driver.licenseExpiry, "Sin fecha");
+    const courseMeta = defensiveCourseMeta(driver);
+    const hasSocialSecurity = Boolean(String(driver.eps || "").trim() && String(driver.arl || "").trim());
+    const comparendos = Math.max(0, parseNum(driver.comparendos || 0));
+    const experienceYears = Math.max(0, parseNum(driver.experienceYears || 0));
+    const statusSlug = isManuallyUnavailable(driver)
+      ? "offline"
+      : occupancy.tone === "busy"
+        ? "busy"
+        : occupancy.tone === "scheduled"
+          ? "scheduled"
+          : "available";
+    const statusTag = statusSlug === "offline"
+      ? '<span class="status status-fleet-offline">No disponible</span>'
+      : statusSlug === "busy"
+        ? '<span class="status status-fleet-ocupado">Ocupado</span>'
+        : statusSlug === "scheduled"
+          ? '<span class="status status-fleet-programado">Reservado</span>'
+          : '<span class="status status-fleet-disponible">Disponible</span>';
+    const requiredProfileFields = [
+      driver.name,
+      driver.idDoc,
+      driver.phone,
+      driver.license,
+      driver.licenseCategory,
+      driver.licenseExpiry,
+      driver.companyId,
+      driver.eps,
+      driver.arl
+    ];
+    const completedProfileFields = requiredProfileFields.filter((value) => String(value || "").trim() !== "").length;
+    const profileScore = Math.round((completedProfileFields / requiredProfileFields.length) * 100);
+    const docBucket = (() => {
+      if (licenseMeta.bucket === "expired" || courseMeta.bucket === "expired") return "expired";
+      if (licenseMeta.bucket === "missing" || courseMeta.bucket === "missing" || !hasSocialSecurity) return "missing";
+      if (licenseMeta.bucket === "warning" || courseMeta.bucket === "warning" || comparendos > 0) return "warning";
+      return "ok";
+    })();
+    const docBadge = docBucket === "expired"
+      ? "Critico"
+      : docBucket === "missing"
+        ? "Incompleto"
+        : docBucket === "warning"
+          ? "Por vencer"
+          : "Al dia";
+    const documentNote = docBucket === "expired"
+      ? "Requiere actualizacion documental antes de operar."
+      : docBucket === "missing"
+        ? "Complete licencia, seguridad social o formacion faltante."
+        : comparendos > 0
+          ? `Revisar ${comparendos} comparendo${comparendos === 1 ? "" : "s"} pendiente${comparendos === 1 ? "" : "s"}.`
+          : profileScore < 100
+            ? `Perfil ${profileScore}% completo.`
+            : "Ficha operativa al dia.";
+    const tripHeadline = occupancy.trip
+      ? `Viaje ${String(occupancy.trip.trip?.tripNumber || "-")}`
+      : statusSlug === "offline"
+        ? "Fuera de operacion"
+        : "Listo para asignacion";
+    const tripClient = occupancy.trip
+      ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim()
+      : "";
+    const searchText = [
+      driver.name,
+      driver.idDoc,
+      driver.phone,
+      driver.license,
+      driver.licenseCategory,
+      driver.eps,
+      driver.arl,
+      companyName,
+      occupancy.detail,
+      tripClient
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return {
+      raw: driver,
+      companyName,
+      statusSlug,
+      statusTag,
+      occupancy,
+      licenseMeta,
+      courseMeta,
+      hasSocialSecurity,
+      comparendos,
+      experienceYears,
+      profileScore,
+      docBucket,
+      docBadge,
+      documentNote,
+      tripHeadline,
+      tripClient,
+      searchText,
+      licenseSortValue: Number.isFinite(licenseMeta.sortValue) ? licenseMeta.sortValue : 999999
+    };
+  });
+  const totalDrivers = summaries.length;
+  const availableDrivers = summaries.filter((item) => item.statusSlug === "available").length;
+  const occupiedDrivers = summaries.filter((item) => item.statusSlug === "busy").length;
+  const scheduledDrivers = summaries.filter((item) => item.statusSlug === "scheduled").length;
+  const offlineDrivers = summaries.filter((item) => item.statusSlug === "offline").length;
+  const docRiskCount = summaries.filter((item) => item.docBucket !== "ok").length;
+  const expiredDocsCount = summaries.filter((item) => item.docBucket === "expired").length;
+  const comparendosCount = summaries.filter((item) => item.comparendos > 0).length;
+  const incompleteProfileCount = summaries.filter((item) => item.profileScore < 100).length;
+  const companies = [...new Map(
+    summaries
+      .filter((item) => String(item.raw.companyId || "").trim())
+      .map((item) => [String(item.raw.companyId || "").trim(), item.companyName])
+  ).entries()].sort((a, b) => a[1].localeCompare(b[1], "es", { sensitivity: "base" }));
+  const matchesQuick = (item) => {
+    if (ui.quick === "available") return item.statusSlug === "available";
+    if (ui.quick === "busy") return item.statusSlug === "busy";
+    if (ui.quick === "scheduled") return item.statusSlug === "scheduled";
+    if (ui.quick === "risk") return item.docBucket !== "ok";
+    if (ui.quick === "comparendos") return item.comparendos > 0;
+    return true;
+  };
+  const matchesDocFilter = (item) => {
+    if (ui.docFilter === "ok") return item.docBucket === "ok";
+    if (ui.docFilter === "risk") return item.docBucket !== "ok";
+    if (ui.docFilter === "expired") return item.docBucket === "expired";
+    if (ui.docFilter === "missing") return item.docBucket === "missing";
+    return true;
+  };
+  const filtered = summaries
+    .filter((item) => {
+      const matchesSearch = !ui.search || item.searchText.includes(ui.search.toLowerCase());
+      const matchesCompany = !ui.companyId || String(item.raw.companyId || "") === ui.companyId;
+      const matchesStatus = ui.status === "all" || item.statusSlug === ui.status;
+      return matchesSearch && matchesCompany && matchesStatus && matchesDocFilter(item) && matchesQuick(item);
+    })
+    .sort((a, b) => {
+      const docOrder = { expired: 0, missing: 1, warning: 2, ok: 3 };
+      const statusOrder = { busy: 0, scheduled: 1, available: 2, offline: 3 };
+      if (ui.sort === "name") {
+        return String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
+      }
+      if (ui.sort === "company") {
+        return a.companyName.localeCompare(b.companyName, "es", { sensitivity: "base" }) ||
+          String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
+      }
+      if (ui.sort === "license") {
+        return a.licenseSortValue - b.licenseSortValue ||
+          String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
+      }
+      if (ui.sort === "experience") {
+        return b.experienceYears - a.experienceYears ||
+          String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
+      }
+      return (docOrder[a.docBucket] - docOrder[b.docBucket]) ||
+        (statusOrder[a.statusSlug] - statusOrder[b.statusSlug]) ||
+        String(a.raw.name || "").localeCompare(String(b.raw.name || ""), "es", { sensitivity: "base" });
+    });
+  const nextLicenseDriver = summaries
+    .filter((item) => Number.isFinite(item.licenseMeta.days) && item.licenseMeta.days >= 0)
+    .sort((a, b) => parseNum(a.licenseMeta.days) - parseNum(b.licenseMeta.days))[0] || null;
+  const toolbarInfo = renderHrAlertCards([
+    {
+      tone: expiredDocsCount ? "alert" : docRiskCount ? "warn" : "ok",
+      icon: IC.alertTriangle,
+      label: "Documentacion critica",
+      value: expiredDocsCount,
+      help: expiredDocsCount
+        ? "Hay conductores con licencia o curso vencido."
+        : docRiskCount
+          ? "Existen fichas con documentos por revisar."
+          : "Sin bloqueos documentales criticos."
+    },
+    {
+      tone: comparendosCount ? "warn" : "ok",
+      icon: IC.scale,
+      label: "Comparendos pendientes",
+      value: comparendosCount,
+      help: comparendosCount ? "Requieren validacion operativa antes de asignar viaje." : "Sin alertas disciplinarias registradas."
+    },
+    {
+      tone: incompleteProfileCount ? "info" : "ok",
+      icon: IC.activity,
+      label: "Perfiles por completar",
+      value: incompleteProfileCount,
+      help: incompleteProfileCount ? "Faltan datos clave como telefono, licencia o seguridad social." : "Todas las fichas visibles tienen campos esenciales."
+    },
+    {
+      tone: nextLicenseDriver && nextLicenseDriver.licenseMeta.days <= 30 ? "warn" : "info",
+      icon: IC.calendar,
+      label: "Proxima licencia",
+      value: nextLicenseDriver ? `${nextLicenseDriver.raw.name || "Conductor"} · ${nextLicenseDriver.licenseMeta.label}` : "Sin fechas",
+      help: "Prioriza renovaciones antes de comprometer capacidad operativa."
+    }
+  ]);
+  const quickCounts = {
+    all: totalDrivers,
+    available: availableDrivers,
+    busy: occupiedDrivers,
+    scheduled: scheduledDrivers,
+    risk: docRiskCount,
+    comparendos: comparendosCount
+  };
+  const quickLabels = {
+    all: "Todos",
+    available: "Disponibles",
+    busy: "En ruta",
+    scheduled: "Reservados",
+    risk: "Alertas",
+    comparendos: "Comparendos"
+  };
+  const activeFilters = [];
+  if (ui.search) activeFilters.push(`Busqueda: ${ui.search}`);
+  if (ui.companyId) {
+    const companyLabel = companies.find(([id]) => id === ui.companyId)?.[1];
+    if (companyLabel) activeFilters.push(`Empresa: ${companyLabel}`);
+  }
+  if (ui.status !== "all") {
+    const statusLabelMap = {
+      available: "Disponible",
+      busy: "Ocupado",
+      scheduled: "Reservado",
+      offline: "No disponible"
+    };
+    activeFilters.push(`Estado: ${statusLabelMap[ui.status] || ui.status}`);
+  }
+  if (ui.docFilter !== "all") {
+    const docLabelMap = {
+      ok: "Al dia",
+      risk: "Con alertas",
+      expired: "Vencidos",
+      missing: "Incompletos"
+    };
+    activeFilters.push(`Docs: ${docLabelMap[ui.docFilter] || ui.docFilter}`);
+  }
+  if (ui.quick !== "all") activeFilters.push(`Vista rapida: ${quickLabels[ui.quick] || ui.quick}`);
+  const cards = filtered
+    .map((item) => {
+      const d = item.raw;
       const initials = String(d.name || "C")
         .split(/\s+/)
-        .map((p) => p.charAt(0).toUpperCase())
+        .map((part) => part.charAt(0).toUpperCase())
         .slice(0, 2)
         .join("");
       const photoUrlDriver = String(d.photoUrl || "").trim();
@@ -12116,35 +12472,80 @@ function driversHtml() {
         ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
         : initials;
       const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
-      const occupancy = resolveDriverOccupancy(d.id);
-      const statusTag = isManuallyUnavailable(d)
-        ? '<span class="status status-fleet-offline">No disponible</span>'
-        : occupancy.tone === "busy"
-          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
-          : occupancy.tone === "scheduled"
-            ? '<span class="status status-fleet-programado">Reservado</span>'
-            : '<span class="status status-fleet-disponible">Disponible</span>';
-      const licStatus = (() => {
-        if (!d.licenseExpiry) return '<span class="status status-pendiente">Sin fecha</span>';
-        const days = Math.ceil((new Date(`${d.licenseExpiry}T12:00:00`).getTime() - Date.now()) / 86400000);
-        if (days < 0) return '<span class="status status-rechazada">Vencida</span>';
-        if (days <= 60) return `<span class="status status-pendiente">Vence en ${days}d</span>`;
-        return '<span class="status status-viaje_asignado">Vigente</span>';
-      })();
-      return `<article class="driver-card">
+      const phoneValue = String(d.phone || "").trim() || "Sin telefono";
+      const expLabel = item.experienceYears ? `${item.experienceYears} ano${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
+      const securityStatus = item.hasSocialSecurity
+        ? '<span class="status status-viaje_asignado">Completa</span>'
+        : '<span class="status status-pendiente">Pendiente</span>';
+      const comparendosStatus = item.comparendos > 0
+        ? `<span class="driver-meta-chip driver-meta-chip--warn">${item.comparendos} comparendo${item.comparendos === 1 ? "" : "s"}</span>`
+        : '<span class="driver-meta-chip">Sin comparendos</span>';
+      const tripDetail = item.tripClient
+        ? `${item.tripClient} · ${item.occupancy.detail}`
+        : item.occupancy.detail;
+      return `<article class="driver-card driver-card--${escapeAttr(item.statusSlug)} driver-card--doc-${escapeAttr(item.docBucket)}">
         <header class="driver-card-head">
-          <div class="${avatarClass}">${avatarInner}</div>
-          <div class="driver-card-title">
-            <h4>${d.name || "Conductor"}</h4>
-            <p class="muted">${getCompanyById(d.companyId)?.name || "-"}</p>
+          <div class="driver-card-head-main">
+            <div class="${avatarClass}">${avatarInner}</div>
+            <div class="driver-card-title">
+              <p class="driver-card-kicker">${escapeHtml(item.companyName)}</p>
+              <h4>${escapeHtml(String(d.name || "Conductor"))}</h4>
+              <div class="driver-card-tags">
+                <span class="driver-meta-chip">${escapeHtml(String(d.licenseCategory || "Sin categoria"))}</span>
+                <span class="driver-meta-chip">${escapeHtml(expLabel)}</span>
+                ${comparendosStatus}
+              </div>
+            </div>
           </div>
-          <div class="driver-card-status">${statusTag}</div>
+          <div class="driver-card-status-stack">
+            ${item.statusTag}
+            <span class="driver-doc-pill driver-doc-pill--${escapeAttr(item.docBucket)}">${escapeHtml(item.docBadge)}</span>
+          </div>
         </header>
         <div class="driver-card-body">
-          <div class="driver-info-row"><span>${IC.phone}</span><span>${d.phone || "-"}</span></div>
-          <div class="driver-info-row"><span>${IC.file}</span><span>${d.license || "-"} · ${d.licenseCategory || "-"}</span></div>
-          <div class="driver-info-row"><span>${IC.truck}</span><span>${occupancy.trip ? `Viaje ${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}` : escapeHtml(String(occupancy.detail || "Sin viaje activo"))}</span></div>
-          <div class="driver-info-row"><span>${IC.calendar}</span><span>Vence: ${d.licenseExpiry || "-"} ${licStatus}</span></div>
+          <div class="driver-card-highlight">
+            <span class="driver-card-highlight-icon" aria-hidden="true">${IC.truck}</span>
+            <div>
+              <strong>${escapeHtml(item.tripHeadline)}</strong>
+              <p>${escapeHtml(tripDetail)}</p>
+            </div>
+          </div>
+          <div class="driver-card-quickfacts">
+            <div class="driver-quickfact">
+              <span>${IC.badge}<b>Documento</b></span>
+              <strong>${escapeHtml(String(d.idDoc || "-"))}</strong>
+            </div>
+            <div class="driver-quickfact">
+              <span>${IC.phone}<b>Telefono</b></span>
+              <strong>${escapeHtml(phoneValue)}</strong>
+            </div>
+            <div class="driver-quickfact">
+              <span>${IC.file}<b>Licencia</b></span>
+              <strong>${escapeHtml(String(d.license || "-"))}</strong>
+            </div>
+            <div class="driver-quickfact">
+              <span>${IC.activity}<b>Perfil</b></span>
+              <strong>${escapeHtml(`${item.profileScore}%`)}</strong>
+            </div>
+          </div>
+          <div class="driver-doc-rows">
+            <div class="driver-doc-row">
+              <span>${IC.calendar}<b>Vigencia licencia</b></span>
+              <div>${item.licenseMeta.statusHtml}</div>
+            </div>
+            <div class="driver-doc-row">
+              <span>${IC.shield}<b>Seguridad social</b></span>
+              <div>${securityStatus}</div>
+            </div>
+            <div class="driver-doc-row">
+              <span>${IC.graduation}<b>Curso defensivo</b></span>
+              <div>${item.courseMeta.statusHtml}</div>
+            </div>
+          </div>
+          <div class="driver-card-footnote">
+            <span aria-hidden="true">${IC.alertTriangle}</span>
+            <span>${escapeHtml(item.documentNote)}</span>
+          </div>
         </div>
         <footer class="driver-card-actions">
           <button class="btn btn-sm btn-outline" data-action="view-driver" data-id="${d.id}">${IC.eye} Ver</button>
@@ -12155,20 +12556,94 @@ function driversHtml() {
       </article>`;
     })
     .join("");
+  const companyOptions = companies
+    .map(([id, name]) => `<option value="${escapeAttr(id)}" ${ui.companyId === id ? "selected" : ""}>${escapeHtml(name)}</option>`)
+    .join("");
+  const quickPills = Object.entries(quickCounts)
+    .map(([key, count]) => `<button type="button" class="ops-filter-pill${ui.quick === key ? " is-active" : ""}" data-action="drivers-quick-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(quickLabels[key] || key)}</span><strong>${escapeHtml(String(count))}</strong></button>`)
+    .join("");
+  const searchValue = escapeAttr(ui.search);
+  const filtersHtml = activeFilters.length
+    ? activeFilters.map((label) => `<span class="drivers-filter-chip">${escapeHtml(label)}</span>`).join("")
+    : '<span class="muted">Sin filtros activos. Usa la barra superior para enfocar la operacion.</span>';
+  const commandBar = `<section class="drivers-command">
+    <div class="drivers-command-intro">
+      <p class="drivers-command-kicker">Centro operativo</p>
+      <h3>Disponibilidad, documentos y riesgos en una sola vista</h3>
+      <p>Los conductores se crean automaticamente desde <strong>Contratacion</strong> o desde <strong>Empleados</strong> cuando el cargo es conductor.</p>
+    </div>
+    <div class="drivers-command-controls">
+      <label class="drivers-toolbar-search">
+        <span aria-hidden="true">${IC.search}</span>
+        <input type="search" value="${searchValue}" placeholder="Buscar por nombre, documento, licencia, empresa..." data-action="drivers-search" />
+      </label>
+      <label class="drivers-toolbar-field">
+        <span>Empresa</span>
+        <select data-action="drivers-company-filter">
+          <option value="">Todas</option>
+          ${companyOptions}
+        </select>
+      </label>
+      <label class="drivers-toolbar-field">
+        <span>Estado</span>
+        <select data-action="drivers-status-filter">
+          <option value="all" ${ui.status === "all" ? "selected" : ""}>Todos</option>
+          <option value="available" ${ui.status === "available" ? "selected" : ""}>Disponibles</option>
+          <option value="busy" ${ui.status === "busy" ? "selected" : ""}>Ocupados</option>
+          <option value="scheduled" ${ui.status === "scheduled" ? "selected" : ""}>Reservados</option>
+          <option value="offline" ${ui.status === "offline" ? "selected" : ""}>No disponibles</option>
+        </select>
+      </label>
+      <label class="drivers-toolbar-field">
+        <span>Documentos</span>
+        <select data-action="drivers-doc-filter">
+          <option value="all" ${ui.docFilter === "all" ? "selected" : ""}>Todos</option>
+          <option value="risk" ${ui.docFilter === "risk" ? "selected" : ""}>Con alertas</option>
+          <option value="expired" ${ui.docFilter === "expired" ? "selected" : ""}>Vencidos</option>
+          <option value="missing" ${ui.docFilter === "missing" ? "selected" : ""}>Incompletos</option>
+          <option value="ok" ${ui.docFilter === "ok" ? "selected" : ""}>Al dia</option>
+        </select>
+      </label>
+      <label class="drivers-toolbar-field">
+        <span>Orden</span>
+        <select data-action="drivers-sort">
+          <option value="priority" ${ui.sort === "priority" ? "selected" : ""}>Prioridad operativa</option>
+          <option value="name" ${ui.sort === "name" ? "selected" : ""}>Nombre</option>
+          <option value="company" ${ui.sort === "company" ? "selected" : ""}>Empresa</option>
+          <option value="license" ${ui.sort === "license" ? "selected" : ""}>Vigencia licencia</option>
+          <option value="experience" ${ui.sort === "experience" ? "selected" : ""}>Experiencia</option>
+        </select>
+      </label>
+      <div class="drivers-toolbar-actions">
+        <button type="button" class="btn btn-sm btn-outline" data-action="drivers-clear-filters">${IC.x} Limpiar</button>
+      </div>
+    </div>
+  </section>`;
+  const resultsBody = filtered.length
+    ? `<div class="drivers-grid">${cards}</div>`
+    : emptyState(totalDrivers ? "No hay conductores que coincidan con los filtros actuales." : "No hay conductores registrados.");
+  const workspace = `<div class="drivers-workspace">
+    ${commandBar}
+    <div class="drivers-filter-pills">${quickPills}</div>
+    ${toolbarInfo}
+    <div class="drivers-results-bar">
+      <div>
+        <strong>${escapeHtml(String(filtered.length))}</strong> visibles de <strong>${escapeHtml(String(totalDrivers))}</strong> conductores
+      </div>
+      <div class="drivers-active-filters">${filtersHtml}</div>
+    </div>
+    ${resultsBody}
+  </div>`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: totalDrivers },
     { label: "Disponibles", value: availableDrivers },
     { label: "Ocupados", value: occupiedDrivers, tone: occupiedDrivers ? "warn" : undefined },
     { label: "Reservados", value: scheduledDrivers },
-    { label: "No disponibles", value: offlineDrivers },
-    { label: "Lic. 60 d", value: expiringSoon, tone: expiringSoon ? "warn" : undefined },
-    { label: "Vencidas", value: expired, tone: expired ? "alert" : undefined }
+    { label: "No disp.", value: offlineDrivers },
+    { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
+    { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
-  const grid = cards
-    ? `<div class="drivers-grid">${cards}</div>`
-    : emptyState("No hay conductores registrados.");
-  const info = `<p class="muted" style="margin:0 0 0.6rem">Los conductores se crean automáticamente desde <strong>Contratación</strong> o desde <strong>Empleados</strong> cuando el cargo es de conductor.</p>`;
-  return heroStrip + pcardWrap("user", "Conductores", drivers.length + " registrados", info + grid);
+  return heroStrip + pcardWrap("user", "Conductores", `${filtered.length} visibles · ${totalDrivers} total`, workspace);
 }
 
 /** Tabla de auditoría: viajes quitados (colapsable; detalle desde snapshot JSON en bootstrap). */
@@ -13471,6 +13946,7 @@ function adminUsersHtml(current) {
   const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
   const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
   const sessionCoverage = approvedUsers.length ? Math.round((activeSessions / approvedUsers.length) * 100) : 0;
+  const focusCardClass = "admin-users-data-card admin-users-focus-card";
 
   const roleLabel = (role) => {
     const raw = String(role || "").trim();
@@ -13671,34 +14147,101 @@ function adminUsersHtml(current) {
     </article>
   </div>`;
 
-  if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
-  if (ui.panel === "create-company") html += pcardWrap("plus", "Registrar empresa", "Agregar nueva empresa al sistema", fComp);
+  if (ui.panel === "create-user") {
+    html += pcardWrapPro(
+      "userPlus",
+      "Crear nuevo usuario",
+      "Alta completa",
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Formulario guiado</p>
+          <p class="admin-users-section-copy">Cree usuarios con identidad, empresa, ubicación, seguridad y permisos en un solo flujo administrativo.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
+          <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Pendientes ${pendingUsers.length}</span>
+        </div>
+      </div>
+      ${fUser}`,
+      focusCardClass
+    );
+  }
+  if (ui.panel === "create-company") {
+    html += pcardWrapPro(
+      "plus",
+      "Registrar empresa",
+      "Directorio empresarial",
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Alta de empresa</p>
+          <p class="admin-users-section-copy">Registre la identidad legal y operativa de nuevas compañías con una presentación más clara y consistente.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          <span class="status status-viaje_asignado">Activas ${activeCompaniesCount}</span>
+          <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Inactivas ${inactiveCompaniesCount}</span>
+        </div>
+      </div>
+      ${fComp}`,
+      focusCardClass
+    );
+  }
   if (ui.panel === "set-permissions") {
     const permExpanded = !ui.permissionsMinimized;
-    html += pcardWrap(
+    html += pcardWrapPro(
       "save",
       "Asignar permisos",
-      "Selecciona usuario y permisos",
-      adminUsersCollapsibleCardBody(permExpanded, "toggle-admin-permissions-panel", fPerm),
-      permExpanded ? "p-card--expanded" : "p-card--collapsed"
+      "Gobierno granular",
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Control de visibilidad</p>
+          <p class="admin-users-section-copy">Aplique permisos por módulo para ajustar el acceso real de cada cuenta según su operación.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
+          <span class="status status-viaje_asignado">Roles ${roleSummary.length || 1}</span>
+        </div>
+      </div>
+      ${adminUsersCollapsibleCardBody(permExpanded, "toggle-admin-permissions-panel", fPerm)}`,
+      `${permExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
   if (editingUser) {
     const editExpanded = !ui.editMinimized;
-    html += pcardWrap(
+    html += pcardWrapPro(
       "edit",
       "Editar usuario",
-      `Actualiza los datos de ${escapeHtml(getPortalUserDisplayName(editingUser))}`,
-      adminUsersCollapsibleCardBody(editExpanded, "toggle-admin-edit-user-panel", fEdit),
-      editExpanded ? "p-card--expanded" : "p-card--collapsed"
+      escapeHtml(getPortalUserDisplayName(editingUser)),
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Edición detallada</p>
+          <p class="admin-users-section-copy">Actualice información personal, credenciales, empresa, ubicación y permisos sin salir del centro de administración.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          ${roleBadge(editingUser.role)}
+          ${statusBadge(editingUser.accountStatus)}
+        </div>
+      </div>
+      ${adminUsersCollapsibleCardBody(editExpanded, "toggle-admin-edit-user-panel", fEdit)}`,
+      `${editExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
   if (editingCompany)
-    html += pcardWrap(
+    html += pcardWrapPro(
       "briefcase",
       "Editar empresa",
       escapeHtml(String(editingCompany.name || "")),
-      fCompanyEdit
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Actualización corporativa</p>
+          <p class="admin-users-section-copy">Mantenga consistente la ficha empresarial usada en usuarios, trazabilidad comercial y operaciones del portal.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          ${companyKindChipHtml(normalizeCompanyKindForDb(editingCompany.companyKind))}
+          <span class="status ${isCompanyRecordActive(editingCompany) ? "status-viaje_asignado" : "status-pendiente"}">${isCompanyRecordActive(editingCompany) ? "Activa" : "Inactiva"}</span>
+        </div>
+      </div>
+      ${fCompanyEdit}`,
+      focusCardClass
     );
 
   if (pendingUsers.length > 0) {
@@ -20458,6 +21001,8 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Laboral</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Empresa", companyName)}
       ${employeeProfileKvRow("Fecha ingreso", emp.startDate)}
+      ${employeeProfileKvRow("Creado", emp.createdAt)}
+      ${employeeProfileKvRow("Última actualización", emp.updatedAt)}
       ${employeeProfileKvRow("Duración contrato", emp.contractDuration || emp.contractDurationText)}
       ${employeeProfileKvRow("Centro costos", emp.costCenter)}
       ${employeeProfileKvRow("Periodicidad", emp.payFrequency)}
@@ -21049,6 +21594,80 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-quick-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setDriversUi({ quick: String(btn.dataset.filter || "all") });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-company-filter']").forEach((select) => {
+    select.addEventListener("change", () => {
+      setDriversUi({ companyId: String(select.value || "") });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-status-filter']").forEach((select) => {
+    select.addEventListener("change", () => {
+      setDriversUi({ status: String(select.value || "all") });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-doc-filter']").forEach((select) => {
+    select.addEventListener("change", () => {
+      setDriversUi({ docFilter: String(select.value || "all") });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-sort']").forEach((select) => {
+    select.addEventListener("change", () => {
+      setDriversUi({ sort: String(select.value || "priority") });
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-clear-filters']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setDriversUi({}, true);
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='drivers-search']").forEach((input) => {
+    let searchTimer = 0;
+    input.addEventListener("input", () => {
+      const nextValue = String(input.value || "");
+      setDriversUi({ search: nextValue });
+      if (searchTimer) window.clearTimeout(searchTimer);
+      const caretStart = input.selectionStart ?? nextValue.length;
+      const caretEnd = input.selectionEnd ?? nextValue.length;
+      searchTimer = window.setTimeout(() => {
+        renderPortalView();
+        window.requestAnimationFrame(() => {
+          const nextInput = nodes.viewRoot.querySelector("[data-action='drivers-search']");
+          if (!nextInput) return;
+          nextInput.focus();
+          try {
+            nextInput.setSelectionRange(
+              Math.min(caretStart, String(nextInput.value || "").length),
+              Math.min(caretEnd, String(nextInput.value || "").length)
+            );
+          } catch (_e) {}
+        });
+      }, 120);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDriversUi({ search: "" });
+        renderPortalView();
+      }
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='client-data-scope']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!isPortalClientUser(currentUser())) return;
@@ -21205,8 +21824,9 @@ function bindDynamicEvents() {
         message: `Se va a ${verb} "${String(target.name || "").trim()}". Las empresas inactivas no aparecen al asignar usuarios nuevos.`,
         confirmText: active ? "Desactivar" : "Activar",
         onConfirm: async () => {
+          const updatedTs = nowIso();
           const next = companies.map((c) =>
-            String(c.id) === companyId ? { ...c, active: !active } : c
+            String(c.id) === companyId ? { ...c, active: !active, updatedAt: updatedTs } : c
           );
           await writeAwaitServer(KEYS.companies, next);
           notify(userMessage(active ? "companyDeactivated" : "companyActivated"), "success");
@@ -21405,7 +22025,7 @@ function bindDynamicEvents() {
         notify(userMessage("companyPropiaDuplicate"), "error");
         return;
       }
-      companies.push({
+      companies.push(stampCreatedRecord({
         id: newUuidV4(),
         name: nameTrim,
         taxId: nitNorm,
@@ -21418,9 +22038,8 @@ function bindDynamicEvents() {
         address,
         logoUrl: String(logoUrl || "").trim(),
         companyKind: kind,
-        active: true,
-        createdAt: nowIso()
-      });
+        active: true
+      }));
       try {
         await writeAwaitServer(KEYS.companies, normalizeCompaniesForSync(companies));
       } catch (err) {
@@ -21519,7 +22138,7 @@ function bindDynamicEvents() {
       const address = normalizeLatinForDb(String(data.address || ""));
       const nextCompanies = companies.map((c) =>
         String(c.id) === companyId
-          ? {
+          ? stampUpdatedRecord({
               ...c,
               name: nameTrim,
               taxId: nitNorm,
@@ -21532,7 +22151,7 @@ function bindDynamicEvents() {
               address,
               logoUrl: logoUrlResolved,
               companyKind: kind
-            }
+            })
           : c
       );
       try {
@@ -23910,7 +24529,7 @@ function bindDynamicEvents() {
         techInspectionExpiryDate = addCalendarYearsIsoDate(techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
       }
       const list = read(KEYS.vehicles, []);
-      list.push({
+      list.push(stampCreatedRecord({
         id: newUuidV4(),
         plate,
         brand: String(data.brand || "").trim(),
@@ -23937,9 +24556,8 @@ function bindDynamicEvents() {
         gpsProvider: String(data.gpsProvider || "").trim(),
         satelliteProviderUser: String(data.satelliteProviderUser || "").trim(),
         satelliteProviderPassword: String(data.satelliteProviderPassword || "").trim(),
-        available: true,
-        createdAt: nowIso()
-      });
+        available: true
+      }));
       try {
         await writeAwaitServer(KEYS.vehicles, list);
       } catch (err) {
@@ -23988,7 +24606,7 @@ function bindDynamicEvents() {
         return;
       }
       const list = read(KEYS.drivers, []);
-      list.push({ id: newUuidV4(), ...data, available: true, hiredAt: nowIso() });
+      list.push(stampCreatedRecord({ id: newUuidV4(), ...data, available: true, hiredAt: nowIso() }));
       try {
         await writeAwaitServer(KEYS.drivers, list);
       } catch (err) {
@@ -24151,7 +24769,7 @@ function bindDynamicEvents() {
           }
           const nextVehicles = all.map((v) =>
               v.id === target.id
-                ? {
+                ? stampUpdatedRecord({
                     ...v,
                     plate: String(form.plate || "").toUpperCase(),
                     brand: String(form.brand || "").trim(),
@@ -24178,7 +24796,7 @@ function bindDynamicEvents() {
                     gpsProvider: String(form.gpsProvider || "").trim(),
                     satelliteProviderUser: String(form.satelliteProviderUser || "").trim(),
                     satelliteProviderPassword: String(form.satelliteProviderPassword || "").trim()
-                  }
+                  })
                 : v
             );
           try {
@@ -24318,7 +24936,7 @@ function bindDynamicEvents() {
 
           const nextDrivers = read(KEYS.drivers, []).map((d) =>
             String(d.id ?? "").trim() === String(target.id ?? "").trim()
-              ? {
+              ? stampUpdatedRecord({
                   ...d,
                   name: getVal("name"),
                   phone: getVal("phone"),
@@ -24337,7 +24955,7 @@ function bindDynamicEvents() {
                   comparendos: parseNum(getVal("comparendos")),
                   experienceYears: parseNum(getVal("experienceYears")),
                   photoUrl
-                }
+                })
               : d
           );
           try {
@@ -24780,7 +25398,7 @@ function bindDynamicEvents() {
           }
         }
         const all = read(KEYS.payrollEmployees, []);
-        all.push({ id: newUuidV4(), ...payload });
+        all.push(stampCreatedRecord({ id: newUuidV4(), ...payload }));
         try {
           await writeAwaitServer(KEYS.payrollEmployees, all);
         } catch (err) {
@@ -25001,7 +25619,7 @@ function bindDynamicEvents() {
           const nextEmployees = all.map((empRow) =>
               String(empRow.id) !== String(target.id)
                 ? empRow
-                : {
+                : stampUpdatedRecord({
                     ...empRow,
                     ...nextPayload,
                     id: empRow.id,
@@ -25009,7 +25627,7 @@ function bindDynamicEvents() {
                       typeof nextAvatar === "string" && nextAvatar.trim()
                         ? nextAvatar.trim()
                         : empRow.avatarUrl || nextPayload.avatarUrl
-                  }
+                  })
             );
           try {
             await writeAwaitServer(KEYS.payrollEmployees, nextEmployees);
@@ -25837,7 +26455,7 @@ function bindDynamicEvents() {
         return;
       }
       const all = read(KEYS.vacancies, []);
-      all.unshift({
+      all.unshift(stampCreatedRecord({
         id: newUuidV4(),
         ...data,
         openings: Math.max(1, parseNum(data.openings || 1)),
@@ -25845,9 +26463,8 @@ function bindDynamicEvents() {
         positionName: position.name,
         workerRole: position.workerRole || "empleado",
         contractTypeDefault: position.contractTypeDefault || "Termino indefinido",
-        status: "Publicada",
-        createdAt: nowIso()
-      });
+        status: "Publicada"
+      }));
       try {
         await writeAwaitServer(KEYS.vacancies, all);
       } catch (err) {
@@ -25874,7 +26491,7 @@ function bindDynamicEvents() {
         return;
       }
       const all = read(KEYS.positions, []);
-      all.unshift({
+      all.unshift(stampCreatedRecord({
         id: newUuidV4(),
         name: String(data.name || "").trim(),
         workerRole: String(data.workerRole || "empleado"),
@@ -25884,9 +26501,8 @@ function bindDynamicEvents() {
         arlRiskLevel: String(data.arlRiskLevel || "").trim(),
         integralSalary: String(data.integralSalary || "false") === "true",
         legalBasis: String(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
-        active: true,
-        createdAt: nowIso()
-      });
+        active: true
+      }));
       try {
         await writeAwaitServer(KEYS.positions, all);
       } catch (err) {
@@ -25907,7 +26523,9 @@ function bindDynamicEvents() {
       const all = read(KEYS.positions, []);
       const target = all.find((p) => p.id === btn.dataset.id);
       if (!target) return;
-      const nextPositions = all.map((p) => (p.id === target.id ? { ...p, active: target.active === false } : p));
+      const nextPositions = all.map((p) =>
+        p.id === target.id ? { ...p, active: target.active === false, updatedAt: nowIso() } : p
+      );
       try {
         await writeAwaitServer(KEYS.positions, nextPositions);
       } catch (err) {
@@ -25922,7 +26540,9 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='close-vacancy']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const all = read(KEYS.vacancies, []);
-      const nextVacancies = all.map((v) => (v.id === btn.dataset.id ? { ...v, status: "Cerrada" } : v));
+      const nextVacancies = all.map((v) =>
+        v.id === btn.dataset.id ? { ...v, status: "Cerrada", updatedAt: nowIso() } : v
+      );
       try {
         await writeAwaitServer(KEYS.vacancies, nextVacancies);
       } catch (err) {
@@ -25949,6 +26569,7 @@ function bindDynamicEvents() {
           <span class="vacancy-pill">Cupos: ${escapeHtml(String(v.openings ?? 1))}</span>
         </div>
         <p><strong>Cierre postulaciones:</strong> ${escapeHtml(String(v.deadline || "—"))}</p>
+        <p><strong>Última actualización:</strong> ${escapeHtml(fmtDateOr(v.updatedAt || v.createdAt, "—"))}</p>
         <div class="vacancy-detail-reqs"><strong>Requisitos y perfil</strong><p class="muted" style="margin:0.35rem 0 0;white-space:pre-wrap">${reqs}</p></div>
       </div>`;
       openInfoModal({
@@ -26080,7 +26701,7 @@ function bindDynamicEvents() {
         return;
       }
       const all = read(KEYS.candidates, []);
-      all.unshift({
+      all.unshift(stampCreatedRecord({
         id: newUuidV4(),
         name: data.name,
         email: data.email,
@@ -26099,9 +26720,8 @@ function bindDynamicEvents() {
         vacancyTitle: vac.title,
         status: PIPELINE[0],
         attachments: attachmentList,
-        source: "Portal RRHH",
-        createdAt: nowIso()
-      });
+        source: "Portal RRHH"
+      }));
       try {
         await writeAwaitServer(KEYS.candidates, all);
       } catch (err) {
@@ -26133,7 +26753,9 @@ function bindDynamicEvents() {
         renderPortalView();
         return;
       }
-      const updated = all.map((c) => (c.id === select.dataset.id ? { ...c, status: select.value } : c));
+      const updated = all.map((c) =>
+        c.id === select.dataset.id ? { ...c, status: select.value, updatedAt: nowIso() } : c
+      );
       try {
         await writeAwaitServer(KEYS.candidates, updated);
       } catch (err) {
@@ -27423,7 +28045,8 @@ function bindExtendedViewEditHandlers() {
             ["Tecnomecánica vence", fmtDateOr(v.techInspectionExpiryDate)],
             ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "-"))],
             ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "-"))],
-            ["Vence pólizas RCP", fmtDateOr(v.rcPolicyExpiry)]
+            ["Vence pólizas RCP", fmtDateOr(v.rcPolicyExpiry)],
+            ["Última actualización", fmtDateOr(v.updatedAt || v.createdAt)]
           ])
         },
         {
@@ -27493,7 +28116,8 @@ function bindExtendedViewEditHandlers() {
             ["EPS", escapeHtml(String(d.eps || "-"))],
             ["ARL", escapeHtml(String(d.arl || "-"))],
             ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
-            ["Disponible", fmtBool(d.available)]
+            ["Disponible", fmtBool(d.available)],
+            ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
           ])
         }
       ];
@@ -27540,6 +28164,7 @@ function bindExtendedViewEditHandlers() {
       const locLine = [city, dept].filter(Boolean).join(city && dept ? ", " : "");
       const hasLoc = Boolean(addr || locLine);
       const createdLbl = fmtDateOr(c.createdAt, "—");
+      const updatedLbl = fmtDateOr(c.updatedAt || c.createdAt, "—");
 
       const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
       const phoneBlock = telHref
@@ -27574,6 +28199,7 @@ function bindExtendedViewEditHandlers() {
       <ul class="portal-detail-stats" aria-label="Resumen">
         <li><strong>${escapeHtml(String(usersCount))}</strong><span>Usuario${usersCount === 1 ? "" : "s"} portal</span></li>
         <li><strong>${createdLbl}</strong><span>Alta en sistema</span></li>
+        <li><strong>${updatedLbl}</strong><span>Última actualización</span></li>
       </ul>
     </div>
   </div>
@@ -27937,7 +28563,8 @@ function bindExtendedViewEditHandlers() {
             ["Riesgo ARL", escapeHtml(String(p.arlRiskLevel || "-"))],
             ["Salario integral", fmtBool(String(p.integralSalary) === "true" || p.integralSalary === true)],
             ["Base legal", escapeHtml(String(p.legalBasis || "CST"))],
-            ["Creado", fmtDateOr(p.createdAt)]
+            ["Creado", fmtDateOr(p.createdAt)],
+            ["Última actualización", fmtDateOr(p.updatedAt || p.createdAt)]
           ])
         }
       ];
@@ -28009,7 +28636,7 @@ function bindExtendedViewEditHandlers() {
           const nextPos = all.map((p) =>
               String(p.id) !== String(target.id)
                 ? p
-                : {
+                : stampUpdatedRecord({
                     ...p,
                     name: String(form.name || "").trim(),
                     workerRole: String(form.workerRole || "empleado"),
@@ -28019,7 +28646,7 @@ function bindExtendedViewEditHandlers() {
                     arlRiskLevel: String(form.arlRiskLevel || "").trim(),
                     integralSalary: String(form.integralSalary || "false") === "true",
                     legalBasis: String(form.legalBasis || "").trim()
-                  }
+                  })
             );
           try {
             await writeAwaitServer(KEYS.positions, nextPos);
@@ -28122,7 +28749,8 @@ function bindExtendedViewEditHandlers() {
       postulationRows.push(
         ["Aspiración salarial", fmtMoney(salaryShow)],
         ["Disponibilidad", fmtDateOr(availShow)],
-        ["Registrado", fmtDateOr(c.createdAt)]
+        ["Registrado", fmtDateOr(c.createdAt)],
+        ["Última actualización", fmtDateOr(c.updatedAt || c.createdAt)]
       );
       const sections = [
         {
@@ -28245,7 +28873,7 @@ function bindExtendedViewEditHandlers() {
           const nextCandidates = all.map((c) =>
               String(c.id) !== String(target.id)
                 ? c
-                : {
+                : stampUpdatedRecord({
                     ...c,
                     name: String(form.name || "").trim(),
                     email: String(form.email || "").trim(),
@@ -28264,7 +28892,7 @@ function bindExtendedViewEditHandlers() {
                     vacancyTitle: vac.title,
                     status: String(form.status || c.status || PIPELINE[0]),
                     source: String(form.source || "Portal RRHH")
-                  }
+                  })
             );
           try {
             await writeAwaitServer(KEYS.candidates, nextCandidates);

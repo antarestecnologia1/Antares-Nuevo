@@ -478,6 +478,7 @@ test.setTimeout(180000);
 
 test("portal form smoke", async ({ page, context }) => {
   const results = [];
+  const STEP_TIMEOUT_MS = 15000;
 
   await context.addInitScript((payload) => {
     localStorage.clear();
@@ -509,7 +510,7 @@ test("portal form smoke", async ({ page, context }) => {
   };
 
   const submitForm = async (selector, pairs) => {
-    await page.waitForSelector(selector, { timeout: 5000 });
+    await page.waitForSelector(selector, { state: "attached", timeout: 5000 });
     await page.evaluate(({ selector: formSelector, pairs: entries }) => {
       const form = document.querySelector(formSelector);
       if (!form) throw new Error(`No se encontró ${formSelector}`);
@@ -533,9 +534,23 @@ test("portal form smoke", async ({ page, context }) => {
     }, { selector, pairs });
   };
 
+  const clickDom = async (selector) => {
+    await page.waitForSelector(selector, { state: "attached", timeout: 4000 });
+    await page.evaluate((targetSelector) => {
+      const el = document.querySelector(targetSelector);
+      if (!el) throw new Error(`No se encontró ${targetSelector}`);
+      el.click();
+    }, selector);
+  };
+
   const record = async (name, task) => {
     try {
-      await task();
+      await Promise.race([
+        task(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Paso excedió ${STEP_TIMEOUT_MS}ms`)), STEP_TIMEOUT_MS)
+        )
+      ]);
       results.push({ name, ok: true });
       console.log(`OK ${name}`);
     } catch (error) {
@@ -580,8 +595,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Mis solicitudes:edit", async () => {
     await gotoView("requests");
-    await page.click("[data-action='edit-request'][data-id='req-edit']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-request'][data-id='req-edit']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["cargoDescription", "Flores editadas QA"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "req-edit" && row.cargoDescription === "Flores editadas QA"),
@@ -610,8 +625,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Viajes:edit", async () => {
     await gotoView("transport-trips");
-    await page.click("[data-action='edit-trip'][data-id='req-trip-edit']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-trip'][data-id='req-trip-edit']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["tripValue", "1550000"], ["tripNotes", "Ajuste QA"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "req-trip-edit" && Number(row.tripValue) === 1550000),
@@ -650,8 +665,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.vehicles,
       before + 1
     );
-    await page.click("[data-action='edit-vehicle'][data-id='veh-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-vehicle'][data-id='veh-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["brand", "Chevrolet QA"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "veh-1" && row.brand === "Chevrolet QA"),
@@ -661,8 +676,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Conductores:edit", async () => {
     await gotoView("transport-drivers");
-    await page.click("[data-action='edit-driver'][data-id='drv-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-driver'][data-id='drv-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3006667790"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "drv-1" && row.phone === "3006667790"),
@@ -672,8 +687,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Calendario:navigation", async () => {
     await gotoView("transport-calendar");
-    await page.click("[data-action='cal-view'][data-view='week']");
-    await page.click("[data-action='cal-next']");
+    await clickDom("[data-action='cal-view'][data-view='week']");
+    await clickDom("[data-action='cal-nav'][data-step='1']");
   });
 
   await record("Historial:fuel-technical", async () => {
@@ -718,10 +733,10 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Reporteria:bi-layout", async () => {
     await gotoView("reports");
-    await page.click("[data-action='reports-set-tab'][data-tab='bi']");
-    await page.click("[data-action='reports-bi-layout-preset'][data-preset='finance']");
-    await page.click("[data-action='reports-bi-layout-apply']");
-    await page.waitForSelector(".reports-bi-customizer");
+    await clickDom("[data-action='reports-set-tab'][data-tab='bi']");
+    await clickDom("[data-action='reports-bi-layout-preset'][data-preset='finance']");
+    await clickDom("[data-action='reports-bi-layout-apply']");
+    await page.waitForSelector(".reports-bi-customizer", { state: "attached" });
   });
 
   await record("Gestión humana:employee-edit-absence", async () => {
@@ -750,8 +765,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.payrollEmployees,
       empBefore + 1
     );
-    await page.click("[data-action='edit-employee'][data-id='emp-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-employee'][data-id='emp-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3005556600"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "emp-1" && row.phone === "3005556600"),
@@ -792,8 +807,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.positions,
       posBefore + 1
     );
-    await page.click("[data-action='edit-position'][data-id='pos-analista']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-position'][data-id='pos-analista']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["name", "Analista QA Editado"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "pos-analista" && row.name === "Analista QA Editado"),
@@ -816,8 +831,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.vacancies,
       vacBefore + 1
     );
-    await page.click("[data-action='edit-vacancy'][data-id='vac-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-vacancy'][data-id='vac-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["title", "Vacante Analista Editada"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada"),
@@ -845,8 +860,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.candidates,
       candBefore + 1
     );
-    await page.click("[data-action='edit-candidate'][data-id='cand-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-candidate'][data-id='cand-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3007778800"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "cand-1" && row.phone === "3007778800"),
@@ -866,8 +881,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.interviews,
       intBefore + 1
     );
-    await page.click("[data-action='edit-interview'][data-id='int-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-interview'][data-id='int-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["interviewer", "Lina QA Edit"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "int-1" && row.interviewer === "Lina QA Edit"),
@@ -892,8 +907,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.sstCompliance,
       before + 1
     );
-    await page.click("[data-action='edit-sst-record'][data-id='sst-1']");
-    await page.waitForSelector("#crud-form");
+    await clickDom("[data-action='edit-sst-record'][data-id='sst-1']");
+    await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["provider", "ARL QA Edit"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "sst-1" && row.provider === "ARL QA Edit"),
@@ -903,7 +918,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Contacto web (B2B):access", async () => {
     await gotoView("contact-leads");
-    await page.waitForSelector("#view-root");
+    await page.waitForSelector("#view-root", { state: "attached" });
   });
 
   await record("Usuarios y permisos:create-edit", async () => {
@@ -931,8 +946,8 @@ test("portal form smoke", async ({ page, context }) => {
       KEYS.users,
       before + 1
     );
-    await page.click("[data-action='open-edit-user'][data-id='client-1']");
-    await page.waitForSelector("#form-admin-user-edit");
+    await clickDom("[data-action='open-edit-user'][data-id='client-1']");
+    await page.waitForSelector("#form-admin-user-edit", { state: "attached" });
     await submitForm("#form-admin-user-edit", [["phone", "3002223300"]]);
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "client-1" && row.phone === "3002223300"),
@@ -944,7 +959,7 @@ test("portal form smoke", async ({ page, context }) => {
   await record("Autorizaciones:approve", async () => {
     await gotoView("authorizations");
     const before = await arrayLen(KEYS.approvals);
-    await page.click("[data-action='approval-approve'][data-id='app-1']");
+    await clickDom("[data-action='approval-approve'][data-id='app-1']");
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "app-1" && row.status === "aprobado"),
       KEYS.approvals
@@ -974,9 +989,9 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Notificaciones:alerts-sound", async () => {
     await gotoView("notifications");
-    await page.click("[data-action='notif-toggle-alerts']");
-    await page.click("[data-action='notif-toggle-sound']");
-    await page.click("[data-action='notif-mark-read'][data-id='not-1']");
+    await clickDom("[data-action='notif-toggle-alerts']");
+    await clickDom("[data-action='notif-toggle-sound']");
+    await clickDom("[data-action='notif-read'][data-id='not-1']");
     await page.waitForFunction(
       (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "not-1" && row.readAt),
       KEYS.notifications

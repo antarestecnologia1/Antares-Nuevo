@@ -1996,7 +1996,8 @@ export class PortalService implements OnModuleInit {
                   url_logo AS "logoUrl",
                   tipo_relacion_empresa::text AS "companyKind",
                   COALESCE(activo, true) AS activo,
-                  fecha_creacion AS "createdAt"
+                  fecha_creacion AS "createdAt",
+                  fecha_actualizacion AS "updatedAt"
            FROM empresas
            WHERE id = $1::uuid
            ORDER BY nombre`,
@@ -2012,7 +2013,8 @@ export class PortalService implements OnModuleInit {
                   url_logo AS "logoUrl",
                   tipo_relacion_empresa::text AS "companyKind",
                   COALESCE(activo, true) AS activo,
-                  fecha_creacion AS "createdAt"
+                  fecha_creacion AS "createdAt",
+                  fecha_actualizacion AS "updatedAt"
            FROM empresas ORDER BY nombre`
         );
     return r.rows.map((row) => {
@@ -2039,6 +2041,7 @@ export class PortalService implements OnModuleInit {
       const companyKind =
         companyKindRaw === "tercero" ? "tercero" : companyKindRaw === "propia" ? "propia" : "cliente";
       const createdAt = rec.createdAt;
+      const updatedAt = rec.updatedAt;
       return {
         id,
         name,
@@ -2053,7 +2056,8 @@ export class PortalService implements OnModuleInit {
         logoUrl,
         companyKind,
         active: rec.activo !== false,
-        createdAt: createdAt ? new Date(createdAt as string | number | Date).toISOString() : new Date().toISOString()
+        createdAt: createdAt ? new Date(createdAt as string | number | Date).toISOString() : new Date().toISOString(),
+        updatedAt: updatedAt ? new Date(updatedAt as string | number | Date).toISOString() : null
       };
     });
   }
@@ -2250,10 +2254,14 @@ export class PortalService implements OnModuleInit {
 
   private async loadTravelAllowanceRules() {
     const r = await this.pool.query(
-      `SELECT valor_viaje_interdepartamental_cop FROM reglas_viatico_interdepartamental WHERE id = 1`
+      `SELECT valor_viaje_interdepartamental_cop, fecha_actualizacion
+       FROM reglas_viatico_interdepartamental WHERE id = 1`
     );
     const v = r.rows[0] ? Number(r.rows[0].valor_viaje_interdepartamental_cop) : 85000;
-    return { interDepartmentTripAmount: v };
+    return {
+      interDepartmentTripAmount: v,
+      updatedAt: r.rows[0]?.fecha_actualizacion ? new Date(r.rows[0].fecha_actualizacion).toISOString() : null
+    };
   }
 
   private async loadTripRouteRates() {
@@ -2262,13 +2270,16 @@ export class PortalService implements OnModuleInit {
      * (la columna `ids_empresas` aún no existe), caemos a SELECT sin esa columna
      * para no tumbar todo el bootstrap. La autocura se hace en onModuleInit.
      */
-    const out: Record<string, { value: number; companyIds: string[] }> = {};
+    const out: Record<
+      string,
+      { value: number; companyIds: string[]; id?: string; createdAt?: string | null; updatedAt?: string | null }
+    > = {};
     const SEP = "@@";
     let rows: Array<Record<string, unknown>>;
     try {
       const r = await this.pool.query(
-        `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
-                valor_tarifa_cop, ids_empresas
+        `SELECT id::text, departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+                valor_tarifa_cop, ids_empresas, fecha_creacion, fecha_actualizacion
          FROM tarifas_trayecto WHERE activo = true`
       );
       rows = r.rows as Array<Record<string, unknown>>;
@@ -2282,8 +2293,8 @@ export class PortalService implements OnModuleInit {
           "Reinicie la API (auto-cura ids_empresas) o ejecute npm run db:migrate / esquema 04+07 unificado."
       );
       const r2 = await this.pool.query(
-        `SELECT departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
-                valor_tarifa_cop
+        `SELECT id::text, departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+                valor_tarifa_cop, fecha_creacion, fecha_actualizacion
          FROM tarifas_trayecto WHERE activo = true`
       );
       rows = r2.rows as Array<Record<string, unknown>>;
@@ -2296,7 +2307,13 @@ export class PortalService implements OnModuleInit {
       const companyIds = Array.isArray(rawIds) ? rawIds.map((id) => String(id)) : [];
       const suffix = companyIds.length ? companyIds.slice().sort().join(",") : "*";
       const storageKey = `${routeKey}${SEP}${suffix}`;
-      out[storageKey] = { value: Number(row.valor_tarifa_cop), companyIds };
+      out[storageKey] = {
+        value: Number(row.valor_tarifa_cop),
+        companyIds,
+        id: row.id != null ? String(row.id) : undefined,
+        createdAt: row.fecha_creacion ? new Date(String(row.fecha_creacion)).toISOString() : null,
+        updatedAt: row.fecha_actualizacion ? new Date(String(row.fecha_actualizacion)).toISOString() : null
+      };
     }
     return out;
   }
@@ -2608,7 +2625,8 @@ export class PortalService implements OnModuleInit {
       gpsProvider: v.proveedor_gps || "",
       satelliteProviderUser: v.usuario_proveedor_satelite || "",
       satelliteProviderPassword: v.password_proveedor_satelite || "",
-      createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString()
+      createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString(),
+      updatedAt: v.fecha_actualizacion ? new Date(v.fecha_actualizacion).toISOString() : null
     }));
   }
 
@@ -2679,7 +2697,9 @@ export class PortalService implements OnModuleInit {
         baseSalary: d.salario_base != null ? Number(d.salario_base) : 0,
         startDate: d.fecha_inicio,
         hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null,
-        photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim()
+        photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim(),
+        createdAt: d.fecha_creacion ? new Date(d.fecha_creacion).toISOString() : new Date().toISOString(),
+        updatedAt: d.fecha_actualizacion ? new Date(d.fecha_actualizacion).toISOString() : null
       };
     });
   }
@@ -2940,6 +2960,7 @@ export class PortalService implements OnModuleInit {
       legalBasis: p.fundamento_legal,
       active: p.activo,
       createdAt: p.fecha_creacion ? new Date(p.fecha_creacion).toISOString() : new Date().toISOString(),
+      updatedAt: p.fecha_actualizacion ? new Date(p.fecha_actualizacion).toISOString() : null,
       schedule: p.jornada_referencia,
       arlRiskLevel: p.nivel_riesgo_arl,
       integralSalary: p.salario_integral
@@ -3169,7 +3190,8 @@ export class PortalService implements OnModuleInit {
       contractType: v.tipo_contrato_predeterminado,
       requirements: v.requisitos,
       status: v.estado,
-      createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString()
+      createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString(),
+      updatedAt: v.fecha_actualizacion ? new Date(v.fecha_actualizacion).toISOString() : null
     }));
   }
 
@@ -3204,7 +3226,8 @@ export class PortalService implements OnModuleInit {
         source: c.origen,
         hiredAt: c.fecha_contratacion,
         contractRegisteredAt: c.fecha_registro_contrato,
-        createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString()
+        createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString(),
+        updatedAt: c.fecha_actualizacion ? new Date(c.fecha_actualizacion).toISOString() : null
       }))
     );
   }
@@ -3338,7 +3361,8 @@ export class PortalService implements OnModuleInit {
       hasIllness: e.tiene_condicion_medica === true ? "si" : "no",
       illnessDescription:
         typeof e.descripcion_condicion_medica === "string" ? e.descripcion_condicion_medica : "",
-      createdAt: e.fecha_creacion ? new Date(e.fecha_creacion as string).toISOString() : new Date().toISOString()
+      createdAt: e.fecha_creacion ? new Date(e.fecha_creacion as string).toISOString() : new Date().toISOString(),
+      updatedAt: e.fecha_actualizacion ? new Date(e.fecha_actualizacion as string).toISOString() : null
     };
   }
 
