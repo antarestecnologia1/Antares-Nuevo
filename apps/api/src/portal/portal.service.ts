@@ -4562,7 +4562,8 @@ export class PortalService implements OnModuleInit {
             asignado_por = EXCLUDED.asignado_por,
             fecha_hora_asignacion = EXCLUDED.fecha_hora_asignacion,
             estado_operativo_en_vivo = EXCLUDED.estado_operativo_en_vivo,
-            datos_factura_json = EXCLUDED.datos_factura_json`,
+            datos_factura_json = EXCLUDED.datos_factura_json,
+            fecha_actualizacion = now()`,
           [
             tripId,
             req.id,

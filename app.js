@@ -1212,6 +1212,8 @@ function openAssignedTripInfoModal(req) {
             <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
             <div><strong>Asignado por:</strong> ${escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))}</div>
             <div><strong>Fecha asignación:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
+            <div><strong>Creado</strong> ${escapeHtml(fmtDateOr(req.trip.createdAt || req.createdAt, "—"))}</div>
+            <div><strong>Última actualización</strong> ${escapeHtml(fmtDateOr(req.trip.updatedAt || req.trip.createdAt || req.updatedAt, "—"))}</div>
             ${req.autoApproved ? `<div><strong>Aprobación:</strong> Automática</div>` : ""}
             <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
             <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
@@ -1657,7 +1659,8 @@ function openEditRouteRateModal(storageKey) {
       const normalized = getTripRouteRatesNormalized();
       const newStorageKey = tripRateStorageKey(routeKey, companyIds);
       const editingKey = String(payload.editingRateKey || "").trim();
-      const next = { ...normalized, [newStorageKey]: { value: tripRateCop, companyIds } };
+      const previousEntry = editingKey ? normalized[editingKey] : normalized[newStorageKey];
+      const next = { ...normalized, [newStorageKey]: buildRouteRateEntry(tripRateCop, companyIds, previousEntry) };
       if (editingKey && editingKey !== newStorageKey) delete next[editingKey];
       try {
         await writeAwaitServer(KEYS.tripRouteRates, next);
@@ -1842,11 +1845,20 @@ function getNotificationPreferencesNormalized() {
   const p = state.notificationPreferences;
   if (p && typeof p === "object") {
     return {
+      id: String(p.id || "").trim() || null,
       notificacionesHabilitadas: p.notificacionesHabilitadas !== false,
-      sonidoNotificacionesHabilitadas: p.sonidoNotificacionesHabilitadas !== false
+      sonidoNotificacionesHabilitadas: p.sonidoNotificacionesHabilitadas !== false,
+      createdAt: p.createdAt ? String(p.createdAt) : null,
+      updatedAt: p.updatedAt ? String(p.updatedAt) : null
     };
   }
-  return { notificacionesHabilitadas: true, sonidoNotificacionesHabilitadas: true };
+  return {
+    id: null,
+    notificacionesHabilitadas: true,
+    sonidoNotificacionesHabilitadas: true,
+    createdAt: null,
+    updatedAt: null
+  };
 }
 
 /** Timbre audible (columna `sonido_notificaciones_habilitadas`); independiente de avisos emergentes. */
@@ -1869,8 +1881,11 @@ function isInboxNotificationSoundEnabled() {
 function applyNotificationPreferencesFromBootstrapPayload(raw) {
   if (!raw || typeof raw !== "object") return;
   state.notificationPreferences = {
+    id: String(raw.id || "").trim() || null,
     notificacionesHabilitadas: raw.notificacionesHabilitadas !== false,
-    sonidoNotificacionesHabilitadas: raw.sonidoNotificacionesHabilitadas !== false
+    sonidoNotificacionesHabilitadas: raw.sonidoNotificacionesHabilitadas !== false,
+    createdAt: raw.createdAt ? String(raw.createdAt) : null,
+    updatedAt: raw.updatedAt ? String(raw.updatedAt) : null
   };
   syncNotificationPrefsSidebarUi();
 }
@@ -1903,7 +1918,8 @@ function setNotificationSoundMuted(muted) {
   const sonidoOn = !muted;
   state.notificationPreferences = {
     ...getNotificationPreferencesNormalized(),
-    sonidoNotificacionesHabilitadas: sonidoOn
+    sonidoNotificacionesHabilitadas: sonidoOn,
+    updatedAt: nowIso()
   };
   syncNotificationPrefsSidebarUi();
   if (sonidoOn) primeInboxNotificationAudioFromUserGesture();
@@ -1913,7 +1929,8 @@ function setNotificationSoundMuted(muted) {
 function setNotificationAlertsEnabled(enabled) {
   state.notificationPreferences = {
     ...getNotificationPreferencesNormalized(),
-    notificacionesHabilitadas: Boolean(enabled)
+    notificacionesHabilitadas: Boolean(enabled),
+    updatedAt: nowIso()
   };
   syncNotificationPrefsSidebarUi();
   void persistNotificationPreferencesToApi({ notificacionesHabilitadas: Boolean(enabled) });
@@ -2937,8 +2954,11 @@ let state = {
   reportPreviewPayload: null,
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
   notificationPreferences: {
+    id: null,
     notificacionesHabilitadas: true,
-    sonidoNotificacionesHabilitadas: true
+    sonidoNotificacionesHabilitadas: true,
+    createdAt: null,
+    updatedAt: null
   },
   theme: "light",
   publicLang: "es",
@@ -4792,6 +4812,19 @@ function stampUpdatedRecord(record, ts = nowIso()) {
   };
 }
 
+function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIso()) {
+  const prev = previousEntry && typeof previousEntry === "object" ? previousEntry : {};
+  const ids = Array.isArray(companyIds) ? companyIds.map(String).filter(Boolean) : [];
+  const existingId = String(prev.id || "").trim();
+  return {
+    value: parseNum(value),
+    companyIds: ids,
+    id: existingId || newUuidV4(),
+    createdAt: prev.createdAt || ts,
+    updatedAt: ts
+  };
+}
+
 function nowLocalIso() {
   return colombiaNowIso().slice(0, 19);
 }
@@ -5766,12 +5799,17 @@ function getTripRouteRatesNormalized() {
       const v = parseNum(val.value ?? 0);
       if (v <= 0) continue;
       const ids = Array.isArray(val.companyIds) ? val.companyIds.map(String).filter(Boolean) : [];
+      const meta = {
+        id: String(val.id || "").trim() || undefined,
+        createdAt: val.createdAt ? String(val.createdAt) : null,
+        updatedAt: val.updatedAt ? String(val.updatedAt) : null
+      };
       if (!k.includes(TRIP_RATE_SCOPE_SEP)) {
         const suffix = ids.length ? ids.slice().sort().join(",") : "*";
-        out[`${k}${TRIP_RATE_SCOPE_SEP}${suffix}`] = { value: v, companyIds: ids };
+        out[`${k}${TRIP_RATE_SCOPE_SEP}${suffix}`] = { value: v, companyIds: ids, ...meta };
         needWrite = true;
       } else {
-        out[k] = { value: v, companyIds: ids };
+        out[k] = { value: v, companyIds: ids, ...meta };
       }
     }
   }
@@ -7877,8 +7915,11 @@ function clearSession() {
   state.deletedTransportRequestsLogMinimized = true;
   state.deletedTransportTripsLogMinimized = true;
   state.notificationPreferences = {
+    id: null,
     notificacionesHabilitadas: true,
-    sonidoNotificacionesHabilitadas: true
+    sonidoNotificacionesHabilitadas: true,
+    createdAt: null,
+    updatedAt: null
   };
   state.__notificationPrefsHydratedFromServer = false;
   if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
@@ -12545,9 +12586,21 @@ function transportTripsHtml() {
       clients: `<div class="route-rate-client-chips">${chips}</div>`
     };
   };
+  const formatRateAuditCell = (entry) => {
+    const fullId = String(entry?.id || "").trim();
+    const shortId = fullId ? `${fullId.slice(0, 8)}...` : "Pendiente";
+    const createdLbl = fmtDateOr(entry?.createdAt, "—");
+    const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "—");
+    return `<div title="${escapeAttr(fullId || "Sin ID persistido")}">
+      <strong>${escapeHtml(shortId)}</strong><br />
+      <span class="muted">Creada ${escapeHtml(createdLbl)}</span><br />
+      <span class="muted">Actualizada ${escapeHtml(updatedLbl)}</span>
+    </div>`;
+  };
   const ratesRows = rateEntries.length
     ? rateEntries
-        .map(({ storageKey, value: val, companyIds }) => {
+        .map((entry) => {
+          const { storageKey, value: val, companyIds } = entry;
           const safeKey = encodeURIComponent(storageKey);
           const clientCell = formatRateClientsCell(companyIds);
           return `<tr>
@@ -12555,6 +12608,7 @@ function transportTripsHtml() {
           <td>${clientCell.scope}</td>
           <td>${clientCell.clients}</td>
           <td><div class="route-rate-money-cell"><span class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</span><span class="route-rate-value-unit">COP · por viaje</span></div></td>
+          <td>${formatRateAuditCell(entry)}</td>
           <td>${isAdmin ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar el valor o el alcance de esta tarifa">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Quitar esta tarifa del catálogo (solo administradores)">${IC.trash} Quitar</button></div>` : '<span class="muted">—</span>'}</td>
         </tr>`;
         })
@@ -12574,6 +12628,7 @@ function transportTripsHtml() {
               <th scope="col">Alcance</th>
               <th scope="col">Clientes</th>
               <th scope="col">Tarifa</th>
+              <th scope="col">Trazabilidad</th>
               <th scope="col">Acciones</th>
             </tr>
           </thead>
@@ -14371,6 +14426,7 @@ function historyHtml() {
   const drivers = read(KEYS.drivers, []);
   const vehicles = read(KEYS.vehicles, []);
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
+  const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "—");
   const clientOptions = users
     .filter((u) => u.role === ROLES.CLIENT)
     .map((u) => `<option value="${u.id}">${escapeHtml(String(u.company || u.name || ""))}</option>`)
@@ -14442,6 +14498,7 @@ function historyHtml() {
       <div class="history-insight-item">
         <span class="history-insight-label">${IC.dollar} Viático interdepartamental</span>
         <p class="history-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} <span class="muted">/ viaje</span></p>
+        <p class="muted" style="margin:0.25rem 0 0">Actualizado: ${escapeHtml(rulesUpdatedLabel)}</p>
       </div>
     </aside>
     ${filterBody}
@@ -18046,6 +18103,7 @@ function payrollHtml() {
   const employees = read(KEYS.payrollEmployees, []);
   const companies = read(KEYS.companies, []);
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
+  const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "—");
   const positions = getActivePositions();
   const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
   const companyOptions = companies
@@ -18542,7 +18600,7 @@ function payrollHtml() {
     </div>`;
   const payrollDataInsight = `<div class="payroll-insight-strip" aria-label="Resumen de consulta">
       <div class="payroll-insight-item"><span class="payroll-insight-label">Liquidaciones visibles</span><p class="payroll-insight-value"><strong>${runs.length}</strong> de ${allRuns.length}</p></div>
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Viático interdepartamental</span><p class="payroll-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} / viaje</p></div>
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Viático interdepartamental</span><p class="payroll-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} / viaje</p><p class="muted" style="margin:0.25rem 0 0">Actualizado: ${escapeHtml(rulesUpdatedLabel)}</p></div>
       <div class="payroll-insight-item"><span class="payroll-insight-label">Acciones</span><p class="payroll-insight-value"><button type="button" class="btn btn-sm btn-action" id="export-payroll">${IC.download} Exportar CSV</button></p></div>
     </div>`;
   const payrollDataNav = renderPayrollDataSectionNav(payrollDataSection, {
@@ -18923,14 +18981,14 @@ function hiringHtml() {
 
   const positionAdminEdits = isAdminActor();
   const positionRows = positions
-    .map((p) => `<tr>
-      <td><strong>${escapeHtml(String(p.name || ""))}</strong></td>
+    .map((p) => `<tr class="hiring-table-row hiring-table-row--position">
+      <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(p.name || ""))}</strong><span>Catálogo base de contratación</span></div></td>
       <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
       <td>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</td>
       <td>${escapeHtml(String(p.contractTypeDefault || "-"))}</td>
       <td>${escapeHtml(String(p.legalBasis || "CST"))}</td>
       <td>${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}</td>
-      <td><div class="toolbar">
+      <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-position" data-id="${escapeAttr(String(p.id))}">${IC.eye} Ver</button>
         ${positionAdminEdits ? `<button class="btn btn-sm btn-action" data-action="edit-position" data-id="${escapeAttr(String(p.id))}">${IC.edit} Editar</button>` : ""}
         <button class="btn btn-sm btn-action" data-action="toggle-position" data-id="${escapeAttr(String(p.id))}">${IC.toggle} Estado</button>
@@ -18960,15 +19018,15 @@ function hiringHtml() {
         v.status === "Publicada"
           ? '<span class="status status-viaje_asignado">Publicada</span>'
           : '<span class="status status-rechazada">Cerrada</span>';
-      return `<tr>
-      <td><strong>${escapeHtml(String(v.title || ""))}</strong></td>
+      return `<tr class="hiring-table-row hiring-table-row--vacancy">
+      <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(v.title || ""))}</strong><span>Publicación de vacante</span></div></td>
       <td>${escapeHtml(String(v.positionName || "-"))}</td>
       <td>${escapeHtml(String(v.city || "-"))} · ${escapeHtml(String(v.modality || "-"))}</td>
       <td>${escapeHtml(String(v.openings ?? 1))}</td>
       <td>$${parseNum(v.salaryOffer).toLocaleString("es-CO")}</td>
       <td>${escapeHtml(String(v.deadline || "-"))}</td>
       <td>${statusHtml}</td>
-      <td><div class="toolbar vacancy-row-actions">${[
+      <td class="hiring-table-cell-actions"><div class="toolbar vacancy-row-actions hiring-table-actions">${[
         `<button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>`,
         vacancyAdminDeletes ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : "",
         `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>`,
@@ -18986,15 +19044,15 @@ function hiringHtml() {
       const cvDlRow = extractCandidateCvDownload(c);
       const canDlCv = Boolean(cvDlRow?.href) || candidateMayHaveCvInStorage(c);
       const canScheduleInterview = !["Contratado", "Descartado"].includes(String(c.status || ""));
-      return `<tr>
-      <td><strong>${escapeHtml(String(c.name || ""))}</strong></td>
+      return `<tr class="hiring-table-row hiring-table-row--candidate">
+      <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(c.name || ""))}</strong><span>Pipeline de selección</span></div></td>
       <td>${escapeHtml(String(c.email || ""))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></td>
       <td>${escapeHtml(String(c.vacancyTitle || "-"))}</td>
       <td><strong>${expCargo} años</strong> en el cargo<br><span class="muted">Edad: ${escapeHtml(ageStr)} · Nac.: ${escapeHtml(ageInfo.birthLabel)}</span><br><span class="muted">Disp.: ${escapeHtml(String(c.availabilityDate || "-"))}</span></td>
       <td><span class="muted">${escapeHtml(String(c.source || "Portal"))}</span></td>
       <td><span class="status status-en_transito">${escapeHtml(String(c.status || ""))}</span></td>
-      <td><select data-action="candidate-status" data-id="${escapeAttr(String(c.id))}" style="padding:0.4rem;border-radius:8px;border:1px solid var(--line);font-size:0.82rem">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
-      <td><div class="toolbar">
+      <td><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
+      <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
         ${
           canScheduleInterview
@@ -19009,11 +19067,11 @@ function hiringHtml() {
     })
     .join("");
   const interviewRows = interviews
-    .map((i) => `<tr>
-      <td><strong>${escapeHtml(String(i.candidateName || "-"))}</strong></td>
+    .map((i) => `<tr class="hiring-table-row hiring-table-row--interview">
+      <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(i.candidateName || "-"))}</strong><span>Entrevista agendada</span></div></td>
       <td>${escapeHtml(formatInterviewWhenDisplay(i.when))}</td>
       <td>${escapeHtml(String(i.interviewer || "-"))}</td>
-      <td><div class="toolbar">
+      <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye} Ver</button>
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-interview" data-id="${escapeAttr(String(i.id))}">${IC.edit} Editar</button>` : ""}
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-interview" data-id="${escapeAttr(String(i.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
@@ -19021,14 +19079,14 @@ function hiringHtml() {
     </tr>`)
     .join("");
   const contractRows = contracts
-    .map((c) => `<tr>
-      <td><strong>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</strong></td>
+    .map((c) => `<tr class="hiring-table-row hiring-table-row--contract">
+      <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</strong><span>${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</span></div></td>
       <td>${escapeHtml(String(c.position || c.positionName || ""))}</td>
       <td>$${parseNum(c.salary).toLocaleString("es-CO")}</td>
       <td>${escapeHtml(String(c.contractType || "-"))}${c.endDate ? `<br><span class="muted">Fin: ${escapeHtml(String(c.endDate))}</span>` : ""}</td>
       <td>${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</td>
       <td>${fmtDate(c.createdAt)}</td>
-      <td><div class="toolbar">
+      <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
         <button class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
         ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
@@ -19219,13 +19277,13 @@ function hiringHtml() {
     </div>
   </form>`;
 
-  const tPos = positionRows ? `<div class="table-wrap"><table><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
-  const tVac = vacRows ? `<div class="table-wrap"><table><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
-  const tCand = candRows ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tPos = positionRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
+  const tVac = vacRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--vacancies"><table class="hiring-table hiring-table--vacancies"><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
+  const tCand = candRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
+    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--interviews"><table class="hiring-table hiring-table--interviews"><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
     : emptyState("Sin entrevistas");
-  const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
+  const tCon = contractRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--contracts"><table class="hiring-table hiring-table--contracts"><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
   const hiredCandidates = candidates.filter((candidate) => String(candidate.status || "") === "Contratado");
@@ -19398,6 +19456,7 @@ function hiringHtml() {
           metrics: [
             hiringMetricChip(contractsThisMonth.length, "este mes", "ok"),
             hiringMetricChip(indefiniteContracts.length, "indefinidos"),
+            hiringMetricChip(fixedTermContracts.length, "plazo fijo/obra"),
             hiringMetricChip(contractsEndingSoon.length, "por vencer", "warn")
           ],
           bodyHtml: tCon
@@ -19613,7 +19672,13 @@ function notificationsHtml() {
   const scopeHint = canViewAllNotifications(user)
     ? `<p class="muted notif-scope-hint">Vista de administrador: todas las notificaciones del sistema.</p>`
     : `<p class="muted notif-scope-hint">Solo se muestran las notificaciones dirigidas a tu cuenta.</p>`;
-  const storageHint = `<p class="muted notif-storage-hint">La bandeja se guarda en el servidor y se sincroniza al iniciar sesión; no depende de un archivo local en el navegador.</p>`;
+  const prefState = getNotificationPreferencesNormalized();
+  const prefRecordId = String(prefState.id || "").trim();
+  const prefUpdatedLabel = fmtDateOr(prefState.updatedAt || prefState.createdAt, "Pendiente");
+  const storageHint = `<p class="muted notif-storage-hint">La bandeja se guarda en el servidor y se sincroniza al iniciar sesión; no depende de un archivo local en el navegador.</p>
+    <p class="muted notif-storage-hint">Registro de preferencias: ${
+      prefRecordId ? `<code>${escapeHtml(prefRecordId)}</code>` : "aún no creado"
+    } · última actualización: ${escapeHtml(prefUpdatedLabel)}</p>`;
   const alertsOn = isInAppNotificationAlertsEnabled();
   const soundOn = isSonidoNotificacionesHabilitado();
   const prefBanner =
@@ -23813,7 +23878,8 @@ function bindDynamicEvents() {
       const normalized = getTripRouteRatesNormalized();
       const storageKey = tripRateStorageKey(routeKey, companyIds);
       const editingKey = String(data.editingRateKey || "").trim();
-      const next = { ...normalized, [storageKey]: { value: tripRateCop, companyIds } };
+      const previousEntry = editingKey ? normalized[editingKey] : normalized[storageKey];
+      const next = { ...normalized, [storageKey]: buildRouteRateEntry(tripRateCop, companyIds, previousEntry) };
       if (editingKey && editingKey !== storageKey) delete next[editingKey];
       try {
         await writeAwaitServer(KEYS.tripRouteRates, next);
