@@ -19221,7 +19221,7 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 
 .admin-users-data-card .p-card-body {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .admin-users-focus-card {
@@ -19240,6 +19240,18 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 .admin-users-focus-card .toolbar.hr-create-toolbar .btn {
   min-width: 13rem;
   justify-content: center;
+}
+
+.admin-users-form-lead {
+  margin: 0 0 0.1rem;
+  max-width: 44rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+
+.admin-users-list-shell {
+  display: grid;
+  gap: 0.35rem;
 }
 
 .admin-users-section-summary {
@@ -19277,6 +19289,13 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   border-radius: 16px;
   border: 1px solid rgba(var(--primary-rgb), 0.1);
   background: linear-gradient(180deg, rgba(var(--brand-blue-soft-rgb), 0.22), rgba(255, 255, 255, 0.95));
+}
+
+.admin-users-session-topbar--compact {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .admin-users-session-topbar__metrics,
@@ -19331,6 +19350,7 @@ body[data-theme="dark"] .admin-users-command-card p,
 body[data-theme="dark"] .admin-users-inline-list li span,
 body[data-theme="dark"] .admin-users-command-card__meta span,
 body[data-theme="dark"] .admin-users-section-copy,
+body[data-theme="dark"] .admin-users-form-lead,
 body[data-theme="dark"] .admin-users-inline-empty,
 body[data-theme="dark"] .admin-users-inline-note {
   color: #a9c8ea;
@@ -19341,6 +19361,11 @@ body[data-theme="dark"] .admin-users-section-summary,
 body[data-theme="dark"] .admin-users-session-topbar {
   background: linear-gradient(180deg, rgba(18, 32, 52, 0.9), rgba(12, 24, 40, 0.9));
   border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .admin-users-session-topbar--compact {
+  background: transparent;
+  border-color: transparent;
 }
 
 body[data-theme="dark"] .admin-users-focus-card {
@@ -20307,8 +20332,8 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .user-grid.directory-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 0.95rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 0.82rem;
 }
 
 .directory-card {
@@ -20563,6 +20588,11 @@ body[data-theme="dark"] .notif-card-unread {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.38rem;
+}
+
+.directory-card--user .directory-card__metrics,
+.directory-card--company .directory-card__metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .directory-chip {

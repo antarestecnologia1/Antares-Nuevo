@@ -13741,7 +13741,6 @@ function adminUsersHtml(current) {
   });
   const companyCardsHtml = companiesSorted.map((c) => renderCompanyCard(c)).join("");
   const approvedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO);
-  const rejectedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.RECHAZADO);
   const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
   const inactiveCompaniesCount = Math.max(0, companies.length - activeCompaniesCount);
   const sessions = Array.isArray(state.adminUserSessions) ? state.adminUserSessions : [];
