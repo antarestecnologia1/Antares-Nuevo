@@ -2906,13 +2906,16 @@ const CLIENT_DATA_SCOPE = {
   INDIVIDUAL: "individual"
 };
 const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
-const HR_VALID_HIRING_WS = new Set(["operate", "track"]);
+const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
 
 function normalizeHrWorkspace(moduleId, workspace) {
   const ws = String(workspace || "");
   if (ws === "overview") return "operate";
   if (moduleId === "payroll") return HR_VALID_PAYROLL_WS.has(ws) ? ws : "operate";
-  if (moduleId === "hiring") return HR_VALID_HIRING_WS.has(ws) ? ws : "operate";
+  if (moduleId === "hiring") {
+    if (ws === "track") return "data";
+    return HR_VALID_HIRING_WS.has(ws) ? ws : "operate";
+  }
   return ws;
 }
 
@@ -7740,13 +7743,21 @@ async function ensureUsersPasswordHashing() {
   if (changed) write(KEYS.users, secured);
 }
 
+function currentTurnstileTheme() {
+  return String(document.body?.dataset?.theme || "light") === "dark" ? "dark" : "light";
+}
+
 /** Marca opcional para el widget Turnstile. Si la site key no está configurada (dev sin captcha), devuelve cadena vacía y el formulario igual envía. */
 function turnstileWidgetMarkup() {
   const siteKey = String(window.ANTARES_TURNSTILE_SITE_KEY || "").trim();
   if (!siteKey) return "";
+  const theme = currentTurnstileTheme();
   return `
     <div class="full turnstile-row">
-      <div class="cf-turnstile" data-sitekey="${siteKey}" data-size="flexible" data-theme="auto" data-antares-pending="1"></div>
+      <div class="turnstile-shell">
+        <span class="turnstile-shell-label">Verificación de seguridad</span>
+        <div class="cf-turnstile" data-sitekey="${siteKey}" data-size="flexible" data-theme="${theme}" data-antares-pending="1"></div>
+      </div>
     </div>
   `;
 }
@@ -7759,6 +7770,7 @@ function turnstileWidgetMarkup() {
 function ensureTurnstileWidgets() {
   const siteKey = String(window.ANTARES_TURNSTILE_SITE_KEY || "").trim();
   if (!siteKey) return;
+  const theme = currentTurnstileTheme();
   const nodes = document.querySelectorAll('.cf-turnstile[data-antares-pending="1"]');
   if (!nodes.length) return;
   const tryRender = () => {
@@ -7769,6 +7781,7 @@ function ensureTurnstileWidgets() {
         node.dataset.antaresPending = "0";
         window.turnstile.render(node, {
           sitekey: siteKey,
+          theme,
           callback: (token) => {
             try {
               node.dataset.antaresToken = String(token || "");
@@ -14007,6 +14020,9 @@ const REPORT_EXPORT_BRAND = Object.freeze({
   line: "#b8d4eb"
 });
 
+const REPORT_BRAND_LOGO_PATH = "./imagenes%20empresa/Logo.png";
+let reportBrandLogoDataUrlPromise = null;
+
 function downloadBlobFile(filename, content, mimeType) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -14046,8 +14062,193 @@ function reportExportFilename(report, ext) {
   return `${slug || base || "reporte"}_${reportExportStamp()}.${ext}`;
 }
 
+function reportPdfCellText(value) {
+  if (value == null) return "-";
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  return normalized || "-";
+}
+
+function reportBrandCopyrightText() {
+  return `© ${new Date().getFullYear()} Transportes Antares. Todos los derechos reservados.`;
+}
+
+function reportBrandLogoSrc() {
+  const liveLogo = document.querySelector(".hero-brand-logo, .auth-modal-brand-logo, .brand-logo, .sidebar-brand-logo");
+  const src = String(liveLogo?.currentSrc || liveLogo?.src || "").trim();
+  if (src) return src;
+  try {
+    return new URL(REPORT_BRAND_LOGO_PATH, window.location.href).href;
+  } catch (_e) {
+    return REPORT_BRAND_LOGO_PATH;
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("blob-to-data-url-failed"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function imageElementToDataUrl(img) {
+  try {
+    if (!(img instanceof HTMLImageElement)) return "";
+    const width = Number(img.naturalWidth || img.width || 0);
+    const height = Number(img.naturalHeight || img.height || 0);
+    if (!width || !height) return "";
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL("image/png");
+  } catch (_e) {
+    return "";
+  }
+}
+
+async function getReportBrandLogoDataUrl() {
+  if (!reportBrandLogoDataUrlPromise) {
+    reportBrandLogoDataUrlPromise = (async () => {
+      const liveLogo = document.querySelector(".hero-brand-logo, .auth-modal-brand-logo, .brand-logo, .sidebar-brand-logo");
+      if (liveLogo instanceof HTMLImageElement && liveLogo.complete && Number(liveLogo.naturalWidth || 0) > 0) {
+        const dataUrl = imageElementToDataUrl(liveLogo);
+        if (dataUrl) return dataUrl;
+      }
+      const src = reportBrandLogoSrc();
+      if (/^data:/i.test(src)) return src;
+      try {
+        const res = await fetch(src, { credentials: "same-origin", cache: "force-cache" });
+        if (!res.ok) throw new Error(`logo-${res.status}`);
+        return await blobToDataUrl(await res.blob());
+      } catch (_e) {
+        return "";
+      }
+    })();
+  }
+  return reportBrandLogoDataUrlPromise;
+}
+
+async function exportCatalogReportPdf(report, meta = {}) {
+  const jsPdfCtor = window.jspdf?.jsPDF;
+  if (!jsPdfCtor) throw new Error("PDF export unavailable");
+  const title = report?.title || "Reporte";
+  const columns = Array.isArray(report?.columns) && report.columns.length ? report.columns : [{ key: "message", label: "Detalle" }];
+  const rows = Array.isArray(report?.rows) ? report.rows : [];
+  const generatedAt = reportPdfCellText(meta.generatedAt || fmtDate(nowIso()));
+  const generatedBy = meta.generatedBy ? reportPdfCellText(meta.generatedBy) : "";
+  const rowCount = rows.length;
+  const orientation = columns.length > 6 ? "landscape" : "portrait";
+  const doc = new jsPdfCtor({ orientation, unit: "pt", format: "a4", compress: true });
+  if (typeof doc.autoTable !== "function") throw new Error("PDF table export unavailable");
+  const logoDataUrl = await getReportBrandLogoDataUrl();
+  const logoFormatRaw = /^data:image\/([a-z0-9+.-]+);/i.exec(String(logoDataUrl || ""))?.[1] || "png";
+  const logoFormat = logoFormatRaw.toLowerCase() === "jpg" ? "JPEG" : logoFormatRaw.toUpperCase();
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 40;
+  const headerY = 28;
+  const headerHeight = 72;
+  const tableStartY = 138;
+  const titleText = reportPdfCellText(title);
+  const copyrightText = reportBrandCopyrightText();
+
+  doc.setProperties({
+    title: titleText,
+    subject: "Reporte operativo",
+    author: "Transportes Antares",
+    creator: "Antares"
+  });
+
+  const metaParts = [`Generado: ${generatedAt}`];
+  if (generatedBy) metaParts.push(`Usuario: ${generatedBy}`);
+  metaParts.push(`Registros: ${rowCount}`);
+
+  const drawPageHeader = (pageNumber) => {
+    doc.setFillColor(30, 74, 115);
+    doc.roundedRect(marginX, headerY, pageWidth - marginX * 2, headerHeight, 12, 12, "F");
+    const logoBoxSize = headerHeight - 20;
+    const logoX = marginX + 12;
+    const logoY = headerY + 10;
+    const titleStartX = logoDataUrl ? logoX + logoBoxSize + 14 : marginX + 14;
+    const titleMaxWidth = pageWidth - marginX - titleStartX - 14;
+    if (logoDataUrl) {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(logoX, logoY, logoBoxSize, logoBoxSize, 10, 10, "F");
+      try {
+        doc.addImage(logoDataUrl, logoFormat, logoX + 6, logoY + 6, logoBoxSize - 12, logoBoxSize - 12, undefined, "FAST");
+      } catch (_e) {
+        // Si el logo no se puede incrustar, mantenemos el reporte legible.
+      }
+    }
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.text(titleText, titleStartX, headerY + 29, { maxWidth: titleMaxWidth });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Transportes Antares · Centro de reportería", titleStartX, headerY + 50, { maxWidth: titleMaxWidth });
+
+    doc.setTextColor(11, 33, 56);
+    doc.setFontSize(9.5);
+    doc.text(metaParts.join("   |   "), marginX, headerY + headerHeight + 16, {
+      maxWidth: pageWidth - marginX * 2
+    });
+
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(copyrightText, pageWidth / 2, pageHeight - 18, { align: "center" });
+    doc.text(`Página ${pageNumber}`, pageWidth - marginX, pageHeight - 18, { align: "right" });
+  };
+
+  const tableBody = rows.length
+    ? rows.map((row) => columns.map((col) => reportPdfCellText(row?.[col.key])))
+    : [[{
+        content: "Sin datos para el periodo o filtros seleccionados.",
+        colSpan: columns.length,
+        styles: { halign: "center", fontStyle: "italic", textColor: [100, 116, 139] }
+      }]];
+
+  doc.autoTable({
+    head: [columns.map((col) => reportPdfCellText(col.label))],
+    body: tableBody,
+    startY: tableStartY,
+    margin: { top: tableStartY, right: marginX, bottom: 34, left: marginX },
+    theme: "grid",
+    styles: {
+      font: "helvetica",
+      fontSize: 8.4,
+      textColor: [11, 33, 56],
+      lineColor: [184, 212, 235],
+      cellPadding: { top: 6, right: 7, bottom: 6, left: 7 },
+      overflow: "linebreak",
+      valign: "top"
+    },
+    headStyles: {
+      fillColor: [30, 74, 115],
+      textColor: [255, 255, 255],
+      lineColor: [30, 74, 115],
+      fontStyle: "bold"
+    },
+    alternateRowStyles: {
+      fillColor: [245, 250, 255]
+    },
+    didDrawPage: ({ pageNumber }) => {
+      drawPageHeader(pageNumber);
+    }
+  });
+
+  doc.save(reportExportFilename(report, "pdf"));
+}
+
 function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
   const b = REPORT_EXPORT_BRAND;
+  const logoSrc = reportsBiExcelEsc(meta.logoSrc || reportBrandLogoSrc());
+  const copyrightText = reportsBiExcelEsc(meta.copyrightText || reportBrandCopyrightText());
   const safeTitle = reportsBiExcelEsc(title || "Reporte");
   const cols = Array.isArray(columns) ? columns : [];
   const dataRows = Array.isArray(rows) ? rows : [];
@@ -14074,6 +14275,10 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
   body { margin: 0; font-family: Montserrat, Arial, sans-serif; color: ${b.text}; background: #f5fbff; }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 32px; }
   .banner { background: linear-gradient(135deg, ${b.primaryDeeper}, ${b.primary}); color: #fff; padding: 18px 20px; border-radius: 12px 12px 0 0; }
+  .banner-brand { display: flex; align-items: center; gap: 16px; }
+  .banner-logo-wrap { width: 86px; min-width: 86px; height: 86px; border-radius: 18px; background: rgba(255,255,255,0.98); padding: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 24px rgba(11, 33, 56, 0.18); }
+  .banner-logo { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .banner-copy { min-width: 0; flex: 1 1 auto; }
   .banner h1 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 700; }
   .banner p { margin: 0; font-size: 0.82rem; opacity: 0.92; }
   .meta { display: flex; flex-wrap: wrap; gap: 12px 20px; padding: 12px 20px; background: ${b.soft}; border: 1px solid ${b.line}; border-top: none; font-size: 0.78rem; color: ${b.muted}; }
@@ -14092,13 +14297,22 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
     .print-hint { display: none; }
     .table-shell { box-shadow: none; border-radius: 0; }
   }
+  @media (max-width: 720px) {
+    .banner-brand { align-items: flex-start; }
+    .banner-logo-wrap { width: 68px; min-width: 68px; height: 68px; border-radius: 14px; padding: 8px; }
+  }
 </style>
 </head>
 <body>
   <div class="wrap">
     <header class="banner">
-      <h1>${safeTitle}</h1>
-      <p>Transportes Antares · Centro de reportería</p>
+      <div class="banner-brand">
+        <div class="banner-logo-wrap"><img class="banner-logo" src="${logoSrc}" alt="Logo de Transportes Antares" /></div>
+        <div class="banner-copy">
+          <h1>${safeTitle}</h1>
+          <p>Transportes Antares · Centro de reportería</p>
+        </div>
+      </div>
     </header>
     <div class="meta">
       <span><strong>Generado:</strong> ${generatedAt}</span>
@@ -14112,53 +14326,68 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
       </table>
     </div>
     <p class="print-hint">Para guardar como PDF: abra este archivo en el navegador y use <strong>Imprimir → Guardar como PDF</strong> (Ctrl+P).</p>
-    <p class="foot">Documento generado por Antares. Uso interno y operativo.</p>
+    <p class="foot">${copyrightText}<br/>Documento generado por Antares. Uso interno y operativo.</p>
   </div>
 </body>
 </html>`;
 }
 
-function buildCatalogReportExcelHtml(title, columns = [], rows = []) {
+function buildCatalogReportExcelHtml(title, columns = [], rows = [], meta = {}) {
   const safeTitle = reportsBiExcelEsc(title || "Reporte");
   const tableHtml = reportsBiExcelTable(
     (columns || []).map((c) => c.label),
     (rows || []).map((row) => (columns || []).map((col) => row[col.key] ?? "-"))
   );
   const b = REPORT_EXPORT_BRAND;
+  const logoSrc = reportsBiExcelEsc(meta.logoSrc || reportBrandLogoSrc());
+  const generatedAt = reportsBiExcelEsc(meta.generatedAt || fmtDate(nowIso()));
+  const generatedBy = meta.generatedBy ? reportsBiExcelEsc(meta.generatedBy) : "";
+  const copyrightText = reportsBiExcelEsc(meta.copyrightText || reportBrandCopyrightText());
   return `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" lang="es">
 <head><meta charset="utf-8"/>
 <style>
 body{font-family:Montserrat,Arial,sans-serif;color:${b.text}}
+.xls-logo-cell{background:#ffffff;padding:12px 14px 6px;border-bottom:0}
+.xls-logo{width:150px;max-width:150px;height:auto;display:block}
 .xls-banner{background:${b.primaryDeeper};color:#fff;font-size:16pt;font-weight:700;padding:12px 14px}
 .xls-meta{color:${b.muted};font-size:9pt;padding:8px 14px}
+.xls-foot{color:${b.muted};font-size:9pt;padding:10px 14px}
 </style>
 </head>
 <body>
 <table width="100%" cellspacing="0" cellpadding="0">
+<tr><td class="xls-logo-cell" colspan="${Math.max(4, (columns || []).length)}"><img class="xls-logo" src="${logoSrc}" alt="Logo de Transportes Antares" /></td></tr>
 <tr><td class="xls-banner" colspan="${Math.max(4, (columns || []).length)}">${safeTitle}</td></tr>
-<tr><td class="xls-meta" colspan="${Math.max(4, (columns || []).length)}">Transportes Antares · ${reportsBiExcelEsc(fmtDate(nowIso()))}</td></tr>
+<tr><td class="xls-meta" colspan="${Math.max(4, (columns || []).length)}">Transportes Antares · ${generatedAt}${generatedBy ? ` · ${generatedBy}` : ""}</td></tr>
 <tr><td colspan="${Math.max(4, (columns || []).length)}">${tableHtml}</td></tr>
+<tr><td class="xls-foot" colspan="${Math.max(4, (columns || []).length)}">${copyrightText}</td></tr>
 </table>
 </body></html>`;
 }
 
-function exportCatalogReport(report, format = "pdf") {
+async function exportCatalogReport(report, format = "pdf") {
   const title = report?.title || "Reporte";
   const columns = report?.columns || [];
   const rows = report?.rows || [];
   const actor = currentUser();
   const meta = {
     generatedAt: fmtDate(nowIso()),
-    generatedBy: actor?.name || actor?.email || ""
+    generatedBy: actor?.name || actor?.email || "",
+    logoSrc: reportBrandLogoSrc(),
+    copyrightText: reportBrandCopyrightText()
   };
   if (format === "excel") {
-    const html = buildCatalogReportExcelHtml(title, columns, rows);
+    const html = buildCatalogReportExcelHtml(title, columns, rows, meta);
     downloadBlobFile(reportExportFilename(report, "xls"), "\ufeff" + html, "application/vnd.ms-excel;charset=utf-8;");
     return;
   }
-  const html = buildReportExportHtml(title, columns, rows, meta);
-  downloadBlobFile(reportExportFilename(report, "html"), html, "text/html;charset=utf-8;");
+  if (format === "html") {
+    const html = buildReportExportHtml(title, columns, rows, meta);
+    downloadBlobFile(reportExportFilename(report, "html"), html, "text/html;charset=utf-8;");
+    return;
+  }
+  await exportCatalogReportPdf(report, meta);
 }
 
 function renderReportPreviewTableHtml(columns = [], rows = []) {
@@ -14170,7 +14399,7 @@ function renderReportPreviewTableHtml(columns = [], rows = []) {
         .map((row) => `<tr>${cols.map((col) => `<td>${escapeHtml(row[col.key] ?? "—")}</td>`).join("")}</tr>`)
         .join("")
     : `<tr><td colspan="${Math.max(1, cols.length)}" class="muted">Sin datos para el periodo o filtros seleccionados.</td></tr>`;
-  return `<table class="table report-preview-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
+  return `<div class="report-preview-table-wrap"><table class="table report-preview-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>`;
 }
 
 function ensureReportPreviewModal() {
@@ -14184,16 +14413,22 @@ function ensureReportPreviewModal() {
   modal.setAttribute("aria-labelledby", "report-preview-title");
   modal.innerHTML = `<div class="modal-card modal-card-report-preview">
     <div class="modal-head report-preview-head">
-      <div>
-        <p class="report-preview-kicker">Centro de reportería</p>
-        <h2 id="report-preview-title">Reporte</h2>
-        <p id="report-preview-meta" class="report-preview-meta muted"></p>
+      <div class="report-preview-brand">
+        <div class="report-preview-logo-wrap">
+          <img id="report-preview-logo" class="report-preview-logo" src="${escapeAttr(reportBrandLogoSrc())}" alt="Logo de Transportes Antares" />
+        </div>
+        <div>
+          <p class="report-preview-kicker">Centro de reportería</p>
+          <h2 id="report-preview-title">Reporte</h2>
+          <p id="report-preview-meta" class="report-preview-meta muted"></p>
+        </div>
       </div>
       <button type="button" class="btn btn-sm btn-action" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
     </div>
     <div id="report-preview-body" class="report-preview-body table-wrap"></div>
+    <p id="report-preview-copy" class="report-preview-copy muted"></p>
     <div class="report-preview-actions modal-edit-actions">
-      <button type="button" class="btn btn-sm btn-approve" data-action="report-preview-download-html">${IC.download} Descargar HTML</button>
+      <button type="button" class="btn btn-sm btn-approve" data-action="report-preview-download-pdf">${IC.download} Descargar PDF</button>
       <button type="button" class="btn btn-sm btn-action" data-action="report-preview-download-excel">${IC.file} Excel</button>
       <button type="button" class="btn btn-sm btn-action" data-action="report-preview-print">${IC.printer} Imprimir</button>
       <button type="button" class="btn btn-sm" data-action="report-preview-close">Cerrar</button>
@@ -14206,21 +14441,21 @@ function ensureReportPreviewModal() {
   modal.addEventListener("click", (event) => {
     if (event.target === modal) closeReportPreviewModal();
   });
-  modal.querySelector("[data-action='report-preview-download-html']")?.addEventListener("click", () => {
+  modal.querySelector("[data-action='report-preview-download-pdf']")?.addEventListener("click", async () => {
     const payload = state.reportPreviewPayload;
     if (!payload) return;
     try {
-      exportCatalogReport(payload, "pdf");
-      notify(userMessage("reportDownloaded"), "success");
+      await exportCatalogReport(payload, "pdf");
+      notify(userMessage("reportPdfOk"), "success");
     } catch (_e) {
       notify(userMessage("reportExportError"), "error");
     }
   });
-  modal.querySelector("[data-action='report-preview-download-excel']")?.addEventListener("click", () => {
+  modal.querySelector("[data-action='report-preview-download-excel']")?.addEventListener("click", async () => {
     const payload = state.reportPreviewPayload;
     if (!payload) return;
     try {
-      exportCatalogReport(payload, "excel");
+      await exportCatalogReport(payload, "excel");
       notify(userMessage("reportExcelExported"), "success");
     } catch (_e) {
       notify(userMessage("reportExportError"), "error");
@@ -14281,7 +14516,7 @@ function openReportPreviewModal(report) {
     title: report?.title || "Reporte",
     columns: report?.columns || [],
     rows: report?.rows || [],
-    fileName: report?.fileName || "reporte.html"
+    fileName: report?.fileName || "reporte.pdf"
   };
   state.reportPreviewPayload = payload;
   const modal = ensureReportPreviewModal();
@@ -14289,18 +14524,22 @@ function openReportPreviewModal(report) {
   const titleEl = modal.querySelector("#report-preview-title");
   const metaEl = modal.querySelector("#report-preview-meta");
   const bodyEl = modal.querySelector("#report-preview-body");
+  const logoEl = modal.querySelector("#report-preview-logo");
+  const copyEl = modal.querySelector("#report-preview-copy");
   if (titleEl) titleEl.textContent = payload.title;
   if (metaEl) {
     metaEl.textContent = `Generado ${fmtDate(nowIso())}${actor?.name ? ` · ${actor.name}` : ""} · ${payload.rows.length} registro${payload.rows.length === 1 ? "" : "s"}`;
   }
+  if (logoEl) logoEl.src = reportBrandLogoSrc();
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
+  if (copyEl) copyEl.textContent = reportBrandCopyrightText();
   modal.classList.remove("hidden");
   document.addEventListener("keydown", reportPreviewEscHandler);
 }
 
 /** @deprecated Usar openReportPreviewModal o exportCatalogReport */
 function openReportPdf(title, columns = [], rows = []) {
-  openReportPreviewModal({ title, columns, rows, fileName: "reporte.html" });
+  openReportPreviewModal({ title, columns, rows, fileName: "reporte.pdf" });
 }
 
 function deriveRequestOperationalValue(request) {
@@ -15723,6 +15962,8 @@ function reportsBiExcelChartBlock(title, subtitle, imageData, tableHtml) {
 function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
   const b = REPORTS_BI_BRAND;
   const L = normalizeReportsBiLayout(layout || loadReportsBiLayout());
+  const logoSrc = reportsBiExcelEsc(reportBrandLogoSrc());
+  const copyrightText = reportsBiExcelEsc(reportBrandCopyrightText());
   const k = snapshot.kpis;
   const fmtCop = snapshot.fmtCop;
   const slaOk = k.slaOk ?? snapshot.slaOk ?? 0;
@@ -15835,6 +16076,8 @@ function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
 <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Analitica</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
 <style>
 body{font-family:Montserrat,Arial,sans-serif;color:${b.text};font-size:11pt}
+.xls-logo-cell{background:#ffffff;padding:12px 16px 6px}
+.xls-logo{width:160px;max-width:160px;height:auto;display:block}
 .xls-banner{background:${b.primaryDeeper};color:${b.onPrimary};font-size:18pt;font-weight:700;padding:14px 16px}
 .xls-subbanner{background:${b.primaryDeep};color:${b.onPrimary};font-size:10pt;padding:8px 16px}
 .xls-meta{color:${b.muted};font-size:9pt;padding:10px 16px;border-bottom:2px solid ${b.line}}
@@ -15848,10 +16091,12 @@ body{font-family:Montserrat,Arial,sans-serif;color:${b.text};font-size:11pt}
 .xls-kpi-primary{background:${b.primaryDeeper};color:${b.onPrimary};font-weight:700}
 .xls-kpi-warn{background:rgba(217,119,6,0.12);color:${b.text}}
 .xls-stat strong{color:${b.primaryDeep};font-size:14pt}
+.xls-foot{color:${b.muted};font-size:9pt;padding:10px 16px}
 </style>
 </head>
 <body>
 <table width="100%" cellspacing="0" cellpadding="0">
+<tr><td colspan="4" class="xls-logo-cell"><img class="xls-logo" src="${logoSrc}" alt="Logo de Transportes Antares" /></td></tr>
 <tr><td colspan="4" class="xls-banner">Transportes Antares — Analítica operativa</td></tr>
 <tr><td colspan="4" class="xls-subbanner">${reportsBiExcelEsc(snapshot.periodLabel)} · Corte ${reportsBiExcelEsc(snapshot.generatedAt)}</td></tr>
 <tr><td colspan="4" class="xls-meta">En operación: ${k.activeOps ?? snapshot.activeOps ?? 0} · Asignadas: ${k.assignRate}% · Cerradas: ${k.closeRate}% · SLA: ${k.slaPct}% · Conversión: ${k.assignRate}%</td></tr>
@@ -15892,6 +16137,7 @@ ${
 ${chartBlocks ? `<tr><td colspan="4" class="xls-section-title">Visualizaciones (gráficas + datos)</td></tr>` : ""}
 ${chartBlocks}
 <tr><td colspan="4" class="xls-meta">Exportado desde Antares · Mismos criterios que el panel BI · ${reportsBiExcelEsc(snapshot.periodLabel)}</td></tr>
+<tr><td colspan="4" class="xls-foot">${copyrightText}</td></tr>
 </table>
 </body></html>`;
 }
@@ -16210,7 +16456,7 @@ function reportsExportPanelHtml(user) {
         <div class="p-card-body">
           <div class="toolbar reports-card-actions">
             <button class="btn btn-sm btn-approve" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="preview" title="Ver en pantalla, sin ventanas emergentes">${IC.eye} Vista previa</button>
-            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf" title="Descarga archivo HTML (abrir e imprimir a PDF)">${IC.download} Descargar</button>
+            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf" title="Descarga el reporte en PDF">${IC.download} PDF</button>
             <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel" title="Descarga Excel (.xls) con formato corporativo">${IC.file} Excel</button>
           </div>
         </div>
@@ -17953,7 +18199,9 @@ function hiringHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
     : emptyState("Sin entrevistas");
   const tCon = contractRows ? `<div class="table-wrap"><table><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
-  const alertsBody = renderHrAlertCards([
+  const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
+  const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
+  const hiringAlertItems = [
     {
       icon: IC.alertTriangle,
       label: "Vacantes por cerrar (≤ 7 días)",
@@ -17982,76 +18230,54 @@ function hiringHtml() {
       help: "Documentos de contratación cerrados en el mes en curso.",
       tone: "ok"
     }
-  ]);
-  const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
-  const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
+  ];
 
-  const hiringHead = `<div class="ops-module-head ops-module-head-hiring ops-module-head--rich">
+  const hiringModuleHead = `<header class="payroll-module-head ops-module-head ops-module-head-hiring ops-module-head--rich">
       <div class="ops-module-title">
         <span class="ops-module-kicker">Selección · Recursos humanos</span>
-        <h2>Selección y contratación</h2>
-        <p class="ops-module-subtitle">Define cargos, publica vacantes, evalúa candidatos y formaliza contratos. Recibirás alertas cuando haya plazos por vencer.</p>
+        <h2>Contratación</h2>
+        <p class="ops-module-subtitle">Defina cargos, publique vacantes, evalúe candidatos y formalice contratos. Use <strong>Nuevos registros</strong> para crear y <strong>Consultar datos</strong> para revisar el pipeline y el histórico.</p>
       </div>
       <div class="ops-module-chips">
         <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes abiertas</span>
         <span class="ops-chip"><strong>${activeCandidates.length}</strong> candidatos en proceso</span>
-        <span class="ops-chip"><strong>${contractsThisMonth.length}</strong> contratos del mes</span>
+        <span class="ops-chip${urgentItems ? " ops-chip--warn" : ""}"><strong>${urgentItems}</strong> alertas activas</span>
       </div>
-    </div>`;
-  const hiringActions = `<div class="ops-command-bar">
-      <div class="ops-command-cluster">
-        <p class="ops-command-cluster-label">Crear nuevo</p>
-        <div class="ops-command-group">
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-position">${IC.briefcase} Definir cargo</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-vacancy">${IC.plus} Publicar vacante</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-candidate">${IC.userPlus} Agregar candidato</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-interview">${IC.calendar} Programar entrevista</button>
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="create-contract">${IC.file} Generar contrato</button>
-        </div>
-      </div>
-      <div class="ops-command-cluster">
-        <p class="ops-command-cluster-label">Filtrar resultados</p>
-        <div class="ops-command-group">
-        <button class="btn btn-sm btn-outline ${candidateFilter === "active" ? "is-active" : ""}" type="button" data-action="hiring-candidates-active">${IC.activity} Solo candidatos activos</button>
-        <button class="btn btn-sm btn-outline ${candidateFilter === "all" ? "is-active" : ""}" type="button" data-action="hiring-candidates-all">${IC.layers} Ver todos los candidatos</button>
-        <button class="btn btn-sm btn-outline ${vacancyFilter === "open" ? "is-active" : ""}" type="button" data-action="hiring-vacancies-open">${IC.briefcase} Vacantes abiertas</button>
-        <button class="btn btn-sm btn-outline ${candidateSort === "pipeline" ? "is-active" : ""}" type="button" data-action="hiring-sort-candidates" data-sort="pipeline">${IC.filter} Ordenar por etapa</button>
-        </div>
-      </div>
-    </div>`;
-  const hiringExecutionBlock = `<section class="ops-block ops-block--hiring-flow">
-      <header class="ops-block-head">
-        <h3>Pasos para contratar</h3>
-        <p class="ops-block-lead muted">Sigue el orden recomendado: primero busca al talento adecuado y luego evalúalo y formaliza el contrato.</p>
+    </header>`;
+  const hiringOperateAlerts = renderHrAlertCards(hiringAlertItems);
+  const hiringExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
+      <header class="payroll-panel-intro ops-block-head">
+        <h3>Nuevos registros</h3>
+        <p class="ops-block-lead muted">Abra la tarjeta del trámite: cree cargos, publique vacantes, registre candidatos, agende entrevistas o genere contratos Word.</p>
       </header>
-      <div class="hr-flow-block hr-flow-block--step" data-flow-step="1">
-        <div class="hr-flow-step-head">
-          <span class="hr-flow-step-num" aria-hidden="true">1</span>
-          <div>
-            <h3>Busca al talento</h3>
-            <p class="hr-flow-step-lead muted">Define el cargo, abre la vacante y registra a los candidatos que se postulen.</p>
-          </div>
-        </div>
-        <div class="hiring-actions-grid hiring-actions-row--three hr-action-cards-grid">${createHrActionCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida.", fPosition, "Definir cargo")}${createHrActionCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas.", fVac, "Publicar vacante")}${createHrActionCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline.", fCand, "Agregar candidato")}</div>
-      </div>
-      <div class="hr-flow-block hr-flow-block--step" data-flow-step="2">
-        <div class="hr-flow-step-head">
-          <span class="hr-flow-step-num" aria-hidden="true">2</span>
-          <div>
-            <h3>Evalúa y formaliza</h3>
-            <p class="hr-flow-step-lead muted">Programa entrevistas y, cuando estés listo, genera el contrato en Word.</p>
-          </div>
-        </div>
-        <div class="hiring-actions-grid hiring-actions-row--two hr-action-cards-grid">${createHrActionCard("create-interview", "calendar", "Programar entrevista", "Candidato en proceso, fecha, hora y entrevistador responsable.", fInt, "Agendar entrevista")}${createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana.", fCon, "Generar contrato")}</div>
+      <div class="dash-grid payroll-actions-grid hiring-actions-grid hr-action-cards-grid">
+        ${createHrActionCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida.", fPosition, "Definir cargo")}
+        ${createHrActionCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas.", fVac, "Publicar vacante")}
+        ${createHrActionCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline.", fCand, "Agregar candidato")}
+        ${createHrActionCard("create-interview", "calendar", "Programar entrevista", "Candidato en proceso, fecha, hora y entrevistador responsable.", fInt, "Agendar entrevista")}
+        ${createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana.", fCon, "Generar contrato")}
       </div>
     </section>`;
-  const hiringDataBlock = `<section class="ops-block ops-block--hiring-data">
-      <header class="ops-block-head">
-        <h3>Tu panel de seguimiento</h3>
-        <p class="ops-block-lead muted">Aquí ves, de un vistazo, qué necesita atención hoy: alertas de plazos, candidatos en proceso, vacantes activas, entrevistas agendadas y contratos firmados. Cada bloque ocupa el ancho completo para que puedas leer las tablas sin tener que deslizarte de lado a lado.</p>
-      </header>
+  const hiringQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos de contratación">
+      <button type="button" class="payroll-quick-pill${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active">Candidatos activos</button>
+      <button type="button" class="payroll-quick-pill${candidateFilter === "all" ? " is-active" : ""}" data-action="hiring-candidates-all">Todos los candidatos</button>
+      <button type="button" class="payroll-quick-pill${vacancyFilter === "open" ? " is-active" : ""}" data-action="hiring-vacancies-open">Vacantes abiertas</button>
+      <button type="button" class="payroll-quick-pill${candidateSort === "pipeline" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="pipeline">Ordenar por etapa</button>
+      <button type="button" class="payroll-quick-pill${candidateSort === "experience" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="experience">Mayor experiencia</button>
+      <button type="button" class="payroll-quick-pill${candidateSort === "recent" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="recent">Más recientes</button>
+    </div>`;
+  const hiringDataInsight = `<div class="payroll-insight-strip" aria-label="Resumen de consulta">
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Candidatos visibles</span><p class="payroll-insight-value"><strong>${sortedCandidates.length}</strong> de ${candidates.length}</p></div>
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Vacantes visibles</span><p class="payroll-insight-value"><strong>${filteredVacancies.length}</strong> de ${vacancies.length}</p></div>
+      <div class="payroll-insight-item"><span class="payroll-insight-label">Conversión y cierre</span><p class="payroll-insight-value"><strong>${candidateConversion}%</strong> conversión · ${contractsThisMonth.length} contratos del mes</p></div>
+    </div>`;
+  const hiringDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
+      ${hiringDataInsight}
+      <div class="payroll-data-toolbar">
+        ${hiringQuickBar}
+        <p class="payroll-result-meta muted">Filtre el pipeline y revise vacantes, entrevistas, contratos y cargos desde un mismo lugar.</p>
+      </div>
       <div class="hiring-data-grid hiring-results-grid hiring-results-grid--stacked">
-        ${pcardWrapPro("activity", "Lo que necesita atención hoy", "Alertas y plazos clave", alertsBody)}
         ${pcardWrapPro("users", "Candidatos en proceso", sortedCandidates.length + " personas en seguimiento", tCand)}
         ${pcardWrapPro("briefcase", "Vacantes activas", filteredVacancies.length + " visibles para postular", tVac)}
         ${pcardWrapPro("calendar", "Próximas entrevistas", interviews.length + " agendadas", tInt)}
@@ -18074,25 +18300,28 @@ function hiringHtml() {
   );
   const hiringTabsNav = renderHrWorkspaceTabs({
     module: "hiring",
-    ariaLabel: "Secciones del módulo Selección y contratación",
+    ariaLabel: "Secciones del módulo Contratación",
     activeId: hiringWorkspace,
     tabs: [
-      { id: "operate", label: "Proceso", icon: "briefcase", hint: "Cargos, vacantes y contratos" },
-      { id: "track", label: "Seguimiento", icon: "activity", hint: "Alertas y tablas en vivo" }
+      { id: "operate", label: "Nuevos registros", icon: "userPlus", hint: "Cargos, vacantes y entrevistas" },
+      { id: "data", label: "Consultar datos", icon: "layers", hint: "Pipeline, contratos y seguimiento" }
     ]
   });
-  const hiringOperatePanel = `<div class="hr-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
-      ${hiringHead}
-      ${hiringActions}
+  const hiringOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
+      ${hiringOperateAlerts}
       ${hiringExecutionBlock}
     </div>`;
-  const hiringTrackPanel = `<div class="hr-workspace-panel${hiringWorkspace === "track" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="track">
+  const hiringDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="data">
+      <header class="payroll-panel-intro ops-block-head">
+        <h3>Consultar datos</h3>
+        <p class="ops-block-lead muted">Revise el pipeline, las vacantes, las entrevistas, los contratos y el catálogo de cargos sin salir del módulo.</p>
+      </header>
       ${hiringDataBlock}
     </div>`;
-  return `<section class="hiring-shell hiring-shell--workspace hr-flow-shell hr-module-pro hr-module-pro--hiring" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringFleetHero}${hiringTabsNav}
+  return `<section class="hiring-shell hiring-shell--workspace payroll-module--v2 hr-flow-shell hr-module-pro hr-module-pro--hiring" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringFleetHero}${hiringTabsNav}${hiringModuleHead}
       <div class="hr-workspace-panels">
         ${hiringOperatePanel}
-        ${hiringTrackPanel}
+        ${hiringDataPanel}
       </div>
     </section>`;
 }
@@ -22475,7 +22704,7 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='generate-report']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const reportId = String(btn.dataset.report || "");
       const format = String(btn.dataset.format || "preview");
       const actor = currentUser();
@@ -22490,8 +22719,8 @@ function bindDynamicEvents() {
           notify(userMessage("reportPreviewReady"), "success");
           return;
         }
-        exportCatalogReport(report, format === "excel" ? "excel" : "pdf");
-        notify(userMessage(format === "excel" ? "reportExcelExported" : "reportDownloaded"), "success");
+        await exportCatalogReport(report, format === "excel" ? "excel" : "pdf");
+        notify(userMessage(format === "excel" ? "reportExcelExported" : "reportPdfOk"), "success");
       } catch (_e) {
         notify(userMessage("reportExportError"), "error");
       }
@@ -24767,8 +24996,8 @@ function bindDynamicEvents() {
       }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = "open";
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-vacancy");
       notify(userMessage("vacancyPublishedOk"), "success");
       renderPortalView();
@@ -24802,8 +25031,8 @@ function bindDynamicEvents() {
         return;
       }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-position");
       notify(userMessage("positionCreatedOk"), "success");
       renderPortalView();
@@ -24901,8 +25130,8 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
   });
@@ -24911,8 +25140,8 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "all";
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
   });
@@ -24921,8 +25150,8 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
   });
@@ -24931,8 +25160,8 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
   });
@@ -25020,8 +25249,8 @@ function bindDynamicEvents() {
       } catch (_e) {}
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-candidate");
       notify(userMessage("candidateRegisteredOk"), "success");
       renderPortalView();
@@ -25120,8 +25349,8 @@ function bindDynamicEvents() {
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.workspace = "track";
-      persistHrWorkspace("hiring", "track");
+      state.hiringUi.workspace = "data";
+      persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-interview");
       notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
@@ -25261,8 +25490,8 @@ function bindDynamicEvents() {
         try {
           await writeAwaitServer(KEYS.contracts, deduped);
           state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-          state.hiringUi.workspace = "track";
-          persistHrWorkspace("hiring", "track");
+          state.hiringUi.workspace = "data";
+          persistHrWorkspace("hiring", "data");
           collapseCreatePanel("create-contract");
         } catch (persistErr) {
           notify(String(persistErr?.message || "No fue posible guardar el contrato en el servidor."), "error");

@@ -105,7 +105,20 @@ window.PortalArchitecture = (() => {
       access: "rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "hiringHtml" }],
-      layoutPlan: [{ container: ".hiring-shell", order: [".fleet-hero-strip", ".ops-module-head", ".ops-command-bar", ".hr-flow-block", ".hiring-data-grid"] }]
+      layoutPlan: [
+        {
+          container: ".hiring-shell",
+          order: [
+            ".fleet-hero-strip",
+            ".hr-workspace-tabs",
+            ".payroll-module-head",
+            ".hr-alert-grid",
+            ".payroll-operate-panel",
+            ".payroll-data-panel",
+            ".hiring-data-grid"
+          ]
+        }
+      ]
     },
     "labor-compliance": {
       title: "Cumplimiento laboral y SST",

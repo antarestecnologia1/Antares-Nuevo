@@ -127,7 +127,7 @@
     routeRateInvalidCop: "Indique un valor mayor que cero en pesos colombianos (COP).",
     routeRateSaved: "Tarifa de trayecto guardada correctamente.",
     reportNoPermission: "No tiene permiso para generar este reporte.",
-    reportDownloaded: "Reporte descargado. Ábralo desde Descargas o use Vista previa sin ventanas emergentes.",
+    reportDownloaded: "Reporte descargado correctamente.",
     reportExcelExported: "Reporte Excel descargado correctamente.",
     reportExportError: "No se pudo exportar el reporte. Intente de nuevo.",
     reportPreviewReady: "Vista previa del reporte lista.",

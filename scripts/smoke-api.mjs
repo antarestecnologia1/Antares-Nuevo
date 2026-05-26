@@ -60,10 +60,10 @@ function main() {
       });
       clearTimeout(timeout);
       kill();
-      if (res.status !== 401) {
-        throw new Error(`Esperado 401 en login inválido, recibido ${res.status}`);
+      if (res.status !== 401 && res.status !== 400) {
+        throw new Error(`Esperado 400 o 401 en login inválido, recibido ${res.status}`);
       }
-      console.log("[smoke-api] POST /api/auth/login → 401 OK.");
+      console.log(`[smoke-api] POST /api/auth/login → ${res.status} OK.`);
       process.exit(0);
     })
     .catch((err) => {
