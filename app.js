@@ -13247,12 +13247,36 @@ function adminUsersHtml(current) {
 
   const renderUserCard = (u, mode = "active") => {
     const namedPerms = effectiveUserPermissions(u).map((p) => PERMISSION_META[p]?.title || p);
+    const visiblePerms = namedPerms.slice(0, 3);
+    const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
     const isMe = u.id === current.id;
     const isPending = mode === "pending";
     const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
     const locationLabel = u.city ? `${String(u.city)}${u.department ? `, ${String(u.department)}` : ""}` : "Sin ubicacion";
     const permissionCount = namedPerms.length;
     const registrationLabel = u.registrationKind ? registrationKindLabel(u.registrationKind) : "Sin vinculo";
+    const joinedLabel = fmtDateOr(u.systemJoinDate || u.registeredAt || u.createdAt, "—");
+    const docLabel = String(u.idDoc || u.taxId || "").trim() || "Sin documento";
+    const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin teléfono";
+    const accountStatusKey = normalizeUserAccountStatus(u);
+    const accountStatusLabel =
+      accountStatusKey === ACCOUNT_STATUS.PENDIENTE
+        ? "Pendiente"
+        : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
+          ? "Inactiva"
+          : "Activa";
+    const summaryTitle = isPending
+      ? "Activación pendiente"
+      : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
+        ? "Cuenta inactiva"
+        : "Cuenta operativa";
+    const summaryCopy = [
+      companyName !== "Sin empresa" ? companyName : "",
+      locationLabel !== "Sin ubicacion" ? locationLabel : "",
+      joinedLabel !== "—" ? `Alta ${joinedLabel}` : ""
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Complete la ficha para mejorar la trazabilidad del usuario.";
     const roleTag = u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn");
     const contactLine = [
       String(u.email || "Sin correo"),
@@ -13260,16 +13284,27 @@ function adminUsersHtml(current) {
     ]
       .filter(Boolean)
       .join(" · ");
+    const permPreview = namedPerms.length
+      ? [
+          ...visiblePerms.map((label) => `<span class="perm-tag">${escapeHtml(label)}</span>`),
+          hiddenCount > 0 ? `<span class="perm-tag perm-tag-more">+${hiddenCount} mas</span>` : ""
+        ].join("")
+      : "";
+    const rejectionReason = String(u.rejectionReason || "").trim();
     const note = isPending
       ? '<div class="directory-card__banner directory-card__banner--warn"><strong>Pendiente de aprobacion.</strong> Asigne empresa, rol y permisos para activar la cuenta.</div>'
+      : rejectionReason
+        ? `<div class="directory-card__banner"><strong>Motivo de inactivación.</strong> ${escapeHtml(rejectionReason)}</div>`
       : "";
+    const viewButton = `<button class="btn btn-sm btn-outline" data-action="view-user" data-id="${escapeAttr(String(u.id))}">${IC.eye} Ver</button>`;
     const actions = isPending
       ? `<footer class="directory-card__actions">
+          ${viewButton}
           ${isAdmin ? `<button class="btn btn-sm btn-primary" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>` : ""}
           ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>` : ""}
         </footer>`
       : `<footer class="directory-card__actions">
-          <button class="btn btn-sm btn-outline" data-action="view-user" data-id="${escapeAttr(String(u.id))}">${IC.eye} Ver</button>
+          ${viewButton}
           ${isAdmin ? `<button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${escapeAttr(String(u.id))}">${IC.edit} Editar</button>` : ""}
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
@@ -13299,12 +13334,23 @@ function adminUsersHtml(current) {
           ${statusBadge(u.accountStatus)}
         </div>
       </header>
+      <div class="directory-card__summary">
+        <strong>${escapeHtml(summaryTitle)}</strong>
+        <p>${escapeHtml(summaryCopy)}</p>
+      </div>
       <div class="directory-card__metrics">
         ${directoryChipHtml("Permisos", String(permissionCount), permissionCount ? "ok" : "warn")}
         ${directoryChipHtml("2FA", u.twoFactorEnabled ? "Activa" : "Pendiente", u.twoFactorEnabled ? "ok" : "warn")}
         ${directoryChipHtml("Perfil", registrationLabel)}
       </div>
+      <dl class="directory-card__facts">
+        ${directoryFactHtml("Documento", docLabel)}
+        ${directoryFactHtml("Telefono", phoneLabel)}
+        ${directoryFactHtml("Ingreso", joinedLabel)}
+        ${directoryFactHtml("Estado", accountStatusLabel)}
+      </dl>
       ${note}
+      ${permPreview ? `<div class="directory-card__tags">${permPreview}</div>` : ""}
       ${actions}
     </article>`;
   };
