@@ -31,6 +31,19 @@ const force = args.has("--force");
 const runCreate = !withMigrations || args.has("--create");
 const runMigrations = withMigrations;
 
+function sanitizeCliError(raw, maxLength = 180) {
+  const text = String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "sin detalle";
+  const clean = text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted-email]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[jwt]")
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[database-url]")
+    .replace(/https?:\/\/\S+/gi, "[url]");
+  return clean.length > maxLength ? `${clean.slice(0, maxLength - 1)}…` : clean;
+}
+
 function loadTableScripts() {
   const ordenPath = path.join(TABLAS_DIR, "orden_ejecucion.txt");
   if (!existsSync(ordenPath)) {
@@ -154,6 +167,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(`[apply-schema] ERROR ${sanitizeCliError(err instanceof Error ? err.message : err)}`);
   process.exit(1);
 });

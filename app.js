@@ -172,6 +172,55 @@ function normalizePayrollDataSection(value) {
   return PAYROLL_DATA_SECTIONS.has(v) ? v : "employees";
 }
 
+function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters || {}) {
+  const source = Array.isArray(allRuns) ? allRuns : [];
+  const period = String(filters.period || "all");
+  const employee = String(filters.employee || "");
+  const status = String(filters.status || "all");
+  const now = new Date();
+  const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const previousDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousYm = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, "0")}`;
+  return source.filter((run) => {
+    const matchPeriod =
+      period === "all" ||
+      (period === "current" && String(run.month || "") === currentYm) ||
+      (period === "previous" && String(run.month || "") === previousYm);
+    const matchEmployee = !employee || String(run.employeeId || "") === employee;
+    const matchStatus =
+      status === "all" ||
+      (status === "paid" && Boolean(run.paid)) ||
+      (status === "pending" && !run.paid);
+    return matchPeriod && matchEmployee && matchStatus;
+  });
+}
+
+function sortPayrollRunsByUiState(runs = [], sortKey = "recent") {
+  const source = Array.isArray(runs) ? [...runs] : [];
+  const runSort = String(sortKey || "recent");
+  return source.sort((a, b) => {
+    if (runSort === "pending_first") {
+      if (Boolean(a.paid) !== Boolean(b.paid)) return a.paid ? 1 : -1;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    }
+    if (runSort === "net_desc") return parseNum(b.net) - parseNum(a.net);
+    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+  });
+}
+
+function payrollRunAlreadyExists(runs = [], employeeId, month, payrollKind = "mensual") {
+  const emp = String(employeeId || "").trim();
+  const ym = String(month || "").trim();
+  const kind = String(payrollKind || "mensual").trim().toLowerCase();
+  if (!emp || !ym) return false;
+  return (Array.isArray(runs) ? runs : []).some(
+    (run) =>
+      String(run.employeeId || "").trim() === emp &&
+      String(run.month || "").trim() === ym &&
+      String(run.payrollKind || "mensual").trim().toLowerCase() === kind
+  );
+}
+
 function renderPayrollRunCard(run) {
   const paid = Boolean(run.paid);
   const stateTone = paid ? "paid" : "pending";
@@ -1638,7 +1687,50 @@ function validateColombianDocument(docType, rawValue) {
     const ok = /^[A-Za-z0-9]{5,20}$/.test(compact);
     return { ok, message: ok ? "" : "El pasaporte debe ser alfanumerico (5-20 caracteres).", normalized: compact.toUpperCase() };
   }
+  if (type === "PEP") {
+    const ok = /^[A-Za-z0-9-]{5,20}$/.test(compact);
+    return {
+      ok,
+      message: ok ? "" : "El PEP/PPT debe ser alfanumerico (5-20 caracteres).",
+      normalized: compact.toUpperCase()
+    };
+  }
+  if (type === "TI") {
+    const ok = /^\d{8,11}$/.test(compact);
+    return { ok, message: ok ? "" : "La tarjeta de identidad debe tener entre 8 y 11 digitos.", normalized: compact };
+  }
   return { ok: compact.length >= 5, message: "Tipo de documento no valido.", normalized: compact };
+}
+
+function documentFieldRule(docType) {
+  const type = String(docType || "").toUpperCase();
+  if (type === "CC") return { pattern: "[0-9]{6,10}", minlength: "6", maxlength: "10", inputmode: "numeric", placeholder: "Cédula sin puntos" };
+  if (type === "CE") return { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12", inputmode: "numeric", placeholder: "Cédula de extranjería" };
+  if (type === "TI") return { pattern: "[0-9]{8,11}", minlength: "8", maxlength: "11", inputmode: "numeric", placeholder: "Tarjeta de identidad" };
+  if (type === "PAS") return { pattern: "[A-Za-z0-9]{5,20}", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "Pasaporte alfanumérico" };
+  if (type === "PEP") return { pattern: "[A-Za-z0-9-]{5,20}", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "PEP/PPT alfanumérico" };
+  return { pattern: "", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "Documento" };
+}
+
+function applyDocumentFieldConstraints(root, config = {}) {
+  const scope = root && typeof root.querySelector === "function" ? root : document;
+  const typeField = scope.querySelector(config.typeSelector || "select[name='documentType']");
+  const docField = scope.querySelector(config.docSelector || "input[name='idDoc']");
+  if (!typeField || !docField) return;
+  const sync = () => {
+    const rule = documentFieldRule(typeField.value);
+    if (rule.pattern) docField.setAttribute("pattern", rule.pattern);
+    else docField.removeAttribute("pattern");
+    if (rule.minlength) docField.setAttribute("minlength", rule.minlength);
+    else docField.removeAttribute("minlength");
+    if (rule.maxlength) docField.setAttribute("maxlength", rule.maxlength);
+    else docField.removeAttribute("maxlength");
+    if (rule.inputmode) docField.setAttribute("inputmode", rule.inputmode);
+    else docField.removeAttribute("inputmode");
+    if (rule.placeholder) docField.setAttribute("placeholder", rule.placeholder);
+  };
+  typeField.addEventListener("change", sync);
+  sync();
 }
 
 /** Clave estable para validar que la cédula/documento personal no se repita (incluye registros previos). */
@@ -7079,13 +7171,40 @@ function ensureUsersAccountStatus() {
   if (changed) write(KEYS.users, updated);
 }
 
+async function sanitizeApprovalPayloadForQueue(type, payload) {
+  const base = payload && typeof payload === "object" ? { ...payload } : {};
+  if (type === "create_user") {
+    const next = { ...base };
+    const passwordRaw = String(next.password || "");
+    delete next.password;
+    if (!next.passwordHash && passwordRaw) {
+      next.passwordHash = await hashPassword(passwordRaw);
+    }
+    return next;
+  }
+  if (type === "mark_payroll_paid") {
+    return {
+      payrollRunId: String(base.payrollRunId || "").trim(),
+      employeeName: String(base.employeeName || "").trim(),
+      month: String(base.month || "").trim()
+    };
+  }
+  if (type === "approve_trip_request") {
+    return {
+      requestId: String(base.requestId || "").trim()
+    };
+  }
+  return base;
+}
+
 async function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
+  const safePayload = await sanitizeApprovalPayloadForQueue(type, payload);
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
     id: newUuidV4(),
     type,
     title,
-    payload,
+    payload: safePayload,
     status: "pendiente",
     requestedByUserId,
     requestedByName,
@@ -7099,6 +7218,32 @@ async function queueApproval({ type, title, payload, requestedByUserId, requeste
   } catch (_e) {}
   notifyAdminUsers("Nueva autorización pendiente", `${title} solicitada por ${requestedByName}.`);
 }
+
+async function sanitizeLegacyApprovalPayloads() {
+  const approvals = read(KEYS.approvals, []);
+  if (!Array.isArray(approvals) || !approvals.length) return;
+  let changed = false;
+  const next = [];
+  for (const approval of approvals) {
+    if (!approval || typeof approval !== "object") {
+      next.push(approval);
+      continue;
+    }
+    const payload = approval.payload && typeof approval.payload === "object" ? { ...approval.payload } : {};
+    if (approval.type === "create_user" && payload.password && !payload.passwordHash) {
+      payload.passwordHash = await hashPassword(payload.password);
+      delete payload.password;
+      changed = true;
+    } else if (approval.type === "create_user" && payload.password) {
+      delete payload.password;
+      changed = true;
+    }
+    next.push({ ...approval, payload });
+  }
+  if (changed) write(KEYS.approvals, next);
+}
+
+void sanitizeLegacyApprovalPayloads();
 
 /** Metadatos UI: cola de autorizaciones agrupada por ambito operativo (ver también queueApproval). */
 const APPROVAL_TYPE_META = {
@@ -7197,11 +7342,11 @@ function approvalDetailLine(approval) {
   const p = approval.payload || {};
   switch (approval.type) {
     case "create_user":
-      return [normalizeEmail(p.email || ""), p.role].filter(Boolean).join(" · ") || "—";
+      return [maskSensitiveTail(normalizeEmail(p.email || ""), 10), p.role].filter(Boolean).join(" · ") || "—";
     case "create_driver":
-      return [String(p.name || "").trim(), p.idDoc ? `Doc. ${p.idDoc}` : ""].filter(Boolean).join(" · ") || "—";
+      return [String(p.name || "").trim(), p.idDoc ? `Doc. ${maskSensitiveTail(p.idDoc, 3)}` : ""].filter(Boolean).join(" · ") || "—";
     case "create_employee":
-      return [String(p.name || "").trim(), p.idDoc ? `ID ${p.idDoc}` : "", String(p.position || "").trim()]
+      return [String(p.name || "").trim(), p.idDoc ? `ID ${maskSensitiveTail(p.idDoc, 3)}` : "", String(p.position || "").trim()]
         .filter(Boolean)
         .join(" · ") || "—";
     case "register_hr_absence":
@@ -10879,6 +11024,21 @@ function renderPortal() {
     const view = link.dataset.view;
     const allowedByPermission = isViewAllowedForUser(user, view);
     link.classList.toggle("hidden", isRoleHidden || !allowedByPermission);
+  });
+  document.querySelectorAll(".sidebar-section-label").forEach((label) => {
+    let sibling = label.nextElementSibling;
+    let hasVisibleLinks = false;
+    while (sibling && !sibling.classList.contains("sidebar-section-label")) {
+      if (
+        sibling.matches?.(".side-link[data-view]") &&
+        !sibling.classList.contains("hidden")
+      ) {
+        hasVisibleLinks = true;
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+    label.classList.toggle("hidden", !hasVisibleLinks);
   });
   renderKpis();
   /**
@@ -17051,7 +17211,7 @@ function contractDedupKey(row) {
     String(row.employeeId || "").trim().toLowerCase() ||
     String(row.idDocSnapshot || "").trim().toLowerCase() ||
     String(row.candidateId || "").trim().toLowerCase();
-  const tpl = String(row.contractTemplateKind || "").trim().toLowerCase();
+  const tpl = String(row.contractTemplateKind || row.templateKind || "").trim().toLowerCase();
   const start = String(row.startDate || "").trim();
   if (!empKey) return "";
   return `${empKey}::${tpl}::${start}`;
@@ -17368,28 +17528,8 @@ function payrollHtml() {
   const filterStatus = String(filters.status || "all");
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastYm = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, "0")}`;
-  const runs = allRuns.filter((r) => {
-    const matchPeriod =
-      filterPeriod === "all" ||
-      (filterPeriod === "current" && String(r.month || "") === currentYm) ||
-      (filterPeriod === "previous" && String(r.month || "") === lastYm);
-    const matchEmployee = !filterEmployee || String(r.employeeId || "") === filterEmployee;
-    const matchStatus =
-      filterStatus === "all" ||
-      (filterStatus === "paid" && r.paid) ||
-      (filterStatus === "pending" && !r.paid);
-    return matchPeriod && matchEmployee && matchStatus;
-  });
-  const sortedRuns = [...runs].sort((a, b) => {
-    if (runSort === "pending_first") {
-      if (Boolean(a.paid) !== Boolean(b.paid)) return a.paid ? 1 : -1;
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    }
-    if (runSort === "net_desc") return parseNum(b.net) - parseNum(a.net);
-    return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-  });
+  const runs = filterPayrollRunsByUiState(allRuns, filters);
+  const sortedRuns = sortPayrollRunsByUiState(runs, runSort);
   const pending = allRuns.filter((r) => !r.paid).length;
   const totalPayrollMonth = allRuns
     .filter((r) => String(r.month || "") === currentYm)
@@ -18347,10 +18487,10 @@ function hiringHtml() {
   const contractRows = contracts
     .map((c) => `<tr>
       <td><strong>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</strong></td>
-      <td>${escapeHtml(String(c.position || ""))}</td>
+      <td>${escapeHtml(String(c.position || c.positionName || ""))}</td>
       <td>$${parseNum(c.salary).toLocaleString("es-CO")}</td>
       <td>${escapeHtml(String(c.contractType || "-"))}${c.endDate ? `<br><span class="muted">Fin: ${escapeHtml(String(c.endDate))}</span>` : ""}</td>
-      <td>${escapeHtml(String(c.source || "Candidato"))}</td>
+      <td>${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</td>
       <td>${fmtDate(c.createdAt)}</td>
       <td><div class="toolbar">
         <button class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
@@ -18394,7 +18534,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.file, "Título visible")}<input name="title" required placeholder="Ej: Conductor C2 Bogotá Sabana" /></label>
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="modality" required><option value="Presencial">Presencial</option><option value="Hibrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
+        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="modality" required><option value="Presencial">Presencial</option><option value="Híbrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
         <label>${fieldLabel(IC.clock, "Jornada")}<select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label>
         <label>${fieldLabel(IC.users, "Cupos")}<input type="number" min="1" name="openings" value="1" required /></label>
         <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" required placeholder="Mín. SMMLV" /></label>
@@ -19476,7 +19616,6 @@ function enforceColombianFormStandards() {
   setAttr("#form-admin-user-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
   setAttr("#form-admin-user-edit input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
 
-  setAttr("#form-employee input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
   setAttr("#form-employee input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
   setAttr("#form-employee input[name='emergencyPhone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
   setAttr("#form-employee input[name='bankAccount']", { minlength: "8", maxlength: "24", placeholder: "Cuenta bancaria del trabajador" });
@@ -19485,6 +19624,10 @@ function enforceColombianFormStandards() {
   ensureSelectOptions("#form-employee select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
   ensureSelectOptions("#form-employee select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
   ensureSelectOptions("#form-employee select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
+  applyDocumentFieldConstraints(nodes.viewRoot || document, {
+    typeSelector: "#form-employee select[name='documentType']",
+    docSelector: "#form-employee input[name='idDoc']"
+  });
 
   setAttr("#form-position input[name='baseSalary']", { min: String(CO_HR_RULES.minMonthlySalary) });
 
@@ -19492,8 +19635,10 @@ function enforceColombianFormStandards() {
   setAttr("#form-vacancy input[name='deadline']", { min: nowIso().slice(0, 10) });
 
   setAttr("#form-candidate input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
-  setAttr("#form-candidate input[name='idDoc']", { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12" });
-
+  applyDocumentFieldConstraints(nodes.viewRoot || document, {
+    typeSelector: "#form-candidate select[name='documentType']",
+    docSelector: "#form-candidate input[name='idDoc']"
+  });
   setAttr("#form-interview input[name='when']", { min: colombiaDatetimeLocalString() });
 
   setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
@@ -24207,6 +24352,7 @@ function bindDynamicEvents() {
     empNameForAvatar?.addEventListener("input", syncEmpCreateAvatarInitial);
     syncEmpCreateAvatarInitial();
     bindHrFormWizard(employeeForm);
+    applyDocumentFieldConstraints(employeeForm);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const raw = Object.fromEntries(new FormData(employeeForm).entries());
@@ -24419,6 +24565,17 @@ function bindDynamicEvents() {
             initialDepartment: target.department || "",
             initialCity: target.city || ""
           });
+          applyDocumentFieldConstraints(formEl);
+          formEl.querySelector("input[name='phone']")?.setAttribute("pattern", "[0-9]{10,15}");
+          formEl.querySelector("input[name='phone']")?.setAttribute("minlength", "10");
+          formEl.querySelector("input[name='phone']")?.setAttribute("maxlength", "15");
+          formEl.querySelector("input[name='phone']")?.setAttribute("inputmode", "tel");
+          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("pattern", "[0-9]{10,15}");
+          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("minlength", "10");
+          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("maxlength", "15");
+          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("inputmode", "tel");
+          formEl.querySelector("input[name='bankAccount']")?.setAttribute("minlength", "8");
+          formEl.querySelector("input[name='bankAccount']")?.setAttribute("maxlength", "24");
           const pos = formEl.querySelector("#employee-modal-position");
           const salary = formEl.querySelector("#employee-modal-salary");
           const contract = formEl.querySelector("#employee-modal-contract-type");
@@ -24761,6 +24918,10 @@ function bindDynamicEvents() {
         settlementDetail: null
       };
       const runs = read(KEYS.payrollRuns, []);
+      if (payrollRunAlreadyExists(runs, employee.id, data.month, "mensual")) {
+        notify("Ya existe una liquidación mensual para este empleado y periodo.", "error");
+        return;
+      }
       runs.unshift(run);
       try {
         await writeAwaitServer(KEYS.payrollRuns, runs);
@@ -24793,6 +24954,15 @@ function bindDynamicEvents() {
       const termDate = String(data.terminationDate || "").trim();
       if (!termDate) {
         notify("Seleccione la fecha de terminación del contrato.", "error");
+        return;
+      }
+      const employeeStartDate = String(normalizePortalDateYmd(employee.startDate) || "").trim();
+      if (employeeStartDate && termDate < employeeStartDate) {
+        notify("La fecha de terminación no puede ser anterior al ingreso del colaborador.", "error");
+        return;
+      }
+      if (String(data.month || "").trim() && String(termDate).slice(0, 7) !== String(data.month).trim()) {
+        notify("La fecha de terminación debe corresponder al mes liquidado.", "error");
         return;
       }
       const cesantias = Math.max(0, parseNum(data.cesantiasCop));
@@ -24858,6 +25028,10 @@ function bindDynamicEvents() {
         settlementDetail
       };
       const runs = read(KEYS.payrollRuns, []);
+      if (payrollRunAlreadyExists(runs, employee.id, data.month, "terminacion")) {
+        notify("Ya existe una liquidación de terminación para este empleado y periodo.", "error");
+        return;
+      }
       runs.unshift(run);
       try {
         await writeAwaitServer(KEYS.payrollRuns, runs);
@@ -25219,7 +25393,10 @@ function bindDynamicEvents() {
   const exportPayroll = document.getElementById("export-payroll");
   if (exportPayroll) {
     exportPayroll.addEventListener("click", () => {
-      const rows = read(KEYS.payrollRuns, []);
+      const rows = sortPayrollRunsByUiState(
+        filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || { period: "all", employee: "", status: "all" }),
+        String(state.payrollUi?.runSort || "recent")
+      );
       const csv = [
         "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
       ]
@@ -25373,6 +25550,9 @@ function bindDynamicEvents() {
         workerRole: String(data.workerRole || "empleado"),
         baseSalary: parseNum(data.baseSalary),
         contractTypeDefault: String(data.contractTypeDefault || "Termino indefinido"),
+        workSchedule: String(data.workSchedule || "").trim(),
+        arlRiskLevel: String(data.arlRiskLevel || "").trim(),
+        integralSalary: String(data.integralSalary || "false") === "true",
         legalBasis: String(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
         active: true,
         createdAt: nowIso()
@@ -25526,6 +25706,7 @@ function bindDynamicEvents() {
       citySelector: "select[name='city']"
     });
     bindHrFormWizard(candidateForm);
+    applyDocumentFieldConstraints(candidateForm);
     wireFormSubmitGuard(candidateForm, async (event) => {
       const data = Object.fromEntries(new FormData(candidateForm).entries());
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
@@ -25580,6 +25761,7 @@ function bindDynamicEvents() {
         department: data.department || "",
         city: data.city,
         address: data.address,
+        educationLevel: String(data.educationLevel || "").trim(),
         experienceYears: Math.max(0, parseNum(data.experienceYears || 0)),
         expectedSalary,
         availabilityDate: data.availabilityDate || "",
@@ -25670,7 +25852,8 @@ function bindDynamicEvents() {
         candidateName: candidate.name,
         when: data.when,
         interviewer: data.interviewer,
-        modality: data.mode || "",
+        modality:
+          data.mode === "virtual" ? "Virtual" : data.mode === "telefonica" ? "Telefónica" : "Presencial",
         locationOrLink: data.place || "",
         notes: data.notes || ""
       });
@@ -25793,6 +25976,8 @@ function bindDynamicEvents() {
       try {
         await generateOfficialWordContract(payload);
         const all = read(KEYS.contracts, []);
+        const employeeCompany = getCompanyById(String(employee.companyId || ""));
+        const employeePosition = getPositionById(String(employee.positionId || ""));
         const empId = String(employee.id || "").trim();
         const empDoc = String(employee.idDoc || "").trim();
         const tplKind = String(payload.contractTemplateKind || "").trim().toLowerCase();
@@ -25811,13 +25996,24 @@ function bindDynamicEvents() {
         const recordBase = {
           employeeId: employee.id,
           employeeName: employee.name,
+          personType: "Empleado",
+          sourceTag: "Generado desde contratación",
+          positionId: String(employee.positionId || employeePosition?.id || "").trim(),
           position: payload.cargo_empleado,
+          positionName: payload.cargo_empleado,
+          companyId: String(employee.companyId || employeeCompany?.id || "").trim(),
+          companyName: String(employeeCompany?.name || "").trim(),
           salary: payload.salario,
           startDate: signDate,
           contractType: payload.contractType,
           contractTemplateKind: payload.contractTemplateKind,
+          templateKind: payload.contractTemplateKind,
           idDocSnapshot: empDoc,
           workerRole: payload.workerRole,
+          eps: String(employee.eps || "").trim(),
+          pensionFund: String(employee.pensionFund || "").trim(),
+          arl: String(employee.arl || "").trim(),
+          schedule: String(employee.workSchedule || employeePosition?.workSchedule || "Diurna").trim(),
           source: "Empleado",
           content: contractText
         };
@@ -25993,20 +26189,24 @@ function bindDynamicEvents() {
       if (!approval || !actor || actor.role !== ROLES.ADMIN) return;
 
       if (approval.type === "create_user") {
-        const pwPol = validatePasswordPolicy(approval.payload.password || "");
-        if (!pwPol.ok) {
-          notify(userMessage(pwPol.key), "error");
-          return;
+        const p = approval.payload || {};
+        let nextPasswordHash = String(p.passwordHash || "").trim();
+        if (!nextPasswordHash) {
+          const pwPol = validatePasswordPolicy(p.password || "");
+          if (!pwPol.ok) {
+            notify(userMessage(pwPol.key), "error");
+            return;
+          }
+          nextPasswordHash = await hashPassword(p.password || "");
         }
         const users = read(KEYS.users, []);
-        if (!users.some((u) => normalizeEmail(u.email) === normalizeEmail(approval.payload.email))) {
-          const p = approval.payload;
+        if (!users.some((u) => normalizeEmail(u.email) === normalizeEmail(p.email))) {
           const compName = p.companyName || getCompanyById(p.companyId)?.name || "";
           users.push({
             id: newUuidV4(),
             name: normalizeLatinForDb(p.name),
             email: normalizeEmail(p.email),
-            password: await hashPassword(p.password),
+            password: nextPasswordHash,
             role: p.role,
             documentType: p.documentType || "CC",
             personType: normalizePersonTypeForDb(p.personType),
@@ -26337,7 +26537,7 @@ function bindDynamicEvents() {
       const displayName = c.candidateName || c.employeeName || employee?.name || "Contrato";
       const docId = String(c.idDocSnapshot || employee?.idDoc || "").trim();
       const salaryVal = parseNum(c.salary);
-      const templateKind = String(c.contractTemplateKind || "").trim().toLowerCase();
+      const templateKind = String(c.contractTemplateKind || c.templateKind || "").trim().toLowerCase();
       const contractType = String(c.contractType || employee?.contractType || "").trim();
       const workerRole = String(c.workerRole || employee?.workerRole || "empleado");
 
@@ -26370,7 +26570,7 @@ function bindDynamicEvents() {
               startDate: c.startDate || "",
               endDate: c.endDate || ""
             }),
-            cargo_empleado: String(c.position || employee?.position || ""),
+            cargo_empleado: String(c.position || c.positionName || employee?.position || ""),
             signDate: c.startDate
           });
         }
@@ -27647,6 +27847,10 @@ function bindExtendedViewEditHandlers() {
         { value: "", label: "Seleccione..." },
         ...CO_CATALOGS.documentTypes.map((d) => ({ value: d, label: d }))
       ];
+      const educationOpts = [
+        { value: "", label: "Seleccione..." },
+        ...CO_CATALOGS.educationLevel.map((level) => ({ value: level, label: level }))
+      ];
       const statusOpts = PIPELINE.map((s) => ({ value: s, label: s }));
       openEditModal({
         title: "Editar candidato",
@@ -27662,6 +27866,7 @@ function bindExtendedViewEditHandlers() {
           { name: "city", label: "Ciudad", value: target.city || "" },
           { name: "department", label: "Departamento", value: target.department || "" },
           { name: "address", label: "Dirección", value: target.address || "" },
+          { name: "educationLevel", label: "Nivel educativo", type: "select", value: target.educationLevel || "", options: educationOpts },
           { name: "experienceYears", label: "Años de experiencia en el cargo", type: "number", value: parseNum(target.experienceYears || 0), min: 0, max: 65, required: true },
           { name: "expectedSalary", label: "Aspiración salarial", type: "number", value: parseNum(target.expectedSalary || 0) },
           { name: "availabilityDate", label: "Disponibilidad", type: "date", value: target.availabilityDate || "" },
@@ -27669,6 +27874,13 @@ function bindExtendedViewEditHandlers() {
           { name: "status", label: "Estado pipeline", type: "select", value: target.status || PIPELINE[0], options: statusOpts },
           { name: "source", label: "Origen", value: target.source || "Portal RRHH" }
         ],
+        afterMount: (formEl) => {
+          applyDocumentFieldConstraints(formEl);
+          formEl.querySelector("input[name='phone']")?.setAttribute("pattern", "[0-9]{10,15}");
+          formEl.querySelector("input[name='phone']")?.setAttribute("minlength", "10");
+          formEl.querySelector("input[name='phone']")?.setAttribute("maxlength", "15");
+          formEl.querySelector("input[name='phone']")?.setAttribute("inputmode", "tel");
+        },
         onSubmit: async (form) => {
           const docValidation = validateColombianDocument(form.documentType, form.idDoc);
           if (!docValidation.ok) {
@@ -27714,6 +27926,7 @@ function bindExtendedViewEditHandlers() {
                     city: String(form.city || "").trim(),
                     department: String(form.department || "").trim(),
                     address: String(form.address || "").trim(),
+                    educationLevel: String(form.educationLevel || "").trim(),
                     experienceYears: Math.max(0, parseNum(form.experienceYears || 0)),
                     expectedSalary,
                     availabilityDate: form.availabilityDate || "",
@@ -27903,8 +28116,8 @@ function bindExtendedViewEditHandlers() {
           rows: renderDetailRows([
             ["Nombre", `<strong>${escapeHtml(String(c.candidateName || c.employeeName || employee?.name || "-"))}</strong>`],
             ["Documento", escapeHtml(String(c.idDocSnapshot || employee?.idDoc || "-"))],
-            ["Cargo", escapeHtml(String(c.position || employee?.position || "-"))],
-            ["Origen", escapeHtml(String(c.source || "Candidato"))]
+            ["Cargo", escapeHtml(String(c.position || c.positionName || employee?.position || "-"))],
+            ["Origen", escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))]
           ])
         },
         {
@@ -27912,7 +28125,7 @@ function bindExtendedViewEditHandlers() {
           title: "Contrato",
           rows: renderDetailRows([
             ["Tipo", escapeHtml(String(c.contractType || "-"))],
-            ["Plantilla", escapeHtml(String(c.contractTemplateKind || "-"))],
+            ["Plantilla", escapeHtml(String(c.contractTemplateKind || c.templateKind || "-"))],
             ["Salario", fmtMoney(c.salary)],
             ["Inicio", fmtDateOr(c.startDate)],
             ["Fin", fmtDateOr(c.endDate)],

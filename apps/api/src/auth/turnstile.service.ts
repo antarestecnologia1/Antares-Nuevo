@@ -56,8 +56,10 @@ export class TurnstileService {
       }
     } catch (err) {
       if (err instanceof BadRequestException) throw err;
-      const detail = err instanceof Error ? err.message : String(err);
-      this.logger.error(`Error consultando Turnstile: ${detail}`);
+      const detail = String(err instanceof Error ? err.message : err || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      this.logger.error(`Error consultando Turnstile: ${detail ? detail.slice(0, 120) : "sin detalle"}`);
       throw new BadRequestException(
         "No fue posible verificar el desafío anti-bot. Reintente en unos segundos."
       );

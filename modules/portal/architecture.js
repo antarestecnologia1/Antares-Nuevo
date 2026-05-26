@@ -9,7 +9,7 @@ window.PortalArchitecture = (() => {
     },
     requests: {
       title: "Solicitudes",
-      access: "admin-or-client",
+      access: "any",
       shell: true,
       renderer: [
         { module: "solicitudes", exportName: "requestFormHtml" },
@@ -19,35 +19,35 @@ window.PortalArchitecture = (() => {
     },
     "transport-trips": {
       title: "Transporte · Viajes",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "transporte", exportName: "transportTripsHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-vehicles": {
       title: "Transporte · Camiones",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "transporte", exportName: "vehiclesHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-drivers": {
       title: "Transporte · Conductores",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "transporte", exportName: "driversHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-calendar": {
       title: "Transporte · Calendario",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "transporte", exportName: "transportCalendarHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".calendar-shell", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     history: {
       title: "Transporte · Historial y reportes",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "transporte", exportName: "historyHtml" }],
       layoutPlan: [
@@ -69,7 +69,7 @@ window.PortalArchitecture = (() => {
     },
     reports: {
       title: "Centro de reporteria",
-      access: "admin-or-rrhh",
+      access: "any",
       shell: true,
       renderer: [{ module: "transporte", exportName: "reportsHtml" }],
       layoutPlan: [
@@ -81,7 +81,7 @@ window.PortalArchitecture = (() => {
     },
     payroll: {
       title: "Gestión humana",
-      access: "rrhh",
+      access: "any",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "payrollHtml" }],
       layoutPlan: [
@@ -102,7 +102,7 @@ window.PortalArchitecture = (() => {
     },
     hiring: {
       title: "Contratación",
-      access: "rrhh",
+      access: "any",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "hiringHtml" }],
       layoutPlan: [
@@ -122,28 +122,28 @@ window.PortalArchitecture = (() => {
     },
     "labor-compliance": {
       title: "Cumplimiento laboral y SST",
-      access: "rrhh",
+      access: "any",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "laborComplianceHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "admin-users": {
       title: "Administración · Usuarios y permisos",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "usuarios", exportName: "adminUsersHtml", passUser: true }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".users-hero-strip", "[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     authorizations: {
       title: "Centro de aprobaciones",
-      access: "admin",
+      access: "any",
       shell: true,
       renderer: [{ module: "autorizaciones", exportName: "authorizationsHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "contact-leads": {
       title: "Solicitudes de contacto (web)",
-      access: "admin-or-contact-b2b",
+      access: "any",
       shell: true,
       renderer: [{ module: "contacto-b2b", exportName: "contactLeadsHtml" }],
       layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]

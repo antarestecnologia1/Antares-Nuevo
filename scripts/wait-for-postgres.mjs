@@ -11,6 +11,19 @@ const ROOT = path.join(__dirname, "..");
 const require = createRequire(import.meta.url);
 const { Pool } = require(path.join(ROOT, "apps", "api", "node_modules", "pg"));
 
+function sanitizeCliError(raw, maxLength = 160) {
+  const text = String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "sin detalle";
+  const clean = text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted-email]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[jwt]")
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[database-url]")
+    .replace(/https?:\/\/\S+/gi, "[url]");
+  return clean.length > maxLength ? `${clean.slice(0, maxLength - 1)}…` : clean;
+}
+
 function loadDatabaseUrl() {
   const envPath = path.join(ROOT, "apps", "api", ".env");
   if (!existsSync(envPath)) {
@@ -35,7 +48,9 @@ async function main() {
       return;
     } catch (e) {
       await pool.end().catch(() => {});
-      console.log(`[wait-for-postgres] Intento ${i}/${maxAttempts}: ${String(e?.message || e)}`);
+      console.log(
+        `[wait-for-postgres] Intento ${i}/${maxAttempts}: ${sanitizeCliError(e?.message || e)}`
+      );
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
@@ -43,6 +58,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(`[wait-for-postgres] ERROR ${sanitizeCliError(err?.message || err)}`);
   process.exit(1);
 });

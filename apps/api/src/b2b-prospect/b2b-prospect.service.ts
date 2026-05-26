@@ -537,8 +537,11 @@ export class B2bProspectService {
         bodyJson
       ])
       .catch((e: unknown) => {
+        const detail = String(e instanceof Error ? e.message : e || "")
+          .replace(/\s+/g, " ")
+          .trim();
         this.logger.warn(
-          `No se pudo encolar correo B2B para prospecto ${id}: ${e instanceof Error ? e.message : String(e)}`
+          `No se pudo encolar correo B2B para prospecto ${id}: ${detail ? detail.slice(0, 160) : "sin detalle"}`
         );
       });
 

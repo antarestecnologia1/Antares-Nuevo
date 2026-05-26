@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -20,6 +21,13 @@ import { R2Service } from "./r2.service";
 type ReqUser = { userId: string; email: string; role: string };
 
 const ALLOWED_TEMPLATE_KINDS = new Set(["oficina", "fijo", "prestacion"]);
+const CONTRACT_TEMPLATE_ALLOWED_ROLES = new Set([
+  "admin",
+  "rrhh",
+  "administracion",
+  "auxiliar_administrativo",
+  "lider_administrativo"
+]);
 
 @UseGuards(JwtAuthGuard)
 @Controller("uploads")
@@ -115,11 +123,15 @@ export class UploadsController {
    * pueden descargar las plantillas (datos legales del contrato).
    */
   @Get("contract-template/:kind")
-  async contractTemplate(@Param("kind") kind: string, @Res() res: Response) {
+  async contractTemplate(@Req() req: { user: ReqUser }, @Param("kind") kind: string, @Res() res: Response) {
     if (!this.r2.isEnabled()) {
       throw new BadRequestException(
         "R2 no está configurado. Define CF_R2_* en el servidor."
       );
+    }
+    const role = String(req.user?.role || "").trim().toLowerCase();
+    if (!CONTRACT_TEMPLATE_ALLOWED_ROLES.has(role)) {
+      throw new ForbiddenException("No autorizado para descargar plantillas de contrato.");
     }
     const safeKind = String(kind || "").toLowerCase();
     if (!ALLOWED_TEMPLATE_KINDS.has(safeKind)) {

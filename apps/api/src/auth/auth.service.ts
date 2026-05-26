@@ -47,6 +47,33 @@ type UsuarioRow = {
   refresh_token_hash: string | null;
 };
 
+function redactEmailForLog(raw: string | undefined | null): string {
+  const email = String(raw || "").trim().toLowerCase();
+  const at = email.indexOf("@");
+  if (at <= 0) return email ? "[redacted]" : "";
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const [host, ...rest] = domain.split(".");
+  const safeLocal = local.length <= 2 ? `${local.charAt(0)}***` : `${local.slice(0, 2)}***`;
+  const safeHost = host ? `${host.charAt(0)}***` : "***";
+  return `${safeLocal}@${safeHost}${rest.length ? "." + rest.join(".") : ""}`;
+}
+
+function sanitizeLogText(raw: unknown, maxLength = 180): string {
+  let text = String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "sin detalle";
+  text = text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, (match) => redactEmailForLog(match))
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[jwt]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[database-url]")
+    .replace(/https?:\/\/\S+/gi, "[url]");
+  if (text.length > maxLength) return `${text.slice(0, maxLength - 1)}…`;
+  return text;
+}
+
 /** Errores de red/TLS/pooler que `pg` no codifica como ECONNREFUSED / 28P01. */
 function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException | null {
   const e = err as { code?: string; message?: string; detail?: string } | null | undefined;
@@ -156,6 +183,9 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     this.assertDatabaseConfigured();
+    if (dto.role !== "CLIENT") {
+      throw new BadRequestException("El registro público solo permite cuentas de cliente.");
+    }
     const email = dto.email.trim().toLowerCase();
     const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
       email
@@ -283,7 +313,7 @@ export class AuthService {
           }
           const msg = this.extractExceptionMessage(syncErr);
           this.logger.warn(
-            `registerPortal: Supabase Auth no sincronizado (${msg}). Registro continúa en Postgres con id=${localUserId}.`
+            `registerPortal: Supabase Auth no sincronizado (${sanitizeLogText(msg)}). Registro continúa en Postgres con id=${localUserId}.`
           );
           authUserId = localUserId;
           supabaseUserCreated = false;
@@ -442,22 +472,16 @@ export class AuthService {
                 );
               } catch (minimalErr: any) {
                 if (supabaseUserCreated) await this.deleteSupabaseAuthUser(authUserId);
-                throw new BadRequestException(
-                  minimalErr?.detail || minimalErr?.message || "No fue posible completar el registro en base de datos."
-                );
+                throw new BadRequestException("No fue posible completar el registro en base de datos.");
               }
             } else {
               if (supabaseUserCreated) await this.deleteSupabaseAuthUser(authUserId);
-              throw new BadRequestException(
-                retryErr?.detail || retryErr?.message || "No fue posible completar el registro en base de datos."
-              );
+              throw new BadRequestException("No fue posible completar el registro en base de datos.");
             }
           }
         } else {
           if (supabaseUserCreated) await this.deleteSupabaseAuthUser(authUserId);
-          throw new BadRequestException(
-            err?.detail || err?.message || "No fue posible completar el registro en base de datos."
-          );
+          throw new BadRequestException("No fue posible completar el registro en base de datos.");
         }
       }
 
@@ -480,7 +504,7 @@ export class AuthService {
       const pgMsg = String(err?.message ?? "");
       const detail = String(err?.detail ?? "");
       this.logger.error(
-        `registerPortal unexpected error code=${code} message=${pgMsg} detail=${detail} stack=${String(err?.stack ?? "").slice(0, 500)}`
+        `registerPortal unexpected error code=${code || "n/a"} message=${sanitizeLogText(pgMsg)} detail=${sanitizeLogText(detail)}`
       );
 
       const poolerMapped = mapSupabaseOrNetworkDbError(err);
@@ -648,7 +672,9 @@ export class AuthService {
     const { data, error } = await this.supabaseAdmin.auth.getUser(supabaseAccessToken);
     const user = data?.user;
     if (error || !user?.id || !user.email) {
-      this.logger.warn(`completePasswordRecoveryFromSupabase: getUser falló: ${error?.message || "sin usuario"}`);
+      this.logger.warn(
+        `completePasswordRecoveryFromSupabase: getUser falló: ${sanitizeLogText(error?.message || "sin usuario")}`
+      );
       throw new UnauthorizedException("Enlace de recuperación inválido o expirado. Solicite un correo nuevo.");
     }
 
@@ -659,10 +685,8 @@ export class AuthService {
       password: newPassword
     });
     if (updAuthErr) {
-      this.logger.error(`Supabase admin.updateUserById (recovery): ${updAuthErr.message}`);
-      throw new BadRequestException(
-        updAuthErr.message || "No fue posible actualizar la contraseña en el servicio de autenticación."
-      );
+      this.logger.error(`Supabase admin.updateUserById (recovery): ${sanitizeLogText(updAuthErr.message)}`);
+      throw new BadRequestException("No fue posible actualizar la contraseña en el servicio de autenticación.");
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -692,7 +716,7 @@ export class AuthService {
     const hashOk = await bcrypt.compare(newPassword, persisted.rows[0].hash_contrasena);
     if (!hashOk) {
       this.logger.error(
-        `completePasswordRecoveryFromSupabase: verificación del hash tras UPDATE falló (correo=${email})`
+        `completePasswordRecoveryFromSupabase: verificación del hash tras UPDATE falló (correo=${redactEmailForLog(email)})`
       );
       throw new ServiceUnavailableException(
         "La contraseña no pudo validarse después de guardarla. Espere unos segundos e intente recuperarla de nuevo, o contacte a soporte."
@@ -747,7 +771,7 @@ export class AuthService {
     }
     if (error) {
       const mapped = this.mapSupabaseRecoveryError(String(error.message || ""));
-      this.logger.warn(`resetPasswordForEmail(${email}): ${error.message}`);
+      this.logger.warn(`resetPasswordForEmail(${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`);
       throw new BadRequestException(
         mapped ||
           "No se pudo completar la solicitud de recuperación en este momento. Intente más tarde o contacte a soporte."
@@ -794,7 +818,9 @@ export class AuthService {
     }
     if (error && existsMsg(error)) return;
     if (error) {
-      this.logger.warn(`provisionSupabaseAuthUserForApprovedPortal(${email}): ${error.message}`);
+      this.logger.warn(
+        `provisionSupabaseAuthUserForApprovedPortal(${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`
+      );
       throw new BadRequestException(
         `No se pudo sincronizar el acceso con Supabase Auth: ${error.message}. Revise en el panel Authentication si el correo ya existe con otro UUID.`
       );
@@ -957,7 +983,9 @@ export class AuthService {
           sent = true;
         } catch (resendErr) {
           const msg = resendErr instanceof Error ? resendErr.message : String(resendErr);
-          this.logger.warn(`Bienvenida Resend falló (${email}), probando Supabase: ${msg}`);
+          this.logger.warn(
+            `Bienvenida Resend falló (${redactEmailForLog(email)}), probando Supabase: ${sanitizeLogText(msg)}`
+          );
         }
       }
 
@@ -965,8 +993,8 @@ export class AuthService {
         await this.sendRegistrationWelcomeViaSupabaseMagicLink(email, portalUrl, userId);
       }
     } catch (e) {
-      const detail = e instanceof Error ? e.stack || e.message : String(e);
-      this.logger.error(`Correo de bienvenida no enviado (${email}): ${detail}`);
+      const detail = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Correo de bienvenida no enviado (${redactEmailForLog(email)}): ${sanitizeLogText(detail)}`);
     }
   }
 
@@ -981,7 +1009,7 @@ export class AuthService {
   ): Promise<void> {
     if (!this.supabaseAdmin || !this.supabaseOtpMailer) {
       this.logger.warn(
-        `Bienvenida sin Resend y sin Supabase completo: no se envía magic link a ${email}. Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (+ opcional SUPABASE_ANON_KEY).`
+        `Bienvenida sin Resend y sin Supabase completo: no se envía magic link a ${redactEmailForLog(email)}. Configure SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (+ opcional SUPABASE_ANON_KEY).`
       );
       return;
     }
@@ -990,7 +1018,9 @@ export class AuthService {
         await this.provisionSupabaseAuthUserForApprovedPortal(email, userId);
       } catch (provErr) {
         const msg = provErr instanceof Error ? provErr.message : String(provErr);
-        this.logger.warn(`Bienvenida Supabase: aprovisionamiento Auth omitido o fallido (${email}): ${msg}`);
+        this.logger.warn(
+          `Bienvenida Supabase: aprovisionamiento Auth omitido o fallido (${redactEmailForLog(email)}): ${sanitizeLogText(msg)}`
+        );
       }
 
       const emailRedirectTo = this.resolvePasswordRecoveryRedirect(portalUrl);
@@ -1005,17 +1035,17 @@ export class AuthService {
         const em = String(error.message || "").toLowerCase();
         if (/user not found|signups not allowed|not authorized|otp disabled/i.test(em)) {
           this.logger.warn(
-            `signInWithOtp bienvenida (${email}): ${error.message}. Revise en Supabase «Enable email confirmations» / plantilla Magic Link y URL en redirect allow list.`
+            `signInWithOtp bienvenida (${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}. Revise en Supabase «Enable email confirmations» / plantilla Magic Link y URL en redirect allow list.`
           );
         } else {
-          this.logger.warn(`signInWithOtp bienvenida (${email}): ${error.message}`);
+          this.logger.warn(`signInWithOtp bienvenida (${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`);
         }
         return;
       }
-      this.logger.log(`Correo de bienvenida (magic link Supabase) encolado/enviado a ${email}`);
+      this.logger.log(`Correo de bienvenida (magic link Supabase) encolado/enviado a ${redactEmailForLog(email)}`);
     } catch (e) {
       const detail = e instanceof Error ? e.message : String(e);
-      this.logger.warn(`Bienvenida vía Supabase falló (${email}): ${detail}`);
+      this.logger.warn(`Bienvenida vía Supabase falló (${redactEmailForLog(email)}): ${sanitizeLogText(detail)}`);
     }
   }
 
@@ -1129,15 +1159,15 @@ export class AuthService {
       const emailConflict =
         errMsg.includes("already") || errMsg.includes("registered") || errMsg.includes("exists");
       if (!emailConflict) {
-        this.logger.warn(`createSupabaseAuthUser con id fijo: ${error.message}. Reintentando sin id.`);
+        this.logger.warn(`createSupabaseAuthUser con id fijo: ${sanitizeLogText(error.message)}. Reintentando sin id.`);
         ({ data, error } = await this.supabaseAdmin.auth.admin.createUser(base));
       }
     }
 
     if (error || !data?.user?.id) {
       const msg = error?.message || "No fue posible crear el usuario en Supabase Auth.";
-      this.logger.error(`Supabase auth.admin.createUser: ${msg} ${JSON.stringify(error)}`);
-      throw new BadRequestException(msg);
+      this.logger.error(`Supabase auth.admin.createUser: ${sanitizeLogText(msg)}`);
+      throw new BadRequestException("No fue posible sincronizar el usuario con el servicio de autenticación.");
     }
 
     const uid = data.user.id;

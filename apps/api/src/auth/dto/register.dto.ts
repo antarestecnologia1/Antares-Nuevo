@@ -13,6 +13,6 @@ export class RegisterDto {
   @MinLength(8)
   password!: string;
 
-  @IsIn(["CLIENT", "RRHH", "ADMIN"])
-  role!: "CLIENT" | "RRHH" | "ADMIN";
+  @IsIn(["CLIENT"])
+  role!: "CLIENT";
 }

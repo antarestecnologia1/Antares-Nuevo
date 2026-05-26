@@ -23,6 +23,7 @@
     "build:api": "npm run build -w api",
     "lint:web": "npm run lint -w web",
     "test:portal-qa": "node qa/portal-regression-tests.mjs",
+    "test:supabase-qa": "node qa/supabase-rest-insert-test.mjs",
     "smoke:api": "node scripts/smoke-api.mjs",
     "verify": "npm run setup && npm run build:api && npm run build:web && npm run lint:web && npm run test:portal-qa",
     "verify:stack": "node scripts/run-verify-stack.mjs"

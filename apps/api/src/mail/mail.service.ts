@@ -10,6 +10,30 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function redactEmailForLog(raw: string | undefined | null): string {
+  const email = String(raw || "").trim().toLowerCase();
+  const at = email.indexOf("@");
+  if (at <= 0) return email ? "[redacted]" : "";
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const [host, ...rest] = domain.split(".");
+  const safeLocal = local.length <= 2 ? `${local.charAt(0)}***` : `${local.slice(0, 2)}***`;
+  const safeHost = host ? `${host.charAt(0)}***` : "***";
+  return `${safeLocal}@${safeHost}${rest.length ? "." + rest.join(".") : ""}`;
+}
+
+function sanitizeLogText(raw: unknown, maxLength = 160): string {
+  const text = String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "sin detalle";
+  const clean = text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, (match) => redactEmailForLog(match))
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[jwt]");
+  if (clean.length > maxLength) return `${clean.slice(0, maxLength - 1)}…`;
+  return clean;
+}
+
 export type PortalRegistrationWelcomeParams = {
   to: string;
   recipientName: string;
@@ -64,7 +88,7 @@ export class MailService implements OnModuleInit {
   async send(to: string, subject: string, html: string) {
     if (!this.resend) {
       this.logger.warn(
-        `Correo no enviado a ${to}: defina RESEND_API_KEY en la API (y MAIL_FROM verificado en Resend).`
+        `Correo no enviado a ${redactEmailForLog(to)}: defina RESEND_API_KEY en la API (y MAIL_FROM verificado en Resend).`
       );
       return;
     }
@@ -86,7 +110,7 @@ export class MailService implements OnModuleInit {
         typeof result.error === "object" && result.error !== null && "message" in result.error
           ? String((result.error as { message: string }).message)
           : JSON.stringify(result.error);
-      this.logger.error(`Resend rechazó el envío a ${to}: ${msg}`);
+      this.logger.error(`Resend rechazó el envío a ${redactEmailForLog(to)}: ${sanitizeLogText(msg)}`);
       throw new Error(msg);
     }
     const id =
@@ -100,9 +124,11 @@ export class MailService implements OnModuleInit {
         ? String((result.data as { id?: string }).id || "")
         : "";
     if (id) {
-      this.logger.log(`Resend: correo aceptado id=${id} to=${to}`);
+      this.logger.log(`Resend: correo aceptado id=${id} to=${redactEmailForLog(to)}`);
     } else {
-      this.logger.log(`Resend: envío completado to=${to} (sin id en respuesta; revise el panel de Resend si no llega).`);
+      this.logger.log(
+        `Resend: envío completado to=${redactEmailForLog(to)} (sin id en respuesta; revise el panel de Resend si no llega).`
+      );
     }
   }
 

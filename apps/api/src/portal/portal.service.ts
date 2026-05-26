@@ -86,6 +86,67 @@ const APPROVE_VALID_ROLES = new Set([
   "lider_administrativo"
 ]);
 
+function redactEmailForLog(raw: string | undefined | null): string {
+  const email = String(raw || "").trim().toLowerCase();
+  const at = email.indexOf("@");
+  if (at <= 0) return email ? "[redacted]" : "";
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const [host, ...rest] = domain.split(".");
+  const safeLocal = local.length <= 2 ? `${local.charAt(0)}***` : `${local.slice(0, 2)}***`;
+  const safeHost = host ? `${host.charAt(0)}***` : "***";
+  return `${safeLocal}@${safeHost}${rest.length ? "." + rest.join(".") : ""}`;
+}
+
+function sanitizeLogText(raw: unknown, maxLength = 180): string {
+  let text = String(raw ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "sin detalle";
+  text = text
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, (match) => redactEmailForLog(match))
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[jwt]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[database-url]")
+    .replace(/https?:\/\/\S+/gi, "[url]");
+  if (text.length > maxLength) return `${text.slice(0, maxLength - 1)}…`;
+  return text;
+}
+
+function maskPortalEmail(raw: unknown): string {
+  return redactEmailForLog(raw == null ? "" : String(raw));
+}
+
+function redactPortalUserDirectoryFields<T extends Record<string, unknown>>(row: T): T {
+  return {
+    ...row,
+    firstName: "",
+    middleName: "",
+    lastName: "",
+    secondLastName: "",
+    personType: "",
+    documentType: "",
+    personalDoc: "",
+    companyNit: "",
+    taxId: "",
+    documentIssuedAt: "",
+    birthDate: "",
+    gender: "",
+    position: "",
+    workArea: "",
+    phone: "",
+    department: "",
+    city: "",
+    address: "",
+    emergencyContact: "",
+    emergencyPhone: "",
+    emergencyRelationship: "",
+    emergencyRelation: "",
+    permissions: [],
+    twoFactorEnabled: false
+  };
+}
+
 /** Bootstrap no-admin: incluir filas `pendiente` aun sin `id_empresa` (altas web en cola). */
 const BOOTSTRAP_PENDING_QUEUE_ROLES = new Set(["administracion", "lider_administrativo", "auxiliar_administrativo", "rrhh"]);
 
@@ -191,16 +252,18 @@ export class PortalService implements OnModuleInit {
           redirectTo: portalUrl
         });
         if (error) {
-          this.logger.warn(`approve-pending-user: resetPasswordForEmail (${email}): ${error.message}`);
+          this.logger.warn(
+            `approve-pending-user: resetPasswordForEmail (${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`
+          );
         }
       } else {
         this.logger.warn(
-          `approve-pending-user: ni Resend ni Supabase configurados. No se notifica al usuario ${email}.`
+          `approve-pending-user: ni Resend ni Supabase configurados. No se notifica al usuario ${redactEmailForLog(email)}.`
         );
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`sendAccountApprovedEmail (${userId}) fallo no fatal: ${detail}`);
+      this.logger.warn(`sendAccountApprovedEmail (${userId}) fallo no fatal: ${sanitizeLogText(detail)}`);
     }
   }
 
@@ -247,7 +310,7 @@ export class PortalService implements OnModuleInit {
       this.logger.log("tarifas_trayecto: esquema verificado (ids_empresas presente).");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureTarifasTrayectoSchema fallo no fatal: ${msg}`);
+      this.logger.warn(`ensureTarifasTrayectoSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -265,7 +328,7 @@ export class PortalService implements OnModuleInit {
       `);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureUsuariosSchema: crear tipo tipo_vinculo_registro fallo (no fatal): ${msg}`);
+      this.logger.warn(`ensureUsuariosSchema: crear tipo tipo_vinculo_registro fallo (no fatal): ${sanitizeLogText(msg)}`);
     }
     /**
      * Cada ALTER va en su propio query: si uno falla por permisos/constraint colateral,
@@ -299,7 +362,7 @@ export class PortalService implements OnModuleInit {
         applied += 1;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`ensureUsuariosSchema: falló (no fatal) "${q.slice(0, 70)}…": ${msg}`);
+        this.logger.warn(`ensureUsuariosSchema: fallo no fatal aplicando ajuste idempotente: ${sanitizeLogText(msg)}`);
       }
     }
     try {
@@ -310,7 +373,7 @@ export class PortalService implements OnModuleInit {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureUsuariosSchema: índice documento_personal no creado: ${msg}`);
+      this.logger.warn(`ensureUsuariosSchema: índice documento_personal no creado: ${sanitizeLogText(msg)}`);
     }
     this.logger.log(`usuarios: esquema verificado (${applied}/${alters.length} ALTERs idempotentes OK).`);
   }
@@ -329,7 +392,7 @@ export class PortalService implements OnModuleInit {
       `);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureEmpresasSchema: crear tipo tipo_relacion_empresa fallo (no fatal): ${msg}`);
+      this.logger.warn(`ensureEmpresasSchema: crear tipo tipo_relacion_empresa fallo (no fatal): ${sanitizeLogText(msg)}`);
     }
     try {
       await this.pool.query(
@@ -337,7 +400,7 @@ export class PortalService implements OnModuleInit {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN tipo_relacion_empresa fallo (no fatal): ${msg}`);
+      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN tipo_relacion_empresa fallo (no fatal): ${sanitizeLogText(msg)}`);
     }
     try {
       await this.pool.query(
@@ -345,7 +408,7 @@ export class PortalService implements OnModuleInit {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureEmpresasSchema: índice único empresa propia no creado: ${msg}`);
+      this.logger.warn(`ensureEmpresasSchema: índice único empresa propia no creado: ${sanitizeLogText(msg)}`);
     }
     try {
       await this.pool.query(
@@ -353,13 +416,13 @@ export class PortalService implements OnModuleInit {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN activo fallo (no fatal): ${msg}`);
+      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN activo fallo (no fatal): ${sanitizeLogText(msg)}`);
     }
     try {
       await this.pool.query(`ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS url_logo TEXT`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN url_logo fallo (no fatal): ${msg}`);
+      this.logger.warn(`ensureEmpresasSchema: ADD COLUMN url_logo fallo (no fatal): ${sanitizeLogText(msg)}`);
     }
     const empresasContactAlters = [
       `ALTER TABLE public.empresas ADD COLUMN IF NOT EXISTS correo_empresarial VARCHAR(120)`,
@@ -373,7 +436,7 @@ export class PortalService implements OnModuleInit {
         await this.pool.query(sql);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`ensureEmpresasSchema: ${sql.slice(0, 60)}… fallo (no fatal): ${msg}`);
+        this.logger.warn(`ensureEmpresasSchema: ajuste idempotente fallo (no fatal): ${sanitizeLogText(msg)}`);
       }
     }
     this.logger.log("empresas: esquema tipo_relacion_empresa, activo, url_logo y contacto verificado.");
@@ -420,7 +483,7 @@ export class PortalService implements OnModuleInit {
       this.logger.log("solicitudes_transporte: columna refrigeracion_termoking verificada.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureSolicitudesTransporteSchema fallo no fatal: ${msg}`);
+      this.logger.warn(`ensureSolicitudesTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -457,7 +520,7 @@ export class PortalService implements OnModuleInit {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureProspectosContactoB2bSchema fallo no fatal: ${msg}`);
+      this.logger.warn(`ensureProspectosContactoB2bSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -481,7 +544,7 @@ export class PortalService implements OnModuleInit {
       this.logger.log("preferencias_notificacion_usuario: esquema verificado.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensurePreferenciasNotificacionSchema fallo no fatal: ${msg}`);
+      this.logger.warn(`ensurePreferenciasNotificacionSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -497,7 +560,7 @@ export class PortalService implements OnModuleInit {
         await this.pool.query(q);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`ensureEmpleadosNominaSchema: ${msg}`);
+        this.logger.warn(`ensureEmpleadosNominaSchema: ${sanitizeLogText(msg)}`);
       }
     }
     try {
@@ -514,7 +577,7 @@ export class PortalService implements OnModuleInit {
       `);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureEmpleadosNominaSchema constraint: ${msg}`);
+      this.logger.warn(`ensureEmpleadosNominaSchema constraint: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -541,7 +604,7 @@ export class PortalService implements OnModuleInit {
         ok += 1;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`ensureLiquidacionesNominaSchema: ${msg}`);
+        this.logger.warn(`ensureLiquidacionesNominaSchema: ${sanitizeLogText(msg)}`);
       }
     }
     try {
@@ -550,7 +613,7 @@ export class PortalService implements OnModuleInit {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureLiquidacionesNominaSchema periodo_mes: ${msg}`);
+      this.logger.warn(`ensureLiquidacionesNominaSchema periodo_mes: ${sanitizeLogText(msg)}`);
     }
     this.logger.log(`liquidaciones_nomina: ${ok}/${alters.length} columnas verificadas.`);
   }
@@ -591,7 +654,7 @@ export class PortalService implements OnModuleInit {
       this.logger.log("auditoria transporte: tablas verificadas.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureAuditoriaTransporteSchema fallo no fatal: ${msg}`);
+      this.logger.warn(`ensureAuditoriaTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -607,7 +670,7 @@ export class PortalService implements OnModuleInit {
         await this.pool.query(q);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        this.logger.warn(`ensureRegistrosFlotaSchema: ${msg}`);
+        this.logger.warn(`ensureRegistrosFlotaSchema: ${sanitizeLogText(msg)}`);
       }
     }
     try {
@@ -636,7 +699,7 @@ export class PortalService implements OnModuleInit {
       this.logger.log("registros flota: esquema verificado.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureRegistrosFlotaSchema constraints: ${msg}`);
+      this.logger.warn(`ensureRegistrosFlotaSchema constraints: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -665,6 +728,20 @@ export class PortalService implements OnModuleInit {
   private isRrhh(role: JwtRole) {
     const r = String(role || "").toLowerCase();
     return ["admin", "rrhh", "administracion", "auxiliar_administrativo", "lider_administrativo"].includes(r);
+  }
+
+  private async loadPortalPermissionSet(userId: string): Promise<Set<string>> {
+    const uid = String(userId || "").trim();
+    if (!PG_UUID_V4_RE.test(uid)) return new Set();
+    const r = await this.pool.query<{ permiso: string }>(
+      `SELECT permiso FROM permisos_usuario WHERE id_usuario = $1::uuid`,
+      [uid]
+    );
+    return new Set(r.rows.map((row) => String(row.permiso || "").trim()).filter(Boolean));
+  }
+
+  private hasPortalPermission(permissionSet: ReadonlySet<string>, permission: string): boolean {
+    return permissionSet.has(String(permission || "").trim());
   }
 
   private async getUserCompany(userId: string): Promise<string | null> {
@@ -910,41 +987,55 @@ export class PortalService implements OnModuleInit {
 
   async bootstrap(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
-    const transport = this.isTransportOps(role) || admin;
-    const rrhh = this.isRrhh(role);
-    const canViewContactB2b = admin || (await this.hasContactB2bViewPermission(userId));
+    const [empresaId, permissionSet] = await Promise.all([
+      this.getUserCompany(userId),
+      admin ? Promise.resolve(new Set<string>(ALL_PORTAL_PERMISSIONS)) : this.loadPortalPermissionSet(userId)
+    ]);
+    const canUsersManage = admin || this.hasPortalPermission(permissionSet, "users_manage");
+    const canViewContactB2b = admin || this.hasPortalPermission(permissionSet, "contact_b2b_view");
+    const canTransportTrips = admin || this.hasPortalPermission(permissionSet, "transport_trips");
+    const canTransportVehicles = admin || this.hasPortalPermission(permissionSet, "transport_vehicles");
+    const canTransportDrivers = admin || this.hasPortalPermission(permissionSet, "transport_drivers");
+    const canTransportCalendar = admin || this.hasPortalPermission(permissionSet, "transport_calendar");
+    const canTransportHistory = admin || this.hasPortalPermission(permissionSet, "transport_history");
+    const canTransportData =
+      canTransportTrips || canTransportVehicles || canTransportDrivers || canTransportCalendar || canTransportHistory;
+    const canPayroll = admin || this.hasPortalPermission(permissionSet, "payroll_manage");
+    const canHiring = admin || this.hasPortalPermission(permissionSet, "hiring_manage");
+    const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
+    const fullUserDirectoryAccess = admin || canUsersManage;
+    const canSeeAllCompanies =
+      admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canViewContactB2b;
 
-    const empresaPromise = this.getUserCompany(userId);
     const independentPromise = Promise.all([
-      this.loadCompanies(),
-      this.loadCounters(),
-      this.loadTravelAllowanceRules(),
-      this.loadTripRouteRates(),
-      transport ? this.loadVehicles() : Promise.resolve([]),
-      transport ? this.loadDrivers() : Promise.resolve([]),
+      this.loadCompanies(canSeeAllCompanies ? null : empresaId),
+      admin ? this.loadCounters() : Promise.resolve({}),
+      canPayroll ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
+      canTransportTrips ? this.loadTripRouteRates() : Promise.resolve({}),
+      canTransportData ? this.loadVehicles() : Promise.resolve([]),
+      canTransportData ? this.loadDrivers() : Promise.resolve([]),
       this.loadNotifications(userId, admin),
       this.loadEmails(admin),
       this.loadContacts(canViewContactB2b),
-      rrhh || admin ? this.loadPositions() : Promise.resolve([]),
-      rrhh || admin ? this.loadVacancies() : Promise.resolve([]),
-      rrhh || admin ? this.loadCandidates() : Promise.resolve([]),
-      rrhh || admin ? this.loadInterviews() : Promise.resolve([]),
-      rrhh || admin ? this.loadContracts() : Promise.resolve([]),
-      rrhh || admin ? this.loadPayrollRuns() : Promise.resolve([]),
-      transport || admin ? this.loadFuelLogs() : Promise.resolve([]),
-      transport || admin ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
-      rrhh || admin ? this.loadHrAbsences() : Promise.resolve([]),
-      rrhh || admin ? this.loadSstCompliance() : Promise.resolve([])
+      canPayroll || canHiring ? this.loadPositions() : Promise.resolve([]),
+      canHiring ? this.loadVacancies() : Promise.resolve([]),
+      canHiring ? this.loadCandidates() : Promise.resolve([]),
+      canHiring ? this.loadInterviews() : Promise.resolve([]),
+      canHiring ? this.loadContracts() : Promise.resolve([]),
+      canPayroll ? this.loadPayrollRuns() : Promise.resolve([]),
+      canTransportHistory ? this.loadFuelLogs() : Promise.resolve([]),
+      canTransportHistory ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
+      canPayroll ? this.loadHrAbsences() : Promise.resolve([]),
+      canSst ? this.loadSstCompliance() : Promise.resolve([])
     ]);
 
-    const empresaId = await empresaPromise;
     const dependentPromise = Promise.all([
-      this.loadUsers(admin, userId, empresaId, role),
-      this.loadRequests(admin, userId, empresaId, transport),
-      rrhh || admin ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
+      this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess),
+      this.loadRequests(admin, userId, empresaId, canTransportData),
+      canPayroll ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId),
-      transport ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
-      transport ? this.loadDeletedTransportRequestLogs() : Promise.resolve([])
+      admin ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
+      admin ? this.loadDeletedTransportRequestLogs() : Promise.resolve([])
     ]);
 
     const [independent, dependent] = await Promise.all([independentPromise, dependentPromise]);
@@ -1621,8 +1712,12 @@ export class PortalService implements OnModuleInit {
   }
 
   async adminDeletePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string) {
-    void actorUserId;
-    if (!this.isRrhh(actorRole)) throw new ForbiddenException();
+    const permissionSet = this.isAdmin(actorRole)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.loadPortalPermissionSet(actorUserId);
+    if (!this.isAdmin(actorRole) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
+      throw new ForbiddenException();
+    }
     const eid = String(employeeId || "").trim();
     if (!eid || !PG_UUID_V4_RE.test(eid)) throw new BadRequestException("ID de empleado invalido");
     if (!(await this.tableExists("empleados_nomina"))) {
@@ -1639,6 +1734,9 @@ export class PortalService implements OnModuleInit {
   }
 
   private async syncKeyTx(c: PoolClient, key: PortalSyncKey, data: unknown, userId: string, role: JwtRole) {
+    const admin = this.isAdmin(role);
+    const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
+    const can = (permission: string) => admin || this.hasPortalPermission(permissionSet, permission);
     switch (key) {
       case "users":
         await this.syncUsers(c, data, userId, role);
@@ -1659,11 +1757,11 @@ export class PortalService implements OnModuleInit {
         await this.syncRequests(c, data, userId, role);
         return;
       case "vehicles":
-        if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+        if (!can("transport_vehicles")) throw new ForbiddenException();
         await this.syncVehicles(c, data);
         return;
       case "drivers":
-        if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+        if (!can("transport_drivers")) throw new ForbiddenException();
         await this.syncDrivers(c, data);
         return;
       case "notifications":
@@ -1674,19 +1772,19 @@ export class PortalService implements OnModuleInit {
         await this.syncEmails(c, data);
         return;
       case "payrollEmployees":
-        if (!this.isRrhh(role)) throw new ForbiddenException();
+        if (!can("payroll_manage")) throw new ForbiddenException();
         await this.syncPayrollEmployees(c, data);
         return;
       case "payrollRuns":
-        if (!this.isRrhh(role)) throw new ForbiddenException();
+        if (!can("payroll_manage")) throw new ForbiddenException();
         await this.syncPayrollRuns(c, data);
         return;
       case "fuelLogs":
-        if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+        if (!can("transport_history")) throw new ForbiddenException();
         await this.syncFuelLogs(c, data);
         return;
       case "vehicleTechnicalLogs":
-        if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+        if (!can("transport_history")) throw new ForbiddenException();
         await this.syncVehicleTechnicalLogs(c, data);
         return;
       case "travelAllowanceRules":
@@ -1698,19 +1796,19 @@ export class PortalService implements OnModuleInit {
       case "interviews":
       case "contracts":
       case "positions":
-        if (!this.isRrhh(role)) throw new ForbiddenException();
+        if (!can("hiring_manage")) throw new ForbiddenException();
         await this.syncHrKeys(c, key, data);
         return;
       case "hrAbsences":
-        if (!this.isRrhh(role)) throw new ForbiddenException();
+        if (!can("payroll_manage")) throw new ForbiddenException();
         await this.syncHrAbsences(c, data);
         return;
       case "sstCompliance":
-        if (!this.isRrhh(role)) throw new ForbiddenException();
+        if (!can("sst_compliance")) throw new ForbiddenException();
         await this.syncSst(c, data);
         return;
       case "tripRouteRates":
-        if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+        if (!can("transport_trips")) throw new ForbiddenException();
         await this.syncTripRouteRates(c, data);
         return;
       case "approvals":
@@ -1723,20 +1821,38 @@ export class PortalService implements OnModuleInit {
 
   /* ─── Loaders ─── */
 
-  private async loadCompanies() {
-    const r = await this.pool.query(
-      `SELECT id::text, nombre AS name, nit, telefono AS phone,
-              correo_empresarial AS email,
-              nombre_contacto AS "contactName",
-              departamento AS department,
-              ciudad AS city,
-              direccion_operativa AS address,
-              url_logo AS "logoUrl",
-              tipo_relacion_empresa::text AS "companyKind",
-              COALESCE(activo, true) AS activo,
-              fecha_creacion AS "createdAt"
-       FROM empresas ORDER BY nombre`
-    );
+  private async loadCompanies(onlyCompanyId: string | null = null) {
+    const hasScopedCompany = Boolean(onlyCompanyId && PG_UUID_V4_RE.test(String(onlyCompanyId).trim()));
+    const r = hasScopedCompany
+      ? await this.pool.query(
+          `SELECT id::text, nombre AS name, nit, telefono AS phone,
+                  correo_empresarial AS email,
+                  nombre_contacto AS "contactName",
+                  departamento AS department,
+                  ciudad AS city,
+                  direccion_operativa AS address,
+                  url_logo AS "logoUrl",
+                  tipo_relacion_empresa::text AS "companyKind",
+                  COALESCE(activo, true) AS activo,
+                  fecha_creacion AS "createdAt"
+           FROM empresas
+           WHERE id = $1::uuid
+           ORDER BY nombre`,
+          [String(onlyCompanyId).trim()]
+        )
+      : await this.pool.query(
+          `SELECT id::text, nombre AS name, nit, telefono AS phone,
+                  correo_empresarial AS email,
+                  nombre_contacto AS "contactName",
+                  departamento AS department,
+                  ciudad AS city,
+                  direccion_operativa AS address,
+                  url_logo AS "logoUrl",
+                  tipo_relacion_empresa::text AS "companyKind",
+                  COALESCE(activo, true) AS activo,
+                  fecha_creacion AS "createdAt"
+           FROM empresas ORDER BY nombre`
+        );
     return r.rows.map((row) => {
       const rec = row as Record<string, unknown>;
       const id = String(rec.id ?? "").trim();
@@ -1780,9 +1896,14 @@ export class PortalService implements OnModuleInit {
     });
   }
 
-  private async loadUsers(admin: boolean, userId: string, empresaId: string | null, viewerRole: JwtRole) {
-    const includePendingWithoutCompany =
-      !admin && BOOTSTRAP_PENDING_QUEUE_ROLES.has(String(viewerRole || "").toLowerCase());
+  private async loadUsers(
+    admin: boolean,
+    userId: string,
+    empresaId: string | null,
+    viewerRole: JwtRole,
+    exposeSensitiveAcrossDirectory: boolean
+  ) {
+    const includePendingWithoutCompany = false;
 
     const sql = admin
       ? `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
@@ -1829,7 +1950,7 @@ export class PortalService implements OnModuleInit {
       ? await this.pool.query(sql)
       : await this.pool.query(sql, [userId, empresaId, includePendingWithoutCompany]);
 
-    const dbUsers = await this.finalizePortalUserRowsFromJoin(r.rows);
+    const dbUsers = await this.finalizePortalUserRowsFromJoin(r.rows, userId, exposeSensitiveAcrossDirectory);
     if (!admin) return dbUsers;
     // Solo admin: surface Supabase Auth orphans para que aparezcan en Autorizaciones.
     const orphans = await this.loadSupabaseAuthOrphans(dbUsers);
@@ -1868,7 +1989,7 @@ export class PortalService implements OnModuleInit {
     if (!r.rows.length) {
       throw new BadRequestException("Usuario no encontrado");
     }
-    const [row] = await this.finalizePortalUserRowsFromJoin(r.rows);
+    const [row] = await this.finalizePortalUserRowsFromJoin(r.rows, userId, true);
     return row ?? null;
   }
 
@@ -1900,7 +2021,7 @@ export class PortalService implements OnModuleInit {
          WHERE u.estado_cuenta = 'pendiente'::estado_cuenta_usuario
          ORDER BY u.fecha_creacion DESC NULLS LAST`;
     const r = await this.pool.query(sql);
-    const dbPending = await this.finalizePortalUserRowsFromJoin(r.rows);
+    const dbPending = await this.finalizePortalUserRowsFromJoin(r.rows, "", true);
     // También leemos *todos* los usuarios para no marcar como huérfano a uno ya aprobado en BD.
     const allRes = await this.pool.query<{ id: string; email: string }>(
       `SELECT id::text, lower(correo_electronico) AS email FROM usuarios`
@@ -1909,7 +2030,11 @@ export class PortalService implements OnModuleInit {
     return [...dbPending, ...orphans];
   }
 
-  private async finalizePortalUserRowsFromJoin(rawRows: Array<Record<string, unknown>>) {
+  private async finalizePortalUserRowsFromJoin(
+    rawRows: Array<Record<string, unknown>>,
+    viewerUserId = "",
+    exposeSensitiveAcrossDirectory = false
+  ) {
     const ids = rawRows.map((x) => x.id as string);
     const permMap = new Map<string, string[]>();
     if (ids.length) {
@@ -1929,7 +2054,7 @@ export class PortalService implements OnModuleInit {
         ? new Date(row.portalSince as string).toISOString().slice(0, 10)
         : "";
       const rid = row.id as string;
-      return {
+      const baseRow = {
         ...row,
         password: "",
         permissions: permMap.get(rid) || [],
@@ -1945,6 +2070,9 @@ export class PortalService implements OnModuleInit {
         systemJoinDate: portalSinceStr,
         portalSince: portalSinceStr
       };
+      const isSelf = Boolean(viewerUserId) && String(rid) === String(viewerUserId);
+      if (exposeSensitiveAcrossDirectory || isSelf) return baseRow;
+      return redactPortalUserDirectoryFields(baseRow);
     });
   }
 
@@ -2180,8 +2308,14 @@ export class PortalService implements OnModuleInit {
        LIMIT 400`
     );
     return r.rows.map((row) => ({
-      ...row,
-      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null
+      id: row.id,
+      requestId: row.requestId,
+      requestNumber: row.requestNumber,
+      tripNumber: row.tripNumber,
+      reason: row.reason,
+      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
+      deletedByEmail: maskPortalEmail(row.deletedByEmail),
+      snapshot: row.snapshot || null
     }));
   }
 
@@ -2201,8 +2335,13 @@ export class PortalService implements OnModuleInit {
        LIMIT 400`
     );
     return r.rows.map((row) => ({
-      ...row,
-      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null
+      id: row.id,
+      requestId: row.requestId,
+      requestNumber: row.requestNumber,
+      reason: row.reason,
+      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
+      deletedByEmail: maskPortalEmail(row.deletedByEmail),
+      snapshot: row.snapshot || null
     }));
   }
 
@@ -2465,15 +2604,14 @@ export class PortalService implements OnModuleInit {
   private async loadEmails(admin: boolean) {
     if (!admin) return [];
     const r = await this.pool.query(
-      `SELECT id::text, direccion_destino AS to, asunto AS subject, cuerpo AS body,
+      `SELECT id::text, direccion_destino AS to, asunto AS subject,
               fecha_envio_real AS sentAt, fecha_creacion AS "createdAt"
        FROM correos_salida ORDER BY fecha_creacion DESC LIMIT 500`
     );
     return r.rows.map((e) => ({
       id: e.id,
-      to: e.to,
+      to: maskPortalEmail(e.to),
       subject: e.subject,
-      body: e.body,
       sentAt: e.sentAt ? new Date(e.sentAt).toISOString() : null,
       createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : new Date().toISOString()
     }));
@@ -2566,7 +2704,7 @@ export class PortalService implements OnModuleInit {
         id: row.id,
         userId: row.user_id,
         userName: row.user_name || "Usuario",
-        userEmail: row.user_email || "",
+        userEmail: maskPortalEmail(row.user_email || ""),
         userRole: row.user_role || "",
         createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
         expiresAt: row.expires_at ? new Date(row.expires_at).toISOString() : null,
@@ -2589,7 +2727,7 @@ export class PortalService implements OnModuleInit {
         id: `legacy-refresh-${String((row as { user_id?: unknown }).user_id || "")}`,
         userId: (row as { user_id?: unknown }).user_id || "",
         userName: (row as { user_name?: unknown }).user_name || "Usuario",
-        userEmail: (row as { user_email?: unknown }).user_email || "",
+        userEmail: maskPortalEmail((row as { user_email?: unknown }).user_email || ""),
         userRole: (row as { user_role?: unknown }).user_role || "",
         createdAt: (row as { updated_at?: unknown }).updated_at
           ? new Date(String((row as { updated_at?: unknown }).updated_at)).toISOString()
@@ -2700,8 +2838,10 @@ export class PortalService implements OnModuleInit {
    * Con R2: URL pública o prefirmada; sin R2: devuelve cv_blob inline del JSON.
    */
   async getCandidateCvDownload(userId: string, role: JwtRole, candidateId: string) {
-    void userId;
-    if (!this.isRrhh(role)) {
+    const permissionSet = this.isAdmin(role)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.loadPortalPermissionSet(userId);
+    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "hiring_manage")) {
       throw new ForbiddenException();
     }
     const id = String(candidateId || "").trim();
@@ -2758,8 +2898,10 @@ export class PortalService implements OnModuleInit {
     role: JwtRole,
     candidateId: string
   ): Promise<{ buffer: Buffer; mime: string; fileName: string }> {
-    void userId;
-    if (!this.isRrhh(role)) {
+    const permissionSet = this.isAdmin(role)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.loadPortalPermissionSet(userId);
+    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "hiring_manage")) {
       throw new ForbiddenException();
     }
     const id = String(candidateId || "").trim();
@@ -3180,6 +3322,98 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
+  private async normalizeApprovalPayloadForStorage(
+    typeRaw: unknown,
+    payload: unknown
+  ): Promise<Record<string, unknown>> {
+    const type = String(typeRaw || "").trim().toLowerCase();
+    const base =
+      payload && typeof payload === "object" && !Array.isArray(payload)
+        ? { ...(payload as Record<string, unknown>) }
+        : {};
+
+    if (type === "create_user") {
+      const next = { ...base };
+      const legacyPassword = typeof next.password === "string" ? next.password : "";
+      const passwordHash = typeof next.passwordHash === "string" ? next.passwordHash.trim() : "";
+      delete next.password;
+      if (!passwordHash && legacyPassword.trim()) {
+        next.passwordHash = await bcrypt.hash(legacyPassword, 10);
+      } else if (passwordHash) {
+        next.passwordHash = passwordHash;
+      }
+      return next;
+    }
+
+    if (type === "mark_payroll_paid") {
+      return {
+        payrollRunId: base.payrollRunId ?? "",
+        employeeName: base.employeeName ?? "",
+        month: base.month ?? ""
+      };
+    }
+
+    if (type === "approve_trip_request") {
+      return {
+        requestId: base.requestId ?? ""
+      };
+    }
+
+    return base;
+  }
+
+  private summarizeApprovalPayloadForPortal(
+    typeRaw: unknown,
+    payload: Record<string, unknown>
+  ): Record<string, unknown> {
+    const type = String(typeRaw || "").trim().toLowerCase();
+    switch (type) {
+      case "create_user":
+        return {
+          email: payload.email ?? "",
+          role: payload.role ?? ""
+        };
+      case "create_driver":
+        return {
+          name: payload.name ?? "",
+          idDoc: payload.idDoc ?? ""
+        };
+      case "create_employee":
+        return {
+          name: payload.name ?? "",
+          idDoc: payload.idDoc ?? "",
+          position: payload.position ?? ""
+        };
+      case "register_hr_absence":
+        return {
+          absenceType: payload.absenceType ?? payload.type ?? "",
+          startDate: payload.startDate ?? "",
+          endDate: payload.endDate ?? ""
+        };
+      case "mark_payroll_paid":
+        return {
+          employeeName: payload.employeeName ?? "",
+          month: payload.month ?? "",
+          payrollRunId: payload.payrollRunId ?? ""
+        };
+      case "approve_trip_request":
+        return {
+          requestId: payload.requestId ?? ""
+        };
+      default:
+        return {};
+    }
+  }
+
+  private async approvalPayloadForPortal(
+    typeRaw: unknown,
+    payload: unknown,
+    fullAccess: boolean
+  ): Promise<Record<string, unknown>> {
+    const normalized = await this.normalizeApprovalPayloadForStorage(typeRaw, payload);
+    return fullAccess ? normalized : this.summarizeApprovalPayloadForPortal(typeRaw, normalized);
+  }
+
   private async loadApprovals(admin: boolean, userId: string, empresaId: string | null) {
     const base = `SELECT id::text, tipo_solicitud AS type, titulo AS title, datos_json AS payload,
        estado::text AS status, id_usuario_solicitante::text AS "requestedByUserId",
@@ -3194,12 +3428,21 @@ export class PortalService implements OnModuleInit {
               ORDER BY fecha_solicitud DESC LIMIT 200`,
           [userId, empresaId]
         );
-    return r.rows.map((a) => ({
-      ...a,
-      requestedAt: a.requestedAt ? new Date(a.requestedAt).toISOString() : null,
-      reviewedAt: a.reviewedAt ? new Date(a.reviewedAt).toISOString() : null,
-      payload: a.payload || {}
-    }));
+    return Promise.all(
+      r.rows.map(async (a) => ({
+        id: a.id,
+        type: a.type,
+        title: a.title,
+        status: a.status,
+        requestedByUserId: a.requestedByUserId,
+        requestedByName: a.requestedByName,
+        requestedAt: a.requestedAt ? new Date(a.requestedAt).toISOString() : null,
+        reviewedAt: a.reviewedAt ? new Date(a.reviewedAt).toISOString() : null,
+        reviewedBy: a.reviewedBy,
+        rejectionReason: a.rejectionReason,
+        payload: await this.approvalPayloadForPortal(a.type, a.payload, admin)
+      }))
+    );
   }
 
   /* ─── Sync (upsert por id) ─── */
@@ -3639,8 +3882,14 @@ export class PortalService implements OnModuleInit {
    * POST /portal/transport-schedule-busy — una query (solape por comparación; índices btree en 35_*).
    */
   async getTransportScheduleBusy(userId: string, role: JwtRole, dto: TransportScheduleBusyDto) {
-    void userId;
-    if (!this.isTransportOps(role)) {
+    const permissionSet = this.isAdmin(role)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.loadPortalPermissionSet(userId);
+    if (
+      !this.isAdmin(role) &&
+      !this.hasPortalPermission(permissionSet, "transport_trips") &&
+      !this.hasPortalPermission(permissionSet, "transport_calendar")
+    ) {
       throw new ForbiddenException();
     }
     const pickup = new Date(dto.pickupAt);
@@ -4782,7 +5031,7 @@ export class PortalService implements OnModuleInit {
       return t;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      this.logger.warn(`liquidaciones_nomina: no se pudo detectar columnas (${msg}); usando esquema base.`);
+      this.logger.warn(`liquidaciones_nomina: no se pudo detectar columnas (${sanitizeLogText(msg)}); usando esquema base.`);
       this.payrollLiquSchemaTier = 0;
       return 0;
     }
@@ -4817,7 +5066,7 @@ export class PortalService implements OnModuleInit {
       return ok;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      this.logger.warn(`liquidaciones_nomina: no se pudieron detectar columnas de novedades (${msg}).`);
+      this.logger.warn(`liquidaciones_nomina: no se pudieron detectar columnas de novedades (${sanitizeLogText(msg)}).`);
       this.payrollLiquNovedadesCols = false;
       return false;
     }
@@ -5093,7 +5342,12 @@ export class PortalService implements OnModuleInit {
    * Alta directa en PostgreSQL (Historial → Combustible). No reemplaza toda la tabla.
    */
   async createFleetFuelLog(userId: string, role: JwtRole, body: Record<string, unknown>) {
-    if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+    const permissionSet = this.isAdmin(role)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.loadPortalPermissionSet(userId);
+    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "transport_history")) {
+      throw new ForbiddenException();
+    }
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -5112,7 +5366,12 @@ export class PortalService implements OnModuleInit {
    * Alta directa en PostgreSQL (Historial → Taller). No reemplaza toda la tabla.
    */
   async createFleetMaintenanceLog(userId: string, role: JwtRole, body: Record<string, unknown>) {
-    if (!this.isTransportOps(role) && !this.isAdmin(role)) throw new ForbiddenException();
+    const permissionSet = this.isAdmin(role)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.loadPortalPermissionSet(userId);
+    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "transport_history")) {
+      throw new ForbiddenException();
+    }
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -5553,11 +5812,22 @@ export class PortalService implements OnModuleInit {
     if (key === "contracts") {
       await this.deleteRowsNotInIncomingList(c, "contratos", data);
       for (const x of data) {
-        if (!x?.id || !x.positionId || !x.companyId) continue;
-        if (this.skipUnlessPersistUuid("syncHrKeys.contracts", x.id)) continue;
-        if (this.skipUnlessPersistUuid("syncHrKeys.contracts.positionId", x.positionId)) continue;
-        if (this.skipUnlessPersistUuid("syncHrKeys.contracts.companyId", x.companyId)) continue;
-        const candRaw = (x as Record<string, unknown>).candidateId;
+        const row = x as Record<string, unknown>;
+        const positionId = pickPortalField(row, "positionId", "id_cargo");
+        const companyId = pickPortalField(row, "companyId", "id_empresa");
+        const employeeId = pickPortalField(row, "employeeId", "id_empleado");
+        if (!row?.id || !positionId || !companyId) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.contracts", row.id)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.contracts.positionId", positionId)) continue;
+        if (this.skipUnlessPersistUuid("syncHrKeys.contracts.companyId", companyId)) continue;
+        if (
+          employeeId != null &&
+          String(employeeId).trim() !== "" &&
+          this.skipUnlessPersistUuid("syncHrKeys.contracts.employeeId", employeeId)
+        ) {
+          continue;
+        }
+        const candRaw = pickPortalField(row, "candidateId", "id_candidato");
         if (
           candRaw != null &&
           String(candRaw).trim() !== "" &&
@@ -5567,16 +5837,21 @@ export class PortalService implements OnModuleInit {
         }
         await c.query(
           `INSERT INTO contratos (
-            id, tipo_persona_origen, id_candidato, nombre_candidato_denorm, rol_trabajador, id_cargo, nombre_cargo_denorm,
-            salario_pactado, fecha_inicio, id_empresa, nombre_empresa_denorm, tipo_contrato, tipo_plantilla_word,
-            eps, fondo_pension, arl, jornada_turno
+            id, etiqueta_origen, tipo_persona_origen, id_candidato, nombre_candidato_denorm, id_empleado, nombre_empleado_denorm,
+            rol_trabajador, id_cargo, nombre_cargo_denorm, salario_pactado, fecha_inicio, id_empresa, nombre_empresa_denorm,
+            tipo_contrato, tipo_plantilla_word, documento_identidad_snapshot, eps, fondo_pension, arl, jornada_turno,
+            texto_contenido_resumen
           ) VALUES (
-            $1::uuid, $2, $3::uuid, $4, $5, $6::uuid, $7, $8, $9::date, $10::uuid, $11, $12, $13, $14, $15, $16, $17
+            $1::uuid, $2, $3, $4::uuid, $5, $6::uuid, $7, $8, $9::uuid, $10, $11, $12::date, $13::uuid, $14,
+            $15, $16, $17, $18, $19, $20, $21, $22
           )
           ON CONFLICT (id) DO UPDATE SET
+            etiqueta_origen = EXCLUDED.etiqueta_origen,
             tipo_persona_origen = EXCLUDED.tipo_persona_origen,
             id_candidato = EXCLUDED.id_candidato,
             nombre_candidato_denorm = EXCLUDED.nombre_candidato_denorm,
+            id_empleado = EXCLUDED.id_empleado,
+            nombre_empleado_denorm = EXCLUDED.nombre_empleado_denorm,
             rol_trabajador = EXCLUDED.rol_trabajador,
             id_cargo = EXCLUDED.id_cargo,
             nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
@@ -5586,28 +5861,35 @@ export class PortalService implements OnModuleInit {
             nombre_empresa_denorm = EXCLUDED.nombre_empresa_denorm,
             tipo_contrato = EXCLUDED.tipo_contrato,
             tipo_plantilla_word = EXCLUDED.tipo_plantilla_word,
+            documento_identidad_snapshot = EXCLUDED.documento_identidad_snapshot,
             eps = EXCLUDED.eps,
             fondo_pension = EXCLUDED.fondo_pension,
             arl = EXCLUDED.arl,
-            jornada_turno = EXCLUDED.jornada_turno`,
+            jornada_turno = EXCLUDED.jornada_turno,
+            texto_contenido_resumen = EXCLUDED.texto_contenido_resumen`,
           [
-            x.id,
-            x.personType || "Natural",
-            x.candidateId || null,
-            x.candidateName || "",
-            String(x.workerRole || "empleado").toLowerCase(),
-            x.positionId,
-            x.positionName || "",
-            Number(x.salary) || 0,
-            x.startDate || new Date().toISOString().slice(0, 10),
-            x.companyId,
-            x.companyName || "",
-            x.contractType || "Indefinido",
-            x.templateKind || "basico",
-            x.eps || "Sura",
-            x.pensionFund || "Porvenir",
-            x.arl || "Sura",
-            x.schedule || "Diurna"
+            row.id,
+            (pickPortalField(row, "sourceTag", "source") as string) || null,
+            (pickPortalField(row, "personType") as string) || (employeeId ? "Empleado" : "Candidato"),
+            candRaw || null,
+            (pickPortalField(row, "candidateName") as string) || "",
+            employeeId || null,
+            (pickPortalField(row, "employeeName") as string) || "",
+            String(pickPortalField(row, "workerRole") || "empleado").toLowerCase(),
+            positionId,
+            (pickPortalField(row, "positionName", "position") as string) || "",
+            Number(pickPortalField(row, "salary")) || 0,
+            pickPortalField(row, "startDate") || new Date().toISOString().slice(0, 10),
+            companyId,
+            (pickPortalField(row, "companyName") as string) || "",
+            (pickPortalField(row, "contractType") as string) || "Indefinido",
+            (pickPortalField(row, "templateKind", "contractTemplateKind") as string) || "oficina",
+            (pickPortalField(row, "idDocSnapshot") as string) || null,
+            (pickPortalField(row, "eps") as string) || "Sura",
+            (pickPortalField(row, "pensionFund") as string) || "Porvenir",
+            (pickPortalField(row, "arl") as string) || "Sura",
+            (pickPortalField(row, "schedule", "workSchedule") as string) || "Diurna",
+            (pickPortalField(row, "content") as string) || null
           ]
         );
       }
@@ -5764,6 +6046,7 @@ export class PortalService implements OnModuleInit {
       if (!admin && String(a.requestedByUserId) !== userId) throw new ForbiddenException();
       const reqBy = a.requestedByUserId || userId;
       if (this.skipUnlessPersistUuid("syncApprovals.requestedByUserId", reqBy)) continue;
+      const payload = await this.normalizeApprovalPayloadForStorage(a.type, a.payload);
       await c.query(
         `INSERT INTO solicitudes_autorizacion (
           id, tipo_solicitud, titulo, datos_json, estado, id_usuario_solicitante, nombre_solicitante,
@@ -5778,7 +6061,7 @@ export class PortalService implements OnModuleInit {
           a.id,
           a.type,
           a.title,
-          JSON.stringify(a.payload || {}),
+          JSON.stringify(payload),
           a.status || "pendiente",
           reqBy,
           a.requestedByName || "",
