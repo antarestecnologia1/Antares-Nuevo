@@ -1763,6 +1763,7 @@ function applyModuleMicroAnimations() {
 const KEYS = {
   users: "antares_users_v2",
   companies: "antares_companies_v2",
+  systemParameters: "antares_system_parameters_v1",
   counters: "antares_counters_v2",
   contacts: "antares_contacts_v2",
   requests: "antares_requests_v2",
@@ -2791,6 +2792,53 @@ const CO_HR_RULES = {
   minMonthlySalary: 1423500,
   transportAllowance: 200000
 };
+const CO_SYSTEM_PARAMS_DEFAULTS = {
+  smmlvCop: CO_PAYROLL.smmlv,
+  minMonthlySalaryCop: CO_HR_RULES.minMonthlySalary,
+  transportAllowanceCop: CO_HR_RULES.transportAllowance,
+  legalWeeklyHours: CO_HR_RULES.legalWeeklyHours,
+  uvtCop: null
+};
+
+function normalizeSystemParametersPayload(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const smmlvCop = Math.max(0, parseNum(raw.smmlvCop ?? raw.smmlv));
+  const minMonthlySalaryCop = Math.max(0, parseNum(raw.minMonthlySalaryCop ?? raw.minMonthlySalary ?? smmlvCop));
+  const transportAllowanceCop = Math.max(0, parseNum(raw.transportAllowanceCop ?? raw.transportAllowance));
+  const legalWeeklyHours = Math.max(0, parseNum(raw.legalWeeklyHours));
+  const uvtParsed = Math.max(0, parseNum(raw.uvtCop ?? raw.uvt));
+  return {
+    smmlvCop: smmlvCop || CO_SYSTEM_PARAMS_DEFAULTS.smmlvCop,
+    minMonthlySalaryCop: minMonthlySalaryCop || smmlvCop || CO_SYSTEM_PARAMS_DEFAULTS.minMonthlySalaryCop,
+    transportAllowanceCop: transportAllowanceCop || CO_SYSTEM_PARAMS_DEFAULTS.transportAllowanceCop,
+    legalWeeklyHours: legalWeeklyHours || CO_SYSTEM_PARAMS_DEFAULTS.legalWeeklyHours,
+    uvtCop: uvtParsed || null
+  };
+}
+
+function applySystemParametersToClientRules(raw) {
+  const normalized = normalizeSystemParametersPayload(raw);
+  if (!normalized) return null;
+  CO_PAYROLL.smmlv = normalized.smmlvCop;
+  CO_HR_RULES.minMonthlySalary = normalized.minMonthlySalaryCop;
+  CO_HR_RULES.transportAllowance = normalized.transportAllowanceCop;
+  CO_HR_RULES.legalWeeklyHours = normalized.legalWeeklyHours;
+  return normalized;
+}
+
+function applySystemParametersFromBootstrapPayload(raw) {
+  const normalized = applySystemParametersToClientRules(raw);
+  if (!normalized) return;
+  write(KEYS.systemParameters, normalized);
+}
+
+function hydrateSystemParametersFromCache() {
+  const cached = read(KEYS.systemParameters, null);
+  applySystemParametersToClientRules(cached);
+}
+
+hydrateSystemParametersFromCache();
+
 const CO_CATALOGS = {
   licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
   eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
@@ -3377,6 +3425,9 @@ function applyPortalBootstrapPayload(p) {
 function __applyPortalBootstrapPayloadInner(p) {
   if (p.notificationPreferences !== undefined) {
     applyNotificationPreferencesFromBootstrapPayload(p.notificationPreferences);
+  }
+  if (p.systemParameters !== undefined) {
+    applySystemParametersFromBootstrapPayload(p.systemParameters);
   }
   if (p.contacts !== undefined) {
     state.portalContacts = Array.isArray(p.contacts) ? p.contacts : [];

@@ -34,6 +34,34 @@ import { randomUUID } from "node:crypto";
 
 type JwtRole = string;
 
+type PortalLaborSystemRules = {
+  smmlvCop: number;
+  minMonthlySalaryCop: number;
+  transportAllowanceCop: number;
+  legalWeeklyHours: number;
+  uvtCop: number | null;
+};
+
+const DEFAULT_FRONTEND_MIN_MONTHLY_SALARY_COP = 1_423_500;
+const DEFAULT_FRONTEND_TRANSPORT_ALLOWANCE_COP = 200_000;
+const DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS = 46;
+const SYSTEM_PARAMETER_ALIASES = {
+  smmlv: [
+    "smmlv",
+    "smmlv_cop",
+    "salario_minimo",
+    "salario_minimo_cop",
+    "salario_minimo_mensual_legal_vigente"
+  ],
+  transportAllowance: [
+    "auxilio_transporte",
+    "auxilio_transporte_cop",
+    "subsidio_transporte",
+    "subsidio_transporte_cop"
+  ],
+  uvt: ["uvt", "uvt_cop", "unidad_valor_tributario"]
+} as const;
+
 /** UUID v4 — mismas entradas que acepta PostgreSQL al castear ::uuid */
 const PG_UUID_V4_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -115,6 +143,27 @@ function sanitizeLogText(raw: unknown, maxLength = 180): string {
 
 function maskPortalEmail(raw: unknown): string {
   return redactEmailForLog(raw == null ? "" : String(raw));
+}
+
+function normalizeSystemParameterKey(raw: unknown): string {
+  return String(raw ?? "").trim().toLowerCase();
+}
+
+function coerceSystemParameterNumber(rawNumeric: unknown, rawText: unknown): number | null {
+  const direct = Number(rawNumeric);
+  if (Number.isFinite(direct)) return direct;
+  const text = String(rawText ?? "").trim();
+  if (!text) return null;
+  const sanitized = text.replace(/\s+/g, "").replace(/[^0-9,.-]/g, "");
+  if (!sanitized) return null;
+  const normalized =
+    sanitized.includes(",") && sanitized.includes(".")
+      ? sanitized.replace(/\./g, "").replace(",", ".")
+      : sanitized.includes(",") && !sanitized.includes(".")
+        ? sanitized.replace(",", ".")
+        : sanitized.replace(/,/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function redactPortalUserDirectoryFields<T extends Record<string, unknown>>(row: T): T {
@@ -716,6 +765,72 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  private async loadActiveSystemParameters(
+    referenceDate: Date = new Date(),
+    client?: PoolClient
+  ): Promise<Map<string, number>> {
+    if (!(await this.tableExists("parametros_sistema"))) return new Map();
+    const db = client ?? this.pool;
+    const refDateSql = this.pgDateUtc(referenceDate);
+    const r = await db.query<{
+      clave_norm: string;
+      valor_numerico: string | null;
+      valor_texto: string | null;
+    }>(
+      `SELECT DISTINCT ON (lower(trim(clave)))
+         lower(trim(clave)) AS clave_norm,
+         valor_numerico::text AS valor_numerico,
+         valor_texto
+       FROM parametros_sistema
+       WHERE vigente_desde <= $1::date
+         AND (vigente_hasta IS NULL OR vigente_hasta >= $1::date)
+       ORDER BY lower(trim(clave)), vigente_desde DESC, vigente_hasta DESC NULLS LAST`,
+      [refDateSql]
+    );
+    const out = new Map<string, number>();
+    for (const row of r.rows) {
+      const key = normalizeSystemParameterKey(row.clave_norm);
+      const value = coerceSystemParameterNumber(row.valor_numerico, row.valor_texto);
+      if (key && value != null) out.set(key, value);
+    }
+    return out;
+  }
+
+  private pickActiveSystemParameter(
+    active: ReadonlyMap<string, number>,
+    aliases: readonly string[]
+  ): number | null {
+    for (const rawAlias of aliases) {
+      const key = normalizeSystemParameterKey(rawAlias);
+      const value = active.get(key);
+      if (value != null && Number.isFinite(value)) return value;
+    }
+    return null;
+  }
+
+  private async loadLaborSystemRules(
+    referenceDate: Date = new Date(),
+    client?: PoolClient
+  ): Promise<PortalLaborSystemRules> {
+    const active = await this.loadActiveSystemParameters(referenceDate, client);
+    const smmlvDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.smmlv);
+    const transportAllowanceDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.transportAllowance);
+    const uvtDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.uvt);
+    const smmlvFallback = Math.max(
+      0,
+      Number(this.config.get<string>("PAYROLL_SMMLV_COP")) || SMMLV_COP_REFERENCE_2026
+    );
+
+    return {
+      smmlvCop: smmlvDb ?? smmlvFallback,
+      // Cuando existe en BD, el piso salarial del portal se alinea al mismo SMMLV vigente.
+      minMonthlySalaryCop: smmlvDb ?? DEFAULT_FRONTEND_MIN_MONTHLY_SALARY_COP,
+      transportAllowanceCop: transportAllowanceDb ?? DEFAULT_FRONTEND_TRANSPORT_ALLOWANCE_COP,
+      legalWeeklyHours: DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS,
+      uvtCop: uvtDb
+    };
+  }
+
   private isAdmin(role: JwtRole) {
     return String(role || "").toLowerCase() === "admin";
   }
@@ -1006,11 +1121,13 @@ export class PortalService implements OnModuleInit {
     const fullUserDirectoryAccess = admin || canUsersManage;
     const canSeeAllCompanies =
       admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canViewContactB2b;
+    const laborSystemRulesPromise = this.loadLaborSystemRules();
 
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
       admin ? this.loadCounters() : Promise.resolve({}),
       canPayroll ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
+      laborSystemRulesPromise,
       canTransportTrips ? this.loadTripRouteRates() : Promise.resolve({}),
       canTransportData ? this.loadVehicles() : Promise.resolve([]),
       canTransportData ? this.loadDrivers() : Promise.resolve([]),
@@ -1044,6 +1161,7 @@ export class PortalService implements OnModuleInit {
       companies,
       counters,
       travelAllowanceRules,
+      systemParameters,
       tripRouteRates,
       vehicles,
       drivers,
@@ -1082,6 +1200,7 @@ export class PortalService implements OnModuleInit {
       fuelLogs,
       vehicleTechnicalLogs,
       travelAllowanceRules,
+      systemParameters,
       vacancies,
       candidates,
       positions,
@@ -5131,11 +5250,6 @@ export class PortalService implements OnModuleInit {
     reference: Date = new Date()
   ): Promise<{ created: number; skipped: number; messages: string[] }> {
     const { y: by, m0: bm0, dom: bdom } = bogotaCalendarPartsFromInstant(reference);
-
-    const smmlv = Math.max(
-      0,
-      Number(this.config.get<string>("PAYROLL_SMMLV_COP")) || SMMLV_COP_REFERENCE_2026
-    );
     const cesBaseOptRaw = this.config.get<string>("PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP");
     const cesBaseOpt =
       cesBaseOptRaw !== undefined &&
@@ -5151,6 +5265,8 @@ export class PortalService implements OnModuleInit {
     let skipped = 0;
     try {
       await client.query("BEGIN");
+      const laborRules = await this.loadLaborSystemRules(reference, client);
+      const smmlv = laborRules.smmlvCop;
 
       const tier = await this.resolvePayrollLiquSchemaTier(client);
       const hasNov = await this.resolvePayrollLiquNovedadesCols(client);
