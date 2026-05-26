@@ -1080,28 +1080,50 @@ export class PortalService implements OnModuleInit {
    * `sonido_notificaciones_habilitadas` (solo timbre; irrelevante si las notificaciones están off).
    */
   private async loadNotificationPreferencesForPortal(userId: string): Promise<{
+    id: string | null;
     notificacionesHabilitadas: boolean;
     sonidoNotificacionesHabilitadas: boolean;
+    createdAt: string | null;
+    updatedAt: string | null;
   }> {
     try {
       const r = await this.pool.query<{
+        id: string;
         notificaciones_habilitadas: boolean;
         sonido_notificaciones_habilitadas: boolean;
+        fecha_creacion: string | Date | null;
+        fecha_actualizacion: string | Date | null;
       }>(
-        `SELECT notificaciones_habilitadas, sonido_notificaciones_habilitadas
+        `SELECT id::text, notificaciones_habilitadas, sonido_notificaciones_habilitadas,
+                fecha_creacion, fecha_actualizacion
          FROM preferencias_notificacion_usuario WHERE id_usuario = $1::uuid LIMIT 1`,
         [userId]
       );
       if (!r.rows.length) {
-        return { notificacionesHabilitadas: true, sonidoNotificacionesHabilitadas: true };
+        return {
+          id: null,
+          notificacionesHabilitadas: true,
+          sonidoNotificacionesHabilitadas: true,
+          createdAt: null,
+          updatedAt: null
+        };
       }
       const row = r.rows[0];
       return {
+        id: row.id || null,
         notificacionesHabilitadas: row.notificaciones_habilitadas !== false,
-        sonidoNotificacionesHabilitadas: row.sonido_notificaciones_habilitadas !== false
+        sonidoNotificacionesHabilitadas: row.sonido_notificaciones_habilitadas !== false,
+        createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : null,
+        updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : null
       };
     } catch {
-      return { notificacionesHabilitadas: true, sonidoNotificacionesHabilitadas: true };
+      return {
+        id: null,
+        notificacionesHabilitadas: true,
+        sonidoNotificacionesHabilitadas: true,
+        createdAt: null,
+        updatedAt: null
+      };
     }
   }
 
@@ -1122,16 +1144,31 @@ export class PortalService implements OnModuleInit {
           : cur.sonidoNotificacionesHabilitadas
     };
     try {
-      await this.pool.query(
+      const saved = await this.pool.query<{
+        id: string;
+        notificaciones_habilitadas: boolean;
+        sonido_notificaciones_habilitadas: boolean;
+        fecha_creacion: string | Date | null;
+        fecha_actualizacion: string | Date | null;
+      }>(
         `INSERT INTO preferencias_notificacion_usuario (
            id_usuario, notificaciones_habilitadas, sonido_notificaciones_habilitadas, fecha_creacion, fecha_actualizacion
          ) VALUES ($1::uuid, $2, $3, now(), now())
          ON CONFLICT (id_usuario) DO UPDATE SET
            notificaciones_habilitadas = EXCLUDED.notificaciones_habilitadas,
            sonido_notificaciones_habilitadas = EXCLUDED.sonido_notificaciones_habilitadas,
-           fecha_actualizacion = now()`,
+           fecha_actualizacion = now()
+         RETURNING id::text, notificaciones_habilitadas, sonido_notificaciones_habilitadas, fecha_creacion, fecha_actualizacion`,
         [userId, next.notificacionesHabilitadas, next.sonidoNotificacionesHabilitadas]
       );
+      const row = saved.rows[0];
+      return {
+        id: row?.id || null,
+        notificacionesHabilitadas: row?.notificaciones_habilitadas !== false,
+        sonidoNotificacionesHabilitadas: row?.sonido_notificaciones_habilitadas !== false,
+        createdAt: row?.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : null,
+        updatedAt: row?.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : null
+      };
     } catch (e) {
       this.logger.warn(
         `updateNotificationPreferences falló para ${userId}: ${e instanceof Error ? e.message : String(e)}`
@@ -1140,7 +1177,6 @@ export class PortalService implements OnModuleInit {
         "No se pudieron guardar las preferencias. Revise la tabla preferencias_notificacion_usuario (columna sonido_notificaciones_habilitadas)."
       );
     }
-    return next;
   }
 
   async bootstrap(userId: string, role: JwtRole) {
@@ -2373,7 +2409,9 @@ export class PortalService implements OnModuleInit {
              v.asignado_por AS "trip_assignedBy",
              v.fecha_hora_asignacion AS "trip_assignedAt",
              v.estado_operativo_en_vivo AS "trip_realtimeStatus",
-             v.datos_factura_json AS "trip_invoice"
+             v.datos_factura_json AS "trip_invoice",
+             v.fecha_creacion AS "trip_createdAt",
+             v.fecha_actualizacion AS "trip_updatedAt"
       FROM solicitudes_transporte s
       LEFT JOIN viajes_transporte v ON v.id_solicitud = s.id
       LEFT JOIN empresas ec ON ec.id = s.id_empresa_cliente`;
@@ -2418,7 +2456,9 @@ export class PortalService implements OnModuleInit {
             assignedBy: row.trip_assignedBy,
             assignedAt: row.trip_assignedAt ? new Date(row.trip_assignedAt as string).toISOString() : null,
             realtimeStatus: row.trip_realtimeStatus,
-            invoice: row.trip_invoice || null
+            invoice: row.trip_invoice || null,
+            createdAt: row.trip_createdAt ? new Date(row.trip_createdAt as string).toISOString() : null,
+            updatedAt: row.trip_updatedAt ? new Date(row.trip_updatedAt as string).toISOString() : null
           }
         : null;
 
@@ -5838,7 +5878,13 @@ export class PortalService implements OnModuleInit {
   private async syncTravelAllowanceRules(c: PoolClient, data: unknown) {
     const obj = data as { interDepartmentTripAmount?: number };
     const v = Number(obj?.interDepartmentTripAmount ?? 85000);
-    await c.query(`UPDATE reglas_viatico_interdepartamental SET valor_viaje_interdepartamental_cop = $1 WHERE id = 1`, [v]);
+    await c.query(
+      `UPDATE reglas_viatico_interdepartamental
+       SET valor_viaje_interdepartamental_cop = $1,
+           fecha_actualizacion = now()
+       WHERE id = 1`,
+      [v]
+    );
   }
 
   private async syncHrKeys(c: PoolClient, key: PortalSyncKey, data: unknown) {
@@ -6215,14 +6261,48 @@ export class PortalService implements OnModuleInit {
   private async syncTripRouteRates(c: PoolClient, data: unknown) {
     if (!data || typeof data !== "object") throw new ForbiddenException();
     const SEP = "@@";
-    await c.query(`DELETE FROM tarifas_trayecto`);
+    const existingRows = await c.query<{
+      id: string;
+      departamento_origen: string;
+      ciudad_origen: string;
+      departamento_destino: string;
+      ciudad_destino: string;
+      ids_empresas: string[] | null;
+    }>(
+      `SELECT id::text, departamento_origen, ciudad_origen, departamento_destino, ciudad_destino, ids_empresas
+       FROM tarifas_trayecto`
+    );
+    const normalizeRateScopeIds = (ids: string[] | null | undefined): string[] =>
+      Array.isArray(ids)
+        ? ids
+            .map((s) => String(s || "").trim())
+            .filter(Boolean)
+            .sort()
+        : [];
+    const buildLogicalKey = (od: string, oc: string, dd: string, dc: string, companyIds: string[]): string =>
+      `${String(od || "").trim().toLowerCase()}|${String(oc || "").trim().toLowerCase()}->${String(dd || "")
+        .trim()
+        .toLowerCase()}|${String(dc || "").trim().toLowerCase()}${SEP}${normalizeRateScopeIds(companyIds).join(",") || "*"}`;
+    const existingByLogicalKey = new Map(
+      existingRows.rows.map((row) => [
+        buildLogicalKey(
+          row.departamento_origen,
+          row.ciudad_origen,
+          row.departamento_destino,
+          row.ciudad_destino,
+          row.ids_empresas || []
+        ),
+        row.id
+      ])
+    );
 
     const parseEntry = (
       keyStr: string,
       valRaw: unknown
-    ): { od: string; oc: string; dd: string; dc: string; cop: number; companyIds: string[] } | null => {
+    ): { id: string | null; od: string; oc: string; dd: string; dc: string; cop: number; companyIds: string[] } | null => {
       let routePart = String(keyStr || "");
       let companyIds: string[] = [];
+      let incomingId: string | null = null;
       const sepIdx = routePart.lastIndexOf(SEP);
       if (sepIdx !== -1) {
         const scope = routePart.slice(sepIdx + SEP.length);
@@ -6243,28 +6323,56 @@ export class PortalService implements OnModuleInit {
       let cop = 0;
       if (typeof valRaw === "number") cop = Number(valRaw);
       else if (valRaw && typeof valRaw === "object" && !Array.isArray(valRaw)) {
-        const v = (valRaw as { value?: unknown; companyIds?: unknown }).value;
+        const v = (valRaw as { value?: unknown; companyIds?: unknown; id?: unknown }).value;
         const ids = (valRaw as { companyIds?: unknown }).companyIds;
+        const rawId = String((valRaw as { id?: unknown }).id || "").trim();
+        incomingId = PG_UUID_V4_RE.test(rawId) ? rawId : null;
         cop = Number(v) || 0;
         if (Array.isArray(ids) && ids.length) {
           companyIds = ids.map((x) => String(x)).filter(Boolean);
         }
       }
       if (!(cop > 0)) return null;
-      return { od: od || "", oc: oc || "", dd: dd || "", dc: dc || "", cop, companyIds };
+      return {
+        id: incomingId,
+        od: od || "",
+        oc: oc || "",
+        dd: dd || "",
+        dc: dc || "",
+        cop,
+        companyIds: normalizeRateScopeIds(companyIds)
+      };
     };
 
+    const keepIds = new Set<string>();
     for (const [keyStr, valRaw] of Object.entries(data as Record<string, unknown>)) {
       const row = parseEntry(keyStr, valRaw);
       if (!row) continue;
+      const logicalKey = buildLogicalKey(row.od, row.oc, row.dd, row.dc, row.companyIds);
+      const resolvedId = row.id || existingByLogicalKey.get(logicalKey) || randomUUID();
       const idsPg = row.companyIds.length ? row.companyIds : null;
+      keepIds.add(resolvedId);
       await c.query(
         `INSERT INTO tarifas_trayecto (
-          departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
+          id, departamento_origen, ciudad_origen, departamento_destino, ciudad_destino,
           valor_tarifa_cop, ids_empresas, activo
-        ) VALUES ($1, $2, $3, $4, $5, $6::uuid[], true)`,
-        [row.od, row.oc, row.dd, row.dc, row.cop, idsPg]
+        ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::uuid[], true)
+        ON CONFLICT (id) DO UPDATE SET
+          departamento_origen = EXCLUDED.departamento_origen,
+          ciudad_origen = EXCLUDED.ciudad_origen,
+          departamento_destino = EXCLUDED.departamento_destino,
+          ciudad_destino = EXCLUDED.ciudad_destino,
+          valor_tarifa_cop = EXCLUDED.valor_tarifa_cop,
+          ids_empresas = EXCLUDED.ids_empresas,
+          activo = EXCLUDED.activo,
+          fecha_actualizacion = now()`,
+        [resolvedId, row.od, row.oc, row.dd, row.dc, row.cop, idsPg]
       );
+    }
+    if (keepIds.size) {
+      await c.query(`DELETE FROM tarifas_trayecto WHERE NOT (id = ANY($1::uuid[]))`, [[...keepIds]]);
+    } else {
+      await c.query(`DELETE FROM tarifas_trayecto`);
     }
   }
 
