@@ -165,7 +165,7 @@
       attrs: { blur: "decimal", restrict: "decimal" }
     },
     { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
-    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|endDate|deadline|when|soat|techInspection|rcPolicy)/i, attrs: { blur: "date-iso" } }
+    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|endDate|deadline|when|soat|techInspection|rcPolicyExpiry)/i, attrs: { blur: "date-iso" } }
   ];
 
   function applyFieldRuleAttrs(el, attrs) {

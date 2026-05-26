@@ -1801,6 +1801,7 @@ const KEYS = {
   approvals: "antares_approvals_v2",
   deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",
   deletedTransportRequestLogs: "antares_deleted_transport_request_logs_v1",
+  moduleAuditLogs: "antares_module_audit_logs_v1",
   session: "antares_session_v2"
 };
 
@@ -3826,7 +3827,7 @@ function reqRead() {
     typeof DomainModules?.requests?.readAllSync === "function"
       ? DomainModules.requests.readAllSync()
       : readArray(KEYS.requests);
-  return Array.isArray(rows) ? rows : [];
+  return Array.isArray(rows) ? rows.map(normalizePortalTransportRequestRow) : [];
 }
 
 function reqWrite(next) {
@@ -3841,6 +3842,30 @@ function reqWrite(next) {
 async function reqWriteAwait(next) {
   reqWrite(next);
   await writeAwaitServer(KEYS.requests, read(KEYS.requests, []));
+}
+
+function normalizePortalTransportRequestRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const truckType = normalizeRequestRequiredTruckType(row.vehicleType || row.requiredTruckType);
+  const siteContactName = String(row.siteContactName ?? row.contactName ?? "").trim();
+  const siteContactPhone = String(row.siteContactPhone ?? row.contactPhone ?? "").trim();
+  const needsFuelles = requestRequiredTruckTypeShowsFuelles(truckType);
+  const normalizedFuelles =
+    row.fuelles != null && row.fuelles !== "" ? parseNum(row.fuelles) : needsFuelles ? 0 : row.fuelles ?? null;
+  const normalized = {
+    ...row,
+    vehicleType: truckType || String(row.vehicleType || row.requiredTruckType || "").trim(),
+    requiredTruckType: truckType || String(row.requiredTruckType || row.vehicleType || "").trim(),
+    fuelles: normalizedFuelles,
+    siteContactName,
+    siteContactPhone,
+    contactName: siteContactName,
+    contactPhone: siteContactPhone
+  };
+  if (normalized.refrigeracionTermoking == null && typeof row.requiresThermoking === "boolean") {
+    normalized.refrigeracionTermoking = row.requiresThermoking;
+  }
+  return normalized;
 }
 
 if (typeof window.DomainModules?.requests?.attachStorage === "function") {
@@ -4829,6 +4854,32 @@ function stampUpdatedRecord(record, ts = nowIso()) {
     ...record,
     updatedAt: ts
   };
+}
+
+function readModuleAuditLogs() {
+  const rows = read(KEYS.moduleAuditLogs, []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+function appendModuleAuditLog(entry) {
+  const row = entry && typeof entry === "object" ? entry : {};
+  const at = String(row.at || nowIso()).trim();
+  if (!at) return;
+  const list = readModuleAuditLogs();
+  list.unshift({
+    id: String(row.id || newUuidV4()),
+    at,
+    action: String(row.action || "update"),
+    moduleId: String(row.moduleId || "").trim(),
+    moduleLabel: String(row.moduleLabel || row.moduleId || "Módulo").trim(),
+    entityId: String(row.entityId || "").trim(),
+    entityLabel: String(row.entityLabel || "Registro").trim(),
+    summary: String(row.summary || "").trim(),
+    actor: String(row.actor || currentUser()?.email || currentUser()?.name || "—").trim(),
+    detailAction: String(row.detailAction || "").trim(),
+    detailId: String(row.detailId || "").trim()
+  });
+  write(KEYS.moduleAuditLogs, list.slice(0, 600));
 }
 
 function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIso()) {
@@ -6445,6 +6496,15 @@ function refreshCreateTripModuleForm(formEl) {
   const vehSel = formEl.querySelector("select[name='vehicleId']");
   const drvSel = formEl.querySelector("select[name='driverId']");
   const rateMount = formEl.querySelector("#create-trip-rate-fields");
+  const prevVehicleId = String(vehSel?.value || "").trim();
+  const prevDriverId = String(drvSel?.value || "").trim();
+  const prevRateChoice = String(formEl.querySelector("select[name='tripRateChoice']")?.value || "").trim();
+  const prevTripValue = String(formEl.querySelector("input[name='tripValue']")?.value || "").trim();
+  const restoreSelectValue = (selectEl, value) => {
+    if (!selectEl || !value) return;
+    const hasOption = [...selectEl.options].some((opt) => String(opt.value) === value && !opt.disabled);
+    if (hasOption) selectEl.value = value;
+  };
   const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
 
   const fleetStats = formEl.querySelector("#create-trip-fleet-stats");
@@ -6559,6 +6619,7 @@ function refreshCreateTripModuleForm(formEl) {
           })
           .join("");
     }
+    restoreSelectValue(vehSel, prevVehicleId);
   }
 
   if (drvSel) {
@@ -6580,11 +6641,21 @@ function refreshCreateTripModuleForm(formEl) {
           })
           .join("");
     }
+    restoreSelectValue(drvSel, prevDriverId);
   }
 
   if (rateMount) {
     rateMount.innerHTML = `<div class="form-section-grid create-trip-rate-mount">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
     wireTripRateChoiceSelect(formEl);
+    const rateChoiceSel = formEl.querySelector("select[name='tripRateChoice']");
+    restoreSelectValue(rateChoiceSel, prevRateChoice);
+    if (rateChoiceSel && prevRateChoice) {
+      rateChoiceSel.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    const tripValueInput = formEl.querySelector("input[name='tripValue']");
+    if (tripValueInput && prevTripValue) {
+      tripValueInput.value = prevTripValue;
+    }
   }
   enhanceTripAssignmentSelects(formEl);
   updateCreateTripStepper(formEl);
@@ -11944,8 +12015,7 @@ function requestListClientHtml(user) {
   const body = rows
     ? `<div class="table-wrap trips-table-wrap requests-table-wrap"><table><thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Viaje</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`
     : emptyState("Aun no hay solicitudes creadas.");
-  const delLog = user?.role === ROLES.ADMIN ? buildDeletedTransportRequestsLogSection() : "";
-  return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body) + delLog;
+  return pcardWrap("file", "Mis solicitudes", requests.length + " registradas", body);
 }
 
 function directoryToneFromBucket(raw) {
@@ -11993,6 +12063,7 @@ function directoryPillHtml(label, tone = "neutral") {
 
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
+  const drivers = read(KEYS.drivers, []);
   const isAdmin = isAdminActor();
   const activeTrips = getActiveTrips();
   const activeTripsByVehicleId = new Map();
@@ -12136,6 +12207,15 @@ function vehiclesHtml() {
   const fuelTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.fuelTypes);
   const axleOptions = selectOptionsFromCatalog(CO_CATALOGS.axleConfig);
   const colorOptions = selectOptionsFromCatalog(CO_CATALOGS.vehicleColors);
+  const vehicleSelectOptions = vehicles
+    .map((v) => `<option value="${escapeAttr(String(v.id || ""))}">${escapeHtml(`${String(v.plate || "").toUpperCase()} · ${String(v.type || "Vehículo")}`)}</option>`)
+    .join("");
+  const driverSelectOptions = drivers
+    .map((d) => `<option value="${escapeAttr(String(d.id || ""))}">${escapeHtml(String(d.name || "Conductor"))}</option>`)
+    .join("");
+  const todayIsoDate = nowIso().slice(0, 10);
+  const fuelLogsCount = readFuelLogs().length;
+  const technicalLogsCount = readVehicleTechnicalLogs().length;
   const formBody = `<form id="form-vehicle" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.truck} Identificación del vehículo</legend>
@@ -12188,6 +12268,22 @@ function vehiclesHtml() {
 
     <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
   </form>`;
+  const fuelLogCard = createCollapsibleCard(
+    "create-fuel-log",
+    "fuel",
+    "Combustible",
+    `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"} para la flota`,
+    historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions),
+    "Registrar carga"
+  );
+  const technicalLogCard = createCollapsibleCard(
+    "create-technical-log",
+    "activity",
+    "Taller",
+    `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`,
+    historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions),
+    "Registrar novedad"
+  );
   const tableBody = vehicleCards
     ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>`
     : emptyState("No hay vehículos registrados.");
@@ -12204,6 +12300,8 @@ function vehiclesHtml() {
     </div>`;
   return heroStrip
     + createCollapsibleCard("create-vehicle", "plus", "Registrar vehículo", "Datos legales, capacidad y equipo de frío", formBody, "Registrar vehículo")
+    + fuelLogCard
+    + technicalLogCard
     + pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody);
 }
 
@@ -12868,7 +12966,7 @@ function transportTripsHtml() {
     ${createCollapsibleCard("create-route-rate", "dollar", "Configurar nueva tarifa por trayecto", "Define el precio sugerido para una ruta. Al crear un viaje con esa misma ruta, este valor se autocompletará en la asignación.", routeRateForm, "Configurar tarifa")}
   </div>`;
 
-  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}${isAdmin ? buildDeletedTransportTripsLogSection() : ""}`;
+  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}`;
 }
 
 function transportCalendarHtml() {
@@ -13247,7 +13345,7 @@ function adminUsersHtml(current) {
 
   const renderUserCard = (u, mode = "active") => {
     const namedPerms = effectiveUserPermissions(u).map((p) => PERMISSION_META[p]?.title || p);
-    const visiblePerms = namedPerms.slice(0, 3);
+    const visiblePerms = namedPerms.slice(0, 2);
     const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
     const isMe = u.id === current.id;
     const isPending = mode === "pending";
@@ -13829,7 +13927,10 @@ function adminUsersHtml(current) {
       "userPlus",
       "Crear nuevo usuario",
       "Alta completa",
-      `<p class="admin-users-form-lead muted">Alta centralizada en un solo formulario, sin paneles adicionales alrededor.</p>${fUser}`,
+      `<div class="toolbar hr-create-toolbar">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-admin-panel" data-panel="create-user">${IC.x} Cancelar</button>
+      </div>
+      <p class="admin-users-form-lead muted">Alta centralizada en un solo formulario, sin paneles adicionales alrededor.</p>${fUser}`,
       focusCardClass
     );
   }
@@ -13838,7 +13939,10 @@ function adminUsersHtml(current) {
       "plus",
       "Registrar empresa",
       "Directorio empresarial",
-      `<p class="admin-users-form-lead muted">Use este flujo solo cuando necesite crear una empresa nueva para asociar usuarios.</p>${fComp}`,
+      `<div class="toolbar hr-create-toolbar">
+        <button class="btn btn-sm btn-action" type="button" data-action="toggle-admin-panel" data-panel="create-company">${IC.x} Cancelar</button>
+      </div>
+      <p class="admin-users-form-lead muted">Use este flujo solo cuando necesite crear una empresa nueva para asociar usuarios.</p>${fComp}`,
       focusCardClass
     );
   }
@@ -14228,14 +14332,14 @@ function renderHistoryTechnicalLogCard(log) {
 
 function renderHistoryFuelLogsList(logs) {
   if (!logs.length) {
-    return `<div class="history-empty-state history-fleet-empty"><p class="muted">Aún no hay cargas de combustible registradas. Usa el formulario inferior para registrar la primera.</p></div>`;
+    return `<div class="history-empty-state history-fleet-empty"><p class="muted">Aún no hay cargas de combustible registradas. Registre la primera desde el módulo <strong>Camiones</strong>.</p></div>`;
   }
   return `<div class="history-fleet-log-grid" id="history-fuel-results-grid">${logs.map(renderHistoryFuelLogCard).join("")}</div>`;
 }
 
 function renderHistoryTechnicalLogsList(logs) {
   if (!logs.length) {
-    return `<div class="history-empty-state history-fleet-empty"><p class="muted">No hay novedades de taller en este periodo. Registra preventivos, correctivos o fallas desde el formulario.</p></div>`;
+    return `<div class="history-empty-state history-fleet-empty"><p class="muted">No hay novedades de taller en este periodo. Registre preventivos, correctivos o fallas desde el módulo <strong>Camiones</strong>.</p></div>`;
   }
   return `<div class="history-fleet-log-grid" id="history-technical-results-grid">${logs.map(renderHistoryTechnicalLogCard).join("")}</div>`;
 }
@@ -14270,6 +14374,359 @@ function historyFleetFilterToolbar(formId, fieldsHtml) {
       </details>
     </div>
   </form>`;
+}
+
+function historyFleetFuelFormHtml(todayIsoDate, vehicleOptions, driverOptions) {
+  return `<form id="form-fuel-log" class="p-form p-form-colored history-fleet-create-form">
+    <fieldset class="form-section form-section-blue full">
+      <legend>${IC.calendar} Carga de combustible</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
+        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.user, "Conductor", { required: true })}<select name="driverId" required><option value="">Seleccione…</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" autocomplete="off" /></label>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-emerald full">
+      <legend>${IC.dollar} Montos y trazabilidad</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.activity, "Litros", { required: true })}<input type="number" step="0.01" min="0.01" name="liters" required data-fuel-liters-input="1" /></label>
+        ${historyFleetMoneyField("totalCost", "Valor total (COP)", { required: true })}
+        <label>${fieldLabel(IC.clock, "Odómetro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
+        <label>${fieldLabel(IC.mapPin, "Estación / EDS")}<input name="station" placeholder="EDS Roscombustible…" autocomplete="off" /></label>
+        <label>${fieldLabel(IC.briefcase, "Pagado por")}
+          <select name="paidBy">
+            <option value="empresa">Empresa</option>
+            <option value="conductor">Conductor (reembolso nómina)</option>
+          </select>
+        </label>
+      </div>
+      <p class="history-fleet-live-hint muted" id="fuel-price-per-liter-hint" hidden aria-live="polite"></p>
+      <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_combustible</strong> (PostgreSQL) al enviar.</p>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
+  </form>`;
+}
+
+function historyFleetTechnicalFormHtml(todayIsoDate, vehicleOptions) {
+  return `<form id="form-technical-log" class="p-form p-form-colored history-fleet-create-form">
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.truck} Novedad de taller</legend>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
+        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo")}
+          <select name="type">
+            <option value="preventivo">Mantenimiento preventivo</option>
+            <option value="correctivo">Mantenimiento correctivo</option>
+            <option value="falla">Falla técnica</option>
+          </select>
+        </label>
+        <label class="full">${fieldLabel(IC.file, "Descripción", { required: true })}<input name="description" required placeholder="Ej. cambio de aceite, frenos, refrigeración…" /></label>
+        ${historyFleetMoneyField("cost", "Costo (COP)", { required: true })}
+        <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
+        <label>${fieldLabel(IC.check, "Estado")}
+          <select name="status">
+            <option>Pendiente</option>
+            <option>En proceso</option>
+            <option>Resuelto</option>
+          </select>
+        </label>
+      </div>
+      <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_mantenimiento_vehiculo</strong> (PostgreSQL) al enviar.</p>
+    </fieldset>
+    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad de taller</button>
+  </form>`;
+}
+
+function historyAuditActionLabel(action) {
+  if (action === "create") return "Creación";
+  if (action === "delete") return "Eliminación";
+  return "Actualización";
+}
+
+function historyAuditActionStatus(action) {
+  if (action === "create") return "status-viaje_asignado";
+  if (action === "delete") return "status-rechazada";
+  return "status-pendiente";
+}
+
+function buildHistoryAuditEntries() {
+  const entries = [];
+  const pushEntry = (entry) => {
+    if (!entry || typeof entry !== "object") return;
+    const ts = String(entry.ts || "").trim();
+    if (!ts || Number.isNaN(new Date(ts).getTime())) return;
+    entries.push({
+      id: String(entry.id || newUuidV4()),
+      ts,
+      action: String(entry.action || "update"),
+      moduleLabel: String(entry.moduleLabel || "Módulo"),
+      entityLabel: String(entry.entityLabel || "Registro"),
+      summary: String(entry.summary || "").trim(),
+      actor: String(entry.actor || "").trim(),
+      detailAction: String(entry.detailAction || "").trim(),
+      detailId: String(entry.detailId || "").trim()
+    });
+  };
+
+  readArray(KEYS.users).forEach((user) => {
+    const companyName = String(getCompanyById(user.companyId)?.name || user.company || "Sin empresa").trim();
+    const userLabel = getPortalUserDisplayName(user) || String(user.email || "Usuario");
+    pushEntry({
+      id: `audit-user-create-${user.id}`,
+      ts: String(user.createdAt || user.registeredAt || user.systemJoinDate || ""),
+      action: "create",
+      moduleLabel: "Usuarios y permisos",
+      entityLabel: userLabel,
+      summary: `${formatPortalRoleLabel(user.role)} · ${companyName || "Sin empresa"}`
+    });
+    if (user.updatedAt && String(user.updatedAt) !== String(user.createdAt || "")) {
+      pushEntry({
+        id: `audit-user-update-${user.id}`,
+        ts: String(user.updatedAt),
+        action: "update",
+        moduleLabel: "Usuarios y permisos",
+        entityLabel: userLabel,
+        summary: `${String(user.email || "Sin correo")} · ${String(user.city || "Sin ciudad")}`
+      });
+    }
+  });
+
+  readArray(KEYS.companies).forEach((company) => {
+    const companyLabel = String(company.name || "Empresa").trim();
+    pushEntry({
+      id: `audit-company-create-${company.id}`,
+      ts: String(company.createdAt || ""),
+      action: "create",
+      moduleLabel: "Usuarios y permisos",
+      entityLabel: companyLabel,
+      summary: `${String(company.taxId || company.nit || "Sin NIT")} · ${String(company.city || "Sin ciudad")}`
+    });
+    if (company.updatedAt && String(company.updatedAt) !== String(company.createdAt || "")) {
+      pushEntry({
+        id: `audit-company-update-${company.id}`,
+        ts: String(company.updatedAt),
+        action: "update",
+        moduleLabel: "Usuarios y permisos",
+        entityLabel: companyLabel,
+        summary: `${companyKindLabel(company.companyKind) || "Sin clasificación"} · ${isCompanyRecordActive(company) ? "Activa" : "Inactiva"}`
+      });
+    }
+  });
+
+  readArray(KEYS.vehicles).forEach((vehicle) => {
+    const vehicleLabel = String(vehicle.plate || vehicle.id || "Camión").trim().toUpperCase();
+    pushEntry({
+      id: `audit-vehicle-create-${vehicle.id}`,
+      ts: String(vehicle.createdAt || ""),
+      action: "create",
+      moduleLabel: "Camiones",
+      entityLabel: vehicleLabel,
+      summary: `${String(vehicle.type || "Vehículo")} · ${String(vehicle.brand || "")} ${String(vehicle.model || "")}`.trim()
+    });
+    if (vehicle.updatedAt && String(vehicle.updatedAt) !== String(vehicle.createdAt || "")) {
+      pushEntry({
+        id: `audit-vehicle-update-${vehicle.id}`,
+        ts: String(vehicle.updatedAt),
+        action: "update",
+        moduleLabel: "Camiones",
+        entityLabel: vehicleLabel,
+        summary: `${vehicle.refrigerated ? "Termoking" : "Carga seca"} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg`
+      });
+    }
+  });
+
+  readArray(KEYS.drivers).forEach((driver) => {
+    const driverLabel = String(driver.name || "Conductor").trim();
+    pushEntry({
+      id: `audit-driver-create-${driver.id}`,
+      ts: String(driver.createdAt || driver.hiredAt || ""),
+      action: "create",
+      moduleLabel: "Conductores",
+      entityLabel: driverLabel,
+      summary: `${String(driver.licenseCategory || "Sin categoría")} · ${String(driver.city || "Sin ciudad")}`
+    });
+    if (driver.updatedAt && String(driver.updatedAt) !== String(driver.createdAt || "")) {
+      pushEntry({
+        id: `audit-driver-update-${driver.id}`,
+        ts: String(driver.updatedAt),
+        action: "update",
+        moduleLabel: "Conductores",
+        entityLabel: driverLabel,
+        summary: `${String(driver.phone || "Sin teléfono")} · ${String(getCompanyById(driver.companyId)?.name || "Sin empresa")}`
+      });
+    }
+  });
+
+  reqRead().forEach((request) => {
+    const requestLabel = String(request.requestNumber || request.id || "Solicitud").trim();
+    pushEntry({
+      id: `audit-request-create-${request.id}`,
+      ts: String(request.createdAt || ""),
+      action: "create",
+      moduleLabel: "Solicitudes",
+      entityLabel: requestLabel,
+      summary: `${String(request.clientName || "Cliente")} · ${formatRoute(request)}`
+    });
+    if (request.updatedAt && String(request.updatedAt) !== String(request.createdAt || "")) {
+      pushEntry({
+        id: `audit-request-update-${request.id}`,
+        ts: String(request.updatedAt),
+        action: "update",
+        moduleLabel: "Solicitudes",
+        entityLabel: requestLabel,
+        summary: `${String(request.status || "Sin estado")} · ${String(request.serviceType || "Sin servicio")}`
+      });
+    }
+    if (request.trip) {
+      const tripCreatedAt = String(
+        request.trip.createdAt || request.trip.assignedAt || request.approvedAt || request.updatedAt || request.createdAt || ""
+      );
+      const tripLabel = String(request.trip.tripNumber || requestLabel || "Viaje").trim();
+      pushEntry({
+        id: `audit-trip-create-${request.id}`,
+        ts: tripCreatedAt,
+        action: "create",
+        moduleLabel: "Viajes",
+        entityLabel: tripLabel,
+        summary: `${String(request.trip.vehiclePlate || "Sin camión")} · ${String(request.trip.driverName || "Sin conductor")}`
+      });
+      if (request.trip.updatedAt && String(request.trip.updatedAt) !== tripCreatedAt) {
+        pushEntry({
+          id: `audit-trip-update-${request.id}`,
+          ts: String(request.trip.updatedAt),
+          action: "update",
+          moduleLabel: "Viajes",
+          entityLabel: tripLabel,
+          summary: `${String(request.status || "Sin estado")} · ${String(request.clientName || "Cliente")}`
+        });
+      }
+    }
+  });
+
+  readFuelLogs().forEach((log) => {
+    pushEntry({
+      id: `audit-fuel-create-${log.id}`,
+      ts: String(log.createdAt || log.date || ""),
+      action: "create",
+      moduleLabel: "Camiones",
+      entityLabel: String(log.vehiclePlate || log.plate || "Combustible"),
+      summary: `${parseNum(log.liters).toLocaleString("es-CO", { maximumFractionDigits: 1 })} L · $${parseNum(log.totalCost).toLocaleString("es-CO")}`
+    });
+    if (log.updatedAt && String(log.updatedAt) !== String(log.createdAt || log.date || "")) {
+      pushEntry({
+        id: `audit-fuel-update-${log.id}`,
+        ts: String(log.updatedAt),
+        action: "update",
+        moduleLabel: "Camiones",
+        entityLabel: String(log.vehiclePlate || log.plate || "Combustible"),
+        summary: `${String(log.station || "Sin estación")} · ${String(log.paidBy || "empresa")}`
+      });
+    }
+  });
+
+  readVehicleTechnicalLogs().forEach((log) => {
+    pushEntry({
+      id: `audit-technical-create-${log.id}`,
+      ts: String(log.createdAt || log.date || ""),
+      action: "create",
+      moduleLabel: "Camiones",
+      entityLabel: String(log.vehiclePlate || log.plate || "Taller"),
+      summary: `${String(log.type || log.interventionType || "Novedad")} · ${String(log.description || "").trim() || "Sin descripción"}`
+    });
+    if (log.updatedAt && String(log.updatedAt) !== String(log.createdAt || log.date || "")) {
+      pushEntry({
+        id: `audit-technical-update-${log.id}`,
+        ts: String(log.updatedAt),
+        action: "update",
+        moduleLabel: "Camiones",
+        entityLabel: String(log.vehiclePlate || log.plate || "Taller"),
+        summary: `${String(log.status || log.followUpStatus || "Pendiente")} · $${parseNum(log.cost).toLocaleString("es-CO")}`
+      });
+    }
+  });
+
+  readModuleAuditLogs().forEach((row) => {
+    pushEntry({
+      id: `audit-explicit-${row.id}`,
+      ts: String(row.at || ""),
+      action: String(row.action || "delete"),
+      moduleLabel: String(row.moduleLabel || row.moduleId || "Módulo"),
+      entityLabel: String(row.entityLabel || "Registro"),
+      summary: String(row.summary || ""),
+      actor: String(row.actor || ""),
+      detailAction: String(row.detailAction || ""),
+      detailId: String(row.detailId || "")
+    });
+  });
+
+  read(KEYS.deletedTransportRequestLogs, []).forEach((row) => {
+    const snap = parsePortalJsonSnapshot(row.snapshot);
+    pushEntry({
+      id: `audit-deleted-request-${row.id}`,
+      ts: String(row.deletedAt || ""),
+      action: "delete",
+      moduleLabel: "Solicitudes",
+      entityLabel: String(row.requestNumber || row.requestId || "Solicitud"),
+      summary: `${formatDeletedRequestSnapshotTableSummary(snap)} · Motivo: ${String(row.reason || "—")}`,
+      actor: String(row.deletedByEmail || ""),
+      detailAction: "deleted-request-snapshot-detail",
+      detailId: String(row.id || "")
+    });
+  });
+
+  read(KEYS.deletedTransportTripLogs, []).forEach((row) => {
+    const snap = parsePortalJsonSnapshot(row.snapshot);
+    pushEntry({
+      id: `audit-deleted-trip-${row.id}`,
+      ts: String(row.deletedAt || ""),
+      action: "delete",
+      moduleLabel: "Viajes",
+      entityLabel: String(row.tripNumber || row.requestNumber || row.requestId || "Viaje"),
+      summary: `${formatDeletedTripSnapshotTableSummary(snap)} · Motivo: ${String(row.reason || "—")}`,
+      actor: String(row.deletedByEmail || ""),
+      detailAction: "deleted-trip-snapshot-detail",
+      detailId: String(row.id || "")
+    });
+  });
+
+  return entries
+    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+    .slice(0, 180);
+}
+
+function renderHistoryAuditCard(entry) {
+  const actionLabel = historyAuditActionLabel(entry.action);
+  const actionTone = historyAuditActionStatus(entry.action);
+  const detailButton =
+    entry.detailAction && entry.detailId
+      ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
+      : "";
+  return `<article class="history-card">
+    <header class="history-card-head">
+      <div class="history-card-head-main">
+        <p class="history-card-kicker"><time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time> · ${escapeHtml(entry.moduleLabel)}</p>
+        <h3 class="history-card-title">${escapeHtml(entry.entityLabel)}</h3>
+        <p class="history-card-client">${escapeHtml(actionLabel)}</p>
+      </div>
+      <div class="history-card-status"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></div>
+    </header>
+    <dl class="history-card-meta">
+      <div><dt>${IC.layers}<span>Módulo</span></dt><dd>${escapeHtml(entry.moduleLabel)}</dd></div>
+      <div><dt>${IC.clock}<span>Fecha</span></dt><dd>${escapeHtml(fmtDate(entry.ts))}</dd></div>
+      <div class="history-card-meta--full"><dt>${IC.file}<span>Resumen</span></dt><dd>${escapeHtml(entry.summary || "Sin resumen")}</dd></div>
+      ${entry.actor ? `<div class="history-card-meta--full"><dt>${IC.user}<span>Usuario</span></dt><dd>${escapeHtml(entry.actor)}</dd></div>` : ""}
+    </dl>
+    ${detailButton ? `<footer class="history-card-actions">${detailButton}</footer>` : ""}
+  </article>`;
+}
+
+function renderHistoryAuditList(entries) {
+  if (!entries.length) {
+    return `<div class="history-empty-state"><p class="muted">No hay movimientos auditables para mostrar todavía.</p></div>`;
+  }
+  return `<div class="history-cards-grid">${entries.map(renderHistoryAuditCard).join("")}</div>`;
 }
 
 function historyHtml() {
@@ -14309,10 +14766,13 @@ function historyHtml() {
 
   const fuelLogsAll = readFuelLogs();
   const technicalLogsAll = readVehicleTechnicalLogs();
+  const auditEntries = buildHistoryAuditEntries();
+  const auditCreateCount = auditEntries.filter((entry) => entry.action === "create").length;
+  const auditUpdateCount = auditEntries.filter((entry) => entry.action === "update").length;
+  const auditDeleteCount = auditEntries.filter((entry) => entry.action === "delete").length;
   const fleetTab = String(histUi.fleetTab || "fuel");
   const fuelKpisAll = historyFleetFuelKpis(fuelLogsAll);
   const techKpisAll = historyFleetTechnicalKpis(technicalLogsAll);
-  const todayIsoDate = nowIso().slice(0, 10);
 
   const histTab = (id, label, iconKey) => {
     const active = workspace === id;
@@ -14322,6 +14782,7 @@ function historyHtml() {
     ${histTab("explore", "Explorar historial", "clock")}
     ${histTab("driver", "Consolidado conductor", "user")}
     ${histTab("fleet", `Combustible y taller (${fuelLogsAll.length + technicalLogsAll.length})`, "fuel")}
+    ${histTab("audit", `Trazabilidad (${auditEntries.length})`, "activity")}
   </nav>`;
 
   const quickPill = (key, label) =>
@@ -14430,65 +14891,6 @@ function historyHtml() {
       </select>
     </label>`;
 
-  const fuelForm = `<form id="form-fuel-log" class="p-form p-form-colored history-fleet-create-form">
-    <fieldset class="form-section form-section-blue full">
-      <legend>${IC.calendar} Carga de combustible</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
-        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
-        <label>${fieldLabel(IC.user, "Conductor", { required: true })}<select name="driverId" required><option value="">Seleccione…</option>${driverOptions}</select></label>
-        <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" autocomplete="off" /></label>
-      </div>
-    </fieldset>
-    <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.dollar} Montos y trazabilidad</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.activity, "Litros", { required: true })}<input type="number" step="0.01" min="0.01" name="liters" required data-fuel-liters-input="1" /></label>
-        ${historyFleetMoneyField("totalCost", "Valor total (COP)", { required: true })}
-        <label>${fieldLabel(IC.clock, "Odómetro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
-        <label>${fieldLabel(IC.mapPin, "Estación / EDS")}<input name="station" placeholder="EDS Roscombustible…" autocomplete="off" /></label>
-        <label>${fieldLabel(IC.briefcase, "Pagado por")}
-          <select name="paidBy">
-            <option value="empresa">Empresa</option>
-            <option value="conductor">Conductor (reembolso nómina)</option>
-          </select>
-        </label>
-      </div>
-      <p class="history-fleet-live-hint muted" id="fuel-price-per-liter-hint" hidden aria-live="polite"></p>
-      <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_combustible</strong> (PostgreSQL) al enviar.</p>
-    </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
-  </form>`;
-
-  const technicalForm = `<form id="form-technical-log" class="p-form p-form-colored history-fleet-create-form">
-    <fieldset class="form-section form-section-amber full">
-      <legend>${IC.truck} Novedad de taller</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
-        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
-        <label>${fieldLabel(IC.activity, "Tipo")}
-          <select name="type">
-            <option value="preventivo">Mantenimiento preventivo</option>
-            <option value="correctivo">Mantenimiento correctivo</option>
-            <option value="falla">Falla técnica</option>
-          </select>
-        </label>
-        <label class="full">${fieldLabel(IC.file, "Descripción", { required: true })}<input name="description" required placeholder="Ej. cambio de aceite, frenos, refrigeración…" /></label>
-        ${historyFleetMoneyField("cost", "Costo (COP)", { required: true })}
-        <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
-        <label>${fieldLabel(IC.check, "Estado")}
-          <select name="status">
-            <option>Pendiente</option>
-            <option>En proceso</option>
-            <option>Resuelto</option>
-          </select>
-        </label>
-      </div>
-      <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_mantenimiento_vehiculo</strong> (PostgreSQL) al enviar.</p>
-    </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad de taller</button>
-  </form>`;
-
   const fuelKpiStrip = historyFleetKpiStrip([
     { label: "Cargas registradas", value: fuelKpisAll.count },
     { label: "Litros", value: `${fuelKpisAll.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
@@ -14513,7 +14915,7 @@ function historyHtml() {
 
   const fleetPanel = `<div class="history-panel history-panel--fleet${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
     <div class="history-panel-intro history-fleet-intro">
-      <p>Historial en base de datos: cargas en <strong>registros_combustible</strong> y novedades en <strong>registros_mantenimiento_vehiculo</strong>. Filtra, consulta y registra sin perder datos del servidor.</p>
+      <p>Historial en base de datos: cargas en <strong>registros_combustible</strong> y novedades en <strong>registros_mantenimiento_vehiculo</strong>. Filtra y consulta la trazabilidad; las altas nuevas ahora viven en <strong>Camiones</strong>.</p>
     </div>
     <nav class="history-fleet-tabs" role="tablist" aria-label="Combustible o taller">
       ${fleetTabBtn("fuel", "Combustible", "fuel", fuelLogsAll.length)}
@@ -14524,28 +14926,40 @@ function historyHtml() {
       ${historyFleetFilterToolbar("history-fuel-filter", fuelFilterFields)}
       <p class="history-result-meta history-fleet-result-meta"><span id="history-fuel-result-count">${fuelLogsAll.length}</span> carga${fuelLogsAll.length === 1 ? "" : "s"} · más recientes primero</p>
       <div id="history-fuel-results">${renderHistoryFuelLogsList(fuelLogsAll)}</div>
-      ${createCollapsibleCard("create-fuel-log", "fuel", "Nueva carga de combustible", "Litros, costo COP, estación y vínculo opcional al viaje", fuelForm, "Registrar carga")}
     </div>
     <div class="history-fleet-panel${fleetTab === "technical" ? "" : " hidden"}" data-fleet-panel="technical" role="tabpanel">
       ${techKpiStrip}
       ${historyFleetFilterToolbar("history-technical-filter", techFilterFields)}
       <p class="history-result-meta history-fleet-result-meta"><span id="history-technical-result-count">${technicalLogsAll.length}</span> novedad${technicalLogsAll.length === 1 ? "" : "es"} · más recientes primero</p>
       <div id="history-technical-results">${renderHistoryTechnicalLogsList(technicalLogsAll)}</div>
-      ${createCollapsibleCard("create-technical-log", "activity", "Nueva novedad de taller", "Preventivo, correctivo o falla con costo y horas fuera de servicio", technicalForm, "Registrar novedad")}
     </div>
+  </div>`;
+
+  const auditPanel = `<div class="history-panel${workspace === "audit" ? "" : " hidden"}" data-history-panel="audit" role="tabpanel">
+    <div class="history-panel-intro">
+      <p class="muted">Bitácora central de creaciones, actualizaciones y eliminaciones para usuarios, empresas, camiones, conductores, solicitudes, viajes y registros de flota.</p>
+    </div>
+    ${historyFleetKpiStrip([
+      { label: "Eventos", value: auditEntries.length },
+      { label: "Creaciones", value: auditCreateCount, tone: auditCreateCount ? "ok" : undefined },
+      { label: "Actualizaciones", value: auditUpdateCount, tone: auditUpdateCount ? "warn" : undefined },
+      { label: "Eliminaciones", value: auditDeleteCount, tone: auditDeleteCount ? "warn" : undefined }
+    ])}
+    <p class="history-result-meta"><span id="history-audit-result-count">${auditEntries.length}</span> evento${auditEntries.length === 1 ? "" : "s"} más reciente${auditEntries.length === 1 ? "" : "s"} primero</p>
+    <div id="history-audit-results">${renderHistoryAuditList(auditEntries)}</div>
   </div>`;
 
   const moduleHead = `<header class="ops-module-head ops-module-head--rich history-module-head">
     <div class="ops-module-title">
       <span class="ops-module-kicker">Transporte · Consulta</span>
       <h2>Historial y operación</h2>
-      <p class="ops-module-subtitle">Explora solicitudes y viajes, revisa costos por conductor y registra combustible o novedades de taller sin mezclarlo todo en una sola lista.</p>
+      <p class="ops-module-subtitle">Explora solicitudes y viajes, revisa costos por conductor y consulta una trazabilidad central de movimientos sin mezclarlo todo en una sola lista.</p>
     </div>
   </header>`;
 
   return (
     histHero +
-    `<div class="history-module history-module--v2">${moduleHead}${workspaceNav}${explorePanel}${driverReportBody}${fleetPanel}</div>`
+    `<div class="history-module history-module--v2">${moduleHead}${workspaceNav}${explorePanel}${driverReportBody}${fleetPanel}${auditPanel}</div>`
   );
 }
 
@@ -20586,7 +21000,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       city: String(raw.city || "").trim(),
       department: String(raw.department || "").trim(),
       address: String(raw.address || "").trim(),
-      phone: String(raw.phone || "").trim(),
+      phone: normalizePortalPhoneForStorage(String(raw.phone || "").trim()),
       emergencyContact: String(raw.emergencyContact || "").trim(),
       emergencyPhone: String(raw.emergencyPhone || "").trim(),
       bloodType: String(raw.bloodType || "").trim(),
@@ -20829,7 +21243,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Género")}</span><select name="gender">${genderSel}</select></label>
 <label><span>${escapeHtml("Estado civil")}</span><select name="maritalStatus">${maritalSel}</select></label>
 <label><span>${escapeHtml("Nivel educativo")}</span><select name="educationLevel">${eduSel}</select></label>
-<label><span>${escapeHtml("Tipo de sangre RH")}</span><select name="bloodType" required>${selectOptionsFromCatalog(CO_CATALOGS.bloodTypes, e.bloodType || "", "Seleccione tipo de sangre...")}</select></label>
+<label><span>${escapeHtml("Tipo de sangre RH")}</span><select name="bloodType">${selectOptionsFromCatalog(CO_CATALOGS.bloodTypes, e.bloodType || "", "Seleccione tipo de sangre...")}</select></label>
 <label><span>${escapeHtml("¿Sufre alguna enfermedad o condición médica?")}</span><select name="hasIllness" data-emp-edit-illness required>
 <option value="no" ${String(e.hasIllness || "").toLowerCase() !== "si" ? "selected" : ""}>${escapeHtml("No")}</option>
 <option value="si" ${String(e.hasIllness || "").toLowerCase() === "si" ? "selected" : ""}>${escapeHtml("Sí")}</option>
@@ -21503,8 +21917,19 @@ function bindDynamicEvents() {
             notify(String(err?.message || userMessage("genericError")), "error");
             return;
           }
+          const snapshotCompany = read(KEYS.companies, []).find((c) => String(c.id) === String(companyId));
           const rest = read(KEYS.companies, []).filter((c) => String(c.id) !== companyId);
           await writeAwaitServer(KEYS.companies, rest);
+          if (snapshotCompany) {
+            appendModuleAuditLog({
+              action: "delete",
+              moduleId: "companies",
+              moduleLabel: "Usuarios y permisos",
+              entityId: String(snapshotCompany.id || ""),
+              entityLabel: String(snapshotCompany.name || "Empresa"),
+              summary: `${String(snapshotCompany.taxId || snapshotCompany.nit || "Sin NIT")} · ${String(snapshotCompany.city || "Sin ciudad")}`
+            });
+          }
           state.adminUsersUi = { panel: "", editUserId: "", editCompanyId: "" };
           notify(userMessage("companyDeleted"), "success");
           renderPortalView();
@@ -21848,13 +22273,13 @@ function bindDynamicEvents() {
       const target = users.find((u) => String(u.id) === userId);
       const nextUsers = users.map((user) =>
         String(user.id) === userId
-          ? {
+          ? stampUpdatedRecord({
               ...user,
               permissions: normalizeSavedUserPermissions(
                 String(user.role || target?.role || ROLES.CLIENT),
                 permissions
               )
-            }
+            })
           : user
       );
       try {
@@ -21996,7 +22421,7 @@ function bindDynamicEvents() {
       }
       const nextEdited = users.map((u) =>
         String(u.id) === userId
-          ? {
+          ? stampUpdatedRecord({
               ...u,
               name: resolvedFullName,
               firstName: fn || undefined,
@@ -22031,7 +22456,7 @@ function bindDynamicEvents() {
               twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
               systemJoinDate: String(data.systemJoinDate || u.systemJoinDate || ""),
               permissions: normalizeSavedUserPermissions(String(data.role || u.role), permissions)
-            }
+            })
           : u
       );
       try {
@@ -22414,7 +22839,18 @@ function bindDynamicEvents() {
             return;
           }
           try {
+            const snapshotUser = read(KEYS.users, []).find((user) => String(user.id) === String(userId));
             await writeAwaitServer(KEYS.users, read(KEYS.users, []).filter((user) => user.id !== userId));
+            if (snapshotUser) {
+              appendModuleAuditLog({
+                action: "delete",
+                moduleId: "users",
+                moduleLabel: "Usuarios y permisos",
+                entityId: String(snapshotUser.id || ""),
+                entityLabel: getPortalUserDisplayName(snapshotUser) || String(snapshotUser.email || "Usuario"),
+                summary: `${formatPortalRoleLabel(snapshotUser.role)} · ${String(snapshotUser.email || "Sin correo")}`
+              });
+            }
           } catch (_e) {
             return;
           }
@@ -22457,7 +22893,7 @@ function bindDynamicEvents() {
             write(
               KEYS.users,
               read(KEYS.users, []).map((u) =>
-                String(u.id) === String(userId) ? { ...u, accountStatus: nextStatus } : u
+                String(u.id) === String(userId) ? stampUpdatedRecord({ ...u, accountStatus: nextStatus }) : u
               )
             );
           });
@@ -24075,11 +24511,22 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el vehiculo en el servidor."), "error");
             return;
           }
+          const snapshotVehicle = read(KEYS.vehicles, []).find((vehicle) => String(vehicle.id) === vehicleId);
           const nextVehicleList = read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId);
           try {
             await writeAwaitServer(KEYS.vehicles, nextVehicleList);
           } catch (_e) {
             return;
+          }
+          if (snapshotVehicle) {
+            appendModuleAuditLog({
+              action: "delete",
+              moduleId: "vehicles",
+              moduleLabel: "Camiones",
+              entityId: String(snapshotVehicle.id || ""),
+              entityLabel: String(snapshotVehicle.plate || "Camión").toUpperCase(),
+              summary: `${String(snapshotVehicle.type || "Vehículo")} · ${String(snapshotVehicle.brand || "")} ${String(snapshotVehicle.model || "")}`.trim()
+            });
           }
           await reqWriteAwait(
             reqRead().map((request) => {
@@ -24119,11 +24566,22 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el conductor en el servidor."), "error");
             return;
           }
+          const snapshotDriver = read(KEYS.drivers, []).find((driver) => String(driver.id) === driverId);
           const nextDrivers = read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId);
           try {
             await writeAwaitServer(KEYS.drivers, nextDrivers);
           } catch (_e) {
             return;
+          }
+          if (snapshotDriver) {
+            appendModuleAuditLog({
+              action: "delete",
+              moduleId: "drivers",
+              moduleLabel: "Conductores",
+              entityId: String(snapshotDriver.id || ""),
+              entityLabel: String(snapshotDriver.name || "Conductor"),
+              summary: `${String(snapshotDriver.licenseCategory || "Sin categoría")} · ${String(snapshotDriver.phone || "Sin teléfono")}`
+            });
           }
           await reqWriteAwait(
             reqRead().map((request) => {
@@ -28049,6 +28507,16 @@ function bindExtendedViewEditHandlers() {
       const roleChip = `<span class="role-chip" style="--role-color:${roleColors[roleKey] || "#64748B"}">${escapeHtml(
         formatPortalRoleLabel(u.role)
       )}</span>`;
+      const docTypeLabel =
+        String(u.documentType || "").toUpperCase() === "CC"
+          ? "Cédula de ciudadanía"
+          : String(u.documentType || "").toUpperCase() === "CE"
+            ? "Cédula de extranjería"
+            : String(u.documentType || "").toUpperCase() === "NIT"
+              ? "NIT"
+              : String(u.documentType || "").toUpperCase() === "PAS"
+                ? "Pasaporte"
+                : "Sin definir";
       const normAcc = normalizeUserAccountStatus(u);
       const accountStatusChip =
         normAcc === ACCOUNT_STATUS.PENDIENTE
@@ -28061,6 +28529,7 @@ function bindExtendedViewEditHandlers() {
         ? `<p class="portal-detail-meta"><span class="muted">Documento</span> <strong>${escapeHtml(idDoc)}</strong></p>`
         : `<p class="portal-detail-meta muted">Sin documento registrado</p>`;
       const createdLbl = fmtDateOr(u.createdAt, "—");
+      const joinLbl = fmtDateOr(u.systemJoinDate || u.createdAt, "—");
       const email = String(u.email || "").trim();
       const mailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       const mailHref = mailOk ? `mailto:${email}` : "";
@@ -28078,20 +28547,52 @@ function bindExtendedViewEditHandlers() {
         : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
       const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
       const companyBlock = portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
+      const storedCompanyLabel = String(u.company || "").trim() || "Sin nombre comercial";
       const city = String(u.city || "").trim();
       const dept = String(u.department || "").trim();
-      const locLine = [city, dept].filter(Boolean).join(city && dept ? ", " : "");
-      const locBody = locLine
-        ? `<p class="portal-detail-loc-line">${IC.mapPin} ${escapeHtml(locLine)}</p>`
-        : `<p class="muted" style="margin:0">Sin ciudad o departamento registrados.</p>`;
-      const permsHtml = (u.permissions || [])
+      const permsHtml = effectiveUserPermissions(u)
         .map((p) => `<span class="perm-tag">${escapeHtml(PERMISSION_META[p]?.title || String(p))}</span>`)
         .join(" ");
       const regKind = registrationKindLabel(u.registrationKind);
-      const cuentaBody = `
-        <p class="portal-detail-loc-line"><span class="muted">Tipo de vínculo</span> ${escapeHtml(regKind || "—")}</p>`;
+      const detailSections = buildDetailGrid([
+        {
+          icon: "user",
+          title: "Datos personales",
+          rows: renderDetailRows([
+            ["Nombre completo", `<strong>${escapeHtml(displayName || "Usuario")}</strong>`],
+            ["Correo corporativo", escapeHtml(email || "Sin correo")],
+            ["Tipo documento", escapeHtml(docTypeLabel)],
+            ["Documento / NIT", escapeHtml(idDoc || "Sin documento")],
+            ["Teléfono", escapeHtml(phoneDisp || "Sin teléfono")],
+            ["Avatar", escapeHtml(avatarCss ? "Cargado" : "Sin foto")]
+          ])
+        },
+        {
+          icon: "shield",
+          title: "Acceso y rol",
+          rows: renderDetailRows([
+            ["Rol", escapeHtml(formatPortalRoleLabel(u.role) || "Sin rol")],
+            ["Tipo de vínculo", escapeHtml(regKind || "Sin vínculo")],
+            ["Empresa vinculada", escapeHtml(companyName || "Sin empresa")],
+            ["Nombre comercial", escapeHtml(storedCompanyLabel)],
+            ["Autenticación 2FA", escapeHtml(u.twoFactorEnabled ? "Habilitada" : "Deshabilitada")],
+            ["Fecha de ingreso", escapeHtml(joinLbl)],
+            ["Estado de cuenta", escapeHtml(normAcc === ACCOUNT_STATUS.RECHAZADO ? "Rechazada" : normAcc === ACCOUNT_STATUS.PENDIENTE ? "Pendiente" : "Aprobada")],
+            ["Contraseña", `<span class="muted">Oculta por seguridad</span>`]
+          ])
+        },
+        {
+          icon: "mapPin",
+          title: "Ubicación",
+          rows: renderDetailRows([
+            ["Departamento", escapeHtml(dept || "Sin departamento")],
+            ["Ciudad", escapeHtml(city || "Sin ciudad")],
+            ["Dirección", escapeHtml(String(u.address || "").trim() || "Sin dirección")]
+          ])
+        }
+      ]);
       const permsBody = permsHtml
-        ? `<div class="detail-perms-list">${permsHtml}</div>`
+        ? `<p class="portal-detail-loc-line"><span class="muted">Permisos asignados</span> ${escapeHtml(String(effectiveUserPermissions(u).length))}</p><div class="detail-perms-list">${permsHtml}</div>`
         : `<p class="muted" style="margin:0">Sin permisos asignados.</p>`;
       const bodyHtml = `<div class="portal-detail-modal">
   <div class="portal-detail-hero">
@@ -28107,14 +28608,7 @@ function bindExtendedViewEditHandlers() {
     </div>
   </div>
   <div class="portal-detail-tiles">${emailBlock}${phoneBlock}${companyBlock}</div>
-  <section class="portal-detail-loc" aria-label="Ubicación">
-    <h4 class="portal-detail-loc-title">${IC.mapPin} Ubicación</h4>
-    ${locBody}
-  </section>
-  <section class="portal-detail-loc" aria-label="Cuenta">
-    <h4 class="portal-detail-loc-title">${IC.shield} Cuenta</h4>
-    ${cuentaBody}
-  </section>
+  ${detailSections}
   <section class="portal-detail-loc" aria-label="Permisos">
     <h4 class="portal-detail-loc-title">${IC.layers} Permisos</h4>
     ${permsBody}

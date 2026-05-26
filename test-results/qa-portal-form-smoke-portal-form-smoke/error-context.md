@@ -244,7 +244,7 @@ expect(received).toEqual(expected) // deep equality
                 - generic [ref=e158]:
                   - generic [ref=e159]:
                     - generic [ref=e160]: Sistema
-                    - generic [ref=e161]: 26/5/2026, 2:07:50 p. m.
+                    - generic [ref=e161]: 26/5/2026, 2:29:42 p. m.
                   - heading "Aviso" [level=4] [ref=e162]
                   - paragraph [ref=e163]: Prueba bandeja
                 - generic [ref=e164]:
@@ -257,7 +257,7 @@ expect(received).toEqual(expected) // deep equality
                 - generic [ref=e175]:
                   - generic [ref=e176]:
                     - generic [ref=e177]: Sistema
-                    - generic [ref=e178]: 26/5/2026, 2:07:50 p. m.
+                    - generic [ref=e178]: 26/5/2026, 2:29:42 p. m.
                   - heading "Leída" [level=4] [ref=e179]
                   - paragraph [ref=e180]: Prueba leída
                 - generic [ref=e181]:
@@ -266,13 +266,14 @@ expect(received).toEqual(expected) // deep equality
                     - img [ref=e184]
                     - text: Eliminar
   - generic:
-    - generic [ref=e186]: Usuario creado correctamente.
-    - generic [ref=e187]: Usuario actualizado correctamente.
-    - generic [ref=e188]: Permisos actualizados correctamente.
-    - generic [ref=e189]: Autorización aprobada.
-    - generic [ref=e190]: Perfil actualizado correctamente.
-    - generic [ref=e191]: "Avisos emergentes desactivados: sin ventanas por avisos nuevos ni notificaciones nuevas del servidor. La bandeja conserva el historial ya recibido."
-    - generic [ref=e192]: Timbre silenciado (solo audio). Los avisos en pantalla no cambian si los tienes activos.
+    - generic [ref=e186]: Control SST actualizado.
+    - generic [ref=e187]: Usuario creado correctamente.
+    - generic [ref=e188]: Usuario actualizado correctamente.
+    - generic [ref=e189]: Permisos actualizados correctamente.
+    - generic [ref=e190]: Autorización aprobada.
+    - generic [ref=e191]: Perfil actualizado correctamente.
+    - generic [ref=e192]: "Avisos emergentes desactivados: sin ventanas por avisos nuevos ni notificaciones nuevas del servidor. La bandeja conserva el historial ya recibido."
+    - generic [ref=e193]: Timbre silenciado (solo audio). Los avisos en pantalla no cambian si los tienes activos.
 ```
 
 # Test source
