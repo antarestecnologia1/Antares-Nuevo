@@ -13447,9 +13447,87 @@ function adminUsersHtml(current) {
     return String(a.name || "").localeCompare(String(b.name || ""), "es", { sensitivity: "base" });
   });
   const companyCardsHtml = companiesSorted.map((c) => renderCompanyCard(c)).join("");
+  const approvedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO);
+  const rejectedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.RECHAZADO);
+  const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
+  const inactiveCompaniesCount = Math.max(0, companies.length - activeCompaniesCount);
+  const companiesWithLogoCount = companies.filter((c) => Boolean(companyProfileLogoUrl(c))).length;
+  const internalUsersCount = approvedUsers.filter(
+    (u) =>
+      normalizeRegistrationKindForDb(u.registrationKind ?? u.profileQualityChecklist?.registrationKind)
+      === "empleado_interno"
+  ).length;
+  const clientUsersCount = approvedUsers.filter(
+    (u) =>
+      normalizeRegistrationKindForDb(u.registrationKind ?? u.profileQualityChecklist?.registrationKind)
+      === "cliente"
+  ).length;
+  const twoFactorCount = approvedUsers.filter((u) => Boolean(u.twoFactorEnabled)).length;
+  const twoFactorCoverage = approvedUsers.length ? Math.round((twoFactorCount / approvedUsers.length) * 100) : 0;
+  const companyLogoCoverage = companies.length
+    ? Math.round((companiesWithLogoCount / companies.length) * 100)
+    : 0;
+  const sessions = Array.isArray(state.adminUserSessions) ? state.adminUserSessions : [];
+  const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
+  const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
+  const sessionCoverage = approvedUsers.length ? Math.round((activeSessions / approvedUsers.length) * 100) : 0;
+
+  const roleLabel = (role) => {
+    const raw = String(role || "").trim();
+    if (!raw) return "Sin rol";
+    const map = {
+      admin: "Administrador",
+      rrhh: "RRHH",
+      administracion: "Administración",
+      auxiliar_administrativo: "Auxiliar administrativo",
+      lider_administrativo: "Líder administrativo",
+      client: "Cliente"
+    };
+    return map[raw] || raw.replace(/_/g, " ");
+  };
+  const roleSummary = Object.entries(
+    activeUsers.reduce((acc, userRow) => {
+      const key = String(userRow.role || "sin_rol").trim().toLowerCase() || "sin_rol";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  const roleSummaryHtml = roleSummary.length
+    ? roleSummary
+        .map(
+          ([role, count]) =>
+            `<span class="admin-users-mini-chip">${escapeHtml(roleLabel(role))}<strong>${count}</strong></span>`
+        )
+        .join("")
+    : `<span class="admin-users-mini-chip admin-users-mini-chip--muted">Sin roles destacados</span>`;
+  const pendingPreviewHtml = pendingUsers.length
+    ? `<ul class="admin-users-inline-list">${pendingUsers
+        .slice(0, 3)
+        .map(
+          (u) =>
+            `<li><strong>${escapeHtml(getPortalUserDisplayName(u))}</strong><span>${escapeHtml(
+              String(u.email || "Sin correo")
+            )}</span></li>`
+        )
+        .join("")}</ul>`
+    : `<p class="muted admin-users-inline-empty">No hay registros pendientes por aprobar.</p>`;
+  const hero2faTone =
+    twoFactorCoverage >= 70
+      ? "status-viaje_asignado"
+      : twoFactorCoverage >= 40
+        ? "status-pendiente"
+        : "status-rechazada";
+  const heroSessionTone =
+    activeSessions > 0
+      ? "status-viaje_asignado"
+      : sessions.length > 0
+        ? "status-pendiente"
+        : "status-rechazada";
 
   let html = "";
-  const approvedCount = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
+  const approvedCount = approvedUsers.length;
 
   html += moduleFleetHeroStrip([
     { label: "Usuarios", value: users.length },
@@ -13458,13 +13536,139 @@ function adminUsersHtml(current) {
     { label: "Empresas", value: companies.length }
   ]);
 
-  html += `<div class="users-hero-strip users-hero-strip--solo">
-    <div class="users-hero-actions">
-      <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
-      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
-      <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
-      <button class="btn btn-outline btn-sm" data-action="refresh-user-sessions">${IC.activity} Actualizar sesiones</button>
+  html += `<section class="users-hero-strip users-hero-strip--command">
+    <div class="admin-users-hero-main">
+      <p class="users-hero-kicker">Sistema de acceso y gobierno</p>
+      <h2>Controle usuarios, empresas y sesiones desde una sola consola</h2>
+      <p>
+        Rediseñado para priorizar aprobaciones, seguridad de acceso y organización operacional sin perder velocidad al crear o ajustar perfiles.
+      </p>
+      <div class="admin-users-hero-chips">
+        <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}</span>
+        <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
+        <span class="status ${heroSessionTone}">${activeSessions} sesiones activas</span>
+        <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">${activeCompaniesCount}/${companies.length || 0} empresas activas</span>
+      </div>
     </div>
+    <div class="admin-users-hero-panel">
+      <div class="admin-users-hero-score">
+        <span>Postura actual</span>
+        <strong>${twoFactorCoverage}%</strong>
+        <p>${twoFactorCount} de ${approvedCount || 0} usuarios aprobados con autenticación reforzada.</p>
+      </div>
+      <div class="users-hero-actions">
+        <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
+        <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
+        <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
+        <button class="btn btn-outline btn-sm" data-action="refresh-user-sessions">${IC.activity} Actualizar sesiones</button>
+      </div>
+    </div>
+  </section>`;
+
+  html += `<div class="dash-grid admin-users-insights-grid">
+    <article class="admin-users-insight-card admin-users-insight-card--highlight">
+      <div class="admin-users-insight-card__head">
+        <span class="admin-users-insight-card__eyebrow">Bandeja prioritaria</span>
+        <span class="admin-users-insight-card__value">${pendingUsers.length}</span>
+      </div>
+      <h3>Aprobaciones pendientes</h3>
+      <p>Visualice de inmediato las cuentas creadas por el formulario público para activarlas con empresa, rol y permisos.</p>
+      ${pendingPreviewHtml}
+    </article>
+    <article class="admin-users-insight-card">
+      <div class="admin-users-insight-card__head">
+        <span class="admin-users-insight-card__eyebrow">Seguridad</span>
+        <span class="admin-users-insight-card__value">${sessionCoverage}%</span>
+      </div>
+      <h3>Acceso protegido y trazable</h3>
+      <p>La cobertura de sesiones activas frente a usuarios aprobados permite detectar actividad real y cuentas sin uso reciente.</p>
+      <div class="admin-users-mini-chip-row">
+        <span class="admin-users-mini-chip">2FA<strong>${twoFactorCount}</strong></span>
+        <span class="admin-users-mini-chip">Activas<strong>${activeSessions}</strong></span>
+        <span class="admin-users-mini-chip">Expiradas<strong>${expiredSessions}</strong></span>
+      </div>
+    </article>
+    <article class="admin-users-insight-card">
+      <div class="admin-users-insight-card__head">
+        <span class="admin-users-insight-card__eyebrow">Composición</span>
+        <span class="admin-users-insight-card__value">${approvedCount}</span>
+      </div>
+      <h3>Roles y tipo de usuario</h3>
+      <p>Equilibre usuarios internos y clientes mientras mantiene claridad sobre los perfiles con mayor presencia en el portal.</p>
+      <div class="admin-users-mini-chip-row">
+        <span class="admin-users-mini-chip">Internos<strong>${internalUsersCount}</strong></span>
+        <span class="admin-users-mini-chip">Clientes<strong>${clientUsersCount}</strong></span>
+      </div>
+      <div class="admin-users-mini-chip-row">${roleSummaryHtml}</div>
+    </article>
+    <article class="admin-users-insight-card">
+      <div class="admin-users-insight-card__head">
+        <span class="admin-users-insight-card__eyebrow">Empresas</span>
+        <span class="admin-users-insight-card__value">${companyLogoCoverage}%</span>
+      </div>
+      <h3>Base empresarial más ordenada</h3>
+      <p>El porcentaje de logos cargados y empresas activas ayuda a detectar registros que todavía necesitan completar identidad visual o activación.</p>
+      <div class="admin-users-mini-chip-row">
+        <span class="admin-users-mini-chip">Activas<strong>${activeCompaniesCount}</strong></span>
+        <span class="admin-users-mini-chip">Inactivas<strong>${inactiveCompaniesCount}</strong></span>
+        <span class="admin-users-mini-chip">Con logo<strong>${companiesWithLogoCount}</strong></span>
+      </div>
+    </article>
+  </div>`;
+
+  html += `<div class="dash-grid admin-users-command-grid">
+    <article class="admin-users-command-card${ui.panel === "create-user" ? " is-active" : ""}">
+      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.userPlus}</div>
+      <div class="admin-users-command-card__body">
+        <span class="admin-users-command-card__eyebrow">Alta rápida</span>
+        <h3>Crear un usuario con todo el contexto</h3>
+        <p>Defina identidad, empresa, ubicación, seguridad y permisos desde un único formulario operativo.</p>
+        <div class="admin-users-command-card__meta">
+          <span>${approvedCount} activos</span>
+          <span>${pendingUsers.length} en espera</span>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" type="button" data-action="toggle-admin-panel" data-panel="create-user">${ui.panel === "create-user" ? `${IC.x} Cerrar` : `${IC.userPlus} Abrir formulario`}</button>
+    </article>
+    <article class="admin-users-command-card${ui.panel === "create-company" ? " is-active" : ""}">
+      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.building || IC.briefcase}</div>
+      <div class="admin-users-command-card__body">
+        <span class="admin-users-command-card__eyebrow">Estructura comercial</span>
+        <h3>Registrar una nueva empresa</h3>
+        <p>Consolide datos legales, contacto principal y ubicación operativa con mejor trazabilidad visual.</p>
+        <div class="admin-users-command-card__meta">
+          <span>${activeCompaniesCount} activas</span>
+          <span>${inactiveCompaniesCount} inactivas</span>
+        </div>
+      </div>
+      <button class="btn btn-action btn-sm" type="button" data-action="toggle-admin-panel" data-panel="create-company">${ui.panel === "create-company" ? `${IC.x} Cerrar` : `${IC.plus} Abrir formulario`}</button>
+    </article>
+    <article class="admin-users-command-card${ui.panel === "set-permissions" ? " is-active" : ""}">
+      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.shield}</div>
+      <div class="admin-users-command-card__body">
+        <span class="admin-users-command-card__eyebrow">Gobierno de acceso</span>
+        <h3>Asignar permisos granulares</h3>
+        <p>Ajuste la visibilidad por módulo y deje cada cuenta con el mínimo acceso necesario para operar.</p>
+        <div class="admin-users-command-card__meta">
+          <span>${roleSummary.length} roles dominantes</span>
+          <span>${twoFactorCoverage}% con 2FA</span>
+        </div>
+      </div>
+      <button class="btn btn-action btn-sm" type="button" data-action="toggle-admin-panel" data-panel="set-permissions">${ui.panel === "set-permissions" ? `${IC.x} Cerrar` : `${IC.shield} Configurar`}</button>
+    </article>
+    <article class="admin-users-command-card">
+      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.activity}</div>
+      <div class="admin-users-command-card__body">
+        <span class="admin-users-command-card__eyebrow">Monitoreo</span>
+        <h3>Sincronizar sesiones del portal</h3>
+        <p>Actualice el registro para validar actividad reciente y sesiones expiradas antes de auditar o cerrar accesos.</p>
+        <div class="admin-users-command-card__meta">
+          <span>${activeSessions} activas</span>
+          <span>${expiredSessions} expiradas</span>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" type="button" data-action="refresh-user-sessions">${IC.activity} Sincronizar</button>
+    </article>
   </div>`;
 
   if (ui.panel === "create-user") html += pcardWrap("userPlus", "Crear nuevo usuario", "Completa los datos y permisos", fUser);
@@ -13500,33 +13704,68 @@ function adminUsersHtml(current) {
   if (pendingUsers.length > 0) {
     const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
     const pendingHelper = `<p class="muted user-grid-pending-help">Las cuentas creadas por el formulario público quedan inactivas hasta que un administrador les asigne empresa, rol y permisos.</p>`;
-    html += pcardWrap(
+    html += pcardWrapPro(
       "shield",
       "Pendientes de aprobación",
       pendingSubtitle,
-      pendingHelper + `<div class="user-grid user-grid-pending">${pendingCardsHtml}</div>`
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Cola de activación</p>
+          <p class="admin-users-section-copy">Cada registro pendiente necesita validación administrativa antes de habilitar acceso al portal.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          <span class="status status-pendiente">Pendientes ${pendingUsers.length}</span>
+          <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
+        </div>
+      </div>
+      ${pendingHelper}
+      <div class="user-grid user-grid-pending">${pendingCardsHtml}</div>`,
+      "admin-users-data-card"
     );
   }
 
-  html += pcardWrap(
+  html += pcardWrapPro(
     "shield",
     "Usuarios del sistema",
     `${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"}${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}` : ""}`,
-    userCards ? `<div class="user-grid user-grid-main">${userCards}</div>` : emptyState("Sin usuarios registrados.")
+    `${userCards
+      ? `<div class="admin-users-section-summary">
+          <div>
+            <p class="admin-users-section-kicker">Directorio operativo</p>
+            <p class="admin-users-section-copy">Revise roles, estado de acceso, empresa vinculada y permisos visibles antes de editar o desactivar cuentas.</p>
+          </div>
+          <div class="admin-users-section-tags">
+            <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
+            <span class="status ${rejectedUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Inactivos ${rejectedUsers.length}</span>
+            <span class="status ${hero2faTone}">2FA ${twoFactorCount}</span>
+          </div>
+        </div>
+        <div class="user-grid user-grid-main">${userCards}</div>`
+      : emptyState("Sin usuarios registrados.")}`,
+    "admin-users-data-card"
   );
 
   if (companies.length > 0) {
-    html += pcardWrap(
+    html += pcardWrapPro(
       "briefcase",
       "Empresas registradas",
       `${companies.length} empresa${companies.length === 1 ? "" : "s"}`,
-      `<div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div>`
+      `<div class="admin-users-section-summary">
+        <div>
+          <p class="admin-users-section-kicker">Directorio empresarial</p>
+          <p class="admin-users-section-copy">Mantenga cada empresa con datos consistentes para una mejor lectura comercial y operativa del portal.</p>
+        </div>
+        <div class="admin-users-section-tags">
+          <span class="status status-viaje_asignado">Activas ${activeCompaniesCount}</span>
+          <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Inactivas ${inactiveCompaniesCount}</span>
+          <span class="status ${companyLogoCoverage >= 70 ? "status-viaje_asignado" : "status-pendiente"}">Logo ${companyLogoCoverage}%</span>
+        </div>
+      </div>
+      <div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div>`,
+      "admin-users-data-card"
     );
   }
 
-  const sessions = Array.isArray(state.adminUserSessions) ? state.adminUserSessions : [];
-  const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
-  const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
   const sessionsRows = sessions
     .map((s) => {
       const status = String(s.status || "").toLowerCase() === "activa"
@@ -13541,34 +13780,39 @@ function adminUsersHtml(current) {
       </tr>`;
     })
     .join("");
-  const sessionsIntro = `
-    <div class="toolbar" style="justify-content:flex-start;gap:0.45rem;margin-bottom:0.65rem">
-      <span class="status status-viaje_asignado">Activas: ${activeSessions}</span>
-      <span class="status status-pendiente">Expiradas: ${expiredSessions}</span>
-      <button type="button" class="btn btn-sm btn-outline" data-action="clear-user-sessions-all">${IC.x} Finalizar sesiones (raíz)</button>
-      ${state.adminUserSessionsLoading ? `<span class="muted">Sincronizando...</span>` : ""}
-      ${state.adminUserSessionsError ? `<span class="status status-rechazada">${escapeHtml(String(state.adminUserSessionsError))}</span>` : ""}
-    </div>`;
-  const sessionsBody = sessionsRows
-    ? `${sessionsIntro}<div class="table-wrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Creada</th><th>Expira</th><th>Estado</th></tr></thead><tbody>${sessionsRows}</tbody></table></div>`
-    : `${sessionsIntro}${emptyState("No hay sesiones registradas todavía. Inicie sesión en el portal para empezar a ver actividad.")}`;
   const sessionsLogMinimized = Boolean(state.adminSessionsLogMinimized);
   const sessionsLogExpanded = !sessionsLogMinimized;
   const sessionsLogToggleText = sessionsLogExpanded ? "Ocultar registro de sesiones" : "Mostrar registro de sesiones";
-  const sessionsCardBody = `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
-    <button type="button" class="btn btn-sm btn-action" data-action="toggle-admin-sessions-log" aria-expanded="${sessionsLogExpanded ? "true" : "false"}">
-      ${sessionsLogExpanded ? IC.x : IC.plus} ${escapeHtml(sessionsLogToggleText)}
-    </button>
+  const sessionsCardBody = `<div class="admin-users-session-topbar">
+    <div class="admin-users-session-topbar__metrics">
+      <span class="status status-viaje_asignado">Activas ${activeSessions}</span>
+      <span class="status ${expiredSessions ? "status-pendiente" : "status-viaje_asignado"}">Expiradas ${expiredSessions}</span>
+      <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
+      <span class="status ${heroSessionTone}">Cobertura ${sessionCoverage}%</span>
+    </div>
+    <div class="admin-users-session-topbar__actions">
+      <button type="button" class="btn btn-sm btn-action" data-action="toggle-admin-sessions-log" aria-expanded="${sessionsLogExpanded ? "true" : "false"}">
+        ${sessionsLogExpanded ? IC.x : IC.plus} ${escapeHtml(sessionsLogToggleText)}
+      </button>
+      <button type="button" class="btn btn-sm btn-outline" data-action="refresh-user-sessions">${IC.activity} Actualizar</button>
+      <button type="button" class="btn btn-sm btn-outline" data-action="clear-user-sessions-all">${IC.x} Finalizar sesiones (raíz)</button>
+    </div>
   </div>
+  ${state.adminUserSessionsLoading ? `<p class="admin-users-inline-note muted">Sincronizando sesiones desde la API del portal...</p>` : ""}
+  ${state.adminUserSessionsError ? `<p class="admin-users-inline-note"><span class="status status-rechazada">${escapeHtml(String(state.adminUserSessionsError))}</span></p>` : ""}
   <div class="${sessionsLogExpanded ? "" : "hidden"}" data-admin-sessions-log-panel>
-    ${sessionsBody}
+    ${
+      sessionsRows
+        ? `<div class="table-wrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Creada</th><th>Expira</th><th>Estado</th></tr></thead><tbody>${sessionsRows}</tbody></table></div>`
+        : emptyState("No hay sesiones registradas todavía. Inicie sesión en el portal para empezar a ver actividad.")
+    }
   </div>`;
-  html += pcardWrap(
+  html += pcardWrapPro(
     "activity",
     "Sesiones de usuarios",
     `${sessions.length} registro${sessions.length === 1 ? "" : "s"}`,
     sessionsCardBody,
-    sessionsLogExpanded ? "p-card--expanded" : "p-card--collapsed"
+    `${sessionsLogExpanded ? "p-card--expanded" : "p-card--collapsed"} admin-users-data-card`
   );
 
   return html;
@@ -17365,7 +17609,7 @@ async function deleteEmployeesCascade(employeeIds = []) {
 function mountUniversalModuleFilters() {
   if (!nodes.viewRoot) return;
   const moduleView = String(state.currentView || "");
-  if (["profile"].includes(moduleView)) return;
+  if (["profile", "hiring"].includes(moduleView)) return;
   const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
   const tableRows = tableBodies.flatMap((tbody) => [...tbody.querySelectorAll("tr")]);
   const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card")];

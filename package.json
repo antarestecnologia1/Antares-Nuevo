@@ -27,5 +27,8 @@
     "smoke:api": "node scripts/smoke-api.mjs",
     "verify": "npm run setup && npm run build:api && npm run build:web && npm run lint:web && npm run test:portal-qa",
     "verify:stack": "node scripts/run-verify-stack.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }
