@@ -83,6 +83,25 @@ function pcardWrapPro(iconKey, title, subtitle, bodyHtml, extraClass = "") {
   </article>`;
 }
 
+function renderHrFormHeroBadge(value, label) {
+  const safeValue = String(value || "").trim();
+  const safeLabel = String(label || "").trim();
+  if (!safeValue && !safeLabel) return "";
+  return `<span class="hr-form-hero-badge">${safeValue ? `<strong>${escapeHtml(safeValue)}</strong>` : ""}${safeLabel ? `<small>${escapeHtml(safeLabel)}</small>` : ""}</span>`;
+}
+
+function renderHrFormHero({ eyebrow = "", title = "", description = "", tone = "brand", badges = [] } = {}) {
+  const badgeHtml = Array.isArray(badges) ? badges.filter(Boolean).join("") : "";
+  return `<section class="hr-form-hero hr-form-hero--${escapeAttr(String(tone || "brand"))}">
+    <div class="hr-form-hero__copy">
+      ${eyebrow ? `<p class="hr-form-hero__eyebrow">${escapeHtml(String(eyebrow))}</p>` : ""}
+      ${title ? `<h3 class="hr-form-hero__title">${escapeHtml(String(title))}</h3>` : ""}
+      ${description ? `<p class="hr-form-hero__text">${escapeHtml(String(description))}</p>` : ""}
+    </div>
+    ${badgeHtml ? `<div class="hr-form-hero__badges">${badgeHtml}</div>` : ""}
+  </section>`;
+}
+
 function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
   const expanded = Boolean(state.createPanels?.[panelId]);
   const toggleText = expanded ? "Ocultar formulario" : expandLabel;
@@ -18581,6 +18600,17 @@ function payrollHtml() {
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
   const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
   const formEmp = `<form id="form-employee" class="p-form p-form-colored hr-form-flow">
+    ${renderHrFormHero({
+      eyebrow: "Alta de colaborador",
+      title: "Registro completo de Gestión humana",
+      description: "Ahora que este flujo vive por separado, aprovecha mejor el ancho disponible para diligenciar la ficha, validar datos y cerrar con menos desplazamiento.",
+      tone: "payroll",
+      badges: [
+        renderHrFormHeroBadge("6 pasos", "guiados"),
+        renderHrFormHeroBadge("Word", "contrato"),
+        renderHrFormHeroBadge("EPS · ARL", "seguridad social")
+      ]
+    })}
     <div class="hr-form-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
       <div class="hr-form-wizard-toolbar">
         <div>
@@ -18744,6 +18774,17 @@ function payrollHtml() {
     </div>
   </form>`;
   const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    ${renderHrFormHero({
+      eyebrow: "Nómina mensual",
+      title: "Liquide el periodo con mejor lectura",
+      description: "Mantenga visibles salario base, novedades y deducciones en una sola vista para registrar el mes sin abrir paneles extra.",
+      tone: "payroll",
+      badges: [
+        renderHrFormHeroBadge("Mensual", "periodo"),
+        renderHrFormHeroBadge("Variables", "pagos y deducciones"),
+        renderHrFormHeroBadge("1 vista", "menos scroll")
+      ]
+    })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
       <div class="form-section-grid">
@@ -18800,6 +18841,17 @@ function payrollHtml() {
   </form>`;
   const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    ${renderHrFormHero({
+      eyebrow: "Terminación",
+      title: "Liquidación contractual clara y amplia",
+      description: "Revise bases de cálculo, rubros sugeridos y ajustes manuales dentro del mismo panel para evitar perder contexto.",
+      tone: "payroll",
+      badges: [
+        renderHrFormHeroBadge("Cesantías", "proporcional"),
+        renderHrFormHeroBadge("Prima", "orientativa"),
+        renderHrFormHeroBadge("Vacaciones", "compensación")
+      ]
+    })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.activity} Liquidación contractual (terminación)</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
@@ -18842,6 +18894,17 @@ function payrollHtml() {
     <button class="btn btn-primary full" type="submit">${IC.save} Registrar liquidación contractual</button>
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    ${renderHrFormHero({
+      eyebrow: "Novedad de personal",
+      title: "Ausencias e incapacidades sin ruido",
+      description: "Complete el evento, el soporte y las observaciones en un formato más compacto pero cómodo de leer y diligenciar.",
+      tone: "payroll",
+      badges: [
+        renderHrFormHeroBadge("EPS", "o entidad"),
+        renderHrFormHeroBadge("Fechas", "desde / hasta"),
+        renderHrFormHeroBadge("Soporte", "adjunto lógico")
+      ]
+    })}
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Datos de la novedad</legend>
       <div class="form-section-grid">
@@ -18971,10 +19034,10 @@ function payrollHtml() {
       { id: "absence", label: "Ausencia" }
     ]
   });
-  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card")}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${pcardWrapPro("dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card")}</div>`;
-  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${pcardWrapPro("hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card")}</div>`;
-  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${pcardWrapPro("calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica", formAbsence, "admin-users-data-card")}</div>`;
+  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll")}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${pcardWrapPro("dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll")}</div>`;
+  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${pcardWrapPro("hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll")}</div>`;
+  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${pcardWrapPro("calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
@@ -19493,6 +19556,17 @@ function hiringHtml() {
   const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
   const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
   const fPosition = `<form id="form-position" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    ${renderHrFormHero({
+      eyebrow: "Catálogo base",
+      title: "Defina el cargo con más contexto",
+      description: "Aproveche el panel independiente para comparar salario, jornada, riesgo y base legal sin que el formulario se sienta comprimido.",
+      tone: "hiring",
+      badges: [
+        renderHrFormHeroBadge("Cargo", "maestro"),
+        renderHrFormHeroBadge("ARL", "riesgo"),
+        renderHrFormHeroBadge("Contrato", "referencia")
+      ]
+    })}
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Definición del cargo</legend>
       <div class="form-section-grid">
@@ -19517,6 +19591,17 @@ function hiringHtml() {
     <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
   </form>`;
   const fVac = `<form id="form-vacancy" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    ${renderHrFormHero({
+      eyebrow: "Publicación",
+      title: "Vacantes con layout más amplio",
+      description: "Visualice cargo, ciudad, modalidad y requisitos en un bloque más cómodo para publicar sin repetir información.",
+      tone: "hiring",
+      badges: [
+        renderHrFormHeroBadge("Ubicación", "departamento y ciudad"),
+        renderHrFormHeroBadge("Cupos", "controlados"),
+        renderHrFormHeroBadge("Requisitos", "visibles")
+      ]
+    })}
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.send} Publicación de la vacante</legend>
       <div class="form-section-grid">
@@ -19537,6 +19622,17 @@ function hiringHtml() {
   const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
   const docTypeCand = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
   const fCand = `<form id="form-candidate" class="p-form p-form-colored hr-form-flow">
+    ${renderHrFormHero({
+      eyebrow: "Pipeline de selección",
+      title: "Registro de candidato más cómodo",
+      description: "Divida identidad y perfil profesional en pasos claros, con más ancho para datos personales, vacante y hoja de vida.",
+      tone: "hiring",
+      badges: [
+        renderHrFormHeroBadge("2 pasos", "asistidos"),
+        renderHrFormHeroBadge("CV", "adjuntos"),
+        renderHrFormHeroBadge("Vacante", "relacionada")
+      ]
+    })}
     <div class="hr-form-wizard" data-hr-wizard="candidate" aria-label="Registro de candidato por pasos">
       <div class="hr-form-wizard-toolbar">
         <div>
@@ -19595,6 +19691,17 @@ function hiringHtml() {
     </div>
   </form>`;
   const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    ${renderHrFormHero({
+      eyebrow: "Agenda",
+      title: "Entrevistas rápidas de programar",
+      description: "Con el formulario aislado, los datos clave de cita, modalidad y lugar quedan visibles en un solo bloque.",
+      tone: "hiring",
+      badges: [
+        renderHrFormHeroBadge("Futura", "fecha y hora"),
+        renderHrFormHeroBadge("Modalidad", "presencial o virtual"),
+        renderHrFormHeroBadge("Notas", "previas")
+      ]
+    })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.calendar} Programación de entrevista</legend>
       <div class="form-section-grid">
@@ -19619,6 +19726,17 @@ function hiringHtml() {
   </form>`;
   const signDateDefault = colombiaTodayIsoDate();
   const fCon = `<form id="form-contract" class="p-form p-form-colored hr-form-flow">
+    ${renderHrFormHero({
+      eyebrow: "Formalización",
+      title: "Generación de contrato con más aire visual",
+      description: "Seleccione empleado, fecha y plantilla con mejor jerarquía antes de pasar a pruebas y descarga del documento Word.",
+      tone: "hiring",
+      badges: [
+        renderHrFormHeroBadge("Empleado", "selección"),
+        renderHrFormHeroBadge("Plantilla", "Word"),
+        renderHrFormHeroBadge("2 pasos", "revisión")
+      ]
+    })}
     <div class="hr-form-wizard" data-hr-wizard="contract" aria-label="Generación de contrato por pasos">
       <div class="hr-form-wizard-toolbar">
         <div>
@@ -19780,11 +19898,11 @@ function hiringHtml() {
       { id: "contract", label: "Contrato" }
     ]
   });
-  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${pcardWrapPro("briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card")}</div>`;
-  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${pcardWrapPro("plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card")}</div>`;
-  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card")}</div>`;
-  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${pcardWrapPro("calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card")}</div>`;
-  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${pcardWrapPro("file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card")}</div>`;
+  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${pcardWrapPro("briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring")}</div>`;
+  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${pcardWrapPro("plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring")}</div>`;
+  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--hiring")}</div>`;
+  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${pcardWrapPro("calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring")}</div>`;
+  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${pcardWrapPro("file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring")}</div>`;
   const hiringExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
