@@ -16050,7 +16050,7 @@ function reportsBiDisplayVal(value, fallback = "—") {
 function reportsBiCustomizerHtml(layout) {
   const L = normalizeReportsBiLayout(layout);
   const chk = (scope, key, label, checked) =>
-    `<label class="reports-bi-customizer-item"><input type="checkbox" data-bi-scope="${escapeAttr(scope)}" data-bi-key="${escapeAttr(key)}"${checked ? " checked" : ""}/> ${escapeHtml(label)}</label>`;
+    `<label class="reports-bi-customizer-item"><input type="checkbox" data-bi-scope="${escapeAttr(scope)}" data-bi-key="${escapeAttr(key)}"${checked ? " checked" : ""}/><span class="reports-bi-customizer-item-label">${escapeHtml(label)}</span></label>`;
   const kpiChecks = [
     chk("kpis", "revenue", "Recaudo", L.kpis.revenue),
     chk("kpis", "trips", "Viajes", L.kpis.trips),
@@ -16079,8 +16079,10 @@ function reportsBiCustomizerHtml(layout) {
   ].join("");
   return `<div class="reports-bi-customizer" aria-label="Personalizar analítica">
     <div class="reports-bi-customizer-head">
-      <h3 class="reports-bi-customizer-title">${IC.grid} Arme su vista</h3>
-      <p class="reports-bi-customizer-hint">Elija indicadores y gráficas. La selección se guarda en este equipo y aplica al Excel.</p>
+      <div class="reports-bi-customizer-copy">
+        <h3 class="reports-bi-customizer-title">${IC.grid} Arme su vista</h3>
+        <p class="reports-bi-customizer-hint">Elija indicadores y gráficas. La selección se guarda en este equipo y aplica al Excel.</p>
+      </div>
       <div class="reports-bi-customizer-presets">
         <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="all">Todo</button>
         <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="min">Mínimo</button>
@@ -16092,19 +16094,27 @@ function reportsBiCustomizerHtml(layout) {
     <div class="reports-bi-customizer-grid">
       <fieldset class="reports-bi-customizer-group">
         <legend>General</legend>
-        ${chk("insights", "insights", "Hallazgos automáticos", L.insights)}
+        <div class="reports-bi-customizer-checks">
+          ${chk("insights", "insights", "Hallazgos automáticos", L.insights)}
+        </div>
       </fieldset>
       <fieldset class="reports-bi-customizer-group">
         <legend>Indicadores</legend>
-        ${kpiChecks}
+        <div class="reports-bi-customizer-checks">
+          ${kpiChecks}
+        </div>
       </fieldset>
       <fieldset class="reports-bi-customizer-group">
         <legend>Cumplimiento</legend>
-        ${scoreChecks}
+        <div class="reports-bi-customizer-checks">
+          ${scoreChecks}
+        </div>
       </fieldset>
-      <fieldset class="reports-bi-customizer-group reports-bi-customizer-group--wide">
+      <fieldset class="reports-bi-customizer-group">
         <legend>Gráficas y rankings</legend>
-        ${chartChecks}
+        <div class="reports-bi-customizer-checks reports-bi-customizer-checks--dual">
+          ${chartChecks}
+        </div>
       </fieldset>
     </div>
   </div>`;
