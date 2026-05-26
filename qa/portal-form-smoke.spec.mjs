@@ -88,6 +88,8 @@ const clientUser = {
 };
 
 const seedStore = {
+  antares_portal_data_ver: "v8-server-backed-memory-only",
+  antares_users_storage_ver: "v5-memory",
   [KEYS.users]: [
     adminUser,
     clientUser
@@ -480,9 +482,15 @@ test("portal form smoke", async ({ page, context }) => {
   const results = [];
 
   await context.addInitScript((payload) => {
+    const rawKeys = new Set([
+      "antares_portal_data_ver",
+      "antares_users_storage_ver",
+      "antares_hr_payroll_workspace_v1",
+      "antares_hr_hiring_workspace_v1"
+    ]);
     localStorage.clear();
     Object.entries(payload).forEach(([key, value]) => {
-      localStorage.setItem(key, JSON.stringify(value));
+      localStorage.setItem(key, rawKeys.has(key) ? String(value) : JSON.stringify(value));
     });
   }, seedStore);
 
@@ -490,15 +498,25 @@ test("portal form smoke", async ({ page, context }) => {
     if (msg.type() === "error") console.error("[browser:error]", msg.text());
   });
 
-  const arrayLen = (key) =>
-    page.evaluate((storageKey) => {
-      const raw = localStorage.getItem(storageKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed.length : 0;
-    }, key);
+  const readPersisted = (key, fallback) =>
+    page.evaluate(
+      ({ storageKey, fallbackValue }) => {
+        try {
+          if (window.AntaresPersistence?.read) {
+            return window.AntaresPersistence.read(storageKey, fallbackValue);
+          }
+          return JSON.parse(localStorage.getItem(storageKey) || JSON.stringify(fallbackValue));
+        } catch (_error) {
+          return fallbackValue;
+        }
+      },
+      { storageKey: key, fallbackValue: fallback }
+    );
 
-  const readStore = (key) =>
-    page.evaluate((storageKey) => JSON.parse(localStorage.getItem(storageKey) || "null"), key);
+  const arrayLen = (key) =>
+    readPersisted(key, []).then((parsed) => (Array.isArray(parsed) ? parsed.length : 0));
+
+  const readStore = (key) => readPersisted(key, null);
 
   const latestToastText = () =>
     page.evaluate(() => {
@@ -511,7 +529,12 @@ test("portal form smoke", async ({ page, context }) => {
   const waitForArrayLength = async (key, expected, label) => {
     try {
       await page.waitForFunction(
-        ({ storageKey, size }) => JSON.parse(localStorage.getItem(storageKey) || "[]").length === size,
+        ({ storageKey, size }) => {
+          const rows = window.AntaresPersistence?.read
+            ? window.AntaresPersistence.read(storageKey, [])
+            : JSON.parse(localStorage.getItem(storageKey) || "[]");
+          return Array.isArray(rows) && rows.length === size;
+        },
         { storageKey: key, size: expected },
         { timeout: 8000 }
       );
@@ -561,6 +584,39 @@ test("portal form smoke", async ({ page, context }) => {
       }
       form.requestSubmit();
     }, { selector, pairs });
+  };
+
+  const setFormFields = async (selector, pairs) => {
+    await page.waitForSelector(selector, { state: "attached", timeout: 5000 });
+    await page.evaluate(({ selector: formSelector, pairs: entries }) => {
+      const form = document.querySelector(formSelector);
+      if (!form) throw new Error(`No se encontró ${formSelector}`);
+      const resolveField = (key) => {
+        if (/[\[\]#.: >]/.test(key)) return form.querySelector(key) || document.querySelector(key);
+        return form.querySelector(`[name="${key}"]`);
+      };
+      for (const [key, value] of entries) {
+        const field = resolveField(key);
+        if (!field) throw new Error(`Campo no encontrado: ${key}`);
+        if (field.type === "checkbox") {
+          field.checked = Boolean(value);
+          field.dispatchEvent(new Event("change", { bubbles: true }));
+          continue;
+        }
+        field.value = value == null ? "" : String(value);
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }, { selector, pairs });
+  };
+
+  const submitExistingForm = async (selector) => {
+    await page.waitForSelector(selector, { state: "attached", timeout: 5000 });
+    await page.evaluate((formSelector) => {
+      const form = document.querySelector(formSelector);
+      if (!form) throw new Error(`No se encontró ${formSelector}`);
+      form.requestSubmit();
+    }, selector);
   };
 
   const clickDom = async (selector) => {
@@ -657,12 +713,24 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Mis solicitudes:edit", async () => {
     await gotoView("requests");
+    const beforeRows = await readStore(KEYS.requests);
+    const beforeReq = (beforeRows || []).find((row) => row.id === "req-edit");
     await clickDom("[data-action='edit-request'][data-id='req-edit']");
     await page.waitForSelector("#crud-form", { state: "attached" });
-    await submitForm("#crud-form", [["cargoDescription", "Flores editadas QA"]]);
+    await submitForm("#crud-form", [
+      ["pickupDate", ymd(plusDays(10))],
+      ["pickupTime", "10:30"],
+      ["deliveryDate", ymd(plusDays(11))],
+      ["deliveryTime", "16:15"]
+    ]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "req-edit" && row.cargoDescription === "Flores editadas QA"),
-      KEYS.requests,
+      ({ key, beforePickupAt, beforeEta }) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "req-edit" && row.pickupAt !== beforePickupAt && row.etaDelivery !== beforeEta);
+      },
+      { key: KEYS.requests, beforePickupAt: beforeReq?.pickupAt || "", beforeEta: beforeReq?.etaDelivery || "" },
       "Mis solicitudes:edit"
     );
   });
@@ -671,17 +739,35 @@ test("portal form smoke", async ({ page, context }) => {
     await gotoView("transport-trips");
     await ensureCreatePanelOpen("create-trip");
     const before = await readStore(KEYS.requests);
-    await submitForm("#form-create-trip", [["requestId", "req-trip-create"]]);
-    await page.waitForSelector("#form-create-trip select[name='vehicleId']", { state: "attached" });
-    await submitForm("#form-create-trip", [["vehicleId", "veh-1"], ["driverId", "drv-1"]]);
-    await page.waitForSelector("#form-create-trip input[name='tripValue']", { state: "attached" });
-    await submitForm("#form-create-trip", [["tripValue", "1450000"]]);
+    await setFormFields("#form-create-trip", [["requestId", "req-trip-create"]]);
+    await page.waitForFunction(() => {
+      const vehicle = document.querySelector("#form-create-trip select[name='vehicleId']");
+      const driver = document.querySelector("#form-create-trip select[name='driverId']");
+      return vehicle && driver && !vehicle.disabled && !driver.disabled;
+    });
+    await setFormFields("#form-create-trip", [["vehicleId", "veh-1"], ["driverId", "drv-1"]]);
+    await page.waitForFunction(() => {
+      const price = document.querySelector("#form-create-trip input[name='tripValue']");
+      return price && !price.disabled;
+    });
+    await setFormFields("#form-create-trip", [["tripValue", "1450000"]]);
+    await submitExistingForm("#form-create-trip");
     await waitForStore(
-      (key) => {
-        const rows = JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "req-trip-create" && row.trip && String(row.trip.driverId || "") === "drv-1");
+      ({ key, beforeRows }) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        const beforeReq = (beforeRows || []).find((row) => row.id === "req-trip-create");
+        return rows.some(
+          (row) =>
+            row.id === "req-trip-create" &&
+            row.status === "Viaje asignado" &&
+            row.trip &&
+            String(row.trip.driverId || "") === "drv-1" &&
+            String(row.trip.tripNumber || "") !== String(beforeReq?.trip?.tripNumber || "")
+        );
       },
-      KEYS.requests,
+      { key: KEYS.requests, beforeRows: before || [] },
       "Viajes:create"
     );
     if ((before || []).length < 1) throw new Error("Seed de solicitudes inválido");
@@ -693,7 +779,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["tripValue", "1550000"], ["tripNotes", "Ajuste QA"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "req-trip-edit" && Number(row.tripValue) === 1550000),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "req-trip-edit" && Number(row.tripValue) === 1550000);
+      },
       KEYS.requests,
       "Viajes:edit"
     );
@@ -727,12 +818,19 @@ test("portal form smoke", async ({ page, context }) => {
       ["gpsProvider", "Satrack"]
     ]);
     await waitForArrayLength(KEYS.vehicles, before + 1, "Camiones:create");
+    const beforeVehicles = await readStore(KEYS.vehicles);
+    const beforeVeh = (beforeVehicles || []).find((row) => row.id === "veh-1");
     await clickDom("[data-action='edit-vehicle'][data-id='veh-1']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["brand", "Chevrolet QA"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "veh-1" && row.brand === "Chevrolet QA"),
-      KEYS.vehicles,
+      ({ key, previousUpdatedAt }) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "veh-1" && row.brand === "Chevrolet QA" && row.updatedAt !== previousUpdatedAt);
+      },
+      { key: KEYS.vehicles, previousUpdatedAt: beforeVeh?.updatedAt || "" },
       "Camiones:edit"
     );
   });
@@ -743,7 +841,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3006667790"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "drv-1" && row.phone === "3006667790"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "drv-1" && row.phone === "3006667790");
+      },
       KEYS.drivers,
       "Conductores:edit"
     );
@@ -830,7 +933,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3005556600"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "emp-1" && row.phone === "3005556600"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "emp-1" && row.phone === "+57 300 555 66 00");
+      },
       KEYS.payrollEmployees,
       "Gestión humana:edit employee"
     );
@@ -870,7 +978,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["name", "Analista QA Editado"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "pos-analista" && row.name === "Analista QA Editado"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "pos-analista" && row.name === "Analista QA Editado");
+      },
       KEYS.positions,
       "Contratación:edit position"
     );
@@ -894,7 +1007,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["title", "Vacante Analista Editada"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada");
+      },
       KEYS.vacancies,
       "Contratación:edit vacancy"
     );
@@ -923,7 +1041,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["phone", "3007778800"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "cand-1" && row.phone === "3007778800"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "cand-1" && row.phone === "3007778800");
+      },
       KEYS.candidates,
       "Contratación:edit candidate"
     );
@@ -944,7 +1067,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["interviewer", "Lina QA Edit"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "int-1" && row.interviewer === "Lina QA Edit"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "int-1" && row.interviewer === "Lina QA Edit");
+      },
       KEYS.interviews,
       "Contratación:edit interview"
     );
@@ -968,7 +1096,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["provider", "ARL QA Edit"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "sst-1" && row.provider === "ARL QA Edit"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "sst-1" && row.provider === "ARL QA Edit");
+      },
       KEYS.sstCompliance,
       "SST:edit"
     );
@@ -1005,7 +1138,12 @@ test("portal form smoke", async ({ page, context }) => {
     await page.waitForSelector("#form-admin-user-edit", { state: "attached" });
     await submitForm("#form-admin-user-edit", [["phone", "3002223300"]]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "client-1" && row.phone === "3002223300"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "client-1" && row.phone === "+57 300 222 33 00");
+      },
       KEYS.users,
       "Usuarios:edit"
     );
@@ -1019,7 +1157,12 @@ test("portal form smoke", async ({ page, context }) => {
     const before = await arrayLen(KEYS.approvals);
     await clickDom("[data-action='approval-approve'][data-id='app-1']");
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "app-1" && row.status === "aprobado"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "app-1" && row.status === "aprobado");
+      },
       KEYS.approvals,
       "Autorizaciones:approve"
     );
@@ -1041,7 +1184,12 @@ test("portal form smoke", async ({ page, context }) => {
       ["companyId", "co-antares"]
     ]);
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").some((row) => row.id === "admin-1" && row.name === "Admin QA Perfil"),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.some((row) => row.id === "admin-1" && row.name === "Admin QA Perfil");
+      },
       KEYS.users,
       "Mi perfil:edit"
     );
@@ -1053,7 +1201,12 @@ test("portal form smoke", async ({ page, context }) => {
     await clickDom("[data-action='notif-toggle-sound']");
     await clickDom("[data-action='notif-read-all']");
     await waitForStore(
-      (key) => JSON.parse(localStorage.getItem(key) || "[]").every((row) => row.readAt),
+      (key) => {
+        const rows = window.AntaresPersistence?.read
+          ? window.AntaresPersistence.read(key, [])
+          : JSON.parse(localStorage.getItem(key) || "[]");
+        return rows.every((row) => row.readAt);
+      },
       KEYS.notifications,
       "Notificaciones:read all"
     );

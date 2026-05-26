@@ -3177,12 +3177,24 @@ function capStoredArrayRows(key, value) {
 
 function read(key, fallback = []) {
   const P = window.AntaresPersistence;
-  if (P && typeof P.read === "function") return P.read(key, fallback);
+  const normalizeShape = (value) => {
+    if (Array.isArray(fallback)) return Array.isArray(value) ? value : fallback;
+    if (fallback && typeof fallback === "object") {
+      return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
+    }
+    return value ?? fallback;
+  };
+  if (P && typeof P.read === "function") return normalizeShape(P.read(key, fallback));
   try {
-    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+    return normalizeShape(JSON.parse(localStorage.getItem(key)));
   } catch (_error) {
     return fallback;
   }
+}
+
+function readArray(key) {
+  const value = read(key, []);
+  return Array.isArray(value) ? value : [];
 }
 
 function write(key, value) {
@@ -3810,9 +3822,11 @@ async function portalRefreshBootstrapThenPendingRegistrations() {
 }
 
 function reqRead() {
-  return typeof DomainModules?.requests?.readAllSync === "function"
-    ? DomainModules.requests.readAllSync()
-    : read(KEYS.requests, []);
+  const rows =
+    typeof DomainModules?.requests?.readAllSync === "function"
+      ? DomainModules.requests.readAllSync()
+      : readArray(KEYS.requests);
+  return Array.isArray(rows) ? rows : [];
 }
 
 function reqWrite(next) {
@@ -5219,6 +5233,11 @@ function makeRequestNumber(existingNumbers = new Set()) {
 function fmtDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("es-CO", { timeZone: CO_TIMEZONE });
+}
+
+function fmtDateOr(value, fallback = "—") {
+  const ymd = normalizePortalDateYmd(value);
+  return ymd ? ymd : fallback;
 }
 
 function addYears(dateValue, years) {
@@ -7091,12 +7110,12 @@ function findOrCreateCompanyIdByName(name) {
 }
 
 function getCompanyById(companyId) {
-  return read(KEYS.companies, []).find((item) => item.id === companyId) || null;
+  return readArray(KEYS.companies).find((item) => item.id === companyId) || null;
 }
 
 function companySelectOptions(selectedId = "") {
   const sel = String(selectedId || "").trim();
-  return read(KEYS.companies, [])
+  return readArray(KEYS.companies)
     .filter((company) => isCompanyRecordActive(company) || String(company.id) === sel)
     .map(
       (company) =>
@@ -7106,11 +7125,11 @@ function companySelectOptions(selectedId = "") {
 }
 
 function getActivePositions() {
-  return read(KEYS.positions, []).filter((p) => p.active !== false);
+  return readArray(KEYS.positions).filter((p) => p.active !== false);
 }
 
 function getPositionById(positionId) {
-  return read(KEYS.positions, []).find((item) => item.id === positionId) || null;
+  return readArray(KEYS.positions).find((item) => item.id === positionId) || null;
 }
 
 function positionSelectOptions(selectedId = "") {
@@ -10780,7 +10799,7 @@ function minutesRemaining(createdAt) {
 }
 
 function currentUser() {
-  const users = read(KEYS.users, []);
+  const users = readArray(KEYS.users);
   const sid = state.session?.userId;
   if (sid === undefined || sid === null) return null;
   return users.find((u) => String(u.id) === String(sid)) || null;
@@ -12499,7 +12518,7 @@ function buildDeletedTransportRequestsLogSection() {
 function transportTripsHtml() {
   const isAdmin = isAdminActor();
   const rates = getTripRouteRatesNormalized();
-  const companiesForRates = read(KEYS.companies, []);
+  const companiesForRates = readArray(KEYS.companies);
   const rateEntries = Object.entries(rates)
     .map(([storageKey, entry]) => ({ storageKey, ...entry, value: parseNum(entry.value) }))
     .sort((a, b) => String(a.storageKey).localeCompare(String(b.storageKey)));
@@ -13228,20 +13247,19 @@ function adminUsersHtml(current) {
 
   const renderUserCard = (u, mode = "active") => {
     const namedPerms = effectiveUserPermissions(u).map((p) => PERMISSION_META[p]?.title || p);
-    const visiblePerms = namedPerms.slice(0, 3);
-    const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
-    const permList = [
-      ...visiblePerms.map((label) => `<span class="perm-tag">${escapeHtml(label)}</span>`),
-      hiddenCount > 0 ? `<span class="perm-tag perm-tag-more">+${hiddenCount} mas</span>` : ""
-    ].join("");
     const isMe = u.id === current.id;
     const isPending = mode === "pending";
     const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
-    const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin telefono";
     const locationLabel = u.city ? `${String(u.city)}${u.department ? `, ${String(u.department)}` : ""}` : "Sin ubicacion";
     const permissionCount = namedPerms.length;
     const registrationLabel = u.registrationKind ? registrationKindLabel(u.registrationKind) : "Sin vinculo";
     const roleTag = u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn");
+    const contactLine = [
+      String(u.email || "Sin correo"),
+      locationLabel !== "Sin ubicacion" ? locationLabel : ""
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const note = isPending
       ? '<div class="directory-card__banner directory-card__banner--warn"><strong>Pendiente de aprobacion.</strong> Asigne empresa, rol y permisos para activar la cuenta.</div>'
       : "";
@@ -13266,12 +13284,6 @@ function adminUsersHtml(current) {
       : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
         ? " directory-card--inactive"
         : " directory-card--ok";
-    const summaryTitle = isPending
-      ? "Requiere activacion administrativa"
-      : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
-        ? "Acceso restringido"
-        : "Cuenta operativa";
-    const summaryCopy = `${String(u.email || "Sin correo")} · ${locationLabel}`;
     return `<article class="directory-card directory-card--user${cardStateClass}">
       <header class="directory-card__head">
         <div class="directory-card__identity">
@@ -13279,6 +13291,7 @@ function adminUsersHtml(current) {
           <div class="directory-card__heading">
             <p class="directory-card__kicker">${escapeHtml(companyName)}</p>
             <h4 class="directory-card__title">${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="directory-card__title-note">Tu cuenta</span>' : ""}</h4>
+            <p class="directory-card__subline">${escapeHtml(contactLine)}</p>
           </div>
         </div>
         <div class="directory-card__status-stack">
@@ -13286,23 +13299,12 @@ function adminUsersHtml(current) {
           ${statusBadge(u.accountStatus)}
         </div>
       </header>
-      <div class="directory-card__summary">
-        <strong>${escapeHtml(summaryTitle)}</strong>
-        <p>${escapeHtml(summaryCopy)}</p>
-      </div>
       <div class="directory-card__metrics">
         ${directoryChipHtml("Permisos", String(permissionCount), permissionCount ? "ok" : "warn")}
         ${directoryChipHtml("2FA", u.twoFactorEnabled ? "Activa" : "Pendiente", u.twoFactorEnabled ? "ok" : "warn")}
-        ${directoryChipHtml("Vinculo", registrationLabel)}
+        ${directoryChipHtml("Perfil", registrationLabel)}
       </div>
       ${note}
-      <dl class="directory-card__facts">
-        ${directoryFactHtml("Correo", String(u.email || "Sin correo"))}
-        ${directoryFactHtml("Telefono", phoneLabel)}
-        ${directoryFactHtml("Ubicacion", locationLabel)}
-        ${directoryFactHtml("Registro", registrationLabel)}
-      </dl>
-      ${permList ? `<div class="directory-card__tags">${permList}</div>` : ""}
       ${actions}
     </article>`;
   };
@@ -13313,51 +13315,50 @@ function adminUsersHtml(current) {
     const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
     const logoUrl = companyProfileLogoUrl(c);
     const avatarCompany = logoUrl
-      ? `<div class="user-avatar user-avatar--company user-avatar--company-logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
-      : `<div class="user-avatar user-avatar--company" aria-hidden="true">${initial}</div>`;
-    const nit = String(c.taxId || c.nit || "").trim();
-    const subtitle = nit
-      ? `${IC.badge} NIT ${escapeHtml(nit)}`
-      : `<span class="muted">${IC.badge} Sin NIT registrado</span>`;
-    const coStatusBadge = active
-      ? `<span class="status status-viaje_asignado">Activa</span>`
-      : `<span class="status status-rechazada">Inactiva</span>`;
-    const coActions = `<div class="user-card-actions">
-      <button type="button" class="btn btn-sm btn-outline" data-action="view-company" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
-      ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
-      ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>` : ""}
-      ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-    </div>`;
-    const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
-    const metaParts = [
-      phoneDisp
-        ? `${IC.phone} ${escapeHtml(phoneDisp)}`
-        : `<span class="muted">${IC.phone} Sin teléfono</span>`,
-      c.email
-        ? `${IC.mail} ${escapeHtml(String(c.email))}`
-        : `<span class="muted">${IC.mail} Sin correo</span>`,
-      companyProfileLogoUrl(c)
-        ? `${IC.check} Logo configurado`
-        : `<span class="muted">${IC.upload} Sin logo</span>`,
-      `${IC.user} ${usersCount} usuario${usersCount === 1 ? "" : "s"}`
-    ];
+      ? `<div class="directory-card__avatar directory-card__avatar--photo directory-card__avatar--logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
+      : `<div class="directory-card__avatar directory-card__avatar--logo" aria-hidden="true">${initial}</div>`;
+    const nit = String(c.taxId || c.nit || "").trim() || "Sin NIT";
+    const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "Sin teléfono";
+    const emailLabel = String(c.email || "").trim() || "Sin correo";
+    const contactLabel = String(c.contactName || "").trim() || "Sin contacto";
+    const locationLabel = c.city ? `${String(c.city)}${c.department ? `, ${String(c.department)}` : ""}` : "Sin ubicación";
     const kindForUi =
       patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
-    return `<div class="user-card user-card--company${active ? "" : " user-card--company-inactive"}">
-      <div class="user-card-top">
-        ${avatarCompany}
-        <div class="user-card-info">
-          <h4>${escapeHtml(String(c.name || ""))}</h4>
-          <p class="muted">${subtitle}</p>
+    const companyStateClass = active ? " directory-card--ok" : " directory-card--inactive";
+    const companyLine = [
+      contactLabel !== "Sin contacto" ? contactLabel : "",
+      emailLabel !== "Sin correo" ? emailLabel : "",
+      locationLabel !== "Sin ubicación" ? locationLabel : ""
+    ]
+      .filter(Boolean)
+      .join(" · ") || "Complete datos de contacto para esta empresa";
+    return `<article class="directory-card directory-card--user directory-card--company${companyStateClass}" data-company-id="${escapeAttr(String(c.id || ""))}">
+      <header class="directory-card__head">
+        <div class="directory-card__identity">
+          ${avatarCompany}
+          <div class="directory-card__heading">
+            <p class="directory-card__kicker">${escapeHtml(companyKindChipShortLabel(normalizeCompanyKindForDb(kindForUi)))} · ${escapeHtml(nit)}</p>
+            <h4 class="directory-card__title">${escapeHtml(String(c.name || "Empresa"))}</h4>
+            <p class="directory-card__subline">${escapeHtml(companyLine)}</p>
+          </div>
         </div>
-        <div class="user-card-badges">
+        <div class="directory-card__status-stack">
           ${companyKindChipHtml(kindForUi)}
-          ${coStatusBadge}
+          ${active ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>'}
         </div>
+      </header>
+      <div class="directory-card__metrics">
+        ${directoryChipHtml("Usuarios", String(usersCount), usersCount ? "ok" : "neutral")}
+        ${directoryChipHtml("Logo", logoUrl ? "Cargado" : "Pendiente", logoUrl ? "ok" : "warn")}
+        ${directoryChipHtml("Canal", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "Listo" : "Pend.", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "ok" : "warn")}
       </div>
-      <div class="user-card-meta">${metaParts.map((x) => `<span>${x}</span>`).join("")}</div>
-      ${coActions}
-    </div>`;
+      <footer class="directory-card__actions">
+        <button type="button" class="btn btn-sm btn-outline" data-action="view-company" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+        ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+        ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>` : ""}
+        ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+      </footer>
+    </article>`;
   };
 
   const pendingUsers = users.filter((u) => isPortalUserPendingApproval(u));
@@ -13743,112 +13744,32 @@ function adminUsersHtml(current) {
   const rejectedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.RECHAZADO);
   const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
   const inactiveCompaniesCount = Math.max(0, companies.length - activeCompaniesCount);
-  const companiesWithLogoCount = companies.filter((c) => Boolean(companyProfileLogoUrl(c))).length;
-  const internalUsersCount = approvedUsers.filter(
-    (u) =>
-      normalizeRegistrationKindForDb(u.registrationKind ?? u.profileQualityChecklist?.registrationKind)
-      === "empleado_interno"
-  ).length;
-  const clientUsersCount = approvedUsers.filter(
-    (u) =>
-      normalizeRegistrationKindForDb(u.registrationKind ?? u.profileQualityChecklist?.registrationKind)
-      === "cliente"
-  ).length;
-  const twoFactorCount = approvedUsers.filter((u) => Boolean(u.twoFactorEnabled)).length;
-  const twoFactorCoverage = approvedUsers.length ? Math.round((twoFactorCount / approvedUsers.length) * 100) : 0;
-  const companyLogoCoverage = companies.length
-    ? Math.round((companiesWithLogoCount / companies.length) * 100)
-    : 0;
   const sessions = Array.isArray(state.adminUserSessions) ? state.adminUserSessions : [];
   const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
   const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
-  const sessionCoverage = approvedUsers.length ? Math.round((activeSessions / approvedUsers.length) * 100) : 0;
   const focusCardClass = "admin-users-data-card admin-users-focus-card";
-
-  const roleLabel = (role) => {
-    const raw = String(role || "").trim();
-    if (!raw) return "Sin rol";
-    const map = {
-      admin: "Administrador",
-      rrhh: "RRHH",
-      administracion: "Administración",
-      auxiliar_administrativo: "Auxiliar administrativo",
-      lider_administrativo: "Líder administrativo",
-      client: "Cliente"
-    };
-    return map[raw] || raw.replace(/_/g, " ");
-  };
-  const roleSummary = Object.entries(
-    activeUsers.reduce((acc, userRow) => {
-      const key = String(userRow.role || "sin_rol").trim().toLowerCase() || "sin_rol";
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  )
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-  const roleSummaryHtml = roleSummary.length
-    ? roleSummary
-        .map(
-          ([role, count]) =>
-            `<span class="admin-users-mini-chip">${escapeHtml(roleLabel(role))}<strong>${count}</strong></span>`
-        )
-        .join("")
-    : `<span class="admin-users-mini-chip admin-users-mini-chip--muted">Sin roles destacados</span>`;
-  const pendingPreviewHtml = pendingUsers.length
-    ? `<ul class="admin-users-inline-list">${pendingUsers
-        .slice(0, 3)
-        .map(
-          (u) =>
-            `<li><strong>${escapeHtml(getPortalUserDisplayName(u))}</strong><span>${escapeHtml(
-              String(u.email || "Sin correo")
-            )}</span></li>`
-        )
-        .join("")}</ul>`
-    : `<p class="muted admin-users-inline-empty">No hay registros pendientes por aprobar.</p>`;
-  const hero2faTone =
-    twoFactorCoverage >= 70
-      ? "status-viaje_asignado"
-      : twoFactorCoverage >= 40
-        ? "status-pendiente"
-        : "status-rechazada";
-  const heroSessionTone =
-    activeSessions > 0
-      ? "status-viaje_asignado"
-      : sessions.length > 0
-        ? "status-pendiente"
-        : "status-rechazada";
 
   let html = "";
   const approvedCount = approvedUsers.length;
 
-  html += moduleFleetHeroStrip([
-    { label: "Usuarios", value: users.length },
-    { label: "Aprobados", value: approvedCount },
-    { label: "Registro pendiente", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
-    { label: "Empresas", value: companies.length }
-  ]);
-
   html += `<section class="users-hero-strip users-hero-strip--command">
     <div class="admin-users-hero-main">
       <p class="users-hero-kicker">Sistema de acceso y gobierno</p>
-      <h2>Controle usuarios, empresas y sesiones desde una sola consola</h2>
+      <h2>Usuarios y permisos con una lectura mas clara</h2>
       <p>
-        Rediseñado para priorizar aprobaciones, seguridad de acceso y organización operacional sin perder velocidad al crear o ajustar perfiles.
+        Centralice aprobaciones, altas y cambios de acceso en una vista mas limpia, con menos ruido visual y mejor jerarquia.
       </p>
       <div class="admin-users-hero-chips">
-        <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}</span>
-        <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
-        <span class="status ${heroSessionTone}">${activeSessions} sesiones activas</span>
-        <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">${activeCompaniesCount}/${companies.length || 0} empresas activas</span>
+        <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Pendientes ${pendingUsers.length}</span>
+        <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
+        <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Empresas activas ${activeCompaniesCount}</span>
       </div>
     </div>
-    <div class="admin-users-hero-panel">
-      <div class="admin-users-hero-score">
-        <span>Postura actual</span>
-        <strong>${twoFactorCoverage}%</strong>
-        <p>${twoFactorCount} de ${approvedCount || 0} usuarios aprobados con autenticación reforzada.</p>
-      </div>
+    <div class="admin-users-hero-panel admin-users-hero-panel--compact">
+      <p class="admin-users-hero-panel__eyebrow">Acciones rapidas</p>
+      <p class="admin-users-hero-panel__copy">
+        Abra solo el flujo que necesita y mantenga el resto del modulo despejado.
+      </p>
       <div class="users-hero-actions">
         <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
         <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
@@ -13858,128 +13779,12 @@ function adminUsersHtml(current) {
     </div>
   </section>`;
 
-  html += `<div class="dash-grid admin-users-insights-grid">
-    <article class="admin-users-insight-card admin-users-insight-card--highlight">
-      <div class="admin-users-insight-card__head">
-        <span class="admin-users-insight-card__eyebrow">Bandeja prioritaria</span>
-        <span class="admin-users-insight-card__value">${pendingUsers.length}</span>
-      </div>
-      <h3>Aprobaciones pendientes</h3>
-      <p>Visualice de inmediato las cuentas creadas por el formulario público para activarlas con empresa, rol y permisos.</p>
-      ${pendingPreviewHtml}
-    </article>
-    <article class="admin-users-insight-card">
-      <div class="admin-users-insight-card__head">
-        <span class="admin-users-insight-card__eyebrow">Seguridad</span>
-        <span class="admin-users-insight-card__value">${sessionCoverage}%</span>
-      </div>
-      <h3>Acceso protegido y trazable</h3>
-      <p>La cobertura de sesiones activas frente a usuarios aprobados permite detectar actividad real y cuentas sin uso reciente.</p>
-      <div class="admin-users-mini-chip-row">
-        <span class="admin-users-mini-chip">2FA<strong>${twoFactorCount}</strong></span>
-        <span class="admin-users-mini-chip">Activas<strong>${activeSessions}</strong></span>
-        <span class="admin-users-mini-chip">Expiradas<strong>${expiredSessions}</strong></span>
-      </div>
-    </article>
-    <article class="admin-users-insight-card">
-      <div class="admin-users-insight-card__head">
-        <span class="admin-users-insight-card__eyebrow">Composición</span>
-        <span class="admin-users-insight-card__value">${approvedCount}</span>
-      </div>
-      <h3>Roles y tipo de usuario</h3>
-      <p>Equilibre usuarios internos y clientes mientras mantiene claridad sobre los perfiles con mayor presencia en el portal.</p>
-      <div class="admin-users-mini-chip-row">
-        <span class="admin-users-mini-chip">Internos<strong>${internalUsersCount}</strong></span>
-        <span class="admin-users-mini-chip">Clientes<strong>${clientUsersCount}</strong></span>
-      </div>
-      <div class="admin-users-mini-chip-row">${roleSummaryHtml}</div>
-    </article>
-    <article class="admin-users-insight-card">
-      <div class="admin-users-insight-card__head">
-        <span class="admin-users-insight-card__eyebrow">Empresas</span>
-        <span class="admin-users-insight-card__value">${companyLogoCoverage}%</span>
-      </div>
-      <h3>Base empresarial más ordenada</h3>
-      <p>El porcentaje de logos cargados y empresas activas ayuda a detectar registros que todavía necesitan completar identidad visual o activación.</p>
-      <div class="admin-users-mini-chip-row">
-        <span class="admin-users-mini-chip">Activas<strong>${activeCompaniesCount}</strong></span>
-        <span class="admin-users-mini-chip">Inactivas<strong>${inactiveCompaniesCount}</strong></span>
-        <span class="admin-users-mini-chip">Con logo<strong>${companiesWithLogoCount}</strong></span>
-      </div>
-    </article>
-  </div>`;
-
-  html += `<div class="dash-grid admin-users-command-grid">
-    <article class="admin-users-command-card${ui.panel === "create-user" ? " is-active" : ""}">
-      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.userPlus}</div>
-      <div class="admin-users-command-card__body">
-        <span class="admin-users-command-card__eyebrow">Alta rápida</span>
-        <h3>Crear un usuario con todo el contexto</h3>
-        <p>Defina identidad, empresa, ubicación, seguridad y permisos desde un único formulario operativo.</p>
-        <div class="admin-users-command-card__meta">
-          <span>${approvedCount} activos</span>
-          <span>${pendingUsers.length} en espera</span>
-        </div>
-      </div>
-      <button class="btn btn-primary btn-sm" type="button" data-action="toggle-admin-panel" data-panel="create-user">${ui.panel === "create-user" ? `${IC.x} Cerrar` : `${IC.userPlus} Abrir formulario`}</button>
-    </article>
-    <article class="admin-users-command-card${ui.panel === "create-company" ? " is-active" : ""}">
-      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.building || IC.briefcase}</div>
-      <div class="admin-users-command-card__body">
-        <span class="admin-users-command-card__eyebrow">Estructura comercial</span>
-        <h3>Registrar una nueva empresa</h3>
-        <p>Consolide datos legales, contacto principal y ubicación operativa con mejor trazabilidad visual.</p>
-        <div class="admin-users-command-card__meta">
-          <span>${activeCompaniesCount} activas</span>
-          <span>${inactiveCompaniesCount} inactivas</span>
-        </div>
-      </div>
-      <button class="btn btn-action btn-sm" type="button" data-action="toggle-admin-panel" data-panel="create-company">${ui.panel === "create-company" ? `${IC.x} Cerrar` : `${IC.plus} Abrir formulario`}</button>
-    </article>
-    <article class="admin-users-command-card${ui.panel === "set-permissions" ? " is-active" : ""}">
-      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.shield}</div>
-      <div class="admin-users-command-card__body">
-        <span class="admin-users-command-card__eyebrow">Gobierno de acceso</span>
-        <h3>Asignar permisos granulares</h3>
-        <p>Ajuste la visibilidad por módulo y deje cada cuenta con el mínimo acceso necesario para operar.</p>
-        <div class="admin-users-command-card__meta">
-          <span>${roleSummary.length} roles dominantes</span>
-          <span>${twoFactorCoverage}% con 2FA</span>
-        </div>
-      </div>
-      <button class="btn btn-action btn-sm" type="button" data-action="toggle-admin-panel" data-panel="set-permissions">${ui.panel === "set-permissions" ? `${IC.x} Cerrar` : `${IC.shield} Configurar`}</button>
-    </article>
-    <article class="admin-users-command-card">
-      <div class="admin-users-command-card__icon" aria-hidden="true">${IC.activity}</div>
-      <div class="admin-users-command-card__body">
-        <span class="admin-users-command-card__eyebrow">Monitoreo</span>
-        <h3>Sincronizar sesiones del portal</h3>
-        <p>Actualice el registro para validar actividad reciente y sesiones expiradas antes de auditar o cerrar accesos.</p>
-        <div class="admin-users-command-card__meta">
-          <span>${activeSessions} activas</span>
-          <span>${expiredSessions} expiradas</span>
-        </div>
-      </div>
-      <button class="btn btn-outline btn-sm" type="button" data-action="refresh-user-sessions">${IC.activity} Sincronizar</button>
-    </article>
-  </div>`;
-
   if (ui.panel === "create-user") {
     html += pcardWrapPro(
       "userPlus",
       "Crear nuevo usuario",
       "Alta completa",
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Formulario guiado</p>
-          <p class="admin-users-section-copy">Cree usuarios con identidad, empresa, ubicación, seguridad y permisos en un solo flujo administrativo.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
-          <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Pendientes ${pendingUsers.length}</span>
-        </div>
-      </div>
-      ${fUser}`,
+      `<p class="admin-users-form-lead muted">Alta centralizada en un solo formulario, sin paneles adicionales alrededor.</p>${fUser}`,
       focusCardClass
     );
   }
@@ -13988,17 +13793,7 @@ function adminUsersHtml(current) {
       "plus",
       "Registrar empresa",
       "Directorio empresarial",
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Alta de empresa</p>
-          <p class="admin-users-section-copy">Registre la identidad legal y operativa de nuevas compañías con una presentación más clara y consistente.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          <span class="status status-viaje_asignado">Activas ${activeCompaniesCount}</span>
-          <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Inactivas ${inactiveCompaniesCount}</span>
-        </div>
-      </div>
-      ${fComp}`,
+      `<p class="admin-users-form-lead muted">Use este flujo solo cuando necesite crear una empresa nueva para asociar usuarios.</p>${fComp}`,
       focusCardClass
     );
   }
@@ -14008,17 +13803,7 @@ function adminUsersHtml(current) {
       "save",
       "Asignar permisos",
       "Gobierno granular",
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Control de visibilidad</p>
-          <p class="admin-users-section-copy">Aplique permisos por módulo para ajustar el acceso real de cada cuenta según su operación.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
-          <span class="status status-viaje_asignado">Roles ${roleSummary.length || 1}</span>
-        </div>
-      </div>
-      ${adminUsersCollapsibleCardBody(permExpanded, "toggle-admin-permissions-panel", fPerm)}`,
+      `<p class="admin-users-form-lead muted">Seleccione la cuenta y ajuste solo los módulos que realmente debe ver.</p>${adminUsersCollapsibleCardBody(permExpanded, "toggle-admin-permissions-panel", fPerm)}`,
       `${permExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
@@ -14028,17 +13813,7 @@ function adminUsersHtml(current) {
       "edit",
       "Editar usuario",
       escapeHtml(getPortalUserDisplayName(editingUser)),
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Edición detallada</p>
-          <p class="admin-users-section-copy">Actualice información personal, credenciales, empresa, ubicación y permisos sin salir del centro de administración.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          ${roleBadge(editingUser.role)}
-          ${statusBadge(editingUser.accountStatus)}
-        </div>
-      </div>
-      ${adminUsersCollapsibleCardBody(editExpanded, "toggle-admin-edit-user-panel", fEdit)}`,
+      `${adminUsersCollapsibleCardBody(editExpanded, "toggle-admin-edit-user-panel", fEdit)}`,
       `${editExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
@@ -14047,39 +13822,17 @@ function adminUsersHtml(current) {
       "briefcase",
       "Editar empresa",
       escapeHtml(String(editingCompany.name || "")),
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Actualización corporativa</p>
-          <p class="admin-users-section-copy">Mantenga consistente la ficha empresarial usada en usuarios, trazabilidad comercial y operaciones del portal.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          ${companyKindChipHtml(normalizeCompanyKindForDb(editingCompany.companyKind))}
-          <span class="status ${isCompanyRecordActive(editingCompany) ? "status-viaje_asignado" : "status-pendiente"}">${isCompanyRecordActive(editingCompany) ? "Activa" : "Inactiva"}</span>
-        </div>
-      </div>
-      ${fCompanyEdit}`,
+      `${fCompanyEdit}`,
       focusCardClass
     );
 
   if (pendingUsers.length > 0) {
     const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
-    const pendingHelper = `<p class="muted user-grid-pending-help">Las cuentas creadas por el formulario público quedan inactivas hasta que un administrador les asigne empresa, rol y permisos.</p>`;
     html += pcardWrapPro(
       "shield",
       "Pendientes de aprobación",
       pendingSubtitle,
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Cola de activación</p>
-          <p class="admin-users-section-copy">Cada registro pendiente necesita validación administrativa antes de habilitar acceso al portal.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          <span class="status status-pendiente">Pendientes ${pendingUsers.length}</span>
-          <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
-        </div>
-      </div>
-      ${pendingHelper}
-      <div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div>`,
+      `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div></div>`,
       "admin-users-data-card"
     );
   }
@@ -14089,18 +13842,7 @@ function adminUsersHtml(current) {
     "Usuarios del sistema",
     `${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"}${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}` : ""}`,
     `${userCards
-      ? `<div class="admin-users-section-summary">
-          <div>
-            <p class="admin-users-section-kicker">Directorio operativo</p>
-            <p class="admin-users-section-copy">Revise roles, estado de acceso, empresa vinculada y permisos visibles antes de editar o desactivar cuentas.</p>
-          </div>
-          <div class="admin-users-section-tags">
-            <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
-            <span class="status ${rejectedUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Inactivos ${rejectedUsers.length}</span>
-            <span class="status ${hero2faTone}">2FA ${twoFactorCount}</span>
-          </div>
-        </div>
-        <div class="user-grid user-grid-main directory-grid">${userCards}</div>`
+      ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main directory-grid">${userCards}</div></div>`
       : emptyState("Sin usuarios registrados.")}`,
     "admin-users-data-card"
   );
@@ -14110,18 +13852,7 @@ function adminUsersHtml(current) {
       "briefcase",
       "Empresas registradas",
       `${companies.length} empresa${companies.length === 1 ? "" : "s"}`,
-      `<div class="admin-users-section-summary">
-        <div>
-          <p class="admin-users-section-kicker">Directorio empresarial</p>
-          <p class="admin-users-section-copy">Mantenga cada empresa con datos consistentes para una mejor lectura comercial y operativa del portal.</p>
-        </div>
-        <div class="admin-users-section-tags">
-          <span class="status status-viaje_asignado">Activas ${activeCompaniesCount}</span>
-          <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Inactivas ${inactiveCompaniesCount}</span>
-          <span class="status ${companyLogoCoverage >= 70 ? "status-viaje_asignado" : "status-pendiente"}">Logo ${companyLogoCoverage}%</span>
-        </div>
-      </div>
-      <div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div>`,
+      `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div></div>`,
       "admin-users-data-card"
     );
   }
@@ -14143,12 +13874,10 @@ function adminUsersHtml(current) {
   const sessionsLogMinimized = Boolean(state.adminSessionsLogMinimized);
   const sessionsLogExpanded = !sessionsLogMinimized;
   const sessionsLogToggleText = sessionsLogExpanded ? "Ocultar registro de sesiones" : "Mostrar registro de sesiones";
-  const sessionsCardBody = `<div class="admin-users-session-topbar">
+  const sessionsCardBody = `<div class="admin-users-session-topbar admin-users-session-topbar--compact">
     <div class="admin-users-session-topbar__metrics">
       <span class="status status-viaje_asignado">Activas ${activeSessions}</span>
       <span class="status ${expiredSessions ? "status-pendiente" : "status-viaje_asignado"}">Expiradas ${expiredSessions}</span>
-      <span class="status ${hero2faTone}">2FA ${twoFactorCoverage}%</span>
-      <span class="status ${heroSessionTone}">Cobertura ${sessionCoverage}%</span>
     </div>
     <div class="admin-users-session-topbar__actions">
       <button type="button" class="btn btn-sm btn-action" data-action="toggle-admin-sessions-log" aria-expanded="${sessionsLogExpanded ? "true" : "false"}">
@@ -14519,9 +14248,9 @@ function historyHtml() {
       tone: pendingTripCount ? "warn" : undefined
     }
   ]);
-  const users = read(KEYS.users, []);
-  const drivers = read(KEYS.drivers, []);
-  const vehicles = read(KEYS.vehicles, []);
+  const users = readArray(KEYS.users);
+  const drivers = readArray(KEYS.drivers);
+  const vehicles = readArray(KEYS.vehicles);
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "—");
   const clientOptions = users
@@ -18197,8 +17926,8 @@ function calculateDriverTripReport(driverId, month) {
 }
 
 function payrollHtml() {
-  const employees = read(KEYS.payrollEmployees, []);
-  const companies = read(KEYS.companies, []);
+  const employees = readArray(KEYS.payrollEmployees);
+  const companies = readArray(KEYS.companies);
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "—");
   const positions = getActivePositions();
@@ -18207,8 +17936,8 @@ function payrollHtml() {
     .filter((c) => isCompanyRecordActive(c))
     .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`)
     .join("");
-  const allRuns = read(KEYS.payrollRuns, []);
-  const absences = read(KEYS.hrAbsences, []);
+  const allRuns = readArray(KEYS.payrollRuns);
+  const absences = readArray(KEYS.hrAbsences);
   const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
   const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
   const runSort = String(payrollUi.runSort || "recent");
@@ -18225,7 +17954,7 @@ function payrollHtml() {
   const totalPayrollMonth = allRuns
     .filter((r) => String(r.month || "") === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
-  const pendingAbsenceApprovals = read(KEYS.approvals, []).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
+  const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
   const employeeRows = employees
     .map((e) => {

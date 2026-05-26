@@ -109,8 +109,13 @@
     if (lastComma > -1 && lastDot > -1) {
       if (lastComma > lastDot) norm = s.replace(/\./g, "").replace(",", ".");
       else norm = s.replace(/,/g, "");
-    } else if (lastComma > -1) norm = s.replace(/\./g, "").replace(",", ".");
-    else norm = s.replace(/,/g, "");
+    } else if (lastComma > -1) {
+      const commaCount = (s.match(/,/g) || []).length;
+      norm = commaCount > 1 ? s.replace(/,/g, "") : s.replace(/\./g, "").replace(",", ".");
+    } else {
+      const dotCount = (s.match(/\./g) || []).length;
+      norm = dotCount > 1 ? s.replace(/\./g, "") : s.replace(/,/g, "");
+    }
     const n = Number(norm);
     if (!Number.isFinite(n)) return null;
     return neg ? -n : n;
