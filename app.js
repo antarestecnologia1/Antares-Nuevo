@@ -5474,9 +5474,34 @@ async function writeAwaitServer(storageKeyLike, value, opts = {}) {
       "Sesión sin token de API. Vuelva a iniciar sesión para guardar en el servidor."
     );
   }
-  await sync.flushStorageKeyNow(storageKeyLike, {
-    notifyOnFailure: opts.notifyOnFailure !== false
-  });
+  const flushOpts = { notifyOnFailure: opts.notifyOnFailure !== false };
+  if (opts.deletedIds && Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0) {
+    flushOpts.deletedIds = opts.deletedIds.map((id) => String(id || "").trim()).filter(Boolean);
+  }
+  await sync.flushStorageKeyNow(storageKeyLike, flushOpts);
+}
+
+/**
+ * Quita una fila del catálogo en memoria y confirma en PostgreSQL (incluye lista vacía).
+ * @returns {Promise<boolean>} true si el servidor confirmó (o no hay API).
+ */
+async function removeFromPortalListAwaitServer(storageKey, rowId, opts = {}) {
+  const id = String(rowId || "").trim();
+  if (!id) return false;
+  const prev = read(storageKey, []);
+  if (!Array.isArray(prev)) return false;
+  const next = prev.filter((row) => String(row?.id || "") !== id);
+  if (next.length === prev.length) return false;
+  try {
+    await writeAwaitServer(storageKey, next, { deletedIds: [id], ...opts });
+    return true;
+  } catch (err) {
+    write(storageKey, prev, { skipSyncSchedule: true });
+    if (opts.notifyOnFailure !== false) {
+      notify(String(err?.message || "No se pudo eliminar en el servidor."), "error");
+    }
+    return false;
+  }
 }
 
 function decodeJwtPayload(token) {
@@ -31945,14 +31970,8 @@ function bindDynamicEvents() {
           "Se eliminara la vacante del listado. Esta accion no borra candidatos ya postulados en el pipeline, pero puede dejar registros con referencia huérfana.",
         confirmText: "Eliminar vacante",
         onConfirm: async () => {
-          try {
-            await writeAwaitServer(
-              KEYS.vacancies,
-              read(KEYS.vacancies, []).filter((v) => String(v.id) !== id)
-            );
-          } catch (_e) {
-            return;
-          }
+          const ok = await removeFromPortalListAwaitServer(KEYS.vacancies, id);
+          if (!ok) return;
           notify(userMessage("vacancyDeletedOk"), "success");
           renderPortalView();
         }
@@ -34176,20 +34195,22 @@ function bindExtendedViewEditHandlers() {
       const target = read(KEYS.positions, []).find((p) => String(p.id) === id);
       if (!target) return;
       const linkedVacancies = read(KEYS.vacancies, []).filter((v) => String(v.positionId || "") === id).length;
+      const linkedContracts = read(KEYS.contracts, []).filter((c) => String(c.positionId || "") === id).length;
       if (linkedVacancies > 0) {
         notify(`No se puede eliminar: hay ${linkedVacancies} vacante(s) que referencian este cargo. Cierra o reasigna primero.`, "error");
         return;
       }
+      if (linkedContracts > 0) {
+        notify(`No se puede eliminar: hay ${linkedContracts} contrato(s) vinculados a este cargo. Elimine o reasigne esos contratos primero.`, "error");
+        return;
+      }
       openConfirmModal({
         title: "Eliminar cargo",
-        message: `Se eliminará permanentemente el cargo "${String(target.name || "")}" del catálogo. Esta acción no afecta empleados o contratos ya guardados.`,
+        message: `Se eliminará permanentemente el cargo "${String(target.name || "")}" del catálogo. Los empleados en nómina conservan su historial; no se borran contratos ya registrados.`,
         confirmText: "Eliminar cargo",
         onConfirm: async () => {
-          try {
-            await writeAwaitServer(KEYS.positions, read(KEYS.positions, []).filter((p) => String(p.id) !== id));
-          } catch (_e) {
-            return;
-          }
+          const ok = await removeFromPortalListAwaitServer(KEYS.positions, id);
+          if (!ok) return;
           notify("Cargo eliminado.", "success");
           renderPortalView();
         }
@@ -34491,19 +34512,23 @@ function bindExtendedViewEditHandlers() {
         message: `Se eliminará al candidato "${String(target.name || "")}" del pipeline${linkedInterviews ? ` y sus ${linkedInterviews} entrevista(s) asociada(s)` : ""}.`,
         confirmText: "Eliminar candidato",
         onConfirm: async () => {
-          try {
-            await writeAwaitServer(
-              KEYS.candidates,
-              read(KEYS.candidates, []).filter((c) => String(c.id) !== id)
-            );
-            if (linkedInterviews > 0) {
-              await writeAwaitServer(
-                KEYS.interviews,
-                read(KEYS.interviews, []).filter((i) => String(i.candidateId || "") !== id)
-              );
+          const interviewIds = read(KEYS.interviews, [])
+            .filter((i) => String(i.candidateId || "") === id)
+            .map((i) => String(i.id || ""))
+            .filter(Boolean);
+          const okCandidate = await removeFromPortalListAwaitServer(KEYS.candidates, id);
+          if (!okCandidate) return;
+          if (interviewIds.length > 0) {
+            const prevInterviews = read(KEYS.interviews, []);
+            const nextInterviews = prevInterviews.filter((i) => String(i.candidateId || "") !== id);
+            try {
+              await writeAwaitServer(KEYS.interviews, nextInterviews, { deletedIds: interviewIds });
+            } catch (err) {
+              write(KEYS.interviews, prevInterviews, { skipSyncSchedule: true });
+              notify(String(err?.message || "Candidato eliminado, pero no se pudieron quitar las entrevistas en el servidor."), "error");
+              renderPortalView();
+              return;
             }
-          } catch (_e) {
-            return;
           }
           notify("Candidato eliminado.", "success");
           renderPortalView();
@@ -34619,7 +34644,8 @@ function bindExtendedViewEditHandlers() {
         message: `Se eliminará la entrevista de "${String(target.candidateName || "")}".`,
         confirmText: "Eliminar entrevista",
         onConfirm: async () => {
-          await writeAwaitServer(KEYS.interviews, read(KEYS.interviews, []).filter((i) => String(i.id) !== id));
+          const ok = await removeFromPortalListAwaitServer(KEYS.interviews, id);
+          if (!ok) return;
           notify("Entrevista eliminada.", "success");
           renderPortalView();
         }
@@ -34685,7 +34711,8 @@ function bindExtendedViewEditHandlers() {
         message: `Se eliminará el registro del contrato de "${String(target.candidateName || target.employeeName || "")}". El archivo Word ya descargado no se borrará automáticamente.`,
         confirmText: "Eliminar contrato",
         onConfirm: async () => {
-          await writeAwaitServer(KEYS.contracts, read(KEYS.contracts, []).filter((c) => String(c.id) !== id));
+          const ok = await removeFromPortalListAwaitServer(KEYS.contracts, id);
+          if (!ok) return;
           notify("Contrato eliminado.", "success");
           renderPortalView();
         }

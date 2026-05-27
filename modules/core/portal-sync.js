@@ -116,7 +116,13 @@
         });
       }
       try {
-        await api.postJson("/portal/sync-key", { key: entity, data });
+        const body = { key: entity, data };
+        if (opts.deletedIds && Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0) {
+          body.deletedIds = opts.deletedIds.map(function (id) {
+            return String(id || "").trim();
+          }).filter(Boolean);
+        }
+        await api.postJson("/portal/sync-key", body);
         if (window.__ANTARES_DEBUG_SYNC__ === true) {
           try {
             var okHint = "";

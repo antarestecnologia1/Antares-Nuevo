@@ -2208,11 +2208,17 @@ export class PortalService implements OnModuleInit {
     );
   }
 
-  async syncKey(key: PortalSyncKey, data: unknown, userId: string, role: JwtRole) {
+  async syncKey(
+    key: PortalSyncKey,
+    data: unknown,
+    userId: string,
+    role: JwtRole,
+    deletedIds?: string[]
+  ) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await this.syncKeyTx(client, key, data, userId, role);
+      await this.syncKeyTx(client, key, data, userId, role, deletedIds);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK");
@@ -2906,7 +2912,14 @@ export class PortalService implements OnModuleInit {
     await this.supabaseAdmin.auth.admin.deleteUser(userId).catch(() => null);
   }
 
-  private async syncKeyTx(c: PoolClient, key: PortalSyncKey, data: unknown, userId: string, role: JwtRole) {
+  private async syncKeyTx(
+    c: PoolClient,
+    key: PortalSyncKey,
+    data: unknown,
+    userId: string,
+    role: JwtRole,
+    deletedIds?: string[]
+  ) {
     const admin = this.isAdmin(role);
     const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
     const can = (permission: string) => admin || this.hasPortalPermission(permissionSet, permission);
@@ -2971,7 +2984,7 @@ export class PortalService implements OnModuleInit {
       case "contracts":
       case "positions":
         if (!can("hiring_manage")) throw new ForbiddenException();
-        await this.syncHrKeys(c, key, data);
+        await this.syncHrKeys(c, key, data, deletedIds);
         return;
       case "hrAbsences":
         if (!can("payroll_manage")) throw new ForbiddenException();
@@ -4846,6 +4859,32 @@ export class PortalService implements OnModuleInit {
       return;
     }
     await c.query(`DELETE FROM ${table} WHERE id::text <> ALL($1::text[])`, [ids]);
+  }
+
+  /** Borrado explícito por UUID (p. ej. último ítem cuando el payload llega vacío). */
+  private async deleteRowsByExplicitIds(
+    c: PoolClient,
+    table: string,
+    deletedIds: unknown[] | undefined
+  ): Promise<void> {
+    const ids = (Array.isArray(deletedIds) ? deletedIds : [])
+      .map((raw) => String(raw ?? "").trim())
+      .filter((s) => PG_UUID_V4_RE.test(s));
+    if (ids.length === 0) {
+      return;
+    }
+    await c.query(`DELETE FROM ${table} WHERE id = ANY($1::uuid[])`, [ids]);
+  }
+
+  private hrSyncTableForKey(key: PortalSyncKey): string | null {
+    const map: Partial<Record<PortalSyncKey, string>> = {
+      positions: "cargos",
+      vacancies: "vacantes",
+      candidates: "candidatos",
+      interviews: "entrevistas",
+      contracts: "contratos"
+    };
+    return map[key] ?? null;
   }
 
   private async syncUsers(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
@@ -7722,10 +7761,19 @@ export class PortalService implements OnModuleInit {
     );
   }
 
-  private async syncHrKeys(c: PoolClient, key: PortalSyncKey, data: unknown) {
+  private async syncHrKeys(
+    c: PoolClient,
+    key: PortalSyncKey,
+    data: unknown,
+    deletedIds?: string[]
+  ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    const hrTable = this.hrSyncTableForKey(key);
+    if (hrTable) {
+      await this.deleteRowsByExplicitIds(c, hrTable, deletedIds);
+      await this.deleteRowsNotInIncomingList(c, hrTable, data);
+    }
     if (key === "positions") {
-      await this.deleteRowsNotInIncomingList(c, "cargos", data);
       for (const raw of data) {
         const p = raw as Record<string, unknown>;
         if (!p?.id) continue;
@@ -7773,7 +7821,6 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "vacancies") {
-      await this.deleteRowsNotInIncomingList(c, "vacantes", data);
       for (const raw of data) {
         const v = raw as Record<string, unknown>;
         if (!v?.id || !v.positionId) continue;
@@ -7828,7 +7875,6 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "candidates") {
-      await this.deleteRowsNotInIncomingList(c, "candidatos", data);
       for (const raw of data) {
         const x = raw as Record<string, unknown>;
         if (!x?.id || !x.vacancyId) continue;
@@ -7898,7 +7944,6 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "interviews") {
-      await this.deleteRowsNotInIncomingList(c, "entrevistas", data);
       for (const raw of data) {
         const i = raw as Record<string, unknown>;
         if (!i?.id || !i.candidateId) continue;
@@ -7930,7 +7975,6 @@ export class PortalService implements OnModuleInit {
       return;
     }
     if (key === "contracts") {
-      await this.deleteRowsNotInIncomingList(c, "contratos", data);
       for (const x of data) {
         const row = x as Record<string, unknown>;
         const positionId = pickPortalField(row, "positionId", "id_cargo");

@@ -1,4 +1,4 @@
-import { Allow, IsIn, IsNotEmpty, IsString } from "class-validator";
+import { Allow, IsArray, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID } from "class-validator";
 
 /** Nombres lógicos alineados con el portal (app.js KEYS). */
 export const PORTAL_SYNC_KEYS = [
@@ -37,4 +37,10 @@ export class SyncKeyDto {
 
   @Allow()
   data!: unknown;
+
+  /** UUIDs borrados explícitamente (p. ej. último ítem de un catálogo HR). */
+  @IsOptional()
+  @IsArray()
+  @IsUUID("4", { each: true })
+  deletedIds?: string[];
 }

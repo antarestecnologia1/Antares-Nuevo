@@ -106,7 +106,7 @@ export class PortalController {
 
   @Post("sync-key")
   syncKey(@Req() req: { user: ReqUser }, @Body() dto: SyncKeyDto) {
-    return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role);
+    return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role, dto.deletedIds);
   }
 
   /** Historial flota: alta en registros_combustible (PostgreSQL). */
