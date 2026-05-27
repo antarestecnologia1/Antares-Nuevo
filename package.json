@@ -30,7 +30,9 @@
     "smoke:api": "node scripts/smoke-api.mjs",
     "verify": "npm run setup && npm run build:api && npm run build:web && npm run lint:web && npm run test:qa-static",
     "verify:e2e": "npm run test:portal-e2e",
-    "verify:stack": "node scripts/run-verify-stack.mjs"
+    "verify:stack": "node scripts/run-verify-stack.mjs",
+    "contracts:patch-docx": "python scripts/patch-contract-docx.py",
+    "contracts:upload-r2": "node apps/api/scripts/upload-contract-templates.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0"

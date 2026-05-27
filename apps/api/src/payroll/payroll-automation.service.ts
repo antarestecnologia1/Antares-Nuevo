@@ -45,22 +45,25 @@ export class PayrollAutomationService {
     fechaReferencia?: string;
     periodoYm?: string;
     force?: boolean;
+    origin?: "automatica" | "masiva";
   }) {
     const force = body?.force === true;
+    const liquidacionOrigin: "automatica" | "masiva" = body?.origin === "masiva" ? "masiva" : "automatica";
+    const genOpts = { force, liquidacionOrigin };
     const fr = body?.fechaReferencia?.trim();
     if (typeof fr === "string" && fr !== "") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fr)) throw new BadRequestException("fechaReferencia debe ser YYYY-MM-DD");
       const d = new Date(`${fr}T12:00:00-05:00`);
       if (Number.isNaN(d.getTime())) throw new BadRequestException("fechaReferencia inválida");
-      return this.portal.generateAutomaticLiquidacionesForReferenceDate(d, { force });
+      return this.portal.generateAutomaticLiquidacionesForReferenceDate(d, genOpts);
     }
     const ym = body?.periodoYm?.trim();
     if (typeof ym === "string" && ym !== "") {
       if (!/^(\d{4})-(0[1-9]|1[0-2])$/.test(ym)) throw new BadRequestException("periodoYm debe ser YYYY-MM");
       const b = monthUtcBounds(ym);
       if (!b) throw new BadRequestException("periodoYm inválido");
-      return this.portal.generateAutomaticLiquidacionesForReferenceDate(b.monthEnd, { force });
+      return this.portal.generateAutomaticLiquidacionesForReferenceDate(b.monthEnd, genOpts);
     }
-    return this.portal.generateAutomaticLiquidacionesForReferenceDate(new Date(), { force });
+    return this.portal.generateAutomaticLiquidacionesForReferenceDate(new Date(), genOpts);
   }
 }

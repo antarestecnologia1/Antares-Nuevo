@@ -155,3 +155,92 @@ export function liquidationLatestClosedCutAsOf(
   }
   return latest;
 }
+
+/** Todos los cortes de liquidación de un mes civil para la periodicidad dada. */
+export function listLiquidationCutsForMonth(
+  frequency: PayrollFrequencyNorm,
+  y: number,
+  m0: number
+): LiquidationCut[] {
+  const ld = lastDayOfMonth(y, m0);
+  const cuts: LiquidationCut[] = [];
+
+  if (frequency === "mensual") {
+    const c = liquidationCutIfClosingToday("mensual", y, m0, ld);
+    if (c) cuts.push(c);
+    return cuts;
+  }
+
+  if (frequency === "quincenal") {
+    const c1 = liquidationCutIfClosingToday("quincenal", y, m0, 15);
+    const c2 = liquidationCutIfClosingToday("quincenal", y, m0, ld);
+    if (c1) cuts.push(c1);
+    if (c2) cuts.push(c2);
+    return cuts;
+  }
+
+  if (frequency === "catorcenal") {
+    const c1 = liquidationCutIfClosingToday("catorcenal", y, m0, 14);
+    const c2 = liquidationCutIfClosingToday("catorcenal", y, m0, ld);
+    if (c1) cuts.push(c1);
+    if (c2) cuts.push(c2);
+    return cuts;
+  }
+
+  for (let start = 1; start <= ld; start += 7) {
+    const end = Math.min(start + 6, ld);
+    const c = liquidationCutIfClosingToday("semanal", y, m0, end);
+    if (c) cuts.push(c);
+  }
+  return cuts;
+}
+
+function cutOverlapsRange(cut: LiquidationCut, rangeStart: Date, rangeEnd: Date): boolean {
+  return cut.periodEnd.getTime() >= rangeStart.getTime() && cut.periodStart.getTime() <= rangeEnd.getTime();
+}
+
+/** Cortes cuya ventana [periodStart, periodEnd] intersecta el rango de fechas (inclusive, UTC noon). */
+export function liquidationCutsOverlappingRange(
+  frequency: PayrollFrequencyNorm,
+  rangeStart: Date,
+  rangeEnd: Date
+): LiquidationCut[] {
+  const lo = rangeStart.getTime() <= rangeEnd.getTime() ? rangeStart : rangeEnd;
+  const hi = rangeStart.getTime() <= rangeEnd.getTime() ? rangeEnd : rangeStart;
+  const out: LiquidationCut[] = [];
+  const seen = new Set<string>();
+
+  let y = lo.getUTCFullYear();
+  let m0 = lo.getUTCMonth();
+  const endY = hi.getUTCFullYear();
+  const endM0 = hi.getUTCMonth();
+
+  while (y < endY || (y === endY && m0 <= endM0)) {
+    for (const cut of listLiquidationCutsForMonth(frequency, y, m0)) {
+      if (!cutOverlapsRange(cut, lo, hi)) continue;
+      if (seen.has(cut.periodKey)) continue;
+      seen.add(cut.periodKey);
+      out.push(cut);
+    }
+    m0 += 1;
+    if (m0 > 11) {
+      m0 = 0;
+      y += 1;
+    }
+  }
+  return out;
+}
+
+/** Resuelve un `periodo_mes` persistido al corte correspondiente. */
+export function resolveLiquidationCutFromPeriodKey(
+  frequency: PayrollFrequencyNorm,
+  periodKey: string
+): LiquidationCut | null {
+  const key = String(periodKey || "").trim();
+  const m = /^(\d{4})-(\d{2})/.exec(key);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const m0 = Number(m[2]) - 1;
+  if (!Number.isFinite(y) || m0 < 0 || m0 > 11) return null;
+  return listLiquidationCutsForMonth(frequency, y, m0).find((c) => c.periodKey === key) ?? null;
+}

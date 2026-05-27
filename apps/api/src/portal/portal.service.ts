@@ -25,8 +25,13 @@ import {
 import {
   bogotaCalendarPartsFromInstant,
   liquidationCutIfClosingToday,
-  liquidationLatestClosedCutAsOf
+  liquidationCutsOverlappingRange,
+  liquidationLatestClosedCutAsOf,
+  resolveLiquidationCutFromPeriodKey,
+  type LiquidationCut
 } from "../payroll/payroll-cut-bogota";
+import { buildDriverTripPaymentCompute } from "../payroll/driver-trip-payment";
+import { employeeIsConductorServiceProvider, employeeReceivesPayrollNomina } from "../payroll/payroll-employee-kind";
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
 import { timestamptzStringColombiaNow, timestamptzToColombiaIso } from "../common/colombia-time";
 import {
@@ -1495,6 +1500,22 @@ export class PortalService implements OnModuleInit {
     return ["admin", "administracion", "auxiliar_administrativo", "lider_administrativo"].includes(r);
   }
 
+  private async findPayrollEmployeeIdByDocument(
+    c: PoolClient | null,
+    document: string
+  ): Promise<string | null> {
+    const doc = String(document || "").trim();
+    if (!doc || !(await this.tableExists("empleados_nomina"))) return null;
+    const q = `SELECT id::text AS id FROM empleados_nomina
+      WHERE regexp_replace(trim(coalesce(numero_documento, '')), '[^0-9]', '', 'g')
+        = regexp_replace(trim($1), '[^0-9]', '', 'g')
+      LIMIT 1`;
+    const r = c
+      ? await c.query<{ id: string }>(q, [doc])
+      : await this.pool.query<{ id: string }>(q, [doc]);
+    return r.rows[0]?.id ? String(r.rows[0].id) : null;
+  }
+
   private isRrhh(role: JwtRole) {
     const r = String(role || "").toLowerCase();
     return ["admin", "rrhh", "administracion", "auxiliar_administrativo", "lider_administrativo"].includes(r);
@@ -2638,23 +2659,11 @@ export class PortalService implements OnModuleInit {
 
   async adminDeleteDriver(actorUserId: string, actorRole: JwtRole, driverId: string) {
     void actorUserId;
-    if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
-    const did = String(driverId || "").trim();
-    if (!did || !PG_UUID_V4_RE.test(did)) throw new BadRequestException("ID de conductor invalido");
-    try {
-      const del = await this.pool.query(`DELETE FROM conductores WHERE id = $1::uuid`, [did]);
-      if ((del.rowCount ?? 0) === 0) throw new BadRequestException("Conductor no encontrado.");
-    } catch (e) {
-      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
-      const msg = e instanceof Error ? e.message : String(e);
-      if (/foreign key|violates foreign key/i.test(msg)) {
-        throw new BadRequestException(
-          "No se puede eliminar: el conductor tiene viajes u otros registros asociados."
-        );
-      }
-      throw e;
-    }
-    return { ok: true, driverId: did };
+    void actorRole;
+    void driverId;
+    throw new BadRequestException(
+      "La baja del conductor se realiza en Gestión humana (empleados con rol conductor). El módulo Conductores no permite eliminar."
+    );
   }
 
   async adminClearTripForRequest(
@@ -2741,9 +2750,70 @@ export class PortalService implements OnModuleInit {
     if (!(await this.tableExists("empleados_nomina"))) {
       throw new BadRequestException("Tabla de nomina no disponible en esta base.");
     }
-    const del = await this.pool.query(`DELETE FROM empleados_nomina WHERE id = $1::uuid`, [eid]);
-    if ((del.rowCount ?? 0) === 0) throw new BadRequestException("Empleado no encontrado.");
-    return { ok: true, employeeId: eid };
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const empRes = await client.query<{ numero_documento: string | null; rol_trabajador: string | null }>(
+        `SELECT numero_documento, rol_trabajador FROM empleados_nomina WHERE id = $1::uuid`,
+        [eid]
+      );
+      if (!empRes.rows.length) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException("Empleado no encontrado.");
+      }
+      const doc = String(empRes.rows[0]?.numero_documento ?? "").trim();
+      const workerRole = String(empRes.rows[0]?.rol_trabajador ?? "")
+        .trim()
+        .toLowerCase();
+
+      if (await this.tableExists("liquidaciones_nomina")) {
+        await client.query(`DELETE FROM liquidaciones_nomina WHERE id_empleado = $1::uuid`, [eid]);
+      }
+      if (await this.tableExists("ausencias_laborales")) {
+        await client.query(`DELETE FROM ausencias_laborales WHERE id_empleado = $1::uuid`, [eid]);
+      }
+      if (await this.tableExists("registros_cumplimiento_sst")) {
+        await client.query(`DELETE FROM registros_cumplimiento_sst WHERE id_empleado = $1::uuid`, [eid]);
+      }
+
+      let driversRemoved = 0;
+      if (doc && (await this.tableExists("conductores"))) {
+        const delDrivers = await client.query(
+          `DELETE FROM conductores
+           WHERE regexp_replace(trim(coalesce(numero_documento, '')), '[^0-9]', '', 'g')
+             = regexp_replace(trim($1), '[^0-9]', '', 'g')`,
+          [doc]
+        );
+        driversRemoved = delDrivers.rowCount ?? 0;
+      }
+
+      const del = await client.query(`DELETE FROM empleados_nomina WHERE id = $1::uuid`, [eid]);
+      if ((del.rowCount ?? 0) === 0) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException("Empleado no encontrado.");
+      }
+
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        employeeId: eid,
+        driversRemoved,
+        wasDriver: workerRole === "conductor"
+      };
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => null);
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/foreign key|violates foreign key/i.test(msg)) {
+        throw new BadRequestException(
+          "No se pudo eliminar el conductor vinculado: tiene viajes u otros registros asociados. Retire o reasigne esos datos primero."
+        );
+      }
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   private async deleteSupabaseAuthUser(userId: string) {
@@ -2792,6 +2862,7 @@ export class PortalService implements OnModuleInit {
       case "payrollEmployees":
         if (!can("payroll_manage")) throw new ForbiddenException();
         await this.syncPayrollEmployees(c, data);
+        await this.refreshPayrollDraftsAfterEmployeesSync(c, data);
         return;
       case "payrollRuns":
         if (!can("payroll_manage")) throw new ForbiddenException();
@@ -2820,6 +2891,7 @@ export class PortalService implements OnModuleInit {
       case "hrAbsences":
         if (!can("payroll_manage")) throw new ForbiddenException();
         await this.syncHrAbsences(c, data);
+        await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
         return;
       case "sstCompliance":
         if (!can("sst_compliance")) throw new ForbiddenException();
@@ -4518,6 +4590,7 @@ export class PortalService implements OnModuleInit {
       employeeName: row.nombre_empleado,
       recordType: row.tipo_registro,
       provider: row.proveedor_entidad,
+      dueDate: row.fecha_vencimiento_control,
       expiryDate: row.fecha_vencimiento_control,
       status: row.estado,
       documentCode: row.codigo_documento,
@@ -6358,10 +6431,11 @@ export class PortalService implements OnModuleInit {
     c: PoolClient,
     tier: 0 | 1 | 2,
     hasNov: boolean,
-    run: Record<string, unknown>
+    run: Record<string, unknown>,
+    options?: { force?: boolean }
   ) {
     const runId = String(run.id ?? "").trim();
-    if (hasNov && PG_UUID_V4_RE.test(runId)) {
+    if (!options?.force && hasNov && PG_UUID_V4_RE.test(runId)) {
       const incomingOrigin = String(
         pickPortalField(run, "liquidacionOrigin", "origenLiquidacion", "origen_liquidacion") ?? "manual"
       )
@@ -6422,15 +6496,18 @@ export class PortalService implements OnModuleInit {
   }
 
   /**
-   * Inserta borradores según periodicidad de pago y **fecha civil Colombia (Bogotá)**:
+   * Inserta liquidaciones según periodicidad de pago y **fecha civil Colombia (Bogotá)**:
    * quincena 1–15 y 16–fin, catorcenal 1–14 y 15–fin, mensual fin de mes, semanal cortes de 7 días.
-   * Solo genera cuando `referenceDate` coincide con día de **cierre** del corte (`payroll-cut-bogota`).
+   * Solo genera cuando `referenceDate` coincide con día de **cierre** del corte (`payroll-cut-bogota`),
+   * salvo `force` (último corte cerrado en esa fecha).
    */
   async generateAutomaticLiquidacionesForReferenceDate(
     reference: Date = new Date(),
-    options?: { force?: boolean }
+    options?: { force?: boolean; liquidacionOrigin?: "automatica" | "masiva" }
   ): Promise<{ created: number; skipped: number; messages: string[] }> {
     const force = options?.force === true;
+    const liquidacionOrigin =
+      options?.liquidacionOrigin === "masiva" ? "masiva" : "automatica";
     const { y: by, m0: bm0, dom: bdom } = bogotaCalendarPartsFromInstant(reference);
     const cesBaseOptRaw = this.config.get<string>("PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP");
     const cesBaseOpt =
@@ -6455,12 +6532,22 @@ export class PortalService implements OnModuleInit {
 
       const empRes = await client.query(`
         SELECT id, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso, COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
-               COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago
+               COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago,
+               rol_trabajador, tipo_contrato
         FROM empleados_nomina
         ORDER BY fecha_creacion ASC
       `);
 
       for (const row of empRes.rows) {
+        if (
+          !employeeReceivesPayrollNomina({
+            rol_trabajador: row.rol_trabajador,
+            tipo_contrato: row.tipo_contrato
+          })
+        ) {
+          skipped += 1;
+          continue;
+        }
         const employeeId = String(row.id);
         const hireDate = parseSqlDate(row.fecha_ingreso);
         if (!hireDate) {
@@ -6606,7 +6693,7 @@ export class PortalService implements OnModuleInit {
           interesesCesantiasCop: payInt ? intCop : 0,
           cesantiasInterestBaseCop: payInt ? intBase : null,
           cesantiasInterestDays: payInt ? intDays : null,
-          liquidacionOrigin: "automatica",
+          liquidacionOrigin,
           noveltiesDetail: noveltyObj
         };
 
@@ -6624,7 +6711,7 @@ export class PortalService implements OnModuleInit {
 
     if (created > 0) {
       this.logger.log(
-        `Liquidaciones automáticas (ref. Bogotá ${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}): insertadas ${created}; omitidas ${skipped}.`
+        `Liquidaciones ${liquidacionOrigin} (ref. Bogotá ${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}): insertadas ${created}; omitidas ${skipped}.`
       );
     }
     return { created, skipped, messages };
@@ -6645,6 +6732,623 @@ export class PortalService implements OnModuleInit {
     if (!mb) throw new BadRequestException("periodoYm inválido");
     const refDate = mb.monthEnd;
     return this.generateAutomaticLiquidacionesForReferenceDate(refDate, { force: true });
+  }
+
+  /**
+   * Crea o actualiza liquidación de prestación de servicios (viajes) en `liquidaciones_nomina`.
+   * Persiste tipo_registro = prestacion_viajes, origen_liquidacion = prestacion_viajes.
+   */
+  async upsertDriverTripPaymentDraft(
+    employeeId: string,
+    periodYm: string,
+    options?: { travelAllowanceManualCop?: number; fuelReimbursementManualCop?: number }
+  ) {
+    const eid = String(employeeId || "").trim();
+    const ym = String(periodYm || "").trim();
+    if (!PG_UUID_V4_RE.test(eid)) throw new BadRequestException("employeeId debe ser UUID válido");
+    if (!/^(\d{4})-(0[1-9]|1[0-2])$/.test(ym)) {
+      throw new BadRequestException("periodYm debe ser YYYY-MM");
+    }
+    const mb = monthUtcBounds(ym);
+    if (!mb) throw new BadRequestException("periodYm inválido");
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await this.upsertDriverTripPaymentDraftTx(client, eid, ym, mb, options);
+      await client.query("COMMIT");
+      const payrollRuns = await this.loadPayrollRunsForEmployee(eid);
+      return { ...result, payrollRuns };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async upsertDriverTripPaymentDraftTx(
+    c: PoolClient,
+    employeeId: string,
+    periodYm: string,
+    monthBounds: { monthStart: Date; monthEnd: Date },
+    options?: { travelAllowanceManualCop?: number; fuelReimbursementManualCop?: number }
+  ) {
+    const empRes = await c.query<{
+      id: string;
+      nombre_completo: string;
+      numero_documento: string;
+      rol_trabajador: string;
+      tipo_contrato: string;
+    }>(
+      `SELECT id::text, nombre_completo, numero_documento, rol_trabajador, tipo_contrato
+       FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
+      [employeeId]
+    );
+    const emp = empRes.rows[0];
+    if (!emp) throw new NotFoundException("Empleado no encontrado");
+    if (
+      !employeeIsConductorServiceProvider({
+        rol_trabajador: emp.rol_trabajador,
+        tipo_contrato: emp.tipo_contrato
+      })
+    ) {
+      throw new BadRequestException(
+        "Este colaborador no está configurado como conductor en prestación de servicios."
+      );
+    }
+
+    const drv = await c.query<{ id: string }>(
+      `SELECT c.id::text AS id FROM conductores c
+       WHERE trim(c.numero_documento) = trim($1) LIMIT 1`,
+      [emp.numero_documento]
+    );
+    const driverId = drv.rows[0]?.id;
+    if (!driverId) {
+      throw new BadRequestException(
+        "No hay conductor en flota con el mismo documento que el empleado. Sincronice la ficha desde RRHH."
+      );
+    }
+
+    const periodStart = this.pgDateUtc(monthBounds.monthStart);
+    const periodEnd = this.pgDateUtc(monthBounds.monthEnd);
+
+    const tripRes = await c.query<{ trip_count: string; inter_dep: string }>(
+      `WITH refs AS (
+         SELECT
+           COALESCE(s.fecha_cierre, s.fecha_entrega_efectiva, v.fecha_hora_entrega_programada) AS ref_ts,
+           trim(COALESCE(s.departamento_origen, '')) AS dep_o,
+           trim(COALESCE(s.departamento_destino, '')) AS dep_d
+         FROM viajes_transporte v
+         INNER JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+         WHERE v.id_conductor = $1::uuid
+           AND s.estado IN ('Completada'::estado_solicitud_transporte, 'Cerrada'::estado_solicitud_transporte)
+       )
+       SELECT
+         COUNT(*)::text AS trip_count,
+         COUNT(*) FILTER (
+           WHERE dep_o <> '' AND dep_d <> '' AND lower(dep_o) IS DISTINCT FROM lower(dep_d)
+         )::text AS inter_dep
+       FROM refs
+       WHERE (ref_ts AT TIME ZONE 'America/Bogota')::date >= $2::date
+         AND (ref_ts AT TIME ZONE 'America/Bogota')::date <= $3::date`,
+      [driverId, periodStart, periodEnd]
+    );
+
+    const fuelRes = await c.query<{ total: string }>(
+      `SELECT COALESCE(SUM(costo_total), 0)::text AS total
+       FROM registros_combustible
+       WHERE id_conductor = $1::uuid
+         AND pagado_por = 'conductor'
+         AND fecha >= $2::date AND fecha <= $3::date`,
+      [driverId, periodStart, periodEnd]
+    );
+
+    const rules = await this.loadTravelAllowanceRules();
+    const tripCount = Math.max(0, Math.floor(Number(tripRes.rows[0]?.trip_count ?? 0)));
+    const interDepartmentTrips = Math.max(0, Math.floor(Number(tripRes.rows[0]?.inter_dep ?? 0)));
+    const viaticUnitCop = Math.max(0, Number(rules.interDepartmentTripAmount) || 0);
+    const fuelAuto = Math.max(0, Number(fuelRes.rows[0]?.total ?? 0));
+
+    const existing = await c.query<{
+      id: string;
+      liquidacion_pagada: boolean;
+      viaticos_manuales: string;
+      reembolso_combustible_manual: string;
+    }>(
+      `SELECT id::text, liquidacion_pagada, viaticos_manuales, reembolso_combustible_manual
+       FROM liquidaciones_nomina
+       WHERE id_empleado = $1::uuid AND periodo_mes = $2 AND tipo_registro = 'prestacion_viajes'
+       LIMIT 1`,
+      [employeeId, periodYm]
+    );
+    const ex = existing.rows[0];
+    if (ex?.liquidacion_pagada) {
+      throw new BadRequestException(`El pago por viajes de ${periodYm} ya está marcado como pagado.`);
+    }
+
+    const travelManual =
+      options?.travelAllowanceManualCop != null
+        ? Math.max(0, Number(options.travelAllowanceManualCop))
+        : Math.max(0, Number(ex?.viaticos_manuales ?? 0));
+    const fuelManual =
+      options?.fuelReimbursementManualCop != null
+        ? Math.max(0, Number(options.fuelReimbursementManualCop))
+        : Math.max(0, Number(ex?.reembolso_combustible_manual ?? 0));
+
+    const computed = buildDriverTripPaymentCompute(
+      periodYm,
+      tripCount,
+      interDepartmentTrips,
+      viaticUnitCop,
+      fuelAuto,
+      { travelAllowanceManualCop: travelManual, fuelReimbursementManualCop: fuelManual }
+    );
+
+    if (computed.grossCop <= 0) {
+      throw new BadRequestException(
+        "No hay viajes liquidables ni reembolsos de combustible en el mes seleccionado."
+      );
+    }
+
+    const tier = await this.resolvePayrollLiquSchemaTier(c);
+    const hasNov = await this.resolvePayrollLiquNovedadesCols(c);
+    const travelAllowance = computed.travelAllowanceAutoCop + travelManual;
+    const fuelReimbursement = computed.fuelReimbursementAutoCop + fuelManual;
+
+    const run: Record<string, unknown> = {
+      id: ex?.id && PG_UUID_V4_RE.test(ex.id) ? ex.id : randomUUID(),
+      employeeId,
+      employeeName: String(emp.nombre_completo || ""),
+      month: periodYm,
+      gross: computed.grossCop,
+      ibc: 0,
+      travelAllowance,
+      fuelReimbursement,
+      travelAllowanceAuto: computed.travelAllowanceAutoCop,
+      fuelReimbursementAuto: computed.fuelReimbursementAutoCop,
+      travelAllowanceManual: travelManual,
+      fuelReimbursementManual: fuelManual,
+      extras: 0,
+      aux: 0,
+      bonus: 0,
+      tripCount: computed.tripCount,
+      interDepartmentTrips: computed.interDepartmentTrips,
+      health: 0,
+      pension: 0,
+      solidarity: 0,
+      deductions: 0,
+      net: computed.grossCop,
+      paid: false,
+      paidAt: null,
+      approvedBy: null,
+      payrollKind: "prestacion_viajes",
+      payPrimaServicios: false,
+      primaServiciosCop: 0,
+      primaServiciosDays: null,
+      payInteresesCesantias: false,
+      interesesCesantiasCop: 0,
+      cesantiasInterestBaseCop: null,
+      cesantiasInterestDays: null,
+      settlementDetail: null,
+      liquidacionOrigin: "prestacion_viajes",
+      noveltiesDetail: computed.noveltiesDetail
+    };
+
+    const isUpdate = Boolean(ex?.id);
+    await this.payrollUpsertLiquidacionNomina(c, tier, hasNov, run, { force: true });
+
+    return {
+      created: isUpdate ? 0 : 1,
+      updated: isUpdate ? 1 : 0,
+      periodYm,
+      grossCop: computed.grossCop,
+      tripCount: computed.tripCount,
+      interDepartmentTrips: computed.interDepartmentTrips,
+      runId: String(run.id)
+    };
+  }
+
+  /**
+   * Vincula novedades de RRHH (ausencias, cambios de salario) con borradores de nómina laboral.
+   */
+  async refreshPayrollDraftsForEmployee(
+    employeeId: string,
+    options?: { startDate?: string; endDate?: string }
+  ): Promise<{
+    created: number;
+    updated: number;
+    skipped: number;
+    messages: string[];
+    payrollRuns: Awaited<ReturnType<PortalService["loadPayrollRuns"]>>;
+  }> {
+    const eid = String(employeeId || "").trim();
+    if (!PG_UUID_V4_RE.test(eid)) {
+      throw new BadRequestException("employeeId debe ser UUID válido");
+    }
+    const startYmd = options?.startDate?.trim().slice(0, 10) ?? "";
+    const endYmd = options?.endDate?.trim().slice(0, 10) ?? "";
+    if (startYmd && !/^\d{4}-\d{2}-\d{2}$/.test(startYmd)) {
+      throw new BadRequestException("startDate debe ser YYYY-MM-DD");
+    }
+    if (endYmd && !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) {
+      throw new BadRequestException("endDate debe ser YYYY-MM-DD");
+    }
+
+    const client = await this.pool.connect();
+    const stats = { created: 0, updated: 0, skipped: 0, messages: [] as string[] };
+    try {
+      await client.query("BEGIN");
+      await this.refreshPayrollDraftsForEmployeeTx(client, eid, stats, {
+        startDate: startYmd || undefined,
+        endDate: endYmd || undefined
+      });
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const payrollRuns = await this.loadPayrollRunsForEmployee(eid);
+    return { ...stats, payrollRuns };
+  }
+
+  private async loadPayrollRunsForEmployee(employeeId: string) {
+    const all = await this.loadPayrollRuns();
+    return all.filter((r) => String(r.employeeId) === String(employeeId));
+  }
+
+  private mergeAbsenceRefreshTargets(
+    acc: Map<string, { startDate: string; endDate: string }>,
+    employeeId: string,
+    startDate: string,
+    endDate: string
+  ) {
+    const eid = String(employeeId || "").trim();
+    const s = String(startDate || "").slice(0, 10);
+    const e = String(endDate || "").slice(0, 10);
+    if (!PG_UUID_V4_RE.test(eid) || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return;
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(e) ? e : s;
+    const prev = acc.get(eid);
+    if (!prev) {
+      acc.set(eid, { startDate: s, endDate: end });
+      return;
+    }
+    if (s < prev.startDate) prev.startDate = s;
+    if (end > prev.endDate) prev.endDate = end;
+  }
+
+  private collectAbsenceRefreshTargets(data: unknown): Map<string, { startDate: string; endDate: string }> {
+    const map = new Map<string, { startDate: string; endDate: string }>();
+    if (!Array.isArray(data)) return map;
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
+      const eid = String(pickPortalField(row, "employeeId") ?? row.employeeId ?? "").trim();
+      const s = String(pickPortalField(row, "startDate") ?? row.startDate ?? "").slice(0, 10);
+      const e = String(pickPortalField(row, "endDate") ?? row.endDate ?? "").slice(0, 10);
+      this.mergeAbsenceRefreshTargets(map, eid, s, e);
+    }
+    return map;
+  }
+
+  private async refreshPayrollDraftsAfterHrAbsencesSync(c: PoolClient, data: unknown) {
+    const targets = this.collectAbsenceRefreshTargets(data);
+    const stats = { created: 0, updated: 0, skipped: 0, messages: [] as string[] };
+    for (const [employeeId, range] of targets) {
+      await this.refreshPayrollDraftsForEmployeeTx(c, employeeId, stats, range);
+    }
+    if (stats.created + stats.updated > 0) {
+      this.logger.log(
+        `Nómina vinculada tras ausencias: +${stats.created} borradores, ${stats.updated} actualizados.`
+      );
+    }
+  }
+
+  private async refreshPayrollDraftsAfterEmployeesSync(c: PoolClient, data: unknown) {
+    if (!Array.isArray(data)) return;
+    const stats = { created: 0, updated: 0, skipped: 0, messages: [] as string[] };
+    for (const raw of data) {
+      const row = raw as Record<string, unknown>;
+      const eid = String(row?.id ?? "").trim();
+      if (!PG_UUID_V4_RE.test(eid)) continue;
+      await this.refreshPayrollDraftsForEmployeeTx(c, eid, stats);
+    }
+    if (stats.created + stats.updated > 0) {
+      this.logger.log(
+        `Nómina vinculada tras empleados: +${stats.created} borradores, ${stats.updated} actualizados.`
+      );
+    }
+  }
+
+  private async refreshPayrollDraftsForEmployeeTx(
+    c: PoolClient,
+    employeeId: string,
+    stats: { created: number; updated: number; skipped: number; messages: string[] },
+    range?: { startDate?: string; endDate?: string }
+  ) {
+    const empRes = await c.query<{
+      id: string;
+      nombre_completo: string;
+      salario_base: string;
+      fecha_ingreso: string;
+      auxilio_transporte: string;
+      periodicidad_pago: string;
+      rol_trabajador: string;
+      tipo_contrato: string;
+    }>(
+      `SELECT id::text, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso,
+              COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
+              COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago,
+              rol_trabajador, tipo_contrato
+       FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
+      [employeeId]
+    );
+    const row = empRes.rows[0];
+    if (!row) {
+      stats.skipped += 1;
+      stats.messages.push(`Empleado ${employeeId}: no encontrado`);
+      return;
+    }
+
+    if (
+      !employeeReceivesPayrollNomina({
+        rol_trabajador: row.rol_trabajador,
+        tipo_contrato: row.tipo_contrato
+      })
+    ) {
+      stats.skipped += 1;
+      stats.messages.push(
+        `${String(row.nombre_completo || "Conductor").trim()}: prestación de servicios — pago por viajes, sin nómina laboral automática`
+      );
+      return;
+    }
+
+    const hireDate = parseSqlDate(row.fecha_ingreso);
+    if (!hireDate) {
+      stats.skipped += 1;
+      stats.messages.push(`${row.nombre_completo}: sin fecha de ingreso válida`);
+      return;
+    }
+
+    const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
+    const name = String(row.nombre_completo || "Colaborador").trim();
+
+    let cuts: LiquidationCut[] = [];
+    if (range?.startDate) {
+      const rs = parseSqlDate(range.startDate);
+      const re = parseSqlDate(range.endDate || range.startDate);
+      if (!rs || !re) {
+        stats.skipped += 1;
+        stats.messages.push(`${name}: rango de fechas inválido`);
+        return;
+      }
+      cuts = liquidationCutsOverlappingRange(freq, rs, re);
+    } else {
+      const unpaid = await c.query<{ periodo_mes: string }>(
+        `SELECT periodo_mes FROM liquidaciones_nomina
+         WHERE id_empleado = $1::uuid AND liquidacion_pagada = false
+           AND COALESCE(tipo_registro, 'mensual') <> 'terminacion'
+           AND liquidacion_terminacion_json IS NULL`,
+        [employeeId]
+      );
+      const seen = new Set<string>();
+      for (const u of unpaid.rows) {
+        const cut = resolveLiquidationCutFromPeriodKey(freq, String(u.periodo_mes || ""));
+        if (cut && !seen.has(cut.periodKey)) {
+          seen.add(cut.periodKey);
+          cuts.push(cut);
+        }
+      }
+      if (cuts.length === 0) {
+        const { y, m0, dom } = bogotaCalendarPartsFromInstant(new Date());
+        const latest = liquidationLatestClosedCutAsOf(freq, y, m0, dom);
+        if (latest) cuts = [latest];
+      }
+    }
+
+    if (cuts.length === 0) {
+      stats.skipped += 1;
+      stats.messages.push(`${name}: sin corte de nómina aplicable en el rango`);
+      return;
+    }
+
+    const tier = await this.resolvePayrollLiquSchemaTier(c);
+    const hasNov = await this.resolvePayrollLiquNovedadesCols(c);
+    const laborRules = await this.loadLaborSystemRules(new Date(), c);
+    const smmlv = laborRules.smmlvCop;
+    const cesBaseOptRaw = this.config.get<string>("PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP");
+    const cesBaseOpt =
+      cesBaseOptRaw !== undefined &&
+      cesBaseOptRaw !== null &&
+      String(cesBaseOptRaw).trim() !== ""
+        ? Math.max(0, Number(cesBaseOptRaw))
+        : undefined;
+
+    for (const cut of cuts) {
+      const existing = await c.query<{
+        id: string;
+        liquidacion_pagada: boolean;
+        tipo_registro: string | null;
+        viaticos_periodo: string;
+        reembolso_combustible: string;
+        viaticos_automaticos: string;
+        reembolso_combustible_automatico: string;
+        viaticos_manuales: string;
+        reembolso_combustible_manual: string;
+        horas_extras_cop: string;
+        bonificaciones_cop: string;
+        origen_liquidacion: string | null;
+      }>(
+        `SELECT id::text, liquidacion_pagada,
+                COALESCE(tipo_registro, 'mensual') AS tipo_registro,
+                viaticos_periodo, reembolso_combustible,
+                viaticos_automaticos, reembolso_combustible_automatico,
+                viaticos_manuales, reembolso_combustible_manual,
+                horas_extras_cop, bonificaciones_cop, origen_liquidacion
+         FROM liquidaciones_nomina
+         WHERE id_empleado = $1::uuid AND periodo_mes = $2
+         LIMIT 1`,
+        [employeeId, cut.periodKey]
+      );
+      const ex = existing.rows[0];
+      if (ex?.liquidacion_pagada) {
+        stats.skipped += 1;
+        stats.messages.push(`${name}: ${cut.periodKey} ya está pagado`);
+        continue;
+      }
+      if (String(ex?.tipo_registro || "").toLowerCase() === "terminacion") {
+        stats.skipped += 1;
+        stats.messages.push(`${name}: ${cut.periodKey} es liquidación de terminación`);
+        continue;
+      }
+
+      const abRes = await c.query(
+        `SELECT id, id_empleado, tipo_ausencia, subtipo_ausencia, fecha_inicio::text AS fecha_inicio,
+                fecha_fin::text AS fecha_fin, observaciones, dias_reconocidos, unidad_dias_reconocidos
+         FROM ausencias_laborales
+         WHERE id_empleado = $1::uuid AND fecha_fin >= $2::date AND fecha_inicio <= $3::date`,
+        [employeeId, this.pgDateUtc(cut.periodStart), this.pgDateUtc(cut.periodEnd)]
+      );
+      const absList: AbsenceInput[] = [];
+      for (const a of abRes.rows) {
+        const fi = parseSqlDate(a.fecha_inicio);
+        const ff = parseSqlDate(a.fecha_fin);
+        if (!fi || !ff) continue;
+        absList.push({
+          id: String(a.id),
+          tipoAusencia: String(a.tipo_ausencia || ""),
+          subtipoAusencia: a.subtipo_ausencia != null ? String(a.subtipo_ausencia) : null,
+          fechaInicio: fi,
+          fechaFin: ff,
+          observaciones: typeof a.observaciones === "string" ? a.observaciones : null,
+          diasReconocidos: a.dias_reconocidos != null ? Number(a.dias_reconocidos) : null,
+          unidadDiasReconocidos:
+            a.unidad_dias_reconocidos != null ? String(a.unidad_dias_reconocidos) : null
+        });
+      }
+
+      let computed;
+      try {
+        computed = computeColombiaPayrollForPeriodCut({
+          periodStorageKey: cut.periodKey,
+          calendarMonthYm: cut.calendarMonthYm,
+          periodStart: cut.periodStart,
+          periodEnd: cut.periodEnd,
+          salarioMensual: Number(row.salario_base) || 0,
+          auxilioTransporteMes: Number(row.auxilio_transporte) || 0,
+          fechaIngresoEmpresa: hireDate,
+          ausenciasEnPeriodo: absList,
+          smmlv,
+          healthEmployeeRate: laborRules.healthEmployeeRate,
+          pensionEmployeeRate: laborRules.pensionEmployeeRate,
+          cesantiasBaseInteresOpcional: cesBaseOpt
+        });
+      } catch (err) {
+        stats.skipped += 1;
+        const m = err instanceof Error ? err.message : String(err);
+        stats.messages.push(`${name} (${cut.periodKey}): ${m}`);
+        continue;
+      }
+
+      let payPrima = computed.payPrimaServicios;
+      let primaCop = computed.primaServiciosCop;
+      let primaDays = computed.primaDiasSemestre;
+      let payInt = computed.payInteresesCesantias;
+      let intCop = computed.interesesCesantiasCop;
+      let intBase = cesBaseOpt ?? null;
+      let intDays = computed.cesantiasInterestDays;
+
+      if (tier < 1 && payPrima) {
+        payPrima = false;
+        primaCop = 0;
+        primaDays = null;
+      }
+      if (tier < 2 && payInt) {
+        payInt = false;
+        intCop = 0;
+        intBase = null;
+        intDays = null;
+      }
+
+      const preservedExtras = ex ? Number(ex.horas_extras_cop) || 0 : 0;
+      const preservedBonus = ex ? Number(ex.bonificaciones_cop) || 0 : 0;
+      const preservedTravelManual = ex ? Number(ex.viaticos_manuales) || 0 : 0;
+      const preservedFuelManual = ex ? Number(ex.reembolso_combustible_manual) || 0 : 0;
+      const preservedTravelAuto = ex ? Number(ex.viaticos_automaticos) || 0 : 0;
+      const preservedFuelAuto = ex ? Number(ex.reembolso_combustible_automatico) || 0 : 0;
+      const travelAllowance = preservedTravelAuto + preservedTravelManual;
+      const fuelReimbursement = preservedFuelAuto + preservedFuelManual;
+
+      const gross =
+        computed.salarioProporcionalCop +
+        computed.auxilioProporcionalCop +
+        preservedExtras +
+        preservedBonus +
+        travelAllowance +
+        fuelReimbursement +
+        (payPrima ? primaCop : 0) +
+        (payInt ? intCop : 0);
+
+      const net = gross - computed.totalDeducciones;
+      const noveltyObj = {
+        ...(computed.novedadesJson as Record<string, unknown>),
+        vinculacionNovedades: {
+          origen: "refresh_drafts",
+          actualizadoEn: new Date().toISOString(),
+          ausenciasEnPeriodo: absList.length
+        }
+      };
+
+      const priorOrigin = String(ex?.origen_liquidacion || "").trim().toLowerCase();
+      const liquidacionOrigin =
+        priorOrigin && priorOrigin !== "manual" ? priorOrigin : ex ? "manual" : "vinculada";
+
+      const run: Record<string, unknown> = {
+        id: ex?.id && PG_UUID_V4_RE.test(ex.id) ? ex.id : randomUUID(),
+        employeeId,
+        employeeName: name,
+        month: cut.periodKey,
+        gross,
+        ibc: computed.ibcOrientativo,
+        travelAllowance,
+        fuelReimbursement,
+        travelAllowanceAuto: preservedTravelAuto,
+        fuelReimbursementAuto: preservedFuelAuto,
+        travelAllowanceManual: preservedTravelManual,
+        fuelReimbursementManual: preservedFuelManual,
+        extras: preservedExtras,
+        aux: computed.auxilioProporcionalCop,
+        bonus: preservedBonus,
+        tripCount: 0,
+        interDepartmentTrips: 0,
+        health: computed.healthDeduction,
+        pension: computed.pensionDeduction,
+        solidarity: computed.solidarityDeduction,
+        deductions: computed.totalDeducciones,
+        net,
+        paid: false,
+        paidAt: null,
+        approvedBy: null,
+        payrollKind: freq,
+        payPrimaServicios: payPrima,
+        primaServiciosCop: payPrima ? primaCop : 0,
+        primaServiciosDays: payPrima ? primaDays : null,
+        settlementDetail: null,
+        payInteresesCesantias: payInt,
+        interesesCesantiasCop: payInt ? intCop : 0,
+        cesantiasInterestBaseCop: payInt ? intBase : null,
+        cesantiasInterestDays: payInt ? intDays : null,
+        liquidacionOrigin,
+        noveltiesDetail: noveltyObj
+      };
+
+      const isUpdate = Boolean(ex?.id);
+      await this.payrollUpsertLiquidacionNomina(c, tier, hasNov, run, { force: true });
+      if (isUpdate) stats.updated += 1;
+      else stats.created += 1;
+    }
   }
 
   /**
@@ -7340,7 +8044,8 @@ export class PortalService implements OnModuleInit {
           row.employeeName,
           row.recordType,
           row.provider,
-          row.expiryDate,
+          (row as { dueDate?: unknown; expiryDate?: unknown }).dueDate ??
+            (row as { expiryDate?: unknown }).expiryDate,
           row.status || "Pendiente",
           row.documentCode || null,
           row.notes || null,

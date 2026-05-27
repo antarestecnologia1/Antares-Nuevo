@@ -399,6 +399,8 @@ function renderHrAttentionStrip(items = [], { okMessage = "Sin pendientes urgent
 function renderPayrollModuleHead({
   employees,
   pending,
+  pendingDriverPayments = 0,
+  pendingDriverCop = 0,
   pendingAbsenceApprovals,
   totalPayrollMonth,
   currentYm,
@@ -406,11 +408,16 @@ function renderPayrollModuleHead({
 }) {
   const chips = [
     `<span class="payroll-head-stat"><strong>${employees}</strong> colaboradores</span>`,
-    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong> neto ${escapeHtml(currentYm)}</span>`
+    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong> nómina neta ${escapeHtml(currentYm)}</span>`
   ];
   if (pending > 0) {
     chips.push(
-      `<span class="payroll-head-stat payroll-head-stat--warn" title="Liquidaciones sin marcar como pagadas"><strong>${pending}</strong> pagos pendientes</span>`
+      `<span class="payroll-head-stat payroll-head-stat--warn" title="Liquidaciones laborales sin marcar como pagadas"><strong>${pending}</strong> nómina pendiente</span>`
+    );
+  }
+  if (pendingDriverPayments > 0) {
+    chips.push(
+      `<span class="payroll-head-stat payroll-head-stat--warn" title="Prestación de servicios — viajes por pagar"><strong>${pendingDriverPayments}</strong> conductores · $${parseNum(pendingDriverCop).toLocaleString("es-CO")}</span>`
     );
   }
   if (pendingAbsenceApprovals > 0) {
@@ -478,8 +485,8 @@ function renderHiringDataSectionNav(activeId, counts = {}, { minimal = false } =
   </nav>`;
 }
 
-const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "legal"]);
-const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "settlement", "absence"]);
+const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "driverPayments", "legal"]);
+const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "driverPay", "settlement", "absence"]);
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
 const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
@@ -566,8 +573,41 @@ function formatPayrollPeriodLabel(periodKey) {
   return key;
 }
 
+/** Prestación de servicios (conductores): pago por viaje, no nómina laboral ordinaria. */
+function employeeIsConductorServiceProvider(employee) {
+  if (!employee) return false;
+  const role = String(employee.workerRole || "").trim().toLowerCase();
+  if (role === "conductor") return true;
+  const ct = String(employee.contractType || "").trim().toLowerCase();
+  if (/prestaci[oó]n\s*de\s*servicios|prestacion.*servicio/i.test(ct)) return true;
+  const tpl = String(employee.contractTemplateKind || employee.contractTemplate || "").trim().toLowerCase();
+  if (tpl === "prestacion" || tpl.includes("prestacion")) return true;
+  return false;
+}
+
+function employeeReceivesPayrollNomina(employee) {
+  return !employeeIsConductorServiceProvider(employee);
+}
+
+function payrollRunIsDriverTripPayment(run) {
+  return payrollRunFrequencyKind(run) === "prestacion_viajes";
+}
+
+function filterPayrollNominaRuns(allRuns = []) {
+  return (Array.isArray(allRuns) ? allRuns : []).filter((run) => !payrollRunIsDriverTripPayment(run));
+}
+
+function filterDriverTripPaymentRuns(allRuns = []) {
+  return (Array.isArray(allRuns) ? allRuns : []).filter((run) => payrollRunIsDriverTripPayment(run));
+}
+
+function listConductorServiceEmployees(employees = []) {
+  return (Array.isArray(employees) ? employees : []).filter((e) => employeeIsConductorServiceProvider(e));
+}
+
 function payrollRunTypeLabel(run) {
   const pk = String(run?.payrollKind || "").trim().toLowerCase();
+  if (pk === "prestacion_viajes" || pk === "conductor_viajes") return "Pago por viajes (prestación)";
   if (pk === "terminacion") return "Terminación contractual";
   if (pk === "quincenal") return "Nómina quincenal";
   if (pk === "catorcenal") return "Nómina catorcenal";
@@ -583,6 +623,7 @@ function payrollRunTypeLabel(run) {
 function payrollRunFrequencyKind(run) {
   const pk = String(run?.payrollKind || "").trim().toLowerCase();
   if (pk === "terminacion") return "terminacion";
+  if (pk === "prestacion_viajes" || pk === "conductor_viajes") return "prestacion_viajes";
   if (pk === "quincenal" || pk === "catorcenal" || pk === "semanal" || pk === "mensual") return pk;
   const key = String(run?.month || "");
   if (/-Q[12]$/i.test(key)) return "quincenal";
@@ -633,8 +674,14 @@ function payrollDaysInManualCut(monthYm, payFrequency, quincenaHalf) {
   return 15;
 }
 
-function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters || defaultPayrollFilters()) {
-  const source = Array.isArray(allRuns) ? allRuns : [];
+function filterPayrollRunsByUiState(
+  allRuns = [],
+  filters = state.payrollFilters || defaultPayrollFilters(),
+  scope = "all"
+) {
+  let source = Array.isArray(allRuns) ? allRuns : [];
+  if (scope === "nomina") source = filterPayrollNominaRuns(source);
+  else if (scope === "driver") source = filterDriverTripPaymentRuns(source);
   const period = String(filters.period || "all");
   const employee = String(filters.employee || "");
   const status = String(filters.status || "all");
@@ -689,7 +736,9 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
   const tags = [];
   const hasAbsenceDetail = String(run.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
-  if (orig === "automatica") tags.push("Automática");
+  if (orig === "masiva") tags.push("Masiva");
+  else if (orig === "automatica") tags.push("Automática");
+  if (payrollRunIsDriverTripPayment(run)) tags.push("Prestación viajes");
   if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
   if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
   if (hasAbsenceDetail) tags.push("Ausentismo");
@@ -701,8 +750,14 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
   const statusHtml = paid
     ? '<span class="status status-viaje_asignado">Pagado</span>'
     : '<span class="status status-pendiente">Pendiente</span>';
+  const tripYm = String(run.month || "").slice(0, 7);
   const actions = `<div class="payroll-run-card-actions toolbar">
       <button class="btn btn-sm btn-action" type="button" data-action="payslip" data-id="${escapeAttr(String(run.id))}" title="Desprendible">${IC.printer}${compact ? "" : " Desprendible"}</button>
+      ${
+        !paid && payrollRunIsDriverTripPayment(run)
+          ? `<button class="btn btn-sm btn-outline" type="button" data-action="recalc-driver-trip" data-employee-id="${escapeAttr(String(run.employeeId))}" data-month="${escapeAttr(tripYm)}" title="Recalcular desde viajes y combustible">${IC.activity}${compact ? "" : " Recalcular"}</button>`
+          : ""
+      }
       ${!paid ? `<button class="btn btn-sm btn-approve" type="button" data-action="mark-payroll-paid" data-id="${escapeAttr(String(run.id))}" title="Marcar pagado">${IC.check}${compact ? "" : " Marcar pagado"}</button>` : ""}
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(run.id))}" title="Eliminar liquidación">${IC.trash}</button>` : ""}
     </div>`;
@@ -740,7 +795,8 @@ function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = false } 
   const tabs = [
     { id: "employees", label: "Empleados", count: counts.employees ?? 0, icon: "user" },
     { id: "absences", label: "Ausencias", count: counts.absences ?? 0, icon: "calendar" },
-    { id: "runs", label: "Liquidaciones", count: counts.runs ?? 0, icon: "dollar" },
+    { id: "runs", label: "Nómina laboral", count: counts.runs ?? 0, icon: "dollar" },
+    { id: "driverPayments", label: "Pagos conductores", count: counts.driverPayments ?? 0, icon: "truck" },
     { id: "legal", label: "Parámetros legales", count: counts.legal ?? 0, icon: "hash" }
   ];
   const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
@@ -4185,25 +4241,64 @@ function wireMonthlyPayrollConcepts(form) {
 
   const quincenaWrap = form.querySelector("#payroll-quincena-wrap");
   const freqHint = form.querySelector("#payroll-freq-hint");
+  const conductorHint = form.querySelector("#payroll-conductor-trip-hint");
+  const salaryLabel = form.querySelector("#payroll-monthly-base-salary")?.closest("label");
+  const submitBtn = form.querySelector("#payroll-submit-btn");
   const syncPayFrequencyUi = () => {
     const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
+    const isDriver = Boolean(emp && employeeIsConductorServiceProvider(emp));
     const freq = normalizePayrollFrequencyJs(emp?.payFrequency);
-    const isQuinc = freq === "quincenal";
+    const isQuinc = !isDriver && freq === "quincenal";
     if (quincenaWrap) {
       quincenaWrap.classList.toggle("hidden", !isQuinc);
       quincenaWrap.toggleAttribute("hidden", !isQuinc);
       quincenaWrap.setAttribute("aria-hidden", isQuinc ? "false" : "true");
     }
+    if (fsP) {
+      fsP.classList.toggle("hidden", !emp || isDriver);
+      fsP.setAttribute("aria-hidden", !emp || isDriver ? "true" : "false");
+    }
+    if (fsC) {
+      fsC.classList.toggle("hidden", !emp || isDriver);
+      fsC.setAttribute("aria-hidden", !emp || isDriver ? "true" : "false");
+    }
+    if (salaryLabel) {
+      salaryLabel.classList.toggle("hidden", isDriver);
+      salaryLabel.toggleAttribute("hidden", isDriver);
+    }
+    form.querySelectorAll("[data-payroll-nomina-only]").forEach((el) => {
+      el.classList.toggle("hidden", isDriver);
+      el.toggleAttribute("hidden", isDriver);
+    });
+    if (conductorHint) {
+      if (isDriver) {
+        conductorHint.classList.remove("hidden");
+        conductorHint.textContent = userMessage("payrollConductorTripOnly");
+      } else {
+        conductorHint.classList.add("hidden");
+        conductorHint.textContent = "";
+      }
+    }
     if (freqHint) {
       if (!emp) {
         freqHint.classList.add("hidden");
         freqHint.textContent = "";
+      } else if (isDriver) {
+        freqHint.classList.remove("hidden");
+        freqHint.textContent =
+          "Mes calendario del servicio. Viáticos interdepartamentales y combustible pagado por el conductor se calculan desde viajes y flota.";
       } else {
         freqHint.classList.remove("hidden");
         freqHint.textContent = isQuinc
           ? "Periodicidad quincenal: liquide 1ª o 2ª quincena del mes. Salario y auxilio se prorratean (÷30 × días del corte)."
           : `Periodicidad ${String(emp.payFrequency || "Mensual")}: liquidación del mes calendario completo.`;
       }
+    }
+    if (submitBtn) {
+      const span = submitBtn.querySelector("span");
+      const label = isDriver ? "Liquidar viajes del mes" : "Generar liquidación";
+      if (span) span.textContent = label;
+      else submitBtn.textContent = label;
     }
     if (isQuinc) {
       const qSel = form.querySelector("#payroll-quincena-select");
@@ -5448,6 +5543,11 @@ function __applyPortalBootstrapPayloadInner(p) {
       );
       continue;
     }
+    if (prop === "sstCompliance") {
+      const raw = Array.isArray(p.sstCompliance) ? p.sstCompliance : [];
+      write(KEYS.sstCompliance, raw.map(normalizeSstComplianceRow));
+      continue;
+    }
     if (prop === "candidates") {
       const raw = Array.isArray(p.candidates) ? p.candidates : [];
       write(
@@ -5512,6 +5612,83 @@ async function postPortalAuthorized(path, body) {
     );
   }
   return api.postJson(path, body);
+}
+
+/**
+ * Tras novedades que afectan nómina laboral (ausencias, cambios de salario): crea/actualiza
+ * borradores en servidor. Conductores (prestación de servicios) se excluyen — pago por viajes.
+ */
+async function refreshDriverTripPaymentLinked(employeeId, periodYm, opts = {}) {
+  const eid = String(employeeId || "").trim();
+  const ym = String(periodYm || "").trim().slice(0, 7);
+  if (!eid || !/^\d{4}-\d{2}$/.test(ym) || !portalCanRefreshFromApi()) return null;
+  const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === eid);
+  if (!emp || !employeeIsConductorServiceProvider(emp)) {
+    return { skipped: true, message: "No es conductor en prestación de servicios" };
+  }
+  try {
+    const result = await postPortalAuthorized("/payroll/driver-trip-payment", {
+      employeeId: eid,
+      periodYm: ym,
+      travelAllowanceManualCop: opts.travelAllowanceManualCop,
+      fuelReimbursementManualCop: opts.fuelReimbursementManualCop
+    });
+    if (opts.bootstrap !== false) {
+      try {
+        await applyPortalBootstrapFromApi();
+      } catch (_e) {}
+    }
+    return result;
+  } catch (err) {
+    if (opts.notifyOnError !== false) {
+      notify(String(err?.message || "No fue posible liquidar los viajes en el servidor."), "warn");
+    }
+    return null;
+  }
+}
+
+async function refreshPayrollDraftsLinked(employeeId, startDate, endDate, opts = {}) {
+  const eid = String(employeeId || "").trim();
+  if (!eid || !portalCanRefreshFromApi()) return null;
+  const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === eid);
+  if (emp && !employeeReceivesPayrollNomina(emp)) {
+    return { created: 0, updated: 0, skipped: 0, conductorTripPay: true };
+  }
+  try {
+    const result = await postPortalAuthorized("/payroll/refresh-drafts", {
+      employeeId: eid,
+      startDate: startDate ? String(startDate).slice(0, 10) : undefined,
+      endDate: endDate ? String(endDate).slice(0, 10) : undefined
+    });
+    if (opts.bootstrap !== false) {
+      try {
+        await applyPortalBootstrapFromApi();
+      } catch (_e) {}
+    }
+    return result;
+  } catch (err) {
+    if (opts.notifyOnError !== false) {
+      notify(
+        String(err?.message || "La novedad se guardó, pero no se pudo actualizar el borrador de nómina."),
+        "warn"
+      );
+    }
+    return null;
+  }
+}
+
+function payrollDraftLinkSuccessMessage(result, fallback = userMessage("absenceRecorded")) {
+  if (result?.conductorTripPay) return userMessage("absenceRecordedConductorTripPay");
+  if (!result || typeof result !== "object") return fallback;
+  const created = Number(result.created) || 0;
+  const updated = Number(result.updated) || 0;
+  if (created + updated > 0) {
+    const parts = [];
+    if (created > 0) parts.push(`${created} borrador${created === 1 ? "" : "es"} creado${created === 1 ? "" : "s"}`);
+    if (updated > 0) parts.push(`${updated} liquidación${updated === 1 ? "" : "es"} actualizada${updated === 1 ? "" : "s"}`);
+    return `Novedad registrada. Nómina vinculada: ${parts.join(" y ")}.`;
+  }
+  return fallback;
 }
 
 async function applyPortalBootstrapFromApi() {
@@ -8697,7 +8874,13 @@ async function resetCreatePanelForm(panelId, formEl) {
   if (!id || !formEl) return false;
   if (!(await confirmDiscardCreateFormAsync(formEl))) return false;
   prepareCancelCreatePanel(id);
-  const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-payroll-settlement", "create-hr-absence"];
+  const PAYROLL_CREATE_IDS = [
+    "create-employee",
+    "create-payroll",
+    "create-driver-trip-payment",
+    "create-payroll-settlement",
+    "create-hr-absence"
+  ];
   const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
   const payrollSet = new Set(PAYROLL_CREATE_IDS);
   const hiringSet = new Set(HIRING_CREATE_IDS);
@@ -8839,7 +9022,7 @@ function presentPayrollBulkAutogenResult(result) {
 
   if (created > 0) {
     notify(
-      created === 1 ? "Se generó 1 borrador de liquidación." : `Se generaron ${created} borradores de liquidación.`,
+      created === 1 ? "Se generó 1 liquidación." : `Se generaron ${created} liquidaciones.`,
       "success"
     );
     return;
@@ -13629,7 +13812,7 @@ function installDriverCardActionsDelegation() {
       return;
     }
     if (action === "toggle-driver") {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessAdminForFleetDriverEdit()) return;
       togglePortalDriverManualAvailability(did);
     }
   });
@@ -13990,6 +14173,29 @@ function hasPermission(user, permission) {
 function isAdminActor(user) {
   const actor = user || currentUser();
   return actor?.role === ROLES.ADMIN;
+}
+
+/** Editar conductor y disponibilidad en Conductores: solo rol administrador global. */
+function canEditFleetDriverAsAdmin(user) {
+  return isAdminActor(user);
+}
+
+const FLEET_DRIVER_EDIT_ACTIONS = new Set(["edit-driver", "toggle-driver"]);
+
+function findPayrollEmployeeByIdDoc(idDoc) {
+  const digits = normalizeDocumentDigits(idDoc);
+  if (!digits) return null;
+  return (
+    read(KEYS.payrollEmployees, []).find(
+      (employee) => normalizeDocumentDigits(employee?.idDoc) === digits
+    ) || null
+  );
+}
+
+function abortUnlessAdminForFleetDriverEdit(reason = "driversManageForbidden") {
+  if (canEditFleetDriverAsAdmin()) return false;
+  notify(userMessage(reason), "error");
+  return true;
 }
 
 function canAccessView(user, view) {
@@ -15057,7 +15263,12 @@ function summarizePayrollEmployeeForDirectory(emp) {
   const raw = normalizePayrollEmployeeRowDates(emp || {});
   const contract = computeEmployeeContractRenewalMeta(raw);
   const companyName = getCompanyById(raw.companyId)?.name || "Sin empresa";
-  const roleLabel = String(raw.workerRole || "").toLowerCase() === "conductor" ? "Conductor" : "Empleado";
+  const isDriverSvc = employeeIsConductorServiceProvider(raw);
+  const roleLabel = isDriverSvc
+    ? "Conductor · prestación servicios"
+    : String(raw.workerRole || "").toLowerCase() === "conductor"
+      ? "Conductor"
+      : "Empleado";
   const searchBlob = [
     raw.name,
     raw.idDoc,
@@ -15074,6 +15285,7 @@ function summarizePayrollEmployeeForDirectory(emp) {
     contract,
     companyName,
     roleLabel,
+    isDriverSvc,
     searchBlob,
     transportCop: readEmployeeTransportAllowanceCop(raw),
     salaryCop: parseNum(raw.baseSalary)
@@ -15153,6 +15365,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         </div>
       </div>
       <div class="directory-card__status-stack">
+        ${item.isDriverSvc ? directoryPillHtml("Prestación servicios", "warn") : ""}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : directoryPillHtml(String(e.contractType || "Contrato").slice(0, 24), "neutral")}
         ${selectHtml}
       </div>
@@ -15444,7 +15657,7 @@ function vehiclesHtml() {
 
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
-  const isAdmin = isAdminActor();
+  const canEditDriver = canEditFleetDriverAsAdmin();
   const activeTrips = getActiveTrips();
   const activeTripsByDriverId = new Map();
   activeTrips.forEach((r) => {
@@ -15647,9 +15860,12 @@ function driversHtml() {
         </dl>
         <footer class="directory-card__actions">
           <button type="button" class="btn btn-sm btn-outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.eye} Ver</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.edit} Editar</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.toggle} Estado</button>
-          ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+          ${
+            canEditDriver
+              ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.edit} Editar</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.toggle} Estado</button>`
+              : ""
+          }
         </footer>
       </article>`;
     })
@@ -15666,7 +15882,13 @@ function driversHtml() {
     { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
     { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
-  return heroStrip + pcardWrap("user", "Conductores", `${drivers.length} registrados`, grid);
+  const moduleHint = canEditDriver
+    ? "Alta, baja y ficha completa en Gestión humana. Aquí el admin puede ajustar datos operativos (se copian a GH)."
+    : "Solo consulta. La ficha completa del empleado se edita en Gestión humana.";
+  return (
+    heroStrip +
+    pcardWrap("user", "Conductores", `${drivers.length} registrados · ${moduleHint}`, grid)
+  );
 }
 
 /** Tabla de auditoría: viajes quitados (colapsable; detalle desde snapshot JSON en bootstrap). */
@@ -21249,86 +21471,381 @@ function normalizeDriverFormPayloadForStorage(data) {
   return d;
 }
 
-async function syncDriverFromEmployee(employee, extraDriverData = {}) {
-  if (!employee || String(employee.workerRole || "") !== "conductor") {
-    return { ok: true, skipped: true };
+/** GH → Conductores: todos los campos del empleado que existen en la ficha de flota (sin pisar disponible/ocupado). */
+function pickFirstNonEmpty(...vals) {
+  for (const v of vals) {
+    if (v != null && String(v).trim() !== "") return v;
   }
-  const drivers = read(KEYS.drivers, []);
-  const doc = String(employee.idDoc || "").trim();
-  const existing = drivers.find((d) => String(d.idDoc || "").trim() === doc);
-  const pickFirst = (...vals) => {
-    for (const v of vals) {
-      if (v != null && String(v).trim() !== "") return v;
-    }
-    return "";
-  };
+  return "";
+}
+
+function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
+  const doc = String(employee?.idDoc || "").trim();
   const occ = normalizePortalDateYmd(
-    pickFirst(
-      employee.occupationalExamDate,
-      employee.psychoTestDate,
-      employee.psychometricExamDate,
+    pickFirstNonEmpty(
+      employee?.occupationalExamDate,
+      employee?.psychoTestDate,
+      employee?.psychometricExamDate,
       extraDriverData.occupationalExamDate,
       extraDriverData.psychoTestDate
     )
   );
   const intra = normalizePortalDateYmd(
-    pickFirst(
-      employee.instruvialExamDate,
-      employee.intravehicularExamDate,
+    pickFirstNonEmpty(
+      employee?.instruvialExamDate,
+      employee?.intravehicularExamDate,
       extraDriverData.instruvialExamDate,
       extraDriverData.intravehicularExamDate
     )
   );
-  const occEx = occ ? addOneYearToYmd(occ) : "";
-  const intraEx = intra ? addOneYearToYmd(intra) : "";
-  const nextDriver = {
-    name: employee.name,
-    documentType: employee.documentType || "CC",
+  const occEx = occ ? addOneYearToYmd(occ) : normalizePortalDateYmd(employee?.occupationalExamExpiry);
+  const intraEx = intra ? addOneYearToYmd(intra) : normalizePortalDateYmd(employee?.instruvialExamExpiry);
+  const photo = pickFirstNonEmpty(employee?.avatarUrl, employee?.photoUrl, extraDriverData.photoUrl);
+  return {
+    name: String(employee?.name || "").trim(),
+    documentType: String(employee?.documentType || "CC").trim() || "CC",
     idDoc: doc,
-    phone: employee.phone || "",
-    license: String(extraDriverData.license || employee.license || "").trim(),
-    licenseCategory: String(extraDriverData.licenseCategory || employee.licenseCategory || "C2").trim(),
-    licenseExpiry: String(extraDriverData.licenseExpiry || employee.licenseExpiry || "").trim(),
-    city: employee.city || "",
-    department: employee.department || "",
-    address: employee.address || "",
-    emergencyContact: employee.emergencyContact || "",
-    emergencyPhone: employee.emergencyPhone || "",
-    companyId: employee.companyId || "",
-    bloodType: String(employee.bloodType || "").trim(),
-    eps: String(employee.eps || "").trim(),
-    arl: String(employee.arl || "").trim(),
-    comparendos: parseNum(employee.comparendos ?? 0),
-    experienceYears: parseNum(employee.experienceYears ?? 0),
-    defensiveCourse: String(employee.defensiveCourse || "").trim(),
-    defensiveCourseExpiry: String(employee.defensiveCourseExpiry || "").trim(),
+    phone: String(employee?.phone || "").trim(),
+    city: String(employee?.city || "").trim(),
+    department: String(employee?.department || "").trim(),
+    address: String(employee?.address || "").trim(),
+    emergencyContact: String(employee?.emergencyContact || "").trim(),
+    emergencyPhone: String(employee?.emergencyPhone || "").trim(),
+    companyId: String(employee?.companyId || "").trim(),
+    bloodType: String(employee?.bloodType || "").trim(),
+    license: String(extraDriverData.license || employee?.license || "").trim(),
+    licenseCategory: String(extraDriverData.licenseCategory || employee?.licenseCategory || "C2").trim(),
+    licenseExpiry: normalizePortalDateYmd(extraDriverData.licenseExpiry || employee?.licenseExpiry),
     occupationalExamDate: occ,
     occupationalExamExpiry: occEx,
     instruvialExamDate: intra,
     instruvialExamExpiry: intraEx,
     psychoTestDate: occ,
     psychoTestExpiry: occEx,
-    available: true,
-    hiredAt: existing?.hiredAt || nowIso()
+    defensiveCourse: String(employee?.defensiveCourse || "").trim(),
+    defensiveCourseExpiry: normalizePortalDateYmd(employee?.defensiveCourseExpiry),
+    eps: String(employee?.eps || "").trim(),
+    arl: String(employee?.arl || "").trim(),
+    comparendos: parseNum(employee?.comparendos ?? 0),
+    experienceYears: parseNum(employee?.experienceYears ?? 0),
+    photoUrl: photo,
+    contractType: String(employee?.contractType || "").trim(),
+    baseSalary: parseNum(employee?.baseSalary ?? 0),
+    startDate: normalizePortalDateYmd(employee?.startDate)
   };
-  if (!nextDriver.license || !nextDriver.licenseExpiry) {
+}
+
+function buildEmployeeBasicPatchFromDriver(driver) {
+  const occ = normalizePortalDateYmd(driver?.occupationalExamDate);
+  const intra = normalizePortalDateYmd(driver?.instruvialExamDate);
+  const occEx = occ ? addOneYearToYmd(occ) : normalizePortalDateYmd(driver?.occupationalExamExpiry);
+  const intraEx = intra ? addOneYearToYmd(intra) : normalizePortalDateYmd(driver?.instruvialExamExpiry);
+  const avatar = pickFirstNonEmpty(driver?.photoUrl, driver?.avatarUrl);
+  return {
+    name: String(driver?.name || "").trim(),
+    phone: String(driver?.phone || "").trim(),
+    city: String(driver?.city || "").trim(),
+    department: String(driver?.department || "").trim(),
+    address: String(driver?.address || "").trim(),
+    emergencyContact: String(driver?.emergencyContact || "").trim(),
+    emergencyPhone: String(driver?.emergencyPhone || "").trim(),
+    bloodType: String(driver?.bloodType || "").trim(),
+    license: String(driver?.license || "").trim(),
+    licenseCategory: String(driver?.licenseCategory || "").trim(),
+    licenseExpiry: normalizePortalDateYmd(driver?.licenseExpiry),
+    occupationalExamDate: occ,
+    occupationalExamExpiry: occEx,
+    instruvialExamDate: intra,
+    instruvialExamExpiry: intraEx,
+    psychoTestDate: occ,
+    psychoTestExpiry: occEx,
+    defensiveCourse: String(driver?.defensiveCourse || "").trim(),
+    defensiveCourseExpiry: normalizePortalDateYmd(driver?.defensiveCourseExpiry),
+    eps: String(driver?.eps || "").trim(),
+    arl: String(driver?.arl || "").trim(),
+    comparendos: parseNum(driver?.comparendos ?? 0),
+    experienceYears: parseNum(driver?.experienceYears ?? 0),
+    avatarUrl: avatar
+  };
+}
+
+/** Gestión humana → Conductores: copia la ficha operativa del empleado; conserva disponibilidad y ocupación. */
+async function syncDriverFromEmployee(employee, extraDriverData = {}) {
+  if (!employee || String(employee.workerRole || "") !== "conductor") {
+    return { ok: true, skipped: true };
+  }
+  const drivers = read(KEYS.drivers, []);
+  const doc = String(employee.idDoc || "").trim();
+  const existing = drivers.find((d) => normalizeDocumentDigits(d.idDoc) === normalizeDocumentDigits(doc));
+  const driverPatch = buildDriverPatchFromEmployee(employee, extraDriverData);
+  if (!driverPatch.license || !driverPatch.licenseExpiry) {
     return { ok: false, message: userMessage("payrollDriverLicenseSync") };
   }
-  if (new Date(nextDriver.licenseExpiry).getTime() <= Date.now()) {
+  if (new Date(driverPatch.licenseExpiry).getTime() <= Date.now()) {
     return { ok: false, message: userMessage("payrollLicenseExpired") };
   }
   try {
     if (existing) {
-      const nextDrivers = drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d));
+      const nextDrivers = drivers.map((d) =>
+        d.id === existing.id
+          ? stampUpdatedRecord({
+              ...d,
+              ...driverPatch,
+              id: existing.id,
+              available: d.available !== false,
+              autoBusy: d.autoBusy,
+              hiredAt: d.hiredAt || employee.hiredAt || employee.startDate || nowIso()
+            })
+          : d
+      );
       await writeAwaitServer(KEYS.drivers, nextDrivers, { notifyOnFailure: false });
-      return { ok: true };
+      return { ok: true, driverId: existing.id };
     }
-    await writeAwaitServer(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers], { notifyOnFailure: false });
-    return { ok: true };
+    const newId = newUuidV4();
+    await writeAwaitServer(
+      KEYS.drivers,
+      [
+        stampCreatedRecord({
+          id: newId,
+          ...driverPatch,
+          available: true,
+          hiredAt: employee.hiredAt || employee.startDate || nowIso()
+        }),
+        ...drivers
+      ],
+      { notifyOnFailure: false }
+    );
+    return { ok: true, driverId: newId };
   } catch (err) {
     return {
       ok: false,
       message: String(err?.message || "No fue posible sincronizar la ficha de conductor en el servidor.")
+    };
+  }
+}
+
+function normalizeSstComplianceRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const due = normalizePortalDateYmd(row.dueDate || row.expiryDate);
+  return { ...row, dueDate: due, expiryDate: due };
+}
+
+function patchApprovalRowForEmployee(approval, employee, empId, empName) {
+  if (!approval || typeof approval !== "object") return approval;
+  const payload =
+    approval.payload && typeof approval.payload === "object" ? { ...approval.payload } : null;
+  if (!payload) return approval;
+  let changed = false;
+  let next = approval;
+  const docMatch =
+    normalizeDocumentDigits(payload.idDoc) &&
+    normalizeDocumentDigits(payload.idDoc) === normalizeDocumentDigits(employee?.idDoc);
+
+  if (approval.type === "register_hr_absence" && String(payload.employeeId || "") === empId) {
+    payload.employeeName = empName;
+    changed = true;
+    next = {
+      ...next,
+      title: `Registro de ausencia de ${empName}`,
+      payload
+    };
+  } else if (approval.type === "mark_payroll_paid") {
+    const run = read(KEYS.payrollRuns, []).find((row) => String(row.id) === String(payload.payrollRunId || ""));
+    if (run && String(run.employeeId || "") === empId) {
+      payload.employeeName = empName;
+      changed = true;
+      const month = String(payload.month || run.month || "").trim();
+      next = {
+        ...next,
+        title: month ? `Aprobar pago de nomina ${empName} (${month})` : `Aprobar pago de nomina ${empName}`,
+        payload
+      };
+    }
+  } else if (approval.type === "create_employee" && (String(payload.employeeId || "") === empId || docMatch)) {
+    payload.name = empName;
+    payload.phone = employee.phone;
+    payload.position = employee.position;
+    payload.idDoc = employee.idDoc;
+    changed = true;
+    next = { ...next, title: `Creacion de empleado ${empName}`, payload };
+  }
+
+  return changed ? next : approval;
+}
+
+/**
+ * Tras guardar en Gestión humana: actualiza conductor (si aplica) y copias desnormalizadas
+ * (contratos, liquidaciones, ausencias, SST, autorizaciones, viajes, combustible).
+ */
+async function propagateEmployeeChanges(employee, extraDriverData = {}) {
+  if (!employee?.id) return { ok: true, skipped: true };
+  const empId = String(employee.id);
+  const empName = String(employee.name || "").trim();
+  const empDoc = String(employee.idDoc || "").trim();
+  const company = read(KEYS.companies, []).find((row) => String(row.id) === String(employee.companyId || ""));
+  const companyName = String(company?.name || "").trim();
+
+  let driverResult = { ok: true, skipped: true };
+  if (String(employee.workerRole || "") === "conductor") {
+    driverResult = await syncDriverFromEmployee(employee, extraDriverData);
+    if (!driverResult.ok) return driverResult;
+  }
+
+  const contractFields = {
+    employeeName: empName,
+    employeeIdDoc: empDoc,
+    idDocSnapshot: empDoc,
+    position: String(employee.position || "").trim(),
+    positionName: String(employee.position || "").trim(),
+    positionId: String(employee.positionId || "").trim(),
+    companyId: String(employee.companyId || "").trim(),
+    companyName,
+    salary: employee.baseSalary,
+    transportAllowance: readEmployeeTransportAllowanceCop(employee),
+    contractType: employee.contractType,
+    workerRole: employee.workerRole,
+    eps: String(employee.eps || "").trim(),
+    pensionFund: String(employee.pensionFund || "").trim(),
+    arl: String(employee.arl || "").trim(),
+    schedule: String(employee.workSchedule || "").trim()
+  };
+
+  const contracts = read(KEYS.contracts, []);
+  const empDocDigits = normalizeDocumentDigits(empDoc);
+  let contractsChanged = false;
+  const nextContracts = contracts.map((row) => {
+    const linkedById = String(row.employeeId || "") === empId;
+    const linkedByDoc =
+      !linkedById &&
+      empDocDigits &&
+      normalizeDocumentDigits(row.idDocSnapshot || row.employeeIdDoc) === empDocDigits;
+    if (!linkedById && !linkedByDoc) return row;
+    contractsChanged = true;
+    return stampUpdatedRecord({
+      ...row,
+      ...contractFields,
+      id: row.id,
+      employeeId: row.employeeId || empId
+    });
+  });
+
+  const payrollRuns = read(KEYS.payrollRuns, []);
+  let runsChanged = false;
+  const nextRuns = payrollRuns.map((row) => {
+    if (String(row.employeeId || "") !== empId) return row;
+    runsChanged = true;
+    return stampUpdatedRecord({ ...row, employeeName: empName, id: row.id });
+  });
+
+  const absences = read(KEYS.hrAbsences, []);
+  let absencesChanged = false;
+  const nextAbsences = absences.map((row) => {
+    if (String(row.employeeId || "") !== empId) return row;
+    absencesChanged = true;
+    return stampUpdatedRecord({ ...row, employeeName: empName, id: row.id });
+  });
+
+  const sstRecords = read(KEYS.sstCompliance, []);
+  let sstChanged = false;
+  const nextSst = sstRecords.map((row) => {
+    if (String(row.employeeId || "") !== empId) return normalizeSstComplianceRow(row);
+    sstChanged = true;
+    return normalizeSstComplianceRow(
+      stampUpdatedRecord({ ...row, employeeName: empName, id: row.id })
+    );
+  });
+
+  const approvals = read(KEYS.approvals, []);
+  let approvalsChanged = false;
+  const nextApprovals = approvals.map((row) => {
+    const patched = patchApprovalRowForEmployee(row, employee, empId, empName);
+    if (patched !== row) approvalsChanged = true;
+    return patched;
+  });
+
+  const drivers = read(KEYS.drivers, []);
+  const driver =
+    drivers.find((row) => String(row.id) === String(driverResult.driverId || "")) ||
+    drivers.find((row) => normalizeDocumentDigits(row.idDoc) === normalizeDocumentDigits(empDoc));
+  const driverId = driver ? String(driver.id) : "";
+  const driverPhone = normalizePortalPhoneForStorage(String(driver?.phone || employee.phone || ""));
+
+  let tripsChanged = false;
+  let nextRequests = reqRead();
+  if (driverId || empName) {
+    const nameLower = empName.toLowerCase();
+    nextRequests = nextRequests.map((req) => {
+      if (!req.trip) return req;
+      const tripDriverId = String(req.trip.driverId || "");
+      const matchById = driverId && tripDriverId === driverId;
+      const matchByName =
+        !tripDriverId && empName && String(req.trip.driverName || "").trim().toLowerCase() === nameLower;
+      if (!matchById && !matchByName) return req;
+      tripsChanged = true;
+      return {
+        ...req,
+        trip: stampUpdatedRecord({
+          ...req.trip,
+          driverName: empName || req.trip.driverName,
+          driverPhone: driverPhone || req.trip.driverPhone
+        })
+      };
+    });
+  }
+
+  const fuelLogs = read(KEYS.fuelLogs, []);
+  let fuelChanged = false;
+  const nextFuel = fuelLogs.map((row) => {
+    if (!driverId || String(row.driverId || "") !== driverId) return row;
+    fuelChanged = true;
+    return stampUpdatedRecord({
+      ...row,
+      driverName: empName,
+      driverPhone: driverPhone,
+      id: row.id
+    });
+  });
+
+  try {
+    if (contractsChanged) await writeAwaitServer(KEYS.contracts, nextContracts, { notifyOnFailure: false });
+    if (runsChanged) await writeAwaitServer(KEYS.payrollRuns, nextRuns, { notifyOnFailure: false });
+    if (absencesChanged) await writeAwaitServer(KEYS.hrAbsences, nextAbsences, { notifyOnFailure: false });
+    if (sstChanged) await writeAwaitServer(KEYS.sstCompliance, nextSst, { notifyOnFailure: false });
+    if (approvalsChanged) await writeAwaitServer(KEYS.approvals, nextApprovals, { notifyOnFailure: false });
+    if (tripsChanged) await reqWriteAwait(nextRequests);
+    if (fuelChanged) await writeFuelLogsAwait(nextFuel);
+    if (tripsChanged) recalculateResourceAvailability();
+  } catch (err) {
+    return {
+      ok: false,
+      message: String(err?.message || "Empleado guardado, pero falló la actualización en módulos vinculados.")
+    };
+  }
+  return { ok: true, driver: driverResult };
+}
+
+/** Conductores → Gestión humana: solo datos básicos; no toca nómina ni contrato. */
+async function syncEmployeeFromDriver(employee, driverPatch) {
+  if (!employee?.id || !driverPatch) return { ok: true, skipped: true };
+  const basicPatch = buildEmployeeBasicPatchFromDriver(driverPatch);
+  const merged = stampUpdatedRecord({
+    ...employee,
+    ...basicPatch,
+    id: employee.id,
+    workerRole: employee.workerRole,
+    companyId: employee.companyId,
+    idDoc: employee.idDoc,
+    documentType: employee.documentType
+  });
+  try {
+    const employees = read(KEYS.payrollEmployees, []);
+    const next = employees.map((row) => (String(row.id) === String(employee.id) ? merged : row));
+    await writeAwaitServer(KEYS.payrollEmployees, next, { notifyOnFailure: false });
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      message: String(err?.message || userMessage("driverUpdatedHrSyncFailed"))
     };
   }
 }
@@ -21378,12 +21895,18 @@ function purgeDuplicateContracts() {
   }
 }
 
+function normalizeDocumentDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
 async function deleteEmployeesCascade(employeeIds = []) {
   const ids = [...new Set(employeeIds.map((id) => String(id || "").trim()).filter(Boolean))];
   if (!ids.length) return 0;
   const employees = read(KEYS.payrollEmployees, []);
   const targets = employees.filter((employee) => ids.includes(String(employee.id)));
-  const targetDocSet = new Set(targets.map((employee) => String(employee.idDoc || "").trim()).filter(Boolean));
+  const targetDocDigitsSet = new Set(
+    targets.map((employee) => normalizeDocumentDigits(employee.idDoc)).filter(Boolean)
+  );
 
   try {
     await writeAwaitServer(
@@ -21399,20 +21922,23 @@ async function deleteEmployeesCascade(employeeIds = []) {
       KEYS.contracts,
       read(KEYS.contracts, []).filter((contract) => {
         const employeeId = String(contract.employeeId || "");
-        const doc = String(contract.employeeIdDoc || "").trim();
+        const docDigits = normalizeDocumentDigits(contract.employeeIdDoc);
         if (ids.includes(employeeId)) return false;
-        if (doc && targetDocSet.has(doc)) return false;
+        if (docDigits && targetDocDigitsSet.has(docDigits)) return false;
         return true;
       })
     );
     await writeAwaitServer(
       KEYS.drivers,
       read(KEYS.drivers, []).filter((driver) => {
-        const doc = String(driver.idDoc || "").trim();
-        return !targetDocSet.has(doc);
+        const docDigits = normalizeDocumentDigits(driver.idDoc);
+        return !docDigits || !targetDocDigitsSet.has(docDigits);
       })
     );
-  } catch (_e) {}
+  } catch (err) {
+    devWarn("deleteEmployeesCascade local sync", err);
+    throw err;
+  }
   return targets.length;
 }
 
@@ -21656,6 +22182,9 @@ function payrollHtml() {
     .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`)
     .join("");
   const allRuns = readArray(KEYS.payrollRuns);
+  const nominaRunsAll = filterPayrollNominaRuns(allRuns);
+  const driverPaymentRunsAll = filterDriverTripPaymentRuns(allRuns);
+  const conductorEmployees = listConductorServiceEmployees(employees);
   const absences = readArray(KEYS.hrAbsences);
   const filters = state.payrollFilters || defaultPayrollFilters();
   const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
@@ -21669,10 +22198,19 @@ function payrollHtml() {
   const filterFrequency = String(filters.frequency || "all");
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const runs = filterPayrollRunsByUiState(allRuns, filters);
+  const runs = filterPayrollRunsByUiState(nominaRunsAll, filters, "nomina");
   const sortedRuns = sortPayrollRunsByUiState(runs, runSort);
-  const pending = allRuns.filter((r) => !r.paid).length;
-  const totalPayrollMonth = allRuns
+  const sortedDriverRuns = sortPayrollRunsByUiState(
+    filterPayrollRunsByUiState(driverPaymentRunsAll, filters, "driver"),
+    runSort
+  );
+  const pending = nominaRunsAll.filter((r) => !r.paid).length;
+  const pendingDriverPayments = driverPaymentRunsAll.filter((r) => !r.paid).length;
+  const pendingDriverCop = driverPaymentRunsAll.filter((r) => !r.paid).reduce((a, r) => a + parseNum(r.net), 0);
+  const totalPayrollMonth = nominaRunsAll
+    .filter((r) => payrollPeriodCalendarYm(r.month) === currentYm)
+    .reduce((acc, run) => acc + parseNum(run.net), 0);
+  const totalDriverMonth = driverPaymentRunsAll
     .filter((r) => payrollPeriodCalendarYm(r.month) === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
@@ -21704,7 +22242,8 @@ function payrollHtml() {
         if (pk === "terminacion") return '<span class="status status-viaje_asignado">Terminación</span>';
         const bits = [escapeHtml(payrollRunTypeLabel(r).replace(/^Nómina\s+/i, ""))];
         const orig = String(r.liquidacionOrigin || r.origenLiquidacion || "manual").toLowerCase();
-        if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor según periodicidad de pago">Automática</span>');
+        if (orig === "masiva") bits.push('<span class="status status-pendiente" title="Generada por liquidación masiva (RRHH)">Masiva</span>');
+        else if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor según periodicidad de pago">Automática</span>');
         if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
         if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
         if (String(r.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(r, read(KEYS.hrAbsences, []))) {
@@ -21856,9 +22395,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
         <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel" id="emp-arl-risk-level">${arlRiskOpts}</select></label>
         <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
-          <option value="oficina">Contrato trabajo personal oficina</option>
-          <option value="fijo">Contrato personal término fijo</option>
-          <option value="prestacion">Contrato prestación de servicios conductores</option>
+          ${renderContractTemplateSelectOptions("", false)}
         </select></label>
       </div>
     </fieldset>
@@ -21930,7 +22467,7 @@ function payrollHtml() {
   const formPayBulk = `<section class="payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
       <div class="payroll-bulk-panel__intro">
         <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva</h4>
-        <p class="muted payroll-bulk-lead">Borradores para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.).</p>
+        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). Quedan pendientes de pago para que pueda programar el desembolso con al menos dos días de anticipación.</p>
       </div>
       <div class="payroll-bulk-fields">
         <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
@@ -21943,14 +22480,20 @@ function payrollHtml() {
         </label>
       </div>
       <div class="payroll-bulk-actions">
-        <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar borradores</span></button>
+        <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
       </div>
     </section>`;
   const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"} · ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees
+          .filter((e) => employeeReceivesPayrollNomina(e))
+          .map(
+            (e) =>
+              `<option value="${e.id}">${e.name} · Empleado · ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`
+          )
+          .join("")}</select></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
         <p class="full muted hidden" id="payroll-freq-hint" style="font-size:0.82rem;margin:0"></p>
         <label>${fieldLabel(IC.calendar, "Mes calendario")}<input type="month" name="month" required /></label>
@@ -21996,19 +22539,43 @@ function payrollHtml() {
           <input type="number" name="interesesCesantiasCopMonthly" min="0" step="100" disabled /></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-cyan full">
-      <legend>${IC.dollar} Pagos y deducciones variables</legend>
+    <fieldset id="payroll-variable-fieldset" class="form-section form-section-cyan full">
+      <legend id="payroll-variable-legend">${IC.dollar} Pagos y deducciones variables</legend>
+      <p class="full muted hidden" id="payroll-conductor-trip-hint" style="font-size:0.82rem;line-height:1.45;margin:0"></p>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
         <label>${fieldLabel(IC.dollar, "Reembolso combustible manual (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
-        <label>${fieldLabel(IC.clock, "Horas extras")}<input type="number" name="extras" value="0" min="0" /></label>
-        <label>${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" title="Se rellena con el subsidio registrado en la ficha del empleado; puede ajustarlo si aplica otro valor en el periodo." /></label>
-        <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
+        <label data-payroll-nomina-only="1">${fieldLabel(IC.clock, "Horas extras")}<input type="number" name="extras" value="0" min="0" /></label>
+        <label data-payroll-nomina-only="1">${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" title="Se rellena con el subsidio registrado en la ficha del empleado; puede ajustarlo si aplica otro valor en el periodo." /></label>
+        <label data-payroll-nomina-only="1">${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
       </div>
     </fieldset>
-    ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary" type="submit">${IC.dollar} Generar liquidación</button>`)}
+    ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary" type="submit" id="payroll-submit-btn">${IC.dollar} Generar liquidación</button>`)}
   </form>`;
-  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}`;
+  const conductorTripPayOpts = conductorEmployees
+    .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(String(e.idDoc || ""))}</option>`)
+    .join("");
+  const formDriverTripPay = `<form id="form-driver-trip-payment" class="p-form p-form-colored hr-form-flow hr-form-compact">
+    <fieldset class="form-section form-section-cyan full">
+      <legend>${IC.truck} Prestación de servicios — pago por viajes</legend>
+      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
+        Liquida viáticos por viajes <strong>interdepartamentales</strong> completados en el mes y reembolsos de combustible registrados a nombre del conductor.
+        No genera salario ni aportes de nómina. Los datos se guardan en <code>liquidaciones_nomina</code> con tipo <strong>prestacion_viajes</strong>.
+      </p>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.user, "Conductor")}<select name="employeeId" required><option value="">Seleccione conductor</option>${conductorTripPayOpts}</select></label>
+        <label>${fieldLabel(IC.calendar, "Mes de servicio")}<input type="month" name="month" required /></label>
+        <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Reembolso combustible manual (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
+        <p class="full muted" style="margin:0;font-size:0.82rem">Tarifa interdepartamental vigente: <strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong> por viaje (tabla <code>reglas_viatico_interdepartamental</code>).</p>
+      </div>
+    </fieldset>
+    ${renderManagedCreateFormActions("create-driver-trip-payment", `<button class="btn btn-primary" type="submit">${IC.truck} Liquidar viajes del mes</button>`)}
+  </form>`;
+  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees
+    .filter((e) => employeeReceivesPayrollNomina(e))
+    .map((e) => `<option value="${e.id}">${e.name}</option>`)
+    .join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.activity} Liquidación contractual (terminación)</legend>
@@ -22144,6 +22711,11 @@ function payrollHtml() {
         <option value="catorcenal" ${filterFrequency === "catorcenal" ? "selected" : ""}>Solo catorcenal</option>
         <option value="semanal" ${filterFrequency === "semanal" ? "selected" : ""}>Solo semanal</option>
         <option value="terminacion" ${filterFrequency === "terminacion" ? "selected" : ""}>Solo terminación</option>
+        ${
+          payrollDataSection === "driverPayments"
+            ? `<option value="prestacion_viajes" ${filterFrequency === "prestacion_viajes" ? "selected" : ""}>Solo pago por viajes</option>`
+            : ""
+        }
       </select></label>
       <label class="payroll-filter-field">${fieldLabel(IC.user, "Empleado")}<select name="employee">
         <option value="">Todos</option>${employeeOpts}
@@ -22159,6 +22731,8 @@ function payrollHtml() {
   const payrollModuleHead = renderPayrollModuleHead({
     employees: employees.length,
     pending,
+    pendingDriverPayments,
+    pendingDriverCop,
     pendingAbsenceApprovals,
     totalPayrollMonth,
     currentYm,
@@ -22171,18 +22745,20 @@ function payrollHtml() {
     valueAttr: "section",
     tabs: [
       { id: "employee", label: "Empleado" },
-      { id: "payroll", label: "Nómina" },
+      { id: "payroll", label: "Nómina laboral" },
+      { id: "driverPay", label: "Pagos conductores" },
       { id: "settlement", label: "Terminación" },
       { id: "absence", label: "Ausencia" }
     ]
   });
   const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${createCollapsibleProCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll", "Abrir formulario")}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Calcular nómina", "Individual o masiva según periodicidad de pago", `${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Nómina laboral", "Empleados con relación laboral — salario y aportes", `${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay"${payrollOperateSection === "driverPay" ? "" : " hidden"}>${createCollapsibleProCard("create-driver-trip-payment", "truck", "Liquidar viajes del conductor", "Prestación de servicios — viáticos y combustible desde flota", formDriverTripPay, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
   const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
   const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Vacaciones, incapacidades, licencias y permisos laborales Colombia", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       ${payrollOperateNav}
-      <div class="auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${settlementOperatePane}${absenceOperatePane}</div>
+      <div class="auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${driverPayOperatePane}${settlementOperatePane}${absenceOperatePane}</div>
     </section>`;
   const payrollQuickActive =
     filterStatus === "pending"
@@ -22300,18 +22876,64 @@ function payrollHtml() {
         "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll"
       )}
     </div>`;
+  const driverRunRows = sortedDriverRuns
+    .map((r) => {
+      const nv = r.noveltiesDetail?.tripSummary || {};
+      const state = r.paid ? "paid" : "pending";
+      const monthLabel = formatPayrollPeriodLabel(r.month);
+      return `<tr data-payroll-state="${state}">
+        <td><strong>${escapeHtml(monthLabel)}</strong></td>
+        <td>${escapeHtml(String(r.employeeName || "—"))}</td>
+        <td class="num">${parseNum(r.tripCount ?? nv.tripCount ?? 0)}</td>
+        <td class="num">${parseNum(r.interDepartmentTrips ?? nv.interDepartmentTrips ?? 0)}</td>
+        <td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td>
+        <td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td>
+        <td><strong>$${parseNum(r.net).toLocaleString("es-CO")}</strong></td>
+        <td>${r.paid ? '<span class="status status-viaje_asignado">Pagado</span>' : '<span class="status status-pendiente">Pendiente</span>'}</td>
+        <td><div class="toolbar">
+          <button class="btn btn-sm btn-action" data-action="payslip" data-id="${escapeAttr(String(r.id))}">${IC.printer} Comprobante</button>
+          ${!r.paid ? `<button class="btn btn-sm btn-outline" data-action="recalc-driver-trip" data-employee-id="${escapeAttr(String(r.employeeId))}" data-month="${escapeAttr(String(r.month || "").slice(0, 7))}">${IC.activity} Recalcular</button>` : ""}
+          ${!r.paid ? `<button class="btn btn-sm btn-approve" data-action="mark-payroll-paid" data-id="${escapeAttr(String(r.id))}">${IC.check} Marcar pagado</button>` : ""}
+          ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(r.id))}">${IC.trash}</button>` : ""}
+        </div></td>
+      </tr>`;
+    })
+    .join("");
+  const driverPaymentsSummary = `<dl class="payroll-driver-kpi" aria-label="Resumen pagos conductores">
+      <div><dt>Pendientes de pago</dt><dd><strong>${pendingDriverPayments}</strong> · $${pendingDriverCop.toLocaleString("es-CO")}</dd></div>
+      <div><dt>Neto conductores (${escapeHtml(currentYm)})</dt><dd><strong>$${totalDriverMonth.toLocaleString("es-CO")}</strong></dd></div>
+      <div><dt>Fichas conductor</dt><dd><strong>${conductorEmployees.length}</strong></dd></div>
+      <div><dt>Tarifa interdepartamental</dt><dd><strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong></dd></div>
+    </dl>`;
+  const driverPaymentsCards = sortedDriverRuns.length
+    ? `<div class="payroll-run-cards-grid">${sortedDriverRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
+    : emptyState("Sin liquidaciones de viajes. Vaya a Registrar → Pagos conductores para liquidar el mes.");
+  const driverPaymentsPane = `<div class="payroll-data-pane${payrollDataSection === "driverPayments" ? "" : " hidden"}" data-payroll-section="driverPayments">
+      ${pcardWrapPro(
+        "truck",
+        "Cuentas por pagar — conductores",
+        "Prestación de servicios · liquidaciones_nomina (prestacion_viajes)",
+        `${driverPaymentsSummary}${driverPaymentsCards}${
+          driverRunRows
+            ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Periodo</th><th>Conductor</th><th>Viajes</th><th>Interdep.</th><th>Viáticos</th><th>Combustible</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${driverRunRows}</tbody></table></div></details>`
+            : ""
+        }`,
+        "admin-users-data-card"
+      )}
+    </div>`;
   const payrollDataNav = renderPayrollDataSectionNav(
     payrollDataSection,
     {
       employees: employees.length,
       absences: absences.length,
-      runs: runs.length,
+      runs: nominaRunsAll.length,
+      driverPayments: driverPaymentRunsAll.length,
       legal: legalHistory.length || 1
     },
     { minimal: true }
   );
   const payrollRunFilters =
-    payrollDataSection === "runs"
+    payrollDataSection === "runs" || payrollDataSection === "driverPayments"
       ? `<div class="payroll-data-toolbar__filters">${payrollQuickBar}${filtersHtml}</div>`
       : "";
   const employeesPane = `<div class="payroll-data-pane${payrollDataSection === "employees" ? "" : " hidden"}" data-payroll-section="employees">
@@ -22322,7 +22944,7 @@ function payrollHtml() {
     </div>`;
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
       <div class="payroll-runs-toolbar">
-        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${allRuns.length} liquidación${runs.length === 1 ? "" : "es"}</p>
+        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
         <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
       </div>
       ${runsPaneBody}
@@ -22332,7 +22954,7 @@ function payrollHtml() {
         ${payrollDataNav}
         ${payrollRunFilters}
       </div>
-      <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}${legalPane}</div>
+      <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}${driverPaymentsPane}${legalPane}</div>
     </section>`;
   const payrollTabsNav = renderHrWorkspaceTabs({
     module: "payroll",
@@ -23004,12 +23626,13 @@ function hiringHtml() {
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.position || "-"} · CC ${e.idDoc || "-"}</option>`).join("")}</select></label>
         <label>${fieldLabel(IC.file, "Plantilla Word")}<select name="contractTemplateKind">
-          <option value="">Automatica segun tipo de contrato y rol</option>
-          <option value="oficina">CONTRATO_TRABAJO_PERSONAL_OFICINA.docx</option>
-          <option value="fijo">CONTRATO_PERSONAL_TERMINO_FIJO.docx</option>
-          <option value="prestacion">CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx</option>
+          ${renderContractTemplateSelectOptions("", true)}
         </select></label>
         <label>${fieldLabel(IC.calendar, "Fecha de firma (constancia)")}<input type="date" name="signDate" required value="${signDateDefault}" /></label>
+        <div class="full" data-contract-merge-preview style="grid-column:1/-1;margin-top:0.25rem">
+          <p class="muted" style="margin:0 0 0.35rem;font-size:0.82rem">${escapeHtml("Vista previa: solo se reemplazan marcadores del empleado en la plantilla Word.")}</p>
+          ${renderContractMergePreviewHtml(null)}
+        </div>
       </div>
     </fieldset>
       </div>
@@ -24584,14 +25207,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
     (c) =>
       `<option value="${escapeAttr(c)}" ${String(e.contractType || "").trim() === c ? "selected" : ""}>${escapeHtml(c)}</option>`
   ).join("");
-  const tmplSel = [`oficina`, `fijo`, `prestacion`]
-    .map((k) => {
-      const lab =
-        k === "oficina" ? "Contrato trabajo personal oficina" : k === "fijo" ? "Contrato personal término fijo" : "Contrato prestación servicios conductores";
-      const cur = String(e.contractTemplateKind || "").trim().toLowerCase();
-      return `<option value="${escapeAttr(k)}" ${cur === k ? "selected" : ""}>${escapeHtml(lab)}</option>`;
-    })
-    .join("");
+  const tmplSel = renderContractTemplateSelectOptions(String(e.contractTemplateKind || "").trim().toLowerCase(), false);
   const payFreqSel = selectOptionsFromCatalog(CO_CATALOGS.payFrequency, e.payFrequency || "Mensual", "Seleccione...");
   const companyOptsInner = [`<option value="">${escapeHtml("Seleccione")}</option>`]
     .concat(
@@ -24761,6 +25377,94 @@ function buildPayrollEmployeeEditModalFields(emp) {
   ];
 }
 
+function contractTemplateFileName(kind) {
+  const k = String(kind || "").trim().toLowerCase();
+  return window.RecruitmentDomain?.TEMPLATE_FILE_BY_KIND?.[k] || "";
+}
+
+function renderContractTemplateSelectOptions(selectedKind = "", includeAuto = false) {
+  const kinds = ["oficina", "fijo", "prestacion"];
+  const cur = String(selectedKind || "").trim().toLowerCase();
+  let html = includeAuto
+    ? `<option value="">${escapeHtml("Automatica segun tipo de contrato y rol")}</option>`
+    : "";
+  for (const k of kinds) {
+    const label = contractTemplateFileName(k) || k;
+    html += `<option value="${escapeAttr(k)}"${cur === k ? " selected" : ""}>${escapeHtml(label)}</option>`;
+  }
+  return html;
+}
+
+function renderContractMergePreviewHtml(employee, opts = {}) {
+  if (!employee) {
+    return `<p class="muted" style="margin:0">${escapeHtml("Seleccione un empleado para ver los datos que se insertaran en el Word (solo marcadores de la plataforma).")}</p>`;
+  }
+  const missing = validateEmployeeContractDocFields(employee);
+  const payload = buildEmployeeContractDocxPayload(employee, opts);
+  const file = contractTemplateFileName(payload.contractTemplateKind) || payload.contractTemplateKind;
+  const rows = [
+    ["Archivo", file],
+    ["Nombre", payload.nombre_empleado],
+    ["Documento", payload.cedula_empleado],
+    ["Ciudad / municipio", payload.ciudad_empleado],
+    ["Cargo", payload.cargo_empleado],
+    ["Salario", payload.salario ? `$${Math.round(Number(payload.salario)).toLocaleString("es-CO")}` : ""],
+    ["Salario en letras", payload.salario_letras],
+    ["Duracion", payload.duracion_contrato],
+    ["Banco", payload.banco_cuenta_bancaria],
+    ["Cuenta", payload.cuenta_bancaria],
+    ["Fecha firma (constancia)", opts.signDate || ""]
+  ];
+  const missHtml = missing.length
+    ? `<p class="muted" style="margin:0 0 0.5rem;color:var(--danger,#c0392b)">${escapeHtml(`Faltan en la ficha: ${missing.join(", ")}`)}</p>`
+    : "";
+  const body = rows
+    .filter(([, v]) => String(v || "").trim())
+    .map(
+      ([k, v]) =>
+        `<tr><th scope="row" style="text-align:left;padding:0.2rem 0.75rem 0.2rem 0;white-space:nowrap">${escapeHtml(k)}</th><td style="padding:0.2rem 0">${escapeHtml(String(v))}</td></tr>`
+    )
+    .join("");
+  return `${missHtml}<table class="contract-merge-preview-table" style="width:100%;font-size:0.88rem;border-collapse:collapse"><tbody>${body}</tbody></table>`;
+}
+
+function syncContractFormFromSelection(form) {
+  if (!form) return;
+  const employeeSelect = form.querySelector("select[name='employeeId']");
+  const templateSelect = form.querySelector("select[name='contractTemplateKind']");
+  const signDateEl = form.querySelector("input[name='signDate']");
+  const previewEl = form.querySelector("[data-contract-merge-preview]");
+  const employee = read(KEYS.payrollEmployees, []).find(
+    (item) => String(item.id) === String(employeeSelect?.value || "")
+  );
+  if (!employee) {
+    if (previewEl) previewEl.innerHTML = renderContractMergePreviewHtml(null);
+    return;
+  }
+  const empTpl = String(employee.contractTemplateKind || "").trim().toLowerCase();
+  if (templateSelect) {
+    if (empTpl && [...templateSelect.options].some((o) => String(o.value) === empTpl)) {
+      templateSelect.value = empTpl;
+    } else if (!String(templateSelect.value || "").trim() && window.RecruitmentDomain?.inferTemplateKind) {
+      const wr =
+        employee.workerRole ||
+        (String(employee.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
+      templateSelect.value = window.RecruitmentDomain.inferTemplateKind(
+        employee.contractType || "Termino indefinido",
+        wr
+      );
+    }
+  }
+  const signDate = String(signDateEl?.value || colombiaTodayIsoDate()).trim();
+  const kind = String(templateSelect?.value || "").trim();
+  if (previewEl) {
+    previewEl.innerHTML = renderContractMergePreviewHtml(employee, {
+      contractTemplateKind: kind,
+      signDate
+    });
+  }
+}
+
 function buildEmployeeContractDocxPayload(employee, opts = {}) {
   let kind = String(opts.contractTemplateKind || "").trim().toLowerCase();
   const signDate = String(opts.signDate || employee.startDate || colombiaTodayIsoDate()).trim();
@@ -24919,9 +25623,22 @@ const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
 ]);
 
 function portalNonAdminRestrictedCaptureClick(event) {
-  if (isAdminActor()) return;
   const trigger = event.target.closest("[data-action]");
   const action = String(trigger?.dataset?.action || "");
+  if (FLEET_DRIVER_EDIT_ACTIONS.has(action)) {
+    if (canEditFleetDriverAsAdmin()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    notify(userMessage("driversManageForbidden"), "error");
+    return;
+  }
+  if (action === "delete-driver") {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    notify(userMessage("driverDeleteUseHr"), "error");
+    return;
+  }
+  if (isAdminActor()) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -24929,9 +25646,16 @@ function portalNonAdminRestrictedCaptureClick(event) {
 }
 
 function portalNonAdminRestrictedCaptureChange(event) {
-  if (isAdminActor()) return;
   const trigger = event.target.closest("[data-action]");
   const action = String(trigger?.dataset?.action || "");
+  if (FLEET_DRIVER_EDIT_ACTIONS.has(action)) {
+    if (canEditFleetDriverAsAdmin()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    notify(userMessage("driversManageForbidden"), "error");
+    return;
+  }
+  if (isAdminActor()) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -24953,11 +25677,21 @@ function abortIfNotAdmin(reason = "adminOnlyModule") {
 function bindDynamicEvents() {
   const actor = currentUser();
   const isAdmin = actor?.role === ROLES.ADMIN;
+  const fleetDriverEditor = canEditFleetDriverAsAdmin(actor);
   const restrictedActions = PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
+
+  if (!fleetDriverEditor) {
+    nodes.viewRoot
+      .querySelectorAll("[data-action='edit-driver'], [data-action='toggle-driver']")
+      .forEach((node) => {
+        if (node.matches("button")) node.classList.add("hidden");
+      });
+  }
 
   if (!isAdmin) {
     nodes.viewRoot.querySelectorAll("[data-action]").forEach((node) => {
       const action = String(node.dataset.action || "");
+      if (FLEET_DRIVER_EDIT_ACTIONS.has(action) && fleetDriverEditor) return;
       if (!restrictedActions.has(action)) return;
       if (node.matches("button")) node.classList.add("hidden");
       if (node.matches("select")) {
@@ -24991,7 +25725,13 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const panelId = String(btn.dataset.panel || "");
       if (!panelId) return;
-      const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-payroll-settlement", "create-hr-absence"];
+      const PAYROLL_CREATE_IDS = [
+    "create-employee",
+    "create-payroll",
+    "create-driver-trip-payment",
+    "create-payroll-settlement",
+    "create-hr-absence"
+  ];
       const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
       const payrollSet = new Set(PAYROLL_CREATE_IDS);
       const hiringSet = new Set(HIRING_CREATE_IDS);
@@ -28241,57 +28981,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-driver']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
-      const driverId = String(btn.dataset.id || "");
-      if (!driverId) return;
-      openConfirmModal({
-        title: "Eliminar conductor",
-        message: "Se eliminara del catalogo y se limpiara su referencia en viajes historicos.",
-        confirmText: "Eliminar conductor",
-        onConfirm: async () => {
-          try {
-            await postPortalAuthorized("/portal/admin-driver-delete", { driverId });
-          } catch (err) {
-            notify(String(err?.message || "No fue posible eliminar el conductor en el servidor."), "error");
-            return;
-          }
-          const snapshotDriver = read(KEYS.drivers, []).find((driver) => String(driver.id) === driverId);
-          const nextDrivers = read(KEYS.drivers, []).filter((driver) => String(driver.id) !== driverId);
-          try {
-            await writeAwaitServer(KEYS.drivers, nextDrivers);
-          } catch (_e) {
-            return;
-          }
-          if (snapshotDriver) {
-            appendModuleAuditLog({
-              action: "delete",
-              moduleId: "drivers",
-              moduleLabel: "Conductores",
-              entityId: String(snapshotDriver.id || ""),
-              entityLabel: String(snapshotDriver.name || "Conductor"),
-              summary: `${String(snapshotDriver.licenseCategory || "Sin categoría")} · ${String(snapshotDriver.phone || "Sin teléfono")}`
-            });
-          }
-          await reqWriteAwait(
-            reqRead().map((request) => {
-              if (!request.trip || String(request.trip.driverId || "") !== driverId) return request;
-              return {
-                ...request,
-                trip: {
-                  ...request.trip,
-                  driverId: null,
-                  driverName: "CONDUCTOR ELIMINADO",
-                  driverPhone: "-",
-                  updatedAt: nowIso()
-                }
-              };
-            })
-          );
-          recalculateResourceAvailability();
-          notify(userMessage("driverDeleted"), "success");
-          renderPortalView();
-        }
-      });
+      notify(userMessage("driverDeleteUseHr"), "error");
     });
   });
 
@@ -28612,6 +29302,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-driver']").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (abortUnlessAdminForFleetDriverEdit()) return;
       const did = String(btn.dataset.id || "").trim();
       if (!did) return;
       try {
@@ -28642,11 +29333,24 @@ function bindDynamicEvents() {
       const bloodOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))];
       const epsOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))];
       const arlOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.arl.map((item) => ({ value: item, label: item }))];
+      const linkedEmployee = findPayrollEmployeeByIdDoc(target.idDoc);
+      const hrLinkNotice = linkedEmployee
+        ? `<p class="full muted modal-field-hint" style="margin:0 0 0.5rem">
+            Vinculado a ${escapeHtml(String(linkedEmployee.name || linkedEmployee.idDoc || "empleado"))} en Gestión humana.
+            Al guardar, solo <strong>datos básicos</strong> (nombre, contacto, licencia, exámenes, EPS/ARL, foto) se copian allí.
+            Salario, contrato y baja no se modifican desde este módulo.
+          </p>`
+        : `<p class="full muted modal-field-hint" style="margin:0 0 0.5rem">
+            No se encontró empleado con el mismo documento. Registre la persona en Gestión humana con rol conductor.
+          </p>`;
       openEditModal({
         title: "Editar conductor",
         subtitle: target.name,
         submitText: "Actualizar conductor",
         fields: [
+          ...(hrLinkNotice
+            ? [{ type: "custom", id: "driver-hr-link-notice", html: hrLinkNotice }]
+            : []),
           {
             type: "custom",
             id: "driver-edit-photo-slot",
@@ -28759,7 +29463,24 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
             return false;
           }
-          notify(userMessage("driverUpdated"), "success");
+          const updatedDriver = nextDrivers.find(
+            (row) => String(row.id ?? "").trim() === String(target.id ?? "").trim()
+          );
+          const employeeForSync =
+            linkedEmployee || findPayrollEmployeeByIdDoc(updatedDriver?.idDoc || target.idDoc);
+          let hrSync = { ok: true };
+          if (employeeForSync && updatedDriver) {
+            hrSync = await syncEmployeeFromDriver(employeeForSync, updatedDriver);
+          }
+          if (portalCanRefreshFromApi()) {
+            try {
+              await applyPortalBootstrapFromApi();
+            } catch (_e) {}
+          }
+          notify(
+            hrSync.ok ? userMessage("driverUpdatedHrSynced") : userMessage("driverUpdatedHrSyncFailed"),
+            hrSync.ok ? "success" : "error"
+          );
           renderPortalView();
           return true;
         }
@@ -29182,28 +29903,34 @@ function bindDynamicEvents() {
           return;
         }
         scheduleContractRenewalNotificationCheck();
-        if (payload.workerRole === "conductor") {
-          const driverSync = await syncDriverFromEmployee(payload, {
-            license: payload.license,
-            licenseCategory: payload.licenseCategory,
-            licenseExpiry: payload.licenseExpiry
-          });
-          if (!driverSync.ok) {
-            notify(
-              driverSync.message || userMessage("employeeCreatedDriverSyncFail"),
-              "error"
-            );
-            state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
-            persistHrWorkspace("payroll", "data");
-            collapseCreatePanel("create-employee");
-            renderPortalView();
-            return;
-          }
+        const createdEmployee = all[all.length - 1];
+        const propagate = await propagateEmployeeChanges(createdEmployee, {
+          license: payload.license,
+          licenseCategory: payload.licenseCategory,
+          licenseExpiry: payload.licenseExpiry
+        });
+        if (!propagate.ok) {
+          notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
+          state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+          persistHrWorkspace("payroll", "data");
+          collapseCreatePanel("create-employee");
+          renderPortalView();
+          return;
+        }
+        if (portalCanRefreshFromApi()) {
+          try {
+            await applyPortalBootstrapFromApi();
+          } catch (_e) {}
         }
         state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
         persistHrWorkspace("payroll", "data");
         collapseCreatePanel("create-employee");
-        notify(userMessage("employeeCreatedOk"), "success");
+        notify(
+          payload.workerRole === "conductor"
+            ? userMessage("employeeCreatedDriverSynced")
+            : userMessage("employeeCreatedOk"),
+          "success"
+        );
         renderPortalView();
       };
       await saveEmployee(resolvedAvatar);
@@ -29306,10 +30033,13 @@ function bindDynamicEvents() {
         notify(String(err?.message || "No fue posible registrar la ausencia en el servidor."), "error");
         return;
       }
+      const linkResult = await refreshPayrollDraftsLinked(employee.id, data.startDate, data.endDate, {
+        notifyOnError: false
+      });
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-hr-absence");
-      notify(userMessage("absenceRecorded"), "success");
+      notify(payrollDraftLinkSuccessMessage(linkResult), "success");
       renderPortalView();
     });
   }
@@ -29496,12 +30226,21 @@ function bindDynamicEvents() {
           }
           scheduleContractRenewalNotificationCheck();
           const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
-          if (refreshed && refreshed.workerRole === "conductor") {
-            const driverSync = await syncDriverFromEmployee(refreshed);
-            if (!driverSync.ok) {
-              notify(driverSync.message || userMessage("employeeCreatedDriverSyncFail"), "error");
+          if (refreshed) {
+            const propagate = await propagateEmployeeChanges(refreshed);
+            if (!propagate.ok) {
+              notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
               return false;
             }
+            await refreshPayrollDraftsLinked(refreshed.id, null, null, { notifyOnError: false });
+            if (portalCanRefreshFromApi()) {
+              try {
+                await applyPortalBootstrapFromApi();
+              } catch (_e) {}
+            }
+            notify(userMessage("employeeUpdatedDriverSynced"), "success");
+            renderPortalView();
+            return true;
           }
           notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
@@ -29526,11 +30265,13 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el empleado en el servidor."), "error");
             return;
           }
-          const removed = await deleteEmployeesCascade([empId]);
-          notify(
-            removed ? userMessage("employeeDeletedCascade") : userMessage("employeeDeleteNotFound"),
-            removed ? "success" : "error"
-          );
+          try {
+            await deleteEmployeesCascade([empId]);
+          } catch (err) {
+            devWarn("deleteEmployeesCascade", err);
+          }
+          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+          notify(userMessage("employeeDeletedCascade"), "success");
           renderPortalView();
         }
       });
@@ -29586,8 +30327,13 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar un empleado en el servidor."), "error");
             return;
           }
-          const removed = await deleteEmployeesCascade(selectedIds);
-          notify(userMessage("employeesBulkRemoved", removed), "success");
+          try {
+            await deleteEmployeesCascade(selectedIds);
+          } catch (err) {
+            devWarn("deleteEmployeesCascade bulk", err);
+          }
+          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+          notify(userMessage("employeesBulkRemoved", selectedIds.length), "success");
           renderPortalView();
         }
       });
@@ -29619,7 +30365,8 @@ function bindDynamicEvents() {
       try {
         const result = await postPortalAuthorized("/payroll/autogenerate-period", {
           fechaReferencia,
-          force
+          force,
+          origin: "masiva"
         });
         if (result && typeof result === "object") {
           await applyPortalBootstrapFromApi();
@@ -29633,7 +30380,7 @@ function bindDynamicEvents() {
       } finally {
         payrollBulkBtn.disabled = false;
         payrollBulkBtn.removeAttribute("aria-busy");
-        if (busyLabel) busyLabel.textContent = busyOrig || "Generar borradores";
+        if (busyLabel) busyLabel.textContent = busyOrig || "Generar liquidaciones";
       }
     });
   }
@@ -29652,6 +30399,12 @@ function bindDynamicEvents() {
         notify(userMessage("payrollSelectMonth"), "error");
         return;
       }
+
+      if (employeeIsConductorServiceProvider(employee)) {
+        notify(userMessage("payrollConductorUseDriverForm"), "error");
+        return;
+      }
+
       const payFreqNorm = normalizePayrollFrequencyJs(employee.payFrequency);
       const periodKey = buildPayrollPeriodKeyFromForm(data.month, employee.payFrequency, data.payrollQuincena);
       const payrollKind = payFreqNorm === "mensual" ? "mensual" : payFreqNorm;
@@ -29835,6 +30588,91 @@ function bindDynamicEvents() {
     });
   }
 
+  const driverTripPayForm = document.getElementById("form-driver-trip-payment");
+  if (driverTripPayForm) {
+    wireFormSubmitGuard(driverTripPayForm, async () => {
+      const data = Object.fromEntries(new FormData(driverTripPayForm).entries());
+      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
+      if (!employee) {
+        notify(userMessage("contractPickEmployee"), "error");
+        return;
+      }
+      if (!employeeIsConductorServiceProvider(employee)) {
+        notify("Seleccione un colaborador configurado como conductor en prestación de servicios.", "error");
+        return;
+      }
+      const periodYm = String(data.month || "").trim().slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(periodYm)) {
+        notify(userMessage("payrollSelectMonth"), "error");
+        return;
+      }
+      if (!portalCanRefreshFromApi()) {
+        notify(
+          "Para liquidar viajes en base de datos debe iniciar sesión con el servidor (API). No se guardan solo en el navegador.",
+          "error"
+        );
+        return;
+      }
+      const travelManual = Math.max(0, parseNum(data.travelAllowanceManual));
+      const fuelManual = Math.max(0, parseNum(data.fuelReimbursementManual));
+      try {
+        const result = await refreshDriverTripPaymentLinked(employee.id, periodYm, {
+          travelAllowanceManualCop: travelManual,
+          fuelReimbursementManualCop: fuelManual,
+          bootstrap: true,
+          notifyOnError: false
+        });
+        if (!result) {
+          notify("No fue posible liquidar los viajes en el servidor.", "error");
+          return;
+        }
+        state.payrollUi = {
+          ...(state.payrollUi || { runSort: "recent" }),
+          workspace: "data",
+          dataSection: "driverPayments"
+        };
+        persistHrWorkspace("payroll", "data");
+        collapseCreatePanel("create-driver-trip-payment");
+        const gross = parseNum(result.grossCop);
+        const trips = parseNum(result.tripCount);
+        const inter = parseNum(result.interDepartmentTrips);
+        notify(userMessage("driverTripPaymentSaved", gross, trips, inter), "success");
+        renderPortalView();
+      } catch (err) {
+        notify(String(err?.message || userMessage("payrollConductorNoTrips")), "error");
+      }
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='recalc-driver-trip']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const eid = String(btn.dataset.employeeId || "").trim();
+      const ym = String(btn.dataset.month || "").trim().slice(0, 7);
+      if (!eid || !/^\d{4}-\d{2}$/.test(ym)) {
+        notify(userMessage("payrollSelectMonth"), "error");
+        return;
+      }
+      if (!portalCanRefreshFromApi()) {
+        notify("Conéctese al servidor para recalcular desde viajes y combustible en base de datos.", "error");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const result = await refreshDriverTripPaymentLinked(eid, ym, { bootstrap: true, notifyOnError: false });
+        if (!result) {
+          notify("No fue posible recalcular el pago por viajes.", "error");
+          return;
+        }
+        notify(userMessage("driverTripPaymentRecalculated", parseNum(result.grossCop)), "success");
+        renderPortalView();
+      } catch (err) {
+        notify(String(err?.message || "No fue posible recalcular."), "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
   const settlementForm = document.getElementById("form-payroll-settlement");
   if (settlementForm) {
     wireTerminationSettlementForm(settlementForm);
@@ -29843,6 +30681,13 @@ function bindDynamicEvents() {
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
         notify(userMessage("contractPickEmployee"), "error");
+        return;
+      }
+      if (employeeIsConductorServiceProvider(employee)) {
+        notify(
+          "La liquidación contractual de terminación no aplica a conductores en prestación de servicios. Liquide viajes pendientes y cierre el contrato según su abogado laboral.",
+          "error"
+        );
         return;
       }
       if (!monthRange(data.month)) {
@@ -30073,16 +30918,23 @@ function bindDynamicEvents() {
             `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
         }
 
-        const dedRowsMes =
-          `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-          `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-          `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
-          `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
-          `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
+        const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
+        const dedRowsMes = isTripPrestacion
+          ? `<tr><td style="${cL}" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
+            `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
+          : `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+            `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
+            `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
 
         payslipBodyBlocks = `
           <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante.</p>
+          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">${
+            isTripPrestacion
+              ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
+              : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante."
+          }</p>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRowsMes}</tbody></table>
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
           <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
@@ -30127,9 +30979,13 @@ function bindDynamicEvents() {
       const disclaimerPieces = [];
       if (!isTerm) {
         const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
-        if (ori === "automatica") {
+        if (ori === "masiva") {
           disclaimerPieces.push(
-            "Liquidación generada automáticamente en servidor (cron día 13, mes causación anterior Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
+            "Liquidación generada por liquidación masiva (RRHH). Validar incapacidades, vacaciones, viáticos de ruta y bases de cotización con contador antes del pago."
+          );
+        } else if (ori === "automatica") {
+          disclaimerPieces.push(
+            "Liquidación generada automáticamente en servidor (cron diario, calendario Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
           );
           const nv = run.noveltiesDetail;
           if (nv && typeof nv === "object" && Array.isArray(nv.disclaimers)) {
@@ -30274,6 +31130,7 @@ function bindDynamicEvents() {
         message: "Se eliminara este registro de ausencia del expediente digital.",
         confirmText: "Eliminar",
         onConfirm: async () => {
+          const removed = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
           try {
             await writeAwaitServer(
               KEYS.hrAbsences,
@@ -30281,6 +31138,11 @@ function bindDynamicEvents() {
             );
           } catch (_e) {
             return;
+          }
+          if (removed?.employeeId) {
+            await refreshPayrollDraftsLinked(removed.employeeId, removed.startDate, removed.endDate, {
+              notifyOnError: false
+            });
           }
           notify(userMessage("hrAbsenceDeleted"), "success");
           renderPortalView();
@@ -30930,17 +31792,11 @@ function bindDynamicEvents() {
     });
     const templateSelect = contractForm.querySelector("select[name='contractTemplateKind']");
     const employeeSelect = contractForm.querySelector("select[name='employeeId']");
-    const syncTemplateFromEmployee = () => {
-      if (!templateSelect || !employeeSelect || !window.RecruitmentDomain?.inferTemplateKind) return;
-      if (String(templateSelect.value || "").trim()) return;
-      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(employeeSelect.value || ""));
-      if (!employee) return;
-      const wr = employee.workerRole || (String(employee.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
-      templateSelect.value = window.RecruitmentDomain.inferTemplateKind(employee.contractType || "Termino indefinido", wr);
-    };
-    if (employeeSelect) {
-      employeeSelect.addEventListener("change", syncTemplateFromEmployee);
-    }
+    const signDateEl = contractForm.querySelector("input[name='signDate']");
+    const onContractFormSelectionChange = () => syncContractFormFromSelection(contractForm);
+    if (employeeSelect) employeeSelect.addEventListener("change", onContractFormSelectionChange);
+    if (templateSelect) templateSelect.addEventListener("change", onContractFormSelectionChange);
+    if (signDateEl) signDateEl.addEventListener("change", onContractFormSelectionChange);
 
     bindHrFormWizard(contractForm);
 
@@ -31305,6 +32161,10 @@ function bindDynamicEvents() {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
+        const payload = approval.payload || {};
+        await refreshPayrollDraftsLinked(payload.employeeId, payload.startDate, payload.endDate, {
+          notifyOnError: false
+        });
       } else if (approval.type === "mark_payroll_paid") {
         const payrollRunId = String(approval.payload?.payrollRunId || "");
         if (!payrollRunId) {
@@ -32353,7 +33213,7 @@ function bindExtendedViewEditHandlers() {
           if (subtypeLabel) subtypeLabel.setAttribute("data-absence-subtype-wrap", "");
           wireHrAbsenceFormBehavior(formEl);
         },
-        onSubmit: (form) => {
+        onSubmit: async (form) => {
           const start = new Date(`${form.startDate}T12:00:00`);
           const end = new Date(`${form.endDate}T12:00:00`);
           if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
@@ -32382,27 +33242,36 @@ function bindExtendedViewEditHandlers() {
             notify(legalValidation.message, "error");
             return false;
           }
-          write(
-            KEYS.hrAbsences,
-            all.map((a) =>
-              String(a.id) !== String(target.id)
-                ? a
-                : {
-                    ...a,
-                    absenceType: normalizedType,
-                    absenceSubtype: normalizedSubtype || null,
-                    startDate: form.startDate,
-                    endDate: form.endDate,
-                    days,
-                    recognizedDays: nextRecognizedDays,
-                    recognizedUnit: payrollAbsenceRecognizedUnit(normalizedType, normalizedSubtype),
-                    supportNumber: String(form.supportNumber || "").trim(),
-                    epsEntity: String(form.epsEntity || "").trim(),
-                    notes: String(form.notes || "").trim()
-                  }
-            )
+          const nextList = all.map((a) =>
+            String(a.id) !== String(target.id)
+              ? a
+              : {
+                  ...a,
+                  absenceType: normalizedType,
+                  absenceSubtype: normalizedSubtype || null,
+                  startDate: form.startDate,
+                  endDate: form.endDate,
+                  days,
+                  recognizedDays: nextRecognizedDays,
+                  recognizedUnit: payrollAbsenceRecognizedUnit(normalizedType, normalizedSubtype),
+                  supportNumber: String(form.supportNumber || "").trim(),
+                  epsEntity: String(form.epsEntity || "").trim(),
+                  notes: String(form.notes || "").trim()
+                }
           );
-          notify("Ausencia actualizada.", "success");
+          try {
+            await writeAwaitServer(KEYS.hrAbsences, nextList);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible actualizar la ausencia en el servidor."), "error");
+            return false;
+          }
+          const linkResult = await refreshPayrollDraftsLinked(
+            target.employeeId,
+            form.startDate,
+            form.endDate,
+            { notifyOnError: false }
+          );
+          notify(payrollDraftLinkSuccessMessage(linkResult) || "Ausencia actualizada.", "success");
           renderPortalView();
           return true;
         }

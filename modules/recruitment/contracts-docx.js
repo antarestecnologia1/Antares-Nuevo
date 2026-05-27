@@ -1,9 +1,34 @@
 (() => {
-  const TEMPLATE_BY_KIND = {
-    oficina: "documentacion/CONTRATO_TRABAJO_PERSONAL_OFICINA.docx",
-    fijo: "documentacion/CONTRATO_PERSONAL_TERMINO_FIJO.docx",
-    prestacion: "documentacion/CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
+  /** Nombres de archivo en documentacion/ y en R2 (CF_R2_TEMPLATES_BUCKET). */
+  const TEMPLATE_FILE_BY_KIND = {
+    oficina: "CONTRATO_ADMINISTRATIVO_OFICINA.docx",
+    fijo: "CONTRATO_TERMINO_FIJO.docx",
+    prestacion: "CONTRATO_PRESTACION_DE_SERVICIOS.docx"
   };
+
+  const TEMPLATE_LABEL_BY_KIND = {
+    oficina: "Administrativo oficina",
+    fijo: "Término fijo",
+    prestacion: "Prestación de servicios"
+  };
+
+  const TEMPLATE_BY_KIND = Object.fromEntries(
+    Object.entries(TEMPLATE_FILE_BY_KIND).map(([kind, file]) => [kind, `documentacion/${file}`])
+  );
+
+  /** Marcadores Word reemplazados solo con datos del empleado/plataforma. */
+  const PLATFORM_MERGE_KEYS = new Set([
+    "nombre_empleado",
+    "cedula_empleado",
+    "municipio_empleado",
+    "ciudad_empleado",
+    "banco_cuenta_bancaria",
+    "cuenta_bancaria",
+    "salario_letras",
+    "duracion_contrato",
+    "cargo_empleado",
+    "salario"
+  ]);
 
   const BACKEND_TEMPLATE_PATH = "/api/uploads/contract-template";
   const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
@@ -146,10 +171,12 @@
       Number.isFinite(salaryNumber) && salaryNumber > 0
         ? Math.round(salaryNumber).toLocaleString("es-CO")
         : String(Math.round(Number(salaryNumber) || 0));
+    const ciudadTrabajador = String(input.ciudad_empleado || input.municipio_empleado || "").trim();
     const pairs = [
       ["nombre_empleado", String(input.nombre_empleado || "").trim()],
       ["cedula_empleado", String(input.cedula_empleado || "").trim()],
-      ["ciudad_empleado", String(input.ciudad_empleado || "").trim()],
+      ["municipio_empleado", String(input.municipio_empleado || ciudadTrabajador).trim()],
+      ["ciudad_empleado", ciudadTrabajador],
       ["banco_cuenta_bancaria", String(input.banco_cuenta_bancaria || "").trim()],
       ["cuenta_bancaria", String(input.cuenta_bancaria || "").trim()],
       ["salario_letras", letters],
@@ -337,8 +364,11 @@
       wordEntries.map(async (entry) => {
         const xml = await zip.file(entry).async("string");
         let next = xml;
-        next = replaceHardcodedSalarySentence(next, salaryNumber, salaryWords);
+        if (kind === "fijo") {
+          next = replaceHardcodedSalarySentence(next, salaryNumber, salaryWords);
+        }
         mergeEntries.forEach(([key, val]) => {
+          if (!PLATFORM_MERGE_KEYS.has(key)) return;
           const escaped = escapeXml(val);
           next = applyMergeEntryStrict(next, key, escaped);
         });
@@ -364,7 +394,10 @@
   }
 
   window.RecruitmentDomain = window.RecruitmentDomain || {};
+  window.RecruitmentDomain.TEMPLATE_FILE_BY_KIND = TEMPLATE_FILE_BY_KIND;
+  window.RecruitmentDomain.TEMPLATE_LABEL_BY_KIND = TEMPLATE_LABEL_BY_KIND;
   window.RecruitmentDomain.TEMPLATE_BY_KIND = TEMPLATE_BY_KIND;
+  window.RecruitmentDomain.PLATFORM_MERGE_KEYS = PLATFORM_MERGE_KEYS;
   window.RecruitmentDomain.inferTemplateKind = inferTemplateKind;
   window.RecruitmentDomain.toWordsEs = toWordsEs;
   window.RecruitmentDomain.formatSalarioLetrasPesos = formatSalarioLetrasPesos;

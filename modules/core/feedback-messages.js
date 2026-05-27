@@ -71,6 +71,18 @@
       "Los conductores requieren licencia, categoría y fecha de vencimiento para sincronizar.",
     payrollLicenseExpired: "No se puede registrar un conductor con licencia vencida.",
     adminOnlyModule: "Solo el administrador puede editar o eliminar en este módulo.",
+    driversManageForbidden:
+      "Solo el administrador puede editar conductores en este módulo. La baja se realiza en Gestión humana.",
+    driverDeleteUseHr:
+      "La baja del conductor se realiza en Gestión humana (empleados con rol conductor). Este módulo no permite eliminar.",
+    driverUpdatedHrSynced:
+      "Conductor actualizado. Los datos básicos se sincronizaron con Gestión humana.",
+    employeeUpdatedDriverSynced:
+      "Empleado actualizado. Los cambios se reflejaron en conductores, SST, contratos, viajes y demás registros vinculados.",
+    employeeCreatedDriverSynced:
+      "Empleado registrado. La ficha se reflejó en conductores, SST, contratos y módulos vinculados.",
+    driverUpdatedHrSyncFailed:
+      "Conductor actualizado en flota, pero no se pudo sincronizar con Gestión humana. Revise la conexión o edite el empleado allí.",
     userEmailExists: "Ya existe un usuario con ese correo.",
     userSelectCompany: "Seleccione una empresa válida de la lista.",
     userApprovalQueued:
@@ -218,6 +230,19 @@
     absenceApprovalQueued: "Solicitud de ausencia enviada para aprobación del administrador.",
     absenceDateOrder: "La fecha final debe ser igual o posterior a la de inicio.",
     absenceRecorded: "Ausencia registrada en el expediente digital de RR.HH.",
+    absenceRecordedConductorTripPay:
+      "Ausencia registrada. Conductor en prestación de servicios: el pago es por viajes liquidados en Nómina → Calcular (viáticos y reembolsos), no por nómina laboral.",
+    payrollDraftLinked: "Nómina vinculada con la novedad registrada.",
+    payrollConductorTripOnly:
+      "Conductor (prestación de servicios): liquide solo viajes del periodo. No aplica salario base ni aportes de nómina.",
+    payrollConductorUseDriverForm:
+      "Los conductores en prestación de servicios se liquidan en Registrar → Pagos conductores (no en nómina laboral).",
+    payrollConductorNoTrips:
+      "No hay viajes interdepartamentales ni reembolsos de combustible en el mes seleccionado para liquidar.",
+    driverTripPaymentSaved: (grossCop, tripCount, interDept) =>
+      `Pago por viajes registrado en servidor: $${Number(grossCop || 0).toLocaleString("es-CO")} (${Number(tripCount || 0)} viaje(s), ${Number(interDept || 0)} interdepartamental(es)).`,
+    driverTripPaymentRecalculated: (grossCop) =>
+      `Liquidación de viajes recalculada: $${Number(grossCop || 0).toLocaleString("es-CO")}.`,
     recruitPickPosition: "Seleccione un cargo válido.",
     recruitSalaryBelowMin: (formatted) =>
       `Salario inferior al mínimo referenciado (${formatted}).`,

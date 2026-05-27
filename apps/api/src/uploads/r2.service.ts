@@ -8,10 +8,17 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const TEMPLATE_KEYS: Record<string, string> = {
-  oficina: "CONTRATO_TRABAJO_PERSONAL_OFICINA.docx",
-  fijo: "CONTRATO_PERSONAL_TERMINO_FIJO.docx",
-  prestacion: "CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
+  oficina: "CONTRATO_ADMINISTRATIVO_OFICINA.docx",
+  fijo: "CONTRATO_TERMINO_FIJO.docx",
+  prestacion: "CONTRATO_PRESTACION_DE_SERVICIOS.docx"
 };
+
+/** Objetos legacy en R2; el script de subida puede eliminarlos tras publicar los nuevos nombres. */
+export const LEGACY_CONTRACT_TEMPLATE_KEYS = [
+  "CONTRATO_TRABAJO_PERSONAL_OFICINA.docx",
+  "CONTRATO_PERSONAL_TERMINO_FIJO.docx",
+  "CONTRATO_PRESTACION_DE_SERVICIOS_CONDUCTORES.docx"
+];
 
 @Injectable()
 export class R2Service {

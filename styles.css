@@ -14231,6 +14231,45 @@ body[data-theme="dark"] .reports-workspace-tab.is-active {
   color: #b45309;
 }
 
+.payroll-driver-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line, #e2e8f0);
+  background: linear-gradient(135deg, #fffbeb 0%, #f8fafc 55%);
+}
+
+.payroll-driver-kpi > div {
+  margin: 0;
+}
+
+.payroll-driver-kpi dt {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.payroll-driver-kpi dd {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text, #0f172a);
+}
+
+.payroll-driver-kpi dd strong {
+  font-weight: 800;
+}
+
+body[data-theme="dark"] .payroll-driver-kpi {
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.12) 0%, rgba(15, 23, 42, 0.9) 55%);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
 .hr-workspace-tabs--segment {
   display: inline-flex;
   gap: 0.25rem;
