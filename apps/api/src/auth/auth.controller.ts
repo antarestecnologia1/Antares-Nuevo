@@ -6,6 +6,7 @@ import { RequestPasswordRecoveryDto } from "./dto/request-password-recovery.dto"
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { RegisterPortalDto } from "./dto/register-portal.dto";
+import { RefreshTokenDto } from "./dto/refresh-token.dto";
 
 @Controller("auth")
 export class AuthController {
@@ -35,8 +36,8 @@ export class AuthController {
 
   @HttpCode(200)
   @Post("refresh")
-  refresh(@Body() payload: { userId: string; refreshToken: string }) {
-    return this.auth.refresh(payload.userId, payload.refreshToken);
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.auth.refresh(dto.userId, dto.refreshToken);
   }
 
   /**

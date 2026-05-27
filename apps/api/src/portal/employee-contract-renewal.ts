@@ -1,5 +1,7 @@
 /** Lógica compartida: contrato a término fijo, fin a 1 año y aviso de no renovación (30 días, CST). */
 
+import { bogotaDaysUntilYmd } from "../common/colombia-time";
+
 export type ContractRenewalStatusSlug = "na" | "unknown" | "active" | "notice_window" | "expired";
 
 export type ContractRenewalMeta = {
@@ -18,8 +20,6 @@ export function normalizePortalYmd(raw: unknown): string {
   const s = String(raw).trim();
   const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
   if (m) return m[1];
-  const t = Date.parse(s);
-  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
   return "";
 }
 
@@ -52,10 +52,7 @@ export function addDaysToYmd(ymd: string, deltaDays: number): string {
 export function daysUntilYmd(ymd: string): number {
   const n = normalizePortalYmd(ymd);
   if (!n) return -9999;
-  const target = new Date(`${n}T12:00:00`).getTime();
-  const now = new Date();
-  now.setHours(12, 0, 0, 0);
-  return Math.floor((target - now.getTime()) / 86400000);
+  return bogotaDaysUntilYmd(n);
 }
 
 export function resolveContractEndYmd(emp: {

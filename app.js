@@ -4571,6 +4571,9 @@ try {
 window.AntaresDataAccess = Object.freeze({
   getPortalContacts() {
     return Array.isArray(state.portalContacts) ? state.portalContacts : [];
+  },
+  setPortalContacts(rows) {
+    state.portalContacts = Array.isArray(rows) ? rows : [];
   }
 });
 
@@ -4766,8 +4769,17 @@ async function writeAwaitServer(storageKeyLike, value, opts = {}) {
   const api = window.AntaresApi;
   const sync = window.AntaresPortalSync;
   if (!sync || typeof sync.flushStorageKeyNow !== "function") return;
-  if (!api || typeof api.getBase !== "function" || !api.getBase()) return;
-  if (typeof api.getAccessToken !== "function" || !String(api.getAccessToken() || "").trim()) return;
+  const hasApiBase = api && typeof api.getBase === "function" && Boolean(api.getBase());
+  if (!hasApiBase) return;
+  const token =
+    typeof api.getAccessToken === "function"
+      ? String(api.getAccessToken() || "").trim() || String(getSession()?.accessToken || "").trim()
+      : "";
+  if (!token) {
+    throw new Error(
+      "Sesión sin token de API. Vuelva a iniciar sesión para guardar en el servidor."
+    );
+  }
   await sync.flushStorageKeyNow(storageKeyLike, {
     notifyOnFailure: opts.notifyOnFailure !== false
   });
@@ -8685,7 +8697,13 @@ async function refreshContractRenewalNotificationsFromServer() {
       /* noop */
     }
     return true;
-  } catch (_e) {
+  } catch (err) {
+    if (typeof notify === "function") {
+      notify(
+        String(err?.message || "No fue posible actualizar los avisos de renovación contractual."),
+        "error"
+      );
+    }
     return false;
   }
 }
@@ -13222,9 +13240,14 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
     void (async () => {
       try {
         await reqWriteAwait(mapped);
-      } catch (_e) {}
-      if (current.apiSynced && window.DomainModules?.requests?.approveViaApi) {
-        void window.DomainModules.requests.approveViaApi(requestId).catch(() => {});
+      } catch (err) {
+        if (typeof notify === "function") {
+          notify(
+            String(err?.message || "No fue posible guardar la aprobación en el servidor."),
+            "error"
+          );
+        }
+        return;
       }
       const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
       if (targetUser) {
@@ -20752,6 +20775,29 @@ function normalizeDriverRowForEditor(raw) {
   return d;
 }
 
+/** Normaliza payload de formulario de conductor antes de persistir (alta o edición). */
+function normalizeDriverFormPayloadForStorage(data) {
+  if (!data || typeof data !== "object") return data;
+  const d = { ...data };
+  d.phone = normalizePortalPhoneForStorage(d.phone);
+  d.emergencyPhone = normalizePortalPhoneForStorage(d.emergencyPhone);
+  d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
+  const occDate = normalizePortalDateYmd(d.occupationalExamDate);
+  const intraDate = normalizePortalDateYmd(d.instruvialExamDate);
+  d.occupationalExamDate = occDate;
+  d.instruvialExamDate = intraDate;
+  d.occupationalExamExpiry = occDate
+    ? addOneYearToYmd(occDate)
+    : normalizePortalDateYmd(d.occupationalExamExpiry);
+  d.instruvialExamExpiry = intraDate
+    ? addOneYearToYmd(intraDate)
+    : normalizePortalDateYmd(d.instruvialExamExpiry);
+  d.psychoTestDate = occDate;
+  d.psychoTestExpiry = occDate ? addOneYearToYmd(occDate) : "";
+  d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
+  return d;
+}
+
 async function syncDriverFromEmployee(employee, extraDriverData = {}) {
   if (!employee || String(employee.workerRole || "") !== "conductor") {
     return { ok: true, skipped: true };
@@ -28150,8 +28196,16 @@ function bindDynamicEvents() {
         renderPortalView();
         return;
       }
+      const driverPayload = normalizeDriverFormPayloadForStorage(data);
       const list = read(KEYS.drivers, []);
-      list.push(stampCreatedRecord({ id: newUuidV4(), ...data, available: true, hiredAt: nowIso() }));
+      list.push(
+        stampCreatedRecord({
+          id: newUuidV4(),
+          ...driverPayload,
+          available: true,
+          hiredAt: nowIso()
+        })
+      );
       try {
         await writeAwaitServer(KEYS.drivers, list);
       } catch (err) {
@@ -28464,22 +28518,31 @@ function bindDynamicEvents() {
               ? String(new FormData(formEl).get(name) ?? "").trim()
               : "";
 
+          const licenseExpiryNorm = normalizePortalDateYmd(expiryValue);
+          const occDate = normalizePortalDateYmd(getVal("occupationalExamDate"));
+          const intraDate = normalizePortalDateYmd(getVal("instruvialExamDate"));
+          const defExpiry = normalizePortalDateYmd(getVal("defensiveCourseExpiry"));
+
           const nextDrivers = read(KEYS.drivers, []).map((d) =>
             String(d.id ?? "").trim() === String(target.id ?? "").trim()
               ? stampUpdatedRecord({
                   ...d,
                   name: getVal("name"),
-                  phone: getVal("phone"),
+                  phone: normalizePortalPhoneForStorage(getVal("phone")),
                   emergencyContact: getVal("emergencyContact"),
-                  emergencyPhone: getVal("emergencyPhone"),
+                  emergencyPhone: normalizePortalPhoneForStorage(getVal("emergencyPhone")),
                   bloodType: getVal("bloodType"),
                   license: getVal("license"),
                   licenseCategory: getVal("licenseCategory"),
-                  licenseExpiry: expiryValue,
-                  occupationalExamDate: getVal("occupationalExamDate"),
-                  instruvialExamDate: getVal("instruvialExamDate"),
+                  licenseExpiry: licenseExpiryNorm,
+                  occupationalExamDate: occDate,
+                  occupationalExamExpiry: occDate ? addOneYearToYmd(occDate) : "",
+                  instruvialExamDate: intraDate,
+                  instruvialExamExpiry: intraDate ? addOneYearToYmd(intraDate) : "",
+                  psychoTestDate: occDate,
+                  psychoTestExpiry: occDate ? addOneYearToYmd(occDate) : "",
                   defensiveCourse: getVal("defensiveCourse"),
-                  defensiveCourseExpiry: getVal("defensiveCourseExpiry"),
+                  defensiveCourseExpiry: defExpiry,
                   eps: getVal("eps"),
                   arl: getVal("arl"),
                   comparendos: parseNum(getVal("comparendos")),

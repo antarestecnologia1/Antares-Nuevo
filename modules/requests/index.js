@@ -16,6 +16,21 @@ window.DomainModules = window.DomainModules || {};
     RECHAZADA: "Rechazada"
   };
 
+  /** Estados canónicos del portal (API / PostgreSQL). */
+  const API_STATUS_TO_PORTAL = {
+    pendiente: PORTAL_STATUS.PENDIENTE,
+    "aprobada pendiente asignacion": PORTAL_STATUS.APROBADA_PENDIENTE_ASIGNACION,
+    "viaje asignado": PORTAL_STATUS.VIAJE_ASIGNADO,
+    "en transito": PORTAL_STATUS.EN_TRANSITO,
+    "espera standby": PORTAL_STATUS.ESPERA_STANDBY,
+    completada: PORTAL_STATUS.COMPLETADA,
+    cerrada: PORTAL_STATUS.CERRADA,
+    cancelada: PORTAL_STATUS.CANCELADA,
+    rechazada: PORTAL_STATUS.RECHAZADA,
+    aprobada: PORTAL_STATUS.APROBADA_PENDIENTE_ASIGNACION,
+    "en_transito": PORTAL_STATUS.EN_TRANSITO
+  };
+
   function attachStorage(deps) {
     if (!deps?.KEYS || typeof deps.read !== "function" || typeof deps.write !== "function") return;
     ctx = deps;
@@ -32,16 +47,16 @@ window.DomainModules = window.DomainModules || {};
   }
 
   function mapApiStatus(s) {
-    const key = String(s || "").toUpperCase();
-    const table = {
-      PENDIENTE: PORTAL_STATUS.PENDIENTE,
-      APROBADA: PORTAL_STATUS.APROBADA_PENDIENTE_ASIGNACION,
-      EN_TRANSITO: PORTAL_STATUS.EN_TRANSITO,
-      COMPLETADA: PORTAL_STATUS.COMPLETADA,
-      CANCELADA: PORTAL_STATUS.CANCELADA,
-      RECHAZADA: PORTAL_STATUS.RECHAZADA
-    };
-    return table[key] || PORTAL_STATUS.PENDIENTE;
+    const raw = String(s || "").trim();
+    if (!raw) return PORTAL_STATUS.PENDIENTE;
+    const norm = raw
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (API_STATUS_TO_PORTAL[norm]) return API_STATUS_TO_PORTAL[norm];
+    const values = Object.values(PORTAL_STATUS);
+    const exact = values.find((v) => v.toLowerCase() === raw.toLowerCase());
+    return exact || PORTAL_STATUS.PENDIENTE;
   }
 
   function mapApiRowToPortal(row, existing) {
@@ -107,6 +122,7 @@ window.DomainModules = window.DomainModules || {};
       origin,
       destination,
       vehicleType: portalPayload.vehicleType,
+      serviceType: portalPayload.serviceType,
       weightKg,
       pickupAt,
       ...(etaIso ? { etaDelivery: etaIso } : {})
@@ -117,36 +133,14 @@ window.DomainModules = window.DomainModules || {};
     if (typeof window.applyPortalBootstrapFromApi === "function") {
       return window.applyPortalBootstrapFromApi();
     }
-    const api = window.AntaresApi;
-    if (!api?.isConfigured?.()) return false;
-    const rows = await api.getJson("/requests");
-    if (!Array.isArray(rows)) return false;
-    const local = readAllSync();
-    const byId = new Map(local.map((r) => [String(r.id), r]));
-    const merged = [];
-    const seenApi = new Set();
-    for (const row of rows) {
-      const id = String(row.id);
-      seenApi.add(id);
-      const existing = byId.get(id);
-      merged.push(mapApiRowToPortal(row, existing));
-    }
-    for (const r of local) {
-      const id = String(r.id);
-      if (seenApi.has(id)) continue;
-      if (r.apiSynced) continue;
-      merged.push(r);
-    }
-    merged.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    writeAllSync(merged);
-    return true;
+    return false;
   }
 
   async function createViaApi(portalRow, pickupAtIso) {
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) throw new Error("API no configurada");
     if (typeof window.applyPortalBootstrapFromApi === "function") {
-      return { ...portalRow, apiSynced: true };
+      return { ...portalRow, apiSynced: false };
     }
     const dto = portalToCreateDto(portalRow, pickupAtIso);
     const created = await api.postJson("/requests", dto);
@@ -157,7 +151,7 @@ window.DomainModules = window.DomainModules || {};
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return null;
     if (typeof window.applyPortalBootstrapFromApi === "function") {
-      return { ok: true };
+      return null;
     }
     return api.postJson(`/requests/${encodeURIComponent(String(requestId))}/approve`, {});
   }
@@ -170,6 +164,7 @@ window.DomainModules = window.DomainModules || {};
     createViaApi,
     approveViaApi,
     mapApiRowToPortal,
-    portalToCreateDto
+    portalToCreateDto,
+    mapApiStatus
   };
 })();

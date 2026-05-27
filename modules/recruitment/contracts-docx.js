@@ -15,17 +15,9 @@
    */
   async function fetchTemplateBuffer(kind) {
     const api = window.AntaresApi;
-    const base = api && typeof api.getBase === "function" ? api.getBase() : "";
-    const token =
-      api && typeof api.getAccessToken === "function" ? String(api.getAccessToken() || "").trim() : "";
-    if (base && token) {
-      const url = `${String(base).replace(/\/$/, "")}${BACKEND_TEMPLATE_PATH}/${encodeURIComponent(kind)}`;
+    if (api && typeof api.getArrayBuffer === "function" && api.isConfigured?.()) {
       try {
-        const res = await fetch(url, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) return res.arrayBuffer();
+        return await api.getArrayBuffer(`${BACKEND_TEMPLATE_PATH}/${encodeURIComponent(kind)}`);
       } catch (_) {
         /* fallback a archivo local */
       }
@@ -96,20 +88,30 @@
     return parts.join(" ").replace(/\s+/g, " ").trim();
   }
 
+  let jsZipLoadPromise = null;
+
   function loadScriptOnce(src) {
     if (typeof window.JSZip === "function") return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    if (jsZipLoadPromise) return jsZipLoadPromise;
+    jsZipLoadPromise = new Promise((resolve, reject) => {
       const s = document.createElement("script");
       s.async = true;
       s.crossOrigin = "anonymous";
       s.src = src;
       s.onload = () => {
         if (typeof window.JSZip === "function") resolve();
-        else reject(new Error("JSZip no expuso el objeto global"));
+        else {
+          jsZipLoadPromise = null;
+          reject(new Error("JSZip no expuso el objeto global"));
+        }
       };
-      s.onerror = () => reject(new Error("No se pudo cargar JSZip (compruebe conexion o CDN)"));
+      s.onerror = () => {
+        jsZipLoadPromise = null;
+        reject(new Error("No se pudo cargar JSZip (compruebe conexion o CDN)"));
+      };
       document.head.appendChild(s);
     });
+    return jsZipLoadPromise;
   }
 
   async function ensureJsZip() {

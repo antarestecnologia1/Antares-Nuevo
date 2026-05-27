@@ -304,9 +304,39 @@ function pickPortalField(obj: Record<string, unknown>, ...keys: string[]): unkno
   return undefined;
 }
 
-function portalDateOrNull(v: unknown): string | null {
+/** Solo devuelve `YYYY-MM-DD` válido o null (evita 500 en columnas DATE de PostgreSQL). */
+function portalDateYmdOrNull(v: unknown): string | null {
   if (v === undefined || v === null || v === "") return null;
-  return String(v);
+  const s = String(v).trim();
+  const head = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  const ymd = head ? head[1] : null;
+  if (ymd) {
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (!parts) return null;
+    const y = Number(parts[1]);
+    const mo = Number(parts[2]);
+    const day = Number(parts[3]);
+    if (mo < 1 || mo > 12 || day < 1 || day > 31) return null;
+    const d = new Date(y, mo - 1, day);
+    if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== day) return null;
+    return ymd;
+  }
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t);
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+function portalDateOrNull(v: unknown): string | null {
+  return portalDateYmdOrNull(v);
+}
+
+function portalUuidOrNull(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  return PG_UUID_V4_RE.test(s) ? s : null;
 }
 
 /** Suma años a `YYYY-MM-DD` en calendario local (evita corrimientos UTC de toISOString). */
@@ -2307,6 +2337,18 @@ export class PortalService implements OnModuleInit {
       throw err;
     }
 
+    if (this.supabaseAdmin && (email || password)) {
+      const authPatch: { email?: string; password?: string } = {};
+      if (email) authPatch.email = email;
+      if (password) authPatch.password = password;
+      const { error: authErr } = await this.supabaseAdmin.auth.admin.updateUserById(tid, authPatch);
+      if (authErr) {
+        this.logger.warn(
+          `adminUpdateUserCredentials: Supabase Auth no actualizado para ${tid}: ${sanitizeLogText(authErr.message)}`
+        );
+      }
+    }
+
     return { ok: true, userId: tid, emailUpdated: Boolean(email), passwordUpdated: Boolean(password) };
   }
 
@@ -3535,6 +3577,11 @@ export class PortalService implements OnModuleInit {
     if (!title || !body) throw new BadRequestException("title y body son obligatorios");
 
     let targetIds: string[] = [];
+    if (dto.audience === "admins" || dto.audience === "hr") {
+      if (!this.isAdmin(actorRole)) {
+        throw new ForbiddenException("Solo administradores pueden notificar a audiencias masivas.");
+      }
+    }
     if (dto.audience === "admins") {
       targetIds = await this.loadUserIdsByRoles(["admin"]);
     } else if (dto.audience === "hr") {
@@ -4617,8 +4664,8 @@ export class PortalService implements OnModuleInit {
    * refrescar volvió a aparecer" porque el sync solo era UPSERT.
    *
    * Importante: solo se llama cuando `data` es un Array válido (los handlers ya validaron).
-   * Si el cliente envía lista vacía, se interpreta como "vacíe la tabla" — coherente con
-   * el contrato de full-replacement de la sync-key.
+   * Si el cliente envía lista vacía o solo ids inválidos, **no** se borra la tabla (evita wipe accidental).
+   * La poda solo aplica cuando hay al menos un UUID válido en el payload.
    *
    * Filtra ids inválidos antes de comparar para evitar que un id corrupto en el cliente
    * provoque un wipe accidental.
@@ -4635,7 +4682,6 @@ export class PortalService implements OnModuleInit {
       .map((raw) => String(raw ?? "").trim())
       .filter((s) => PG_UUID_V4_RE.test(s));
     if (ids.length === 0) {
-      await c.query(`DELETE FROM ${table}`);
       return;
     }
     await c.query(`DELETE FROM ${table} WHERE id::text <> ALL($1::text[])`, [ids]);
@@ -5587,6 +5633,8 @@ export class PortalService implements OnModuleInit {
         urlFotoSql = null;
       }
 
+      const companyIdSql = portalUuidOrNull(d.companyId);
+
       const bloodRaw = p(d, "bloodType", "tipo_sangre");
       const bloodSql =
         bloodRaw != null && String(bloodRaw).trim() !== "" ? String(bloodRaw).trim().slice(0, 8) : null;
@@ -5603,16 +5651,36 @@ export class PortalService implements OnModuleInit {
       const expNum = Number(expRaw);
       const anosSql = Number.isFinite(expNum) ? Math.max(0, Math.min(80, Math.floor(expNum))) : 0;
 
-      const occExam = portalDateOrNull(
+      const occExam = portalDateYmdOrNull(
         p(d, "occupationalExamDate", "psychometricExamDate", "psychoTestDate", "fecha_examen_ocupacional")
       );
-      const intraExam = portalDateOrNull(
+      const intraExam = portalDateYmdOrNull(
         p(d, "instruvialExamDate", "intravehicularExamDate", "fecha_examen_instruvial")
       );
       const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
       const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
 
-      await c.query(
+      const licenseExpirySql =
+        portalDateYmdOrNull(d.licenseExpiry) ??
+        portalDateYmdOrNull(p(d, "licenseExpiry", "fecha_vencimiento_licencia")) ??
+        new Date().toISOString().slice(0, 10);
+
+      const idDoc = String(d.idDoc ?? "0000000").trim().slice(0, 32) || "0000000";
+      const docType = String(d.documentType || "CC")
+        .trim()
+        .slice(0, 8) || "CC";
+      const licenseCategory = String(d.licenseCategory || "C2")
+        .trim()
+        .slice(0, 8) || "C2";
+      const phone = String(d.phone || "3000000000").trim().slice(0, 32) || "3000000000";
+      const defCourseRaw = p(d, "defensiveDrivingCourse", "defensiveCourse", "curso_conduccion_defensiva");
+      const defCourseSql =
+        defCourseRaw != null && String(defCourseRaw).trim() !== ""
+          ? String(defCourseRaw).trim().slice(0, 32)
+          : null;
+
+      try {
+        await c.query(
         `INSERT INTO conductores (
           id, id_empresa, nombre_completo, tipo_documento, numero_documento, telefono, departamento, ciudad, direccion,
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
@@ -5664,39 +5732,49 @@ export class PortalService implements OnModuleInit {
           url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto)`,
         [
           d.id,
-          d.companyId || null,
-          d.name || "Conductor",
-          d.documentType || "CC",
-          d.idDoc || "0000000",
-          d.phone || "3000000000",
-          d.department || null,
-          d.city || "Bogota",
-          d.address || "N/D",
-          d.license || "N",
-          d.licenseCategory || "C2",
-          d.licenseExpiry || new Date().toISOString().slice(0, 10),
+          companyIdSql,
+          String(d.name || "Conductor").trim().slice(0, 255) || "Conductor",
+          docType,
+          idDoc,
+          phone,
+          d.department != null ? String(d.department).trim().slice(0, 120) : null,
+          d.city != null ? String(d.city).trim().slice(0, 120) || "Bogota" : "Bogota",
+          d.address != null ? String(d.address).trim().slice(0, 2000) || "N/D" : "N/D",
+          String(d.license || "N").trim().slice(0, 64) || "N",
+          licenseCategory,
+          licenseExpirySql,
           occExam,
           occExpiry,
           intraExam,
           intraExpiry,
-          (p(d, "defensiveDrivingCourse", "defensiveCourse") as string) || null,
-          portalDateOrNull(p(d, "defensiveCourseExpiry", "fecha_vencimiento_curso_defensivo")),
+          defCourseSql,
+          portalDateYmdOrNull(p(d, "defensiveCourseExpiry", "fecha_vencimiento_curso_defensivo")),
           bloodSql,
           epsSql,
           arlSql,
           comparendosSql,
           anosSql,
-          (p(d, "emergencyContact") as string) || null,
-          (p(d, "emergencyPhone") as string) || null,
+          p(d, "emergencyContact") != null ? String(p(d, "emergencyContact")).trim().slice(0, 255) : null,
+          p(d, "emergencyPhone") != null ? String(p(d, "emergencyPhone")).trim().slice(0, 32) : null,
           d.available !== false,
           Boolean(d.autoBusy),
-          d.contractType || null,
-          d.baseSalary != null ? Number(d.baseSalary) : null,
-          portalDateOrNull(d.startDate),
+          d.contractType != null ? String(d.contractType).trim().slice(0, 80) : null,
+          d.baseSalary != null && Number.isFinite(Number(d.baseSalary)) ? Number(d.baseSalary) : null,
+          portalDateYmdOrNull(d.startDate),
           hiredOk,
           urlFotoSql
         ]
-      );
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (/unique|duplicate|23505/i.test(msg) && /numero_documento|documento/i.test(msg)) {
+          throw new BadRequestException(
+            `El documento ${idDoc} ya está asignado a otro conductor. Revise el NIT/cédula en la ficha.`
+          );
+        }
+        this.logger.warn(`syncDrivers id=${String(d.id)}: ${msg}`);
+        throw e;
+      }
     }
   }
 
@@ -5727,9 +5805,7 @@ export class PortalService implements OnModuleInit {
       const ids = rows
         .map((n) => String(n?.id ?? "").trim())
         .filter((id) => PG_UUID_V4_RE.test(id));
-      if (!ids.length) {
-        await c.query(`DELETE FROM notificaciones WHERE id_usuario = $1::uuid`, [userId]);
-      } else {
+      if (ids.length > 0) {
         await c.query(
           `DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND NOT (id::text = ANY($2::text[]))`,
           [userId, ids]
@@ -5739,8 +5815,6 @@ export class PortalService implements OnModuleInit {
     }
 
     if (rows.length === 0) {
-      /** Coherente con “vaciar bandeja” del admin cuando el navegador queda sin entradas. */
-      await c.query(`DELETE FROM notificaciones`);
       return;
     }
 
@@ -6283,6 +6357,23 @@ export class PortalService implements OnModuleInit {
     hasNov: boolean,
     run: Record<string, unknown>
   ) {
+    const runId = String(run.id ?? "").trim();
+    if (hasNov && PG_UUID_V4_RE.test(runId)) {
+      const incomingOrigin = String(
+        pickPortalField(run, "liquidacionOrigin", "origenLiquidacion", "origen_liquidacion") ?? "manual"
+      )
+        .trim()
+        .toLowerCase();
+      if (incomingOrigin !== "automatico") {
+        const existing = await c.query<{ origen_liquidacion: string }>(
+          `SELECT origen_liquidacion::text FROM liquidaciones_nomina WHERE id = $1::uuid`,
+          [runId]
+        );
+        if (existing.rows[0]?.origen_liquidacion === "automatico") {
+          return;
+        }
+      }
+    }
     const base25 = this.payrollRunBaseParams(run);
     const novExtra = hasNov ? this.payrollRunNovedadesParams(run) : [];
     if (tier === 0) {
@@ -7058,6 +7149,8 @@ export class PortalService implements OnModuleInit {
         ) {
           continue;
         }
+        const salaryRaw = pickPortalField(row, "salaryPactado", "baseSalary", "salario_pactado");
+        const salaryPactado = Math.max(0, Number(salaryRaw) || 0);
         const transportRaw = pickPortalField(row, "transportAllowance");
         const auxilioTransporte =
           transportRaw != null && String(transportRaw).trim() !== ""

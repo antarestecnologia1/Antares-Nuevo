@@ -30,3 +30,26 @@ export function timestamptzToColombiaIso(raw: string | Date): string {
   if (Number.isNaN(d.getTime())) return timestamptzStringColombiaNow();
   return timestamptzStringColombiaNow(d);
 }
+
+/** Fecha civil YYYY-MM-DD en America/Bogota para el instante dado. */
+export function bogotaCalendarYmdFromDate(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "01";
+  return `${g("year")}-${g("month")}-${g("day")}`;
+}
+
+/** Días enteros desde hoy (Bogotá) hasta targetYmd (positivo = futuro). */
+export function bogotaDaysUntilYmd(targetYmd: string, reference: Date = new Date()): number {
+  const n = String(targetYmd || "").trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  if (!n) return -9999;
+  const today = bogotaCalendarYmdFromDate(reference);
+  const t0 = new Date(`${today}T12:00:00${CO_OFFSET}`).getTime();
+  const t1 = new Date(`${n[1]}T12:00:00${CO_OFFSET}`).getTime();
+  if (!Number.isFinite(t0) || !Number.isFinite(t1)) return -9999;
+  return Math.floor((t1 - t0) / 86400000);
+}

@@ -114,6 +114,29 @@
     return request("GET", path);
   }
 
+  /** GET binario autenticado (plantillas DOCX, etc.). */
+  async function getArrayBuffer(path) {
+    const base = getBase();
+    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    const rel = path.startsWith("/") ? path : `/${path}`;
+    const url = `${base}/api${rel}`;
+    const headers = { Accept: "application/octet-stream" };
+    const token = getAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    let res;
+    try {
+      res = await fetch(url, { method: "GET", headers });
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
+    if (!res.ok) {
+      const err = new Error(res.statusText || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.arrayBuffer();
+  }
+
   function postJson(path, body) {
     return request("POST", path, body);
   }
@@ -264,6 +287,7 @@
     setAccessToken,
     request,
     getJson,
+    getArrayBuffer,
     postJson,
     postJsonPublic,
     postFormData,

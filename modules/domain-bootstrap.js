@@ -57,7 +57,11 @@
           typeof window.AntaresDataAccess?.getPortalContacts === "function"
             ? window.AntaresDataAccess.getPortalContacts()
             : [],
-        write: () => {}
+        write: (v) => {
+          if (typeof window.AntaresDataAccess?.setPortalContacts === "function") {
+            window.AntaresDataAccess.setPortalContacts(v);
+          }
+        }
       },
       requests: requestsRepo,
       vehicles: list(KEYS.vehicles),

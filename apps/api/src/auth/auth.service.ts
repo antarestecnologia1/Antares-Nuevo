@@ -633,13 +633,20 @@ export class AuthService {
   async refresh(userId: string, refreshToken: string) {
     this.assertDatabaseConfigured();
     const res = await this.pool.query<UsuarioRow>(
-      `SELECT id::text, correo_electronico, rol::text AS rol, refresh_token_hash
+      `SELECT id::text, correo_electronico, rol::text AS rol, estado_cuenta::text AS estado_cuenta,
+              refresh_token_hash
        FROM usuarios WHERE id = $1::uuid`,
       [userId]
     );
     const user = res.rows[0];
     if (!user?.refresh_token_hash) {
       throw new UnauthorizedException("Refresh token inválido");
+    }
+
+    if (user.estado_cuenta !== "aprobado") {
+      throw new UnauthorizedException(
+        "Tu cuenta está pendiente de aprobación o inactiva. Contacta al administrador."
+      );
     }
 
     const ok = await bcrypt.compare(refreshToken, user.refresh_token_hash);

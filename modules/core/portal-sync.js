@@ -75,7 +75,9 @@
       const data = pending[storageKey];
       delete pending[storageKey];
       delete timers[storageKey];
-      void flush(entity, data).catch(() => {});
+      void flush(entity, data, { notifyOnFailure: true }).catch((err) => {
+        logPortalSyncFailure(entity, err);
+      });
     }, DEBOUNCE_MS);
   }
 

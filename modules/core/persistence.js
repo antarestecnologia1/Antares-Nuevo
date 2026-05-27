@@ -51,6 +51,18 @@
   /**
    * Una sola vez por clave: si había JSON viejo en localStorage, se sube a memoria y se borra del disco.
    */
+  function scheduleLiftedKeySync(key) {
+    try {
+      var api = window.AntaresApi;
+      var sync = window.AntaresPortalSync;
+      if (!api || typeof api.isConfigured !== "function" || !api.isConfigured()) return;
+      if (!sync || typeof sync.flushStorageKeyNow !== "function") return;
+      void sync.flushStorageKeyNow(key, { notifyOnFailure: false });
+    } catch (_liftSync) {
+      /* noop */
+    }
+  }
+
   function liftLegacyLocalStorageOnce(key, fallback) {
     try {
       var raw = localStorage.getItem(key);
@@ -58,6 +70,7 @@
       var parsed = JSON.parse(raw);
       serverBackedMemory[key] = parsed;
       localStorage.removeItem(key);
+      scheduleLiftedKeySync(key);
       return parsed !== undefined && parsed !== null ? parsed : fallback;
     } catch (_err) {
       try {
@@ -119,7 +132,11 @@
         return;
       }
       var plain = trimArrayRowsIfNeeded(key, value);
-      localStorage.setItem(key, JSON.stringify(plain));
+      try {
+        localStorage.setItem(key, JSON.stringify(plain));
+      } catch (_quota) {
+        /* QuotaExceededError: preferencia UI; no bloquear la app */
+      }
       if (!skipSyncSchedule && window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
         window.AntaresPortalSync.schedule(key, plain);
       }

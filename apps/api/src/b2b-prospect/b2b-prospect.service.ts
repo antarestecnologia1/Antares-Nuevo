@@ -6,6 +6,7 @@ import { PG_POOL } from "../database/database.module";
 import { CreateB2bProspectDto } from "./dto/create-b2b-prospect.dto";
 import { CreateJobApplicationDto } from "./dto/create-job-application.dto";
 import { R2Service } from "../uploads/r2.service";
+import { bogotaCalendarYmdFromDate } from "../common/colombia-time";
 
 const JOB_CV_MIME_ALLOWED = new Set([
   "application/pdf",
@@ -91,15 +92,15 @@ export class B2bProspectService {
     if (birth.getFullYear() !== y || birth.getMonth() !== mo - 1 || birth.getDate() !== d) {
       throw new BadRequestException("Fecha de nacimiento invalida.");
     }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const b0 = new Date(birth.getFullYear(), birth.getMonth(), birth.getDate());
-    if (b0.getTime() > today.getTime()) {
+    const todayYmd = bogotaCalendarYmdFromDate();
+    const b0Ymd = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (b0Ymd > todayYmd) {
       throw new BadRequestException("La fecha de nacimiento no puede ser futura.");
     }
-    let age = today.getFullYear() - y;
-    const md = today.getMonth() - (mo - 1);
-    if (md < 0 || (md === 0 && today.getDate() < d)) {
+    const [ty, tmo, td] = todayYmd.split("-").map((x) => Number(x));
+    let age = ty - y;
+    const md = tmo - mo;
+    if (md < 0 || (md === 0 && td < d)) {
       age -= 1;
     }
     if (age < 18) {
@@ -394,15 +395,19 @@ export class B2bProspectService {
     if (row.estado !== "Publicada") {
       throw new BadRequestException("Esta vacante ya no acepta postulaciones.");
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bogotaCalendarYmdFromDate();
     const vd = row.fecha_publicacion_desde;
     if (vd != null) {
-      const vs = vd instanceof Date ? vd.toISOString().slice(0, 10) : String(vd).slice(0, 10);
+      const vs =
+        vd instanceof Date
+          ? bogotaCalendarYmdFromDate(vd)
+          : String(vd).trim().slice(0, 10);
       if (today < vs) {
         throw new BadRequestException("Esta vacante aun no esta abierta a postulaciones en linea.");
       }
     }
-    const lim = row.lim instanceof Date ? row.lim.toISOString().slice(0, 10) : String(row.lim).slice(0, 10);
+    const lim =
+      row.lim instanceof Date ? bogotaCalendarYmdFromDate(row.lim) : String(row.lim).trim().slice(0, 10);
     if (lim < today) {
       throw new BadRequestException("La fecha limite de postulacion ya vencio.");
     }
