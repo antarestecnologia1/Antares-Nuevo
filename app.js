@@ -368,6 +368,65 @@ function renderHrAlertCards(items = []) {
   return `<div class="hr-alert-grid">${cards}</div>`;
 }
 
+/** Barra compacta: solo ítems que requieren atención (warn/alert o valor numérico &gt; 0). */
+function renderHrAttentionStrip(items = [], { okMessage = "Sin pendientes urgentes" } = {}) {
+  const attention = (items || []).filter((item) => {
+    const tone = item?.tone;
+    if (tone === "warn" || tone === "alert") return true;
+    const v = item?.value;
+    if (typeof v === "number" && v > 0) return tone !== "ok";
+    if (typeof v === "string" && v.startsWith("$")) return false;
+    return false;
+  });
+  if (!attention.length) {
+    return `<p class="hr-attention-strip hr-attention-strip--ok" role="status">${IC.check} ${escapeHtml(okMessage)}</p>`;
+  }
+  const pills = attention
+    .map((item) => {
+      const tone = ["warn", "alert"].includes(item?.tone) ? item.tone : "warn";
+      const value = item?.value === undefined || item?.value === null ? "—" : item.value;
+      const title = item?.help ? ` title="${escapeAttr(String(item.help))}"` : "";
+      return `<span class="hr-attention-pill hr-attention-pill--${tone}"${title}><strong>${escapeHtml(String(value))}</strong> ${escapeHtml(String(item?.label || ""))}</span>`;
+    })
+    .join("");
+  return `<div class="hr-attention-strip" role="status" aria-label="Requiere atención">${pills}</div>`;
+}
+
+function renderPayrollModuleHead({
+  employees,
+  pending,
+  pendingAbsenceApprovals,
+  totalPayrollMonth,
+  currentYm,
+  contractNoticeCount = 0
+}) {
+  const chips = [
+    `<span class="payroll-head-stat"><strong>${employees}</strong> colaboradores</span>`,
+    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong> neto ${escapeHtml(currentYm)}</span>`
+  ];
+  if (pending > 0) {
+    chips.push(
+      `<span class="payroll-head-stat payroll-head-stat--warn" title="Liquidaciones sin marcar como pagadas"><strong>${pending}</strong> pagos pendientes</span>`
+    );
+  }
+  if (pendingAbsenceApprovals > 0) {
+    chips.push(
+      `<span class="payroll-head-stat payroll-head-stat--warn" title="Bandeja de aprobaciones"><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>`
+    );
+  }
+  if (contractNoticeCount > 0) {
+    chips.push(
+      `<span class="payroll-head-stat payroll-head-stat--warn" title="Término fijo en ventana de 30 días o vencido"><strong>${contractNoticeCount}</strong> contratos en aviso</span>`
+    );
+  }
+  return `<header class="payroll-module-head payroll-module-head--compact">
+      <div class="payroll-module-head__title">
+        <h2>Gestión humana</h2>
+      </div>
+      <div class="payroll-module-head__chips" role="list">${chips.join("")}</div>
+    </header>`;
+}
+
 const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "legal"]);
 const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "settlement", "absence"]);
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
@@ -571,7 +630,7 @@ function payrollRunAlreadyExists(runs = [], employeeId, month, payrollKind = "me
   );
 }
 
-function renderPayrollRunCard(run) {
+function renderPayrollRunCard(run, { compact = false } = {}) {
   const paid = Boolean(run.paid);
   const stateTone = paid ? "paid" : "pending";
   const monthLabel = formatPayrollPeriodLabel(run.month);
@@ -583,47 +642,58 @@ function renderPayrollRunCard(run) {
   if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
   if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
   if (hasAbsenceDetail) tags.push("Ausentismo");
-  const tagsHtml = tags.length
-    ? `<p class="payroll-run-card-tags">${tags.map((t) => `<span>${escapeHtml(t)}</span>`).join("")}</p>`
-    : "";
+  const tagsHtml =
+    !compact && tags.length
+      ? `<p class="payroll-run-card-tags">${tags.map((t) => `<span>${escapeHtml(t)}</span>`).join("")}</p>`
+      : "";
   const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
   const statusHtml = paid
     ? '<span class="status status-viaje_asignado">Pagado</span>'
     : '<span class="status status-pendiente">Pendiente</span>';
   const actions = `<div class="payroll-run-card-actions toolbar">
-      <button class="btn btn-sm btn-action" type="button" data-action="payslip" data-id="${escapeAttr(String(run.id))}">${IC.printer} Desprendible</button>
-      ${!paid ? `<button class="btn btn-sm btn-approve" type="button" data-action="mark-payroll-paid" data-id="${escapeAttr(String(run.id))}">${IC.check} Marcar pagado</button>` : ""}
+      <button class="btn btn-sm btn-action" type="button" data-action="payslip" data-id="${escapeAttr(String(run.id))}" title="Desprendible">${IC.printer}${compact ? "" : " Desprendible"}</button>
+      ${!paid ? `<button class="btn btn-sm btn-approve" type="button" data-action="mark-payroll-paid" data-id="${escapeAttr(String(run.id))}" title="Marcar pagado">${IC.check}${compact ? "" : " Marcar pagado"}</button>` : ""}
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(run.id))}" title="Eliminar liquidación">${IC.trash}</button>` : ""}
     </div>`;
-  return `<article class="payroll-run-card payroll-run-card--${stateTone}" data-payroll-state="${stateTone}">
-    <header class="payroll-run-card-head">
-      <div>
-        <p class="payroll-run-card-kicker">${escapeHtml(typeLabel)}</p>
-        <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>
-        <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}</p>
-        ${tagsHtml}
-      </div>
-      ${statusHtml}
-    </header>
-    <dl class="payroll-run-card-metrics">
+  const metricsHtml = compact
+    ? `<dl class="payroll-run-card-metrics payroll-run-card-metrics--compact">
+      <div><dt>Deducciones</dt><dd>$${parseNum(run.deductions).toLocaleString("es-CO")}</dd></div>
+      <div class="payroll-run-card-net"><dt>Neto</dt><dd>$${parseNum(run.net).toLocaleString("es-CO")}</dd></div>
+    </dl>`
+    : `<dl class="payroll-run-card-metrics">
       <div><dt>Devengado</dt><dd>$${parseNum(run.gross).toLocaleString("es-CO")}</dd></div>
       <div><dt>Viáticos</dt><dd>$${parseNum(run.travelAllowance || 0).toLocaleString("es-CO")}</dd></div>
       <div><dt>Combustible</dt><dd>$${parseNum(run.fuelReimbursement || 0).toLocaleString("es-CO")}</dd></div>
       <div><dt>Deducciones</dt><dd>$${parseNum(run.deductions).toLocaleString("es-CO")}</dd></div>
       <div class="payroll-run-card-net"><dt>Neto a pagar</dt><dd>$${parseNum(run.net).toLocaleString("es-CO")}</dd></div>
-    </dl>
+    </dl>`;
+  const compactClass = compact ? " payroll-run-card--compact" : "";
+  const compactTags =
+    compact && tags.length ? `<span class="payroll-run-card-tags-inline muted">${escapeHtml(tags.join(" · "))}</span>` : "";
+  return `<article class="payroll-run-card payroll-run-card--${stateTone}${compactClass}" data-payroll-state="${stateTone}">
+    <header class="payroll-run-card-head">
+      <div>
+        <p class="payroll-run-card-kicker">${escapeHtml(typeLabel)}</p>
+        <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>
+        <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}${compactTags}</p>
+        ${tagsHtml}
+      </div>
+      ${statusHtml}
+    </header>
+    ${metricsHtml}
     ${actions}
   </article>`;
 }
 
-function renderPayrollDataSectionNav(activeId, counts = {}) {
+function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
   const tabs = [
     { id: "employees", label: "Empleados", count: counts.employees ?? 0, icon: "user" },
     { id: "absences", label: "Ausencias", count: counts.absences ?? 0, icon: "calendar" },
     { id: "runs", label: "Liquidaciones", count: counts.runs ?? 0, icon: "dollar" },
-    { id: "legal", label: "Parametros legales", count: counts.legal ?? 0, icon: "hash" }
+    { id: "legal", label: "Parámetros legales", count: counts.legal ?? 0, icon: "hash" }
   ];
-  return `<nav class="payroll-data-nav" role="tablist" aria-label="Listas de personal y nómina">
+  const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
+  return `<nav class="${navClass}" role="tablist" aria-label="Listas de personal y nómina">
     ${tabs
       .map((t) => {
         const active = activeId === t.id;
@@ -674,21 +744,30 @@ function hrWorkspaceTabIcon(iconKey) {
   return `<span class="hr-workspace-tab-ico" aria-hidden="true">${svg}</span>`;
 }
 
-function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs }) {
+function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs, variant = "pro" }) {
   const safeModule = escapeAttr(module);
   const safeAria = escapeAttr(ariaLabel);
-  return `<nav class="hr-workspace-tabs hr-workspace-tabs--pro" role="tablist" aria-label="${safeAria}">
+  const navClass =
+    variant === "segment"
+      ? "hr-workspace-tabs hr-workspace-tabs--segment"
+      : "hr-workspace-tabs hr-workspace-tabs--pro";
+  return `<nav class="${navClass}" role="tablist" aria-label="${safeAria}">
     ${tabs
       .map((t, idx) => {
         const active = activeId === t.id;
-        const hintHtml = t.hint ? `<span class="hr-workspace-tab-hint">${escapeHtml(t.hint)}</span>` : "";
+        const hintHtml =
+          variant === "segment" || !t.hint ? "" : `<span class="hr-workspace-tab-hint">${escapeHtml(t.hint)}</span>`;
         const iconKey = t.icon;
-        const hasIcon = Boolean(iconKey);
+        const hasIcon = Boolean(iconKey) && variant !== "segment";
         const badge = hasIcon
           ? hrWorkspaceTabIcon(iconKey)
-          : `<span class="hr-workspace-tab-num" aria-hidden="true">${idx + 1}</span>`;
+          : variant === "segment"
+            ? ""
+            : `<span class="hr-workspace-tab-num" aria-hidden="true">${idx + 1}</span>`;
         const proClass = hasIcon ? " hr-workspace-tab--has-icon" : "";
-        return `<button type="button" role="tab" aria-selected="${active}" class="hr-workspace-tab hr-workspace-tab--pro${active ? " is-active" : ""}${proClass}" data-action="hr-workspace-tab" data-module="${safeModule}" data-tab="${escapeAttr(t.id)}">
+        const tabClass =
+          variant === "segment" ? "hr-workspace-tab hr-workspace-tab--segment" : "hr-workspace-tab hr-workspace-tab--pro";
+        return `<button type="button" role="tab" aria-selected="${active}" class="${tabClass}${active ? " is-active" : ""}${proClass}" data-action="hr-workspace-tab" data-module="${safeModule}" data-tab="${escapeAttr(t.id)}">
       ${badge}
       <span class="hr-workspace-tab-body"><span class="hr-workspace-tab-label">${escapeHtml(t.label)}</span>${hintHtml}</span>
     </button>`;
@@ -14792,7 +14871,7 @@ function summarizePayrollEmployeeForDirectory(emp) {
   };
 }
 
-function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes) {
+function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = false } = {}) {
   const e = item.raw;
   const contract = item.contract;
   const avCss = employeeAvatarCssUrl(e.avatarUrl);
@@ -14826,6 +14905,35 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes) {
   const selectHtml = hrAdminDeletes
     ? `<label class="directory-card__select" title="Seleccionar para eliminación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
     : "";
+  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
+  const showContractAlert =
+    compact &&
+    contract.applies &&
+    (contract.statusSlug === "notice_window" || contract.statusSlug === "expired");
+  const compactClass = compact ? " directory-card--compact" : "";
+  if (compact) {
+    const contractBlock = showContractAlert ? contractOps : "";
+    return `<article class="directory-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}${compactClass}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+    <div class="directory-card__compact-row">
+      <div class="${avatarClass}">${avatarInner}</div>
+      <div class="directory-card__compact-main">
+        <h4 class="directory-card__title">${escapeHtml(String(e.name || "Colaborador"))}</h4>
+        <p class="directory-card__subline muted">${escapeHtml(item.roleLabel)} · ${escapeHtml(docLine)}</p>
+      </div>
+      <div class="directory-card__compact-meta">
+        ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
+        <span class="directory-card__salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
+      </div>
+      <div class="directory-card__compact-actions toolbar">
+        <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
+        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
+        ${selectHtml}
+      </div>
+    </div>
+    ${contractBlock}
+  </article>`;
+  }
   return `<article class="directory-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
     <header class="directory-card__head">
       <div class="directory-card__identity">
@@ -14848,7 +14956,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes) {
       ${directoryChipHtml("Fin contrato", contract.applies ? fmtDateOr(contract.endYmd, "—") : "N/A", contract.statusSlug === "notice_window" ? "warn" : "neutral")}
     </div>
     <dl class="directory-card__facts">
-      ${directoryFactHtml("Documento", `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—")}
+      ${directoryFactHtml("Documento", docLine)}
       ${directoryFactHtml("Cargo", String(e.position || "—"))}
       ${directoryFactHtml("Centro costos", String(e.costCenter || "—"))}
       ${directoryFactHtml("Tipo contrato", String(e.contractType || "—"))}
@@ -21376,7 +21484,7 @@ function payrollHtml() {
     (s) => s.contract.applies && (s.contract.statusSlug === "notice_window" || s.contract.statusSlug === "expired")
   ).length;
   const employeeCards = employeeSummaries
-    .map((item) => renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes))
+    .map((item) => renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact: true }))
     .join("");
   const runRows = sortedRuns
     .map((r) => {
@@ -21432,16 +21540,6 @@ function payrollHtml() {
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
   const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
   const formEmp = `<form id="form-employee" class="p-form p-form-colored hr-form-flow">
-    ${renderHrFormHero({
-      eyebrow: "Alta de colaborador",
-      title: "Registro completo de Gestión humana",
-      tone: "payroll",
-      badges: [
-        renderHrFormHeroBadge("6 pasos", "guiados"),
-        renderHrFormHeroBadge("Word", "contrato"),
-        renderHrFormHeroBadge("EPS · ARL", "seguridad social")
-      ]
-    })}
     <div class="hr-form-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
       <div class="hr-form-wizard-toolbar">
         <div>
@@ -21638,17 +21736,6 @@ function payrollHtml() {
       </div>
     </section>`;
   const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    ${renderHrFormHero({
-      eyebrow: "Liquidación individual",
-      title: "Liquide el periodo según periodicidad del empleado",
-      description: "El cálculo respeta mensual o quincenal según la ficha del colaborador. Para muchos empleados a la vez use la liquidación masiva debajo.",
-      tone: "payroll",
-      badges: [
-        renderHrFormHeroBadge("Individual", "1 empleado"),
-        renderHrFormHeroBadge("Variables", "pagos y deducciones"),
-        renderHrFormHeroBadge("Masiva", "abajo")
-      ]
-    })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
       <div class="form-section-grid">
@@ -21712,17 +21799,6 @@ function payrollHtml() {
   </form>`;
   const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    ${renderHrFormHero({
-      eyebrow: "Terminación",
-      title: "Liquidación contractual clara y amplia",
-      description: "Revise bases de cálculo, rubros sugeridos y ajustes manuales dentro del mismo panel para evitar perder contexto.",
-      tone: "payroll",
-      badges: [
-        renderHrFormHeroBadge("Cesantías", "proporcional"),
-        renderHrFormHeroBadge("Prima", "orientativa"),
-        renderHrFormHeroBadge("Vacaciones", "compensación")
-      ]
-    })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.activity} Liquidación contractual (terminación)</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
@@ -21765,17 +21841,6 @@ function payrollHtml() {
     ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary" type="submit">${IC.save} Registrar liquidación contractual</button>`)}
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    ${renderHrFormHero({
-      eyebrow: "Novedad de personal",
-      title: "Ausencias e incapacidades sin ruido",
-      description: "Registre vacaciones, incapacidades, licencias y permisos laborales usuales en Colombia con soporte y observaciones.",
-      tone: "payroll",
-      badges: [
-        renderHrFormHeroBadge("EPS / ARL", "o entidad"),
-        renderHrFormHeroBadge("Fechas", "desde / hasta"),
-        renderHrFormHeroBadge("Colombia", "tipos laborales")
-      ]
-    })}
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Datos de la novedad</legend>
       <div class="form-section-grid">
@@ -21823,19 +21888,6 @@ function payrollHtml() {
   const absenceTable = absenceRows
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
-  const employeeHeroStrip = moduleFleetHeroStrip([
-    { label: "Colaboradores", value: employees.length },
-    { label: "Término fijo", value: fixedTermCount },
-    {
-      label: "Aviso renovación",
-      value: contractNoticeCount,
-      tone: contractNoticeCount ? "warn" : undefined
-    },
-    {
-      label: "Conductores",
-      value: employeeSummaries.filter((s) => s.roleLabel === "Conductor").length
-    }
-  ]);
   const employeeToolbar = `<div class="payroll-employee-toolbar">
       <label class="payroll-employee-search">${fieldLabel(IC.search, "Buscar")}
         <input type="search" id="payroll-employee-search" placeholder="Nombre, documento, cargo, centro de costos…" autocomplete="off" />
@@ -21854,10 +21906,10 @@ function payrollHtml() {
       </div>` : ""}
     </div>`;
   const empTable = employeeCards
-    ? `${employeeHeroStrip}${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
+    ? `${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
     : emptyState("No hay empleados registrados.");
   const runCardsGrid = sortedRuns.length
-    ? `<div class="payroll-run-cards-grid">${sortedRuns.map((r) => renderPayrollRunCard(r)).join("")}</div>`
+    ? `<div class="payroll-run-cards-grid">${sortedRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
     : emptyState("Sin liquidaciones que coincidan con los filtros.");
   const runTableLegacy = runRows
     ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div></details>`
@@ -21866,7 +21918,9 @@ function payrollHtml() {
   const employeeOpts = employees
     .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
     .join("");
-  const filtersHtml = `<form id="payroll-filters" class="payroll-data-toolbar-filters">
+  const filtersHtml = `<details class="payroll-filters-advanced">
+      <summary class="payroll-filters-advanced__summary">${IC.layers} Filtros avanzados</summary>
+      <form id="payroll-filters" class="payroll-data-toolbar-filters">
       <label class="payroll-filter-field">${fieldLabel(IC.calendar, "Periodo")}<select name="period">
         <option value="all" ${filterPeriod === "all" ? "selected" : ""}>Todos</option>
         <option value="current" ${filterPeriod === "current" ? "selected" : ""}>Mes actual</option>
@@ -21889,58 +21943,16 @@ function payrollHtml() {
         <option value="pending" ${filterStatus === "pending" ? "selected" : ""}>Pendiente</option>
       </select></label>
       <button type="button" class="btn btn-outline btn-sm" data-action="payroll-clear-filters">${IC.x} Limpiar</button>
-    </form>`;
-  const payrollModuleHead = `<header class="payroll-module-head ops-module-head ops-module-head--rich">
-      <div class="ops-module-title">
-        <span class="ops-module-kicker">Personal · Recursos humanos</span>
-        <h2>Gestión humana</h2>
-        <p class="ops-module-subtitle">Altas, liquidaciones y novedades de personal. Use <strong>Nuevos registros</strong> para crear y <strong>Consultar datos</strong> para listas, filtros y exportación.</p>
-      </div>
-      <div class="ops-module-chips">
-        <span class="ops-chip"><strong>${employees.length}</strong> colaboradores</span>
-        <span class="ops-chip${pending ? " ops-chip--warn" : ""}"><strong>${pending}</strong> pagos pendientes</span>
-        <span class="ops-chip${pendingAbsenceApprovals ? " ops-chip--warn" : ""}"><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>
-      </div>
-    </header>`;
-  const payrollOperateAlerts = renderHrAlertCards([
-    {
-      icon: IC.alertTriangle,
-      label: "Liquidaciones pendientes de pago",
-      value: pending,
-      help: pending ? "Revise y marque como pagadas en Consultar datos → Liquidaciones." : "No hay pagos pendientes en el historial.",
-      tone: pending ? "warn" : "ok"
-    },
-    {
-      icon: IC.dollar,
-      label: "Neto liquidado (mes actual)",
-      value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}`,
-      help: `Periodo ${currentYm}. Incluye liquidaciones registradas para el mes.`,
-      tone: "info"
-    },
-    {
-      icon: IC.calendar,
-      label: "Ausencias por aprobar",
-      value: pendingAbsenceApprovals,
-      help: "Solicitudes de registro de ausencia en bandeja de aprobaciones.",
-      tone: pendingAbsenceApprovals ? "warn" : "ok"
-    },
-    {
-      icon: IC.users,
-      label: "Colaboradores activos",
-      value: employees.length,
-      help: "Fichas con contrato y datos de seguridad social.",
-      tone: "ok"
-    },
-    {
-      icon: IC.alertTriangle,
-      label: "Contratos — aviso no renovación",
-      value: contractNoticeCount,
-      help: contractNoticeCount
-        ? "Término fijo en ventana de 30 días o vencido: notifique por escrito si no renovará (CST)."
-        : "Sin contratos a término fijo en ventana de aviso.",
-      tone: contractNoticeCount ? "warn" : "ok"
-    }
-  ]);
+    </form>
+    </details>`;
+  const payrollModuleHead = renderPayrollModuleHead({
+    employees: employees.length,
+    pending,
+    pendingAbsenceApprovals,
+    totalPayrollMonth,
+    currentYm,
+    contractNoticeCount
+  });
   const payrollOperateNav = renderModuleWindowTabs({
     ariaLabel: "Flujos de Gestión humana",
     activeId: payrollOperateSection,
@@ -21958,10 +21970,6 @@ function payrollHtml() {
   const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
   const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Vacaciones, incapacidades, licencias y permisos laborales Colombia", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
-      <header class="payroll-panel-intro ops-block-head">
-        <h3>Nuevos registros</h3>
-        <p class="ops-block-lead muted">Abra solo el trámite que necesita y mantenga los demás fuera de pantalla para reducir scroll.</p>
-      </header>
       ${payrollOperateNav}
       <div class="auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${settlementOperatePane}${absenceOperatePane}</div>
     </section>`;
@@ -21978,56 +21986,15 @@ function payrollHtml() {
   const payrollQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos">
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "all" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="all">Todos</button>
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "current" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="current">Mes actual</button>
-      <button type="button" class="payroll-quick-pill${payrollQuickActive === "mensual" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="mensual">Solo mensual</button>
-      <button type="button" class="payroll-quick-pill${payrollQuickActive === "quincenal" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="quincenal">Solo quincenal</button>
-      <button type="button" class="payroll-quick-pill${payrollQuickActive === "pending" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="pending">Solo pendientes</button>
-      <button type="button" class="payroll-quick-pill${runSort === "pending_first" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="pending_first">Pendientes primero</button>
-      <button type="button" class="payroll-quick-pill${runSort === "net_desc" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="net_desc">Mayor neto</button>
+      <button type="button" class="payroll-quick-pill${payrollQuickActive === "pending" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="pending">Pendientes</button>
+      <button type="button" class="payroll-quick-pill${runSort === "pending_first" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="pending_first">Orden: pendientes</button>
     </div>`;
-  const payrollDataInsight = `<div class="payroll-insight-strip" aria-label="Resumen de consulta">
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Liquidaciones visibles</span><p class="payroll-insight-value"><strong>${runs.length}</strong> de ${allRuns.length}</p></div>
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Viático interdepartamental</span><p class="payroll-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} / viaje</p><p class="muted" style="margin:0.25rem 0 0">Actualizado: ${escapeHtml(rulesUpdatedLabel)}</p></div>
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Acciones</span><p class="payroll-insight-value"><button type="button" class="btn btn-sm btn-action" id="export-payroll">${IC.download} Exportar CSV</button></p></div>
-    </div>`;
-  const legalSummary = renderHrAlertCards([
-    {
-      icon: IC.dollar,
-      label: `SMMLV ${legalDraft.year}`,
-      value: `$${parseNum(legalDraft.smmlvCop).toLocaleString("es-CO")}`,
-      help: `Vigencia ${escapeHtml(legalDraft.effectiveFrom)} a ${escapeHtml(legalDraft.effectiveTo || "abierta")}.`,
-      tone: legalDraft.isCurrent ? "ok" : "info"
-    },
-    {
-      icon: IC.activity,
-      label: "Auxilio legal",
-      value: `$${parseNum(legalDraft.transportAllowanceCop).toLocaleString("es-CO")}`,
-      help: `Tope automatico: hasta 2 SMMLV = $${legalCurrentCap.toLocaleString("es-CO")}.`,
-      tone: "info"
-    },
-    {
-      icon: IC.hash,
-      label: "Horas legales semanales",
-      value: parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours),
-      help: "Referencia usada por formularios y calculos conectados a RRHH.",
-      tone: "ok"
-    },
-    {
-      icon: IC.heart,
-      label: "Salud / pensión",
-      value: `${healthRatePct}% / ${pensionRatePct}%`,
-      help: "Porcentaje de aporte del empleado usado en liquidaciones y desprendibles.",
-      tone: "info"
-    },
-    {
-      icon: IC.calendar,
-      label: "Liquidaciones del ano",
-      value: payrollRunsForLegalYear,
-      help: payrollRunsForLegalYear
-        ? "Cambiar esta vigencia impacta referencias legales ya usadas en periodos de nomina."
-        : "Aun no hay liquidaciones registradas para este ano.",
-      tone: payrollRunsForLegalYear ? "warn" : "ok"
-    }
-  ]);
+  const legalSummary = `<dl class="payroll-legal-summary" aria-label="Parámetros del año seleccionado">
+      <div><dt>SMMLV ${legalDraft.year}</dt><dd>$${parseNum(legalDraft.smmlvCop).toLocaleString("es-CO")}</dd></div>
+      <div><dt>Auxilio transporte</dt><dd>$${parseNum(legalDraft.transportAllowanceCop).toLocaleString("es-CO")}</dd></div>
+      <div><dt>Salud / pensión</dt><dd>${healthRatePct}% / ${pensionRatePct}%</dd></div>
+      <div><dt>Horas semanales</dt><dd>${parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)}</dd></div>
+    </dl>`;
   const legalYearOptionsHtml = legalYearOptions
     .map(
       (year) =>
@@ -22122,12 +22089,20 @@ function payrollHtml() {
         "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll"
       )}
     </div>`;
-  const payrollDataNav = renderPayrollDataSectionNav(payrollDataSection, {
-    employees: employees.length,
-    absences: absences.length,
-    runs: runs.length,
-    legal: legalHistory.length || 1
-  });
+  const payrollDataNav = renderPayrollDataSectionNav(
+    payrollDataSection,
+    {
+      employees: employees.length,
+      absences: absences.length,
+      runs: runs.length,
+      legal: legalHistory.length || 1
+    },
+    { minimal: true }
+  );
+  const payrollRunFilters =
+    payrollDataSection === "runs"
+      ? `<div class="payroll-data-toolbar__filters">${payrollQuickBar}${filtersHtml}</div>`
+      : "";
   const employeesPane = `<div class="payroll-data-pane${payrollDataSection === "employees" ? "" : " hidden"}" data-payroll-section="employees">
       <div class="payroll-table-shell">${empTable}</div>
     </div>`;
@@ -22135,52 +22110,36 @@ function payrollHtml() {
       <div class="payroll-table-shell">${absenceTable}</div>
     </div>`;
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
-      <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> liquidación${runs.length === 1 ? "" : "es"} con los filtros actuales.</p>
+      <div class="payroll-runs-toolbar">
+        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${allRuns.length} liquidación${runs.length === 1 ? "" : "es"}</p>
+        <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
+      </div>
       ${runsPaneBody}
     </div>`;
   const payrollDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
-      ${payrollDataInsight}
-      <div class="payroll-data-toolbar">
-        ${payrollQuickBar}
-        ${filtersHtml}
+      <div class="payroll-data-toolbar payroll-data-toolbar--compact">
+        ${payrollDataNav}
+        ${payrollRunFilters}
       </div>
-      ${payrollDataNav}
       <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}${legalPane}</div>
     </section>`;
-  const payrollFleetHero = moduleFleetHeroStrip(
-    [
-      { label: "Colaboradores", value: employees.length },
-      { label: "Pagos pendientes", value: pending, tone: pending ? "warn" : undefined },
-      { label: "Pagado este mes", value: `$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}` },
-      {
-        label: "Ausencias por revisar",
-        value: pendingAbsenceApprovals,
-        tone: pendingAbsenceApprovals ? "warn" : undefined
-      }
-    ],
-    "payroll"
-  );
   const payrollTabsNav = renderHrWorkspaceTabs({
     module: "payroll",
     ariaLabel: "Secciones del módulo Personal y nómina",
     activeId: payrollWorkspace,
+    variant: "segment",
     tabs: [
-      { id: "operate", label: "Nuevos registros", icon: "userPlus", hint: "Altas y liquidaciones" },
-      { id: "data", label: "Consultar datos", icon: "layers", hint: "Empleados, ausencias y nómina" }
+      { id: "operate", label: "Registrar" },
+      { id: "data", label: "Consultar" }
     ]
   });
   const payrollOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
-      ${payrollOperateAlerts}
       ${payrollExecutionBlock}
     </div>`;
   const payrollDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
-      <header class="payroll-panel-intro ops-block-head">
-        <h3>Consultar datos</h3>
-        <p class="ops-block-lead muted">Navegue entre empleados, ausencias y liquidaciones. Los filtros aplican sobre las listas y la exportación CSV.</p>
-      </header>
       ${payrollDataBlock}
     </div>`;
-  return `<section class="payroll-shell payroll-shell--workspace payroll-module--v2 hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollFleetHero}${payrollTabsNav}${payrollModuleHead}
+  return `<section class="payroll-shell payroll-shell--workspace payroll-module--v2 payroll-module--clean hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollTabsNav}${payrollModuleHead}
       <div class="hr-workspace-panels">
         ${payrollOperatePanel}
         ${payrollDataPanel}

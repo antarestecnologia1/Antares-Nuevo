@@ -88,10 +88,9 @@ window.PortalArchitecture = (() => {
         {
           container: ".payroll-shell",
           order: [
-            ".fleet-hero-strip",
             ".hr-workspace-tabs",
             ".payroll-module-head",
-            ".hr-alert-grid",
+            ".hr-attention-strip",
             ".payroll-operate-panel",
             ".payroll-data-panel",
             ".payroll-run-cards-grid",
