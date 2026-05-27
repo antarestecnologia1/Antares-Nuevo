@@ -14115,13 +14115,25 @@ body[data-theme="dark"] .reports-workspace-tab.is-active {
   }
 }
 
-/* —— Gestión humana: modo limpio (menos ruido visual) —— */
+/* —— Gestión humana y Contratación: modo limpio (menos ruido visual) —— */
 .payroll-module--clean {
   gap: 0.75rem;
 }
 
-.payroll-module--clean .hr-module-pro.payroll-shell--workspace {
+.payroll-module--clean.hiring-shell--workspace,
+.payroll-module--clean.payroll-shell--workspace {
+  gap: 0.75rem;
+}
+
+.payroll-module--clean .hr-module-pro.payroll-shell--workspace,
+.payroll-module--clean .hr-module-pro.hiring-shell--workspace {
   padding-bottom: 0;
+}
+
+.payroll-module--clean .hr-form-hero,
+.payroll-module--clean .hr-form-wizard-lead,
+.payroll-module--clean .hr-form-wizard-kicker {
+  display: none;
 }
 
 .payroll-module-head--compact {
@@ -14260,11 +14272,21 @@ body[data-theme="dark"] .reports-workspace-tab.is-active {
   font-size: 0.72rem;
 }
 
-.payroll-module--clean .payroll-operate-panel {
+.payroll-module--clean .payroll-operate-panel,
+.payroll-module--clean.hiring-shell--workspace .payroll-operate-panel {
   padding: 0;
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+.payroll-module--clean .payroll-result-meta {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+}
+
+.payroll-module--clean .hiring-table-wrap {
+  margin-top: 0;
 }
 
 /* Liquidación masiva (panel compacto dentro de nómina) */
@@ -14469,11 +14491,6 @@ body[data-theme="dark"] .payroll-bulk-result-list li {
 .payroll-module--clean .auth-tabs-bar {
   border-bottom: 1px solid var(--line, #e2e8f0);
   margin-bottom: 0.65rem;
-}
-
-.payroll-module--clean .hr-form-wizard-lead,
-.payroll-module--clean .hr-form-wizard-kicker {
-  display: none;
 }
 
 .payroll-module--clean .hr-form-card .p-card-header p,

@@ -427,6 +427,53 @@ function renderPayrollModuleHead({
     </header>`;
 }
 
+function renderHiringModuleHead({
+  openVacancies,
+  activeCandidates,
+  urgentItems,
+  contractsThisMonth,
+  candidateConversion
+}) {
+  const chips = [
+    `<span class="payroll-head-stat"><strong>${openVacancies}</strong> vacantes abiertas</span>`,
+    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>${activeCandidates}</strong> en proceso</span>`,
+    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>${candidateConversion}%</strong> conversión</span>`
+  ];
+  if (urgentItems > 0) {
+    chips.push(
+      `<span class="payroll-head-stat payroll-head-stat--warn" title="Vacantes por cerrar o contratos por vencer"><strong>${urgentItems}</strong> alertas</span>`
+    );
+  }
+  if (contractsThisMonth > 0) {
+    chips.push(`<span class="payroll-head-stat"><strong>${contractsThisMonth}</strong> contratos este mes</span>`);
+  }
+  return `<header class="payroll-module-head payroll-module-head--compact">
+      <div class="payroll-module-head__title">
+        <h2>Contratación</h2>
+      </div>
+      <div class="payroll-module-head__chips" role="list">${chips.join("")}</div>
+    </header>`;
+}
+
+function renderHiringDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
+  const tabs = [
+    { id: "candidates", label: "Candidatos", count: counts.candidates ?? 0 },
+    { id: "vacancies", label: "Vacantes", count: counts.vacancies ?? 0 },
+    { id: "interviews", label: "Entrevistas", count: counts.interviews ?? 0 },
+    { id: "contracts", label: "Contratos", count: counts.contracts ?? 0 },
+    { id: "positions", label: "Cargos", count: counts.positions ?? 0 }
+  ];
+  const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
+  return `<nav class="${navClass}" role="tablist" aria-label="Consultas de contratación">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-data-section" data-section="${escapeAttr(t.id)}"><span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
 const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "legal"]);
 const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "settlement", "absence"]);
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
@@ -22985,91 +23032,14 @@ function hiringHtml() {
   const tCon = contractRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--contracts"><table class="hiring-table hiring-table--contracts"><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
   const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
-  const hiredCandidates = candidates.filter((candidate) => String(candidate.status || "") === "Contratado");
-  const discardedCandidates = candidates.filter((candidate) => String(candidate.status || "") === "Descartado");
-  const closedVacancies = vacancies.filter((vacancy) => String(vacancy.status || "") !== "Publicada");
-  const vacancyOpeningsVisible = filteredVacancies.reduce((acc, vacancy) => acc + Math.max(1, parseNum(vacancy.openings || 1)), 0);
-  const interviewsUpcoming = interviews.filter((interview) => {
-    const ts = new Date(interview.when || "").getTime();
-    return Number.isFinite(ts) && ts >= Date.now();
-  });
-  const interviewsThisWeek = interviewsUpcoming.filter((interview) => {
-    const ts = new Date(interview.when || "").getTime();
-    return Number.isFinite(ts) && ts - Date.now() <= 7 * 86400000;
-  });
-  const indefiniteContracts = contracts.filter((contract) =>
-    /indefinid/i.test(String(contract.contractType || ""))
-  );
-  const fixedTermContracts = contracts.filter((contract) =>
-    /fijo|obra|prestacion|aprendiz/i.test(String(contract.contractType || ""))
-  );
-  const driverPositions = positions.filter((position) => String(position.workerRole || "") === "conductor");
-  const employeePositions = positions.filter((position) => String(position.workerRole || "") !== "conductor");
-  const hiringMetricChip = (value, label, tone = "") => `<span class="hiring-data-card-metric${tone ? ` hiring-data-card-metric--${escapeAttr(tone)}` : ""}">
-      <strong>${escapeHtml(String(value))}</strong>
-      <small>${escapeHtml(String(label))}</small>
-    </span>`;
-  const renderHiringWorkspaceDataCard = ({ icon, title, subtitle, tone, summaryTitle, summaryText, metrics, bodyHtml }) =>
-    pcardWrapPro(
-      icon,
-      title,
-      subtitle,
-      `<div class="hiring-data-card-shell">
-        <div class="hiring-data-card-summary hiring-data-card-summary--${escapeAttr(String(tone || "brand"))}">
-          <div class="hiring-data-card-copy">
-            <p class="hiring-data-card-kicker">${escapeHtml(String(summaryTitle || ""))}</p>
-            <p class="hiring-data-card-text">${escapeHtml(String(summaryText || ""))}</p>
-          </div>
-          <div class="hiring-data-card-metrics">${Array.isArray(metrics) ? metrics.join("") : ""}</div>
-        </div>
-        ${bodyHtml}
-      </div>`,
-      `hiring-pro-data-card hiring-pro-data-card--${escapeAttr(String(tone || "brand"))}`
-    );
-  const hiringAlertItems = [
-    {
-      icon: IC.alertTriangle,
-      label: "Vacantes por cerrar (≤ 7 días)",
-      value: soonClosingVacancies.length,
-      help: "Publicadas con fecha límite cercana. Revísalas o extiéndelas.",
-      tone: soonClosingVacancies.length ? "warn" : "ok"
-    },
-    {
-      icon: IC.calendar,
-      label: "Contratos por vencer (≤ 30 días)",
-      value: contractsEndingSoon.length,
-      help: "Anticipa renovaciones, prórrogas o liquidaciones.",
-      tone: contractsEndingSoon.length ? "warn" : "ok"
-    },
-    {
-      icon: IC.users,
-      label: "Candidatos activos en pipeline",
-      value: activeCandidates.length,
-      help: "Personas en proceso (no contratados ni descartados).",
-      tone: "info"
-    },
-    {
-      icon: IC.file,
-      label: "Contratos generados este mes",
-      value: contractsThisMonth.length,
-      help: "Documentos de contratación cerrados en el mes en curso.",
-      tone: "ok"
-    }
-  ];
 
-  const hiringModuleHead = `<header class="payroll-module-head ops-module-head ops-module-head-hiring ops-module-head--rich">
-      <div class="ops-module-title">
-        <span class="ops-module-kicker">Selección · Recursos humanos</span>
-        <h2>Contratación</h2>
-        <p class="ops-module-subtitle">Defina cargos, publique vacantes, evalúe candidatos y formalice contratos. Use <strong>Nuevos registros</strong> para crear y <strong>Consultar datos</strong> para revisar el pipeline y el histórico.</p>
-      </div>
-      <div class="ops-module-chips">
-        <span class="ops-chip"><strong>${openVacancies.length}</strong> vacantes abiertas</span>
-        <span class="ops-chip"><strong>${activeCandidates.length}</strong> candidatos en proceso</span>
-        <span class="ops-chip${urgentItems ? " ops-chip--warn" : ""}"><strong>${urgentItems}</strong> alertas activas</span>
-      </div>
-    </header>`;
-  const hiringOperateAlerts = renderHrAlertCards(hiringAlertItems);
+  const hiringModuleHead = renderHiringModuleHead({
+    openVacancies: openVacancies.length,
+    activeCandidates: activeCandidates.length,
+    urgentItems,
+    contractsThisMonth: contractsThisMonth.length,
+    candidateConversion
+  });
   const hiringOperateNav = renderModuleWindowTabs({
     ariaLabel: "Flujos de Contratación",
     activeId: hiringOperateSection,
@@ -23089,159 +23059,86 @@ function hiringHtml() {
   const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${createCollapsibleProCard("create-interview", "calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring", "Abrir formulario")}</div>`;
   const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${createCollapsibleProCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring", "Abrir formulario")}</div>`;
   const hiringExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
-      <header class="payroll-panel-intro ops-block-head">
-        <h3>Nuevos registros</h3>
-        <p class="ops-block-lead muted">Abra un flujo por vez para mantener el proceso separado por opción y con menos desplazamiento.</p>
-      </header>
       ${hiringOperateNav}
       <div class="auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>
     </section>`;
-  const hiringQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos de contratación">
-      <button type="button" class="payroll-quick-pill${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active">Candidatos activos</button>
-      <button type="button" class="payroll-quick-pill${candidateFilter === "all" ? " is-active" : ""}" data-action="hiring-candidates-all">Todos los candidatos</button>
-      <button type="button" class="payroll-quick-pill${vacancyFilter === "open" ? " is-active" : ""}" data-action="hiring-vacancies-open">Vacantes abiertas</button>
-      <button type="button" class="payroll-quick-pill${candidateSort === "pipeline" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="pipeline">Ordenar por etapa</button>
-      <button type="button" class="payroll-quick-pill${candidateSort === "experience" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="experience">Mayor experiencia</button>
-      <button type="button" class="payroll-quick-pill${candidateSort === "recent" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="recent">Más recientes</button>
+  const hiringQuickBarCandidates = `<div class="payroll-quick-bar" role="group" aria-label="Filtros de candidatos">
+      <button type="button" class="payroll-quick-pill${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active">Activos</button>
+      <button type="button" class="payroll-quick-pill${candidateFilter === "all" ? " is-active" : ""}" data-action="hiring-candidates-all">Todos</button>
+      <button type="button" class="payroll-quick-pill${candidateSort === "pipeline" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="pipeline">Por etapa</button>
+      <button type="button" class="payroll-quick-pill${candidateSort === "experience" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="experience">Experiencia</button>
+      <button type="button" class="payroll-quick-pill${candidateSort === "recent" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="recent">Recientes</button>
     </div>`;
-  const hiringDataInsight = `<div class="payroll-insight-strip" aria-label="Resumen de consulta">
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Candidatos visibles</span><p class="payroll-insight-value"><strong>${sortedCandidates.length}</strong> de ${candidates.length}</p></div>
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Vacantes visibles</span><p class="payroll-insight-value"><strong>${filteredVacancies.length}</strong> de ${vacancies.length}</p></div>
-      <div class="payroll-insight-item"><span class="payroll-insight-label">Conversión y cierre</span><p class="payroll-insight-value"><strong>${candidateConversion}%</strong> conversión · ${contractsThisMonth.length} contratos del mes</p></div>
+  const hiringQuickBarVacancies = `<div class="payroll-quick-bar" role="group" aria-label="Filtros de vacantes">
+      <button type="button" class="payroll-quick-pill${vacancyFilter === "open" ? " is-active" : ""}" data-action="hiring-vacancies-open">Solo abiertas</button>
+      <button type="button" class="payroll-quick-pill${vacancyFilter === "all" ? " is-active" : ""}" data-action="hiring-vacancies-all">Todas</button>
     </div>`;
-  const hiringDataNav = renderModuleWindowTabs({
-    ariaLabel: "Consultas de Contratación",
-    activeId: hiringDataSection,
-    action: "hiring-data-section",
-    valueAttr: "section",
-    tabs: [
-      { id: "candidates", label: "Candidatos", count: sortedCandidates.length },
-      { id: "vacancies", label: "Vacantes", count: filteredVacancies.length },
-      { id: "interviews", label: "Entrevistas", count: interviews.length },
-      { id: "contracts", label: "Contratos", count: contracts.length },
-      { id: "positions", label: "Cargos", count: positions.length }
-    ]
-  });
-  const hiringCandidatesCard = renderHiringWorkspaceDataCard({
-    icon: "users",
-    title: "Candidatos en proceso",
-    subtitle: `${sortedCandidates.length} personas en seguimiento`,
-    tone: "violet",
-    summaryTitle: "Pipeline visible",
-    summaryText: "Consulte rápidamente la mezcla entre candidatos activos, contratados y descartados antes de revisar la tabla completa.",
-    metrics: [
-      hiringMetricChip(activeCandidates.length, "activos", "ok"),
-      hiringMetricChip(hiredCandidates.length, "contratados"),
-      hiringMetricChip(discardedCandidates.length, "descartados")
-    ],
-    bodyHtml: tCand
-  });
-  const hiringVacanciesCard = renderHiringWorkspaceDataCard({
-    icon: "briefcase",
-    title: "Vacantes activas",
-    subtitle: `${filteredVacancies.length} visibles para postular`,
-    tone: "brand",
-    summaryTitle: "Demanda abierta",
-    summaryText: "Visualice cuántas vacantes siguen publicadas, cuántos cupos están disponibles y cuáles necesitan cierre o extensión.",
-    metrics: [
-      hiringMetricChip(openVacancies.length, "abiertas", "ok"),
-      hiringMetricChip(vacancyOpeningsVisible, "cupos visibles"),
-      hiringMetricChip(closedVacancies.length, "cerradas")
-    ],
-    bodyHtml: tVac
-  });
-  const hiringInterviewsCard = renderHiringWorkspaceDataCard({
-    icon: "calendar",
-    title: "Próximas entrevistas",
-    subtitle: `${interviews.length} agendadas`,
-    tone: "cyan",
-    summaryTitle: "Agenda de selección",
-    summaryText: "Mantenga a la vista las citas ya programadas y la carga próxima para no perder ritmo en el embudo de contratación.",
-    metrics: [
-      hiringMetricChip(interviewsUpcoming.length, "pendientes", "ok"),
-      hiringMetricChip(interviewsThisWeek.length, "esta semana"),
-      hiringMetricChip(interviews.length, "histórico")
-    ],
-    bodyHtml: tInt
-  });
-  const hiringContractsCard = renderHiringWorkspaceDataCard({
-    icon: "file",
-    title: "Contratos firmados",
-    subtitle: `${contracts.length} en el histórico`,
-    tone: "amber",
-    summaryTitle: "Cierre contractual",
-    summaryText: "Revise el volumen reciente de contratos, su tipo predominante y los casos que requerirán seguimiento por vencimiento.",
-    metrics: [
-      hiringMetricChip(contractsThisMonth.length, "este mes", "ok"),
-      hiringMetricChip(indefiniteContracts.length, "indefinidos"),
-      hiringMetricChip(fixedTermContracts.length, "plazo fijo/obra"),
-      hiringMetricChip(contractsEndingSoon.length, "por vencer", "warn")
-    ],
-    bodyHtml: tCon
-  });
-  const hiringPositionsCard = renderHiringWorkspaceDataCard({
-    icon: "briefcase",
-    title: "Catálogo de cargos",
-    subtitle: `${positions.length} cargos (${activePositions.length} activos)`,
-    tone: "emerald",
-    summaryTitle: "Base organizacional",
-    summaryText: "Tenga una lectura más clara del catálogo vigente para equilibrar cargos operativos, administrativos y nuevas aperturas.",
-    metrics: [
-      hiringMetricChip(activePositions.length, "activos", "ok"),
-      hiringMetricChip(driverPositions.length, "conductores"),
-      hiringMetricChip(employeePositions.length, "empleados")
-    ],
-    bodyHtml: tPos
-  });
-  const hiringDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
-      ${hiringDataInsight}
-      <div class="payroll-data-toolbar">
-        ${hiringQuickBar}
-        <p class="payroll-result-meta muted">Filtre el pipeline y revise vacantes, entrevistas, contratos y cargos desde un mismo lugar.</p>
-      </div>
-      ${hiringDataNav}
-      <div class="auth-tab-panels">
-        <div class="auth-tab-panel${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-data-pane="candidates"${hiringDataSection === "candidates" ? "" : " hidden"}>${hiringCandidatesCard}</div>
-        <div class="auth-tab-panel${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-data-pane="vacancies"${hiringDataSection === "vacancies" ? "" : " hidden"}>${hiringVacanciesCard}</div>
-        <div class="auth-tab-panel${hiringDataSection === "interviews" ? "" : " hidden"}" data-hiring-data-pane="interviews"${hiringDataSection === "interviews" ? "" : " hidden"}>${hiringInterviewsCard}</div>
-        <div class="auth-tab-panel${hiringDataSection === "contracts" ? "" : " hidden"}" data-hiring-data-pane="contracts"${hiringDataSection === "contracts" ? "" : " hidden"}>${hiringContractsCard}</div>
-        <div class="auth-tab-panel${hiringDataSection === "positions" ? "" : " hidden"}" data-hiring-data-pane="positions"${hiringDataSection === "positions" ? "" : " hidden"}>${hiringPositionsCard}</div>
-      </div>
-    </section>`;
-  const hiringFleetHero = moduleFleetHeroStrip(
-    [
-      { label: "Vacantes abiertas", value: openVacancies.length },
-      { label: "Candidatos en proceso", value: activeCandidates.length },
-      { label: "Contratos del mes", value: contractsThisMonth.length },
-      {
-        label: "Alertas y conversión",
-        value: `${urgentItems} · ${candidateConversion}%`,
-        tone: urgentItems ? "warn" : undefined
-      }
-    ],
-    "hiring"
+  const hiringDataNav = renderHiringDataSectionNav(
+    hiringDataSection,
+    {
+      candidates: sortedCandidates.length,
+      vacancies: filteredVacancies.length,
+      interviews: interviews.length,
+      contracts: contracts.length,
+      positions: positions.length
+    },
+    { minimal: true }
   );
+  const hiringDataFilters =
+    hiringDataSection === "candidates"
+      ? hiringQuickBarCandidates
+      : hiringDataSection === "vacancies"
+        ? hiringQuickBarVacancies
+        : "";
+  const hiringMetaCandidates = `<p class="payroll-result-meta muted">Mostrando <strong>${sortedCandidates.length}</strong> de ${candidates.length} candidato${candidates.length === 1 ? "" : "s"}</p>`;
+  const hiringMetaVacancies = `<p class="payroll-result-meta muted">Mostrando <strong>${filteredVacancies.length}</strong> de ${vacancies.length} vacante${vacancies.length === 1 ? "" : "s"}</p>`;
+  const hiringMetaInterviews = `<p class="payroll-result-meta muted"><strong>${interviews.length}</strong> entrevista${interviews.length === 1 ? "" : "s"} registrada${interviews.length === 1 ? "" : "s"}</p>`;
+  const hiringMetaContracts = `<p class="payroll-result-meta muted"><strong>${contracts.length}</strong> contrato${contracts.length === 1 ? "" : "s"} · ${contractsThisMonth.length} este mes</p>`;
+  const hiringMetaPositions = `<p class="payroll-result-meta muted"><strong>${activePositions.length}</strong> cargo${activePositions.length === 1 ? "" : "s"} activo${activePositions.length === 1 ? "" : "s"} de ${positions.length}</p>`;
+  const hiringCandidatesPane = `<div class="payroll-data-pane${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-section="candidates">
+      ${hiringMetaCandidates}
+      <div class="payroll-table-shell">${tCand}</div>
+    </div>`;
+  const hiringVacanciesPane = `<div class="payroll-data-pane${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-section="vacancies">
+      ${hiringMetaVacancies}
+      <div class="payroll-table-shell">${tVac}</div>
+    </div>`;
+  const hiringInterviewsPane = `<div class="payroll-data-pane${hiringDataSection === "interviews" ? "" : " hidden"}" data-hiring-section="interviews">
+      ${hiringMetaInterviews}
+      <div class="payroll-table-shell">${tInt}</div>
+    </div>`;
+  const hiringContractsPane = `<div class="payroll-data-pane${hiringDataSection === "contracts" ? "" : " hidden"}" data-hiring-section="contracts">
+      ${hiringMetaContracts}
+      <div class="payroll-table-shell">${tCon}</div>
+    </div>`;
+  const hiringPositionsPane = `<div class="payroll-data-pane${hiringDataSection === "positions" ? "" : " hidden"}" data-hiring-section="positions">
+      ${hiringMetaPositions}
+      <div class="payroll-table-shell">${tPos}</div>
+    </div>`;
+  const hiringDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
+      <div class="payroll-data-toolbar payroll-data-toolbar--compact">
+        ${hiringDataNav}
+        ${hiringDataFilters ? `<div class="payroll-data-toolbar__filters">${hiringDataFilters}</div>` : ""}
+      </div>
+      <div class="payroll-data-panes">${hiringCandidatesPane}${hiringVacanciesPane}${hiringInterviewsPane}${hiringContractsPane}${hiringPositionsPane}</div>
+    </section>`;
   const hiringTabsNav = renderHrWorkspaceTabs({
     module: "hiring",
     ariaLabel: "Secciones del módulo Contratación",
     activeId: hiringWorkspace,
+    variant: "segment",
     tabs: [
-      { id: "operate", label: "Nuevos registros", icon: "userPlus", hint: "Cargos, vacantes y entrevistas" },
-      { id: "data", label: "Consultar datos", icon: "layers", hint: "Pipeline, contratos y seguimiento" }
+      { id: "operate", label: "Registrar" },
+      { id: "data", label: "Consultar" }
     ]
   });
   const hiringOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
-      ${hiringOperateAlerts}
       ${hiringExecutionBlock}
     </div>`;
   const hiringDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="data">
-      <header class="payroll-panel-intro ops-block-head">
-        <h3>Consultar datos</h3>
-        <p class="ops-block-lead muted">Revise el pipeline, las vacantes, las entrevistas, los contratos y el catálogo de cargos sin salir del módulo.</p>
-      </header>
       ${hiringDataBlock}
     </div>`;
-  return `<section class="hiring-shell hiring-shell--workspace payroll-module--v2 hr-flow-shell hr-module-pro hr-module-pro--hiring" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringFleetHero}${hiringTabsNav}${hiringModuleHead}
+  return `<section class="hiring-shell hiring-shell--workspace payroll-module--v2 payroll-module--clean hr-flow-shell hr-module-pro hr-module-pro--hiring" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringTabsNav}${hiringModuleHead}
       <div class="hr-workspace-panels">
         ${hiringOperatePanel}
         ${hiringDataPanel}
@@ -30733,7 +30630,18 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-open']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.vacancyFilter = state.hiringUi.vacancyFilter === "open" ? "all" : "open";
+      state.hiringUi.vacancyFilter = "open";
+      state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "vacancies";
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
+      state.hiringUi.vacancyFilter = "all";
       state.hiringUi.workspace = "data";
       state.hiringUi.dataSection = "vacancies";
       persistHrWorkspace("hiring", "data");
