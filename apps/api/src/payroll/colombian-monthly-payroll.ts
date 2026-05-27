@@ -16,9 +16,12 @@ export const SMMLV_COP_REFERENCE_2026 = 1_750_905;
 export type AbsenceInput = {
   id: string;
   tipoAusencia: string;
+  subtipoAusencia?: string | null;
   fechaInicio: Date;
   fechaFin: Date;
   observaciones: string | null;
+  diasReconocidos?: number | null;
+  unidadDiasReconocidos?: string | null;
 };
 
 function dateOnlyUtc(y: number, m0: number, d: number): Date {
@@ -65,6 +68,17 @@ export function inclusiveCalendarDays(a: Date, b: Date): number {
   return n > 0 ? n : 0;
 }
 
+function inclusiveBusinessDays(a: Date, b: Date): number {
+  let total = 0;
+  const cursor = new Date(a.getTime());
+  while (cursor <= b) {
+    const day = cursor.getUTCDay();
+    if (day !== 0 && day !== 6) total += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return total;
+}
+
 function overlapInclusive(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): { s: Date; e: Date } | null {
   const s = maxDate(aStart, bStart);
   const e = minDate(aEnd, bEnd);
@@ -100,6 +114,75 @@ function humanizeAusenciaTipo(tipo: string): string {
   if (/sin\s*goce|no.?remuner/i.test(t)) return "Licencia no remunerada";
   if (t.includes("licen") || t.includes("permiso")) return "Licencia remunerada";
   return raw;
+}
+
+function normalizeAusenciaSubtype(tipo: string, subtipo?: string | null): string {
+  const rawTipo = String(tipo || "").trim().toLowerCase();
+  const rawSub = String(subtipo || "").trim().toLowerCase();
+  if (!rawSub) return "";
+  if (rawTipo.includes("sufrag") || rawTipo.includes("vot")) {
+    if (rawSub.includes("jurad")) return "jurado";
+    if (rawSub.includes("votan") || rawSub.includes("sufrag")) return "votante";
+  }
+  return rawSub;
+}
+
+function absenceConceptForSlip(ab: AbsenceInput): { typeLabel: string; conceptLabel: string; quantityKind: "calendar" | "business" | "recognized" } {
+  const typeLabel = humanizeAusenciaTipo(ab.tipoAusencia);
+  const tipo = String(ab.tipoAusencia || "").trim().toLowerCase();
+  const subtipo = normalizeAusenciaSubtype(ab.tipoAusencia, ab.subtipoAusencia);
+  if (tipo.includes("vacac")) {
+    return { typeLabel, conceptLabel: "Días hábiles en Vacaciones", quantityKind: "business" };
+  }
+  if (tipo.includes("sufrag") || tipo.includes("vot")) {
+    return {
+      typeLabel,
+      conceptLabel: subtipo === "jurado" ? "Día compensatorio por jurado de votación" : "Permiso compensatorio por sufragio",
+      quantityKind: "recognized"
+    };
+  }
+  if (tipo.includes("incapaci") || tipo.includes("arl") || tipo === "eps") {
+    return { typeLabel, conceptLabel: `Días calendario en ${typeLabel}`, quantityKind: "calendar" };
+  }
+  if (tipo.includes("luto") || tipo.includes("duelo") || tipo.includes("cita") || tipo.includes("judic")) {
+    return { typeLabel, conceptLabel: `Días hábiles de ${typeLabel.toLowerCase()}`, quantityKind: "business" };
+  }
+  return { typeLabel, conceptLabel: `Días de ${typeLabel.toLowerCase()}`, quantityKind: "calendar" };
+}
+
+function buildAbsenceSlipRows(absences: AbsenceInput[], serviceLo: Date, serviceHi: Date) {
+  const acc = new Map<string, { typeLabel: string; conceptLabel: string; quantity: number }>();
+  for (const ab of absences) {
+    const ov = overlapInclusive(ab.fechaInicio, ab.fechaFin, serviceLo, serviceHi);
+    if (!ov) continue;
+    const concept = absenceConceptForSlip(ab);
+    const recognizedDays = Math.max(0, Number(ab.diasReconocidos ?? 0));
+    const recognizedUnit = String(ab.unidadDiasReconocidos || "").trim().toLowerCase();
+    const fullOverlap =
+      ov.s.getTime() === ab.fechaInicio.getTime() &&
+      ov.e.getTime() === ab.fechaFin.getTime();
+    const quantity =
+      recognizedDays > 0 && (fullOverlap || recognizedUnit === "jornada" || concept.quantityKind === "recognized")
+        ? recognizedDays
+        : concept.quantityKind === "business"
+          ? inclusiveBusinessDays(ov.s, ov.e)
+          : inclusiveCalendarDays(ov.s, ov.e);
+    if (quantity <= 0) continue;
+    const key = `${concept.typeLabel}__${concept.conceptLabel}`;
+    const prev = acc.get(key);
+    if (prev) {
+      prev.quantity = Math.round((prev.quantity + quantity) * 100) / 100;
+    } else {
+      acc.set(key, {
+        typeLabel: concept.typeLabel,
+        conceptLabel: concept.conceptLabel,
+        quantity: Math.round(quantity * 100) / 100
+      });
+    }
+  }
+  return Array.from(acc.values()).sort((a, b) =>
+    `${a.typeLabel} ${a.conceptLabel}`.localeCompare(`${b.typeLabel} ${b.conceptLabel}`, "es")
+  );
 }
 
 export function classifyAusenciaTipo(tipo: string, observaciones: string | null): NoveltyClassification {
@@ -366,6 +449,9 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     proporcionFormula:
       "Salario: (mensual÷30)×días de contrato en el corte. Auxilio transporte proporcional igual criterio. Divisor orientativo uso frecuente en nómina colombiana (validar pacto/colectivos).",
     fechaIngresoConsiderada: hire.toISOString().slice(0, 10),
+    absenceSlipDetail: {
+      rows: buildAbsenceSlipRows(d.ausenciasEnPeriodo, serviceLo, serviceHi)
+    },
     vacaciones: vacOverlapDaysAgg,
     ausenciasAjustes: incapEsp,
     primaServiciosAutomática: payPrima

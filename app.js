@@ -333,12 +333,11 @@ function renderPayrollRunCard(run) {
   const typeLabel = pk === "terminacion" ? "Terminación contractual" : "Nómina mensual";
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
   const tags = [];
+  const hasAbsenceDetail = String(run.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
   if (orig === "automatica") tags.push("Automática");
   if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
   if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
-  if (Array.isArray(run.noveltiesDetail?.incapacity?.episodes) && run.noveltiesDetail.incapacity.episodes.length) {
-    tags.push("Incapacidad");
-  }
+  if (hasAbsenceDetail) tags.push("Ausentismo");
   const tagsHtml = tags.length
     ? `<p class="payroll-run-card-tags">${tags.map((t) => `<span>${escapeHtml(t)}</span>`).join("")}</p>`
     : "";
@@ -3097,6 +3096,17 @@ function resolvePayrollAbsenceSlipRows(run, absencesAll) {
     });
   });
   return payrollMergeAbsenceSlipRows(legacyRows);
+}
+
+function buildPayrollAbsenceSummaryText(run, absencesAll) {
+  const rows = resolvePayrollAbsenceSlipRows(run, absencesAll);
+  return rows.length
+    ? rows.map((row) => `${row.typeLabel}: ${payrollFormatAbsenceQuantity(row.quantity)}`).join("; ")
+    : "";
+}
+
+function payrollRunHasAbsenceDetail(run, absencesAll) {
+  return resolvePayrollAbsenceSlipRows(run, absencesAll).length > 0;
 }
 
 /**
@@ -16906,6 +16916,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
   }
   if (reportId === "payroll_summary") {
     const payrollRuns = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), exportFilters.period, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
+    const hrAbsences = read(KEYS.hrAbsences, []);
     const rows = payrollRuns.map((run) => {
       const inc = run.noveltiesDetail?.incapacity;
       const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
@@ -16915,12 +16926,14 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
               .map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop).toLocaleString("es-CO")}`)
               .join("; ")
           : "";
+      const absenceSummary = buildPayrollAbsenceSummaryText(run, hrAbsences);
       return {
         month: run.month,
         employee: run.employeeName,
         gross: parseNum(run.gross),
         incapacityAdjust,
         incapacitySummary,
+        absenceSummary,
         travelAllowance: parseNum(run.travelAllowance || 0),
         fuelReimbursement: parseNum(run.fuelReimbursement || 0),
         deductions: parseNum(run.deductions),
@@ -16938,6 +16951,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "gross", label: "Devengado" },
         { key: "incapacityAdjust", label: "Ajuste incapacidad (COP)" },
         { key: "incapacitySummary", label: "Incapacidad (resumen)" },
+        { key: "absenceSummary", label: "Ausentismos (resumen)" },
         { key: "travelAllowance", label: "Viaticos" },
         { key: "fuelReimbursement", label: "Reembolso combustible" },
         { key: "deductions", label: "Deducciones" },
@@ -19325,8 +19339,8 @@ function payrollHtml() {
         if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor (cron día 13)">Automática</span>');
         if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
         if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
-        if (Array.isArray(r.noveltiesDetail?.incapacity?.episodes) && r.noveltiesDetail.incapacity.episodes.length) {
-          bits.push("Incapacidad");
+        if (String(r.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(r, read(KEYS.hrAbsences, []))) {
+          bits.push("Ausentismo");
         }
         return bits.length
           ? `<span class="muted">Nómina</span><br><span class="muted" style="font-size:0.76rem">${bits.join(" · ")} incl.</span>`
@@ -27874,8 +27888,9 @@ function bindDynamicEvents() {
         filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || { period: "all", employee: "", status: "all" }),
         String(state.payrollUi?.runSort || "recent")
       );
+      const hrAbsences = read(KEYS.hrAbsences, []);
       const csv = [
-        "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
+        "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,AusentismosResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
       ]
         .concat(
           rows.map((r) => {
@@ -27891,6 +27906,7 @@ function bindDynamicEvents() {
               inc && Array.isArray(inc.episodes) && inc.episodes.length
                 ? inc.episodes.map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop)}`).join("|")
                 : "";
+            const absenceSummary = buildPayrollAbsenceSummaryText(r, hrAbsences);
             return [
               r.month,
               tipo,
@@ -27898,6 +27914,7 @@ function bindDynamicEvents() {
               r.gross,
               incapacityAdjust,
               incapacitySummary,
+              absenceSummary,
               r.primaServiciosCop ?? 0,
               r.interesesCesantiasCop ?? 0,
               r.cesantiasInterestBaseCop ?? "",

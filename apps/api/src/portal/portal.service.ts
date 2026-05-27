@@ -6103,7 +6103,8 @@ export class PortalService implements OnModuleInit {
 
         const abRes = await client.query(
           `
-          SELECT id, id_empleado, tipo_ausencia, fecha_inicio::text AS fecha_inicio, fecha_fin::text AS fecha_fin, observaciones
+          SELECT id, id_empleado, tipo_ausencia, subtipo_ausencia, fecha_inicio::text AS fecha_inicio, fecha_fin::text AS fecha_fin,
+                 observaciones, dias_reconocidos, unidad_dias_reconocidos
           FROM ausencias_laborales
           WHERE id_empleado = $1::uuid AND fecha_fin >= $2::date AND fecha_inicio <= $3::date
         `,
@@ -6118,9 +6119,13 @@ export class PortalService implements OnModuleInit {
           absList.push({
             id: String(a.id),
             tipoAusencia: String(a.tipo_ausencia || ""),
+            subtipoAusencia: a.subtipo_ausencia != null ? String(a.subtipo_ausencia) : null,
             fechaInicio: fi,
             fechaFin: ff,
-            observaciones: typeof a.observaciones === "string" ? a.observaciones : null
+            observaciones: typeof a.observaciones === "string" ? a.observaciones : null,
+            diasReconocidos: a.dias_reconocidos != null ? Number(a.dias_reconocidos) : null,
+            unidadDiasReconocidos:
+              a.unidad_dias_reconocidos != null ? String(a.unidad_dias_reconocidos) : null
           });
         }
 
