@@ -5303,7 +5303,7 @@ const PUBLIC_ES_EN_DICT = {
   "Formulario de contacto B2B": "B2B contact form",
   "Cuentanos tu necesidad logistica y te compartimos una propuesta tecnica y comercial.": "Tell us your logistics needs and we will share a technical and commercial proposal.",
   "Cuentanos tu operacion y te proponemos una solucion logistica ajustada a tu nivel de servicio.": "Tell us about your operation and we will propose a logistics solution tailored to your service level.",
-  "Respuesta comercial < 30 min": "Commercial response < 30 min",
+  "Respuesta comercial < 2 horas": "Commercial response < 2 hours",
   "Atencion especializada B2B": "Specialized B2B support",
   "Confidencialidad de datos": "Data confidentiality",
   "Al enviar, un asesor B2B te contactara para validar requerimientos tecnicos y comerciales.": "After submitting, a B2B advisor will contact you to validate technical and commercial requirements.",
