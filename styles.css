@@ -7460,6 +7460,22 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
   margin-top: 0.5rem;
 }
 
+.modal-card--discard .modal-body-lead {
+  margin: 0 0 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+  color: #78350f;
+  line-height: 1.5;
+}
+
+body[data-theme="dark"] .modal-card--discard .modal-body-lead {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.35) 0%, rgba(15, 23, 42, 0.5) 100%);
+  color: #fde68a;
+}
+
 .modal-card-edit {
   width: min(1040px, 97%);
 }

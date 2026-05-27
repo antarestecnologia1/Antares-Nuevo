@@ -1512,7 +1512,7 @@ function openEditModal({
   );
 }
 
-function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm }) {
+function ensureCrudModalElement() {
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -1523,58 +1523,85 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
     modal.innerHTML = `<div class="modal-card modal-card-edit"><div id="crud-modal-content"></div></div>`;
     document.body.appendChild(modal);
   }
-  const card = modal.querySelector(".modal-card");
-  if (card) card.className = "modal-card modal-card-edit";
-  const content = modal.querySelector("#crud-modal-content");
-  content.innerHTML = `
+  return modal;
+}
+
+/**
+ * Modal de confirmación (Promise). Resuelve `true` al confirmar, `false` al cancelar o cerrar.
+ */
+function openConfirmModalAsync({
+  title,
+  message,
+  confirmText = "Confirmar",
+  cancelText = "Cancelar",
+  confirmBtnClass = "btn-primary",
+  cardClass = "modal-card-edit",
+  onConfirm
+}) {
+  return new Promise((resolve) => {
+    const modal = ensureCrudModalElement();
+    const card = modal.querySelector(".modal-card");
+    if (card) card.className = `modal-card ${cardClass}`.trim();
+    const content = modal.querySelector("#crud-modal-content");
+    const safeConfirmClass = String(confirmBtnClass || "btn-primary").trim() || "btn-primary";
+    content.innerHTML = `
     ${renderModalHead(title)}
     <p class="modal-body-lead">${escapeHtml(message)}</p>
     ${renderModalFooterActions({
-      primaryHtml: `<button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>`
+      cancelLabel: cancelText,
+      primaryHtml: `<button type="button" id="crud-confirm" class="btn ${escapeAttr(safeConfirmClass)}">${IC.check} ${escapeHtml(confirmText)}</button>`
     })}
   `;
-  const close = () => modal.classList.add("hidden");
-  modal.classList.remove("hidden");
-  wireModalDismiss(content, close);
+    let settled = false;
+    const finish = (confirmed) => {
+      if (settled) return;
+      settled = true;
+      modal.classList.add("hidden");
+      resolve(Boolean(confirmed));
+    };
+    modal.classList.remove("hidden");
+    wireModalDismiss(content, () => finish(false));
 
-  /**
-   * Guardia de idempotencia para evitar toasts/efectos duplicados al confirmar.
-   * Si por cualquier motivo (doble click rápido, listeners residuales, eventos
-   * sintéticos por extensiones del navegador, re-binding tras render parcial)
-   * el click se dispara más de una vez sobre el mismo modal, `onConfirm` solo
-   * se ejecutará una sola vez por apertura. Los demás disparos quedan no-op.
-   */
-  const confirmBtn = content.querySelector("#crud-confirm");
-  let confirmConsumed = false;
-  confirmBtn.addEventListener("click", async () => {
-    if (confirmConsumed) return;
-    confirmConsumed = true;
-    confirmBtn.disabled = true;
-    confirmBtn.setAttribute("aria-busy", "true");
-    try {
-      let out = onConfirm?.();
-      if (out && typeof out.then === "function") {
-        await out;
-      }
-    } catch (_e) {
-      try {
-        const msg =
-          _e && typeof _e === "object" && _e.message
-            ? String(_e.message)
-            : typeof _e === "string"
-              ? _e
-              : typeof userMessage === "function"
-                ? userMessage("genericError")
-                : "Error";
-        if (msg && typeof notify === "function") notify(msg, "error");
-      } catch (_) {}
-    } finally {
-      close();
-      confirmBtn.disabled = false;
-      confirmBtn.removeAttribute("aria-busy");
-    }
+    const confirmBtn = content.querySelector("#crud-confirm");
+    let confirmConsumed = false;
+    confirmBtn?.addEventListener(
+      "click",
+      async () => {
+        if (confirmConsumed) return;
+        confirmConsumed = true;
+        confirmBtn.disabled = true;
+        confirmBtn.setAttribute("aria-busy", "true");
+        try {
+          let out = onConfirm?.();
+          if (out && typeof out.then === "function") {
+            await out;
+          }
+          finish(true);
+        } catch (_e) {
+          try {
+            const msg =
+              _e && typeof _e === "object" && _e.message
+                ? String(_e.message)
+                : typeof _e === "string"
+                  ? _e
+                  : typeof userMessage === "function"
+                    ? userMessage("genericError")
+                    : "Error";
+            if (msg && typeof notify === "function") notify(msg, "error");
+          } catch (_) {}
+          confirmConsumed = false;
+          confirmBtn.disabled = false;
+          confirmBtn.removeAttribute("aria-busy");
+        }
+      },
+      { once: true }
+    );
+    scrollOpenCrudModalIntoView();
   });
-  scrollOpenCrudModalIntoView();
+}
+
+function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm }) {
+  void openConfirmModalAsync({ title, message, confirmText, onConfirm });
 }
 
 /**
@@ -8609,10 +8636,10 @@ function prepareCancelCreatePanel(panelId) {
  * Cancelar en paneles de alta: descarta cambios, reinicia el formulario (re-render)
  * y mantiene el panel abierto. «Minimizar» sigue siendo solo `toggle-create-panel`.
  */
-function resetCreatePanelForm(panelId, formEl) {
+async function resetCreatePanelForm(panelId, formEl) {
   const id = String(panelId || "").trim();
   if (!id || !formEl) return false;
-  if (!confirmDiscardCreateForm(formEl)) return false;
+  if (!(await confirmDiscardCreateFormAsync(formEl))) return false;
   prepareCancelCreatePanel(id);
   const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-payroll-settlement", "create-hr-absence"];
   const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
@@ -8652,9 +8679,18 @@ function formHasDirtyValues(formEl) {
   });
 }
 
-function confirmDiscardCreateForm(formEl) {
-  if (!formHasDirtyValues(formEl)) return true;
-  return window.confirm("Se perderán los cambios no guardados de este formulario. ¿Desea continuar?");
+function confirmDiscardCreateFormAsync(formEl, opts = {}) {
+  if (!formHasDirtyValues(formEl)) return Promise.resolve(true);
+  return openConfirmModalAsync({
+    title: opts.title || "¿Descartar cambios?",
+    message:
+      opts.message ||
+      "Se perderán los cambios no guardados de este formulario. Los datos que escribió no se guardarán.",
+    confirmText: opts.confirmText || "Sí, descartar",
+    cancelText: opts.cancelText || "Seguir editando",
+    confirmBtnClass: opts.confirmBtnClass || "btn-action btn-danger-soft",
+    cardClass: "modal-card-edit modal-card--discard"
+  });
 }
 
 function readAdminUsersFormDraft(formEl, opts = {}) {
@@ -24966,11 +25002,11 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='cancel-create-panel']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const panelId = String(btn.dataset.panel || "");
       const formEl = btn.closest("form");
       if (!panelId || !formEl) return;
-      resetCreatePanelForm(panelId, formEl);
+      await resetCreatePanelForm(panelId, formEl);
     });
   });
 
@@ -25057,11 +25093,11 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='cancel-admin-create-panel']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const panel = String(btn.dataset.panel || "");
       const formEl = btn.closest("form");
       if (!panel || !formEl) return;
-      if (!confirmDiscardCreateForm(formEl)) return;
+      if (!(await confirmDiscardCreateFormAsync(formEl))) return;
       if (panel === "create-user") {
         clearAdminUsersDraft("createUser");
         setAdminUsersUi({
@@ -25299,9 +25335,9 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const formEl = document.getElementById("form-admin-user-edit");
-      if (formEl && !confirmDiscardCreateForm(formEl)) return;
+      if (formEl && !(await confirmDiscardCreateFormAsync(formEl))) return;
       setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", section: "actions", editMinimized: false });
       renderPortalView();
     });
@@ -25318,9 +25354,9 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-company']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const formEl = document.getElementById("form-admin-company-edit");
-      if (formEl && !confirmDiscardCreateForm(formEl)) return;
+      if (formEl && !(await confirmDiscardCreateFormAsync(formEl))) return;
       state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
