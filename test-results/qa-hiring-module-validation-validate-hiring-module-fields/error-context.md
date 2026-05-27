@@ -1,0 +1,268 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: qa\hiring-module-validation.spec.mjs >> validate hiring module fields
+- Location: qa\hiring-module-validation.spec.mjs:213:1
+
+# Error details
+
+```
+Test timeout of 240000ms exceeded.
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - text: “ “ “
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e7]: A
+        - generic [ref=e8]:
+          - heading "Admin QA" [level=2] [ref=e9]
+          - paragraph [ref=e10]: Administrador
+      - paragraph [ref=e11]: General
+      - button "Dashboard" [ref=e12] [cursor=pointer]:
+        - img [ref=e13]
+        - text: Dashboard
+      - button "Mis solicitudes" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - text: Mis solicitudes
+      - paragraph [ref=e22]: Transporte
+      - button "Viajes" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: Viajes
+      - button "Camiones" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: Camiones
+      - button "Conductores" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - text: Conductores
+      - button "Calendario" [ref=e39] [cursor=pointer]:
+        - img [ref=e40]
+        - text: Calendario
+      - button "Historial" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - text: Historial
+      - button "Reporteria" [ref=e46] [cursor=pointer]:
+        - img [ref=e47]
+        - text: Reporteria
+      - paragraph [ref=e52]: Recursos humanos
+      - button "Gestión humana" [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - text: Gestión humana
+      - button "Contratación" [ref=e56] [cursor=pointer]:
+        - img [ref=e57]
+        - text: Contratación
+      - button "Cumplimiento laboral y SST" [ref=e60] [cursor=pointer]:
+        - img [ref=e61]
+        - text: Cumplimiento laboral y SST
+      - button "Contacto web (B2B)" [ref=e64] [cursor=pointer]:
+        - img [ref=e65]
+        - text: Contacto web (B2B)
+      - paragraph [ref=e68]: Sistema
+      - button "Usuarios y permisos" [ref=e69] [cursor=pointer]:
+        - img [ref=e70]
+        - text: Usuarios y permisos
+      - button "Autorizaciones" [ref=e72] [cursor=pointer]:
+        - img [ref=e73]
+        - text: Autorizaciones
+      - paragraph [ref=e76]: Mi cuenta
+      - button "Mi perfil" [ref=e77] [cursor=pointer]:
+        - img [ref=e78]
+        - text: Mi perfil
+      - button "«Timbre» controla el audio; «Avisos» controla ventanas emergentes y notificaciones nuevas del servidor. Notificaciones" [ref=e81] [cursor=pointer]:
+        - generic "«Timbre» controla el audio; «Avisos» controla ventanas emergentes y notificaciones nuevas del servidor." [ref=e82]:
+          - img [ref=e84]
+          - generic [ref=e87]:
+            - generic "Clic para silenciar solo el timbre (la bandeja y los avisos en pantalla siguen igual)" [ref=e88]: Timbre
+            - generic "Clic para pausar avisos emergentes y dejar de recibir notificaciones nuevas en el servidor" [ref=e89]: Avisos
+        - text: Notificaciones
+      - generic [ref=e90]:
+        - button "Cerrar sesion" [ref=e91] [cursor=pointer]:
+          - img [ref=e92]
+          - text: Cerrar sesion
+        - generic [ref=e95]:
+          - paragraph [ref=e96]: Tema
+          - group "Tema portal" [ref=e97]:
+            - button "Modo claro" [ref=e98] [cursor=pointer]: ☀️
+            - button "Modo oscuro" [ref=e99] [cursor=pointer]: 🌙
+    - main [ref=e100]:
+      - heading "Contratación" [level=1] [ref=e103]
+      - generic [ref=e107]:
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - generic [ref=e111]: Vacantes abiertas
+            - strong [ref=e112]: "1"
+          - generic [ref=e113]:
+            - generic [ref=e114]: Candidatos en proceso
+            - strong [ref=e115]: "1"
+          - generic [ref=e116]:
+            - generic [ref=e117]: Contratos del mes
+            - strong [ref=e118]: "0"
+          - generic [ref=e119]:
+            - generic [ref=e120]: Alertas y conversión
+            - strong [ref=e121]: 0 · 0%
+        - tablist "Secciones del módulo Contratación" [ref=e122]:
+          - tab "Nuevos registros Cargos, vacantes y entrevistas" [selected] [ref=e123] [cursor=pointer]:
+            - img [ref=e125]
+            - generic [ref=e128]:
+              - generic [ref=e129]: Nuevos registros
+              - generic [ref=e130]: Cargos, vacantes y entrevistas
+          - tab "Consultar datos Pipeline, contratos y seguimiento" [ref=e131] [cursor=pointer]:
+            - img [ref=e133]
+            - generic [ref=e137]:
+              - generic [ref=e138]: Consultar datos
+              - generic [ref=e139]: Pipeline, contratos y seguimiento
+        - generic [ref=e140]:
+          - generic [ref=e141]:
+            - generic [ref=e142]: Selección · Recursos humanos
+            - heading "Contratación" [level=2] [ref=e143]
+            - paragraph [ref=e144]:
+              - text: Defina cargos, publique vacantes, evalúe candidatos y formalice contratos. Use
+              - strong [ref=e145]: Nuevos registros
+              - text: para crear y
+              - strong [ref=e146]: Consultar datos
+              - text: para revisar el pipeline y el histórico.
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - strong [ref=e149]: "1"
+              - text: vacantes abiertas
+            - generic [ref=e150]:
+              - strong [ref=e151]: "1"
+              - text: candidatos en proceso
+            - generic [ref=e152]:
+              - strong [ref=e153]: "0"
+              - text: alertas activas
+        - tabpanel [ref=e155]:
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - img [ref=e159]
+              - generic [ref=e161]:
+                - generic [ref=e162]: Vacantes por cerrar (≤ 7 días)
+                - strong [ref=e163]: "0"
+                - paragraph [ref=e164]: Publicadas con fecha límite cercana. Revísalas o extiéndelas.
+            - generic [ref=e165]:
+              - img [ref=e167]
+              - generic [ref=e169]:
+                - generic [ref=e170]: Contratos por vencer (≤ 30 días)
+                - strong [ref=e171]: "0"
+                - paragraph [ref=e172]: Anticipa renovaciones, prórrogas o liquidaciones.
+            - generic [ref=e173]:
+              - img [ref=e175]
+              - generic [ref=e180]:
+                - generic [ref=e181]: Candidatos activos en pipeline
+                - strong [ref=e182]: "1"
+                - paragraph [ref=e183]: Personas en proceso (no contratados ni descartados).
+            - generic [ref=e184]:
+              - img [ref=e186]
+              - generic [ref=e189]:
+                - generic [ref=e190]: Contratos generados este mes
+                - strong [ref=e191]: "0"
+                - paragraph [ref=e192]: Documentos de contratación cerrados en el mes en curso.
+          - generic [ref=e193]:
+            - generic [ref=e194]:
+              - heading "Nuevos registros" [level=3] [ref=e195]
+              - paragraph [ref=e196]: Abra un flujo por vez para mantener el proceso separado por opción y con menos desplazamiento.
+            - tablist "Flujos de Contratación" [ref=e198]:
+              - tab "Cargo" [ref=e199] [cursor=pointer]
+              - tab "Vacante" [ref=e200] [cursor=pointer]
+              - tab "Candidato" [selected] [ref=e201] [cursor=pointer]
+              - tab "Entrevista" [ref=e202] [cursor=pointer]
+              - tab "Contrato" [ref=e203] [cursor=pointer]
+            - article [ref=e206]:
+              - generic [ref=e207]:
+                - generic [ref=e208]:
+                  - img [ref=e210]
+                  - heading "Agregar candidato" [level=2] [ref=e214]
+                - generic [ref=e215]: Hoja de vida, vacante y seguimiento del pipeline
+              - generic [ref=e217]:
+                - generic [ref=e218]:
+                  - generic [ref=e219]:
+                    - paragraph [ref=e220]: Pipeline de selección
+                    - heading "Registro de candidato más cómodo" [level=3] [ref=e221]
+                    - paragraph [ref=e222]: Divida identidad y perfil profesional en pasos claros, con más ancho para datos personales, vacante y hoja de vida.
+                  - generic [ref=e223]:
+                    - generic [ref=e224]:
+                      - strong [ref=e225]: 2 pasos
+                      - generic [ref=e226]: asistidos
+                    - generic [ref=e227]:
+                      - strong [ref=e228]: CV
+                      - generic [ref=e229]: adjuntos
+                    - generic [ref=e230]:
+                      - strong [ref=e231]: Vacante
+                      - generic [ref=e232]: relacionada
+                - generic "Registro de candidato por pasos" [ref=e233]:
+                  - generic [ref=e234]:
+                    - generic [ref=e235]:
+                      - paragraph [ref=e236]: Registro en dos pasos
+                      - paragraph [ref=e237]: Primero identidad y ubicación; luego perfil, vacante y adjuntos.
+                    - generic [ref=e241]: Paso 2 de 2
+                  - tablist "Secciones" [ref=e242]:
+                    - 'button "Paso 1: datos personales" [ref=e243] [cursor=pointer]':
+                      - generic [ref=e244]: "1"
+                      - generic [ref=e245]: Identidad
+                    - 'button "Paso 2: perfil profesional" [ref=e246] [cursor=pointer]':
+                      - generic [ref=e247]: "2"
+                      - generic [ref=e248]: Perfil
+                  - group "Perfil profesional" [ref=e250]:
+                    - generic [ref=e251]:
+                      - img [ref=e252]
+                      - text: Perfil profesional
+                    - generic [ref=e255]:
+                      - generic [ref=e256]:
+                        - generic [ref=e257]:
+                          - img [ref=e258]
+                          - generic [ref=e261]: Nivel educativo
+                        - combobox "Nivel educativo" [ref=e262]:
+                          - option "Seleccione..."
+                          - option "Primaria"
+                          - option "Bachiller"
+                          - option "Tecnico"
+                          - option "Tecnologo"
+                          - option "Profesional" [selected]
+                          - option "Posgrado"
+                      - generic [ref=e263]:
+                        - generic [ref=e264]:
+                          - img [ref=e265]
+                          - generic [ref=e267]: Años de experiencia en el cargo
+                          - generic [ref=e268]: "*"
+                        - spinbutton "Años de experiencia en el cargo" [ref=e269]: "5"
+                      - generic [ref=e270]:
+                        - generic [ref=e271]:
+                          - img [ref=e272]
+                          - generic [ref=e274]: Aspiración salarial (COP)
+                          - generic [ref=e275]: "*"
+                        - spinbutton "Aspiración salarial (COP)" [ref=e276]: "2500000"
+                      - generic [ref=e277]:
+                        - generic [ref=e278]:
+                          - img [ref=e279]
+                          - generic [ref=e281]: Disponibilidad ingreso
+                          - generic [ref=e282]: "*"
+                        - textbox "Disponibilidad ingreso" [active] [ref=e283]: 2026-06-26
+                      - generic [ref=e284]:
+                        - generic [ref=e285]:
+                          - img [ref=e286]
+                          - generic [ref=e289]: Vacante
+                          - generic [ref=e290]: "*"
+                        - combobox "Vacante" [ref=e291]:
+                          - option "Seleccione" [selected]
+                          - option "Vacante Conductor C2"
+                      - generic [ref=e292]:
+                        - generic [ref=e293]:
+                          - img [ref=e294]
+                          - generic [ref=e297]: Adjunto hoja de vida
+                        - button "Adjunto hoja de vida" [ref=e298]
+                  - generic [ref=e299]:
+                    - button "Anterior" [ref=e301] [cursor=pointer]
+                    - paragraph [ref=e302]: "Último paso: revise y guarde."
+                    - button "Registrar candidato" [ref=e303] [cursor=pointer]:
+                      - img [ref=e304]
+                      - text: Registrar candidato
+```

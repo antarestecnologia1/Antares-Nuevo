@@ -21455,29 +21455,29 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .directory-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+  gap: 0.85rem;
 }
 
 .user-grid.directory-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-  gap: 0.95rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 0.85rem;
 }
 
 .user-grid-companies {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
 }
 
 .vehicle-ops-cards.directory-grid,
 .drivers-grid.directory-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
 }
 
 .directory-card {
-  gap: 0.72rem;
-  padding: 0.86rem;
-  border-radius: 20px;
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.075);
+  gap: 0.62rem;
+  padding: 0.8rem 0.84rem 0.78rem;
+  border-radius: 16px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
 }
 
 .directory-card--user {
@@ -21505,116 +21505,116 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .directory-card__head {
-  gap: 0.8rem;
+  gap: 0.66rem;
 }
 
 .directory-card__identity {
   align-items: flex-start;
-  gap: 0.78rem;
+  gap: 0.66rem;
 }
 
 .directory-card__avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 15px;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
 }
 
 .directory-card--company .directory-card__avatar,
 .directory-card--user .directory-card__avatar {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
 }
 
 .directory-card__avatar--plate {
-  width: 62px;
-  height: 50px;
-  border-radius: 14px;
-  font-size: 0.8rem;
+  width: 58px;
+  height: 46px;
+  border-radius: 12px;
+  font-size: 0.76rem;
 }
 
 .directory-card__kicker {
-  margin-bottom: 0.24rem;
-  font-size: 0.66rem;
+  margin-bottom: 0.18rem;
+  font-size: 0.63rem;
 }
 
 .directory-card__title {
-  font-size: 1rem;
-  line-height: 1.24;
+  font-size: 0.95rem;
+  line-height: 1.22;
 }
 
 .directory-card--vehicle .directory-card__title {
-  font-size: 1.05rem;
+  font-size: 1rem;
   letter-spacing: 0.02em;
 }
 
 .directory-card__subline {
-  margin-top: 0.34rem;
-  font-size: 0.79rem;
-  line-height: 1.42;
+  margin-top: 0.26rem;
+  font-size: 0.76rem;
+  line-height: 1.36;
 }
 
 .directory-card__status-stack {
-  gap: 0.36rem;
+  gap: 0.28rem;
 }
 
 .directory-card__summary {
-  padding: 0.68rem 0.74rem;
-  border-radius: 15px;
+  padding: 0.56rem 0.62rem;
+  border-radius: 12px;
 }
 
 .directory-card__summary strong {
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 .directory-card__summary p {
-  font-size: 0.77rem;
-  line-height: 1.42;
+  font-size: 0.74rem;
+  line-height: 1.34;
 }
 
 .directory-card__metrics {
-  gap: 0.46rem;
+  gap: 0.36rem;
 }
 
 .directory-card--company .directory-card__metrics,
 .directory-card--user .directory-card__metrics {
-  gap: 0.5rem;
+  gap: 0.38rem;
 }
 
 .directory-chip {
-  padding: 0.46rem 0.56rem;
-  border-radius: 12px;
+  padding: 0.36rem 0.48rem;
+  border-radius: 10px;
 }
 
 .directory-chip strong {
-  font-size: 0.75rem;
+  font-size: 0.71rem;
 }
 
 .directory-card__facts {
-  gap: 0.46rem;
+  gap: 0.36rem;
 }
 
 .directory-card__fact {
-  padding: 0.5rem 0.58rem;
-  border-radius: 12px;
+  padding: 0.4rem 0.5rem;
+  border-radius: 10px;
 }
 
 .directory-card__fact dd {
-  font-size: 0.76rem;
+  font-size: 0.73rem;
 }
 
 .directory-card__tags {
-  gap: 0.34rem;
+  gap: 0.28rem;
 }
 
 .directory-card__actions {
-  gap: 0.46rem;
-  padding-top: 0.68rem;
+  gap: 0.38rem;
+  padding-top: 0.56rem;
 }
 
 .directory-card__actions > .btn {
-  min-height: 2.35rem;
-  border-radius: 11px;
-  font-size: 0.8rem;
+  min-height: 2.12rem;
+  border-radius: 10px;
+  font-size: 0.76rem;
 }
 
 body[data-theme="dark"] .perm-check {

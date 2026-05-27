@@ -102,9 +102,49 @@ function renderHrFormHero({ eyebrow = "", title = "", description = "", tone = "
   </section>`;
 }
 
+const DEFAULT_OPEN_CREATE_PANELS = new Set([
+  "create-vehicle",
+  "create-fuel-log",
+  "create-technical-log",
+  "create-trip",
+  "create-route-rate",
+  "create-employee",
+  "create-payroll",
+  "create-payroll-settlement",
+  "create-hr-absence",
+  "create-position",
+  "create-vacancy",
+  "create-candidate",
+  "create-interview",
+  "create-contract"
+]);
+
+function isCreatePanelExpanded(panelId, fallbackExpanded = false) {
+  const id = String(panelId || "").trim();
+  if (!id) return Boolean(fallbackExpanded);
+  const panels = state.createPanels || {};
+  if (Object.prototype.hasOwnProperty.call(panels, id)) return Boolean(panels[id]);
+  return DEFAULT_OPEN_CREATE_PANELS.has(id) || Boolean(fallbackExpanded);
+}
+
+function renderManagedCreateFormActions(panelId, submitHtml, opts = {}) {
+  const id = String(panelId || "").trim();
+  const className = String(opts.className || "form-flow-actions full").trim();
+  const cancelLabel = String(opts.cancelLabel || "Cancelar");
+  const minimizeLabel = String(opts.minimizeLabel || "Minimizar");
+  const extraActionsHtml = String(opts.extraActionsHtml || "").trim();
+  const submitMarkup = String(submitHtml || "").trim();
+  return `<div class="${escapeAttr(className)}">
+    <button type="button" class="btn btn-outline btn-sm" data-action="toggle-create-panel" data-panel="${escapeAttr(id)}">${escapeHtml(minimizeLabel)}</button>
+    <button type="button" class="btn btn-action btn-sm" data-action="cancel-create-panel" data-panel="${escapeAttr(id)}">${IC.x} ${escapeHtml(cancelLabel)}</button>
+    ${extraActionsHtml}
+    ${submitMarkup}
+  </div>`;
+}
+
 function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
-  const expanded = Boolean(state.createPanels?.[panelId]);
-  const toggleText = expanded ? "Ocultar formulario" : expandLabel;
+  const expanded = isCreatePanelExpanded(panelId);
+  const toggleText = expanded ? "Minimizar" : expandLabel;
   const tone = String(iconKey || "plus").replace(/[^a-z0-9_-]/gi, "");
   const extraClass = expanded ? "p-card--expanded hr-action-card--open" : "p-card--collapsed";
   const desc = subtitle
@@ -635,8 +675,8 @@ function bindHrFormWizard(form) {
 }
 
 function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
-  const expanded = Boolean(state.createPanels?.[panelId]);
-  const toggleText = expanded ? "Ocultar formulario" : expandLabel;
+  const expanded = isCreatePanelExpanded(panelId);
+  const toggleText = expanded ? "Minimizar" : expandLabel;
   const cardBody = `<div class="toolbar hr-create-toolbar">
     <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}">
       ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
@@ -647,6 +687,21 @@ function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expa
   </div>`;
   const extraClass = expanded ? "p-card--expanded" : "p-card--collapsed";
   return pcardWrap(iconKey, title, subtitle, cardBody, extraClass);
+}
+
+function createCollapsibleProCard(panelId, iconKey, title, subtitle, bodyHtml, extraClass = "", expandLabel = "Abrir formulario") {
+  const expanded = isCreatePanelExpanded(panelId);
+  const toggleText = expanded ? "Minimizar" : expandLabel;
+  const cardBody = `<div class="toolbar hr-create-toolbar">
+    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}" aria-expanded="${expanded ? "true" : "false"}">
+      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
+    </button>
+  </div>
+  <div class="${expanded ? "" : "hidden"}" data-create-panel="${escapeAttr(panelId)}">
+    ${bodyHtml}
+  </div>`;
+  const classes = [expanded ? "p-card--expanded" : "p-card--collapsed", String(extraClass || "").trim()].filter(Boolean).join(" ");
+  return pcardWrapPro(iconKey, title, subtitle, cardBody, classes);
 }
 
 function notify(message, type = "info", durationMs = 3200) {
@@ -12202,7 +12257,7 @@ function requestFormHtml() {
       </div>
     </fieldset>
     <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
-    <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
+    ${renderManagedCreateFormActions("create-request", `<button class="btn btn-primary" type="submit">${IC.send} Crear solicitud</button>`)}
   </form>`;
   return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
 }
@@ -12499,7 +12554,7 @@ function vehiclesHtml() {
       </div>
     </fieldset>
 
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar vehículo</button>
+    ${renderManagedCreateFormActions("create-vehicle", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar vehículo</button>`)}
   </form>`;
   const tableBody = vehicleCards
     ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>`
@@ -12528,9 +12583,9 @@ function vehiclesHtml() {
     ]
   });
   const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody)}</div>`;
-  const createPanel = `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${pcardWrapPro("plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card")}</div>`;
-  const fuelPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${pcardWrapPro("fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card")}</div>`;
-  const technicalPanel = `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${pcardWrapPro("activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card")}</div>`;
+  const createPanel = `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card", "Abrir formulario")}</div>`;
+  const fuelPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
+  const technicalPanel = `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
   return `${heroStrip}${workspaceNav}<div class="auth-tab-panels">${fleetPanel}${createPanel}${fuelPanel}${technicalPanel}</div>`;
 }
 
@@ -13097,10 +13152,14 @@ function transportTripsHtml() {
       </div>
       <p class="muted full" id="route-rate-editing-hint" style="margin:0.35rem 0 0;display:none">Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
     </fieldset>
-    <div class="toolbar full transport-route-form-actions" style="justify-content:flex-start;gap:0.5rem">
-      <button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
-      <button class="btn btn-outline" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>
-    </div>
+    ${renderManagedCreateFormActions(
+      "create-route-rate",
+      `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>`,
+      {
+        className: "form-flow-actions full transport-route-form-actions",
+        extraActionsHtml: `<button class="btn btn-outline" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>`
+      }
+    )}
   </form>`;
 
   const pendingSelectOpts = pendingForTrip
@@ -13185,7 +13244,7 @@ function transportTripsHtml() {
         <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Conductor</span></li>
         <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Precio</span></li>
       </ul>
-      <button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje y asignar</button>
+      ${renderManagedCreateFormActions("create-trip", `<button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje y asignar</button>`, { className: "form-flow-actions create-trip-submit-actions" })}
     </footer>
   </form>`;
 
@@ -13199,19 +13258,23 @@ function transportTripsHtml() {
       { id: "routes", label: "Trayectos", count: rateEntries.length }
     ]
   });
-  const tripsCreateCard = pcardWrapPro(
+  const tripsCreateCard = createCollapsibleProCard(
+    "create-trip",
     "truck",
     "Asignar viaje",
     `${pendingForTrip.length} solicitud${pendingForTrip.length === 1 ? "" : "es"} pendiente${pendingForTrip.length === 1 ? "" : "s"} · flujo guiado en 3 pasos`,
     createTripForm,
-    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip"
+    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip",
+    "Abrir formulario"
   );
-  const routesCreateCard = pcardWrapPro(
+  const routesCreateCard = createCollapsibleProCard(
+    "create-route-rate",
     "mapPin",
     "Configurar trayecto y tarifa",
     `${rateEntries.length} ${rateEntries.length === 1 ? "ruta catalogada" : "rutas catalogadas"} para autocompletado`,
     routeRateForm,
-    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--route"
+    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--route",
+    "Abrir formulario"
   );
   const tripsPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "trips" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="trips"${transportTripsWorkspace === "trips" ? "" : " hidden"}>
       <section class="ops-block transport-workspace-stack">
@@ -14728,7 +14791,7 @@ function historyFleetFuelFormHtml(todayIsoDate, vehicleOptions, driverOptions) {
       <p class="history-fleet-live-hint muted" id="fuel-price-per-liter-hint" hidden aria-live="polite"></p>
       <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_combustible</strong> (PostgreSQL) al enviar.</p>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar combustible</button>
+    ${renderManagedCreateFormActions("create-fuel-log", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar combustible</button>`)}
   </form>`;
 }
 
@@ -14759,7 +14822,7 @@ function historyFleetTechnicalFormHtml(todayIsoDate, vehicleOptions) {
       </div>
       <p class="history-fleet-sync-hint muted">Se guarda en <strong>registros_mantenimiento_vehiculo</strong> (PostgreSQL) al enviar.</p>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Registrar novedad de taller</button>
+    ${renderManagedCreateFormActions("create-technical-log", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar novedad de taller</button>`)}
   </form>`;
 }
 
@@ -18978,10 +19041,14 @@ function payrollHtml() {
           <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
         </div>
         <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
-        <div class="hr-form-wizard-submit-row toolbar" style="justify-content:flex-end;flex-wrap:wrap;gap:0.5rem">
-          <button type="button" class="btn btn-outline btn-sm hr-form-wizard-contract-draft" data-action="employee-form-generate-contract-draft" data-hr-wizard-submit-sync disabled aria-disabled="true">${IC.file} Generar contrato Word</button>
-          <button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>
-        </div>
+        ${renderManagedCreateFormActions(
+          "create-employee",
+          `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>`,
+          {
+            className: "form-flow-actions form-flow-actions--wizard",
+            extraActionsHtml: `<button type="button" class="btn btn-outline btn-sm hr-form-wizard-contract-draft" data-action="employee-form-generate-contract-draft" data-hr-wizard-submit-sync disabled aria-disabled="true">${IC.file} Generar contrato Word</button>`
+          }
+        )}
       </div>
     </div>
   </form>`;
@@ -19049,7 +19116,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.dollar} Generar liquidación</button>
+    ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary" type="submit">${IC.dollar} Generar liquidación</button>`)}
   </form>`;
   const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
@@ -19103,7 +19170,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.dollar, "Vacaciones (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.save} Registrar liquidación contractual</button>
+    ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary" type="submit">${IC.save} Registrar liquidación contractual</button>`)}
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
     ${renderHrFormHero({
@@ -19141,7 +19208,7 @@ function payrollHtml() {
         <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.save} Registrar ausencia</button>
+    ${renderManagedCreateFormActions("create-hr-absence", `<button class="btn btn-primary" type="submit">${IC.save} Registrar ausencia</button>`)}
   </form>`;
   const absenceRows = absences
     .map(
@@ -19246,10 +19313,10 @@ function payrollHtml() {
       { id: "absence", label: "Ausencia" }
     ]
   });
-  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll")}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${pcardWrapPro("dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll")}</div>`;
-  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${pcardWrapPro("hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll")}</div>`;
-  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${pcardWrapPro("calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll")}</div>`;
+  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${createCollapsibleProCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
@@ -19790,7 +19857,7 @@ function hiringHtml() {
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(p.name || ""))}</strong><span>Catálogo base de contratación</span></div></td>
       <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
       <td>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</td>
-      <td>${fmtBool(String(p.integralSalary) === "true" || p.integralSalary === true)}</td>
+      <td>${String(p.integralSalary) === "true" || p.integralSalary === true ? "Sí" : "No"}</td>
       <td>${escapeHtml(String(p.contractTypeDefault || "-"))}</td>
       <td>${escapeHtml(String(p.legalBasis || "CST"))}</td>
       <td>${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}</td>
@@ -19935,7 +20002,7 @@ function hiringHtml() {
         <label class="full">${fieldLabel(IC.file, "Base legal")}<input name="legalBasis" value="CST art. 45-46, Ley 50/1990 y normatividad laboral vigente" /></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Crear cargo</button>
+    ${renderManagedCreateFormActions("create-position", `<button class="btn btn-primary" type="submit">${IC.plus} Crear cargo</button>`)}
   </form>`;
   const fVac = `<form id="form-vacancy" class="p-form p-form-colored hr-form-flow hr-form-compact">
     ${renderHrFormHero({
@@ -19964,7 +20031,7 @@ function hiringHtml() {
         <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.plus} Publicar vacante</button>
+    ${renderManagedCreateFormActions("create-vacancy", `<button class="btn btn-primary" type="submit">${IC.plus} Publicar vacante</button>`)}
   </form>`;
   const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
   const docTypeCand = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
@@ -20033,7 +20100,7 @@ function hiringHtml() {
           <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
         </div>
         <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
-        <button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.userPlus} Registrar candidato</button>
+        ${renderManagedCreateFormActions("create-candidate", `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.userPlus} Registrar candidato</button>`, { className: "form-flow-actions form-flow-actions--wizard" })}
       </div>
     </div>
   </form>`;
@@ -20069,7 +20136,7 @@ function hiringHtml() {
         <label class="full">${fieldLabel(IC.file, "Notas previas")}<textarea name="notes" rows="2"></textarea></label>
       </div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.calendar} Guardar entrevista</button>
+    ${renderManagedCreateFormActions("create-interview", `<button class="btn btn-primary" type="submit">${IC.calendar} Guardar entrevista</button>`)}
   </form>`;
   const signDateDefault = colombiaTodayIsoDate();
   const fCon = `<form id="form-contract" class="p-form p-form-colored hr-form-flow">
@@ -20133,7 +20200,7 @@ function hiringHtml() {
           <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
         </div>
         <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Use el siguiente paso si desea revisar una plantilla antes de descargar.</p>
-        <button class="btn btn-primary hr-form-wizard-submit" type="submit" aria-disabled="false">${IC.file} Generar y descargar contrato Word</button>
+        ${renderManagedCreateFormActions("create-contract", `<button class="btn btn-primary hr-form-wizard-submit" type="submit" aria-disabled="false">${IC.file} Generar y descargar contrato Word</button>`, { className: "form-flow-actions form-flow-actions--wizard" })}
       </div>
     </div>
   </form>`;
@@ -20245,11 +20312,11 @@ function hiringHtml() {
       { id: "contract", label: "Contrato" }
     ]
   });
-  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${pcardWrapPro("briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring")}</div>`;
-  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${pcardWrapPro("plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring")}</div>`;
-  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${pcardWrapPro("userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--hiring")}</div>`;
-  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${pcardWrapPro("calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring")}</div>`;
-  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${pcardWrapPro("file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring")}</div>`;
+  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${createCollapsibleProCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring", "Abrir formulario")}</div>`;
+  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${createCollapsibleProCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring", "Abrir formulario")}</div>`;
+  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${createCollapsibleProCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--hiring", "Abrir formulario")}</div>`;
+  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${createCollapsibleProCard("create-interview", "calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--hiring", "Abrir formulario")}</div>`;
+  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${createCollapsibleProCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--hiring", "Abrir formulario")}</div>`;
   const hiringExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
@@ -20528,7 +20595,7 @@ function laborComplianceHtml() {
         </div>
       </fieldset>
       <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
-      <button class="btn btn-primary full" type="submit">${IC.plus} Registrar control legal/SST</button>
+      ${renderManagedCreateFormActions("create-sst-control", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar control legal/SST</button>`)}
     </form>`;
   const recordsTable = recordRows
     ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
