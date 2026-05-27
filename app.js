@@ -11687,6 +11687,12 @@ function vehicleHasTermokingEquipment(vehicle) {
   return false;
 }
 
+/** Placa miniatura estilo Colombia (fondo amarillo) para tarjetas de vehículo. */
+function renderColombianPlateBadgeHtml(plate) {
+  const p = String(plate || "—").trim().toUpperCase() || "—";
+  return `<div class="directory-card__avatar directory-card__avatar--plate" title="${escapeAttr(p)}" aria-label="Placa ${escapeAttr(p)}"><span class="directory-card__plate-mark" aria-hidden="true">COLOMBIA</span><span class="directory-card__plate-text">${escapeHtml(p)}</span></div>`;
+}
+
 /** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
 function requestTermokingClientLabel(request) {
   if (!request) return "—";
@@ -13403,7 +13409,7 @@ function vehiclesHtml() {
       return `<article class="directory-card directory-card--vehicle directory-card--${occupancySlug}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
         <header class="directory-card__head">
           <div class="directory-card__identity">
-            <div class="directory-card__avatar directory-card__avatar--plate" title="${escapeAttr(plate)}">${escapeHtml(plate)}</div>
+            ${renderColombianPlateBadgeHtml(plate)}
             <div class="directory-card__heading">
               <p class="directory-card__kicker">${escapeHtml(typeLabel)}</p>
               <h4 class="directory-card__title" title="${escapeAttr(plate)}">${escapeHtml(brandModel)}</h4>
