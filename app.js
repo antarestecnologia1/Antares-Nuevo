@@ -1448,12 +1448,38 @@ function openRequestDetailModal(req) {
   const origAddr = String(req.originAddress || "").trim();
   const destAddr = String(req.destinationAddress || "").trim();
   const modoTransporte = escapeHtml(requestTransportModeFromRequest(req));
+  const tripDetail = req.trip
+    ? `<div class="dash-grid solicitud-trip-summary">
+            <div class="full"><strong>Resumen del viaje asignado</strong></div>
+            <div><strong>Código:</strong> ${escapeHtml(String(req.trip.tripNumber || ""))}</div>
+            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
+            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            <div class="full solicitud-trip-summary-actions">
+              <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
+            </div>
+          </div>`
+    : `<p class="muted" style="margin:0.35rem 0 0">Aún no tiene viaje asignado.</p>`;
   openInfoModal({
     title: `Solicitud ${req.requestNumber || req.id}`,
     subtitleHtml: prettyStatus(req.status, "request"),
     wide: true,
+    afterMount: req.trip
+      ? (contentEl) => {
+          contentEl.querySelector("[data-action='solicitud-trip-open']")?.addEventListener("click", () => {
+            openAssignedTripInfoModal(req);
+          });
+        }
+      : undefined,
     bodyHtml: `
+      <section aria-label="Viaje asignado principal">
+        <h3 class="solicitud-detail-heading">Viaje asignado</h3>
+        ${tripDetail}
+      </section>
+      <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
       <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
+        <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
         <div class="dash-grid">
           <div class="full"><strong>Cliente</strong><br />${clientBlock}</div>
           <div><strong>Modo de transporte</strong><br /><span class="muted">${modoTransporte}</span></div>
@@ -1471,8 +1497,10 @@ function openRequestDetailModal(req) {
           ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado</strong><br /><span class="muted">$${parseNum(req.insuredValue).toLocaleString("es-CO")}</span></div>` : ""}
           ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada</strong><br /><span class="muted">${parseNum(req.distanceKm).toLocaleString("es-CO")} km</span></div>` : ""}
           ${req.autoApproved ? `<div><strong>Aprobación</strong><br /><span class="muted">Automática</span></div>` : ""}
+          ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
+          ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
         </div>
-        ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
+        ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
       </section>
     `
   });
@@ -4962,6 +4990,13 @@ function reqRead() {
       ? DomainModules.requests.readAllSync()
       : readArray(KEYS.requests);
   return Array.isArray(rows) ? rows.map(normalizePortalTransportRequestRow) : [];
+}
+
+/** Busca solicitud por id (UUID en API, string en DOM `data-id`). */
+function findTransportRequestById(id) {
+  const key = String(id ?? "").trim();
+  if (!key) return null;
+  return reqRead().find((r) => String(r.id ?? "").trim() === key) || null;
 }
 
 function reqWrite(next) {
@@ -11540,6 +11575,13 @@ function normalizeRequestTransportMode(serviceType) {
   return "Transporte nacional";
 }
 
+/** Modo de transporte legible para fichas de solicitud (detalle, modal). */
+function requestTransportModeFromRequest(req) {
+  const raw = String(req?.serviceType ?? "").trim();
+  if (!raw) return "—";
+  return normalizeRequestTransportMode(raw);
+}
+
 /** Tipos de camión requerido en el formulario (persistidos en `tipo_vehiculo_solicitado` / `vehicleType`). */
 const REQUEST_REQUIRED_TRUCK_TYPES = ["Turbo", "Camión", "Tractomula"];
 
@@ -12102,6 +12144,26 @@ function installVehicleCardActionsDelegation() {
       if (abortIfNotAdmin()) return;
       togglePortalVehicleManualAvailability(vid);
     }
+  });
+}
+
+/** Detalle de solicitud: delegación en viewRoot (tarjetas del módulo Solicitudes y tablas legacy). */
+function installRequestDetailDelegation() {
+  if (state.requestDetailDelegationBound || !nodes.viewRoot) return;
+  state.requestDetailDelegationBound = true;
+  nodes.viewRoot.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-action='detail']");
+    if (!btn || !nodes.viewRoot.contains(btn)) return;
+    if (btn.hasAttribute("disabled")) return;
+    const id = String(btn.dataset.id || "").trim();
+    if (!id) return;
+    const req = findTransportRequestById(id);
+    if (!req) {
+      notify(userMessage("bulkRequestMissing"), "error");
+      return;
+    }
+    event.preventDefault();
+    openRequestDetailModal(req);
   });
 }
 
@@ -22952,6 +23014,7 @@ function renderPortalViewImpl() {
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
   installVehicleCardActionsDelegation();
+  installRequestDetailDelegation();
   installDriverCardActionsDelegation();
   enforceColombianFormStandards();
   wireAdminCompanyLocationSelects();
@@ -25837,77 +25900,11 @@ function bindDynamicEvents() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='detail']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const req = reqRead().find((r) => r.id === btn.dataset.id);
-      if (!req) return;
-      const thermokingReq = requestRequiresTermoking(req);
-      const obs = String(req.notes || req.observations || "").trim();
-      const origAddr = String(req.originAddress || "").trim();
-      const destAddr = String(req.destinationAddress || "").trim();
-      const tripDetail = req.trip
-        ? `<div class="dash-grid solicitud-trip-summary">
-            <div class="full"><strong>Resumen del viaje asignado</strong></div>
-            <div><strong>Código:</strong> ${escapeHtml(String(req.trip.tripNumber || ""))}</div>
-            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
-            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
-            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
-            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
-            <div class="full solicitud-trip-summary-actions">
-              <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
-            </div>
-          </div>`
-        : `<p class="muted" style="margin:0.35rem 0 0">Aún no tiene viaje asignado.</p>`;
-      openInfoModal({
-        title: `Solicitud ${req.requestNumber || req.id}`,
-        subtitleHtml: prettyStatus(req.status, "request"),
-        wide: true,
-        afterMount: req.trip
-          ? (contentEl) => {
-              contentEl.querySelector("[data-action='solicitud-trip-open']")?.addEventListener("click", () => {
-                openAssignedTripInfoModal(req);
-              });
-            }
-          : undefined,
-        bodyHtml: `
-          <section aria-label="Viaje asignado principal">
-            <h3 class="solicitud-detail-heading">Viaje asignado</h3>
-            ${tripDetail}
-          </section>
-          <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
-          <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
-            <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
-            <div class="dash-grid">
-              <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(String(req.clientName || "-"))}</span></div>
-              <div><strong>Modo de transporte</strong><br /><span class="muted">${escapeHtml(normalizeRequestTransportMode(req.serviceType))}</span></div>
-              <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
-              <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
-              ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
-              ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${escapeHtml(destAddr)}</span></div>` : ""}
-              <div><strong>Recogida programada</strong><br /><span class="muted">${fmtDate(req.pickupAt)}</span></div>
-              <div><strong>Entrega estimada</strong><br /><span class="muted">${fmtDate(req.etaDelivery)}</span></div>
-              <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
-              <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.contactName || "-"))} · ${escapeHtml(String(req.contactPhone || "-"))}</span></div>
-              <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
-              <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
-              <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
-              ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado</strong><br /><span class="muted">$${parseNum(req.insuredValue).toLocaleString("es-CO")}</span></div>` : ""}
-              ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada</strong><br /><span class="muted">${parseNum(req.distanceKm).toLocaleString("es-CO")} km</span></div>` : ""}
-              ${req.autoApproved ? `<div><strong>Aprobación</strong><br /><span class="muted">Automática</span></div>` : ""}
-              ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
-              ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
-            </div>
-            ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
-          </section>
-        `
-      });
-    });
-  });
+  /* Detalle solicitud: installRequestDetailDelegation() */
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-request']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = reqRead();
-      const req = requests.find((r) => String(r.id) === String(btn.dataset.id));
+      const req = findTransportRequestById(btn.dataset.id);
       if (!req) return;
       const actor = currentUser();
       if (!canPortalUserEditTransportRequest(req, actor)) {
@@ -26683,8 +26680,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const requests = reqRead();
-      const req = requests.find((r) => String(r.id) === String(btn.dataset.id));
+      const req = findTransportRequestById(btn.dataset.id);
       if (!req) return;
       const [pickupDate, pickupTime] = String(toInputDate(requestPickupIsoForEdit(req)) || "").split("T");
       const [deliveryDate, deliveryTime] = String(toInputDate(requestDeliveryIsoForEdit(req)) || "").split("T");
