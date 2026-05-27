@@ -607,6 +607,14 @@ function contractTypeRequiresDurationPlazo(contractType) {
   return t === "Termino fijo" || t === "Prestacion de servicios";
 }
 
+/** Oculta ramas del bloque de plazo sin dejar “cajas” vacías del grid de labels. */
+function setContractDurationBranchVisible(el, show) {
+  if (!el) return;
+  el.classList.toggle("hidden", !show);
+  el.toggleAttribute("hidden", !show);
+  el.setAttribute("aria-hidden", show ? "false" : "true");
+}
+
 /** Muestra cantidad u “otro” según la unidad de duración (solo cuando aplica plazo). */
 function wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherEl }) {
   if (!unitSel || !qtyWrap || !otherWrap) return () => {};
@@ -614,10 +622,8 @@ function wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherE
     const u = String(unitSel.value || "").trim().toLowerCase();
     const showQty = u === "meses" || u === "anios";
     const showOtro = u === "otro";
-    qtyWrap.classList.toggle("hidden", !showQty);
-    qtyWrap.toggleAttribute("hidden", !showQty);
-    otherWrap.classList.toggle("hidden", !showOtro);
-    otherWrap.toggleAttribute("hidden", !showOtro);
+    setContractDurationBranchVisible(qtyWrap, showQty);
+    setContractDurationBranchVisible(otherWrap, showOtro);
     if (amtEl) {
       if (showQty) amtEl.setAttribute("required", "required");
       else {
@@ -656,11 +662,12 @@ function setupContractDurationPlazoVisibility(root, cfg) {
   const syncBranch = wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherEl });
   const sync = () => {
     const need = contractTypeRequiresDurationPlazo(String(contractSel.value || ""));
-    block.classList.toggle("hidden", !need);
-    block.toggleAttribute("hidden", !need);
+    setContractDurationBranchVisible(block, need);
     if (unitSel) {
-      if (need) unitSel.setAttribute("required", "required");
-      else {
+      if (need) {
+        unitSel.setAttribute("required", "required");
+        if (!String(unitSel.value || "").trim()) unitSel.value = "meses";
+      } else {
         unitSel.removeAttribute("required");
         unitSel.value = "";
         if (amtEl) {
@@ -1344,9 +1351,17 @@ function openInfoModal({
     : subtitle
       ? `<p class="muted modal-head__subtitle">${escapeHtml(subtitle)}</p>`
       : "";
+  const isPortalDetail = String(extraModalCardClass || "").includes("modal-card--portal-detail");
+  const infoBodyClass = [
+    "modal-info-body",
+    wide ? "modal-info-body--profile" : "",
+    isPortalDetail ? "modal-info-body--portal-detail" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
   content.innerHTML = `
     ${renderModalHead(title, { subtitleHtml: subtitleBlock })}
-    <div class="modal-info-body${wide ? " modal-info-body--profile" : ""}">${bodyHtml}</div>
+    <div class="${escapeAttr(infoBodyClass)}">${bodyHtml}</div>
     ${renderModalFooterActions({
       showCancel: false,
       secondaryHtml: secondaryActionsHtml,
@@ -1502,6 +1517,7 @@ function openRequestDetailModal(req) {
         </div>
         ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
       </section>
+      ${renderRequestModificationLogSectionHtml(req)}
     `
   });
 }
@@ -2394,7 +2410,10 @@ const PERMISSION_META = {
   [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
   [PERMISSIONS.CLIENT_REQUESTS]: { title: "Solicitudes de cliente", desc: "Crear y consultar solicitudes propias." },
   [PERMISSIONS.TRANSPORT_REQUESTS]: { title: "Operacion solicitudes (legacy)", desc: "Sin pantalla propia; use Autorizaciones y Mis solicitudes." },
-  [PERMISSIONS.TRANSPORT_TRIPS]: { title: "Gestion de viajes", desc: "Asignar y actualizar estados de viaje." },
+  [PERMISSIONS.TRANSPORT_TRIPS]: {
+    title: "Gestion de viajes",
+    desc: "Asignar viajes, actualizar estados y modificar solicitudes que ya tienen viaje asignado (con justificación)."
+  },
   [PERMISSIONS.TRANSPORT_VEHICLES]: { title: "Gestion de camiones", desc: "Registrar y modificar vehiculos." },
   [PERMISSIONS.TRANSPORT_DRIVERS]: { title: "Gestion de conductores", desc: "Registrar y administrar conductores." },
   [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Calendario operativo", desc: "Ver programacion de viajes." },
@@ -11057,14 +11076,21 @@ function canTransitionStatus(currentStatus, nextStatus) {
   return allowed.includes(nextStatus);
 }
 
+const REQUEST_EDIT_FINAL_STATUSES = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.CANCELADA, STATUS.RECHAZADA];
+
+const REQUEST_EDIT_JUSTIFICATION_MIN_LEN = 10;
+
+/** Permisos que habilitan editar una solicitud que ya tiene viaje asignado. */
+const REQUEST_EDIT_WITH_TRIP_PERMISSIONS = [PERMISSIONS.TRANSPORT_TRIPS, PERMISSIONS.AUTHORIZATIONS_MANAGE];
+
 /**
- * Administrador: puede editar/cancelar solicitud mientras no esté en estado final.
+ * Administrador: puede editar/cancelar solicitud mientras no esté en estado final (sin viaje asignado).
  */
 function canAdminEditTransportRequestFields(request) {
   if (!request) return false;
   if (currentUser()?.role !== ROLES.ADMIN) return false;
-  const finalStatuses = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.CANCELADA, STATUS.RECHAZADA];
-  return !finalStatuses.includes(request.status);
+  if (request.trip) return false;
+  return !REQUEST_EDIT_FINAL_STATUSES.includes(request.status);
 }
 
 /**
@@ -11078,10 +11104,122 @@ function canClientEditOwnPendingTransportRequest(request, actor) {
 }
 
 /**
- * Puede abrir el formulario de edición de solicitud (admin con reglas amplias, cliente solo pendiente).
+ * Solicitud con viaje asignado: solo usuarios con permiso operativo (viajes o autorizaciones),
+ * mientras el estado no sea final.
+ */
+function canEditTransportRequestWithAssignedTrip(request, actor) {
+  const user = actor || currentUser();
+  if (!request?.trip || !user) return false;
+  if (user.role === ROLES.CLIENT) return false;
+  if (REQUEST_EDIT_FINAL_STATUSES.includes(request.status)) return false;
+  return REQUEST_EDIT_WITH_TRIP_PERMISSIONS.some((perm) => hasPermission(user, perm));
+}
+
+/**
+ * Puede abrir el formulario de edición de solicitud.
+ * Sin viaje: admin (no final) o cliente pendiente. Con viaje: permiso operativo + justificación al guardar.
  */
 function canPortalUserEditTransportRequest(request, actor) {
+  if (!request) return false;
+  if (request.trip) return canEditTransportRequestWithAssignedTrip(request, actor);
   return canAdminEditTransportRequestFields(request) || canClientEditOwnPendingTransportRequest(request, actor);
+}
+
+function mergeTransportRequestModificationLog(request, entry) {
+  const prev = Array.isArray(request?.modificationLog) ? request.modificationLog : [];
+  const row = {
+    id: String(entry?.id || newUuidV4()),
+    at: String(entry?.at || nowIso()),
+    actorName: String(entry?.actorName || "").trim(),
+    actorEmail: String(entry?.actorEmail || "").trim(),
+    justification: String(entry?.justification || "").trim(),
+    tripNumber: String(entry?.tripNumber || request?.trip?.tripNumber || "").trim(),
+    changesSummary: String(entry?.changesSummary || "").trim()
+  };
+  return [row, ...prev].slice(0, 80);
+}
+
+function summarizeTransportRequestEditChanges(before, after) {
+  const labels = {
+    originCity: "origen",
+    destinationCity: "destino",
+    originAddress: "dirección origen",
+    destinationAddress: "dirección destino",
+    pickupAt: "recogida",
+    etaDelivery: "entrega",
+    cargoDescription: "carga",
+    serviceType: "modo de transporte",
+    vehicleType: "tipo de camión",
+    siteContactName: "contacto",
+    siteContactPhone: "teléfono contacto",
+    tripValue: "valor del viaje",
+    notes: "observaciones"
+  };
+  const changed = [];
+  for (const [key, label] of Object.entries(labels)) {
+    const a = before?.[key];
+    const b = after?.[key];
+    if (String(a ?? "").trim() !== String(b ?? "").trim()) changed.push(label);
+  }
+  if (Boolean(before?.refrigeracionTermoking) !== Boolean(after?.refrigeracionTermoking)) {
+    changed.push("Termoking");
+  }
+  return changed.length ? changed.join(", ") : "datos de la solicitud";
+}
+
+function recordTransportRequestModification(request, { justification, actor, changesSummary }) {
+  const user = actor || currentUser();
+  const actorName = String(user?.name || user?.email || "Usuario").trim();
+  const actorEmail = String(user?.email || "").trim();
+  const tripNumber = String(request?.trip?.tripNumber || "").trim();
+  const just = String(justification || "").trim();
+  const summary = String(changesSummary || "").trim();
+  const modificationLog = mergeTransportRequestModificationLog(request, {
+    justification: just,
+    actorName,
+    actorEmail,
+    tripNumber,
+    changesSummary: summary
+  });
+  const auditSummary = tripNumber
+    ? `Viaje ${tripNumber}${summary ? ` · ${summary}` : ""}: ${just}`
+    : `${summary ? `${summary}: ` : ""}${just}`;
+  appendModuleAuditLog({
+    action: "update",
+    moduleId: "requests",
+    moduleLabel: "Solicitudes",
+    entityId: String(request?.id || ""),
+    entityLabel: String(request?.requestNumber || request?.id || "Solicitud"),
+    summary: auditSummary,
+    actor: actorEmail || actorName,
+    detailAction: "detail",
+    detailId: String(request?.id || "")
+  });
+  return modificationLog;
+}
+
+function renderRequestModificationLogSectionHtml(request) {
+  const rows = Array.isArray(request?.modificationLog) ? request.modificationLog : [];
+  if (!rows.length) return "";
+  const items = rows
+    .map((row) => {
+      const when = fmtDate(row.at);
+      const who = escapeHtml(String(row.actorName || row.actorEmail || "—"));
+      const trip = row.tripNumber ? ` · Viaje ${escapeHtml(String(row.tripNumber))}` : "";
+      const changes = row.changesSummary
+        ? `<p class="muted" style="margin:0.25rem 0 0;font-size:0.88em">Campos: ${escapeHtml(String(row.changesSummary))}</p>`
+        : "";
+      return `<li class="request-mod-log-item">
+        <p class="request-mod-log-meta"><time datetime="${escapeAttr(String(row.at || ""))}">${escapeHtml(when)}</time> · ${who}${trip}</p>
+        <p class="request-mod-log-just">${escapeHtml(String(row.justification || "—"))}</p>
+        ${changes}
+      </li>`;
+    })
+    .join("");
+  return `<section class="solicitud-detail-section solicitud-detail-section--mod-log" aria-label="Historial de modificaciones con viaje asignado">
+    <h3 class="solicitud-detail-heading">Historial de modificaciones</h3>
+    <ul class="request-mod-log-list">${items}</ul>
+  </section>`;
 }
 
 /**
@@ -11989,24 +12127,52 @@ function openVehicleTechnicalSheetModal(vehicle) {
   const occupancy = describePortalVehicleOccupancy(v);
   const isRefrigerated = vehicleHasTermokingEquipment(v);
   const trip = occupancy.trip;
-  const tripBlock = trip
-    ? `<div class="detail-note" style="margin:0 0 0.75rem;padding:0.65rem 0.75rem;border-radius:10px;background:rgba(var(--primary-rgb),0.06)">
-        <strong>Viaje asociado:</strong> ${escapeHtml(String(trip.trip?.tripNumber || "—"))} · ${escapeHtml(String(trip.clientName || trip.companyName || ""))}<br>
-        <span class="muted">${escapeHtml(occupancy.detail)}</span>
-      </div>`
-    : `<p class="muted" style="margin:0 0 0.75rem">${escapeHtml(occupancy.detail)}</p>`;
-  const renderRows = (pairs) =>
-    pairs
-      .map(
-        ([label, value]) =>
-          `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${value ?? '<span class="muted">—</span>'}</span></div>`
-      )
-      .join("");
+  const vehicleTitle = `${String(v.brand || "").trim()} ${String(v.model || "").trim()}`.trim() || plate;
+  const capacityLbl =
+    parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin dato";
+  const mileageLbl =
+    parseNum(v.mileageKm) > 0 ? `${parseNum(v.mileageKm).toLocaleString("es-CO")} km` : "Sin dato";
+  const hasGps = !(v.hasGps === false || String(v.hasGps).toLowerCase() === "false");
+  const termoChip = isRefrigerated
+    ? '<span class="status status-viaje_asignado">Termoking</span>'
+    : '<span class="status status-pendiente">Carga seca</span>';
+  const heroHtml = `<div class="portal-detail-hero portal-detail-hero--vehicle">
+    <div class="portal-detail-hero-plate" aria-hidden="true">${renderColombianPlateBadgeHtml(plate)}</div>
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.truck} Ficha técnica</p>
+      <div class="portal-detail-badges">${portalVehicleAvailabilityStatusHtml(v)} ${termoChip}</div>
+      <p class="portal-detail-meta"><strong>${escapeHtml(vehicleTitle)}</strong> · ${escapeHtml(String(v.type || "Vehículo"))} · ${escapeHtml(String(v.year || "—"))}</p>
+      <ul class="portal-detail-stats" aria-label="Resumen">
+        <li><strong>${escapeHtml(capacityLbl)}</strong><span>Capacidad</span></li>
+        <li><strong>${escapeHtml(mileageLbl)}</strong><span>Kilometraje</span></li>
+        <li><strong>${escapeHtml(fmtDateOr(v.createdAt))}</strong><span>Alta en sistema</span></li>
+      </ul>
+    </div>
+  </div>`;
+  const tilesHtml = [
+    portalDetailTileMarkup(IC.layers, "Carrocería", escapeHtml(String(v.bodyType || "Sin dato")), {
+      muted: !String(v.bodyType || "").trim()
+    }),
+    portalDetailTileMarkup(IC.activity, "Combustible", escapeHtml(String(v.fuelType || "Sin dato")), {
+      muted: !String(v.fuelType || "").trim()
+    }),
+    portalDetailTileMarkup(
+      IC.satellite,
+      "GPS",
+      hasGps ? escapeHtml(String(v.gpsProvider || "Instalado")) : `<span class="muted">Sin GPS</span>`,
+      { muted: !hasGps }
+    )
+  ].join("");
+  const tripHighlightBody = trip
+    ? `<p class="portal-detail-loc-line"><strong>Viaje ${escapeHtml(String(trip.trip?.tripNumber || "—"))}</strong> · ${escapeHtml(String(trip.clientName || trip.companyName || ""))}</p><p class="portal-detail-loc-sub muted">${IC.clock} ${escapeHtml(occupancy.detail)}</p>`
+    : `<p class="portal-detail-loc-line">${escapeHtml(occupancy.detail)}</p>`;
+  const highlightHtml = portalDetailHighlightHtml("Operación actual", tripHighlightBody, "truck");
+  const row = (pairs) => portalDetailRenderRows(pairs, { skipEmpty: false });
   const sections = [
     {
       icon: "activity",
       title: "Estado operativo",
-      rows: renderRows([
+      rows: row([
         ["Disponibilidad", portalVehicleAvailabilityStatusHtml(v)],
         ["Detalle", escapeHtml(occupancy.detail)],
         ["Termoking", isRefrigerated ? "Sí, equipo Termoking" : "No, carga seca"],
@@ -12017,7 +12183,7 @@ function openVehicleTechnicalSheetModal(vehicle) {
     {
       icon: "truck",
       title: "Identificación",
-      rows: renderRows([
+      rows: row([
         ["Placa", `<strong>${escapeHtml(plate)}</strong>`],
         ["Marca", escapeHtml(String(v.brand || "—"))],
         ["Línea / modelo", escapeHtml(String(v.model || "—"))],
@@ -12029,20 +12195,20 @@ function openVehicleTechnicalSheetModal(vehicle) {
     {
       icon: "layers",
       title: "Características técnicas",
-      rows: renderRows([
+      rows: row([
         ["Carrocería", escapeHtml(String(v.bodyType || "—"))],
-        ["Capacidad", parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "—"],
+        ["Capacidad", capacityLbl],
         ["Combustible", escapeHtml(String(v.fuelType || "—"))],
         ["Configuración de ejes", escapeHtml(String(v.axleConfig || "—"))],
         ["N° motor", escapeHtml(String(v.engineNumber || "—"))],
         ["Chasis (VIN)", escapeHtml(String(v.vin || "—"))],
-        ["Kilometraje", parseNum(v.mileageKm) > 0 ? `${parseNum(v.mileageKm).toLocaleString("es-CO")} km` : "—"]
+        ["Kilometraje", mileageLbl]
       ])
     },
     {
       icon: "shield",
       title: "Documentación legal",
-      rows: renderRows([
+      rows: row([
         ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "—"))],
         ["SOAT expedido", fmtDateOr(v.soatExpeditionDate)],
         ["SOAT vence", `${fmtDateOr(v.soatExpiryDate)} <span class="status ${soat.cls}">${escapeHtml(soat.label)}</span>`],
@@ -12050,34 +12216,39 @@ function openVehicleTechnicalSheetModal(vehicle) {
         ["Tecnomecánica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
         ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "—"))],
         ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "—"))],
-        ["Vence pólizas RCP", v.rcPolicyExpiry ? `${fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${escapeHtml(rcExpiry.label)}</span>` : "—"]
+        [
+          "Vence pólizas RCP",
+          v.rcPolicyExpiry
+            ? `${fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${escapeHtml(rcExpiry.label)}</span>`
+            : "—"
+        ]
       ])
     },
     {
       icon: "satellite",
       title: "GPS y trazabilidad",
-      rows: renderRows([
-        ["GPS satelital", v.hasGps === false || String(v.hasGps).toLowerCase() === "false" ? "No" : "Sí"],
+      rows: row([
+        ["GPS satelital", hasGps ? "Sí" : "No"],
         ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
         ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
         ["Contraseña proveedor satélite", v.satelliteProviderPassword ? "••••••••" : "—"]
       ])
     }
   ];
-  const bodyHtml = `<div class="portal-vehicle-sheet-head" style="display:flex;align-items:center;gap:0.85rem;margin-bottom:0.5rem">${renderColombianPlateBadgeHtml(plate)}<div><p class="muted" style="margin:0;font-size:0.82rem">Ficha técnica del vehículo</p><strong style="font-size:1.05rem">${escapeHtml(`${String(v.brand || "").trim()} ${String(v.model || "").trim()}`.trim() || plate)}</strong></div></div>${tripBlock}<div class="detail-grid">${sections.map((sec) => `<section class="detail-section"><h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4><div class="detail-section-grid">${sec.rows}</div></section>`).join("")}</div>`;
-  openInfoModal({
+  openPortalDetailSheet({
     title: `Ficha técnica · ${plate}`,
     subtitle: `${String(v.type || "Vehículo")} · ${String(v.year || "")}`,
-    bodyHtml,
-    wide: true,
+    heroHtml,
+    tilesHtml,
+    highlightHtml,
+    sectionsHtml: portalDetailBuildGrid(sections),
     secondaryActionsHtml: isAdminActor()
       ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${IC.edit} Editar vehículo</button>`
       : "",
     afterMount: (contentEl) => {
       contentEl.querySelector("[data-vehicle-sheet-action='edit']")?.addEventListener("click", () => {
         document.getElementById("crud-modal")?.classList.add("hidden");
-        const btn = nodes.viewRoot?.querySelector(`[data-action='edit-vehicle'][data-id="${escapeAttr(String(v.id || ""))}"]`);
-        btn?.click();
+        nodes.viewRoot?.querySelector(`[data-action='edit-vehicle'][data-id="${escapeAttr(String(v.id || ""))}"]`)?.click();
       });
     }
   });
@@ -12201,6 +12372,77 @@ function portalDetailTileMarkup(iconSvg, label, valueHtml, opts = {}) {
     return `<a class="portal-detail-tile" href="${escapeAttr(href)}">${inner}</a>`;
   }
   return `<div class="portal-detail-tile${muted ? " portal-detail-tile--muted" : ""}" role="group">${inner}</div>`;
+}
+
+function portalDetailRenderRows(pairs, opts = {}) {
+  const skipEmpty = opts.skipEmpty !== false;
+  const emptyHtml = opts.emptyHtml ?? '<span class="muted">—</span>';
+  return (pairs || [])
+    .filter((p) => {
+      if (!p) return false;
+      if (!skipEmpty) return true;
+      const val = p[1];
+      return val !== null && val !== undefined && String(val).trim() !== "";
+    })
+    .map(([label, value]) => {
+      const display =
+        value === null || value === undefined || String(value).trim() === ""
+          ? skipEmpty
+            ? null
+            : emptyHtml
+          : value;
+      if (display === null) return "";
+      return `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${display}</span></div>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function portalDetailBuildGrid(sections) {
+  const blocks = (sections || [])
+    .filter((sec) => sec && String(sec.rows || "").trim())
+    .map((sec, idx) => {
+      const toneClass = sec.tone ? ` detail-section--${escapeAttr(String(sec.tone))}` : "";
+      return `<section class="detail-section detail-section--card${toneClass}" style="--detail-section-i:${idx % 6}">
+        <h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4>
+        <div class="detail-section-grid">${sec.rows}</div>
+      </section>`;
+    })
+    .join("");
+  return blocks ? `<div class="detail-grid detail-grid--sections">${blocks}</div>` : "";
+}
+
+function portalDetailHighlightHtml(title, bodyHtml, iconKey = "activity") {
+  const safeTitle = String(title || "").trim() || "Detalle";
+  return `<section class="portal-detail-highlight" aria-label="${escapeAttr(safeTitle)}">
+    <h4 class="portal-detail-highlight__title">${IC[iconKey] || ""}<span>${escapeHtml(safeTitle)}</span></h4>
+    <div class="portal-detail-highlight__body">${bodyHtml}</div>
+  </section>`;
+}
+
+function portalDetailComposeModal(parts = {}) {
+  const hero = String(parts.heroHtml || "").trim();
+  const tiles = String(parts.tilesHtml || "").trim();
+  const highlight = String(parts.highlightHtml || "").trim();
+  const sections = String(parts.sectionsHtml || "").trim();
+  return `<div class="portal-detail-modal">
+    ${hero}
+    ${tiles ? `<div class="portal-detail-tiles">${tiles}</div>` : ""}
+    ${highlight}
+    ${sections}
+  </div>`;
+}
+
+function openPortalDetailSheet(opts = {}) {
+  openInfoModal({
+    title: opts.title || "Detalle",
+    subtitle: opts.subtitle || "",
+    bodyHtml: portalDetailComposeModal(opts),
+    wide: opts.wide !== false,
+    extraModalCardClass: `modal-card--portal-detail${opts.extraModalCardClass ? ` ${escapeAttr(String(opts.extraModalCardClass).trim())}` : ""}`,
+    secondaryActionsHtml: String(opts.secondaryActionsHtml || ""),
+    afterMount: opts.afterMount
+  });
 }
 
 function openDriverDetailSheetModal(driver) {
@@ -12343,27 +12585,11 @@ function openDriverDetailSheetModal(driver) {
   const tripSub = occupancy.trip
     ? `${escapeHtml(String(occupancy.trip.clientName || occupancy.trip.companyName || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}`
     : escapeHtml(String(occupancy.detail || "Sin viaje activo"));
-  const renderDetailRows = (pairs) =>
-    pairs
-      .filter((p) => p && p[1] !== null && p[1] !== undefined && String(p[1]).trim() !== "")
-      .map(
-        ([label, value]) =>
-          `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${value}</span></div>`
-      )
-      .join("");
-  const buildDetailGrid = (sections) =>
-    sections
-      .filter((sec) => sec && sec.rows && sec.rows.trim())
-      .map(
-        (sec) =>
-          `<section class="detail-section"><h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4><div class="detail-section-grid">${sec.rows}</div></section>`
-      )
-      .join("");
   const sections = [
     {
       icon: "user",
       title: "Datos personales",
-      rows: renderDetailRows([
+      rows: portalDetailRenderRows([
         ["Nombre", `<strong>${escapeHtml(String(d.name || "-"))}</strong>`],
         ["Documento", escapeHtml(String(d.idDoc || "-"))],
         ["Teléfono", escapeHtml(String(d.phone || "-"))],
@@ -12376,7 +12602,7 @@ function openDriverDetailSheetModal(driver) {
     {
       icon: "file",
       title: "Licencia y formación",
-      rows: renderDetailRows([
+      rows: portalDetailRenderRows([
         ["N° licencia", escapeHtml(String(d.license || "-"))],
         ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
         ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
@@ -12392,7 +12618,7 @@ function openDriverDetailSheetModal(driver) {
     {
       icon: "shield",
       title: "Seguridad social y disciplina",
-      rows: renderDetailRows([
+      rows: portalDetailRenderRows([
         ["EPS", escapeHtml(String(d.eps || "-"))],
         ["ARL", escapeHtml(String(d.arl || "-"))],
         ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
@@ -12401,8 +12627,7 @@ function openDriverDetailSheetModal(driver) {
       ])
     }
   ];
-  const bodyHtml = `<div class="portal-detail-modal">
-  <div class="portal-detail-hero">
+  const heroHtml = `<div class="portal-detail-hero">
     ${avatarHero}
     <div class="portal-detail-hero-main">
       <p class="portal-detail-eyebrow">${IC.user} Conductor operativo</p>
@@ -12414,21 +12639,19 @@ function openDriverDetailSheetModal(driver) {
         <li><strong>${escapeHtml(`${parseNum(d.experienceYears || 0)} año${parseNum(d.experienceYears || 0) === 1 ? "" : "s"}`)}</strong><span>Experiencia</span></li>
       </ul>
     </div>
-  </div>
-  <div class="portal-detail-tiles">${phoneBlock}${companyBlock}${licenseBlock}${emergencyBlock}</div>
-  <section class="portal-detail-loc" aria-label="Operación actual">
-    <h4 class="portal-detail-loc-title">${IC.truck} Operación actual</h4>
-    <p class="portal-detail-loc-line"><strong>${tripTitle}</strong></p>
-    <p class="portal-detail-loc-sub muted">${IC.clock} ${tripSub}</p>
-  </section>
-  <div class="detail-grid">${buildDetailGrid(sections)}</div>
-</div>`;
-  openInfoModal({
+  </div>`;
+  const highlightHtml = portalDetailHighlightHtml(
+    "Operación actual",
+    `<p class="portal-detail-loc-line"><strong>${tripTitle}</strong></p><p class="portal-detail-loc-sub muted">${IC.clock} ${tripSub}</p>`,
+    "truck"
+  );
+  openPortalDetailSheet({
     title: `Conductor ${String(d.name || "")}`,
     subtitle: `${String(d.licenseCategory || "")} · ${String(d.idDoc || "")}`,
-    bodyHtml,
-    wide: true,
-    extraModalCardClass: "modal-card--portal-detail",
+    heroHtml,
+    tilesHtml: `${phoneBlock}${companyBlock}${licenseBlock}${emergencyBlock}`,
+    highlightHtml,
+    sectionsHtml: portalDetailBuildGrid(sections),
     secondaryActionsHtml: isAdminActor()
       ? `<button type="button" class="btn btn-action" data-driver-sheet-action="edit">${IC.edit} Editar conductor</button>`
       : "",
@@ -16519,6 +16742,25 @@ function buildHistoryAuditEntries() {
         summary: `${String(request.status || "Sin estado")} · ${String(request.serviceType || "Sin servicio")}`
       });
     }
+    (Array.isArray(request.modificationLog) ? request.modificationLog : []).forEach((logRow, idx) => {
+      const just = String(logRow?.justification || "").trim();
+      if (!just) return;
+      const tripN = String(logRow?.tripNumber || request.trip?.tripNumber || "").trim();
+      const changes = String(logRow?.changesSummary || "").trim();
+      pushEntry({
+        id: `audit-request-mod-${request.id}-${logRow?.id || idx}`,
+        ts: String(logRow?.at || ""),
+        action: "update",
+        moduleLabel: "Solicitudes",
+        entityLabel: requestLabel,
+        summary: tripN
+          ? `Modificación con viaje ${tripN}${changes ? ` (${changes})` : ""}: ${just}`
+          : `Modificación${changes ? ` (${changes})` : ""}: ${just}`,
+        actor: String(logRow?.actorEmail || logRow?.actorName || ""),
+        detailAction: "detail",
+        detailId: String(request.id || "")
+      });
+    });
     if (request.trip) {
       const tripCreatedAt = String(
         request.trip.createdAt || request.trip.assignedAt || request.approvedAt || request.updatedAt || request.createdAt || ""
@@ -20518,18 +20760,22 @@ function payrollHtml() {
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
         <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
-        <div id="emp-contract-duration-block" class="full hidden" style="grid-column:1/-1" hidden>
-          <label class="full" style="display:block;margin-bottom:0.25rem">${fieldLabel(IC.calendar, "Plazo o duración del contrato")}</label>
-          <p class="muted" style="font-size:0.82rem;line-height:1.45;margin:0 0 0.55rem">Obligatorio solo para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. Elija meses, años o texto libre (otro).</p>
-          <div class="form-section-grid">
+        <div id="emp-contract-duration-block" class="emp-contract-duration-panel full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
+          <p class="emp-contract-duration-title">${fieldLabel(IC.calendar, "Plazo o duración del contrato")}</p>
+          <p class="muted emp-contract-duration-hint">Obligatorio solo para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. Elija meses, años o texto libre (otro).</p>
+          <div class="form-section-grid emp-contract-duration-fields">
             <label>${fieldLabel(IC.calendar, "Unidad de tiempo")}<select name="contractDurationUnit" id="emp-contract-duration-unit">
               <option value="">${escapeHtml("Seleccione...")}</option>
               <option value="meses">${escapeHtml("Meses")}</option>
               <option value="anios">${escapeHtml("Años")}</option>
               <option value="otro">${escapeHtml("Otro (texto libre)")}</option>
             </select></label>
-            <label id="emp-contract-duration-qty-wrap" class="hidden">${fieldLabel(IC.hash, "Cantidad")}<input type="number" name="contractDurationAmount" id="emp-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" /></label>
-            <label id="emp-contract-duration-other-wrap" class="full hidden">${fieldLabel(IC.file, "Describa la duración")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: plazo legal o alcance del encargo"></textarea></label>
+            <div id="emp-contract-duration-qty-wrap" class="emp-contract-duration-branch hidden" hidden aria-hidden="true">
+              <label>${fieldLabel(IC.hash, "Cantidad")}<input type="number" name="contractDurationAmount" id="emp-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" /></label>
+            </div>
+            <div id="emp-contract-duration-other-wrap" class="emp-contract-duration-branch full hidden" hidden aria-hidden="true">
+              <label>${fieldLabel(IC.file, "Describa la duración")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: plazo legal o alcance del encargo"></textarea></label>
+            </div>
           </div>
         </div>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
@@ -23492,18 +23738,22 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
 <label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
 <label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" id="employee-modal-contract-type" required>${contractSel}</select></label>
-<div id="emp-edit-contract-duration-block" class="full${showPlazoBlockInit ? "" : " hidden"}" style="grid-column:1/-1"${showPlazoBlockInit ? "" : " hidden"}>
-<label class="full"><span>${escapeHtml("Plazo o duración del contrato")}</span></label>
-<p class="full muted modal-field-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Obligatorio para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. En contrato indefinido u otros tipos no aplica.</p>
-<div class="form-section-grid employee-edit-grid" style="grid-column:1/-1">
+<div id="emp-edit-contract-duration-block" class="emp-contract-duration-panel full${showPlazoBlockInit ? "" : " hidden"}" style="grid-column:1/-1"${showPlazoBlockInit ? "" : " hidden"}${showPlazoBlockInit ? "" : ' aria-hidden="true"'}>
+<p class="emp-contract-duration-title"><span>${escapeHtml("Plazo o duración del contrato")}</span></p>
+<p class="full muted modal-field-hint emp-contract-duration-hint" style="margin:0">Obligatorio para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. En contrato indefinido u otros tipos no aplica.</p>
+<div class="form-section-grid employee-edit-grid emp-contract-duration-fields" style="grid-column:1/-1">
 <label><span>${escapeHtml("Unidad de tiempo")}</span><select name="contractDurationUnit" id="emp-edit-contract-duration-unit">
 <option value="">${escapeHtml("Seleccione...")}</option>
 <option value="meses" ${dur.unit === "meses" ? "selected" : ""}>${escapeHtml("Meses")}</option>
 <option value="anios" ${dur.unit === "anios" ? "selected" : ""}>${escapeHtml("Años")}</option>
 <option value="otro" ${dur.unit === "otro" ? "selected" : ""}>${escapeHtml("Otro (texto libre)")}</option>
 </select></label>
-<label id="emp-edit-contract-duration-qty-wrap" class="${dur.unit === "meses" || dur.unit === "anios" ? "" : "hidden"}"><span>${escapeHtml("Cantidad")}</span><input type="number" name="contractDurationAmount" id="emp-edit-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" value="${escapeAttr(dur.amount)}" /></label>
-<label id="emp-edit-contract-duration-other-wrap" class="full ${dur.unit === "otro" ? "" : "hidden"}"><span>${escapeHtml("Describa la duración")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto">${escapeHtml(dur.other)}</textarea></label>
+<div id="emp-edit-contract-duration-qty-wrap" class="emp-contract-duration-branch${dur.unit === "meses" || dur.unit === "anios" ? "" : " hidden"}"${dur.unit === "meses" || dur.unit === "anios" ? "" : " hidden"}>
+<label><span>${escapeHtml("Cantidad")}</span><input type="number" name="contractDurationAmount" id="emp-edit-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" value="${escapeAttr(dur.amount)}" /></label>
+</div>
+<div id="emp-edit-contract-duration-other-wrap" class="emp-contract-duration-branch full${dur.unit === "otro" ? "" : " hidden"}"${dur.unit === "otro" ? "" : " hidden"}>
+<label class="full"><span>${escapeHtml("Describa la duración")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto">${escapeHtml(dur.other)}</textarea></label>
+</div>
 </div>
 </div>
 <label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
@@ -25908,21 +26158,44 @@ function bindDynamicEvents() {
       if (!req) return;
       const actor = currentUser();
       if (!canPortalUserEditTransportRequest(req, actor)) {
-        notify("No tiene permiso para editar esta solicitud en su estado actual.", "error");
+        notify(
+          req.trip ? userMessage("requestEditWithTripDenied") : "No tiene permiso para editar esta solicitud en su estado actual.",
+          "error"
+        );
         return;
       }
-      const departmentsOpts = departmentOptions();
-      const originCityOpts = cityOptionsFromDepartment(req.originDepartment || "", req.originCity || "");
-      const destinationCityOpts = cityOptionsFromDepartment(req.destinationDepartment || "", req.destinationCity || "");
+      const editingWithTrip = Boolean(req.trip);
+      const tripJustificationFields = editingWithTrip
+        ? [
+            {
+              type: "section",
+              id: "edit-req-justify",
+              title: "Justificación de modificación",
+              hint: "Obligatoria: la solicitud ya tiene un viaje asignado. Quedará en el historial.",
+              full: true
+            },
+            {
+              name: "editJustification",
+              label: "Motivo de la modificación",
+              type: "textarea",
+              value: "",
+              required: true,
+              rows: 4,
+              full: true,
+              placeholder: "Ej.: cambio de ventana horaria acordado con el cliente, corrección de dirección en sitio..."
+            }
+          ]
+        : [];
       /** ISO desde API (`pickupAt`/`etaDelivery`), caché legacy (fecha+hora) o ventanas del viaje (`trip`). */
       const [pickupDateInit, pickupTimeInit] = String(toInputDate(requestPickupIsoForEdit(req)) || "").split("T");
       const [deliveryDateInit, deliveryTimeInit] = String(toInputDate(requestDeliveryIsoForEdit(req)) || "").split("T");
       openEditModal({
         title: "Editar solicitud de viaje",
-        subtitle: `${req.requestNumber || req.id} · ${req.clientName || ""}`,
+        subtitle: `${req.requestNumber || req.id} · ${req.clientName || ""}${editingWithTrip ? ` · Viaje ${req.trip.tripNumber || ""}` : ""}`,
         submitText: "Guardar cambios",
         extraModalCardClass: "modal-card-edit--request-full",
         fields: [
+          ...tripJustificationFields,
           { type: "section", id: "edit-req-route", title: "Origen y destino", hint: "Ciudades y direcciones del servicio." },
           {
             name: "originDepartment",
@@ -26025,6 +26298,18 @@ function bindDynamicEvents() {
           attachRequestTruckTypeFields(formEl);
         },
         onSubmit: async (form) => {
+          let editJustification = "";
+          if (editingWithTrip) {
+            editJustification = String(form.editJustification || "").trim();
+            if (editJustification.length < REQUEST_EDIT_JUSTIFICATION_MIN_LEN) {
+              notify(userMessage("requestEditJustificationRequired"), "error");
+              return false;
+            }
+            if (!canEditTransportRequestWithAssignedTrip(req, actor)) {
+              notify(userMessage("requestEditWithTripDenied"), "error");
+              return false;
+            }
+          }
           const modo = String(form.serviceType || "").trim();
           if (!TRANSPORT_MODOS_SERVICIO.has(modo)) {
             notify("Seleccione un modo de transporte válido.", "error");
@@ -26107,7 +26392,29 @@ function bindDynamicEvents() {
             updatedAt: nowIso(),
             updatedBy: actor?.name || (actor?.role === ROLES.CLIENT ? "Cliente" : "Usuario")
           };
-          const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
+          const changesSummary = summarizeTransportRequestEditChanges(req, { ...req, ...updates });
+          const modificationLog = editingWithTrip
+            ? recordTransportRequestModification(req, {
+                justification: editJustification,
+                actor,
+                changesSummary
+              })
+            : req.modificationLog;
+          const mergedRow = {
+            ...req,
+            ...updates,
+            ...(modificationLog ? { modificationLog } : {})
+          };
+          if (mergedRow.trip) {
+            mergedRow.trip = {
+              ...mergedRow.trip,
+              etaPickup: pickupAtIso,
+              etaDelivery: etaDeliveryIso,
+              updatedAt: nowIso()
+            };
+          }
+          const allRequests = reqRead();
+          const updated = allRequests.map((r) => (r.id === req.id ? mergedRow : r));
           try {
             await reqWriteAwait(updated);
           } catch (err) {
@@ -26115,7 +26422,7 @@ function bindDynamicEvents() {
             return false;
           }
           recalculateResourceAvailability();
-          notify("Solicitud actualizada correctamente.", "success");
+          notify(editingWithTrip ? userMessage("requestEditWithTripLogged") : "Solicitud actualizada correctamente.", "success");
           renderPortalView();
           return true;
         }
@@ -26682,13 +26989,43 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const req = findTransportRequestById(btn.dataset.id);
       if (!req) return;
+      const actor = currentUser();
+      if (!canPortalUserEditTransportRequest(req, actor)) {
+        notify(
+          req.trip ? userMessage("requestEditWithTripDenied") : "No tiene permiso para editar esta solicitud.",
+          "error"
+        );
+        return;
+      }
+      const editingWithTrip = Boolean(req.trip);
       const [pickupDate, pickupTime] = String(toInputDate(requestPickupIsoForEdit(req)) || "").split("T");
       const [deliveryDate, deliveryTime] = String(toInputDate(requestDeliveryIsoForEdit(req)) || "").split("T");
+      const tripJustificationFields = editingWithTrip
+        ? [
+            {
+              type: "section",
+              id: "admin-req-justify",
+              title: "Justificación de modificación",
+              hint: "Obligatoria con viaje asignado.",
+              full: true
+            },
+            {
+              name: "editJustification",
+              label: "Motivo de la modificación",
+              type: "textarea",
+              value: "",
+              required: true,
+              rows: 3,
+              full: true
+            }
+          ]
+        : [];
       openEditModal({
         title: "Editar solicitud",
-        subtitle: req.requestNumber || req.id,
+        subtitle: `${req.requestNumber || req.id}${editingWithTrip ? ` · Viaje ${req.trip.tripNumber || ""}` : ""}`,
         submitText: "Actualizar solicitud",
         fields: [
+          ...tripJustificationFields,
           {
             type: "section",
             id: "admin-req-window",
@@ -26702,6 +27039,14 @@ function bindDynamicEvents() {
           { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTime, required: true }
         ],
         onSubmit: async (form) => {
+          let editJustification = "";
+          if (editingWithTrip) {
+            editJustification = String(form.editJustification || "").trim();
+            if (editJustification.length < REQUEST_EDIT_JUSTIFICATION_MIN_LEN) {
+              notify(userMessage("requestEditJustificationRequired"), "error");
+              return false;
+            }
+          }
           const pickupDateValue = String(form.pickupDate || "").trim();
           const pickupTimeValue = String(form.pickupTime || "").trim();
           const deliveryDateValue = String(form.deliveryDate || "").trim();
@@ -26720,27 +27065,39 @@ function bindDynamicEvents() {
           }
           const pickupAtIso = new Date(pickupAtBuilt).toISOString();
           const etaDeliveryIso = new Date(etaDeliveryBuilt).toISOString();
+          const scheduleUpdates = {
+            pickupAt: pickupAtIso,
+            etaDelivery: etaDeliveryIso,
+            pickupDate: pickupDateValue,
+            pickupTime: pickupTimeValue,
+            deliveryDate: deliveryDateValue,
+            deliveryTime: deliveryTimeValue,
+            updatedAt: nowIso(),
+            updatedBy: actor?.name || "Administrador"
+          };
+          const changesSummary = summarizeTransportRequestEditChanges(req, { ...req, ...scheduleUpdates });
+          const modificationLog = editingWithTrip
+            ? recordTransportRequestModification(req, {
+                justification: editJustification,
+                actor,
+                changesSummary
+              })
+            : req.modificationLog;
+          const mergedRow = {
+            ...req,
+            ...scheduleUpdates,
+            ...(modificationLog ? { modificationLog } : {}),
+            trip: req.trip
+              ? { ...req.trip, etaPickup: pickupAtIso, etaDelivery: etaDeliveryIso, updatedAt: nowIso() }
+              : req.trip
+          };
           try {
-            await reqWriteAwait(
-              requests.map((r) =>
-                r.id === req.id
-                  ? {
-                      ...r,
-                      pickupAt: pickupAtIso,
-                      etaDelivery: etaDeliveryIso,
-                      pickupDate: pickupDateValue,
-                      pickupTime: pickupTimeValue,
-                      deliveryDate: deliveryDateValue,
-                      deliveryTime: deliveryTimeValue
-                    }
-                  : r
-              )
-            );
+            await reqWriteAwait(reqRead().map((r) => (r.id === req.id ? mergedRow : r)));
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
           }
-          notify(userMessage("requestUpdated"), "success");
+          notify(editingWithTrip ? userMessage("requestEditWithTripLogged") : userMessage("requestUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -30408,38 +30765,15 @@ function initGlobalEvents() {
 }
 
 function bindExtendedViewEditHandlers() {
-  const renderDetailRows = (pairs) =>
-    pairs
-      .filter((p) => p && p[1] !== null && p[1] !== undefined && String(p[1]).trim() !== "")
-      .map(
-        ([label, value]) =>
-          `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${value}</span></div>`
-      )
-      .join("");
-
-  const buildDetailGrid = (sections) =>
-    sections
-      .filter((sec) => sec && sec.rows && sec.rows.trim())
-      .map(
-        (sec) =>
-          `<section class="detail-section"><h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4><div class="detail-section-grid">${sec.rows}</div></section>`
-      )
-      .join("");
+  const renderDetailRows = portalDetailRenderRows;
+  const buildDetailGrid = portalDetailBuildGrid;
+  const portalDetailTile = portalDetailTileMarkup;
 
   const fmtMoney = (val) => `$${parseNum(val).toLocaleString("es-CO")}`;
   const fmtBool = (val) => (val ? "Sí" : "No");
   const fmtDateOr = (val, fallback = "—") => {
     const y = normalizePortalDateYmd(val);
     return y ? escapeHtml(y) : fallback;
-  };
-
-  const portalDetailTile = (iconSvg, label, valueHtml, opts = {}) => {
-    const { href = "", muted = false } = opts;
-    const inner = `<span class="portal-detail-tile-icon" aria-hidden="true">${iconSvg}</span><span class="portal-detail-tile-text"><span class="portal-detail-tile-label">${escapeHtml(label)}</span><span class="portal-detail-tile-value">${valueHtml}</span></span>`;
-    if (href) {
-      return `<a class="portal-detail-tile" href="${escapeAttr(href)}">${inner}</a>`;
-    }
-    return `<div class="portal-detail-tile${muted ? " portal-detail-tile--muted" : ""}" role="group">${inner}</div>`;
   };
 
   /** Postulación web (API/R2): adjuntos_json con kind cv_file | cv_blob | cv_filename · Local: solo nombres o cv_blob desde RRHH. */
@@ -30588,10 +30922,8 @@ function bindExtendedViewEditHandlers() {
         ? `<p class="portal-detail-loc-line">${addr ? escapeHtml(addr) : `<span class="muted">Sin dirección</span>`}</p>${
             locLine ? `<p class="portal-detail-loc-sub muted">${IC.mapPin} ${escapeHtml(locLine)}</p>` : ""
           }`
-        : `<p class="muted" style="margin:0">Sin ubicación registrada.</p>`;
-
-      const bodyHtml = `<div class="portal-detail-modal">
-  <div class="portal-detail-hero">
+        : `<p class="portal-detail-loc-line muted">Sin ubicación registrada.</p>`;
+      const heroHtml = `<div class="portal-detail-hero">
     ${logoHero}
     <div class="portal-detail-hero-main">
       <p class="portal-detail-eyebrow">${IC.briefcase} Ficha comercial</p>
@@ -30607,20 +30939,18 @@ function bindExtendedViewEditHandlers() {
         <li><strong>${updatedLbl}</strong><span>Última actualización</span></li>
       </ul>
     </div>
-  </div>
-  <div class="portal-detail-tiles">${phoneBlock}${emailBlock}${contactBlock}</div>
-  <section class="portal-detail-loc" aria-label="Ubicación">
+  </div>`;
+      const highlightHtml = `<section class="portal-detail-loc" aria-label="Ubicación">
     <h4 class="portal-detail-loc-title">${IC.mapPin} Ubicación</h4>
     ${locBody}
-  </section>
-</div>`;
+  </section>`;
 
-      openInfoModal({
+      openPortalDetailSheet({
         title: String(c.name || "Empresa"),
         subtitle: nitStr ? `NIT ${nitStr}` : "",
-        bodyHtml,
-        wide: true,
-        extraModalCardClass: "modal-card--portal-detail"
+        heroHtml,
+        tilesHtml: `${phoneBlock}${emailBlock}${contactBlock}`,
+        highlightHtml
       });
     });
   });
@@ -30741,9 +31071,8 @@ function bindExtendedViewEditHandlers() {
       ]);
       const permsBody = permsHtml
         ? `<p class="portal-detail-loc-line"><span class="muted">Permisos asignados</span> ${escapeHtml(String(effectiveUserPermissions(u).length))}</p><div class="detail-perms-list">${permsHtml}</div>`
-        : `<p class="muted" style="margin:0">Sin permisos asignados.</p>`;
-      const bodyHtml = `<div class="portal-detail-modal">
-  <div class="portal-detail-hero">
+        : `<p class="portal-detail-loc-line muted">Sin permisos asignados.</p>`;
+      const heroHtml = `<div class="portal-detail-hero">
     ${avatarHero}
     <div class="portal-detail-hero-main">
       <p class="portal-detail-eyebrow">${IC.user} Usuario del sistema</p>
@@ -30754,20 +31083,19 @@ function bindExtendedViewEditHandlers() {
         <li><strong>${createdLbl}</strong><span>Alta en sistema</span></li>
       </ul>
     </div>
-  </div>
-  <div class="portal-detail-tiles">${emailBlock}${phoneBlock}${companyBlock}</div>
-  ${detailSections}
-  <section class="portal-detail-loc" aria-label="Permisos">
+  </div>`;
+      const highlightHtml = `<section class="portal-detail-loc" aria-label="Permisos">
     <h4 class="portal-detail-loc-title">${IC.layers} Permisos</h4>
     ${permsBody}
-  </section>
-</div>`;
-      openInfoModal({
+  </section>`;
+
+      openPortalDetailSheet({
         title: displayName || "Usuario",
         subtitle: email,
-        bodyHtml,
-        wide: true,
-        extraModalCardClass: "modal-card--portal-detail"
+        heroHtml,
+        tilesHtml: `${emailBlock}${phoneBlock}${companyBlock}`,
+        sectionsHtml: detailSections,
+        highlightHtml
       });
     });
   });

@@ -86,7 +86,7 @@
       ${tripBadge}
       <div class="toolbar trip-ops-card-actions">
         <button class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle completo de la solicitud">${IC.eye} Detalle</button>
-        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}" title="Editar la solicitud">${IC.edit} Editar</button>` : ""}
+        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}" title="${r.trip ? "Editar (requiere justificación: viaje asignado)" : "Editar la solicitud"}">${IC.edit} Editar</button>` : ""}
         ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}" title="Marcar solicitud como cancelada">${IC.x} Cancelar</button>` : ""}
         ${allowClientHardDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar solicitud antes de aprobacion">${IC.trash} Eliminar</button>` : ""}
         ${isAdmin

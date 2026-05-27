@@ -109,6 +109,11 @@
     requestDeliveryAfterPickup: "La entrega estimada debe ser posterior a la recogida.",
     requestCreateError: "No se pudo registrar la solicitud. Revise los datos o intente más tarde.",
     requestCreated: "Solicitud registrada correctamente.",
+    requestEditWithTripDenied:
+      "Esta solicitud tiene viaje asignado. Solo usuarios con permiso de gestión de viajes pueden modificarla.",
+    requestEditJustificationRequired:
+      "Indique la justificación de la modificación (mínimo 10 caracteres). La solicitud ya tiene un viaje asignado.",
+    requestEditWithTripLogged: "Solicitud actualizada. La justificación quedó registrada en el historial.",
     observationsUpdated: "Observaciones guardadas correctamente.",
     assignSelectResources: "Seleccione camión y conductor para asignar.",
     assignPriceRequired: "Indique el valor del viaje (COP) para poder asignar.",

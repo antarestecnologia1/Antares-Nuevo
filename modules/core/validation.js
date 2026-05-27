@@ -202,7 +202,15 @@
       if (node.id === "register-doc-persona" && node.classList.contains("hidden")) return true;
       if (node.id === "register-doc-empresa" && node.classList.contains("hidden")) return true;
       if (node.id === "emp-illness-detail-label" && node.classList.contains("hidden")) return true;
-      if (node.id === "emp-contract-duration-block" && (node.hidden || node.classList.contains("hidden"))) return true;
+      if (
+        (node.id === "emp-contract-duration-block" || node.id === "emp-edit-contract-duration-block") &&
+        (node.hidden || node.classList.contains("hidden"))
+      ) {
+        return true;
+      }
+      if (node.classList?.contains("emp-contract-duration-branch") && (node.hidden || node.classList.contains("hidden"))) {
+        return true;
+      }
       if (node.classList?.contains("request-truck-field") && node.hidden) return true;
       if (node.classList?.contains("hidden") && !node.classList?.contains("hr-form-step")) return true;
       node = node.parentElement;

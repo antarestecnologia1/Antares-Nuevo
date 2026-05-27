@@ -22372,11 +22372,65 @@ body[data-theme="dark"] .directory-card__actions {
 }
 /* `display: grid` arriba anula el `display:none` del atributo [hidden] en labels. */
 .form-section-grid label[hidden],
+.form-section-grid label.hidden,
+.form-section-grid .emp-contract-duration-branch.hidden,
+.form-section-grid .emp-contract-duration-branch[hidden],
+.emp-contract-duration-panel.hidden,
+.emp-contract-duration-panel[hidden],
 .p-form label[hidden],
+.p-form label.hidden,
 .p-form-colored label[hidden],
+.p-form-colored label.hidden,
 .modal-edit-form label[hidden],
-#crud-form label[hidden] {
+.modal-edit-form label.hidden,
+#crud-form label[hidden],
+#crud-form label.hidden {
   display: none !important;
+}
+
+.emp-contract-duration-panel {
+  grid-column: 1 / -1;
+  margin: 0.2rem 0 0.4rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  border: 1px dashed rgba(var(--primary-rgb), 0.28);
+  background: color-mix(in srgb, var(--primary) 5%, #fff);
+}
+
+.emp-contract-duration-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.emp-contract-duration-title .field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.emp-contract-duration-hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0 0 0.65rem;
+}
+
+.emp-contract-duration-fields {
+  margin: 0;
+}
+
+.emp-contract-duration-branch {
+  min-width: 0;
+}
+
+.emp-contract-duration-branch.full {
+  grid-column: 1 / -1;
+}
+
+body[data-theme="dark"] .emp-contract-duration-panel {
+  background: color-mix(in srgb, var(--primary) 12%, var(--card, #1a2332));
+  border-color: rgba(var(--primary-rgb), 0.35);
 }
 .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text):focus-within {
   border-color: rgba(var(--primary-rgb), 0.45);
@@ -22858,6 +22912,140 @@ body[data-theme="dark"] .portal-detail-loc-line {
   color: #f1f5f9;
 }
 
+.modal-info-body--portal-detail {
+  padding: 0.15rem 0 0.35rem;
+}
+
+.modal-info-body--portal-detail .portal-detail-modal {
+  gap: 1.15rem;
+}
+
+.portal-detail-hero--vehicle {
+  align-items: center;
+}
+
+.portal-detail-hero-plate {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.portal-detail-hero-plate .directory-card__avatar--plate {
+  transform: scale(1.06);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.portal-detail-highlight {
+  margin: 0;
+  padding: 0.88rem 1rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--primary-rgb), 0.07),
+    rgba(255, 255, 255, 0.72)
+  );
+}
+
+.portal-detail-highlight__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  color: var(--text);
+}
+
+.portal-detail-highlight__title svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.portal-detail-highlight__body {
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.portal-detail-highlight__body .portal-detail-loc-line {
+  margin: 0;
+}
+
+.portal-detail-highlight__body .portal-detail-loc-sub {
+  margin-top: 0.35rem;
+}
+
+.detail-grid--sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .detail-grid--sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-section--card {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset;
+}
+
+.detail-section--card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 12px 0 0 12px;
+  background: color-mix(
+    in srgb,
+    var(--primary) calc(42% + var(--detail-section-i, 0) * 6%),
+    #94a3b8
+  );
+  opacity: 0.85;
+}
+
+.detail-section--card .detail-section-title {
+  padding-left: 0.15rem;
+}
+
+.detail-section--card .detail-row {
+  padding: 0.28rem 0.32rem;
+  border-radius: 8px;
+  border-bottom: none;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.detail-section--card .detail-row:nth-child(even) {
+  background: rgba(var(--primary-rgb), 0.04);
+}
+
+body[data-theme="dark"] .portal-detail-highlight {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), rgba(15, 23, 42, 0.5));
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body[data-theme="dark"] .portal-detail-highlight__title {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .detail-section--card .detail-row {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+body[data-theme="dark"] .detail-section--card .detail-row:nth-child(even) {
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
 .modal-card-edit.modal-card-edit--trip-assign-friendly {
   width: min(720px, 96vw);
 }
@@ -23194,6 +23382,40 @@ body[data-theme="dark"] .trip-assign-tk-banner--dry {
   margin-top: 0.85rem;
   padding-top: 0.75rem;
   border-top: 1px dashed var(--line);
+}
+
+.solicitud-detail-section--mod-log {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.request-mod-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.request-mod-log-item {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--primary) 5%, var(--white));
+}
+
+.request-mod-log-meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.request-mod-log-just {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+  font-size: 0.92rem;
 }
 
 .solicitud-trip-summary {
