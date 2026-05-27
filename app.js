@@ -8679,6 +8679,119 @@ function formHasDirtyValues(formEl) {
   });
 }
 
+function payrollBulkEmployeeNameMap() {
+  const map = new Map();
+  readArray(KEYS.payrollEmployees).forEach((e) => {
+    const id = String(e?.id || "").trim();
+    if (id) map.set(id, String(e.name || "Colaborador").trim() || "Colaborador");
+  });
+  return map;
+}
+
+function humanizePayrollBulkSkipReason(raw) {
+  let text = String(raw || "").trim();
+  const hireMatch = text.match(/fecha de ingreso\s*\(?(\d{4}-\d{2}-\d{2})\)?/i);
+  if (/sin días (efectivos en el corte|laborables en el período)/i.test(text)) {
+    const hireLabel = hireMatch ? fmtDateOr(hireMatch[1], hireMatch[1]) : "";
+    return hireLabel
+      ? `Sin días laborables en el período (ingresó el ${hireLabel}, después del corte seleccionado).`
+      : "Sin días laborables en el período seleccionado.";
+  }
+  if (/sin fecha de ingreso/i.test(text)) return "Falta fecha de ingreso válida en la ficha del colaborador.";
+  if (/prima omitida/i.test(text)) return text;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function parsePayrollBulkAutogenMessage(msg, nameById = new Map()) {
+  const s = String(msg || "").trim();
+  let m = s.match(/^Empleado\s+([0-9a-f-]{36})\s+\(([^)]+)\):\s*(.+)$/i);
+  if (m) {
+    return { name: m[2].trim(), reason: humanizePayrollBulkSkipReason(m[3]) };
+  }
+  m = s.match(/^Empleado\s+([0-9a-f-]{36}):\s*(.+)$/i);
+  if (m) {
+    return {
+      name: nameById.get(m[1]) || "Colaborador",
+      reason: humanizePayrollBulkSkipReason(m[2])
+    };
+  }
+  m = s.match(/^([^:]+):\s*(.+)$/);
+  if (m) {
+    return { name: m[1].trim(), reason: humanizePayrollBulkSkipReason(m[2]) };
+  }
+  return { name: "", reason: humanizePayrollBulkSkipReason(s) };
+}
+
+function openPayrollBulkResultModal({ title, bodyHtml }) {
+  const modal = ensureCrudModalElement();
+  const card = modal.querySelector(".modal-card");
+  if (card) card.className = "modal-card modal-card-edit modal-card--payroll-bulk-result";
+  const content = modal.querySelector("#crud-modal-content");
+  content.innerHTML = `
+    ${renderModalHead(title)}
+    <div class="payroll-bulk-result-body">${bodyHtml}</div>
+    ${renderModalFooterActions({
+      showCancel: false,
+      primaryHtml: `<button type="button" id="crud-ok" class="btn btn-primary">${IC.check} Entendido</button>`
+    })}
+  `;
+  modal.classList.remove("hidden");
+  const close = () => modal.classList.add("hidden");
+  wireModalDismiss(content, close, { closeIds: ["crud-close", "crud-ok"] });
+  scrollOpenCrudModalIntoView();
+}
+
+function presentPayrollBulkAutogenResult(result) {
+  const created = Number(result?.created || 0);
+  const skipped = Number(result?.skipped || 0);
+  const rawMsgs = Array.isArray(result?.messages) ? result.messages.filter(Boolean) : [];
+  const nameById = payrollBulkEmployeeNameMap();
+  const items = rawMsgs.map((msg) => parsePayrollBulkAutogenMessage(msg, nameById));
+
+  const summaryBits = [];
+  if (created > 0) {
+    summaryBits.push(
+      `<span class="payroll-bulk-result-stat payroll-bulk-result-stat--ok"><strong>${created}</strong> creada${created === 1 ? "" : "s"}</span>`
+    );
+  }
+  if (skipped > 0) {
+    summaryBits.push(
+      `<span class="payroll-bulk-result-stat payroll-bulk-result-stat--skip"><strong>${skipped}</strong> omitida${skipped === 1 ? "" : "s"}</span>`
+    );
+  }
+
+  const title =
+    created > 0 ? "Liquidación masiva completada" : skipped > 0 ? "Sin nuevas liquidaciones" : "Liquidación masiva";
+
+  let bodyHtml = `<div class="payroll-bulk-result-summary">${summaryBits.join("") || '<span class="muted">No hubo cambios.</span>'}</div>`;
+
+  if (items.length) {
+    bodyHtml += `<ul class="payroll-bulk-result-list" aria-label="Detalle por colaborador">${items
+      .map(
+        (it) =>
+          `<li><span class="payroll-bulk-result-name">${escapeHtml(it.name || "Colaborador")}</span><span class="payroll-bulk-result-reason">${escapeHtml(it.reason)}</span></li>`
+      )
+      .join("")}</ul>`;
+  } else if (skipped > 0 && created === 0) {
+    bodyHtml += `<p class="muted payroll-bulk-result-hint">Ningún colaborador tenía un corte pendiente en esa fecha, o ya existía su liquidación para el mismo período.</p>`;
+  }
+
+  if (items.length || (skipped > 0 && created === 0)) {
+    openPayrollBulkResultModal({ title, bodyHtml });
+    return;
+  }
+
+  if (created > 0) {
+    notify(
+      created === 1 ? "Se generó 1 borrador de liquidación." : `Se generaron ${created} borradores de liquidación.`,
+      "success"
+    );
+    return;
+  }
+
+  notify("No se generaron liquidaciones para la fecha indicada.", "info");
+}
+
 function confirmDiscardCreateFormAsync(formEl, opts = {}) {
   if (!formHasDirtyValues(formEl)) return Promise.resolve(true);
   return openConfirmModalAsync({
@@ -21754,21 +21867,23 @@ function payrollHtml() {
     </div>
   </form>`;
   const todayYmdBulk = new Date().toISOString().slice(0, 10);
-  const formPayBulk = `<section class="form-section form-section-violet full payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
-      <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva (todos los empleados)</h4>
-      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
-        Genera borradores en el servidor según la <strong>periodicidad de pago</strong> de cada colaborador (mensual, quincenal, etc.).
-        Use la fecha de cierre del período que desea liquidar (ej. día 15 para 1ª quincena, último día del mes para 2ª quincena o mensual).
-      </p>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
-        <label class="full" style="display:flex;align-items:flex-start;gap:0.5rem;margin:0">
-          <input type="checkbox" id="payroll-bulk-force" checked style="margin-top:0.2rem" />
-          <span>Generar el último corte ya cerrado en esa fecha (recomendado si hoy no es día 15 ni fin de mes)</span>
+  const formPayBulk = `<section class="payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
+      <div class="payroll-bulk-panel__intro">
+        <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva</h4>
+        <p class="muted payroll-bulk-lead">Borradores para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.).</p>
+      </div>
+      <div class="payroll-bulk-fields">
+        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
+        <label class="payroll-bulk-option">
+          <input type="checkbox" id="payroll-bulk-force" checked />
+          <span class="payroll-bulk-option__copy">
+            <span class="payroll-bulk-option__label">Usar el último corte ya cerrado en esa fecha</span>
+            <span class="payroll-bulk-option__hint muted">Útil si hoy no es día 15 ni fin de mes.</span>
+          </span>
         </label>
       </div>
-      <div class="toolbar" style="margin-top:0.75rem">
-        <button type="button" class="btn btn-primary" id="payroll-bulk-generate">${IC.dollar} Generar liquidaciones masivas</button>
+      <div class="payroll-bulk-actions">
+        <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar borradores</span></button>
       </div>
     </section>`;
   const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
@@ -29586,22 +29701,20 @@ function bindDynamicEvents() {
         return;
       }
       const force = Boolean(forceEl?.checked);
+      const busyLabel = payrollBulkBtn.querySelector("span");
+      const busyOrig = busyLabel?.textContent || "";
       payrollBulkBtn.disabled = true;
+      payrollBulkBtn.setAttribute("aria-busy", "true");
+      if (busyLabel) busyLabel.textContent = "Generando…";
       try {
         const result = await postPortalAuthorized("/payroll/autogenerate-period", {
           fechaReferencia,
           force
         });
         if (result && typeof result === "object") {
-          const created = Number(result.created || 0);
-          const skipped = Number(result.skipped || 0);
-          const msgs = Array.isArray(result.messages) ? result.messages.filter(Boolean) : [];
           await applyPortalBootstrapFromApi();
-          notify(
-            `Liquidación masiva: ${created} creada(s), ${skipped} omitida(s).${msgs.length ? ` Detalle: ${msgs.slice(0, 3).join(" · ")}` : ""}`,
-            created > 0 ? "success" : skipped > 0 && created === 0 ? "warn" : "info"
-          );
-          state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+          presentPayrollBulkAutogenResult(result);
+          state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data", dataSection: "runs" };
           persistHrWorkspace("payroll", "data");
           renderPortalView();
         }
@@ -29609,6 +29722,8 @@ function bindDynamicEvents() {
         notify(String(err?.message || "No fue posible ejecutar la liquidación masiva."), "error");
       } finally {
         payrollBulkBtn.disabled = false;
+        payrollBulkBtn.removeAttribute("aria-busy");
+        if (busyLabel) busyLabel.textContent = busyOrig || "Generar borradores";
       }
     });
   }

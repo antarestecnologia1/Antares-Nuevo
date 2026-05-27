@@ -329,7 +329,7 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
   let diasEnCorte = inclusiveCalendarDays(serviceLo, serviceHi);
   if (diasEnCorte <= 0) {
     throw new Error(
-      `empleado sin días efectivos en el corte — verifique fecha de ingreso (${hire.toISOString().slice(0, 10)}) frente al rango solicitado`
+      `sin días laborables en el período (fecha de ingreso ${hire.toISOString().slice(0, 10)} posterior al corte)`
     );
   }
 

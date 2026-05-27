@@ -6465,7 +6465,9 @@ export class PortalService implements OnModuleInit {
         const hireDate = parseSqlDate(row.fecha_ingreso);
         if (!hireDate) {
           skipped += 1;
-          messages.push(`Empleado ${employeeId}: sin fecha ingreso válida`);
+          messages.push(
+            `${String(row.nombre_completo || "Colaborador").trim()}: sin fecha de ingreso válida en la ficha`
+          );
           continue;
         }
 
@@ -6534,7 +6536,7 @@ export class PortalService implements OnModuleInit {
         } catch (ex) {
           skipped += 1;
           const m = ex instanceof Error ? ex.message : String(ex);
-          messages.push(`Empleado ${employeeId} (${row.nombre_completo}): ${m}`);
+          messages.push(`${String(row.nombre_completo || "Colaborador").trim()}: ${m}`);
           continue;
         }
 
