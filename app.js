@@ -2383,6 +2383,10 @@ function companyProfileLogoUrl(company) {
   return String(normalizePortalBootstrapCompanyRow(company).logoUrl || "").trim();
 }
 
+function payrollDocumentLogoUrl(company) {
+  return companyProfileLogoUrl(company) || reportBrandLogoSrc();
+}
+
 /** Alinea texto guardado con la clave exacta del catálogo COLOMBIA_LOCATIONS (tildes, espacios, mayúsculas). */
 function matchColombiaDepartmentToCatalogKey(departmentRaw) {
   const raw = String(departmentRaw || "").trim();
@@ -2755,8 +2759,7 @@ function wireMonthlyPayrollConcepts(form) {
       auxInput.value = String(CO_HR_RULES.transportAllowance);
       return;
     }
-    const v = parseNum(emp.transportAllowance);
-    auxInput.value = String(v > 0 ? v : CO_HR_RULES.transportAllowance);
+    auxInput.value = String(readEmployeeTransportAllowanceCop(emp));
   };
 
   const fsP = form.querySelector("#payroll-prima-fieldset");
@@ -2889,9 +2892,10 @@ function wireTerminationSettlementForm(form) {
 }
 const CO_HR_RULES = {
   legalWeeklyHours: 46,
-  minMonthlySalary: 1423500,
-  transportAllowance: 200000
+  minMonthlySalary: 1750905,
+  transportAllowance: 249095
 };
+const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = 2;
 const CO_SYSTEM_PARAMS_DEFAULTS = {
   smmlvCop: CO_PAYROLL.smmlv,
   minMonthlySalaryCop: CO_HR_RULES.minMonthlySalary,
@@ -2924,6 +2928,80 @@ function applySystemParametersToClientRules(raw) {
   CO_HR_RULES.transportAllowance = normalized.transportAllowanceCop;
   CO_HR_RULES.legalWeeklyHours = normalized.legalWeeklyHours;
   return normalized;
+}
+
+function colombiaTransportAllowanceSalaryCapCop() {
+  return Math.max(0, parseNum(CO_HR_RULES.minMonthlySalary)) * CO_TRANSPORT_ALLOWANCE_MAX_SMMLV;
+}
+
+function colombiaTransportAllowanceEligible(baseSalary) {
+  const salary = Math.max(0, parseNum(baseSalary));
+  const cap = colombiaTransportAllowanceSalaryCapCop();
+  return salary > 0 && cap > 0 && salary <= cap;
+}
+
+function suggestedEmployeeTransportAllowanceCop(baseSalary) {
+  return colombiaTransportAllowanceEligible(baseSalary) ? CO_HR_RULES.transportAllowance : 0;
+}
+
+function resolveEmployeeTransportAllowanceCop(rawTransportAllowance, baseSalary) {
+  if (!colombiaTransportAllowanceEligible(baseSalary)) return 0;
+  const rawValue = String(rawTransportAllowance ?? "").trim();
+  if (!rawValue) return CO_HR_RULES.transportAllowance;
+  return Math.max(0, parseNum(rawTransportAllowance));
+}
+
+function readEmployeeTransportAllowanceCop(employee) {
+  if (!employee) return 0;
+  const rawValue = employee.transportAllowance;
+  if (rawValue != null && String(rawValue).trim() !== "") {
+    return Math.max(0, parseNum(rawValue));
+  }
+  return suggestedEmployeeTransportAllowanceCop(employee.baseSalary);
+}
+
+function employeeTransportAllowanceGuidance(baseSalary) {
+  const legalAux = parseNum(CO_HR_RULES.transportAllowance).toLocaleString("es-CO");
+  const cap = colombiaTransportAllowanceSalaryCapCop().toLocaleString("es-CO");
+  if (colombiaTransportAllowanceEligible(baseSalary)) {
+    return `2026: se sugiere auxilio legal de transporte/conectividad por $${legalAux}. Aplica hasta 2 SMMLV ($${cap}).`;
+  }
+  const salary = Math.max(0, parseNum(baseSalary));
+  if (salary > 0) {
+    return `2026: si el salario supera 2 SMMLV ($${cap}), el auxilio legal se registra en $0. Si la empresa reconoce un valor adicional, debe tratarse como beneficio extralegal.`;
+  }
+  return `2026: el SMMLV es $${parseNum(CO_HR_RULES.minMonthlySalary).toLocaleString("es-CO")} y el auxilio legal de transporte/conectividad es $${legalAux}.`;
+}
+
+function bindEmployeeTransportAllowanceRule(form, config = {}) {
+  const salaryInput = form?.querySelector?.(config.salarySelector || 'input[name="baseSalary"]');
+  const auxInput = form?.querySelector?.(config.auxSelector || 'input[name="transportAllowance"]');
+  const hintEl = form?.querySelector?.(config.hintSelector || "");
+  const preserveExistingValue = Boolean(config.preserveExistingValue);
+  if (!salaryInput || !auxInput) return { sync: () => {} };
+  let initialized = false;
+  const sync = ({ force = false } = {}) => {
+    const baseSalary = parseNum(salaryInput.value);
+    const eligible = colombiaTransportAllowanceEligible(baseSalary);
+    const preserveOnInit = preserveExistingValue && !initialized;
+    if (!preserveOnInit) {
+      if (force || auxInput.dataset.userEdited !== "1" || !eligible) {
+        auxInput.value = String(suggestedEmployeeTransportAllowanceCop(baseSalary));
+      }
+    } else if (!eligible) {
+      auxInput.value = "0";
+    }
+    if (!eligible) delete auxInput.dataset.userEdited;
+    if (hintEl) hintEl.textContent = employeeTransportAllowanceGuidance(baseSalary);
+    initialized = true;
+  };
+  salaryInput.addEventListener("input", () => sync());
+  auxInput.addEventListener("input", () => {
+    auxInput.dataset.userEdited = "1";
+    if (hintEl) hintEl.textContent = employeeTransportAllowanceGuidance(salaryInput.value);
+  });
+  sync({ force: !preserveExistingValue });
+  return { sync };
 }
 
 function applySystemParametersFromBootstrapPayload(raw) {
@@ -18532,9 +18610,10 @@ function payrollHtml() {
       const avatar = avCss
         ? `<span class="emp-avatar" style="background-image:url('${avCss}')" role="img" aria-label=""></span>`
         : `<span class="emp-avatar emp-avatar-letter" aria-hidden="true">${escapeHtml(String(e.name || "E").charAt(0).toUpperCase())}</span>`;
+      const transportAllowanceLabel = `$${readEmployeeTransportAllowanceCop(e).toLocaleString("es-CO")}`;
       return `<tr>
       ${hrAdminDeletes ? `<td><input type="checkbox" data-employee-select value="${e.id}" /></td>` : ""}
-      <td><div class="emp-cell-name">${avatar}<div><strong>${escapeHtml(e.name || "")}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${escapeHtml(String(e.idDoc || ""))}</td><td>${escapeHtml(String(e.position || ""))}</td><td>${escapeHtml(String(e.contractType || ""))}</td><td>${escapeHtml(getCompanyById(e.companyId)?.name || "-")}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${fmtDate(e.startDate)}</td>
+      <td><div class="emp-cell-name">${avatar}<div><strong>${escapeHtml(e.name || "")}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${escapeHtml(String(e.idDoc || ""))}</td><td>${escapeHtml(String(e.position || ""))}</td><td>${escapeHtml(String(e.contractType || ""))}</td><td>${escapeHtml(getCompanyById(e.companyId)?.name || "-")}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${transportAllowanceLabel}</td><td>${fmtDate(e.startDate)}</td>
       <td><div class="toolbar employee-table-actions">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
@@ -18700,8 +18779,9 @@ function payrollHtml() {
           </div>
         </div>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
-        <label>${fieldLabel(IC.dollar, "Auxilio de transporte")}<input type="number" name="transportAllowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" value="${CO_HR_RULES.minMonthlySalary}" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <label>${fieldLabel(IC.dollar, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="emp-transport-allowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
+        <p class="full muted" id="emp-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
         <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
         <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" /></label>
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
@@ -18952,7 +19032,7 @@ function payrollHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin incapacidades ni vacaciones registradas.");
   const empTable = employeeRows
-    ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+    ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Auxilio legal</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${sortedRuns.map((r) => renderPayrollRunCard(r)).join("")}</div>`
@@ -19444,6 +19524,7 @@ function hiringHtml() {
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(p.name || ""))}</strong><span>Catálogo base de contratación</span></div></td>
       <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
       <td>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</td>
+      <td>${fmtBool(String(p.integralSalary) === "true" || p.integralSalary === true)}</td>
       <td>${escapeHtml(String(p.contractTypeDefault || "-"))}</td>
       <td>${escapeHtml(String(p.legalBasis || "CST"))}</td>
       <td>${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}</td>
@@ -19791,7 +19872,7 @@ function hiringHtml() {
     </div>
   </form>`;
 
-  const tPos = positionRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
+  const tPos = positionRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Integral</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--vacancies"><table class="hiring-table hiring-table--vacancies"><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
   const tCand = candRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows
@@ -21276,7 +21357,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       costCenter: String(raw.costCenter || "").trim(),
       payFrequency: String(raw.payFrequency || "Mensual").trim(),
       baseSalary,
-      transportAllowance: parseNum(raw.transportAllowance) || CO_HR_RULES.transportAllowance,
+      transportAllowance: resolveEmployeeTransportAllowanceCop(raw.transportAllowance, baseSalary),
       contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
       contractDuration: composedDur,
       bankName: String(raw.bankName || "").trim(),
@@ -21398,7 +21479,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Duración contrato", emp.contractDuration || emp.contractDurationText)}
       ${employeeProfileKvRow("Centro costos", emp.costCenter)}
       ${employeeProfileKvRow("Periodicidad", emp.payFrequency)}
-      ${employeeProfileKvRow("Aux. transporte (COP)", emp.transportAllowance != null ? parseNum(emp.transportAllowance).toLocaleString("es-CO") : "")}
+      ${employeeProfileKvRow("Aux. transporte (COP)", readEmployeeTransportAllowanceCop(emp).toLocaleString("es-CO"))}
       ${employeeProfileKvRow("Tipo cotizante", emp.contributorType)}
       ${employeeProfileKvRow("ARL nivel riesgo", emp.arlRiskLevel)}
       ${employeeProfileKvRow("Plantilla contrato Word", emp.contractTemplateKind)}
@@ -21549,7 +21630,8 @@ function buildPayrollEmployeeEditModalFields(emp) {
 </div>
 <label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
 <label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
-<label><span>${escapeHtml("Auxilio transporte")}</span><input type="number" name="transportAllowance" min="0" value="${escapeAttr(parseNum(e.transportAllowance) || CO_HR_RULES.transportAllowance)}" /></label>
+<label><span>${escapeHtml("Auxilio legal transporte / conectividad")}</span><input type="number" name="transportAllowance" id="employee-modal-transport-allowance" min="0" value="${escapeAttr(readEmployeeTransportAllowanceCop(e))}" /></label>
+<p class="full muted modal-field-hint" id="employee-modal-legal-comp-hint" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(e.baseSalary))}</p>
 <label><span>${escapeHtml("Periodicidad pago")}</span><select name="payFrequency">${payFreqSel}</select></label>
 <label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(e.costCenter || "")}" /></label>
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
@@ -25592,6 +25674,11 @@ function bindDynamicEvents() {
     const empPosSelect = employeeForm.querySelector("#emp-position-select");
     const empSalary = employeeForm.querySelector("#emp-base-salary");
     const empContract = employeeForm.querySelector("#emp-contract-type");
+    const employeeCompRule = bindEmployeeTransportAllowanceRule(employeeForm, {
+      salarySelector: "#emp-base-salary",
+      auxSelector: "#emp-transport-allowance",
+      hintSelector: "#emp-legal-comp-hint"
+    });
     const syncPlazoVisibility = setupContractDurationPlazoVisibility(employeeForm, {
       contractSelect: "#emp-contract-type",
       block: "#emp-contract-duration-block",
@@ -25609,6 +25696,7 @@ function bindDynamicEvents() {
       }
       empSalary.value = String(parseNum(position.baseSalary));
       empContract.value = position.contractTypeDefault || "Termino indefinido";
+      employeeCompRule.sync({ force: true });
       syncPlazoVisibility();
     };
     if (empPosSelect) {
@@ -25875,6 +25963,12 @@ function bindDynamicEvents() {
           formEl.querySelector("input[name='bankAccount']")?.setAttribute("maxlength", "24");
           const pos = formEl.querySelector("#employee-modal-position");
           const salary = formEl.querySelector("#employee-modal-salary");
+          const compensationRule = bindEmployeeTransportAllowanceRule(formEl, {
+            salarySelector: "#employee-modal-salary",
+            auxSelector: "#employee-modal-transport-allowance",
+            hintSelector: "#employee-modal-legal-comp-hint",
+            preserveExistingValue: true
+          });
           const contract = formEl.querySelector("#employee-modal-contract-type");
           const syncPlazoEdit = setupContractDurationPlazoVisibility(formEl, {
             contractSelect: "#employee-modal-contract-type",
@@ -25893,6 +25987,7 @@ function bindDynamicEvents() {
             }
             salary.value = String(parseNum(p.baseSalary));
             if (contract && p.contractTypeDefault) contract.value = p.contractTypeDefault;
+            compensationRule.sync({ force: true });
             syncPlazoEdit();
           };
           pos?.addEventListener("change", syncFromPos);
@@ -26138,7 +26233,7 @@ function bindDynamicEvents() {
       const extras = parseNum(data.extras);
       const aux = parseNum(data.aux);
       const bonus = parseNum(data.bonus);
-      const empleadoAuxilioRef = parseNum(employee.transportAllowance) || CO_HR_RULES.transportAllowance;
+      const empleadoAuxilioRef = readEmployeeTransportAllowanceCop(employee);
       const incapacityCalc = computePayrollIncapacityColombiaForMonth({
         employee,
         liquidacionMonthYm: data.month,
@@ -26351,8 +26446,11 @@ function bindDynamicEvents() {
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
       const company = employee ? getCompanyById(employee.companyId) : null;
       const pop = window.open("", "_blank", "width=720,height=900");
+      if (!pop) return;
       const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
       const isTerm = String(run.payrollKind || "mensual") === "terminacion";
+      const logoSrc = payrollDocumentLogoUrl(company);
+      const logoAlt = `Logo de ${String(company?.name || "Transportes Antares")}`;
       const causeLabels = {
         renuncia_voluntaria: "Renuncia voluntaria",
         despido_sin_justa: "Despido sin justa causa",
@@ -26541,8 +26639,14 @@ function bindDynamicEvents() {
       pop.document.write(`
         <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
         <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
-          <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px">
-            <h1 style="margin:0;font-size:1.35rem">${escapeHtml(h1Title)}</h1>
+          <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:18px">
+            <div style="min-width:0;flex:1 1 auto">
+              <h1 style="margin:0;font-size:1.35rem">${escapeHtml(h1Title)}</h1>
+              <p style="margin:0.35rem 0 0;font-size:0.9rem;color:#495057">${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+            </div>
+            <div style="width:94px;min-width:94px;height:94px;border-radius:18px;background:#fff;border:1px solid #d7e5f3;padding:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(11,33,56,0.10)">
+              <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" style="width:100%;height:100%;object-fit:contain;display:block" />
+            </div>
           </div>
           <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
             <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${escapeHtml(String(company?.name || "Antares"))}</td></tr>
