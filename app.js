@@ -788,6 +788,9 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
   const hasAbsenceDetail = String(run.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
   if (orig === "masiva") tags.push("Masiva");
   else if (orig === "automatica") tags.push("Automática");
+  const cierreMasiva = run.noveltiesDetail && typeof run.noveltiesDetail === "object" ? run.noveltiesDetail.cierreMasiva : null;
+  if (cierreMasiva === "parcial") tags.push("Parcial");
+  else if (cierreMasiva === "cerrado" && orig === "masiva") tags.push("Cierre total");
   if (payrollRunIsDriverTripPayment(run)) tags.push("Prestación viajes");
   if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
   if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
@@ -22574,16 +22577,11 @@ function payrollHtml() {
   const formPayBulk = `<section class="payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
       <div class="payroll-bulk-panel__intro">
         <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva</h4>
-        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). Quedan pendientes de pago para que pueda programar el desembolso con al menos dos días de anticipación.</p>
+        <p class="muted payroll-bulk-lead">Pagos de nómina el <strong>15</strong> y el <strong>30</strong> de cada mes. Genere el <strong>cierre total</strong> los días <strong>13–14</strong> (1.ª quincena) y <strong>28–29</strong> (2.ª quincena / mes; en febrero, 26–27 antes del pago del 28). El resto de días: liquidación <strong>parcial hasta la fecha</strong> (respeta <strong>fecha de ingreso</strong>). Las filas quedan pendientes de pago para programar el desembolso 1–2 días antes.</p>
       </div>
       <div class="payroll-bulk-fields">
-        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
-        <label class="payroll-bulk-option">
-          <input type="checkbox" id="payroll-bulk-force" checked />
-          <span class="payroll-bulk-option__copy">
-            <span class="payroll-bulk-option__label">Usar el último corte ya cerrado en esa fecha</span>
-            <span class="payroll-bulk-option__hint muted">Útil si hoy no es día 15 ni fin de mes.</span>
-          </span>
+        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de referencia")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required />
+          <span class="muted payroll-bulk-field-hint">Use 13 o 14 para cerrar antes del pago del 15; 28 o 29 para cerrar antes del pago del 30. Otros días: parcial.</span>
         </label>
       </div>
       <div class="payroll-bulk-actions">
@@ -30511,13 +30509,11 @@ function bindDynamicEvents() {
         return;
       }
       const fechaEl = document.getElementById("payroll-bulk-fecha");
-      const forceEl = document.getElementById("payroll-bulk-force");
       const fechaReferencia = String(fechaEl?.value || "").trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaReferencia)) {
-        notify("Indique una fecha de cierre válida (YYYY-MM-DD).", "error");
+        notify("Indique una fecha de referencia válida (YYYY-MM-DD).", "error");
         return;
       }
-      const force = Boolean(forceEl?.checked);
       const busyLabel = payrollBulkBtn.querySelector("span");
       const busyOrig = busyLabel?.textContent || "";
       payrollBulkBtn.disabled = true;
@@ -30526,7 +30522,6 @@ function bindDynamicEvents() {
       try {
         const result = await postPortalAuthorized("/payroll/autogenerate-period", {
           fechaReferencia,
-          force,
           origin: "masiva"
         });
         if (result && typeof result === "object") {
