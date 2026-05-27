@@ -469,6 +469,28 @@ function payrollRunTypeLabel(run) {
   return "Nómina mensual";
 }
 
+/** `mensual` | `quincenal` | `catorcenal` | `semanal` | `terminacion` — infiere desde tipo_registro o clave de periodo. */
+function payrollRunFrequencyKind(run) {
+  const pk = String(run?.payrollKind || "").trim().toLowerCase();
+  if (pk === "terminacion") return "terminacion";
+  if (pk === "quincenal" || pk === "catorcenal" || pk === "semanal" || pk === "mensual") return pk;
+  const key = String(run?.month || "");
+  if (/-Q[12]$/i.test(key)) return "quincenal";
+  if (/-C[12]$/i.test(key)) return "catorcenal";
+  if (/-S\d+$/i.test(key)) return "semanal";
+  return "mensual";
+}
+
+function payrollRunMatchesFrequencyFilter(run, frequencyFilter) {
+  const f = String(frequencyFilter || "all").trim().toLowerCase();
+  if (!f || f === "all") return true;
+  return payrollRunFrequencyKind(run) === f;
+}
+
+function defaultPayrollFilters() {
+  return { period: "all", employee: "", status: "all", frequency: "all" };
+}
+
 function payrollRunMatchesPeriodFilter(run, period, currentYm, previousYm) {
   if (period === "all") return true;
   const runYm = payrollPeriodCalendarYm(run.month);
@@ -501,11 +523,12 @@ function payrollDaysInManualCut(monthYm, payFrequency, quincenaHalf) {
   return 15;
 }
 
-function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters || {}) {
+function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters || defaultPayrollFilters()) {
   const source = Array.isArray(allRuns) ? allRuns : [];
   const period = String(filters.period || "all");
   const employee = String(filters.employee || "");
   const status = String(filters.status || "all");
+  const frequency = String(filters.frequency || "all");
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const previousDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -513,11 +536,12 @@ function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters
   return source.filter((run) => {
     const matchPeriod = payrollRunMatchesPeriodFilter(run, period, currentYm, previousYm);
     const matchEmployee = !employee || String(run.employeeId || "") === employee;
+    const matchFrequency = payrollRunMatchesFrequencyFilter(run, frequency);
     const matchStatus =
       status === "all" ||
       (status === "paid" && Boolean(run.paid)) ||
       (status === "pending" && !run.paid);
-    return matchPeriod && matchEmployee && matchStatus;
+    return matchPeriod && matchEmployee && matchFrequency && matchStatus;
   });
 }
 
@@ -4643,7 +4667,8 @@ let state = {
   payrollFilters: {
     period: "all",
     employee: "",
-    status: "all"
+    status: "all",
+    frequency: "all"
   },
   payrollUi: {
     runSort: "recent",
@@ -21315,7 +21340,7 @@ function payrollHtml() {
     .join("");
   const allRuns = readArray(KEYS.payrollRuns);
   const absences = readArray(KEYS.hrAbsences);
-  const filters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+  const filters = state.payrollFilters || defaultPayrollFilters();
   const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
   const runSort = String(payrollUi.runSort || "recent");
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
@@ -21324,6 +21349,7 @@ function payrollHtml() {
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
+  const filterFrequency = String(filters.frequency || "all");
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const runs = filterPayrollRunsByUiState(allRuns, filters);
@@ -21846,6 +21872,14 @@ function payrollHtml() {
         <option value="current" ${filterPeriod === "current" ? "selected" : ""}>Mes actual</option>
         <option value="previous" ${filterPeriod === "previous" ? "selected" : ""}>Mes anterior</option>
       </select></label>
+      <label class="payroll-filter-field">${fieldLabel(IC.clock, "Tipo de nómina")}<select name="frequency">
+        <option value="all" ${filterFrequency === "all" ? "selected" : ""}>Todos</option>
+        <option value="mensual" ${filterFrequency === "mensual" ? "selected" : ""}>Solo mensual</option>
+        <option value="quincenal" ${filterFrequency === "quincenal" ? "selected" : ""}>Solo quincenal</option>
+        <option value="catorcenal" ${filterFrequency === "catorcenal" ? "selected" : ""}>Solo catorcenal</option>
+        <option value="semanal" ${filterFrequency === "semanal" ? "selected" : ""}>Solo semanal</option>
+        <option value="terminacion" ${filterFrequency === "terminacion" ? "selected" : ""}>Solo terminación</option>
+      </select></label>
       <label class="payroll-filter-field">${fieldLabel(IC.user, "Empleado")}<select name="employee">
         <option value="">Todos</option>${employeeOpts}
       </select></label>
@@ -21932,10 +21966,20 @@ function payrollHtml() {
       <div class="auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${settlementOperatePane}${absenceOperatePane}</div>
     </section>`;
   const payrollQuickActive =
-    filterStatus === "pending" ? "pending" : filterPeriod === "current" ? "current" : "all";
+    filterStatus === "pending"
+      ? "pending"
+      : filterFrequency === "quincenal"
+        ? "quincenal"
+        : filterFrequency === "mensual"
+          ? "mensual"
+          : filterPeriod === "current"
+            ? "current"
+            : "all";
   const payrollQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos">
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "all" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="all">Todos</button>
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "current" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="current">Mes actual</button>
+      <button type="button" class="payroll-quick-pill${payrollQuickActive === "mensual" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="mensual">Solo mensual</button>
+      <button type="button" class="payroll-quick-pill${payrollQuickActive === "quincenal" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="quincenal">Solo quincenal</button>
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "pending" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="pending">Solo pendientes</button>
       <button type="button" class="payroll-quick-pill${runSort === "pending_first" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="pending_first">Pendientes primero</button>
       <button type="button" class="payroll-quick-pill${runSort === "net_desc" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="net_desc">Mayor neto</button>
@@ -26648,7 +26692,7 @@ function bindDynamicEvents() {
   if (payrollFiltersForm) {
     payrollFiltersForm.querySelectorAll("select").forEach((select) => {
       select.addEventListener("change", () => {
-        state.payrollFilters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+        state.payrollFilters = state.payrollFilters || defaultPayrollFilters();
         const key = String(select.name || "");
         if (!key) return;
         state.payrollFilters[key] = String(select.value || "");
@@ -26659,7 +26703,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-clear-filters']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.payrollFilters = { period: "all", employee: "", status: "all" };
+      state.payrollFilters = defaultPayrollFilters();
       renderPortalView();
     });
   });
@@ -26675,7 +26719,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-focus-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.payrollFilters = { ...(state.payrollFilters || {}), status: "all", period: "all" };
+      state.payrollFilters = { ...(state.payrollFilters || defaultPayrollFilters()), status: "all", period: "all", frequency: "all" };
       state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "runs" };
       persistHrWorkspace("payroll", "data");
       renderPortalView();
@@ -26685,15 +26729,21 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-quick-filter']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const quick = String(btn.dataset.quick || "all");
-      state.payrollFilters = state.payrollFilters || { period: "all", employee: "", status: "all" };
+      state.payrollFilters = state.payrollFilters || defaultPayrollFilters();
       if (quick === "pending") {
         state.payrollFilters.status = "pending";
         state.payrollFilters.period = state.payrollFilters.period || "all";
+        state.payrollFilters.frequency = state.payrollFilters.frequency || "all";
       } else if (quick === "current") {
         state.payrollFilters.period = "current";
         state.payrollFilters.status = state.payrollFilters.status || "all";
+        state.payrollFilters.frequency = state.payrollFilters.frequency || "all";
+      } else if (quick === "mensual" || quick === "quincenal") {
+        state.payrollFilters.frequency = quick;
+        state.payrollFilters.status = state.payrollFilters.status || "all";
+        state.payrollFilters.period = state.payrollFilters.period || "all";
       } else {
-        state.payrollFilters = { period: "all", employee: "", status: "all" };
+        state.payrollFilters = defaultPayrollFilters();
       }
       state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: quick === "all" ? state.payrollUi?.dataSection || "employees" : "runs" };
       persistHrWorkspace("payroll", "data");
@@ -30254,7 +30304,7 @@ function bindDynamicEvents() {
   if (exportPayroll) {
     exportPayroll.addEventListener("click", () => {
       const rows = sortPayrollRunsByUiState(
-        filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || { period: "all", employee: "", status: "all" }),
+        filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || defaultPayrollFilters()),
         String(state.payrollUi?.runSort || "recent")
       );
       const hrAbsences = read(KEYS.hrAbsences, []);
