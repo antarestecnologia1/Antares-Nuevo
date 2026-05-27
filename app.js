@@ -2679,6 +2679,19 @@ function payrollInclusiveCalendarDaysLocal(a, b) {
   return n > 0 ? n : 0;
 }
 
+function payrollInclusiveBusinessDaysLocal(a, b) {
+  if (!a || !b || !(a instanceof Date) || !(b instanceof Date)) return 0;
+  let total = 0;
+  let cur = payrollDateAtNoonLocal(a.getFullYear(), a.getMonth(), a.getDate());
+  const end = payrollDateAtNoonLocal(b.getFullYear(), b.getMonth(), b.getDate());
+  while (cur <= end) {
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) total += 1;
+    cur = payrollDateAtNoonLocal(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+  }
+  return total;
+}
+
 function payrollMaxDateLocal(a, b) {
   return a >= b ? a : b;
 }
@@ -2700,6 +2713,150 @@ function payrollFmtYmdLocal(d) {
   const mo = String(d.getMonth() + 1).padStart(2, "0");
   const da = String(d.getDate()).padStart(2, "0");
   return `${y}-${mo}-${da}`;
+}
+
+function payrollAbsenceTypeLabel(absenceType) {
+  const raw = String(absenceType || "").trim();
+  const t = raw.toLowerCase();
+  if (t.includes("vacac")) return "Vacaciones";
+  if (t.includes("incapaci")) return "Incapacidad";
+  if (t.includes("licen")) return "Licencia";
+  if (t.includes("calam")) return "Calamidad";
+  return raw || "Ausentismo";
+}
+
+function payrollAbsenceConceptForSlip(absenceType) {
+  const typeLabel = payrollAbsenceTypeLabel(absenceType);
+  const t = String(absenceType || "").trim().toLowerCase();
+  if (t.includes("vacac")) {
+    return {
+      typeLabel,
+      conceptLabel: "Días hábiles en Vacaciones",
+      quantityKind: "business"
+    };
+  }
+  if (t.includes("incapaci")) {
+    return {
+      typeLabel,
+      conceptLabel: "Días calendario en Incapacidad",
+      quantityKind: "calendar"
+    };
+  }
+  if (t.includes("licen")) {
+    return {
+      typeLabel,
+      conceptLabel: "Días calendario de Licencia",
+      quantityKind: "calendar"
+    };
+  }
+  if (t.includes("calam")) {
+    return {
+      typeLabel,
+      conceptLabel: "Días calendario por calamidad doméstica",
+      quantityKind: "calendar"
+    };
+  }
+  return {
+    typeLabel,
+    conceptLabel: "Días de ausentismo registrados",
+    quantityKind: "calendar"
+  };
+}
+
+function payrollMergeAbsenceSlipRows(rows) {
+  const acc = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row || typeof row !== "object") return;
+    const quantity = Math.max(0, Math.round(parseNum(row.quantity)));
+    if (quantity <= 0) return;
+    const typeLabel = String(row.typeLabel || "Ausentismo").trim() || "Ausentismo";
+    const conceptLabel = String(row.conceptLabel || "Días de ausentismo registrados").trim() || "Días de ausentismo registrados";
+    const key = `${typeLabel}__${conceptLabel}`;
+    const prev = acc.get(key);
+    if (prev) {
+      prev.quantity += quantity;
+    } else {
+      acc.set(key, { typeLabel, conceptLabel, quantity });
+    }
+  });
+  return Array.from(acc.values()).sort((a, b) =>
+    `${a.typeLabel} ${a.conceptLabel}`.localeCompare(`${b.typeLabel} ${b.conceptLabel}`, "es")
+  );
+}
+
+function payrollResolveRunPeriodBounds(run) {
+  if (!run || typeof run !== "object") return null;
+  const nv = run.noveltiesDetail;
+  const cutStart = payrollParseLocalYmd(nv?.corteNomina?.desde);
+  const cutEnd = payrollParseLocalYmd(nv?.corteNomina?.hasta);
+  if (cutStart && cutEnd && cutStart <= cutEnd) {
+    return { start: cutStart, end: cutEnd };
+  }
+  const monthBounds = monthRange(run.month);
+  if (!monthBounds) return null;
+  return { start: monthBounds.start, end: monthBounds.end };
+}
+
+function buildPayrollAbsenceSlipRowsForPeriod({ employeeId, periodStart, periodEnd, absencesAll }) {
+  if (!employeeId || !periodStart || !periodEnd) return [];
+  const rows = [];
+  (Array.isArray(absencesAll) ? absencesAll : []).forEach((ab) => {
+    if (String(ab?.employeeId || "") !== String(employeeId)) return;
+    const abStart = payrollParseLocalYmd(ab?.startDate);
+    const abEnd = payrollParseLocalYmd(ab?.endDate) || abStart;
+    if (!abStart || !abEnd) return;
+    const ov = payrollOverlapInclusiveLocal(abStart, abEnd, periodStart, periodEnd);
+    if (!ov) return;
+    const concept = payrollAbsenceConceptForSlip(ab?.absenceType || ab?.type);
+    const quantity =
+      concept.quantityKind === "business"
+        ? payrollInclusiveBusinessDaysLocal(ov.s, ov.e)
+        : payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
+    rows.push({
+      typeLabel: concept.typeLabel,
+      conceptLabel: concept.conceptLabel,
+      quantity
+    });
+  });
+  return payrollMergeAbsenceSlipRows(rows);
+}
+
+function resolvePayrollAbsenceSlipRows(run, absencesAll) {
+  const bounds = payrollResolveRunPeriodBounds(run);
+  if (bounds) {
+    const liveRows = buildPayrollAbsenceSlipRowsForPeriod({
+      employeeId: run?.employeeId,
+      periodStart: bounds.start,
+      periodEnd: bounds.end,
+      absencesAll
+    });
+    if (liveRows.length) return liveRows;
+  }
+  const storedRows = payrollMergeAbsenceSlipRows(run?.noveltiesDetail?.absenceSlipDetail?.rows);
+  if (storedRows.length) return storedRows;
+  const legacyRows = [];
+  const vacations = run?.noveltiesDetail?.vacaciones;
+  if (vacations && typeof vacations === "object") {
+    Object.values(vacations).forEach((item) => {
+      legacyRows.push({
+        typeLabel: "Vacaciones",
+        conceptLabel: "Días hábiles en Vacaciones",
+        quantity: parseNum(item?.dias)
+      });
+    });
+  }
+  const adjustments = Array.isArray(run?.noveltiesDetail?.ausenciasAjustes)
+    ? run.noveltiesDetail.ausenciasAjustes
+    : [];
+  adjustments.forEach((item) => {
+    const concept = payrollAbsenceConceptForSlip(item?.tipo);
+    legacyRows.push({
+      typeLabel: concept.typeLabel,
+      conceptLabel: concept.conceptLabel,
+      quantity: parseNum(item?.dias)
+    });
+  });
+  return payrollMergeAbsenceSlipRows(legacyRows);
 }
 
 /**
@@ -6071,6 +6228,7 @@ function openRouteRateInlineEdit(storageKey) {
   const key = String(storageKey || "").trim();
   if (!key) return;
   state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace: "routes" };
+  state.createPanels = { ...(state.createPanels || {}), ["create-route-rate"]: true };
   state.pendingRouteRateEditKey = key;
   renderPortalView();
 }
@@ -7072,6 +7230,26 @@ function collapseCreatePanel(panelId) {
   const id = String(panelId || "").trim();
   if (!id) return;
   state.createPanels = { ...(state.createPanels || {}), [id]: false };
+}
+
+function formHasDirtyValues(formEl) {
+  if (!formEl) return false;
+  const fields = [...formEl.querySelectorAll("input, select, textarea")];
+  return fields.some((field) => {
+    if (field.disabled) return false;
+    const tag = String(field.tagName || "").toLowerCase();
+    const type = String(field.type || "").toLowerCase();
+    if (type === "hidden") return false;
+    if (type === "file") return Boolean(field.files?.length);
+    if (type === "checkbox" || type === "radio") return field.checked !== field.defaultChecked;
+    if (tag === "select") return field.value !== (field.defaultValue || "");
+    return String(field.value || "") !== String(field.defaultValue || "");
+  });
+}
+
+function confirmDiscardCreateForm(formEl) {
+  if (!formHasDirtyValues(formEl)) return true;
+  return window.confirm("Se perderán los cambios no guardados de este formulario. ¿Desea continuar?");
 }
 
 /**
@@ -12584,7 +12762,7 @@ function vehiclesHtml() {
   });
   const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody)}</div>`;
   const createPanel = `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card", "Abrir formulario")}</div>`;
-  const fuelPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
+  const fuelPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
   const technicalPanel = `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
   return `${heroStrip}${workspaceNav}<div class="auth-tab-panels">${fleetPanel}${createPanel}${fuelPanel}${technicalPanel}</div>`;
 }
@@ -20088,7 +20266,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.star, "Años de experiencia en el cargo")}<input type="number" min="0" step="1" name="experienceYears" value="0" required /></label>
         <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
         <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
-        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacancies.filter((v) => v.status === "Publicada").map((v) => `<option value="${v.id}">${v.title}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacancies.map((v) => `<option value="${escapeAttr(String(v.id))}">${escapeHtml(String(v.title || ""))}${v.status === "Cerrada" ? " · Cerrada" : ""}</option>`).join("")}</select></label>
         <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" multiple /></label>
       </div>
     </fieldset>
@@ -22257,11 +22435,11 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const panelId = String(btn.dataset.panel || "");
       if (!panelId) return;
-      const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-hr-absence"];
+      const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-payroll-settlement", "create-hr-absence"];
       const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
       const payrollSet = new Set(PAYROLL_CREATE_IDS);
       const hiringSet = new Set(HIRING_CREATE_IDS);
-      const wasOpen = Boolean(state.createPanels?.[panelId]);
+      const wasOpen = isCreatePanelExpanded(panelId);
       const nextOpen = !wasOpen;
       state.createPanels = { ...(state.createPanels || {}) };
 
@@ -22289,6 +22467,17 @@ function bindDynamicEvents() {
       if (nextOpen) {
         scrollToCreatePanelForm(panelId);
       }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cancel-create-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panelId = String(btn.dataset.panel || "");
+      const formEl = btn.closest("form");
+      if (!panelId || !formEl) return;
+      if (!confirmDiscardCreateForm(formEl)) return;
+      collapseCreatePanel(panelId);
+      renderPortalView();
     });
   });
 
@@ -26653,10 +26842,11 @@ function bindDynamicEvents() {
       const aux = parseNum(data.aux);
       const bonus = parseNum(data.bonus);
       const empleadoAuxilioRef = readEmployeeTransportAllowanceCop(employee);
+      const payrollAbsencesAll = read(KEYS.hrAbsences, []);
       const incapacityCalc = computePayrollIncapacityColombiaForMonth({
         employee,
         liquidacionMonthYm: data.month,
-        absencesAll: read(KEYS.hrAbsences, [])
+        absencesAll: payrollAbsencesAll
       });
       const incapacityAdjustCop = parseNum(incapacityCalc.adjustCop);
       const grossMonthlyBase =
@@ -26690,6 +26880,14 @@ function bindDynamicEvents() {
         legalNote:
           "Ajuste por incapacidad orientativo (salario÷30; incapacidad común: sin salario empresa el día y ⅔ del día en los dos primeros días del episodio según práctica Dec. 780/2016 / CST; laboral: descuento orientativo por días, pago vía ARL). No sustituye liquidación EPS/ARL, tablas IBP ni dictamen médico y contable."
       };
+      const absenceSlipDetail = {
+        rows: buildPayrollAbsenceSlipRowsForPeriod({
+          employeeId: employee.id,
+          periodStart: monthRange(data.month)?.start,
+          periodEnd: monthRange(data.month)?.end,
+          absencesAll: payrollAbsencesAll
+        })
+      };
       const run = {
         id: newUuidV4(),
         employeeId: employee.id,
@@ -26708,7 +26906,7 @@ function bindDynamicEvents() {
         bonus,
         devengosLines,
         liquidacionOrigin: "manual",
-        noveltiesDetail: { devengosLines, incapacity: incapacityNovelty },
+        noveltiesDetail: { devengosLines, incapacity: incapacityNovelty, absenceSlipDetail },
         tripCount: monthlyDriver?.tripCount || 0,
         interDepartmentTrips: monthlyDriver?.interDepartmentTrips || 0,
         health,
@@ -27015,6 +27213,28 @@ function bindDynamicEvents() {
         metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminación</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
         metaExtra += `<tr><td style="padding:4px 0"><strong>Motivo</strong></td><td>${escapeHtml(String(causeLabels[sd.terminationCause] || sd.terminationCause || "-"))}</td></tr>`;
       }
+      const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
+      const absenceDetailBlock = absenceDetailRows.length
+        ? `
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. DETALLE AUSENTISMO</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">
+            <thead>
+              <tr style="background:#F5F7FA">
+                <th style="text-align:left;padding:8px">Ausentismo</th>
+                <th style="text-align:left;padding:8px">Concepto</th>
+                <th style="text-align:right;padding:8px">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${absenceDetailRows
+                .map(
+                  (row) =>
+                    `<tr><td style="${cL}">${escapeHtml(String(row.typeLabel || "Ausentismo"))}</td><td style="${cL}">${escapeHtml(String(row.conceptLabel || ""))}</td><td style="${cR}">${Math.max(0, Math.round(parseNum(row.quantity))).toLocaleString("es-CO")}</td></tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>`
+        : "";
       const disclaimerPieces = [];
       if (!isTerm) {
         const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
@@ -27078,6 +27298,7 @@ function bindDynamicEvents() {
           </table>
           <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
           ${payslipBodyBlocks}
+          ${absenceDetailBlock}
           ${disclaimer}
           <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
         </body></html>

@@ -178,11 +178,15 @@
 
   function resolveFieldRules(name, el) {
     const n = String(name || "");
+    const tagName = String(el?.tagName || "").toUpperCase();
     /** Clave de catálogo (`ruta@@empresas`), no un importe — no aplicar reglas numéricas. */
     if (n === "tripRateChoice" || el?.getAttribute?.("data-antares-skip-validate") === "1") return null;
     for (const rule of FIELD_NAME_RULES) {
       if (rule.skip && rule.skip(el)) continue;
-      if (rule.re.test(n)) return rule.attrs;
+      if (rule.re.test(n)) {
+        if (tagName === "SELECT" && (rule.attrs?.blur === "decimal" || rule.attrs?.restrict === "decimal")) return null;
+        return rule.attrs;
+      }
     }
     const type = String(el.type || "").toLowerCase();
     if (type === "email") return { field: "email", blur: "email", restrict: "email-local" };

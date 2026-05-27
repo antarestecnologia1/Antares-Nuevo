@@ -15207,6 +15207,49 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   margin-bottom: 0.65rem;
 }
 
+.form-flow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+
+.form-flow-actions > .btn {
+  min-height: 2.5rem;
+  border-radius: 12px;
+}
+
+.form-flow-actions > .btn-primary:last-child {
+  margin-inline-start: auto;
+}
+
+.form-flow-actions--wizard {
+  justify-content: flex-end;
+}
+
+.create-trip-submit-actions {
+  flex: 1 1 18rem;
+}
+
+@media (max-width: 760px) {
+  .form-flow-actions > .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+  }
+
+  .form-flow-actions > .btn-primary:last-child {
+    margin-inline-start: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .form-flow-actions > .btn {
+    flex-basis: 100%;
+  }
+}
+
 .hr-form-flow {
   --hr-form-gap: 1rem;
 }
