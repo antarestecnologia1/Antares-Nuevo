@@ -1349,7 +1349,7 @@ function openInfoModal({
     <div class="modal-info-body${wide ? " modal-info-body--profile" : ""}">${bodyHtml}</div>
     ${renderModalFooterActions({
       showCancel: false,
-      secondaryHtml,
+      secondaryHtml: secondaryActionsHtml,
       primaryHtml: `<button type="button" id="crud-ok" class="btn btn-primary">${IC.x} Cerrar</button>`
     })}
   `;
@@ -11693,7 +11693,7 @@ function renderColombianPlateBadgeHtml(plate) {
   const len = p.replace(/[^A-Z0-9]/gi, "").length;
   const sizeClass =
     len >= 7 ? " directory-card__avatar--plate-plate7" : len >= 6 ? " directory-card__avatar--plate-plate6" : "";
-  return `<div class="directory-card__avatar directory-card__avatar--plate${sizeClass}" title="${escapeAttr(p)}" aria-label="Placa ${escapeAttr(p)}"><span class="directory-card__plate-mark" aria-hidden="true">COLOMBIA</span><span class="directory-card__plate-text">${escapeHtml(p)}</span></div>`;
+  return `<div class="directory-card__avatar directory-card__avatar--plate${sizeClass}" title="${escapeAttr(p)}" aria-label="Placa ${escapeAttr(p)}"><span class="directory-card__plate-text">${escapeHtml(p)}</span></div>`;
 }
 
 /** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
@@ -11872,12 +11872,237 @@ function makeTripNumber(existingNumbers = new Set()) {
 }
 
 async function setVehicleAvailability(vehicleId, available) {
+  const id = String(vehicleId || "").trim();
   const vehicles = read(KEYS.vehicles, []);
   const updatedTs = nowIso();
-  const next = vehicles.map((v) => (v.id === vehicleId ? { ...v, available, updatedAt: updatedTs } : v));
-  try {
-    await writeAwaitServer(KEYS.vehicles, next);
-  } catch (_e) {}
+  const next = vehicles.map((v) =>
+    String(v.id || "").trim() === id ? { ...v, available: Boolean(available), updatedAt: updatedTs } : v
+  );
+  await writeAwaitServer(KEYS.vehicles, next);
+}
+
+function findPortalVehicleById(vehicleId) {
+  const id = String(vehicleId || "").trim();
+  if (!id) return null;
+  return read(KEYS.vehicles, []).find((v) => String(v.id || "").trim() === id) || null;
+}
+
+function describePortalVehicleOccupancy(vehicle) {
+  const vehicleId = String(vehicle?.id || "").trim();
+  if (!vehicleId) return { tone: "available", trip: null, detail: "Sin datos" };
+  if (isManuallyUnavailable(vehicle)) {
+    return { tone: "offline", trip: null, detail: "Marcado manualmente como no disponible" };
+  }
+  const activeTrips = getActiveTrips().filter((r) => String(r.trip?.vehicleId || "").trim() === vehicleId);
+  if (!activeTrips.length) return { tone: "available", trip: null, detail: "Sin viaje activo" };
+  const nowTs = Date.now();
+  const ongoing =
+    activeTrips.find((r) => describeTripTimingVsNow(r, nowTs).timing === "ongoing") || null;
+  if (ongoing) {
+    const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
+    return {
+      tone: "busy",
+      trip: ongoing,
+      detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+    };
+  }
+  const upcoming = activeTrips
+    .map((r) => ({ r, info: describeTripTimingVsNow(r, nowTs) }))
+    .filter((x) => x.info.timing === "upcoming")
+    .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+  if (upcoming) {
+    return {
+      tone: "scheduled",
+      trip: upcoming.r,
+      detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+    };
+  }
+  return { tone: "available", trip: null, detail: "Sin viaje activo en este momento" };
+}
+
+function portalVehicleAvailabilityStatusHtml(vehicle) {
+  const occupancy = describePortalVehicleOccupancy(vehicle);
+  if (isManuallyUnavailable(vehicle)) {
+    return '<span class="status status-fleet-offline">No disponible (manual)</span>';
+  }
+  if (vehicle?.autoBusy) {
+    return '<span class="status status-fleet-ocupado">Ocupado por viaje</span>';
+  }
+  if (occupancy.tone === "busy") {
+    return '<span class="status status-fleet-ocupado">En viaje</span>';
+  }
+  if (occupancy.tone === "scheduled") {
+    return '<span class="status status-fleet-programado">Reservado</span>';
+  }
+  return '<span class="status status-fleet-disponible">Disponible</span>';
+}
+
+function openVehicleTechnicalSheetModal(vehicle) {
+  if (!vehicle) return;
+  const v = vehicle;
+  const plate = String(v.plate || "").trim().toUpperCase() || "—";
+  const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+  const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
+  const rcExpiry = docExpiryStatus(null, v.rcPolicyExpiry);
+  const occupancy = describePortalVehicleOccupancy(v);
+  const isRefrigerated = vehicleHasTermokingEquipment(v);
+  const trip = occupancy.trip;
+  const tripBlock = trip
+    ? `<div class="detail-note" style="margin:0 0 0.75rem;padding:0.65rem 0.75rem;border-radius:10px;background:rgba(var(--primary-rgb),0.06)">
+        <strong>Viaje asociado:</strong> ${escapeHtml(String(trip.trip?.tripNumber || "—"))} · ${escapeHtml(String(trip.clientName || trip.companyName || ""))}<br>
+        <span class="muted">${escapeHtml(occupancy.detail)}</span>
+      </div>`
+    : `<p class="muted" style="margin:0 0 0.75rem">${escapeHtml(occupancy.detail)}</p>`;
+  const renderRows = (pairs) =>
+    pairs
+      .map(
+        ([label, value]) =>
+          `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${value ?? '<span class="muted">—</span>'}</span></div>`
+      )
+      .join("");
+  const sections = [
+    {
+      icon: "activity",
+      title: "Estado operativo",
+      rows: renderRows([
+        ["Disponibilidad", portalVehicleAvailabilityStatusHtml(v)],
+        ["Detalle", escapeHtml(occupancy.detail)],
+        ["Termoking", isRefrigerated ? "Sí, equipo Termoking" : "No, carga seca"],
+        ["Registrado", fmtDateOr(v.createdAt)],
+        ["Última actualización", fmtDateOr(v.updatedAt)]
+      ])
+    },
+    {
+      icon: "truck",
+      title: "Identificación",
+      rows: renderRows([
+        ["Placa", `<strong>${escapeHtml(plate)}</strong>`],
+        ["Marca", escapeHtml(String(v.brand || "—"))],
+        ["Línea / modelo", escapeHtml(String(v.model || "—"))],
+        ["Año modelo", escapeHtml(String(v.year || "—"))],
+        ["Color", escapeHtml(String(v.color || "—"))],
+        ["Tipo de vehículo", escapeHtml(String(v.type || "—"))]
+      ])
+    },
+    {
+      icon: "layers",
+      title: "Características técnicas",
+      rows: renderRows([
+        ["Carrocería", escapeHtml(String(v.bodyType || "—"))],
+        ["Capacidad", parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "—"],
+        ["Combustible", escapeHtml(String(v.fuelType || "—"))],
+        ["Configuración de ejes", escapeHtml(String(v.axleConfig || "—"))],
+        ["N° motor", escapeHtml(String(v.engineNumber || "—"))],
+        ["Chasis (VIN)", escapeHtml(String(v.vin || "—"))],
+        ["Kilometraje", parseNum(v.mileageKm) > 0 ? `${parseNum(v.mileageKm).toLocaleString("es-CO")} km` : "—"]
+      ])
+    },
+    {
+      icon: "shield",
+      title: "Documentación legal",
+      rows: renderRows([
+        ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "—"))],
+        ["SOAT expedido", fmtDateOr(v.soatExpeditionDate)],
+        ["SOAT vence", `${fmtDateOr(v.soatExpiryDate)} <span class="status ${soat.cls}">${escapeHtml(soat.label)}</span>`],
+        ["Tecnomecánica expedida", fmtDateOr(v.techInspectionExpeditionDate)],
+        ["Tecnomecánica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
+        ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "—"))],
+        ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "—"))],
+        ["Vence pólizas RCP", v.rcPolicyExpiry ? `${fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${escapeHtml(rcExpiry.label)}</span>` : "—"]
+      ])
+    },
+    {
+      icon: "satellite",
+      title: "GPS y trazabilidad",
+      rows: renderRows([
+        ["GPS satelital", v.hasGps === false || String(v.hasGps).toLowerCase() === "false" ? "No" : "Sí"],
+        ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
+        ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
+        ["Contraseña proveedor satélite", v.satelliteProviderPassword ? "••••••••" : "—"]
+      ])
+    }
+  ];
+  const bodyHtml = `<div class="portal-vehicle-sheet-head" style="display:flex;align-items:center;gap:0.85rem;margin-bottom:0.5rem">${renderColombianPlateBadgeHtml(plate)}<div><p class="muted" style="margin:0;font-size:0.82rem">Ficha técnica del vehículo</p><strong style="font-size:1.05rem">${escapeHtml(`${String(v.brand || "").trim()} ${String(v.model || "").trim()}`.trim() || plate)}</strong></div></div>${tripBlock}<div class="detail-grid">${sections.map((sec) => `<section class="detail-section"><h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4><div class="detail-section-grid">${sec.rows}</div></section>`).join("")}</div>`;
+  openInfoModal({
+    title: `Ficha técnica · ${plate}`,
+    subtitle: `${String(v.type || "Vehículo")} · ${String(v.year || "")}`,
+    bodyHtml,
+    wide: true,
+    secondaryActionsHtml: isAdminActor()
+      ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${IC.edit} Editar vehículo</button>`
+      : "",
+    afterMount: (contentEl) => {
+      contentEl.querySelector("[data-vehicle-sheet-action='edit']")?.addEventListener("click", () => {
+        document.getElementById("crud-modal")?.classList.add("hidden");
+        const btn = nodes.viewRoot?.querySelector(`[data-action='edit-vehicle'][data-id="${escapeAttr(String(v.id || ""))}"]`);
+        btn?.click();
+      });
+    }
+  });
+}
+
+function togglePortalVehicleManualAvailability(vehicleId) {
+  const target = findPortalVehicleById(vehicleId);
+  if (!target) {
+    notify("No se encontró el vehículo. Actualice la página.", "error");
+    return;
+  }
+  if (target.autoBusy) {
+    notify(
+      "Este vehículo está ocupado por un viaje activo. La disponibilidad se ajustará automáticamente al finalizar el viaje.",
+      "info"
+    );
+    return;
+  }
+  const plate = String(target.plate || "").trim().toUpperCase();
+  const markingUnavailable = !isManuallyUnavailable(target);
+  openConfirmModal({
+    title: "Cambiar disponibilidad",
+    message: markingUnavailable
+      ? `¿Marcar el vehículo ${plate} como no disponible manualmente? No se ofrecerá en asignaciones hasta que lo reactive.`
+      : `¿Marcar el vehículo ${plate} como disponible nuevamente?`,
+    confirmText: markingUnavailable ? "Marcar no disponible" : "Marcar disponible",
+    onConfirm: async () => {
+      try {
+        await setVehicleAvailability(target.id, !markingUnavailable);
+        recalculateResourceAvailability();
+        notify(
+          markingUnavailable ? `Vehículo ${plate} marcado como no disponible.` : `Vehículo ${plate} disponible.`,
+          "success"
+        );
+        renderPortalView();
+      } catch (err) {
+        notify(String(err?.message || "No fue posible actualizar la disponibilidad."), "error");
+      }
+    }
+  });
+}
+
+function installVehicleCardActionsDelegation() {
+  if (state.vehicleCardActionsDelegationBound || !nodes.viewRoot) return;
+  state.vehicleCardActionsDelegationBound = true;
+  nodes.viewRoot.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-action='view-vehicle'], [data-action='toggle-vehicle']");
+    if (!btn || !nodes.viewRoot.contains(btn)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const vid = String(btn.dataset.id || "").trim();
+    if (!vid) return;
+    const action = String(btn.dataset.action || "");
+    if (action === "view-vehicle") {
+      const vehicle = findPortalVehicleById(vid);
+      if (!vehicle) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      openVehicleTechnicalSheetModal(vehicle);
+      return;
+    }
+    if (action === "toggle-vehicle") {
+      if (abortIfNotAdmin()) return;
+      togglePortalVehicleManualAvailability(vid);
+    }
+  });
 }
 
 async function setDriverAvailability(driverId, available) {
@@ -13437,9 +13662,9 @@ function vehiclesHtml() {
           ${directoryFactHtml("Trazabilidad", gpsLabel)}
         </dl>
         <footer class="directory-card__actions">
-          <button class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${v.id}" title="Ver ficha del vehículo">${IC.eye} Ver</button>
-          <button class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${v.id}" title="Editar datos del vehículo">${IC.edit} Editar</button>
-          <button class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${v.id}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>
           ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </footer>
       </article>`;
@@ -13745,10 +13970,10 @@ function driversHtml() {
           ${directoryFactHtml("Curso", item.courseMeta.label, { tone: courseTone })}
         </dl>
         <footer class="directory-card__actions">
-          <button class="btn btn-sm btn-outline" data-action="view-driver" data-id="${d.id}">${IC.eye} Ver</button>
-          <button class="btn btn-sm btn-action" data-action="edit-driver" data-id="${d.id}">${IC.edit} Editar</button>
-          <button class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${d.id}">${IC.toggle} Estado</button>
-          ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${d.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.eye} Ver</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.edit} Editar</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.toggle} Estado</button>
+          ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </footer>
       </article>`;
     })
@@ -22394,6 +22619,7 @@ function renderPortalViewImpl() {
   else destroyReportsCharts();
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
+  installVehicleCardActionsDelegation();
   enforceColombianFormStandards();
   wireAdminCompanyLocationSelects();
   wireAdminCompanyLogoOvals();
@@ -26570,21 +26796,15 @@ function bindDynamicEvents() {
     }, { busyText: "Registrando conductor…" });
   }
 
-  nodes.viewRoot.querySelectorAll("[data-action='toggle-vehicle']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const all = read(KEYS.vehicles, []);
-      const target = all.find((v) => v.id === btn.dataset.id);
-      if (!target) return;
-      await setVehicleAvailability(target.id, !target.available);
-      renderPortalView();
-    });
-  });
-
   nodes.viewRoot.querySelectorAll("[data-action='edit-vehicle']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const vid = String(btn.dataset.id || "").trim();
       const all = read(KEYS.vehicles, []);
-      const target = all.find((v) => v.id === btn.dataset.id);
-      if (!target) return;
+      const target = all.find((v) => String(v.id || "").trim() === vid);
+      if (!target) {
+        notify("No se encontró el vehículo. Actualice la página.", "error");
+        return;
+      }
       const colorOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.vehicleColors.map((c) => ({ value: c, label: c }))];
       const bodyOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bodyTypes.map((b) => ({ value: b, label: b }))];
       const fuelOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.fuelTypes.map((f) => ({ value: f, label: f }))];
@@ -26738,11 +26958,24 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-driver']").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (abortIfNotAdmin()) return;
       const all = read(KEYS.drivers, []);
       const did = String(btn.dataset.id || "").trim();
-      const target = all.find((v) => String(v.id || "") === did);
-      if (!target) return;
-      await setDriverAvailability(target.id, !target.available);
+      const target = all.find((v) => String(v.id || "").trim() === did);
+      if (!target) {
+        notify("No se encontró el conductor.", "error");
+        return;
+      }
+      const nextAvailable = target.available === false;
+      const ok = await setDriverAvailability(target.id, nextAvailable);
+      if (!ok) {
+        notify("No fue posible actualizar la disponibilidad del conductor.", "error");
+        return;
+      }
+      notify(
+        nextAvailable ? "Conductor marcado como disponible." : "Conductor marcado como no disponible.",
+        "success"
+      );
       renderPortalView();
     });
   });
@@ -29992,77 +30225,7 @@ function bindExtendedViewEditHandlers() {
     };
   };
 
-  /* ============= VEHÍCULO: VER ============= */
-  nodes.viewRoot.querySelectorAll("[data-action='view-vehicle']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const v = read(KEYS.vehicles, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
-      if (!v) {
-        notify(userMessage("genericError"), "error");
-        return;
-      }
-      const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
-      const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
-      const sections = [
-        {
-          icon: "truck",
-          title: "Identificación",
-          rows: renderDetailRows([
-            ["Placa", `<strong>${escapeHtml(String(v.plate || ""))}</strong>`],
-            ["Marca", escapeHtml(String(v.brand || "-"))],
-            ["Línea/Modelo", escapeHtml(String(v.model || "-"))],
-            ["Año", escapeHtml(String(v.year || "-"))],
-            ["Color", escapeHtml(String(v.color || "-"))],
-            ["Tipo", escapeHtml(String(v.type || "-"))]
-          ])
-        },
-        {
-          icon: "layers",
-          title: "Características",
-          rows: renderDetailRows([
-            ["Carrocería", escapeHtml(String(v.bodyType || "-"))],
-            ["Refrigerado", fmtBool(v.refrigerated)],
-            ["Capacidad", `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg`],
-            ["Combustible", escapeHtml(String(v.fuelType || "-"))],
-            ["Ejes", escapeHtml(String(v.axleConfig || "-"))],
-            ["N° motor", escapeHtml(String(v.engineNumber || "-"))],
-            ["Chasis (VIN)", escapeHtml(String(v.vin || "-"))]
-          ])
-        },
-        {
-          icon: "shield",
-          title: "Documentos legales",
-          rows: renderDetailRows([
-            ["Tarjeta propiedad", escapeHtml(String(v.ownershipCard || "-"))],
-            ["SOAT expedido", `${fmtDateOr(v.soatExpeditionDate)} <span class="status ${soat.cls}">${soat.label}</span>`],
-            ["SOAT vence", fmtDateOr(v.soatExpiryDate)],
-            ["Tecnomecánica expedida", `${fmtDateOr(v.techInspectionExpeditionDate)} <span class="status ${tec.cls}">${tec.label}</span>`],
-            ["Tecnomecánica vence", fmtDateOr(v.techInspectionExpiryDate)],
-            ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "-"))],
-            ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "-"))],
-            ["Vence pólizas RCP", fmtDateOr(v.rcPolicyExpiry)],
-            ["Última actualización", fmtDateOr(v.updatedAt || v.createdAt)]
-          ])
-        },
-        {
-          icon: "mapPin",
-          title: "Operación y rastreo satelital",
-          rows: renderDetailRows([
-            ["GPS satelital", fmtBool(v.hasGps)],
-            ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "-"))],
-            ["Disponibilidad", v.available ? '<span class="status status-viaje_asignado">Disponible</span>' : '<span class="status status-rechazada">Ocupado</span>'],
-            ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "-"))],
-            ["Contraseña proveedor satélite", escapeHtml(String(v.satelliteProviderPassword || "-"))]
-          ])
-        }
-      ];
-      openInfoModal({
-        title: `Camión ${String(v.plate || "")}`,
-        subtitle: `${String(v.brand || "")} · ${String(v.model || "")} · ${String(v.year || "")}`,
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
-      });
-    });
-  });
+  /* Vehículo Ver/Estado: installVehicleCardActionsDelegation() */
 
   /* ============= CONDUCTOR: VER ============= */
   nodes.viewRoot.querySelectorAll("[data-action='view-driver']").forEach((btn) => {
