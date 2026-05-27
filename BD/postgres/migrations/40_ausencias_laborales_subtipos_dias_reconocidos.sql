@@ -28,6 +28,16 @@ SET unidad_dias_reconocidos = CASE
 END
 WHERE unidad_dias_reconocidos IS NULL OR btrim(unidad_dias_reconocidos) = '';
 
+UPDATE public.ausencias_laborales
+SET dias_reconocidos = LEAST(GREATEST(COALESCE(dias_reconocidos, dias_calendario)::numeric, 1.00), 5.00),
+    unidad_dias_reconocidos = 'habil'
+WHERE tipo_ausencia = 'licencia_luto';
+
+UPDATE public.ausencias_laborales
+SET dias_reconocidos = LEAST(GREATEST(COALESCE(dias_reconocidos, dias_calendario)::numeric, 1.00), 14.00),
+    unidad_dias_reconocidos = 'calendario'
+WHERE tipo_ausencia = 'licencia_paternidad';
+
 ALTER TABLE public.ausencias_laborales
   ALTER COLUMN dias_reconocidos SET DEFAULT 1.00;
 
@@ -62,6 +72,42 @@ ALTER TABLE public.ausencias_laborales
   CHECK (
     tipo_ausencia <> 'permiso_sufragio'
     OR subtipo_ausencia IN ('jurado', 'votante')
+  );
+
+ALTER TABLE public.ausencias_laborales
+  DROP CONSTRAINT IF EXISTS chk_ausencias_sufragio_reconocimiento;
+
+ALTER TABLE public.ausencias_laborales
+  ADD CONSTRAINT chk_ausencias_sufragio_reconocimiento
+  CHECK (
+    tipo_ausencia <> 'permiso_sufragio'
+    OR (
+      unidad_dias_reconocidos = 'jornada'
+      AND (
+        (subtipo_ausencia = 'jurado' AND dias_reconocidos = 1.00)
+        OR (subtipo_ausencia = 'votante' AND dias_reconocidos = 0.50)
+      )
+    )
+  );
+
+ALTER TABLE public.ausencias_laborales
+  DROP CONSTRAINT IF EXISTS chk_ausencias_luto_max_5;
+
+ALTER TABLE public.ausencias_laborales
+  ADD CONSTRAINT chk_ausencias_luto_max_5
+  CHECK (
+    tipo_ausencia <> 'licencia_luto'
+    OR (unidad_dias_reconocidos = 'habil' AND dias_reconocidos <= 5.00)
+  );
+
+ALTER TABLE public.ausencias_laborales
+  DROP CONSTRAINT IF EXISTS chk_ausencias_paternidad_max_14;
+
+ALTER TABLE public.ausencias_laborales
+  ADD CONSTRAINT chk_ausencias_paternidad_max_14
+  CHECK (
+    tipo_ausencia <> 'licencia_paternidad'
+    OR (unidad_dias_reconocidos = 'calendario' AND dias_reconocidos <= 14.00)
   );
 
 CREATE INDEX IF NOT EXISTS idx_ausencias_tipo_periodo

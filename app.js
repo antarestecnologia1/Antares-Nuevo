@@ -2738,11 +2738,10 @@ function payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype) {
   const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
   const raw = String(absenceSubtype || "").trim().toLowerCase();
   if (!raw) return "";
-  if (typeKey === "permiso_sufragio") {
-    if (raw.includes("jurad")) return "jurado";
-    if (raw.includes("votan") || raw.includes("sufrag")) return "votante";
-  }
-  return raw;
+  if (typeKey !== "permiso_sufragio") return "";
+  if (raw.includes("jurad")) return "jurado";
+  if (raw.includes("votan") || raw.includes("sufrag")) return "votante";
+  return "";
 }
 
 function payrollGetAbsenceSubtypeOptions(absenceType) {
@@ -2918,14 +2917,76 @@ function payrollAbsenceRecognizedUnit(absenceType, absenceSubtype = "") {
 function payrollComputeAbsenceSuggestedRecognizedDays({ absenceType, absenceSubtype, startDate, endDate }) {
   const abStart = payrollParseLocalYmd(startDate);
   const abEnd = payrollParseLocalYmd(endDate) || abStart;
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
   const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
-  if (payrollNormalizeAbsenceTypeKey(absenceType) === "permiso_sufragio") {
+  if (typeKey === "permiso_sufragio") {
     return subtype === "jurado" ? 1 : 0.5;
   }
   if (!abStart || !abEnd) return 1;
+  if (typeKey === "licencia_luto") {
+    return Math.min(5, payrollInclusiveBusinessDaysLocal(abStart, abEnd));
+  }
+  if (typeKey === "licencia_paternidad") {
+    return Math.min(14, payrollInclusiveCalendarDaysLocal(abStart, abEnd));
+  }
   return payrollAbsenceRecognizedUnit(absenceType, absenceSubtype) === "habil"
     ? payrollInclusiveBusinessDaysLocal(abStart, abEnd)
     : payrollInclusiveCalendarDaysLocal(abStart, abEnd);
+}
+
+function payrollAbsenceLegalHint(absenceType, absenceSubtype = "") {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
+  if (typeKey === "permiso_sufragio") {
+    return subtype === "jurado"
+      ? "Regla legal aplicada: jurado de votación = 1 jornada compensatoria."
+      : "Regla legal aplicada: sufragante = 0,5 jornada compensatoria.";
+  }
+  if (typeKey === "licencia_luto") {
+    return "Regla legal aplicada: máximo 5 días hábiles de licencia por luto.";
+  }
+  if (typeKey === "licencia_paternidad") {
+    return "Regla legal aplicada: máximo 14 días calendario para licencia de paternidad.";
+  }
+  if (typeKey === "licencia_maternidad") {
+    return "Referencia general: 18 semanas; extensiones especiales deben quedar soportadas en observaciones.";
+  }
+  return "";
+}
+
+function payrollValidateAbsenceLegalRules({ absenceType, absenceSubtype, startDate, endDate, recognizedDays }) {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
+  const start = payrollParseLocalYmd(startDate);
+  const end = payrollParseLocalYmd(endDate) || start;
+  const recognized = Number(parseNum(recognizedDays));
+  if (!start || !end || !Number.isFinite(recognized) || recognized <= 0) {
+    return { ok: false, message: "Complete fechas válidas y días reconocidos mayores a cero." };
+  }
+  const businessDays = payrollInclusiveBusinessDaysLocal(start, end);
+  const calendarDays = payrollInclusiveCalendarDaysLocal(start, end);
+  if (typeKey === "permiso_sufragio") {
+    if (!subtype) {
+      return { ok: false, message: "En permiso por sufragio debe indicar si fue votante o jurado de votación." };
+    }
+    const expected = subtype === "jurado" ? 1 : 0.5;
+    if (Math.abs(recognized - expected) > 0.001) {
+      return {
+        ok: false,
+        message: subtype === "jurado" ? "Jurado de votación reconoce 1 jornada." : "Sufragante reconoce 0,5 jornada."
+      };
+    }
+  }
+  if (typeKey === "licencia_luto" && (recognized > 5 || businessDays > 5)) {
+    return { ok: false, message: "La licencia por luto no puede exceder 5 días hábiles en esta parametrización." };
+  }
+  if (typeKey === "licencia_paternidad" && (recognized > 14 || calendarDays > 14)) {
+    return { ok: false, message: "La licencia de paternidad no puede exceder 14 días calendario en esta parametrización." };
+  }
+  if (typeKey === "vacaciones" && recognized > businessDays) {
+    return { ok: false, message: "En vacaciones los días reconocidos no pueden superar los días hábiles del periodo." };
+  }
+  return { ok: true, message: "" };
 }
 
 function payrollFormatAbsenceQuantity(value) {
@@ -2956,6 +3017,7 @@ function wireHrAbsenceFormBehavior(form) {
       subtypeWrap.classList.toggle("hidden", !showSubtype);
       subtypeWrap.setAttribute("aria-hidden", showSubtype ? "false" : "true");
     }
+    subtypeEl.required = showSubtype;
     if (!showSubtype) subtypeEl.value = "";
     const suggested = payrollComputeAbsenceSuggestedRecognizedDays({
       absenceType: typeEl.value,
@@ -2969,7 +3031,8 @@ function wireHrAbsenceFormBehavior(form) {
     if (hintEl) {
       const unit = payrollAbsenceRecognizedUnit(typeEl.value, subtypeEl.value);
       const subtypeLabel = payrollAbsenceSubtypeLabel(typeEl.value, subtypeEl.value);
-      hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.`;
+      const legalHint = payrollAbsenceLegalHint(typeEl.value, subtypeEl.value);
+      hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.${legalHint ? ` ${legalHint}` : ""}`;
     }
   };
 
@@ -3144,15 +3207,32 @@ function computePayrollIncapacityColombiaForMonth({ employee, liquidacionMonthYm
   const episodes = [];
 
   for (const ab of absences) {
-    if (!payrollAbsenceIsIncapacityType(ab.absenceType)) continue;
+    const typeKey = payrollNormalizeAbsenceTypeKey(ab.absenceType);
+    if (!payrollAbsenceIsIncapacityType(ab.absenceType) && typeKey !== "licencia_no_remunerada") continue;
     const abStart = payrollParseLocalYmd(ab.startDate);
     const abEnd = payrollParseLocalYmd(ab.endDate) || abStart;
     if (!abStart || !abEnd) continue;
+    const ov = payrollOverlapInclusiveLocal(abStart, abEnd, lo, hi);
+    if (!ov) continue;
+
+    if (typeKey === "licencia_no_remunerada") {
+      const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
+      const ded = -Math.round(days * daily);
+      salarioAjuste += ded;
+      episodes.push({
+        kind: "licencia_no_remunerada",
+        absenceId: ab.id,
+        days,
+        adjustCop: ded,
+        label: payrollAbsenceTypeLabel(ab.absenceType || ab.type),
+        rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
+        note: "Licencia no remunerada: descuento orientativo de salario por días del periodo (salario÷30)."
+      });
+      continue;
+    }
 
     const obs = [ab.notes, ab.epsEntity, ab.supportNumber].filter(Boolean).join(" · ");
     const cl = payrollClassifyIncapacityKind(ab.absenceType, obs);
-    const ov = payrollOverlapInclusiveLocal(abStart, abEnd, lo, hi);
-    if (!ov) continue;
 
     const rad = String(ab.supportNumber || "").trim();
     const baseTypeLabel = payrollAbsenceTypeLabel(ab.absenceType || ab.type);
@@ -12854,6 +12934,24 @@ function directoryPillHtml(label, tone = "neutral") {
   return `<span class="directory-pill${toneClass}">${escapeHtml(String(label ?? "").trim() || "Sin dato")}</span>`;
 }
 
+function directoryOpsHtml(headline, detail = "", tone = "neutral") {
+  const title = String(headline ?? "").trim() || "—";
+  const meta = String(detail ?? "").trim();
+  const toneClass = tone && tone !== "neutral" ? ` directory-card__ops--${escapeAttr(tone)}` : "";
+  const detailHtml = meta
+    ? `<span class="directory-card__ops-detail">${escapeHtml(meta)}</span>`
+    : "";
+  return `<div class="directory-card__ops${toneClass}"><span class="directory-card__ops-dot" aria-hidden="true"></span><div class="directory-card__ops-body"><strong>${escapeHtml(title)}</strong>${detailHtml}</div></div>`;
+}
+
+function directoryOpsToneFromSlug(slug) {
+  const key = String(slug || "").trim().toLowerCase();
+  if (["busy", "ocupado", "scheduled", "reservado", "pending", "warn", "warning"].includes(key)) return "warn";
+  if (["offline", "no-disponible", "inactive", "expired", "alert", "fail"].includes(key)) return "alert";
+  if (["available", "disponible", "ok", "active"].includes(key)) return "ok";
+  return "neutral";
+}
+
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
@@ -12949,13 +13047,14 @@ function vehiclesHtml() {
       const occupancyTitle = occupancy.trip
         ? `Viaje ${String(occupancy.trip.trip?.tripNumber || "-")}`
         : isManuallyUnavailable(v)
-          ? "Disponibilidad suspendida"
+          ? "No disponible"
           : occupancy.tone === "scheduled"
-            ? "Salida programada"
-            : "Disponible para asignacion";
-      const occupancyCopy = occupancy.trip
-        ? `${String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || "Cliente sin nombre"} · ${occupancy.detail}`
+            ? "Reservado"
+            : "Disponible";
+      const occupancyDetail = occupancy.trip
+        ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || occupancy.detail
         : occupancy.detail;
+      const opsTone = isManuallyUnavailable(v) ? "alert" : directoryOpsToneFromSlug(occupancySlug);
       const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin capacidad";
       const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
       const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
@@ -12965,19 +13064,16 @@ function vehiclesHtml() {
           <div class="directory-card__identity">
             <div class="directory-card__avatar directory-card__avatar--plate" title="${escapeAttr(plate)}">${escapeHtml(plate)}</div>
             <div class="directory-card__heading">
-              <p class="directory-card__kicker">${escapeHtml(typeLabel)} · ${escapeHtml(brandModel)}</p>
-              <h4 class="directory-card__title" title="${escapeAttr(plate)}">${escapeHtml(plate)}</h4>
+              <p class="directory-card__kicker">${escapeHtml(typeLabel)}</p>
+              <h4 class="directory-card__title" title="${escapeAttr(plate)}">${escapeHtml(brandModel)}</h4>
             </div>
           </div>
           <div class="directory-card__status-stack">
             ${availabilityTag}
-            ${directoryPillHtml(isRefrigerated ? "Termoking" : "Carga seca", isRefrigerated ? "ok" : "neutral")}
+            ${directoryPillHtml(isRefrigerated ? "Termoking" : "Seco", isRefrigerated ? "ok" : "neutral")}
           </div>
         </header>
-        <div class="directory-card__summary">
-          <strong>${escapeHtml(occupancyTitle)}</strong>
-          <p>${escapeHtml(occupancyCopy)}</p>
-        </div>
+        ${directoryOpsHtml(occupancyTitle, occupancyDetail, opsTone)}
         <div class="directory-card__metrics">
           ${directoryChipHtml("Cap.", capacityLabel)}
           ${directoryChipHtml("SOAT", soat.label, soatTone)}
@@ -13067,17 +13163,15 @@ function vehiclesHtml() {
   const tableBody = vehicleCards
     ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>`
     : emptyState("No hay vehículos registrados.");
-  const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
-      <div class="fleet-hero-metrics">
-        <div class="fleet-hero-metric"><span>Total flota</span><strong>${totalCount}</strong></div>
-        <div class="fleet-hero-metric"><span>Disponibles</span><strong>${availableCount}</strong></div>
-        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Ocupados</span><strong>${occupiedCount}</strong></div>
-        <div class="fleet-hero-metric"><span>Reservados</span><strong>${scheduledCount}</strong></div>
-        <div class="fleet-hero-metric"><span>No disponibles</span><strong>${offlineCount}</strong></div>
-        <div class="fleet-hero-metric"><span>Termoking</span><strong>${thermokingCount}</strong></div>
-        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Docs. en riesgo</span><strong>${documentRiskCount}</strong></div>
-      </div>
-    </div>`;
+  const heroStrip = moduleFleetHeroStrip([
+    { label: "Flota", value: totalCount },
+    { label: "Disponibles", value: availableCount },
+    { label: "Ocupados", value: occupiedCount, tone: occupiedCount ? "warn" : undefined },
+    { label: "Reservados", value: scheduledCount },
+    { label: "Offline", value: offlineCount },
+    { label: "Termoking", value: thermokingCount },
+    { label: "Docs riesgo", value: documentRiskCount, tone: documentRiskCount ? "alert" : undefined }
+  ]);
   const workspaceNav = renderModuleWindowTabs({
     ariaLabel: "Opciones del módulo Camiones",
     activeId: vehicleWorkspace,
@@ -13220,11 +13314,11 @@ function driversHtml() {
     const tripHeadline = occupancy.trip
       ? `Viaje ${String(occupancy.trip.trip?.tripNumber || "-")}`
       : statusSlug === "offline"
-        ? "Fuera de operacion"
-        : "Listo para asignacion";
-    const tripClient = occupancy.trip
-      ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim()
-      : "";
+        ? "No disponible"
+        : "Disponible";
+    const tripDetail = occupancy.trip
+      ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || occupancy.detail
+      : occupancy.detail;
     return {
       raw: driver,
       companyName,
@@ -13239,7 +13333,7 @@ function driversHtml() {
       docBucket,
       docBadge,
       tripHeadline,
-      tripClient
+      tripDetail
     };
   });
   const totalDrivers = summaries.length;
@@ -13269,10 +13363,8 @@ function driversHtml() {
         : "directory-card__avatar";
       const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin telefono";
       const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
-      const tripMeta = item.tripClient
-        ? `${item.tripClient} · ${item.occupancy.detail}`
-        : item.occupancy.detail;
       const docTone = directoryToneFromBucket(item.docBucket);
+      const opsTone = directoryOpsToneFromSlug(item.statusSlug);
       const courseTone = directoryToneFromBucket(item.courseMeta.bucket);
       const licenseFact = `${String(d.license || "-")} · ${item.licenseMeta.label}`;
       return `<article class="directory-card directory-card--driver directory-card--${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}">
@@ -13289,10 +13381,7 @@ function driversHtml() {
             ${directoryPillHtml(item.docBadge, docTone)}
           </div>
         </header>
-        <div class="directory-card__summary">
-          <strong>${escapeHtml(item.tripHeadline)}</strong>
-          <p>${escapeHtml(tripMeta)}</p>
-        </div>
+        ${directoryOpsHtml(item.tripHeadline, item.tripDetail, opsTone)}
         <div class="directory-card__metrics">
           ${directoryChipHtml("Licencia", String(d.licenseCategory || "Sin cat."))}
           ${directoryChipHtml("Exper.", expLabel)}
@@ -13326,8 +13415,7 @@ function driversHtml() {
     { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
     { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
-  const info = `<p class="muted" style="margin:0 0 0.75rem">Los conductores se crean automáticamente desde <strong>Contratación</strong> o desde <strong>Empleados</strong> cuando el cargo es de conductor.</p>`;
-  return heroStrip + pcardWrap("user", "Conductores", `${drivers.length} registrados`, info + grid);
+  return heroStrip + pcardWrap("user", "Conductores", `${drivers.length} registrados`, grid);
 }
 
 /** Tabla de auditoría: viajes quitados (colapsable; detalle desde snapshot JSON en bootstrap). */
@@ -16949,7 +17037,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "month", label: "Mes" },
         { key: "employee", label: "Empleado" },
         { key: "gross", label: "Devengado" },
-        { key: "incapacityAdjust", label: "Ajuste incapacidad (COP)" },
+        { key: "incapacityAdjust", label: "Ajuste ausentismos (COP)" },
         { key: "incapacitySummary", label: "Incapacidad (resumen)" },
         { key: "absenceSummary", label: "Ausentismos (resumen)" },
         { key: "travelAllowance", label: "Viaticos" },
@@ -26929,6 +27017,17 @@ function bindDynamicEvents() {
           )
         )
       );
+      const legalValidation = payrollValidateAbsenceLegalRules({
+        absenceType,
+        absenceSubtype,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        recognizedDays
+      });
+      if (!legalValidation.ok) {
+        notify(legalValidation.message, "error");
+        return;
+      }
       const list = read(KEYS.hrAbsences, []);
       const absencePayload = {
         id: newUuidV4(),
@@ -27328,7 +27427,7 @@ function bindDynamicEvents() {
         totalAdjustCop: incapacityAdjustCop,
         smmlvRef: incapacityCalc.smmlv,
         legalNote:
-          "Ajuste por incapacidad orientativo (salario÷30; incapacidad común: sin salario empresa el día y ⅔ del día en los dos primeros días del episodio según práctica Dec. 780/2016 / CST; laboral: descuento orientativo por días, pago vía ARL). No sustituye liquidación EPS/ARL, tablas IBP ni dictamen médico y contable."
+          "Ajustes orientativos por ausencias con efecto en nómina (incapacidades y licencias no remuneradas). No sustituyen liquidación legal, soporte médico, acto del empleador ni validación contable."
       };
       const absenceSlipDetail = {
         rows: buildPayrollAbsenceSlipRowsForPeriod({
@@ -30179,6 +30278,18 @@ function bindExtendedViewEditHandlers() {
           const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
           const normalizedType = payrollNormalizeAbsenceTypeKey(form.absenceType || target.absenceType);
           const normalizedSubtype = payrollNormalizeAbsenceSubtype(normalizedType, form.absenceSubtype);
+          const nextRecognizedDays = Math.max(0.5, Number(parseNum(form.recognizedDays || target.recognizedDays || days)));
+          const legalValidation = payrollValidateAbsenceLegalRules({
+            absenceType: normalizedType,
+            absenceSubtype: normalizedSubtype,
+            startDate: form.startDate,
+            endDate: form.endDate,
+            recognizedDays: nextRecognizedDays
+          });
+          if (!legalValidation.ok) {
+            notify(legalValidation.message, "error");
+            return false;
+          }
           write(
             KEYS.hrAbsences,
             all.map((a) =>
@@ -30191,7 +30302,7 @@ function bindExtendedViewEditHandlers() {
                     startDate: form.startDate,
                     endDate: form.endDate,
                     days,
-                    recognizedDays: Math.max(0.5, Number(parseNum(form.recognizedDays || a.recognizedDays || days))),
+                    recognizedDays: nextRecognizedDays,
                     recognizedUnit: payrollAbsenceRecognizedUnit(normalizedType, normalizedSubtype),
                     supportNumber: String(form.supportNumber || "").trim(),
                     epsEntity: String(form.epsEntity || "").trim(),

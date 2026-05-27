@@ -24,6 +24,24 @@ CREATE TABLE ausencias_laborales (
   CONSTRAINT chk_ausencias_sufragio_subtipo CHECK (
     tipo_ausencia <> 'permiso_sufragio'
     OR subtipo_ausencia IN ('jurado', 'votante')
+  ),
+  CONSTRAINT chk_ausencias_sufragio_reconocimiento CHECK (
+    tipo_ausencia <> 'permiso_sufragio'
+    OR (
+      unidad_dias_reconocidos = 'jornada'
+      AND (
+        (subtipo_ausencia = 'jurado' AND dias_reconocidos = 1.00)
+        OR (subtipo_ausencia = 'votante' AND dias_reconocidos = 0.50)
+      )
+    )
+  ),
+  CONSTRAINT chk_ausencias_luto_max_5 CHECK (
+    tipo_ausencia <> 'licencia_luto'
+    OR (unidad_dias_reconocidos = 'habil' AND dias_reconocidos <= 5.00)
+  ),
+  CONSTRAINT chk_ausencias_paternidad_max_14 CHECK (
+    tipo_ausencia <> 'licencia_paternidad'
+    OR (unidad_dias_reconocidos = 'calendario' AND dias_reconocidos <= 14.00)
   )
 );
 
