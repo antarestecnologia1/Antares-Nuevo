@@ -19,6 +19,7 @@ import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
 import { CreateFleetMaintenanceLogDto } from "./dto/create-fleet-maintenance-log.dto";
+import { DeleteLaborSystemParametersDto } from "./dto/delete-labor-system-parameters.dto";
 import { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { PortalService } from "./portal.service";
 
@@ -96,6 +97,11 @@ export class PortalController {
   @Post("labor-system-parameters")
   laborSystemParameters(@Req() req: { user: ReqUser }, @Body() dto: UpsertLaborSystemParametersDto) {
     return this.portal.upsertLaborSystemParameters(req.user.userId, req.user.role, dto);
+  }
+
+  @Post("labor-system-parameters/delete")
+  deleteLaborSystemParameters(@Req() req: { user: ReqUser }, @Body() dto: DeleteLaborSystemParametersDto) {
+    return this.portal.deleteLaborSystemParameters(req.user.userId, req.user.role, dto.year);
   }
 
   @Post("sync-key")

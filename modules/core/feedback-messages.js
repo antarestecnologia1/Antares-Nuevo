@@ -225,6 +225,8 @@
     employeesBulkSelect: "Seleccione al menos un empleado para eliminar.",
     employeesBulkRemoved: (n) => `Se eliminaron ${n} empleado(s) en cascada.`,
     payrollSelectMonth: "Seleccione un mes válido para liquidar.",
+    payrollLegalVigenciaDeleted: (year) => `Vigencia legal ${year} eliminada de la base de datos.`,
+    payrollLegalVigenciaDeleteFail: "No fue posible eliminar la vigencia legal.",
     payrollMarkPaidApprovalAdmin:
       "Solicitud de marcar pago enviada para aprobación del administrador.",
     absenceApprovalQueued: "Solicitud de ausencia enviada para aprobación del administrador.",

@@ -1921,6 +1921,81 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  private laborSystemParameterKeyNormsExcludingPlatformRef(): string[] {
+    return (
+      Object.keys(LABOR_SYSTEM_PARAMETER_DEFS) as Array<keyof typeof LABOR_SYSTEM_PARAMETER_DEFS>
+    )
+      .filter((field) => field !== "platformReferenceYear")
+      .flatMap((field) => {
+        const def = LABOR_SYSTEM_PARAMETER_DEFS[field];
+        return [def.dbKey, ...def.aliases];
+      })
+      .map((key) => normalizeSystemParameterKey(key))
+      .filter(Boolean);
+  }
+
+  async deleteLaborSystemParameters(userId: string, role: JwtRole, yearLike: number) {
+    if (!this.isAdmin(role)) throw new ForbiddenException();
+    const year = Math.trunc(Number(yearLike));
+    if (!Number.isFinite(year) || year < 2020 || year > 2100) {
+      throw new BadRequestException("Indique un año válido para eliminar la vigencia.");
+    }
+    if (!(await this.tableExists("parametros_sistema"))) {
+      throw new BadRequestException("La tabla parametros_sistema no está disponible.");
+    }
+    const startDate = `${year}-01-01`;
+    const laborKeys = this.laborSystemParameterKeyNormsExcludingPlatformRef();
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query<{ total: string }>(
+        `SELECT COUNT(*)::text AS total
+           FROM parametros_sistema
+          WHERE vigente_desde = $1::date
+            AND lower(trim(clave)) = ANY($2::text[])`,
+        [startDate, laborKeys]
+      );
+      if (Number(existing.rows[0]?.total || 0) <= 0) {
+        throw new NotFoundException(`No hay vigencia registrada para el año ${year}.`);
+      }
+      let affectedPayrollRuns = 0;
+      if (await this.tableExists("liquidaciones_nomina")) {
+        const payrollCount = await client.query<{ total: string }>(
+          `SELECT COUNT(*)::text AS total
+             FROM liquidaciones_nomina
+            WHERE left(COALESCE(periodo_mes, ''), 4) = $1`,
+          [String(year)]
+        );
+        affectedPayrollRuns = Number(payrollCount.rows[0]?.total || 0);
+      }
+      await client.query(
+        `DELETE FROM parametros_sistema
+          WHERE vigente_desde = $1::date
+            AND lower(trim(clave)) = ANY($2::text[])`,
+        [startDate, laborKeys]
+      );
+      const manualRefYear = await this.loadPlatformLaborReferenceYear(client);
+      if (manualRefYear === year) {
+        await this.upsertPlatformLaborReferenceYearTx(client, null);
+      }
+      const activeRules = await this.loadLaborSystemRules(new Date(), client);
+      const history = await this.loadLaborSystemParametersHistory(new Date(), client);
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        year,
+        affectedPayrollRuns,
+        systemParameters: activeRules,
+        systemParametersHistory: history
+      };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async bootstrap(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
     const [empresaId, permissionSet] = await Promise.all([
