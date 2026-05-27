@@ -3,7 +3,7 @@ import { IsInt, IsNumber, IsOptional, Max, Min } from "class-validator";
 export class UpsertLaborSystemParametersDto {
   @IsInt()
   @Min(2020)
-  @Max(2100)
+  @Max(2035)
   year!: number;
 
   @IsNumber()
@@ -37,6 +37,6 @@ export class UpsertLaborSystemParametersDto {
   @IsOptional()
   @IsInt()
   @Min(2020)
-  @Max(2100)
+  @Max(2035)
   platformReferenceYear?: number | null;
 }

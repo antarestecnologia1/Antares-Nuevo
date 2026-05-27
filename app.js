@@ -788,9 +788,6 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
   const hasAbsenceDetail = String(run.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
   if (orig === "masiva") tags.push("Masiva");
   else if (orig === "automatica") tags.push("Automática");
-  const cierreMasiva = run.noveltiesDetail && typeof run.noveltiesDetail === "object" ? run.noveltiesDetail.cierreMasiva : null;
-  if (cierreMasiva === "parcial") tags.push("Parcial");
-  else if (cierreMasiva === "cerrado" && orig === "masiva") tags.push("Cierre total");
   if (payrollRunIsDriverTripPayment(run)) tags.push("Prestación viajes");
   if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
   if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
@@ -4751,11 +4748,19 @@ function bindPositionCompensationFields(form, config = {}) {
   };
 }
 
+const LABOR_SYSTEM_PARAMETERS_MIN_YEAR = 2020;
+const LABOR_SYSTEM_PARAMETERS_MAX_YEAR = 2035;
+
+function clampLaborSystemParameterYear(yearLike) {
+  const y = Math.trunc(Number(yearLike) || new Date().getFullYear());
+  return Math.min(LABOR_SYSTEM_PARAMETERS_MAX_YEAR, Math.max(LABOR_SYSTEM_PARAMETERS_MIN_YEAR, y));
+}
+
 function employeeTransportAllowanceGuidance(baseSalary) {
   const legalAux = parseNum(CO_HR_RULES.transportAllowance).toLocaleString("es-CO");
   const cap = colombiaTransportAllowanceSalaryCapCop().toLocaleString("es-CO");
   const activeParams = normalizeSystemParametersPayload(read(KEYS.systemParameters, null)) || CO_SYSTEM_PARAMS_DEFAULTS;
-  const activeYear = Math.max(2020, Math.trunc(Number(activeParams.activeYear) || new Date().getFullYear()));
+  const activeYear = clampLaborSystemParameterYear(activeParams.activeYear);
   if (colombiaTransportAllowanceEligible(baseSalary)) {
     return `${activeYear}: se sugiere auxilio legal de transporte/conectividad por $${legalAux}. Aplica hasta 2 SMMLV ($${cap}).`;
   }
@@ -4816,7 +4821,7 @@ function laborSystemParametersHistoryRows() {
 
 function laborSystemParametersDraftForYear(yearLike, historyRows = laborSystemParametersHistoryRows()) {
   const active = normalizeSystemParametersPayload(read(KEYS.systemParameters, null)) || CO_SYSTEM_PARAMS_DEFAULTS;
-  const numericYear = Math.max(2020, Math.trunc(Number(yearLike) || new Date().getFullYear()));
+  const numericYear = clampLaborSystemParameterYear(yearLike);
   const exact = historyRows.find((row) => Number(row?.year) === numericYear) || null;
   const fallback = exact || historyRows[0] || {};
   return {
@@ -4833,17 +4838,22 @@ function laborSystemParametersDraftForYear(yearLike, historyRows = laborSystemPa
     healthEmployeeRate: Math.max(0, parseNum(fallback.healthEmployeeRate ?? active.healthEmployeeRate)),
     pensionEmployeeRate: Math.max(0, parseNum(fallback.pensionEmployeeRate ?? active.pensionEmployeeRate)),
     uvtCop: Math.max(0, parseNum(fallback.uvtCop ?? active.uvtCop ?? 0)),
-    activeYear: Math.max(2020, Math.trunc(Number(active.activeYear) || numericYear)),
+    activeYear: clampLaborSystemParameterYear(active.activeYear || numericYear),
     referenceMode: active.referenceMode === "manual" ? "manual" : "automatic",
     isCurrent: Boolean(fallback.isCurrent)
   };
 }
 
 function laborSystemParametersSelectableYears(historyRows = laborSystemParametersHistoryRows()) {
-  const currentYear = new Date().getFullYear();
-  return [...new Set([currentYear + 1, currentYear, ...historyRows.map((row) => Number(row?.year) || 0).filter(Boolean)])].sort(
-    (a, b) => b - a
+  const years = new Set(
+    (Array.isArray(historyRows) ? historyRows : [])
+      .map((row) => Number(row?.year) || 0)
+      .filter((y) => y >= LABOR_SYSTEM_PARAMETERS_MIN_YEAR && y <= LABOR_SYSTEM_PARAMETERS_MAX_YEAR)
   );
+  for (let y = LABOR_SYSTEM_PARAMETERS_MIN_YEAR; y <= LABOR_SYSTEM_PARAMETERS_MAX_YEAR; y += 1) {
+    years.add(y);
+  }
+  return [...years].sort((a, b) => b - a);
 }
 
 function applyLaborSystemParametersApiResponse(saved) {
@@ -22577,11 +22587,16 @@ function payrollHtml() {
   const formPayBulk = `<section class="payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
       <div class="payroll-bulk-panel__intro">
         <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva</h4>
-        <p class="muted payroll-bulk-lead">Pagos de nómina el <strong>15</strong> y el <strong>30</strong> de cada mes. Genere el <strong>cierre total</strong> los días <strong>13–14</strong> (1.ª quincena) y <strong>28–29</strong> (2.ª quincena / mes; en febrero, 26–27 antes del pago del 28). El resto de días: liquidación <strong>parcial hasta la fecha</strong> (respeta <strong>fecha de ingreso</strong>). Las filas quedan pendientes de pago para programar el desembolso 1–2 días antes.</p>
+        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). Quedan pendientes de pago para que pueda programar el desembolso con al menos dos días de anticipación.</p>
       </div>
       <div class="payroll-bulk-fields">
-        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de referencia")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required />
-          <span class="muted payroll-bulk-field-hint">Use 13 o 14 para cerrar antes del pago del 15; 28 o 29 para cerrar antes del pago del 30. Otros días: parcial.</span>
+        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
+        <label class="payroll-bulk-option">
+          <input type="checkbox" id="payroll-bulk-force" checked />
+          <span class="payroll-bulk-option__copy">
+            <span class="payroll-bulk-option__label">Usar el último corte ya cerrado en esa fecha</span>
+            <span class="payroll-bulk-option__hint muted">Útil si hoy no es día 15 ni fin de mes.</span>
+          </span>
         </label>
       </div>
       <div class="payroll-bulk-actions">
@@ -27660,8 +27675,8 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-set-year']").forEach((el) => {
     const applyYearSelection = (yearLike) => {
-      const year = String(Math.max(2020, Math.trunc(Number(yearLike) || new Date().getFullYear())));
-      state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year };
+      const year = clampLaborSystemParameterYear(yearLike);
+      state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(year) };
       state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
       persistHrWorkspace("payroll", "data");
       renderPortalView();
@@ -27682,7 +27697,7 @@ function bindDynamicEvents() {
         return;
       }
       const fd = new FormData(payrollLegalForm);
-      const year = Math.max(2020, Math.trunc(Number(fd.get("year")) || new Date().getFullYear()));
+      const year = clampLaborSystemParameterYear(fd.get("year"));
       const body = {
         year,
         smmlvCop: Math.max(1, parseNum(fd.get("smmlvCop"))),
@@ -27693,7 +27708,7 @@ function bindDynamicEvents() {
         legalWeeklyHours: Math.max(1, parseNum(fd.get("legalWeeklyHours")) || CO_HR_RULES.legalWeeklyHours),
         platformReferenceYear:
           String(fd.get("platformReferenceMode") || "automatic") === "manual"
-            ? Math.max(2020, Math.trunc(Number(fd.get("platformReferenceYear")) || year))
+            ? clampLaborSystemParameterYear(fd.get("platformReferenceYear") || year)
             : null
       };
       const submit = async () => {
@@ -27729,7 +27744,7 @@ function bindDynamicEvents() {
   }
 
   const runPayrollLegalDelete = async (yearLike) => {
-    const year = Math.max(2020, Math.trunc(Number(yearLike) || 0));
+    const year = clampLaborSystemParameterYear(yearLike);
     if (!year) {
       notify("Indique un año válido.", "error");
       return;
@@ -30509,11 +30524,13 @@ function bindDynamicEvents() {
         return;
       }
       const fechaEl = document.getElementById("payroll-bulk-fecha");
+      const forceEl = document.getElementById("payroll-bulk-force");
       const fechaReferencia = String(fechaEl?.value || "").trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaReferencia)) {
-        notify("Indique una fecha de referencia válida (YYYY-MM-DD).", "error");
+        notify("Indique una fecha de cierre válida (YYYY-MM-DD).", "error");
         return;
       }
+      const force = Boolean(forceEl?.checked);
       const busyLabel = payrollBulkBtn.querySelector("span");
       const busyOrig = busyLabel?.textContent || "";
       payrollBulkBtn.disabled = true;
@@ -30522,6 +30539,7 @@ function bindDynamicEvents() {
       try {
         const result = await postPortalAuthorized("/payroll/autogenerate-period", {
           fechaReferencia,
+          force,
           origin: "masiva"
         });
         if (result && typeof result === "object") {

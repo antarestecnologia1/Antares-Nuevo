@@ -24,12 +24,10 @@ import {
 } from "../payroll/colombian-monthly-payroll";
 import {
   bogotaCalendarPartsFromInstant,
-  liquidationBulkCutAsOf,
   liquidationCutIfClosingToday,
   liquidationCutsOverlappingRange,
   liquidationLatestClosedCutAsOf,
   resolveLiquidationCutFromPeriodKey,
-  type BulkLiquidationMode,
   type LiquidationCut
 } from "../payroll/payroll-cut-bogota";
 import { buildDriverTripPaymentCompute } from "../payroll/driver-trip-payment";
@@ -145,13 +143,14 @@ const LABOR_SYSTEM_PARAMETER_DEFS = {
   }
 } as const;
 
-const LABOR_SYSTEM_YEAR_MIN = 2020;
-const LABOR_SYSTEM_YEAR_MAX = 2035;
+const LABOR_SYSTEM_PARAMETERS_MIN_YEAR = 2020;
+const LABOR_SYSTEM_PARAMETERS_MAX_YEAR = 2035;
 
-function clampLaborSystemYear(yearLike: unknown): number {
-  const y = Math.trunc(Number(yearLike) || new Date().getFullYear());
-  if (!Number.isFinite(y)) return LABOR_SYSTEM_YEAR_MIN;
-  return Math.min(LABOR_SYSTEM_YEAR_MAX, Math.max(LABOR_SYSTEM_YEAR_MIN, y));
+function normalizeLaborSystemParameterYear(raw: unknown): number | null {
+  const normalized = Math.trunc(Number(raw));
+  if (!Number.isFinite(normalized)) return null;
+  if (normalized < LABOR_SYSTEM_PARAMETERS_MIN_YEAR || normalized > LABOR_SYSTEM_PARAMETERS_MAX_YEAR) return null;
+  return normalized;
 }
 
 /** UUID v4 — mismas entradas que acepta PostgreSQL al castear ::uuid */
@@ -1394,8 +1393,7 @@ export class PortalService implements OnModuleInit {
     const active = await this.loadActiveSystemParameters(new Date(), client);
     const year = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.platformReferenceYear);
     if (year == null) return null;
-    const normalized = Math.trunc(Number(year));
-    return Number.isFinite(normalized) && normalized >= 2020 && normalized <= 2100 ? normalized : null;
+    return normalizeLaborSystemParameterYear(year);
   }
 
   private async loadLaborSystemRules(
@@ -1825,9 +1823,9 @@ export class PortalService implements OnModuleInit {
 
   async upsertLaborSystemParameters(userId: string, role: JwtRole, dto: UpsertLaborSystemParametersDto) {
     if (!this.isAdmin(role)) throw new ForbiddenException();
-    const year = Math.trunc(Number(dto.year));
-    if (!Number.isFinite(year) || year < 2020 || year > 2100) {
-      throw new BadRequestException("Indique un año válido para la vigencia.");
+    const year = normalizeLaborSystemParameterYear(dto.year);
+    if (year == null) {
+      throw new BadRequestException(`Indique un año válido para la vigencia (${LABOR_SYSTEM_PARAMETERS_MIN_YEAR}–${LABOR_SYSTEM_PARAMETERS_MAX_YEAR}).`);
     }
     const smmlvCop = Math.max(1, Number(dto.smmlvCop) || 0);
     const transportAllowanceCop = Math.max(0, Number(dto.transportAllowanceCop) || 0);
@@ -1839,7 +1837,7 @@ export class PortalService implements OnModuleInit {
     const platformReferenceYear =
       dto.platformReferenceYear === undefined || dto.platformReferenceYear === null
         ? null
-        : Math.trunc(Number(dto.platformReferenceYear));
+        : normalizeLaborSystemParameterYear(dto.platformReferenceYear);
     const startDate = `${year}-01-01`;
     const endDate = `${year}-12-31`;
     const client = await this.pool.connect();
@@ -1947,11 +1945,9 @@ export class PortalService implements OnModuleInit {
 
   async deleteLaborSystemParameters(userId: string, role: JwtRole, yearLike: number) {
     if (!this.isAdmin(role)) throw new ForbiddenException();
-    const year = Math.trunc(Number(yearLike));
-    if (!Number.isFinite(year) || year < LABOR_SYSTEM_YEAR_MIN || year > LABOR_SYSTEM_YEAR_MAX) {
-      throw new BadRequestException(
-        `Indique un año válido para eliminar la vigencia (${LABOR_SYSTEM_YEAR_MIN}–${LABOR_SYSTEM_YEAR_MAX}).`
-      );
+    const year = normalizeLaborSystemParameterYear(yearLike);
+    if (year == null) {
+      throw new BadRequestException(`Indique un año válido para eliminar la vigencia (${LABOR_SYSTEM_PARAMETERS_MIN_YEAR}–${LABOR_SYSTEM_PARAMETERS_MAX_YEAR}).`);
     }
     if (!(await this.tableExists("parametros_sistema"))) {
       throw new BadRequestException("La tabla parametros_sistema no está disponible.");
@@ -2194,7 +2190,8 @@ export class PortalService implements OnModuleInit {
         WHERE lower(trim(clave)) = lower(trim($1))`,
       [LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.dbKey]
     );
-    if (year == null || !Number.isFinite(year) || year < 2020 || year > 2100) return;
+    const validYear = year == null ? null : normalizeLaborSystemParameterYear(year);
+    if (validYear == null) return;
     const effectiveFrom = this.pgDateUtc(new Date());
     await client.query(
       `INSERT INTO parametros_sistema (
@@ -2204,9 +2201,9 @@ export class PortalService implements OnModuleInit {
        )`,
       [
         LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.dbKey,
-        year,
+        validYear,
         effectiveFrom,
-        `${LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.description}: ${year}`
+        `${LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.description}: ${validYear}`
       ]
     );
   }
@@ -6584,10 +6581,10 @@ export class PortalService implements OnModuleInit {
   }
 
   /**
-   * Inserta liquidaciones según periodicidad de pago y **fecha civil Colombia (Bogotá)**.
-   * - **automatica** (cron): solo día de cierre del corte, o `force` → último corte cerrado.
-   * - **masiva** (RRHH): parcial entre pagos; cierre total días 13–14 (pago 15) y 28–29 o 1–2 días antes del 30.
-   *   Respeta fecha de ingreso (días desde max(inicio corte, ingreso)). Puede actualizar la misma fila del período.
+   * Inserta liquidaciones según periodicidad de pago y **fecha civil Colombia (Bogotá)**:
+   * quincena 1–15 y 16–fin, catorcenal 1–14 y 15–fin, mensual fin de mes, semanal cortes de 7 días.
+   * Solo genera cuando `referenceDate` coincide con día de **cierre** del corte (`payroll-cut-bogota`),
+   * salvo `force` (último corte cerrado en esa fecha).
    */
   async generateAutomaticLiquidacionesForReferenceDate(
     reference: Date = new Date(),
@@ -6647,55 +6644,21 @@ export class PortalService implements OnModuleInit {
         }
 
         const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
-        let bulkMode: BulkLiquidationMode | null = null;
-        const cut =
-          liquidacionOrigin === "masiva"
-            ? (() => {
-                const bulk = liquidationBulkCutAsOf(freq, by, bm0, bdom);
-                if (bulk) bulkMode = bulk.mode;
-                return bulk;
-              })()
-            : force
-              ? liquidationLatestClosedCutAsOf(freq, by, bm0, bdom)
-              : liquidationCutIfClosingToday(freq, by, bm0, bdom);
+        const cut = force
+          ? liquidationLatestClosedCutAsOf(freq, by, bm0, bdom)
+          : liquidationCutIfClosingToday(freq, by, bm0, bdom);
         if (!cut) {
           skipped += 1;
           continue;
         }
 
-        const existRes = await client.query<{
-          id: string;
-          novedades_liquidacion_json: unknown;
-        }>(
-          `SELECT id::text, novedades_liquidacion_json
-           FROM liquidaciones_nomina
-           WHERE id_empleado = $1::uuid AND periodo_mes = $2
-           LIMIT 1`,
+        const exists = await client.query(
+          `SELECT 1 FROM liquidaciones_nomina WHERE id_empleado = $1::uuid AND periodo_mes = $2 LIMIT 1`,
           [employeeId, cut.periodKey]
         );
-        let reuseRunId: string | null = null;
-        if ((existRes.rows?.length ?? 0) > 0) {
-          const prev = existRes.rows[0];
-          const prevNov =
-            prev.novedades_liquidacion_json &&
-            typeof prev.novedades_liquidacion_json === "object"
-              ? (prev.novedades_liquidacion_json as Record<string, unknown>)
-              : null;
-          const prevCierre = prevNov?.cierreMasiva;
-          if (liquidacionOrigin === "masiva") {
-            if (prevCierre === "cerrado" && bulkMode === "parcial") {
-              skipped += 1;
-              continue;
-            }
-            if (prevCierre === "cerrado" && bulkMode === "cerrado") {
-              skipped += 1;
-              continue;
-            }
-            reuseRunId = String(prev.id);
-          } else {
-            skipped += 1;
-            continue;
-          }
+        if ((exists.rows?.length ?? 0) > 0) {
+          skipped += 1;
+          continue;
         }
 
         const abRes = await client.query(
@@ -6778,39 +6741,10 @@ export class PortalService implements OnModuleInit {
           (payPrima ? primaCop : 0) +
           (payInt ? intCop : 0);
 
-        const noveltyObj = {
-          ...(computed.novedadesJson as Record<string, unknown>),
-          ...(liquidacionOrigin === "masiva" && bulkMode
-            ? {
-                cierreMasiva: bulkMode,
-                fechaReferenciaMasiva: `${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}`,
-                ...(bulkMode === "parcial"
-                  ? {
-                      disclaimers: [
-                        ...((Array.isArray(
-                          (computed.novedadesJson as Record<string, unknown>)?.disclaimers
-                        )
-                          ? (computed.novedadesJson as Record<string, unknown>).disclaimers
-                          : []) as string[]),
-                        `Liquidación masiva parcial al día ${bdom}: salario y auxilio proporcionales (desde inicio de corte o fecha de ingreso). Cierre total los días 13–14 (pago programado 15) y 28–29 o equivalente antes del pago del 30.`
-                      ]
-                    }
-                  : {
-                      disclaimers: [
-                        ...((Array.isArray(
-                          (computed.novedadesJson as Record<string, unknown>)?.disclaimers
-                        )
-                          ? (computed.novedadesJson as Record<string, unknown>).disclaimers
-                          : []) as string[]),
-                        "Liquidación masiva: cierre total del período para programar pago el 15 o el 30 (generada 1–2 días antes)."
-                      ]
-                    })
-              }
-            : {})
-        };
+        const noveltyObj = computed.novedadesJson as Record<string, unknown>;
 
         const run: Record<string, unknown> = {
-          id: reuseRunId ?? randomUUID(),
+          id: randomUUID(),
           employeeId,
           employeeName: String(row.nombre_completo || ""),
           month: cut.periodKey,
@@ -6848,7 +6782,7 @@ export class PortalService implements OnModuleInit {
           noveltiesDetail: noveltyObj
         };
 
-        await this.payrollUpsertLiquidacionNomina(client, tier, hasNov, run, { force: true });
+        await this.payrollUpsertLiquidacionNomina(client, tier, hasNov, run);
         created += 1;
       }
 
@@ -6862,7 +6796,7 @@ export class PortalService implements OnModuleInit {
 
     if (created > 0) {
       this.logger.log(
-        `Liquidaciones ${liquidacionOrigin} (ref. Bogotá ${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}): procesadas ${created}; omitidas ${skipped}.`
+        `Liquidaciones ${liquidacionOrigin} (ref. Bogotá ${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}): insertadas ${created}; omitidas ${skipped}.`
       );
     }
     return { created, skipped, messages };
