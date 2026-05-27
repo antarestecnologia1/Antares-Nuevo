@@ -28,7 +28,7 @@ includesAll(
     "Conversión operativa de solicitudes",
     "Gobierno de usuarios y accesos",
     "Trazabilidad de autorizaciones",
-    "Consolidado conductor",
+    "Consolidado de nómina",
     "Corte exportable",
     "Periodo de análisis"
   ],
@@ -48,7 +48,7 @@ includesAll(
     "costPerDowntimeHour",
     "sharePct",
     "soatStatus",
-    "Kilometraje estimado",
+    "Costo / hora fuera",
     "function normalizeReportsExportFilters(",
     "function reportsExportFiltersHtml(",
     "data-action='reports-export-period-chip'",

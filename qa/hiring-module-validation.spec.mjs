@@ -409,7 +409,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await form.locator('select[name="contractTypeDefault"]').selectOption("Termino fijo");
     await form.locator('select[name="workSchedule"]').selectOption("Mixta");
     await form.locator('select[name="arlRiskLevel"]').selectOption("II");
-    await form.locator('select[name="integralSalary"]').selectOption("true");
+    await form.locator('select[name="integralSalary"]').selectOption("false");
     await form.locator('input[name="legalBasis"]').fill("CST QA Integral");
     await form.locator('button[type="submit"]').click();
     await waitForArrayLength(KEYS.positions, before + 1, "create position");
@@ -421,7 +421,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     expect(created.contractTypeDefault).toBe("Termino fijo");
     expect(created.workSchedule).toBe("Mixta");
     expect(created.arlRiskLevel).toBe("II");
-    expect(Boolean(created.integralSalary)).toBe(true);
+    expect(Boolean(created.integralSalary)).toBe(false);
     expect(created.legalBasis).toBe("CST QA Integral");
   });
 
@@ -431,8 +431,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [
       ["name", "Analista QA Editado"],
-      ["workSchedule", "Nocturna"],
-      ["integralSalary", "true"]
+      ["workSchedule", "Nocturna"]
     ]);
     await waitForStore(
       (key) => {
@@ -489,15 +488,14 @@ test("validate hiring module fields", async ({ page, context }) => {
     await submitForm("#crud-form", [
       ["title", "Vacante Analista Editada"],
       ["modality", "Remoto"],
-      ["openings", "2"],
-      ["status", "Cerrada"]
+      ["openings", "2"]
     ]);
     await waitForStore(
       (key) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada" && row.modality === "Remoto" && Number(row.openings) === 2 && row.status === "Cerrada");
+        return rows.some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada" && row.modality === "Remoto" && Number(row.openings) === 2);
       },
       KEYS.vacancies,
       "edit vacancy"

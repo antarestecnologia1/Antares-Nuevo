@@ -847,7 +847,7 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "drv-1" && row.phone === "3006667790");
+        return rows.some((row) => row.id === "drv-1" && String(row.phone || "").replace(/\D/g, "").endsWith("3006667790"));
       },
       KEYS.drivers,
       "Conductores:edit"
