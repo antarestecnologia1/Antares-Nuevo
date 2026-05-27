@@ -179,21 +179,69 @@ function renderModulePanelToolbar(opts = {}) {
 
 function renderManagedCreateFormActions(panelId, submitHtml, opts = {}) {
   const id = String(panelId || "").trim();
-  const baseClass = "module-panel-actions module-panel-actions--footer form-flow-actions full";
-  const className = String(opts.className || baseClass).trim();
+  const extraClass = String(opts.className || "").trim();
+  const isWizard = extraClass.includes("wizard");
+  const className = [
+    "module-panel-actions",
+    "module-panel-actions--footer",
+    "form-flow-actions",
+    "full",
+    extraClass,
+    isWizard ? "module-panel-actions--wizard" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
   const toggleAction = String(opts.toggleAction || "toggle-create-panel").trim();
   const cancelAction = String(opts.cancelAction || "cancel-create-panel").trim();
   const expandLabel = String(opts.expandLabel || MODULE_PANEL_LABELS.expand).trim();
   const extraActionsHtml = String(opts.extraActionsHtml || "").trim();
   const submitMarkup = String(submitHtml || "").trim();
   const showCancel = opts.showCancel !== false;
+  const toolsHtml = extraActionsHtml
+    ? `<div class="module-panel-actions__group module-panel-actions__group--tools">${extraActionsHtml}</div>`
+    : "";
   return `<div class="${escapeAttr(className)}">
-    <div class="module-panel-actions__group module-panel-actions__group--secondary">
-      ${renderModulePanelToggleBtn({ expanded: true, toggleAction, panelId: id, expandLabel })}
-      ${showCancel ? renderModulePanelCancelBtn({ cancelAction, panelId: id, cancelLabel: opts.cancelLabel }) : ""}
-      ${extraActionsHtml}
+    <div class="module-panel-actions__bar">
+      <div class="module-panel-actions__group module-panel-actions__group--secondary">
+        ${renderModulePanelToggleBtn({ expanded: true, toggleAction, panelId: id, expandLabel })}
+        ${showCancel ? renderModulePanelCancelBtn({ cancelAction, panelId: id, cancelLabel: opts.cancelLabel }) : ""}
+      </div>
+      ${toolsHtml}
+      ${submitMarkup ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${submitMarkup}</div>` : ""}
     </div>
-    ${submitMarkup ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${submitMarkup}</div>` : ""}
+  </div>`;
+}
+
+/** Anterior / Siguiente en formularios por pasos (RRHH, contratación). */
+function renderHrWizardNavButtons() {
+  return `<div class="hr-form-wizard-footer-nav" role="group" aria-label="Navegación entre pasos">
+    <button type="button" class="btn btn-outline btn-sm hr-wizard-nav-btn" data-hr-wizard-prev disabled>${renderModulePanelBtnInner(IC.chevronLeft, "Anterior")}</button>
+    <button type="button" class="btn btn-primary btn-sm hr-wizard-nav-btn" data-hr-wizard-next>${renderModulePanelBtnInner(IC.chevronRight, "Siguiente")}</button>
+  </div>`;
+}
+
+/** Pie unificado: pasos + hint + minimizar / cancelar / acciones / guardar. */
+function renderHrFormWizardFooter(panelId, submitHtml, opts = {}) {
+  const hintText =
+    opts.hint === false
+      ? ""
+      : String(
+          opts.hint != null && opts.hint !== ""
+            ? opts.hint
+            : "Avance hasta el último paso para habilitar guardar."
+        ).trim();
+  const hintHtml = hintText
+    ? `<p class="hr-form-wizard-hint muted" data-hr-wizard-hint>${escapeHtml(hintText)}</p>`
+    : `<p class="hr-form-wizard-hint muted" data-hr-wizard-hint hidden></p>`;
+  return `<div class="hr-form-wizard-footer">
+    <div class="hr-form-wizard-footer__head">
+      ${renderHrWizardNavButtons()}
+      ${hintHtml}
+    </div>
+    ${renderManagedCreateFormActions(panelId, submitHtml, {
+      ...opts,
+      className: "form-flow-actions form-flow-actions--wizard"
+    })}
   </div>`;
 }
 
@@ -207,11 +255,13 @@ function renderModulePanelEditActions(submitHtml, opts = {}) {
     ? renderModulePanelToggleBtn({ expanded: true, toggleAction, expandLabel: opts.expandLabel })
     : "";
   return `<div class="module-panel-actions module-panel-actions--footer form-flow-actions full">
-    <div class="module-panel-actions__group module-panel-actions__group--secondary">
-      ${minimizeHtml}
-      ${renderModulePanelCancelBtn({ cancelAction, cancelLabel: opts.cancelLabel })}
+    <div class="module-panel-actions__bar">
+      <div class="module-panel-actions__group module-panel-actions__group--secondary">
+        ${minimizeHtml}
+        ${renderModulePanelCancelBtn({ cancelAction, cancelLabel: opts.cancelLabel })}
+      </div>
+      <div class="module-panel-actions__group module-panel-actions__group--primary">${submitMarkup}</div>
     </div>
-    <div class="module-panel-actions__group module-panel-actions__group--primary">${submitMarkup}</div>
   </div>`;
 }
 
@@ -22448,21 +22498,13 @@ function payrollHtml() {
 
       </div>
 
-      <div class="hr-form-wizard-footer">
-        <div class="hr-form-wizard-footer-nav">
-          <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
-          <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
-        </div>
-        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
-        ${renderManagedCreateFormActions(
-          "create-employee",
-          `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>`,
-          {
-            className: "form-flow-actions form-flow-actions--wizard",
-            extraActionsHtml: `<button type="button" class="btn btn-outline btn-sm hr-form-wizard-contract-draft" data-action="employee-form-generate-contract-draft" data-hr-wizard-submit-sync disabled aria-disabled="true">${IC.file} Generar contrato Word</button>`
-          }
-        )}
-      </div>
+      ${renderHrFormWizardFooter(
+        "create-employee",
+        `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>`,
+        {
+          extraActionsHtml: `<button type="button" class="btn btn-outline hr-form-wizard-contract-draft" data-action="employee-form-generate-contract-draft" data-hr-wizard-submit-sync disabled aria-disabled="true">${IC.file} Generar contrato Word</button>`
+        }
+      )}
     </div>
   </form>`;
   const todayYmdBulk = new Date().toISOString().slice(0, 10);
@@ -23549,14 +23591,10 @@ function hiringHtml() {
     </fieldset>
       </div>
 
-      <div class="hr-form-wizard-footer">
-        <div class="hr-form-wizard-footer-nav">
-          <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
-          <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
-        </div>
-        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Avance hasta el último paso para habilitar guardar.</p>
-        ${renderManagedCreateFormActions("create-candidate", `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.userPlus} Registrar candidato</button>`, { className: "form-flow-actions form-flow-actions--wizard" })}
-      </div>
+      ${renderHrFormWizardFooter(
+        "create-candidate",
+        `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.userPlus} Registrar candidato</button>`
+      )}
     </div>
   </form>`;
   const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact">
@@ -23650,14 +23688,11 @@ function hiringHtml() {
     </fieldset>
       </div>
 
-      <div class="hr-form-wizard-footer">
-        <div class="hr-form-wizard-footer-nav">
-          <button type="button" class="btn btn-outline btn-sm" data-hr-wizard-prev disabled>Anterior</button>
-          <button type="button" class="btn btn-action btn-sm" data-hr-wizard-next>Siguiente</button>
-        </div>
-        <p class="hr-form-wizard-hint muted" data-hr-wizard-hint>Use el siguiente paso si desea revisar una plantilla antes de descargar.</p>
-        ${renderManagedCreateFormActions("create-contract", `<button class="btn btn-primary hr-form-wizard-submit" type="submit" aria-disabled="false">${IC.file} Generar y descargar contrato Word</button>`, { className: "form-flow-actions form-flow-actions--wizard" })}
-      </div>
+      ${renderHrFormWizardFooter(
+        "create-contract",
+        `<button class="btn btn-primary hr-form-wizard-submit" type="submit" aria-disabled="false">${IC.file} Generar y descargar contrato Word</button>`,
+        { hint: "Puede generar el contrato desde el paso que prefiera o revisar plantillas en el paso 2." }
+      )}
     </div>
   </form>`;
 
