@@ -13189,17 +13189,6 @@ function transportTripsHtml() {
     </footer>
   </form>`;
 
-  const moduleHead = `<header class="ops-module-head ops-module-head--rich transport-module-head">
-      <div class="ops-module-title">
-        <span class="ops-module-kicker">Transporte · Operación</span>
-        <h2>Viajes y trayectos</h2>
-        <p class="ops-module-subtitle">Separe la asignación operativa del catálogo de rutas y tarifas usando las pestañas del módulo, sin mezclar ambos flujos en la misma vista.</p>
-      </div>
-      <div class="ops-module-chips">
-        <span class="ops-chip"><strong>${activeOps}</strong> viajes activos</span>
-        <span class="ops-chip${pendingForTrip.length ? " ops-chip--warn" : ""}"><strong>${pendingForTrip.length}</strong> por asignar</span>
-      </div>
-    </header>`;
   const workspaceNav = renderModuleWindowTabs({
     ariaLabel: "Secciones del módulo Viajes y trayectos",
     activeId: transportTripsWorkspace,
@@ -13245,7 +13234,7 @@ function transportTripsHtml() {
       </section>
     </div>`;
 
-  return `${moduleHead}${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
+  return `${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
 }
 
 function transportCalendarHtml() {
@@ -13748,6 +13737,7 @@ function adminUsersHtml(current) {
     const kindForUi =
       patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
     const companyStateClass = active ? " directory-card--ok" : " directory-card--inactive";
+    const summaryTitle = active ? "Empresa operativa" : "Empresa inactiva";
     const companyLine = [
       contactLabel !== "Sin contacto" ? contactLabel : "",
       emailLabel !== "Sin correo" ? emailLabel : "",
@@ -13770,11 +13760,21 @@ function adminUsersHtml(current) {
           ${active ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>'}
         </div>
       </header>
+      <div class="directory-card__summary">
+        <strong>${escapeHtml(summaryTitle)}</strong>
+        <p>${escapeHtml(companyLine)}</p>
+      </div>
       <div class="directory-card__metrics">
         ${directoryChipHtml("Usuarios", String(usersCount), usersCount ? "ok" : "neutral")}
         ${directoryChipHtml("Logo", logoUrl ? "Cargado" : "Pendiente", logoUrl ? "ok" : "warn")}
         ${directoryChipHtml("Canal", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "Listo" : "Pend.", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "ok" : "warn")}
       </div>
+      <dl class="directory-card__facts">
+        ${directoryFactHtml("NIT", nit)}
+        ${directoryFactHtml("Contacto", contactLabel)}
+        ${directoryFactHtml("Telefono", phoneDisp)}
+        ${directoryFactHtml("Ubicacion", locationLabel)}
+      </dl>
       <footer class="directory-card__actions">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-company" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
         ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}

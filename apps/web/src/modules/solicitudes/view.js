@@ -304,11 +304,7 @@
       const opsTitle = selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes";
       const opsSubtitle = `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}`;
       const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${opsCards}`);
-      const delLog =
-        typeof window.AppLegacyViews?.deletedTransportRequestsLogSection === "function"
-          ? window.AppLegacyViews.deletedTransportRequestsLogSection()
-          : "";
-      return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}${delLog}`;
+      return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
     }
     const panelTitle =
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
