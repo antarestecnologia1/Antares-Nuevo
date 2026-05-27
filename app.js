@@ -3829,6 +3829,8 @@ const CO_HR_RULES = {
   transportAllowance: 249095
 };
 const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = 2;
+/** Salario integral (CST / práctica): referencia mínima habitual 13 SMMLV. */
+const CO_INTEGRAL_SALARY_MIN_SMMLV = 13;
 const CO_SYSTEM_PARAMS_DEFAULTS = {
   smmlvCop: CO_PAYROLL.smmlv,
   minMonthlySalaryCop: CO_HR_RULES.minMonthlySalary,
@@ -3908,6 +3910,228 @@ function readEmployeeTransportAllowanceCop(employee) {
     return Math.max(0, parseNum(rawValue));
   }
   return suggestedEmployeeTransportAllowanceCop(employee.baseSalary);
+}
+
+function readPositionTransportAllowanceCop(position) {
+  if (!position) return 0;
+  const rawValue = position.transportAllowance;
+  if (rawValue != null && String(rawValue).trim() !== "") {
+    return Math.max(0, parseNum(rawValue));
+  }
+  return suggestedEmployeeTransportAllowanceCop(position.baseSalary);
+}
+
+function positionSalaryUsesSmmlv(baseSalary) {
+  return parseNum(baseSalary) === parseNum(CO_HR_RULES.minMonthlySalary);
+}
+
+function colombiaIntegralSalaryFloorCop() {
+  return Math.max(0, parseNum(CO_HR_RULES.minMonthlySalary)) * CO_INTEGRAL_SALARY_MIN_SMMLV;
+}
+
+function validateColombiaMonthlySalaryCop(salary, label = "Salario") {
+  const amount = parseNum(salary);
+  const minSalary = CO_HR_RULES.minMonthlySalary;
+  if (amount < minSalary) {
+    return {
+      ok: false,
+      message: `${label}: debe ser al menos el SMMLV vigente ($${minSalary.toLocaleString("es-CO")}).`
+    };
+  }
+  return { ok: true, amount };
+}
+
+function validateColombiaIntegralSalary(baseSalary, integralSalary) {
+  const isIntegral = integralSalary === true || String(integralSalary || "").toLowerCase() === "true";
+  if (!isIntegral) return { ok: true };
+  const base = parseNum(baseSalary);
+  const floor = colombiaIntegralSalaryFloorCop();
+  if (base < floor) {
+    return {
+      ok: false,
+      message: `Salario integral: el monto debe ser al menos 13 SMMLV ($${floor.toLocaleString("es-CO")}) según la norma laboral colombiana.`
+    };
+  }
+  return { ok: true };
+}
+
+function validateColombiaPositionCompensation(raw = {}) {
+  const minCheck = validateColombiaMonthlySalaryCop(raw.baseSalary, "Salario base del cargo");
+  if (!minCheck.ok) return minCheck;
+  const integralCheck = validateColombiaIntegralSalary(minCheck.amount, raw.integralSalary);
+  if (!integralCheck.ok) return integralCheck;
+  return {
+    ok: true,
+    baseSalary: minCheck.amount,
+    transportAllowance: resolveEmployeeTransportAllowanceCop(raw.transportAllowance, minCheck.amount)
+  };
+}
+
+function isVacancyAcceptingApplications(vacancy) {
+  if (!vacancy) return false;
+  if (String(vacancy.status || "").trim() !== "Publicada") return false;
+  const deadline = String(vacancy.deadline || "").trim();
+  if (!deadline) return true;
+  const parts = deadline.split("-");
+  if (parts.length !== 3) return true;
+  const endTs = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+  if (!Number.isFinite(endTs)) return true;
+  const today = new Date();
+  const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return endTs >= today0;
+}
+
+function validateVacancySalaryOffer(salaryOffer, position) {
+  const offerCheck = validateColombiaMonthlySalaryCop(salaryOffer, "Salario ofrecido");
+  if (!offerCheck.ok) return offerCheck;
+  if (position) {
+    const catalogSalary = parseNum(position.baseSalary);
+    if (catalogSalary > 0 && offerCheck.amount < catalogSalary) {
+      return {
+        ok: false,
+        message: `El salario ofrecido no puede ser inferior al del cargo en catálogo ($${catalogSalary.toLocaleString("es-CO")}).`
+      };
+    }
+  }
+  return { ok: true, salaryOffer: offerCheck.amount };
+}
+
+function validateWorkerMinimumAge(birthIso, label = "trabajador") {
+  const birth = String(birthIso || "").trim().slice(0, 10);
+  if (!birth) return { ok: true };
+  const ageInfo = portalCandidateAgeFromBirthIso(birth);
+  if (ageInfo.age === null) {
+    return { ok: false, message: "Indique una fecha de nacimiento válida." };
+  }
+  if (ageInfo.age < 18) {
+    return { ok: false, message: `El ${label} debe ser mayor de 18 años (Código Sustantivo del Trabajo).` };
+  }
+  return { ok: true };
+}
+
+function setFormSelectValue(selectEl, value) {
+  if (!selectEl || value == null) return;
+  const v = String(value).trim();
+  if (!v) return;
+  const match = [...selectEl.options].find(
+    (o) => String(o.value).trim() === v || String(o.textContent || "").trim() === v
+  );
+  if (match) selectEl.value = match.value;
+}
+
+/**
+ * Precarga en el formulario de empleado los datos definidos en el catálogo de cargos (Contratación).
+ */
+function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
+  const hintEl = form?.querySelector?.(options.hintSelector || "#emp-position-catalog-hint");
+  if (!form) return false;
+  if (!position) {
+    if (hintEl) {
+      hintEl.textContent =
+        "Seleccione un cargo del catálogo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.";
+    }
+    const conductorBlock = form.querySelector("#hr-conductor-fields");
+    if (conductorBlock) {
+      conductorBlock.classList.remove("hidden");
+      conductorBlock.removeAttribute("hidden");
+    }
+    return false;
+  }
+
+  const salaryEl = form.querySelector(options.salarySelector || "#emp-base-salary, input[name='baseSalary']");
+  const contractEl = form.querySelector(options.contractSelector || "#emp-contract-type, select[name='contractType']");
+  const transportEl = form.querySelector(options.auxSelector || "#emp-transport-allowance, input[name='transportAllowance']");
+  const arlEl = form.querySelector(options.arlRiskSelector || "select[name='arlRiskLevel']");
+  const templateEl = form.querySelector(options.templateSelector || "select[name='contractTemplateKind']");
+  const scheduleEl = form.querySelector(options.scheduleSelector || "#emp-work-schedule, input[name='workSchedule']");
+
+  const contractType = String(position.contractTypeDefault || "Termino indefinido").trim();
+  const wr = String(position.workerRole || "empleado").toLowerCase();
+  const schedule = String(position.workSchedule || position.schedule || "").trim();
+
+  if (salaryEl) salaryEl.value = String(parseNum(position.baseSalary));
+  if (contractEl) setFormSelectValue(contractEl, contractType);
+  if (transportEl) {
+    transportEl.value = String(readPositionTransportAllowanceCop(position));
+    delete transportEl.dataset.userEdited;
+  }
+  if (arlEl && position.arlRiskLevel) setFormSelectValue(arlEl, position.arlRiskLevel);
+  if (scheduleEl) scheduleEl.value = schedule;
+  if (templateEl && window.RecruitmentDomain?.inferTemplateKind) {
+    templateEl.value = window.RecruitmentDomain.inferTemplateKind(contractType, wr);
+  }
+
+  const conductorBlock = form.querySelector("#hr-conductor-fields");
+  if (conductorBlock) {
+    const isDriver = wr === "conductor";
+    conductorBlock.classList.toggle("hidden", !isDriver);
+    if (isDriver) conductorBlock.removeAttribute("hidden");
+    else conductorBlock.setAttribute("hidden", "hidden");
+    conductorBlock.querySelectorAll("input, select").forEach((inp) => {
+      const name = String(inp.getAttribute("name") || "");
+      if (!name) return;
+      if (isDriver && ["license", "licenseCategory", "licenseExpiry"].includes(name)) {
+        inp.setAttribute("required", "required");
+      } else if (["license", "licenseCategory", "licenseExpiry"].includes(name)) {
+        inp.removeAttribute("required");
+      }
+    });
+  }
+
+  if (hintEl) {
+    const integral =
+      position.integralSalary === true || String(position.integralSalary).toLowerCase() === "true";
+    const bits = [
+      `Cargo: ${String(position.name || "").trim()}`,
+      wr === "conductor" ? "Conductor" : "Empleado",
+      contractType ? `Contrato: ${contractType}` : "",
+      schedule ? `Jornada: ${schedule}` : "",
+      integral ? "Salario integral (catálogo)" : "",
+      `Salario $${parseNum(position.baseSalary).toLocaleString("es-CO")}`,
+      `Auxilio $${readPositionTransportAllowanceCop(position).toLocaleString("es-CO")}`
+    ].filter(Boolean);
+    hintEl.textContent = `${bits.join(" · ")}. Puede ajustar salario o auxilio si el pacto lo exige.`;
+  }
+
+  if (typeof options.onAfterApply === "function") options.onAfterApply(position);
+  return true;
+}
+
+function bindPositionCompensationFields(form, config = {}) {
+  const basisSelect = form?.querySelector?.(config.basisSelector || 'select[name="salaryBasis"]');
+  const salaryInput = form?.querySelector?.(config.salarySelector || 'input[name="baseSalary"]');
+  const minSalary = CO_HR_RULES.minMonthlySalary;
+  const transportRule = bindEmployeeTransportAllowanceRule(form, {
+    salarySelector: config.salarySelector || 'input[name="baseSalary"]',
+    auxSelector: config.auxSelector || 'input[name="transportAllowance"]',
+    hintSelector: config.hintSelector || "#position-legal-comp-hint",
+    preserveExistingValue: Boolean(config.preserveExistingValue)
+  });
+  if (!basisSelect || !salaryInput) return { sync: transportRule.sync };
+  const syncBasis = () => {
+    const isSmmlv = String(basisSelect.value || "smmlv") === "smmlv";
+    if (isSmmlv) {
+      salaryInput.value = String(minSalary);
+      salaryInput.readOnly = true;
+      salaryInput.setAttribute("readonly", "readonly");
+    } else {
+      salaryInput.readOnly = false;
+      salaryInput.removeAttribute("readonly");
+      if (parseNum(salaryInput.value) < minSalary) salaryInput.value = String(minSalary);
+    }
+    transportRule.sync({ force: isSmmlv });
+  };
+  basisSelect.addEventListener("change", syncBasis);
+  salaryInput.addEventListener("input", () => {
+    if (String(basisSelect.value || "") === "custom") transportRule.sync();
+  });
+  syncBasis();
+  return {
+    sync: ({ force = false } = {}) => {
+      syncBasis();
+      transportRule.sync({ force });
+    }
+  };
 }
 
 function employeeTransportAllowanceGuidance(baseSalary) {
@@ -20759,6 +20983,8 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
         <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
+        <p class="full muted" id="emp-position-catalog-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Seleccione un cargo del catálogo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.</p>
+        <input type="hidden" name="workSchedule" id="emp-work-schedule" value="" />
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
         <div id="emp-contract-duration-block" class="emp-contract-duration-panel full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
           <p class="emp-contract-duration-title">${fieldLabel(IC.calendar, "Plazo o duración del contrato")}</p>
@@ -20785,8 +21011,8 @@ function payrollHtml() {
         <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
         <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" /></label>
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
-        <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel">${arlRiskOpts}</select></label>
-        <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" required>
+        <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel" id="emp-arl-risk-level">${arlRiskOpts}</select></label>
+        <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
           <option value="oficina">Contrato trabajo personal oficina</option>
           <option value="fijo">Contrato personal término fijo</option>
           <option value="prestacion">Contrato prestación de servicios conductores</option>
@@ -21617,6 +21843,7 @@ function installCandidateCvDownloadDelegation() {
 
 function hiringHtml() {
   const vacancies = read(KEYS.vacancies, []);
+  const vacanciesOpenForApply = vacancies.filter(isVacancyAcceptingApplications);
   const candidates = read(KEYS.candidates, []);
   const positions = read(KEYS.positions, []);
   const activePositions = positions.filter((p) => p.active !== false);
@@ -21626,7 +21853,9 @@ function hiringHtml() {
   const candidatesForInterviewSelect = candidates.filter((c) =>
     !["Contratado", "Descartado"].includes(String(c.status || ""))
   );
-  const positionOptions = activePositions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
+  const positionOptions = activePositions
+    .map((p) => `<option value="${escapeAttr(String(p.id))}">${escapeHtml(String(p.name || ""))}</option>`)
+    .join("");
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
   const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
@@ -21663,6 +21892,7 @@ function hiringHtml() {
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(p.name || ""))}</strong><span>Catálogo base de contratación</span></div></td>
       <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
       <td>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</td>
+      <td>$${readPositionTransportAllowanceCop(p).toLocaleString("es-CO")}</td>
       <td>${String(p.integralSalary) === "true" || p.integralSalary === true ? "Sí" : "No"}</td>
       <td>${escapeHtml(String(p.contractTypeDefault || "-"))}</td>
       <td>${escapeHtml(String(p.legalBasis || "CST"))}</td>
@@ -21795,7 +22025,13 @@ function hiringHtml() {
           <option value="empleado">Empleado</option>
           <option value="conductor">Conductor</option>
         </select></label>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" /></label>
+        <label>${fieldLabel(IC.dollar, "Referencia salarial")}<select name="salaryBasis" id="position-salary-basis" required>
+          <option value="smmlv">Salario mínimo legal (SMMLV)</option>
+          <option value="custom">Otro valor (ajustar)</option>
+        </select></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="position-base-salary" min="${CO_HR_RULES.minMonthlySalary}" value="${CO_HR_RULES.minMonthlySalary}" required readonly placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <label>${fieldLabel(IC.truck, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="position-transport-allowance" value="${suggestedEmployeeTransportAllowanceCop(CO_HR_RULES.minMonthlySalary)}" min="0" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <p class="full muted" id="position-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
         <label>${fieldLabel(IC.activity, "Tipo de contrato sugerido")}<select name="contractTypeDefault" required>
           ${CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("")}
         </select></label>
@@ -21832,7 +22068,8 @@ function hiringHtml() {
         <label>${fieldLabel(IC.globe, "Modalidad")}<select name="modality" required><option value="Presencial">Presencial</option><option value="Híbrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
         <label>${fieldLabel(IC.clock, "Jornada")}<select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label>
         <label>${fieldLabel(IC.users, "Cupos")}<input type="number" min="1" name="openings" value="1" required /></label>
-        <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" required placeholder="Mín. SMMLV" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" id="vacancy-salary-offer" required placeholder="Mín. SMMLV" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <p class="full muted" id="vacancy-salary-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Se precarga desde el cargo; no puede ser inferior al salario del catálogo ni al SMMLV.</p>
         <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
         <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
       </div>
@@ -21894,7 +22131,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.star, "Años de experiencia en el cargo")}<input type="number" min="0" step="1" name="experienceYears" value="0" required /></label>
         <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
         <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
-        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacancies.map((v) => `<option value="${escapeAttr(String(v.id))}">${escapeHtml(String(v.title || ""))}${v.status === "Cerrada" ? " · Cerrada" : ""}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacanciesOpenForApply.map((v) => `<option value="${escapeAttr(String(v.id))}">${escapeHtml(String(v.title || ""))}</option>`).join("")}</select><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Solo vacantes publicadas con fecha límite vigente.</span></label>
         <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" multiple /></label>
       </div>
     </fieldset>
@@ -22011,7 +22248,7 @@ function hiringHtml() {
     </div>
   </form>`;
 
-  const tPos = positionRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Integral</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
+  const tPos = positionRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Auxilio transporte</th><th>Integral</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
   const tVac = vacRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--vacancies"><table class="hiring-table hiring-table--vacancies"><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
   const tCand = candRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
   const tInt = interviewRows
@@ -23420,12 +23657,19 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
   if (!position || position.active === false) {
     return { ok: false, msg: userMessage("recruitSelectActivePosition") };
   }
-  const baseSalary = parseNum(raw.baseSalary);
-  if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-    return {
-      ok: false,
-      msg: userMessage("recruitSalaryMinRef", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO"))
-    };
+  const salaryCheck = validateColombiaMonthlySalaryCop(raw.baseSalary, "Salario base");
+  if (!salaryCheck.ok) {
+    return { ok: false, msg: salaryCheck.message };
+  }
+  const baseSalary = salaryCheck.amount;
+  const ageCheck = validateWorkerMinimumAge(raw.birthDate, "trabajador");
+  if (!ageCheck.ok) {
+    return { ok: false, msg: ageCheck.message };
+  }
+  const posIntegral = position.integralSalary === true || String(position.integralSalary) === "true";
+  const integralCheck = validateColombiaIntegralSalary(baseSalary, posIntegral);
+  if (!integralCheck.ok) {
+    return { ok: false, msg: integralCheck.message };
   }
   const effectiveContractType = String(
     raw.contractType || position.contractTypeDefault || "Termino indefinido"
@@ -23476,13 +23720,26 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       arl: String(raw.arl || "").trim(),
       severanceFund: String(raw.severanceFund || "").trim(),
       compensationFund: String(raw.compensationFund || "").trim(),
-      arlRiskLevel: String(raw.arlRiskLevel || "").trim(),
+      arlRiskLevel: String(raw.arlRiskLevel || position.arlRiskLevel || "").trim(),
+      workSchedule: String(raw.workSchedule || position.workSchedule || position.schedule || "").trim(),
       contributorType: String(raw.contributorType || "").trim(),
       costCenter: String(raw.costCenter || "").trim(),
       payFrequency: String(raw.payFrequency || "Mensual").trim(),
       baseSalary,
-      transportAllowance: resolveEmployeeTransportAllowanceCop(raw.transportAllowance, baseSalary),
-      contractTemplateKind: String(raw.contractTemplateKind || "").trim(),
+      transportAllowance: resolveEmployeeTransportAllowanceCop(
+        raw.transportAllowance != null && String(raw.transportAllowance).trim() !== ""
+          ? raw.transportAllowance
+          : position.transportAllowance,
+        baseSalary
+      ),
+      contractTemplateKind:
+        String(raw.contractTemplateKind || "").trim() ||
+        (window.RecruitmentDomain?.inferTemplateKind
+          ? window.RecruitmentDomain.inferTemplateKind(
+              effectiveContractType,
+              position.workerRole || "empleado"
+            )
+          : "oficina"),
       contractDuration: composedDur,
       bankName: String(raw.bankName || "").trim(),
       bankAccount: String(raw.bankAccount || "").trim(),
@@ -23508,13 +23765,22 @@ function validateEmployeeContractDocFields(emp) {
   if (!String(emp.city || "").trim()) miss.push("ciudad de residencia");
   if (!String(emp.bankName || "").trim()) miss.push("banco");
   if (!String(emp.bankAccount || "").trim()) miss.push("numero de cuenta");
-  if (parseNum(emp.baseSalary) < CO_HR_RULES.minMonthlySalary) miss.push("salario base (minimo legal)");
+  if (!validateColombiaMonthlySalaryCop(emp.baseSalary).ok) miss.push("salario base (minimo legal)");
+  const pos = getPositionById(String(emp.positionId || ""));
+  const integralFlag = pos?.integralSalary === true || String(pos?.integralSalary) === "true";
+  if (integralFlag && !validateColombiaIntegralSalary(emp.baseSalary, true).ok) {
+    miss.push("salario integral (minimo 13 SMMLV)");
+  }
   if (contractTypeRequiresDurationPlazo(emp.contractType) && !String(emp.contractDuration || "").trim()) {
     miss.push("duracion del contrato");
   }
   if (!String(emp.contractType || "").trim()) miss.push("tipo de contrato");
-  const pos = getPositionById(String(emp.positionId || ""));
+  if (!String(emp.startDate || "").trim()) miss.push("fecha de ingreso");
+  if (!String(emp.eps || "").trim()) miss.push("EPS");
+  if (!String(emp.pensionFund || "").trim()) miss.push("fondo de pension");
+  if (!String(emp.arl || "").trim()) miss.push("ARL");
   if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
+  if (!String(emp.companyId || "").trim()) miss.push("empresa");
   return miss;
 }
 
@@ -23737,6 +24003,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
 <label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
+<input type="hidden" name="workSchedule" id="employee-modal-work-schedule" value="${escapeAttr(String(e.workSchedule || ""))}" />
 <label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" id="employee-modal-contract-type" required>${contractSel}</select></label>
 <div id="emp-edit-contract-duration-block" class="emp-contract-duration-panel full${showPlazoBlockInit ? "" : " hidden"}" style="grid-column:1/-1"${showPlazoBlockInit ? "" : " hidden"}${showPlazoBlockInit ? "" : ' aria-hidden="true"'}>
 <p class="emp-contract-duration-title"><span>${escapeHtml("Plazo o duración del contrato")}</span></p>
@@ -23763,8 +24030,8 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Periodicidad pago")}</span><select name="payFrequency">${payFreqSel}</select></label>
 <label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(e.costCenter || "")}" /></label>
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
-<label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
-<label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" required>${tmplSel}</select></label>
+<label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel" id="employee-modal-arl-risk">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
+<label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" id="employee-modal-contract-template" required>${tmplSel}</select></label>
 </div>`
     },
     {
@@ -28037,14 +28304,20 @@ function bindDynamicEvents() {
     });
     const syncEmpFromPosition = () => {
       const position = getPositionById(String(empPosSelect?.value || ""));
-      if (!position || !empSalary || !empContract) {
-        syncPlazoVisibility();
-        return;
-      }
-      empSalary.value = String(parseNum(position.baseSalary));
-      empContract.value = position.contractTypeDefault || "Termino indefinido";
-      employeeCompRule.sync({ force: true });
-      syncPlazoVisibility();
+      applyPositionCatalogToEmployeeForm(employeeForm, position, {
+        salarySelector: "#emp-base-salary",
+        contractSelector: "#emp-contract-type",
+        auxSelector: "#emp-transport-allowance",
+        arlRiskSelector: "#emp-arl-risk-level",
+        templateSelector: "#emp-contract-template-kind",
+        scheduleSelector: "#emp-work-schedule",
+        hintSelector: "#emp-position-catalog-hint",
+        onAfterApply: () => {
+          employeeCompRule.sync({ force: true });
+          syncPlazoVisibility();
+        }
+      });
+      if (!position) syncPlazoVisibility();
     };
     if (empPosSelect) {
       empPosSelect.addEventListener("change", syncEmpFromPosition);
@@ -28362,14 +28635,20 @@ function bindDynamicEvents() {
           });
           const syncFromPos = () => {
             const p = getPositionById(String(pos?.value || ""));
-            if (!p || !salary) {
-              syncPlazoEdit();
-              return;
-            }
-            salary.value = String(parseNum(p.baseSalary));
-            if (contract && p.contractTypeDefault) contract.value = p.contractTypeDefault;
-            compensationRule.sync({ force: true });
-            syncPlazoEdit();
+            applyPositionCatalogToEmployeeForm(formEl, p, {
+              salarySelector: "#employee-modal-salary",
+              contractSelector: "#employee-modal-contract-type",
+              auxSelector: "#employee-modal-transport-allowance",
+              arlRiskSelector: "#employee-modal-arl-risk",
+              templateSelector: "#employee-modal-contract-template",
+              scheduleSelector: "#employee-modal-work-schedule",
+              hintSelector: "#employee-modal-legal-comp-hint",
+              onAfterApply: () => {
+                compensationRule.sync({ force: true });
+                syncPlazoEdit();
+              }
+            });
+            if (!p) syncPlazoEdit();
           };
           pos?.addEventListener("change", syncFromPos);
           const illnessSel = formEl.querySelector("[data-emp-edit-illness]");
@@ -29275,14 +29554,24 @@ function bindDynamicEvents() {
     });
     const positionSelect = vacancyForm.querySelector("select[name='positionId']");
     const titleInput = vacancyForm.querySelector("input[name='title']");
-    if (positionSelect && titleInput) {
-      const syncTitleFromPosition = () => {
-        if (titleInput.value.trim()) return;
+    const salaryOfferInput = vacancyForm.querySelector("#vacancy-salary-offer");
+    const vacancySalaryHint = vacancyForm.querySelector("#vacancy-salary-hint");
+    if (positionSelect) {
+      const syncFromPosition = () => {
         const position = getPositionById(String(positionSelect.value || ""));
-        if (position) titleInput.value = `Vacante ${position.name}`;
+        if (!position) return;
+        if (titleInput && !titleInput.value.trim()) titleInput.value = `Vacante ${position.name}`;
+        if (salaryOfferInput) {
+          salaryOfferInput.min = String(Math.max(CO_HR_RULES.minMonthlySalary, parseNum(position.baseSalary)));
+          salaryOfferInput.value = String(parseNum(position.baseSalary));
+        }
+        if (vacancySalaryHint) {
+          const catalog = parseNum(position.baseSalary).toLocaleString("es-CO");
+          vacancySalaryHint.textContent = `Cargo «${position.name}»: salario catálogo $${catalog}. Mínimo legal SMMLV $${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}.`;
+        }
       };
-      positionSelect.addEventListener("change", syncTitleFromPosition);
-      syncTitleFromPosition();
+      positionSelect.addEventListener("change", syncFromPosition);
+      syncFromPosition();
     }
 
     wireFormSubmitGuard(vacancyForm, async (event) => {
@@ -29318,9 +29607,9 @@ function bindDynamicEvents() {
         notify(userMessage("vacancySelectPosition"), "error");
         return;
       }
-      const salaryOffer = parseNum(data.salaryOffer);
-      if (salaryOffer < CO_HR_RULES.minMonthlySalary) {
-        notify(userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
+      const salaryValidation = validateVacancySalaryOffer(data.salaryOffer, position);
+      if (!salaryValidation.ok) {
+        notify(salaryValidation.message, "error");
         return;
       }
       const all = read(KEYS.vacancies, []);
@@ -29328,7 +29617,7 @@ function bindDynamicEvents() {
         id: newUuidV4(),
         ...data,
         openings: Math.max(1, parseNum(data.openings || 1)),
-        salaryOffer,
+        salaryOffer: salaryValidation.salaryOffer,
         positionName: position.name,
         workerRole: position.workerRole || "empleado",
         contractTypeDefault: position.contractTypeDefault || "Termino indefinido",
@@ -29352,11 +29641,24 @@ function bindDynamicEvents() {
 
   const positionForm = document.getElementById("form-position");
   if (positionForm) {
+    bindPositionCompensationFields(positionForm, {
+      basisSelector: "#position-salary-basis",
+      salarySelector: "#position-base-salary",
+      auxSelector: "#position-transport-allowance",
+      hintSelector: "#position-legal-comp-hint"
+    });
     wireFormSubmitGuard(positionForm, async (event) => {
       const data = Object.fromEntries(new FormData(positionForm).entries());
       const minSalary = CO_HR_RULES.minMonthlySalary;
-      if (parseNum(data.baseSalary) < minSalary) {
-        notify(userMessage("positionSalaryBaseMin", minSalary.toLocaleString("es-CO")), "error");
+      const baseSalary =
+        String(data.salaryBasis || "smmlv") === "smmlv" ? minSalary : parseNum(data.baseSalary);
+      const comp = validateColombiaPositionCompensation({
+        baseSalary,
+        integralSalary: String(data.integralSalary || "false") === "true",
+        transportAllowance: data.transportAllowance
+      });
+      if (!comp.ok) {
+        notify(comp.message, "error");
         return;
       }
       const all = read(KEYS.positions, []);
@@ -29364,7 +29666,8 @@ function bindDynamicEvents() {
         id: newUuidV4(),
         name: String(data.name || "").trim(),
         workerRole: String(data.workerRole || "empleado"),
-        baseSalary: parseNum(data.baseSalary),
+        baseSalary: comp.baseSalary,
+        transportAllowance: comp.transportAllowance,
         contractTypeDefault: String(data.contractTypeDefault || "Termino indefinido"),
         workSchedule: String(data.workSchedule || "").trim(),
         arlRiskLevel: String(data.arlRiskLevel || "").trim(),
@@ -29572,16 +29875,26 @@ function bindDynamicEvents() {
         notify(userMessage("hireSelectVacancy"), "error");
         return;
       }
+      if (!isVacancyAcceptingApplications(vac)) {
+        notify("La vacante seleccionada está cerrada o venció la fecha límite de postulación.", "error");
+        return;
+      }
       const filesFromInput = await readCandidateHrAttachmentsFromInput(candidateForm.querySelector("input[name='attachments']"));
       if (filesFromInput === null) return;
       const attachmentList =
         filesFromInput.length > 0
           ? filesFromInput
           : [...(candidateForm.querySelector("input[name='attachments']")?.files ?? [])].map((f) => f.name);
-      const expectedSalary = parseNum(data.expectedSalary);
-      if (expectedSalary < CO_HR_RULES.minMonthlySalary) {
+      const aspirationCheck = validateColombiaMonthlySalaryCop(data.expectedSalary, "Aspiración salarial");
+      if (!aspirationCheck.ok) {
+        notify(aspirationCheck.message, "error");
+        return;
+      }
+      const expectedSalary = aspirationCheck.amount;
+      const offerRef = parseNum(vac.salaryOffer);
+      if (offerRef > 0 && expectedSalary < offerRef) {
         notify(
-          userMessage("candidateSalaryAspirationMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+          `La aspiración salarial no puede ser inferior al salario ofrecido en la vacante ($${offerRef.toLocaleString("es-CO")}).`,
           "error"
         );
         return;
@@ -29847,6 +30160,7 @@ function bindDynamicEvents() {
           companyId: String(employee.companyId || employeeCompany?.id || "").trim(),
           companyName: String(employeeCompany?.name || "").trim(),
           salary: payload.salario,
+          transportAllowance: readEmployeeTransportAllowanceCop(employee),
           startDate: signDate,
           contractType: payload.contractType,
           contractTemplateKind: payload.contractTemplateKind,
@@ -31259,7 +31573,7 @@ function bindExtendedViewEditHandlers() {
       const positions = read(KEYS.positions, []).filter((p) => p.active !== false);
       const positionOpts = [
         { value: "", label: "Seleccione cargo..." },
-        ...positions.map((p) => ({ value: p.id, label: `${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}` }))
+        ...positions.map((p) => ({ value: p.id, label: String(p.name || "") }))
       ];
       openEditModal({
         title: "Editar vacante",
@@ -31296,15 +31610,29 @@ function bindExtendedViewEditHandlers() {
             ]
           }
         ],
-        onSubmit: (form) => {
-          const salaryOffer = parseNum(form.salaryOffer);
-          if (salaryOffer < CO_HR_RULES.minMonthlySalary) {
-            notify(userMessage("recruitSalaryBelowMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
-            return false;
-          }
+        onSubmit: async (form) => {
           const position = getPositionById(String(form.positionId || ""));
           if (!position) {
             notify(userMessage("vacancySelectPosition"), "error");
+            return false;
+          }
+          const salaryValidation = validateVacancySalaryOffer(form.salaryOffer, position);
+          if (!salaryValidation.ok) {
+            notify(salaryValidation.message, "error");
+            return false;
+          }
+          const deadline = String(form.deadline || "").trim();
+          const deadlineOk = (() => {
+            const parts = deadline.split("-");
+            if (parts.length !== 3) return false;
+            const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+            if (!Number.isFinite(cand)) return false;
+            const t = new Date();
+            const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+            return cand >= t0;
+          })();
+          if (!deadlineOk) {
+            notify(userMessage("vacancyDeadlineFuture"), "error");
             return false;
           }
           const pFrom = String(form.publishedFrom || "").trim();
@@ -31313,36 +31641,38 @@ function bindExtendedViewEditHandlers() {
               notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
               return false;
             }
-            const dlim = String(form.deadline || "").trim();
-            if (publicVacancyYmdValid(dlim) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(dlim)) {
+            if (publicVacancyYmdValid(deadline) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(deadline)) {
               notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
               return false;
             }
           }
-          write(
-            KEYS.vacancies,
-            all.map((v) =>
-              String(v.id) !== String(target.id)
-                ? v
-                : {
-                    ...v,
-                    title: String(form.title || "").trim(),
-                    positionId: position.id,
-                    positionName: position.name,
-                    workerRole: position.workerRole || v.workerRole || "empleado",
-                    contractTypeDefault: position.contractTypeDefault || v.contractTypeDefault,
-                    city: String(form.city || "").trim(),
-                    department: String(form.department || "").trim(),
-                    modality: String(form.modality || "").trim(),
-                    openings: Math.max(1, parseNum(form.openings || 1)),
-                    salaryOffer,
-                    deadline: form.deadline || "",
-                    publishedFrom: pFrom,
-                    requirements: String(form.requirements || "").trim(),
-                    status: String(form.status || "Publicada")
-                  }
-            )
+          const nextVacancies = all.map((v) =>
+            String(v.id) !== String(target.id)
+              ? v
+              : stampUpdatedRecord({
+                  ...v,
+                  title: String(form.title || "").trim(),
+                  positionId: position.id,
+                  positionName: position.name,
+                  workerRole: position.workerRole || v.workerRole || "empleado",
+                  contractTypeDefault: position.contractTypeDefault || v.contractTypeDefault,
+                  city: String(form.city || "").trim(),
+                  department: String(form.department || "").trim(),
+                  modality: String(form.modality || "").trim(),
+                  openings: Math.max(1, parseNum(form.openings || 1)),
+                  salaryOffer: salaryValidation.salaryOffer,
+                  deadline,
+                  publishedFrom: pFrom,
+                  requirements: String(form.requirements || "").trim(),
+                  status: String(form.status || "Publicada")
+                })
           );
+          try {
+            await writeAwaitServer(KEYS.vacancies, nextVacancies);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
+            return false;
+          }
           notify("Vacante actualizada.", "success");
           renderPortalView();
           return true;
@@ -31367,6 +31697,7 @@ function bindExtendedViewEditHandlers() {
             ["Nombre", `<strong>${escapeHtml(String(p.name || ""))}</strong>`],
             ["Rol", p.workerRole === "conductor" ? "Conductor" : "Empleado"],
             ["Salario base", fmtMoney(p.baseSalary)],
+            ["Auxilio transporte", fmtMoney(readPositionTransportAllowanceCop(p))],
             ["Tipo de contrato", escapeHtml(String(p.contractTypeDefault || "-"))],
             ["Estado", p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'],
             ["Jornada", escapeHtml(String(p.workSchedule || "-"))],
@@ -31421,7 +31752,24 @@ function bindExtendedViewEditHandlers() {
               { value: "conductor", label: "Conductor" }
             ]
           },
+          {
+            name: "salaryBasis",
+            label: "Referencia salarial",
+            type: "select",
+            value: positionSalaryUsesSmmlv(target.baseSalary) ? "smmlv" : "custom",
+            options: [
+              { value: "smmlv", label: "Salario mínimo legal (SMMLV)" },
+              { value: "custom", label: "Otro valor (ajustar)" }
+            ]
+          },
           { name: "baseSalary", label: "Salario base (COP)", type: "number", value: parseNum(target.baseSalary || 0), required: true },
+          {
+            name: "transportAllowance",
+            label: "Auxilio transporte (COP)",
+            type: "number",
+            value: readPositionTransportAllowanceCop(target),
+            required: true
+          },
           { name: "contractTypeDefault", label: "Contrato sugerido", type: "select", value: target.contractTypeDefault || "", options: contractOpts },
           { name: "workSchedule", label: "Jornada", type: "select", value: target.workSchedule || "", options: scheduleOpts },
           { name: "arlRiskLevel", label: "Nivel ARL", type: "select", value: target.arlRiskLevel || "", options: arlOpts },
@@ -31437,10 +31785,25 @@ function bindExtendedViewEditHandlers() {
           },
           { name: "legalBasis", label: "Base legal", value: target.legalBasis || "CST art. 45-46 y normatividad laboral vigente" }
         ],
+        afterMount: (formEl) => {
+          bindPositionCompensationFields(formEl, {
+            basisSelector: 'select[name="salaryBasis"]',
+            salarySelector: 'input[name="baseSalary"]',
+            auxSelector: 'input[name="transportAllowance"]',
+            preserveExistingValue: true
+          });
+        },
         onSubmit: async (form) => {
-          const baseSalary = parseNum(form.baseSalary);
-          if (baseSalary < CO_HR_RULES.minMonthlySalary) {
-            notify(userMessage("positionSalaryBaseMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")), "error");
+          const minSalary = CO_HR_RULES.minMonthlySalary;
+          const baseSalary =
+            String(form.salaryBasis || "smmlv") === "smmlv" ? minSalary : parseNum(form.baseSalary);
+          const comp = validateColombiaPositionCompensation({
+            baseSalary,
+            integralSalary: String(form.integralSalary || "false") === "true",
+            transportAllowance: form.transportAllowance
+          });
+          if (!comp.ok) {
+            notify(comp.message, "error");
             return false;
           }
           const nextPos = all.map((p) =>
@@ -31450,7 +31813,8 @@ function bindExtendedViewEditHandlers() {
                     ...p,
                     name: String(form.name || "").trim(),
                     workerRole: String(form.workerRole || "empleado"),
-                    baseSalary,
+                    baseSalary: comp.baseSalary,
+                    transportAllowance: comp.transportAllowance,
                     contractTypeDefault: String(form.contractTypeDefault || "").trim(),
                     workSchedule: String(form.workSchedule || "").trim(),
                     arlRiskLevel: String(form.arlRiskLevel || "").trim(),
@@ -31658,26 +32022,44 @@ function bindExtendedViewEditHandlers() {
           const birthCand = String(form.birthDate || "")
             .trim()
             .slice(0, 10);
-          const editAgeInfo = portalCandidateAgeFromBirthIso(birthCand);
-          if (editAgeInfo.age === null) {
-            notify("Indique una fecha de nacimiento válida.", "error");
+          const ageCheck = validateWorkerMinimumAge(birthCand, "candidato");
+          if (!ageCheck.ok) {
+            notify(ageCheck.message, "error");
             return false;
           }
-          if (editAgeInfo.age < 18) {
-            notify("El candidato debe ser mayor de 18 años.", "error");
+          const aspirationCheck = validateColombiaMonthlySalaryCop(form.expectedSalary, "Aspiración salarial");
+          if (!aspirationCheck.ok) {
+            notify(aspirationCheck.message, "error");
             return false;
           }
-          const expectedSalary = parseNum(form.expectedSalary);
-          if (expectedSalary && expectedSalary < CO_HR_RULES.minMonthlySalary) {
+          const expectedSalary = aspirationCheck.amount;
+          const vac = read(KEYS.vacancies, []).find((v) => String(v.id) === String(form.vacancyId));
+          if (!vac) {
+            notify(userMessage("hireSelectVacancy"), "error");
+            return false;
+          }
+          if (
+            String(form.vacancyId || "") !== String(target.vacancyId || "") &&
+            !isVacancyAcceptingApplications(vac)
+          ) {
+            notify("No puede asignar a una vacante cerrada o con fecha límite vencida.", "error");
+            return false;
+          }
+          const offerRef = parseNum(vac.salaryOffer);
+          if (offerRef > 0 && expectedSalary < offerRef) {
             notify(
-              userMessage("candidateSalaryAspirationMin", CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")),
+              `La aspiración salarial no puede ser inferior al salario ofrecido ($${offerRef.toLocaleString("es-CO")}).`,
               "error"
             );
             return false;
           }
-          const vac = read(KEYS.vacancies, []).find((v) => String(v.id) === String(form.vacancyId));
-          if (!vac) {
-            notify(userMessage("hireSelectVacancy"), "error");
+          const nextStatus = String(form.status || target.status || PIPELINE[0]);
+          const statusValidation = validateCandidatePipelineTransition(
+            { ...target, status: target.status },
+            nextStatus
+          );
+          if (!statusValidation.ok) {
+            notify(statusValidation.message, "error");
             return false;
           }
           const nextCandidates = all.map((c) =>
@@ -31690,7 +32072,7 @@ function bindExtendedViewEditHandlers() {
                     phone: String(form.phone || "").trim(),
                     documentType: form.documentType,
                     idDoc: docValidation.normalized,
-                    birthDate: String(form.birthDate || "").trim().slice(0, 10),
+                    birthDate: birthCand,
                     city: String(form.city || "").trim(),
                     department: String(form.department || "").trim(),
                     address: String(form.address || "").trim(),
@@ -31700,7 +32082,7 @@ function bindExtendedViewEditHandlers() {
                     availabilityDate: form.availabilityDate || "",
                     vacancyId: vac.id,
                     vacancyTitle: vac.title,
-                    status: String(form.status || c.status || PIPELINE[0]),
+                    status: nextStatus,
                     source: String(form.source || "Portal RRHH")
                   })
             );

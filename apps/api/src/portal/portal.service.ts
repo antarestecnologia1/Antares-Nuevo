@@ -3758,12 +3758,14 @@ export class PortalService implements OnModuleInit {
       name: p.nombre,
       workerRole: p.rol_trabajador,
       baseSalary: Number(p.salario_base_mensual),
+      transportAllowance: p.auxilio_transporte != null ? Number(p.auxilio_transporte) : null,
       contractTypeDefault: p.tipo_contrato_sugerido,
       legalBasis: p.fundamento_legal,
       active: p.activo,
       createdAt: p.fecha_creacion ? new Date(p.fecha_creacion).toISOString() : new Date().toISOString(),
       updatedAt: p.fecha_actualizacion ? new Date(p.fecha_actualizacion).toISOString() : null,
       schedule: p.jornada_referencia,
+      workSchedule: p.jornada_referencia,
       arlRiskLevel: p.nivel_riesgo_arl,
       integralSalary: p.salario_integral
     }));
@@ -6674,9 +6676,15 @@ export class PortalService implements OnModuleInit {
           integralRaw === true ||
           integralRaw === "true" ||
           (typeof integralRaw === "string" && integralRaw.toLowerCase() === "true");
+        const baseSalary = Number(p.baseSalary) || 0;
+        const transportRaw = pickPortalField(p, "transportAllowance");
+        const transportAllowance =
+          transportRaw != null && String(transportRaw).trim() !== ""
+            ? Math.max(0, Number(transportRaw) || 0)
+            : null;
         await c.query(
-          `INSERT INTO cargos (id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal, activo, jornada_referencia, nivel_riesgo_arl, salario_integral)
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO cargos (id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal, activo, jornada_referencia, nivel_riesgo_arl, salario_integral, auxilio_transporte)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            ON CONFLICT (id) DO UPDATE SET
              nombre = EXCLUDED.nombre,
              rol_trabajador = EXCLUDED.rol_trabajador,
@@ -6686,18 +6694,20 @@ export class PortalService implements OnModuleInit {
              activo = EXCLUDED.activo,
              jornada_referencia = EXCLUDED.jornada_referencia,
              nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
-             salario_integral = EXCLUDED.salario_integral`,
+             salario_integral = EXCLUDED.salario_integral,
+             auxilio_transporte = EXCLUDED.auxilio_transporte`,
           [
             p.id,
             p.name,
             p.workerRole || "empleado",
-            Number(p.baseSalary) || 0,
+            baseSalary,
             p.contractTypeDefault || "Indefinido",
             p.legalBasis || "",
             p.active !== false,
-            (pickPortalField(p, "workSchedule") as string) || null,
+            (pickPortalField(p, "workSchedule", "schedule") as string) || null,
             (pickPortalField(p, "arlRiskLevel") as string) || null,
-            integral ? true : integralRaw === false || integralRaw === "false" ? false : null
+            integral ? true : integralRaw === false || integralRaw === "false" ? false : null,
+            transportAllowance
           ]
         );
       }
@@ -6886,15 +6896,20 @@ export class PortalService implements OnModuleInit {
         ) {
           continue;
         }
+        const transportRaw = pickPortalField(row, "transportAllowance");
+        const auxilioTransporte =
+          transportRaw != null && String(transportRaw).trim() !== ""
+            ? Math.max(0, Number(transportRaw) || 0)
+            : null;
         await c.query(
           `INSERT INTO contratos (
             id, etiqueta_origen, tipo_persona_origen, id_candidato, nombre_candidato_denorm, id_empleado, nombre_empleado_denorm,
             rol_trabajador, id_cargo, nombre_cargo_denorm, salario_pactado, fecha_inicio, id_empresa, nombre_empresa_denorm,
             tipo_contrato, tipo_plantilla_word, documento_identidad_snapshot, eps, fondo_pension, arl, jornada_turno,
-            texto_contenido_resumen
+            auxilio_transporte, texto_contenido_resumen
           ) VALUES (
             $1::uuid, $2, $3, $4::uuid, $5, $6::uuid, $7, $8, $9::uuid, $10, $11, $12::date, $13::uuid, $14,
-            $15, $16, $17, $18, $19, $20, $21, $22
+            $15, $16, $17, $18, $19, $20, $21, $22, $23
           )
           ON CONFLICT (id) DO UPDATE SET
             etiqueta_origen = EXCLUDED.etiqueta_origen,
@@ -6917,6 +6932,7 @@ export class PortalService implements OnModuleInit {
             fondo_pension = EXCLUDED.fondo_pension,
             arl = EXCLUDED.arl,
             jornada_turno = EXCLUDED.jornada_turno,
+            auxilio_transporte = EXCLUDED.auxilio_transporte,
             texto_contenido_resumen = EXCLUDED.texto_contenido_resumen`,
           [
             row.id,
@@ -6929,7 +6945,7 @@ export class PortalService implements OnModuleInit {
             String(pickPortalField(row, "workerRole") || "empleado").toLowerCase(),
             positionId,
             (pickPortalField(row, "positionName", "position") as string) || "",
-            Number(pickPortalField(row, "salary")) || 0,
+            salaryPactado,
             pickPortalField(row, "startDate") || new Date().toISOString().slice(0, 10),
             companyId,
             (pickPortalField(row, "companyName") as string) || "",
@@ -6940,6 +6956,7 @@ export class PortalService implements OnModuleInit {
             (pickPortalField(row, "pensionFund") as string) || "Porvenir",
             (pickPortalField(row, "arl") as string) || "Sura",
             (pickPortalField(row, "schedule", "workSchedule") as string) || "Diurna",
+            auxilioTransporte,
             (pickPortalField(row, "content") as string) || null
           ]
         );

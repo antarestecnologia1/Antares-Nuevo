@@ -970,6 +970,7 @@ test("portal form smoke", async ({ page, context }) => {
     await submitForm("#form-position", [
       ["name", "Coordinador QA"],
       ["workerRole", "empleado"],
+      ["salaryBasis", "custom"],
       ["baseSalary", "2400000"],
       ["contractTypeDefault", "Termino indefinido"],
       ["workSchedule", "Diurna"],

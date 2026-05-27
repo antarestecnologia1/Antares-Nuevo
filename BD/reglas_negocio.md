@@ -59,8 +59,11 @@ Documento complementario a los scripts en `postgres/` (**tablas y columnas en es
 
 | Regla | Detalle |
 |--------|---------|
-| **Pipeline** | `candidatos.etapa_proceso` según flujo; no “Contratado” sin contrato si así lo define la política. |
-| **Contrato** | Plantillas Word en almacenamiento; metadatos en `contratos`. |
+| **Cargos** | `salario_base_mensual` ≥ SMMLV; `auxilio_transporte` según tope 2 SMMLV; salario integral ≥ 13 SMMLV. |
+| **Vacantes** | Salario ofrecido ≥ salario del cargo y ≥ SMMLV; solo postulación a vacantes publicadas con plazo vigente. |
+| **Candidatos** | Mayoría de edad (18+); aspiración ≥ SMMLV y ≥ salario ofrecido en la vacante. |
+| **Pipeline** | `candidatos.etapa_proceso` según flujo; oferta exige entrevista; “Contratado” exige contrato generado. |
+| **Contrato** | Plantillas Word en almacenamiento; metadatos en `contratos` (incl. `auxilio_transporte`). |
 | **Vinculación** | Al contratar: fila en `empleados_nomina` y, si aplica, `conductores`. |
 
 ---

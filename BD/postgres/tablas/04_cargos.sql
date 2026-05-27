@@ -12,6 +12,7 @@ CREATE TABLE cargos (
   jornada_referencia        VARCHAR(64),
   nivel_riesgo_arl          VARCHAR(8),
   salario_integral          BOOLEAN,
+  auxilio_transporte        NUMERIC(14,2),
   fecha_creacion            TIMESTAMPTZ NOT NULL DEFAULT now(),
   fecha_actualizacion       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -21,3 +22,5 @@ COMMENT ON TABLE cargos IS 'KEYS.positions; catálogo para vacantes y empleados.
 COMMENT ON COLUMN cargos.jornada_referencia IS 'Formulario cargo (Diurna, Nocturna, etc.).';
 
 COMMENT ON COLUMN cargos.nivel_riesgo_arl IS 'I–V según catálogo Colombia.';
+
+COMMENT ON COLUMN cargos.auxilio_transporte IS 'Auxilio legal mensual de referencia; 0 si salario > 2 SMMLV.';

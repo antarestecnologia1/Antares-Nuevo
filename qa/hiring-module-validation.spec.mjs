@@ -404,6 +404,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     const form = page.locator("#form-position");
     await form.locator('input[name="name"]').fill("Coordinador QA Integral");
     await form.locator('select[name="workerRole"]').selectOption("empleado");
+    await form.locator('select[name="salaryBasis"]').selectOption("custom");
     await form.locator('input[name="baseSalary"]').fill("2600000");
     await form.locator('select[name="contractTypeDefault"]').selectOption("Termino fijo");
     await form.locator('select[name="workSchedule"]').selectOption("Mixta");
