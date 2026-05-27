@@ -11690,7 +11690,10 @@ function vehicleHasTermokingEquipment(vehicle) {
 /** Placa miniatura estilo Colombia (fondo amarillo) para tarjetas de vehículo. */
 function renderColombianPlateBadgeHtml(plate) {
   const p = String(plate || "—").trim().toUpperCase() || "—";
-  return `<div class="directory-card__avatar directory-card__avatar--plate" title="${escapeAttr(p)}" aria-label="Placa ${escapeAttr(p)}"><span class="directory-card__plate-mark" aria-hidden="true">COLOMBIA</span><span class="directory-card__plate-text">${escapeHtml(p)}</span></div>`;
+  const len = p.replace(/[^A-Z0-9]/gi, "").length;
+  const sizeClass =
+    len >= 7 ? " directory-card__avatar--plate-plate7" : len >= 6 ? " directory-card__avatar--plate-plate6" : "";
+  return `<div class="directory-card__avatar directory-card__avatar--plate${sizeClass}" title="${escapeAttr(p)}" aria-label="Placa ${escapeAttr(p)}"><span class="directory-card__plate-mark" aria-hidden="true">COLOMBIA</span><span class="directory-card__plate-text">${escapeHtml(p)}</span></div>`;
 }
 
 /** Lo que el cliente define en la solicitud: solo Termoking sí / no (sin tipo de carrocería). */
