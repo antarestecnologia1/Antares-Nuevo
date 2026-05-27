@@ -972,6 +972,33 @@ export class PortalService implements OnModuleInit {
         WHERE tipo_ausencia = 'licencia_paternidad'
       `);
       await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET subtipo_ausencia = 'ordinaria'
+        WHERE tipo_ausencia = 'licencia_maternidad'
+          AND (subtipo_ausencia IS NULL OR btrim(subtipo_ausencia) = '')
+      `);
+      await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET subtipo_ausencia = 'continua'
+        WHERE tipo_ausencia = 'licencia_paternidad'
+          AND (subtipo_ausencia IS NULL OR btrim(subtipo_ausencia) = '')
+      `);
+      await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET dias_reconocidos = LEAST(GREATEST(COALESCE(dias_reconocidos, dias_calendario)::numeric, 1.00), 182.00),
+            unidad_dias_reconocidos = 'calendario'
+        WHERE tipo_ausencia = 'licencia_maternidad'
+      `);
+      await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET dias_reconocidos = CASE
+          WHEN subtipo_ausencia = 'parental_compartida' THEN LEAST(GREATEST(COALESCE(dias_reconocidos, dias_calendario)::numeric, 1.00), 7.00)
+          ELSE LEAST(GREATEST(COALESCE(dias_reconocidos, dias_calendario)::numeric, 1.00), 14.00)
+        END,
+            unidad_dias_reconocidos = 'calendario'
+        WHERE tipo_ausencia = 'licencia_paternidad'
+      `);
+      await this.pool.query(`
         ALTER TABLE public.ausencias_laborales
         ALTER COLUMN dias_reconocidos SET DEFAULT 1.00
       `);
@@ -1056,7 +1083,50 @@ export class PortalService implements OnModuleInit {
         ADD CONSTRAINT chk_ausencias_paternidad_max_14
         CHECK (
           tipo_ausencia <> 'licencia_paternidad'
-          OR (unidad_dias_reconocidos = 'calendario' AND dias_reconocidos <= 14.00)
+          OR (
+            unidad_dias_reconocidos = 'calendario'
+            AND dias_reconocidos <= 14.00
+            AND (
+              subtipo_ausencia IS DISTINCT FROM 'parental_compartida'
+              OR dias_reconocidos <= 7.00
+            )
+          )
+        )
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        DROP CONSTRAINT IF EXISTS chk_ausencias_maternidad_subtipo
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ADD CONSTRAINT chk_ausencias_maternidad_subtipo
+        CHECK (
+          tipo_ausencia <> 'licencia_maternidad'
+          OR subtipo_ausencia IN ('ordinaria', 'parto_multiple', 'parto_prematuro', 'adopcion', 'extension_medica')
+        )
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        DROP CONSTRAINT IF EXISTS chk_ausencias_paternidad_subtipo
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ADD CONSTRAINT chk_ausencias_paternidad_subtipo
+        CHECK (
+          tipo_ausencia <> 'licencia_paternidad'
+          OR subtipo_ausencia IN ('continua', 'flexible', 'parental_compartida')
+        )
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        DROP CONSTRAINT IF EXISTS chk_ausencias_maternidad_max_182
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ADD CONSTRAINT chk_ausencias_maternidad_max_182
+        CHECK (
+          tipo_ausencia <> 'licencia_maternidad'
+          OR (unidad_dias_reconocidos = 'calendario' AND dias_reconocidos <= 182.00)
         )
       `);
       await this.pool.query(`
@@ -6895,7 +6965,12 @@ export class PortalService implements OnModuleInit {
         )
       );
       const subtipoRaw = pickPortalField(row, "subtype", "absenceSubtype");
-      const subtipo = subtipoRaw != null ? String(subtipoRaw).trim() || null : null;
+      let subtipo = subtipoRaw != null ? String(subtipoRaw).trim() || null : null;
+      if (!subtipo) {
+        if (tipo === "permiso_sufragio") subtipo = "votante";
+        else if (tipo === "licencia_maternidad") subtipo = "ordinaria";
+        else if (tipo === "licencia_paternidad") subtipo = "continua";
+      }
       const diasReconocidos = Math.max(
         0.5,
         Number(

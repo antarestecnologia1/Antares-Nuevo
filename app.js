@@ -127,24 +127,155 @@ function isCreatePanelExpanded(panelId, fallbackExpanded = false) {
   return DEFAULT_OPEN_CREATE_PANELS.has(id) || Boolean(fallbackExpanded);
 }
 
+const MODULE_PANEL_LABELS = {
+  minimize: "Minimizar",
+  cancel: "Cancelar",
+  expand: "Abrir formulario"
+};
+
+function renderModulePanelToggleBtn(opts = {}) {
+  const expanded = Boolean(opts.expanded);
+  const toggleAction = String(opts.toggleAction || "toggle-create-panel").trim();
+  const panelId = String(opts.panelId || "").trim();
+  const panelAttr = panelId ? ` data-panel="${escapeAttr(panelId)}"` : "";
+  const expandLabel = String(opts.expandLabel || MODULE_PANEL_LABELS.expand).trim();
+  if (expanded) {
+    return `<button type="button" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--minimize" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="true">${escapeHtml(MODULE_PANEL_LABELS.minimize)}</button>`;
+  }
+  return `<button type="button" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--expand" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="false">${IC.plus} ${escapeHtml(expandLabel)}</button>`;
+}
+
+function renderModulePanelCancelBtn(opts = {}) {
+  const cancelAction = String(opts.cancelAction || "cancel-create-panel").trim();
+  const panelId = String(opts.panelId || "").trim();
+  const panelAttr = panelId ? ` data-panel="${escapeAttr(panelId)}"` : "";
+  const cancelLabel = String(opts.cancelLabel || MODULE_PANEL_LABELS.cancel).trim();
+  return `<button type="button" class="btn btn-sm btn-action module-panel-btn module-panel-btn--cancel" data-action="${escapeAttr(cancelAction)}"${panelAttr}>${IC.x} ${escapeHtml(cancelLabel)}</button>`;
+}
+
+/** Barra superior: expandir (colapsado) o minimizar (expandido) — misma posición en todos los módulos. */
+function renderModulePanelToolbar(opts = {}) {
+  const expanded = Boolean(opts.expanded);
+  const showWhen = String(opts.showWhen || "always").trim();
+  if (showWhen === "collapsed" && expanded) return "";
+  if (showWhen === "expanded" && !expanded) return "";
+  return `<div class="module-panel-toolbar" role="toolbar" aria-label="Controles del panel">${renderModulePanelToggleBtn(opts)}</div>`;
+}
+
 function renderManagedCreateFormActions(panelId, submitHtml, opts = {}) {
   const id = String(panelId || "").trim();
-  const className = String(opts.className || "form-flow-actions full").trim();
-  const cancelLabel = String(opts.cancelLabel || "Cancelar");
-  const minimizeLabel = String(opts.minimizeLabel || "Minimizar");
+  const baseClass = "module-panel-actions module-panel-actions--footer form-flow-actions full";
+  const className = String(opts.className || baseClass).trim();
+  const toggleAction = String(opts.toggleAction || "toggle-create-panel").trim();
+  const cancelAction = String(opts.cancelAction || "cancel-create-panel").trim();
+  const expandLabel = String(opts.expandLabel || MODULE_PANEL_LABELS.expand).trim();
   const extraActionsHtml = String(opts.extraActionsHtml || "").trim();
   const submitMarkup = String(submitHtml || "").trim();
+  const showCancel = opts.showCancel !== false;
   return `<div class="${escapeAttr(className)}">
-    <button type="button" class="btn btn-outline btn-sm" data-action="toggle-create-panel" data-panel="${escapeAttr(id)}">${escapeHtml(minimizeLabel)}</button>
-    <button type="button" class="btn btn-action btn-sm" data-action="cancel-create-panel" data-panel="${escapeAttr(id)}">${IC.x} ${escapeHtml(cancelLabel)}</button>
-    ${extraActionsHtml}
-    ${submitMarkup}
+    <div class="module-panel-actions__group module-panel-actions__group--secondary">
+      ${renderModulePanelToggleBtn({ expanded: true, toggleAction, panelId: id, expandLabel })}
+      ${showCancel ? renderModulePanelCancelBtn({ cancelAction, panelId: id, cancelLabel: opts.cancelLabel }) : ""}
+      ${extraActionsHtml}
+    </div>
+    ${submitMarkup ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${submitMarkup}</div>` : ""}
   </div>`;
+}
+
+/** Pie de formulario de edición: minimizar (opcional), cancelar y guardar. */
+function renderModulePanelEditActions(submitHtml, opts = {}) {
+  const cancelAction = String(opts.cancelAction || "").trim();
+  const toggleAction = String(opts.toggleAction || "").trim();
+  const submitMarkup = String(submitHtml || "").trim();
+  if (!cancelAction || !submitMarkup) return "";
+  const minimizeHtml = toggleAction
+    ? renderModulePanelToggleBtn({ expanded: true, toggleAction, expandLabel: opts.expandLabel })
+    : "";
+  return `<div class="module-panel-actions module-panel-actions--footer form-flow-actions full">
+    <div class="module-panel-actions__group module-panel-actions__group--secondary">
+      ${minimizeHtml}
+      ${renderModulePanelCancelBtn({ cancelAction, cancelLabel: opts.cancelLabel })}
+    </div>
+    <div class="module-panel-actions__group module-panel-actions__group--primary">${submitMarkup}</div>
+  </div>`;
+}
+
+/** Cerrar modal (esquina superior derecha). */
+function renderModalCloseBtn(id = "crud-close") {
+  const safeId = String(id || "crud-close").trim() || "crud-close";
+  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" aria-label="Cerrar">${IC.x}</button>`;
+}
+
+/** Cancelar en pie de modal (mismo estilo que módulos). */
+function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LABELS.cancel) {
+  const safeId = String(id || "crud-cancel").trim() || "crud-cancel";
+  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-action module-panel-btn module-panel-btn--cancel">${IC.x} ${escapeHtml(String(label || MODULE_PANEL_LABELS.cancel))}</button>`;
+}
+
+function renderModalHead(title, opts = {}) {
+  const safeTitle = String(title ?? "").trim();
+  const closeId = String(opts.closeId || "crud-close").trim() || "crud-close";
+  const subtitle = String(opts.subtitle || "").trim();
+  const subtitleHtml = opts.subtitleHtml ? String(opts.subtitleHtml) : "";
+  const subtitleBlock = subtitleHtml
+    ? subtitleHtml
+    : subtitle
+      ? `<p class="muted modal-head__subtitle">${escapeHtml(subtitle)}</p>`
+      : "";
+  const headClass = String(opts.headClass || "").trim();
+  const titleId = String(opts.titleId || "").trim();
+  const titleIdAttr = titleId ? ` id="${escapeAttr(titleId)}"` : "";
+  return `<div class="modal-head${headClass ? ` ${escapeAttr(headClass)}` : ""}">
+    <div class="modal-head__copy">
+      <h2${titleIdAttr}>${escapeHtml(safeTitle)}</h2>
+      ${subtitleBlock}
+    </div>
+    ${renderModalCloseBtn(closeId)}
+  </div>`;
+}
+
+function renderModalFooterActions(opts = {}) {
+  const extraClass = String(opts.className || "").trim();
+  const showCancel = opts.showCancel !== false;
+  const cancelId = String(opts.cancelId || "crud-cancel").trim() || "crud-cancel";
+  const cancelLabel = String(opts.cancelLabel || MODULE_PANEL_LABELS.cancel).trim();
+  const secondaryHtml = String(opts.secondaryHtml || "").trim();
+  const primaryHtml = String(opts.primaryHtml || "").trim();
+  return `<div class="module-panel-actions module-panel-actions--footer modal-edit-actions${extraClass ? ` ${escapeAttr(extraClass)}` : ""}">
+    <div class="module-panel-actions__group module-panel-actions__group--secondary">
+      ${showCancel ? renderModalCancelBtn(cancelId, cancelLabel) : ""}
+      ${secondaryHtml}
+    </div>
+    ${primaryHtml ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${primaryHtml}</div>` : ""}
+  </div>`;
+}
+
+function wireModalDismiss(content, close, opts = {}) {
+  if (!content || typeof close !== "function") return;
+  const escId = (id) =>
+    typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : String(id).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const closeIds = Array.isArray(opts.closeIds) ? opts.closeIds : ["crud-close", "crud-cancel"];
+  closeIds.forEach((id) => {
+    content.querySelector(`#${escId(id)}`)?.addEventListener("click", close);
+  });
+  const okId = String(opts.okId || "").trim();
+  if (okId) {
+    content.querySelector(`#${escId(okId)}`)?.addEventListener("click", close);
+  }
+  const modal = content.closest(".modal") || document.getElementById("crud-modal");
+  if (opts.backdrop !== false && modal) {
+    modal.addEventListener(
+      "click",
+      (event) => {
+        if (event.target === modal) close();
+      },
+      { once: true }
+    );
+  }
 }
 
 function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
   const expanded = isCreatePanelExpanded(panelId);
-  const toggleText = expanded ? "Minimizar" : expandLabel;
   const tone = String(iconKey || "plus").replace(/[^a-z0-9_-]/gi, "");
   const extraClass = expanded ? "p-card--expanded hr-action-card--open" : "p-card--collapsed";
   const desc = subtitle
@@ -160,10 +291,7 @@ function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, expandL
         <h3>${escapeHtml(title)}</h3>
         ${desc}
       </div>
-      <button type="button" class="btn hr-action-card__cta${expanded ? " is-active" : ""}" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}" aria-expanded="${expanded ? "true" : "false"}">
-        <span class="hr-action-card__cta-ico" aria-hidden="true">${expanded ? IC.x : IC.plus}</span>
-        <span class="hr-action-card__cta-label">${escapeHtml(toggleText)}</span>
-      </button>
+      ${renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "always" })}
     </header>
     ${cardBody}
   </article>`;
@@ -675,12 +803,7 @@ function bindHrFormWizard(form) {
 
 function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expandLabel = "Crear nuevo") {
   const expanded = isCreatePanelExpanded(panelId);
-  const toggleText = expanded ? "Minimizar" : expandLabel;
-  const cardBody = `<div class="toolbar hr-create-toolbar">
-    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}">
-      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
-    </button>
-  </div>
+  const cardBody = `${renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "collapsed" })}
   <div class="${expanded ? "" : "hidden"}" data-create-panel="${escapeAttr(panelId)}">
     ${bodyHtml}
   </div>`;
@@ -690,12 +813,7 @@ function createCollapsibleCard(panelId, iconKey, title, subtitle, bodyHtml, expa
 
 function createCollapsibleProCard(panelId, iconKey, title, subtitle, bodyHtml, extraClass = "", expandLabel = "Abrir formulario") {
   const expanded = isCreatePanelExpanded(panelId);
-  const toggleText = expanded ? "Minimizar" : expandLabel;
-  const cardBody = `<div class="toolbar hr-create-toolbar">
-    <button class="btn btn-sm btn-action" type="button" data-action="toggle-create-panel" data-panel="${escapeAttr(panelId)}" aria-expanded="${expanded ? "true" : "false"}">
-      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
-    </button>
-  </div>
+  const cardBody = `${renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "collapsed" })}
   <div class="${expanded ? "" : "hidden"}" data-create-panel="${escapeAttr(panelId)}">
     ${bodyHtml}
   </div>`;
@@ -988,32 +1106,20 @@ function openEditModal({
   const fieldsHtml = buildOpenEditModalFieldsHtml(fields);
 
   content.innerHTML = `
-    <div class="modal-head">
-      <h2>${escapeHtml(title)}</h2>
-      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
-    </div>
-    ${subtitle ? `<p class="muted">${escapeHtml(subtitle)}</p>` : ""}
+    ${renderModalHead(title, { subtitle })}
     ${introHtml || ""}
     <form id="crud-form" class="p-form p-form-colored modal-edit-form">
       ${fieldsHtml}
-      <div class="modal-edit-actions full">
-        <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-        <button type="submit" class="btn btn-primary">${IC.save} ${escapeHtml(submitText)}</button>
-      </div>
+      ${renderModalFooterActions({
+        className: "full",
+        primaryHtml: `<button type="submit" class="btn btn-primary">${IC.save} ${escapeHtml(submitText)}</button>`
+      })}
     </form>
   `;
 
   const close = () => modal.classList.add("hidden");
   modal.classList.remove("hidden");
-  content.querySelector("#crud-close").addEventListener("click", close);
-  content.querySelector("#crud-cancel").addEventListener("click", close);
-  modal.addEventListener(
-    "click",
-    (event) => {
-      if (event.target === modal) close();
-    },
-    { once: true }
-  );
+  wireModalDismiss(content, close);
   const formEl = content.querySelector("#crud-form");
   if (typeof afterMount === "function") {
     try {
@@ -1080,20 +1186,15 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
   if (card) card.className = "modal-card modal-card-edit";
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
-    <div class="modal-head">
-      <h2>${escapeHtml(title)}</h2>
-      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
-    </div>
-    <p>${escapeHtml(message)}</p>
-    <div class="modal-edit-actions" style="margin-top:1rem;">
-      <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>
-    </div>
+    ${renderModalHead(title)}
+    <p class="modal-body-lead">${escapeHtml(message)}</p>
+    ${renderModalFooterActions({
+      primaryHtml: `<button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>`
+    })}
   `;
   const close = () => modal.classList.add("hidden");
   modal.classList.remove("hidden");
-  content.querySelector("#crud-close").addEventListener("click", close);
-  content.querySelector("#crud-cancel").addEventListener("click", close);
+  wireModalDismiss(content, close);
 
   /**
    * Guardia de idempotencia para evitar toasts/efectos duplicados al confirmar.
@@ -1132,13 +1233,6 @@ function openConfirmModal({ title, message, confirmText = "Confirmar", onConfirm
       confirmBtn.removeAttribute("aria-busy");
     }
   });
-  modal.addEventListener(
-    "click",
-    (event) => {
-      if (event.target === modal) close();
-    },
-    { once: true }
-  );
   scrollOpenCrudModalIntoView();
 }
 
@@ -1161,24 +1255,19 @@ function openConfirmReasonModal({ title, message, confirmText = "Confirmar", onC
   if (card) card.className = "modal-card modal-card-edit";
   const content = modal.querySelector("#crud-modal-content");
   content.innerHTML = `
-    <div class="modal-head">
-      <h2>${escapeHtml(title)}</h2>
-      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
-    </div>
-    <p>${escapeHtml(message)}</p>
-    <label class="full" style="display:block;margin-top:0.75rem;">
-      <span class="muted" style="display:block;margin-bottom:0.35rem;">Motivo (obligatorio, mínimo 3 caracteres)</span>
-      <textarea id="crud-delete-reason" rows="4" class="full" style="width:100%;box-sizing:border-box;" required></textarea>
+    ${renderModalHead(title)}
+    <p class="modal-body-lead">${escapeHtml(message)}</p>
+    <label class="full modal-reason-field">
+      <span class="muted">Motivo (obligatorio, mínimo 3 caracteres)</span>
+      <textarea id="crud-delete-reason" rows="4" class="full" required></textarea>
     </label>
-    <div class="modal-edit-actions" style="margin-top:1rem;">
-      <button type="button" id="crud-cancel" class="btn btn-outline">Cancelar</button>
-      <button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>
-    </div>
+    ${renderModalFooterActions({
+      primaryHtml: `<button type="button" id="crud-confirm" class="btn btn-primary">${IC.check} ${escapeHtml(confirmText)}</button>`
+    })}
   `;
   const close = () => modal.classList.add("hidden");
   modal.classList.remove("hidden");
-  content.querySelector("#crud-close").addEventListener("click", close);
-  content.querySelector("#crud-cancel").addEventListener("click", close);
+  wireModalDismiss(content, close);
   const ta = content.querySelector("#crud-delete-reason");
   const confirmBtn = content.querySelector("#crud-confirm");
   let confirmConsumed = false;
@@ -1216,13 +1305,6 @@ function openConfirmReasonModal({ title, message, confirmText = "Confirmar", onC
       confirmBtn.removeAttribute("aria-busy");
     }
   });
-  modal.addEventListener(
-    "click",
-    (event) => {
-      if (event.target === modal) close();
-    },
-    { once: true }
-  );
   scrollOpenCrudModalIntoView();
   setTimeout(() => {
     try {
@@ -1257,34 +1339,23 @@ function openInfoModal({
     card.className = `modal-card modal-card-edit${extra ? ` ${extra}` : ""}`;
   }
   const content = modal.querySelector("#crud-modal-content");
-  const subtitleOut = subtitleHtml
+  const subtitleBlock = subtitleHtml
     ? subtitleHtml
     : subtitle
-      ? escapeHtml(subtitle)
+      ? `<p class="muted modal-head__subtitle">${escapeHtml(subtitle)}</p>`
       : "";
   content.innerHTML = `
-    <div class="modal-head">
-      <h2>${escapeHtml(title)}</h2>
-      <button type="button" id="crud-close" class="btn btn-text" aria-label="Cerrar">${IC.x}</button>
-    </div>
-    ${subtitleOut ? `<p class="muted">${subtitleOut}</p>` : ""}
+    ${renderModalHead(title, { subtitleHtml: subtitleBlock })}
     <div class="modal-info-body${wide ? " modal-info-body--profile" : ""}">${bodyHtml}</div>
-    <div class="modal-edit-actions">
-      ${secondaryActionsHtml}
-      <button type="button" id="crud-ok" class="btn btn-primary">Cerrar</button>
-    </div>
+    ${renderModalFooterActions({
+      showCancel: false,
+      secondaryHtml,
+      primaryHtml: `<button type="button" id="crud-ok" class="btn btn-primary">${IC.x} Cerrar</button>`
+    })}
   `;
   const close = () => modal.classList.add("hidden");
   modal.classList.remove("hidden");
-  content.querySelector("#crud-close").addEventListener("click", close);
-  content.querySelector("#crud-ok").addEventListener("click", close);
-  modal.addEventListener(
-    "click",
-    (event) => {
-      if (event.target === modal) close();
-    },
-    { once: true }
-  );
+  wireModalDismiss(content, close, { closeIds: ["crud-close"], okId: "crud-ok" });
   if (typeof afterMount === "function") {
     try {
       afterMount(content);
@@ -2734,13 +2805,39 @@ function payrollNormalizeAbsenceTypeKey(absenceType) {
   return t;
 }
 
+const PAYROLL_ABSENCE_LEGAL_LIMITS = {
+  maternidadOrdinariaDays: 126,
+  maternidadMultipleDays: 140,
+  maternidadPrematuroMaxDays: 140,
+  maternidadExtensionMedicaMaxDays: 182,
+  paternidadDays: 14,
+  paternidadParentalCompartidaDays: 7,
+  lutoMaxBusinessDays: 5
+};
+
 function payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype) {
   const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
   const raw = String(absenceSubtype || "").trim().toLowerCase();
   if (!raw) return "";
-  if (typeKey !== "permiso_sufragio") return "";
-  if (raw.includes("jurad")) return "jurado";
-  if (raw.includes("votan") || raw.includes("sufrag")) return "votante";
+  if (typeKey === "permiso_sufragio") {
+    if (raw.includes("jurad")) return "jurado";
+    if (raw.includes("votan") || raw.includes("sufrag")) return "votante";
+    return "";
+  }
+  if (typeKey === "licencia_maternidad") {
+    if (raw.includes("multi")) return "parto_multiple";
+    if (raw.includes("prematur") || raw.includes("prematuro")) return "parto_prematuro";
+    if (raw.includes("adopc")) return "adopcion";
+    if (raw.includes("extension") || raw.includes("medica") || raw.includes("complic")) return "extension_medica";
+    if (raw.includes("ordin")) return "ordinaria";
+    return ["ordinaria", "parto_multiple", "parto_prematuro", "adopcion", "extension_medica"].includes(raw) ? raw : "";
+  }
+  if (typeKey === "licencia_paternidad") {
+    if (raw.includes("flex")) return "flexible";
+    if (raw.includes("parental") || raw.includes("compart")) return "parental_compartida";
+    if (raw.includes("contin")) return "continua";
+    return ["continua", "flexible", "parental_compartida"].includes(raw) ? raw : "";
+  }
   return "";
 }
 
@@ -2752,7 +2849,140 @@ function payrollGetAbsenceSubtypeOptions(absenceType) {
       { value: "jurado", label: "Jurado de votación (1 día compensatorio)" }
     ];
   }
+  if (typeKey === "licencia_maternidad") {
+    return [
+      { value: "ordinaria", label: "Ordinaria (18 semanas / 126 días)" },
+      { value: "parto_multiple", label: "Parto múltiple (+2 semanas / 140 días)" },
+      { value: "parto_prematuro", label: "Parto prematuro (completar 18 semanas)" },
+      { value: "adopcion", label: "Adopción o acogimiento (18 semanas)" },
+      { value: "extension_medica", label: "Extensión médica por complicaciones" }
+    ];
+  }
+  if (typeKey === "licencia_paternidad") {
+    return [
+      { value: "continua", label: "Continua (hasta 14 días calendario)" },
+      { value: "flexible", label: "Flexible (jornadas parciales dentro del mes)" },
+      { value: "parental_compartida", label: "Parental compartida (hasta 7 días cedidos)" }
+    ];
+  }
   return [];
+}
+
+function payrollAbsenceRequiresSubtype(absenceType) {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  return typeKey === "permiso_sufragio" || typeKey === "licencia_maternidad" || typeKey === "licencia_paternidad";
+}
+
+function payrollGetAbsenceMaternityMaxDays(subtype) {
+  const norm = String(subtype || "").trim().toLowerCase();
+  if (norm === "parto_multiple") return PAYROLL_ABSENCE_LEGAL_LIMITS.maternidadMultipleDays;
+  if (norm === "parto_prematuro") return PAYROLL_ABSENCE_LEGAL_LIMITS.maternidadPrematuroMaxDays;
+  if (norm === "extension_medica") return PAYROLL_ABSENCE_LEGAL_LIMITS.maternidadExtensionMedicaMaxDays;
+  return PAYROLL_ABSENCE_LEGAL_LIMITS.maternidadOrdinariaDays;
+}
+
+function payrollGetAbsencePaternityMaxDays(subtype) {
+  const norm = String(subtype || "").trim().toLowerCase();
+  if (norm === "parental_compartida") return PAYROLL_ABSENCE_LEGAL_LIMITS.paternidadParentalCompartidaDays;
+  return PAYROLL_ABSENCE_LEGAL_LIMITS.paternidadDays;
+}
+
+function payrollGetAbsenceSupportRules(absenceType, absenceSubtype = "") {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
+  const base = {
+    requiresSupportNumber: false,
+    requiresEntity: false,
+    requiresNotes: false,
+    suggestedEntity: "",
+    supportHint: "Opcional: radicado, acta, certificado o soporte documental.",
+    entityHint: "Indique EPS, ARL u otra entidad cuando aplique."
+  };
+  if (typeKey === "incapacidad_eps") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      requiresEntity: true,
+      supportHint: "Obligatorio: número de incapacidad o radicado EPS.",
+      entityHint: "Obligatorio: EPS que expide la incapacidad."
+    };
+  }
+  if (typeKey === "incapacidad_arl") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      requiresEntity: true,
+      suggestedEntity: "ARL",
+      supportHint: "Obligatorio: radicado o número de reporte ARL.",
+      entityHint: "Obligatorio: ARL."
+    };
+  }
+  if (typeKey === "licencia_maternidad") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      requiresNotes: subtype === "parto_prematuro" || subtype === "extension_medica",
+      supportHint: "Obligatorio: certificado médico, prenatal o acta de nacimiento según el caso.",
+      entityHint: "Recomendado: EPS o entidad de salud."
+    };
+  }
+  if (typeKey === "licencia_paternidad") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      requiresNotes: subtype === "flexible" || subtype === "parental_compartida",
+      supportHint: "Obligatorio: registro civil del recién nacido o soporte equivalente.",
+      entityHint: "Opcional: entidad de salud o registraduría."
+    };
+  }
+  if (typeKey === "licencia_luto") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      supportHint: "Obligatorio: acta de defunción o certificado equivalente."
+    };
+  }
+  if (typeKey === "calamidad_domestica") {
+    return {
+      ...base,
+      requiresNotes: true,
+      supportHint: "Recomendado: soporte que acredite la calamidad.",
+      entityHint: "Opcional."
+    };
+  }
+  if (typeKey === "permiso_cita_medica") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      supportHint: "Obligatorio: orden médica, cita o constancia de asistencia."
+    };
+  }
+  if (typeKey === "permiso_citacion_judicial") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      requiresEntity: true,
+      suggestedEntity: "Juzgado",
+      supportHint: "Obligatorio: número de citación o acta judicial.",
+      entityHint: "Obligatorio: juzgado o autoridad."
+    };
+  }
+  if (typeKey === "permiso_sufragio") {
+    return {
+      ...base,
+      suggestedEntity: "Registraduría",
+      supportHint: "Recomendado: certificado de jurado o constancia electoral."
+    };
+  }
+  if (typeKey === "licencia_no_remunerada") {
+    return {
+      ...base,
+      requiresNotes: true,
+      supportHint: "Recomendado: acto o comunicación del empleador.",
+      entityHint: "Opcional."
+    };
+  }
+  return base;
 }
 
 function payrollAbsenceSubtypeLabel(absenceType, absenceSubtype) {
@@ -2787,13 +3017,27 @@ function payrollGetAbsenceTypeMeta(absenceType, absenceSubtype = "") {
     licencia_maternidad: {
       label: "Licencia de maternidad",
       optionLabel: "Licencia de maternidad",
-      conceptLabel: "Días calendario de licencia de maternidad",
+      conceptLabel:
+        subtype === "parto_multiple"
+          ? "Días calendario de licencia de maternidad por parto múltiple"
+          : subtype === "parto_prematuro"
+            ? "Días calendario de licencia de maternidad por parto prematuro"
+            : subtype === "adopcion"
+              ? "Días calendario de licencia de maternidad por adopción"
+              : subtype === "extension_medica"
+                ? "Días calendario de extensión médica de maternidad"
+                : "Días calendario de licencia de maternidad",
       quantityKind: "calendar"
     },
     licencia_paternidad: {
       label: "Licencia de paternidad",
       optionLabel: "Licencia de paternidad",
-      conceptLabel: "Días calendario de licencia de paternidad",
+      conceptLabel:
+        subtype === "flexible"
+          ? "Jornadas de licencia de paternidad flexible"
+          : subtype === "parental_compartida"
+            ? "Días calendario de licencia parental compartida"
+            : "Días calendario de licencia de paternidad",
       quantityKind: "calendar"
     },
     licencia_luto: {
@@ -2924,10 +3168,15 @@ function payrollComputeAbsenceSuggestedRecognizedDays({ absenceType, absenceSubt
   }
   if (!abStart || !abEnd) return 1;
   if (typeKey === "licencia_luto") {
-    return Math.min(5, payrollInclusiveBusinessDaysLocal(abStart, abEnd));
+    return Math.min(PAYROLL_ABSENCE_LEGAL_LIMITS.lutoMaxBusinessDays, payrollInclusiveBusinessDaysLocal(abStart, abEnd));
+  }
+  if (typeKey === "licencia_maternidad") {
+    const maxDays = payrollGetAbsenceMaternityMaxDays(subtype || "ordinaria");
+    return Math.min(maxDays, payrollInclusiveCalendarDaysLocal(abStart, abEnd));
   }
   if (typeKey === "licencia_paternidad") {
-    return Math.min(14, payrollInclusiveCalendarDaysLocal(abStart, abEnd));
+    const maxDays = payrollGetAbsencePaternityMaxDays(subtype || "continua");
+    return Math.min(maxDays, payrollInclusiveCalendarDaysLocal(abStart, abEnd));
   }
   return payrollAbsenceRecognizedUnit(absenceType, absenceSubtype) === "habil"
     ? payrollInclusiveBusinessDaysLocal(abStart, abEnd)
@@ -2945,30 +3194,75 @@ function payrollAbsenceLegalHint(absenceType, absenceSubtype = "") {
   if (typeKey === "licencia_luto") {
     return "Regla legal aplicada: máximo 5 días hábiles de licencia por luto.";
   }
-  if (typeKey === "licencia_paternidad") {
-    return "Regla legal aplicada: máximo 14 días calendario para licencia de paternidad.";
-  }
   if (typeKey === "licencia_maternidad") {
-    return "Referencia general: 18 semanas; extensiones especiales deben quedar soportadas en observaciones.";
+    const maxDays = payrollGetAbsenceMaternityMaxDays(subtype || "ordinaria");
+    const labels = {
+      ordinaria: "18 semanas (126 días calendario)",
+      parto_multiple: "20 semanas (140 días calendario)",
+      parto_prematuro: "completar 18 semanas desde la fecha probable de parto",
+      adopcion: "18 semanas desde la entrega del menor",
+      extension_medica: "extensión médica con soporte clínico"
+    };
+    return `Referencia legal: ${labels[subtype] || labels.ordinaria}; tope parametrizado ${maxDays} días.`;
+  }
+  if (typeKey === "licencia_paternidad") {
+    if (subtype === "parental_compartida") {
+      return "Regla legal aplicada: hasta 7 días calendario cedidos desde la licencia de maternidad.";
+    }
+    if (subtype === "flexible") {
+      return "Regla legal aplicada: hasta 14 días calendario, tomables en jornadas parciales dentro del primer mes.";
+    }
+    return "Regla legal aplicada: hasta 14 días calendario de licencia de paternidad.";
+  }
+  const supportRules = payrollGetAbsenceSupportRules(absenceType, absenceSubtype);
+  if (supportRules.requiresSupportNumber || supportRules.requiresNotes) {
+    return "Revise los soportes obligatorios indicados abajo.";
   }
   return "";
 }
 
-function payrollValidateAbsenceLegalRules({ absenceType, absenceSubtype, startDate, endDate, recognizedDays }) {
+function payrollValidateAbsenceLegalRules({
+  absenceType,
+  absenceSubtype,
+  startDate,
+  endDate,
+  recognizedDays,
+  supportNumber = "",
+  epsEntity = "",
+  notes = ""
+}) {
   const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
   const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
   const start = payrollParseLocalYmd(startDate);
   const end = payrollParseLocalYmd(endDate) || start;
   const recognized = Number(parseNum(recognizedDays));
+  const support = String(supportNumber || "").trim();
+  const entity = String(epsEntity || "").trim();
+  const obs = String(notes || "").trim();
   if (!start || !end || !Number.isFinite(recognized) || recognized <= 0) {
     return { ok: false, message: "Complete fechas válidas y días reconocidos mayores a cero." };
   }
+  if (payrollAbsenceRequiresSubtype(absenceType) && !subtype) {
+    const labels = {
+      permiso_sufragio: "En permiso por sufragio debe indicar si fue votante o jurado de votación.",
+      licencia_maternidad: "En licencia de maternidad debe seleccionar el subtipo aplicable.",
+      licencia_paternidad: "En licencia de paternidad debe seleccionar continua, flexible o parental compartida."
+    };
+    return { ok: false, message: labels[typeKey] || "Debe seleccionar un subtipo válido." };
+  }
   const businessDays = payrollInclusiveBusinessDaysLocal(start, end);
   const calendarDays = payrollInclusiveCalendarDaysLocal(start, end);
+  const supportRules = payrollGetAbsenceSupportRules(absenceType, subtype);
+  if (supportRules.requiresSupportNumber && !support) {
+    return { ok: false, message: "Debe registrar el número de soporte o radicado para este tipo de ausencia." };
+  }
+  if (supportRules.requiresEntity && !entity) {
+    return { ok: false, message: "Debe indicar la entidad (EPS, ARL, juzgado u otra) para este tipo de ausencia." };
+  }
+  if (supportRules.requiresNotes && !obs) {
+    return { ok: false, message: "Debe registrar observaciones que expliquen el caso y el soporte legal." };
+  }
   if (typeKey === "permiso_sufragio") {
-    if (!subtype) {
-      return { ok: false, message: "En permiso por sufragio debe indicar si fue votante o jurado de votación." };
-    }
     const expected = subtype === "jurado" ? 1 : 0.5;
     if (Math.abs(recognized - expected) > 0.001) {
       return {
@@ -2977,14 +3271,33 @@ function payrollValidateAbsenceLegalRules({ absenceType, absenceSubtype, startDa
       };
     }
   }
-  if (typeKey === "licencia_luto" && (recognized > 5 || businessDays > 5)) {
+  if (typeKey === "licencia_luto" && (recognized > PAYROLL_ABSENCE_LEGAL_LIMITS.lutoMaxBusinessDays || businessDays > PAYROLL_ABSENCE_LEGAL_LIMITS.lutoMaxBusinessDays)) {
     return { ok: false, message: "La licencia por luto no puede exceder 5 días hábiles en esta parametrización." };
   }
-  if (typeKey === "licencia_paternidad" && (recognized > 14 || calendarDays > 14)) {
-    return { ok: false, message: "La licencia de paternidad no puede exceder 14 días calendario en esta parametrización." };
+  if (typeKey === "licencia_maternidad") {
+    const maxDays = payrollGetAbsenceMaternityMaxDays(subtype);
+    if (recognized > maxDays || calendarDays > maxDays) {
+      return {
+        ok: false,
+        message: `La licencia de maternidad (${payrollAbsenceSubtypeLabel(absenceType, subtype) || "subtipo seleccionado"}) no puede exceder ${maxDays} días calendario.`
+      };
+    }
+  }
+  if (typeKey === "licencia_paternidad") {
+    const maxDays = payrollGetAbsencePaternityMaxDays(subtype);
+    if (recognized > maxDays || calendarDays > maxDays) {
+      const label = subtype === "parental_compartida" ? "licencia parental compartida" : "licencia de paternidad";
+      return { ok: false, message: `La ${label} no puede exceder ${maxDays} días calendario en esta parametrización.` };
+    }
+    if (subtype === "flexible" && Math.abs(recognized * 2 - Math.round(recognized * 2)) > 0.001) {
+      return { ok: false, message: "En paternidad flexible los días reconocidos deben ser múltiplos de 0,5 jornada." };
+    }
   }
   if (typeKey === "vacaciones" && recognized > businessDays) {
     return { ok: false, message: "En vacaciones los días reconocidos no pueden superar los días hábiles del periodo." };
+  }
+  if ((typeKey === "incapacidad_eps" || typeKey === "incapacidad_arl") && recognized > calendarDays) {
+    return { ok: false, message: "En incapacidades los días reconocidos no pueden superar los días calendario del periodo." };
   }
   return { ok: true, message: "" };
 }
@@ -3002,12 +3315,18 @@ function wireHrAbsenceFormBehavior(form) {
   if (!form || form.dataset.hrAbsenceBehaviorBound === "1") return;
   form.dataset.hrAbsenceBehaviorBound = "1";
   const typeEl = form.querySelector('[name="absenceType"]');
-  const subtypeWrap = form.querySelector("[data-absence-subtype-wrap]");
+  const subtypeWrap =
+    form.querySelector("[data-absence-subtype-wrap]") ||
+    (subtypeEl?.closest("label") ?? null);
   const subtypeEl = form.querySelector('[name="absenceSubtype"]');
   const startEl = form.querySelector('[name="startDate"]');
   const endEl = form.querySelector('[name="endDate"]');
   const recognizedEl = form.querySelector('[name="recognizedDays"]');
+  const supportEl = form.querySelector('[name="supportNumber"]');
+  const entityEl = form.querySelector('[name="epsEntity"]');
+  const notesEl = form.querySelector('[name="notes"]');
   const hintEl = form.querySelector("[data-absence-recognition-hint]");
+  const supportHintEl = form.querySelector("[data-absence-support-hint]");
   if (!typeEl || !subtypeEl || !recognizedEl) return;
 
   const sync = () => {
@@ -3018,6 +3337,10 @@ function wireHrAbsenceFormBehavior(form) {
       subtypeWrap.setAttribute("aria-hidden", showSubtype ? "false" : "true");
     }
     subtypeEl.required = showSubtype;
+    if (showSubtype && !subtypeEl.value) {
+      const defaultOpts = payrollGetAbsenceSubtypeOptions(typeEl.value);
+      if (defaultOpts.length) subtypeEl.value = defaultOpts[0].value;
+    }
     if (!showSubtype) subtypeEl.value = "";
     const suggested = payrollComputeAbsenceSuggestedRecognizedDays({
       absenceType: typeEl.value,
@@ -3033,6 +3356,19 @@ function wireHrAbsenceFormBehavior(form) {
       const subtypeLabel = payrollAbsenceSubtypeLabel(typeEl.value, subtypeEl.value);
       const legalHint = payrollAbsenceLegalHint(typeEl.value, subtypeEl.value);
       hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.${legalHint ? ` ${legalHint}` : ""}`;
+    }
+    const supportRules = payrollGetAbsenceSupportRules(typeEl.value, subtypeEl.value);
+    if (supportEl) supportEl.required = !!supportRules.requiresSupportNumber;
+    if (entityEl) entityEl.required = !!supportRules.requiresEntity;
+    if (notesEl) notesEl.required = !!supportRules.requiresNotes;
+    if (entityEl && supportRules.suggestedEntity && !String(entityEl.value || "").trim()) {
+      entityEl.value = supportRules.suggestedEntity;
+    }
+    if (supportHintEl) {
+      const parts = [supportRules.supportHint];
+      if (supportRules.entityHint) parts.push(supportRules.entityHint);
+      if (supportRules.requiresNotes) parts.push("Observaciones obligatorias para este caso.");
+      supportHintEl.textContent = parts.filter(Boolean).join(" ");
     }
   };
 
@@ -4107,6 +4443,8 @@ function defaultAdminUsersUi() {
     editUserId: "",
     editCompanyId: "",
     section: "pending",
+    createUserMinimized: false,
+    createCompanyMinimized: false,
     editMinimized: false,
     permissionsMinimized: false
   };
@@ -4120,15 +4458,32 @@ function setAdminUsersUi(patch) {
   state.adminUsersUi = { ...getAdminUsersUi(), ...(patch && typeof patch === "object" ? patch : {}) };
 }
 
+function getAdminUsersDraft(slot) {
+  const key = String(slot || "").trim();
+  if (!key) return {};
+  const drafts = state.adminUsersDrafts && typeof state.adminUsersDrafts === "object" ? state.adminUsersDrafts : {};
+  const raw = drafts[key];
+  return raw && typeof raw === "object" ? { ...raw } : {};
+}
+
+function setAdminUsersDraft(slot, draft) {
+  const key = String(slot || "").trim();
+  if (!key) return;
+  const next = draft && typeof draft === "object" ? { ...draft } : {};
+  state.adminUsersDrafts = {
+    ...(state.adminUsersDrafts && typeof state.adminUsersDrafts === "object" ? state.adminUsersDrafts : {}),
+    [key]: next
+  };
+}
+
+function clearAdminUsersDraft(slot) {
+  setAdminUsersDraft(slot, {});
+}
+
 /** Cuerpo de p-card colapsable (mismo patrón que registro de sesiones en admin). */
 function adminUsersCollapsibleCardBody(expanded, toggleAction, panelHtml) {
-  const toggleText = expanded ? "Ocultar formulario" : "Mostrar formulario";
-  return `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
-    <button type="button" class="btn btn-sm btn-action" data-action="${escapeAttr(toggleAction)}" aria-expanded="${expanded ? "true" : "false"}">
-      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
-    </button>
-  </div>
-  <div class="${expanded ? "" : "hidden"}">
+  return `${renderModulePanelToolbar({ expanded, toggleAction, showWhen: "collapsed" })}
+  <div class="${expanded ? "" : "hidden"}" data-admin-collapsible-panel>
     ${panelHtml}
   </div>`;
 }
@@ -7645,20 +8000,6 @@ function applyAdminUsersFormDraft(formEl, draft = {}) {
     }
     first.value = rawValue == null ? "" : String(rawValue);
   });
-}
-
-function syncInlineAdminCardCollapse(btn, expanded) {
-  if (!btn) return;
-  btn.setAttribute("aria-expanded", expanded ? "true" : "false");
-  btn.innerHTML = `${expanded ? IC.x : IC.plus} ${expanded ? "Minimizar formulario" : "Mostrar formulario"}`;
-  const toolbar = btn.closest(".toolbar.hr-create-toolbar");
-  const panel = toolbar?.nextElementSibling || null;
-  if (panel) panel.classList.toggle("hidden", !expanded);
-  const card = btn.closest(".p-card");
-  if (card) {
-    card.classList.toggle("p-card--expanded", expanded);
-    card.classList.toggle("p-card--collapsed", !expanded);
-  }
 }
 
 /**
@@ -13423,7 +13764,6 @@ function buildDeletedTransportTripsLogSection() {
   const rows = read(KEYS.deletedTransportTripLogs, []);
   const minimized = Boolean(state.deletedTransportTripsLogMinimized);
   const expanded = !minimized;
-  const toggleText = expanded ? "Ocultar historial de viajes" : "Mostrar historial de viajes";
   const subtitle = rows.length ? `${rows.length} en historial` : "Registro de auditoría";
 
   const tableOrEmpty = !rows.length
@@ -13444,11 +13784,7 @@ function buildDeletedTransportTripsLogSection() {
     })
     .join("")}</tbody></table></div>`;
 
-  const cardBody = `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
-    <button type="button" class="btn btn-sm btn-action" data-action="toggle-deleted-trips-log" aria-expanded="${expanded ? "true" : "false"}">
-      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
-    </button>
-  </div>
+  const cardBody = `${renderModulePanelToolbar({ expanded, toggleAction: "toggle-deleted-trips-log", expandLabel: "Mostrar historial", showWhen: "always" })}
   <div class="${expanded ? "" : "hidden"}" data-deleted-trips-log-panel>
     ${tableOrEmpty}
   </div>`;
@@ -13461,7 +13797,6 @@ function buildDeletedTransportRequestsLogSection() {
   const rows = read(KEYS.deletedTransportRequestLogs, []);
   const minimized = Boolean(state.deletedTransportRequestsLogMinimized);
   const expanded = !minimized;
-  const toggleText = expanded ? "Ocultar historial de eliminadas" : "Mostrar historial de eliminadas";
   const subtitle = rows.length ? `${rows.length} en historial` : "Registro de auditoría";
 
   const tableOrEmpty = !rows.length
@@ -13481,11 +13816,7 @@ function buildDeletedTransportRequestsLogSection() {
     })
     .join("")}</tbody></table></div>`;
 
-  const cardBody = `<div class="toolbar hr-create-toolbar" style="margin-bottom:0.5rem">
-    <button type="button" class="btn btn-sm btn-action" data-action="toggle-deleted-requests-log" aria-expanded="${expanded ? "true" : "false"}">
-      ${expanded ? IC.x : IC.plus} ${escapeHtml(toggleText)}
-    </button>
-  </div>
+  const cardBody = `${renderModulePanelToolbar({ expanded, toggleAction: "toggle-deleted-requests-log", expandLabel: "Mostrar historial", showWhen: "always" })}
   <div class="${expanded ? "" : "hidden"}" data-deleted-requests-log-panel>
     ${tableOrEmpty}
   </div>`;
@@ -13753,7 +14084,7 @@ function transportTripsHtml() {
       `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>`,
       {
         className: "form-flow-actions full transport-route-form-actions",
-        extraActionsHtml: `<button class="btn btn-outline" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>`
+        extraActionsHtml: `<button class="btn btn-sm btn-action module-panel-btn module-panel-btn--cancel" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>`
       }
     )}
   </form>`;
@@ -14284,17 +14615,22 @@ function adminUsersHtml(current) {
           ? "Inactiva"
           : "Activa";
     const summaryTitle = isPending
-      ? "Activación pendiente"
+      ? "Pendiente"
       : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
-        ? "Cuenta inactiva"
-        : "Cuenta operativa";
+        ? "Inactiva"
+        : "Activa";
     const summaryCopy = [
       companyName !== "Sin empresa" ? companyName : "",
       locationLabel !== "Sin ubicacion" ? locationLabel : "",
-      joinedLabel !== "—" ? `Alta ${joinedLabel}` : ""
+      joinedLabel !== "—" ? joinedLabel : ""
     ]
       .filter(Boolean)
-      .join(" · ") || "Complete la ficha para mejorar la trazabilidad del usuario.";
+      .join(" · ") || "Sin datos";
+    const userOpsTone = isPending
+      ? "warn"
+      : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
+        ? "alert"
+        : "ok";
     const roleTag = u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn");
     const contactLine = [
       String(u.email || "Sin correo"),
@@ -14310,9 +14646,9 @@ function adminUsersHtml(current) {
       : "";
     const rejectionReason = String(u.rejectionReason || "").trim();
     const note = isPending
-      ? '<div class="directory-card__banner directory-card__banner--warn"><strong>Pendiente de aprobacion.</strong> Asigne empresa, rol y permisos para activar la cuenta.</div>'
+      ? '<div class="directory-card__banner directory-card__banner--warn"><strong>Pendiente.</strong> Empresa, rol y permisos.</div>'
       : rejectionReason
-        ? `<div class="directory-card__banner"><strong>Motivo de inactivación.</strong> ${escapeHtml(rejectionReason)}</div>`
+        ? `<div class="directory-card__banner directory-card__banner--alert"><strong>Inactiva.</strong> ${escapeHtml(rejectionReason)}</div>`
       : "";
     const viewButton = `<button class="btn btn-sm btn-outline" data-action="view-user" data-id="${escapeAttr(String(u.id))}">${IC.eye} Ver</button>`;
     const actions = isPending
@@ -14352,13 +14688,10 @@ function adminUsersHtml(current) {
           ${statusBadge(u.accountStatus)}
         </div>
       </header>
-      <div class="directory-card__summary">
-        <strong>${escapeHtml(summaryTitle)}</strong>
-        <p>${escapeHtml(summaryCopy)}</p>
-      </div>
-      <div class="directory-card__metrics">
+      ${directoryOpsHtml(summaryTitle, summaryCopy, userOpsTone)}
+      <div class="directory-card__metrics directory-card__metrics--triple">
         ${directoryChipHtml("Permisos", String(permissionCount), permissionCount ? "ok" : "warn")}
-        ${directoryChipHtml("2FA", u.twoFactorEnabled ? "Activa" : "Pendiente", u.twoFactorEnabled ? "ok" : "warn")}
+        ${directoryChipHtml("2FA", u.twoFactorEnabled ? "On" : "Off", u.twoFactorEnabled ? "ok" : "warn")}
         ${directoryChipHtml("Perfil", registrationLabel)}
       </div>
       <dl class="directory-card__facts">
@@ -14389,15 +14722,24 @@ function adminUsersHtml(current) {
     const kindForUi =
       patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
     const companyStateClass = active ? " directory-card--ok" : " directory-card--inactive";
-    const summaryTitle = active ? "Empresa operativa" : "Empresa inactiva";
+    const summaryTitle = active ? "Operativa" : "Inactiva";
+    const companyOpsDetail =
+      contactLabel !== "Sin contacto"
+        ? contactLabel
+        : locationLabel !== "Sin ubicación"
+          ? locationLabel
+          : emailLabel !== "Sin correo"
+            ? emailLabel
+            : "Sin contacto";
     const companyLine = [
       contactLabel !== "Sin contacto" ? contactLabel : "",
       emailLabel !== "Sin correo" ? emailLabel : "",
       locationLabel !== "Sin ubicación" ? locationLabel : ""
     ]
       .filter(Boolean)
-      .join(" · ") || "Complete datos de contacto para esta empresa";
-    return `<article class="directory-card directory-card--user directory-card--company${companyStateClass}" data-company-id="${escapeAttr(String(c.id || ""))}">
+      .join(" · ") || "—";
+    const companyOpsTone = active ? "ok" : "alert";
+    return `<article class="directory-card directory-card--company${companyStateClass}" data-company-id="${escapeAttr(String(c.id || ""))}">
       <header class="directory-card__head">
         <div class="directory-card__identity">
           ${avatarCompany}
@@ -14412,14 +14754,11 @@ function adminUsersHtml(current) {
           ${active ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>'}
         </div>
       </header>
-      <div class="directory-card__summary">
-        <strong>${escapeHtml(summaryTitle)}</strong>
-        <p>${escapeHtml(companyLine)}</p>
-      </div>
-      <div class="directory-card__metrics">
+      ${directoryOpsHtml(summaryTitle, companyOpsDetail, companyOpsTone)}
+      <div class="directory-card__metrics directory-card__metrics--triple">
         ${directoryChipHtml("Usuarios", String(usersCount), usersCount ? "ok" : "neutral")}
-        ${directoryChipHtml("Logo", logoUrl ? "Cargado" : "Pendiente", logoUrl ? "ok" : "warn")}
-        ${directoryChipHtml("Canal", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "Listo" : "Pend.", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "ok" : "warn")}
+        ${directoryChipHtml("Logo", logoUrl ? "Si" : "No", logoUrl ? "ok" : "warn")}
+        ${directoryChipHtml("Canal", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "OK" : "—", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "ok" : "warn")}
       </div>
       <dl class="directory-card__facts">
         ${directoryFactHtml("NIT", nit)}
@@ -14533,11 +14872,10 @@ function adminUsersHtml(current) {
       <legend>${IC.shield} Permisos del usuario</legend>
       <div class="perm-grid">${permissionChecks(defaultPermissionsForRole(ROLES.ADMIN))}</div>
     </fieldset>
-    <div class="form-flow-actions full">
-      <button class="btn btn-outline btn-sm" type="button" data-action="toggle-admin-create-user-panel">Minimizar</button>
-      <button class="btn btn-action btn-sm" type="button" data-action="cancel-admin-create-panel" data-panel="create-user">${IC.x} Cancelar</button>
-      <button class="btn btn-primary" type="submit">${IC.userPlus} Crear usuario</button>
-    </div>
+    ${renderManagedCreateFormActions("create-user", `<button class="btn btn-primary" type="submit">${IC.userPlus} Crear usuario</button>`, {
+      toggleAction: "toggle-admin-create-user-panel",
+      cancelAction: "cancel-admin-create-panel"
+    })}
   </form>`;
 
   const fComp = `<form id="form-admin-company-create" class="p-form">
@@ -14607,11 +14945,10 @@ function adminUsersHtml(current) {
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" placeholder="Dirección de cargue/descargue o sede principal" /></label>
       </div>
     </fieldset>
-    <div class="form-flow-actions full">
-      <button class="btn btn-outline btn-sm" type="button" data-action="toggle-admin-create-company-panel">Minimizar</button>
-      <button class="btn btn-action btn-sm" type="button" data-action="cancel-admin-create-panel" data-panel="create-company">${IC.x} Cancelar</button>
-      <button class="btn btn-primary" type="submit">${IC.plus} Registrar empresa</button>
-    </div>
+    ${renderManagedCreateFormActions("create-company", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar empresa</button>`, {
+      toggleAction: "toggle-admin-create-company-panel",
+      cancelAction: "cancel-admin-create-panel"
+    })}
   </form>`;
 
   const fCompanyEdit = editingCompany
@@ -14672,10 +15009,7 @@ function adminUsersHtml(current) {
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" value="${escapeAttr(String(editingCompany.address ?? ""))}" /></label>
       </div>
     </fieldset>
-    <div class="toolbar full">
-      <button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>
-      <button class="btn btn-action" type="button" data-action="close-edit-company">${IC.x} Cancelar</button>
-    </div>
+    ${renderModulePanelEditActions(`<button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>`, { cancelAction: "close-edit-company" })}
   </form>`
     : "";
 
@@ -14690,7 +15024,10 @@ function adminUsersHtml(current) {
       <legend>Permisos a asignar</legend>
       <div class="perm-grid">${permissionChecks([])}</div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.save} Guardar permisos</button>
+    ${renderManagedCreateFormActions("admin-permissions", `<button class="btn btn-primary" type="submit">${IC.save} Guardar permisos</button>`, {
+      toggleAction: "toggle-admin-permissions-panel",
+      showCancel: false
+    })}
   </form>`;
 
   const adminEditUserAvatarExisting = escapeAttr(String(editingUser?.avatarUrl ?? ""));
@@ -14809,10 +15146,7 @@ function adminUsersHtml(current) {
       <legend>Permisos granulares</legend>
       <div class="perm-grid">${permissionChecks(effectiveUserPermissions(editingUser))}</div>
     </fieldset>
-    <div class="toolbar full">
-      <button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>
-      <button class="btn btn-action" type="button" data-action="close-edit-user">${IC.x} Cancelar</button>
-    </div>
+    ${renderModulePanelEditActions(`<button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>`, { cancelAction: "close-edit-user", toggleAction: "toggle-admin-edit-user-panel" })}
   </form>`
     : "";
 
@@ -14915,14 +15249,15 @@ function adminUsersHtml(current) {
       `${editExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
-  if (editingCompany)
+  if (editingCompany) {
     actionsPaneHtml += pcardWrapPro(
       "briefcase",
       "Editar empresa",
       escapeHtml(String(editingCompany.name || "")),
-      `${fCompanyEdit}`,
+      fCompanyEdit,
       focusCardClass
     );
+  }
 
   const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
   const pendingPaneHtml =
@@ -14958,7 +15293,7 @@ function adminUsersHtml(current) {
       "briefcase",
       "Empresas registradas",
       `${companies.length} empresa${companies.length === 1 ? "" : "s"}`,
-      `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies">${companyCardsHtml}</div></div>`,
+      `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies directory-grid">${companyCardsHtml}</div></div>`,
       "admin-users-data-card"
         )
       : pcardWrapPro(
@@ -14985,16 +15320,13 @@ function adminUsersHtml(current) {
     .join("");
   const sessionsLogMinimized = Boolean(state.adminSessionsLogMinimized);
   const sessionsLogExpanded = !sessionsLogMinimized;
-  const sessionsLogToggleText = sessionsLogExpanded ? "Ocultar registro de sesiones" : "Mostrar registro de sesiones";
   const sessionsCardBody = `<div class="admin-users-session-topbar admin-users-session-topbar--compact">
     <div class="admin-users-session-topbar__metrics">
       <span class="status status-viaje_asignado">Activas ${activeSessions}</span>
       <span class="status ${expiredSessions ? "status-pendiente" : "status-viaje_asignado"}">Expiradas ${expiredSessions}</span>
     </div>
     <div class="admin-users-session-topbar__actions">
-      <button type="button" class="btn btn-sm btn-action" data-action="toggle-admin-sessions-log" aria-expanded="${sessionsLogExpanded ? "true" : "false"}">
-        ${sessionsLogExpanded ? IC.x : IC.plus} ${escapeHtml(sessionsLogToggleText)}
-      </button>
+      ${renderModulePanelToggleBtn({ expanded: sessionsLogExpanded, toggleAction: "toggle-admin-sessions-log", expandLabel: "Mostrar registro" })}
       <button type="button" class="btn btn-sm btn-outline" data-action="refresh-user-sessions">${IC.activity} Actualizar</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="clear-user-sessions-all">${IC.x} Finalizar sesiones (raíz)</button>
     </div>
@@ -16520,7 +16852,7 @@ function ensureReportPreviewModal() {
   modal.setAttribute("aria-labelledby", "report-preview-title");
   modal.innerHTML = `<div class="modal-card modal-card-report-preview">
     <div class="modal-head report-preview-head">
-      <div class="report-preview-brand">
+      <div class="modal-head__copy report-preview-brand">
         <div class="report-preview-logo-wrap">
           <img id="report-preview-logo" class="report-preview-logo" src="${escapeAttr(reportBrandLogoSrc())}" alt="Logo de Transportes Antares" />
         </div>
@@ -16530,16 +16862,18 @@ function ensureReportPreviewModal() {
           <p id="report-preview-meta" class="report-preview-meta muted"></p>
         </div>
       </div>
-      <button type="button" class="btn btn-sm btn-action" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
+      <button type="button" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
     </div>
     <div id="report-preview-body" class="report-preview-body table-wrap"></div>
     <p id="report-preview-copy" class="report-preview-copy muted"></p>
-    <div class="report-preview-actions modal-edit-actions">
-      <button type="button" class="btn btn-sm btn-approve" data-action="report-preview-download-pdf">${IC.download} Descargar PDF</button>
-      <button type="button" class="btn btn-sm btn-action" data-action="report-preview-download-excel">${IC.file} Excel</button>
-      <button type="button" class="btn btn-sm btn-action" data-action="report-preview-print">${IC.printer} Imprimir</button>
-      <button type="button" class="btn btn-sm" data-action="report-preview-close">Cerrar</button>
-    </div>
+    ${renderModalFooterActions({
+      showCancel: false,
+      className: "report-preview-actions",
+      secondaryHtml: `<button type="button" class="btn btn-sm btn-approve module-panel-btn" data-action="report-preview-download-pdf">${IC.download} PDF</button>
+        <button type="button" class="btn btn-sm btn-action module-panel-btn" data-action="report-preview-download-excel">${IC.file} Excel</button>
+        <button type="button" class="btn btn-sm btn-action module-panel-btn" data-action="report-preview-print">${IC.printer} Imprimir</button>`,
+      primaryHtml: `<button type="button" class="btn btn-primary btn-sm module-panel-btn" data-action="report-preview-close">${IC.x} Cerrar</button>`
+    })}
   </div>`;
   document.body.appendChild(modal);
   modal.querySelectorAll("[data-action='report-preview-close']").forEach((btn) => {
@@ -19802,6 +20136,7 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.hash, "No. soporte o radicado")}<input name="supportNumber" placeholder="Radicado, acta, certificado o soporte" /></label>
         <label class="full">${fieldLabel(IC.heart, "EPS / ARL / entidad")}<select name="epsEntity">${epsOptions}<option value="ARL">ARL</option><option value="Juzgado">Juzgado</option><option value="Registraduría">Registraduría</option><option value="Otra">Otra</option></select></label>
+        <p class="full muted" data-absence-support-hint style="margin:0;font-size:0.82rem"></p>
         <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
       </div>
     </fieldset>
@@ -21222,20 +21557,9 @@ function laborComplianceHtml() {
 }
 
 function notificationsHtml() {
-  const user = currentUser();
   const list = getCurrentNotifications().sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
-  const scopeHint = canViewAllNotifications(user)
-    ? `<p class="muted notif-scope-hint">Vista de administrador: todas las notificaciones del sistema.</p>`
-    : `<p class="muted notif-scope-hint">Solo se muestran las notificaciones dirigidas a tu cuenta.</p>`;
-  const prefState = getNotificationPreferencesNormalized();
-  const prefRecordId = String(prefState.id || "").trim();
-  const prefUpdatedLabel = fmtDateOr(prefState.updatedAt || prefState.createdAt, "Pendiente");
-  const storageHint = `<p class="muted notif-storage-hint">La bandeja se guarda en el servidor y se sincroniza al iniciar sesión; no depende de un archivo local en el navegador.</p>
-    <p class="muted notif-storage-hint">Registro de preferencias: ${
-      prefRecordId ? `<code>${escapeHtml(prefRecordId)}</code>` : "aún no creado"
-    } · última actualización: ${escapeHtml(prefUpdatedLabel)}</p>`;
   const alertsOn = isInAppNotificationAlertsEnabled();
   const soundOn = isSonidoNotificacionesHabilitado();
   const prefBanner =
@@ -21285,7 +21609,7 @@ function notificationsHtml() {
   const readCount = list.length - unread;
   const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
   const body = list.length
-    ? `${scopeHint}${storageHint}${prefBanner}<div class="notif-toolbar">
+    ? `${prefBanner}<div class="notif-toolbar">
         <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
           ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
         </button>
@@ -21297,14 +21621,7 @@ function notificationsHtml() {
         <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-clear-all">${IC.trash} Vaciar bandeja</button>
       </div>
       <div class="notif-list">${items}</div>`
-    : `${scopeHint}${storageHint}${prefBanner}<div class="notif-toolbar">
-        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
-          ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
-        </button>
-        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-sound" title="Solo el timbre; no afecta la bandeja">
-          ${soundOn ? "Silenciar timbre" : "Activar timbre"}
-        </button>
-      </div>${emptyState("No tienes notificaciones.")}`;
+    : `${prefBanner}${emptyState("No tienes notificaciones.")}`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: list.length },
     { label: "Sin leer", value: unread, tone: unread ? "warn" : undefined },
@@ -22967,20 +23284,18 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-create-user-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const ui = getAdminUsersUi();
-      const nextExpanded = Boolean(ui.createUserMinimized);
-      setAdminUsersUi({ createUserMinimized: !nextExpanded });
-      syncInlineAdminCardCollapse(btn, nextExpanded);
-      if (nextExpanded) scrollToAdminUsersFocusedForm();
+      setAdminUsersUi({ createUserMinimized: !ui.createUserMinimized });
+      renderPortalView();
+      if (!getAdminUsersUi().createUserMinimized) scrollToAdminUsersFocusedForm();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-create-company-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const ui = getAdminUsersUi();
-      const nextExpanded = Boolean(ui.createCompanyMinimized);
-      setAdminUsersUi({ createCompanyMinimized: !nextExpanded });
-      syncInlineAdminCardCollapse(btn, nextExpanded);
-      if (nextExpanded) scrollToAdminUsersFocusedForm();
+      setAdminUsersUi({ createCompanyMinimized: !ui.createCompanyMinimized });
+      renderPortalView();
+      if (!getAdminUsersUi().createCompanyMinimized) scrollToAdminUsersFocusedForm();
     });
   });
 
@@ -27022,7 +27337,10 @@ function bindDynamicEvents() {
         absenceSubtype,
         startDate: data.startDate,
         endDate: data.endDate,
-        recognizedDays
+        recognizedDays,
+        supportNumber: data.supportNumber,
+        epsEntity: data.epsEntity,
+        notes: data.notes
       });
       if (!legalValidation.ok) {
         notify(legalValidation.message, "error");
@@ -30255,15 +30573,30 @@ function bindExtendedViewEditHandlers() {
             label: "Subtipo",
             type: "select",
             value: payrollNormalizeAbsenceSubtype(target.absenceType, target.absenceSubtype),
-            options: [{ value: "", label: "No aplica" }, ...payrollGetAbsenceSubtypeOptions("permiso_sufragio")]
+            options: payrollGetAbsenceSubtypeOptions(target.absenceType).length
+              ? payrollGetAbsenceSubtypeOptions(target.absenceType)
+              : [{ value: "", label: "No aplica" }]
           },
           { name: "startDate", label: "Fecha de inicio", type: "date", value: target.startDate || "", required: true },
           { name: "endDate", label: "Fecha de fin", type: "date", value: target.endDate || "", required: true },
           { name: "recognizedDays", label: "Días reconocidos", type: "number", value: String(target.recognizedDays ?? target.days ?? 1), min: 0.5, step: 0.5 },
+          {
+            type: "custom",
+            html: `<p class="full muted" data-absence-recognition-hint style="margin:0;font-size:0.82rem"></p>`
+          },
           { name: "supportNumber", label: "N° soporte / radicado", value: target.supportNumber || "" },
           { name: "epsEntity", label: "EPS / ARL / entidad", value: target.epsEntity || "" },
+          {
+            type: "custom",
+            html: `<p class="full muted" data-absence-support-hint style="margin:0;font-size:0.82rem"></p>`
+          },
           { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
         ],
+        afterMount: (formEl) => {
+          const subtypeLabel = formEl.querySelector('[name="absenceSubtype"]')?.closest("label");
+          if (subtypeLabel) subtypeLabel.setAttribute("data-absence-subtype-wrap", "");
+          wireHrAbsenceFormBehavior(formEl);
+        },
         onSubmit: (form) => {
           const start = new Date(`${form.startDate}T12:00:00`);
           const end = new Date(`${form.endDate}T12:00:00`);
@@ -30284,7 +30617,10 @@ function bindExtendedViewEditHandlers() {
             absenceSubtype: normalizedSubtype,
             startDate: form.startDate,
             endDate: form.endDate,
-            recognizedDays: nextRecognizedDays
+            recognizedDays: nextRecognizedDays,
+            supportNumber: form.supportNumber,
+            epsEntity: form.epsEntity,
+            notes: form.notes
           });
           if (!legalValidation.ok) {
             notify(legalValidation.message, "error");

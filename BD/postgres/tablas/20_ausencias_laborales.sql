@@ -41,12 +41,31 @@ CREATE TABLE ausencias_laborales (
   ),
   CONSTRAINT chk_ausencias_paternidad_max_14 CHECK (
     tipo_ausencia <> 'licencia_paternidad'
-    OR (unidad_dias_reconocidos = 'calendario' AND dias_reconocidos <= 14.00)
+    OR (
+      unidad_dias_reconocidos = 'calendario'
+      AND dias_reconocidos <= 14.00
+      AND (
+        subtipo_ausencia IS DISTINCT FROM 'parental_compartida'
+        OR dias_reconocidos <= 7.00
+      )
+    )
+  ),
+  CONSTRAINT chk_ausencias_maternidad_subtipo CHECK (
+    tipo_ausencia <> 'licencia_maternidad'
+    OR subtipo_ausencia IN ('ordinaria', 'parto_multiple', 'parto_prematuro', 'adopcion', 'extension_medica')
+  ),
+  CONSTRAINT chk_ausencias_paternidad_subtipo CHECK (
+    tipo_ausencia <> 'licencia_paternidad'
+    OR subtipo_ausencia IN ('continua', 'flexible', 'parental_compartida')
+  ),
+  CONSTRAINT chk_ausencias_maternidad_max_182 CHECK (
+    tipo_ausencia <> 'licencia_maternidad'
+    OR (unidad_dias_reconocidos = 'calendario' AND dias_reconocidos <= 182.00)
   )
 );
 
 COMMENT ON TABLE ausencias_laborales IS 'KEYS.hrAbsences.';
-COMMENT ON COLUMN ausencias_laborales.subtipo_ausencia IS 'Desagregación opcional del tipo de ausencia (ej. sufragio: jurado | votante).';
+COMMENT ON COLUMN ausencias_laborales.subtipo_ausencia IS 'Desagregación del tipo: sufragio (jurado|votante), maternidad (ordinaria|parto_multiple|parto_prematuro|adopcion|extension_medica), paternidad (continua|flexible|parental_compartida).';
 COMMENT ON COLUMN ausencias_laborales.dias_reconocidos IS 'Días o fracción reconocida laboralmente para nómina/compensación; puede diferir de dias_calendario.';
 COMMENT ON COLUMN ausencias_laborales.unidad_dias_reconocidos IS 'calendario | habil | jornada según la naturaleza de la ausencia.';
 

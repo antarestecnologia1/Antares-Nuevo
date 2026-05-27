@@ -123,8 +123,37 @@ function normalizeAusenciaSubtype(tipo: string, subtipo?: string | null): string
   if (rawTipo.includes("sufrag") || rawTipo.includes("vot")) {
     if (rawSub.includes("jurad")) return "jurado";
     if (rawSub.includes("votan") || rawSub.includes("sufrag")) return "votante";
+    return "";
   }
-  return rawSub;
+  if (rawTipo.includes("matern")) {
+    if (rawSub.includes("multi")) return "parto_multiple";
+    if (rawSub.includes("prematur") || rawSub.includes("prematuro")) return "parto_prematuro";
+    if (rawSub.includes("adopc")) return "adopcion";
+    if (rawSub.includes("extension") || rawSub.includes("medica") || rawSub.includes("complic")) return "extension_medica";
+    if (rawSub.includes("ordin")) return "ordinaria";
+    return ["ordinaria", "parto_multiple", "parto_prematuro", "adopcion", "extension_medica"].includes(rawSub) ? rawSub : "";
+  }
+  if (rawTipo.includes("patern")) {
+    if (rawSub.includes("flex")) return "flexible";
+    if (rawSub.includes("parental") || rawSub.includes("compart")) return "parental_compartida";
+    if (rawSub.includes("contin")) return "continua";
+    return ["continua", "flexible", "parental_compartida"].includes(rawSub) ? rawSub : "";
+  }
+  return "";
+}
+
+function maternityConceptLabel(subtipo: string): string {
+  if (subtipo === "parto_multiple") return "Días calendario de licencia de maternidad por parto múltiple";
+  if (subtipo === "parto_prematuro") return "Días calendario de licencia de maternidad por parto prematuro";
+  if (subtipo === "adopcion") return "Días calendario de licencia de maternidad por adopción";
+  if (subtipo === "extension_medica") return "Días calendario de extensión médica de maternidad";
+  return "Días calendario de licencia de maternidad";
+}
+
+function paternityConceptLabel(subtipo: string): string {
+  if (subtipo === "flexible") return "Jornadas de licencia de paternidad flexible";
+  if (subtipo === "parental_compartida") return "Días calendario de licencia parental compartida";
+  return "Días calendario de licencia de paternidad";
 }
 
 function absenceConceptForSlip(ab: AbsenceInput): { typeLabel: string; conceptLabel: string; quantityKind: "calendar" | "business" | "recognized" } {
@@ -140,6 +169,12 @@ function absenceConceptForSlip(ab: AbsenceInput): { typeLabel: string; conceptLa
       conceptLabel: subtipo === "jurado" ? "Día compensatorio por jurado de votación" : "Permiso compensatorio por sufragio",
       quantityKind: "recognized"
     };
+  }
+  if (tipo.includes("matern")) {
+    return { typeLabel, conceptLabel: maternityConceptLabel(subtipo || "ordinaria"), quantityKind: "calendar" };
+  }
+  if (tipo.includes("patern")) {
+    return { typeLabel, conceptLabel: paternityConceptLabel(subtipo || "continua"), quantityKind: "calendar" };
   }
   if (tipo.includes("incapaci") || tipo.includes("arl") || tipo === "eps") {
     return { typeLabel, conceptLabel: `Días calendario en ${typeLabel}`, quantityKind: "calendar" };
