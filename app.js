@@ -2715,66 +2715,299 @@ function payrollFmtYmdLocal(d) {
   return `${y}-${mo}-${da}`;
 }
 
-function payrollAbsenceTypeLabel(absenceType) {
-  const raw = String(absenceType || "").trim();
-  const t = raw.toLowerCase();
-  if (t.includes("vacac")) return "Vacaciones";
-  if (t.includes("incapaci")) return "Incapacidad";
-  if (t.includes("licen")) return "Licencia";
-  if (t.includes("calam")) return "Calamidad";
-  return raw || "Ausentismo";
+function payrollNormalizeAbsenceTypeKey(absenceType) {
+  const t = String(absenceType || "").trim().toLowerCase();
+  if (!t) return "";
+  if (t.includes("vacac")) return "vacaciones";
+  if (t.includes("arl")) return "incapacidad_arl";
+  if (t.includes("incapaci") || t === "eps") return "incapacidad_eps";
+  if (t.includes("matern")) return "licencia_maternidad";
+  if (t.includes("patern")) return "licencia_paternidad";
+  if (t.includes("luto") || t.includes("duelo")) return "licencia_luto";
+  if (t.includes("calam")) return "calamidad_domestica";
+  if ((t.includes("cita") && t.includes("med")) || t.includes("medic")) return "permiso_cita_medica";
+  if (t.includes("judic")) return "permiso_citacion_judicial";
+  if (t.includes("sufrag") || t.includes("vot")) return "permiso_sufragio";
+  if (t.includes("sin goce") || t.includes("no remuner") || t.includes("no_remuner")) return "licencia_no_remunerada";
+  if (t === "incapacidad") return "incapacidad_eps";
+  if (t === "licencia") return "licencia_remunerada";
+  if (t === "calamidad") return "calamidad_domestica";
+  return t;
 }
 
-function payrollAbsenceConceptForSlip(absenceType) {
-  const typeLabel = payrollAbsenceTypeLabel(absenceType);
-  const t = String(absenceType || "").trim().toLowerCase();
-  if (t.includes("vacac")) {
-    return {
-      typeLabel,
+function payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype) {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  const raw = String(absenceSubtype || "").trim().toLowerCase();
+  if (!raw) return "";
+  if (typeKey === "permiso_sufragio") {
+    if (raw.includes("jurad")) return "jurado";
+    if (raw.includes("votan") || raw.includes("sufrag")) return "votante";
+  }
+  return raw;
+}
+
+function payrollGetAbsenceSubtypeOptions(absenceType) {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  if (typeKey === "permiso_sufragio") {
+    return [
+      { value: "votante", label: "Votante (medio día compensatorio)" },
+      { value: "jurado", label: "Jurado de votación (1 día compensatorio)" }
+    ];
+  }
+  return [];
+}
+
+function payrollAbsenceSubtypeLabel(absenceType, absenceSubtype) {
+  const norm = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
+  const option = payrollGetAbsenceSubtypeOptions(absenceType).find((item) => item.value === norm);
+  return option ? option.label : "";
+}
+
+function payrollGetAbsenceTypeMeta(absenceType, absenceSubtype = "") {
+  const raw = String(absenceType || "").trim();
+  const key = payrollNormalizeAbsenceTypeKey(raw);
+  const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
+  const catalog = {
+    vacaciones: {
+      label: "Vacaciones",
+      optionLabel: "Vacaciones remuneradas",
       conceptLabel: "Días hábiles en Vacaciones",
       quantityKind: "business"
-    };
-  }
-  if (t.includes("incapaci")) {
-    return {
-      typeLabel,
-      conceptLabel: "Días calendario en Incapacidad",
+    },
+    incapacidad_eps: {
+      label: "Incapacidad EPS",
+      optionLabel: "Incapacidad por enfermedad general (EPS)",
+      conceptLabel: "Días calendario en Incapacidad EPS",
       quantityKind: "calendar"
-    };
-  }
-  if (t.includes("licen")) {
-    return {
-      typeLabel,
-      conceptLabel: "Días calendario de Licencia",
+    },
+    incapacidad_arl: {
+      label: "Incapacidad ARL",
+      optionLabel: "Incapacidad por accidente o enfermedad laboral (ARL)",
+      conceptLabel: "Días calendario en Incapacidad ARL",
       quantityKind: "calendar"
-    };
-  }
-  if (t.includes("calam")) {
-    return {
-      typeLabel,
-      conceptLabel: "Días calendario por calamidad doméstica",
+    },
+    licencia_maternidad: {
+      label: "Licencia de maternidad",
+      optionLabel: "Licencia de maternidad",
+      conceptLabel: "Días calendario de licencia de maternidad",
       quantityKind: "calendar"
-    };
-  }
+    },
+    licencia_paternidad: {
+      label: "Licencia de paternidad",
+      optionLabel: "Licencia de paternidad",
+      conceptLabel: "Días calendario de licencia de paternidad",
+      quantityKind: "calendar"
+    },
+    licencia_luto: {
+      label: "Licencia por luto",
+      optionLabel: "Licencia por luto",
+      conceptLabel: "Días hábiles de licencia por luto",
+      quantityKind: "business"
+    },
+    calamidad_domestica: {
+      label: "Calamidad doméstica",
+      optionLabel: "Licencia por grave calamidad doméstica",
+      conceptLabel: "Días de calamidad doméstica",
+      quantityKind: "calendar"
+    },
+    permiso_cita_medica: {
+      label: "Permiso cita médica",
+      optionLabel: "Permiso por cita médica o atención en salud",
+      conceptLabel: "Días hábiles por cita médica",
+      quantityKind: "business"
+    },
+    permiso_citacion_judicial: {
+      label: "Permiso citación judicial",
+      optionLabel: "Permiso por citación judicial o deber legal",
+      conceptLabel: "Días hábiles por citación judicial",
+      quantityKind: "business"
+    },
+    permiso_sufragio: {
+      label: "Permiso por sufragio",
+      optionLabel: "Permiso por sufragio / jornada electoral",
+      conceptLabel:
+        subtype === "jurado"
+          ? "Día compensatorio por jurado de votación"
+          : "Permiso compensatorio por sufragio",
+      quantityKind: "recognized"
+    },
+    licencia_remunerada: {
+      label: "Licencia remunerada",
+      optionLabel: "Otra licencia o permiso remunerado",
+      conceptLabel: "Días de licencia remunerada",
+      quantityKind: "calendar"
+    },
+    licencia_no_remunerada: {
+      label: "Licencia no remunerada",
+      optionLabel: "Licencia no remunerada / suspensión autorizada",
+      conceptLabel: "Días de licencia no remunerada",
+      quantityKind: "calendar"
+    }
+  };
+  const meta = catalog[key];
+  if (meta) return { key, ...meta };
   return {
-    typeLabel,
+    key,
+    label: raw || "Ausentismo",
+    optionLabel: raw || "Ausentismo",
     conceptLabel: "Días de ausentismo registrados",
     quantityKind: "calendar"
   };
+}
+
+function payrollAbsenceTypeLabel(absenceType) {
+  return payrollGetAbsenceTypeMeta(absenceType).label;
+}
+
+function payrollAbsenceConceptForSlip(absenceType, absenceSubtype = "") {
+  const meta = payrollGetAbsenceTypeMeta(absenceType, absenceSubtype);
+  return {
+    typeLabel: meta.label,
+    conceptLabel: meta.conceptLabel,
+    quantityKind: meta.quantityKind
+  };
+}
+
+function payrollAbsenceSelectOptions() {
+  return [
+    "vacaciones",
+    "incapacidad_eps",
+    "incapacidad_arl",
+    "licencia_maternidad",
+    "licencia_paternidad",
+    "licencia_luto",
+    "calamidad_domestica",
+    "permiso_cita_medica",
+    "permiso_citacion_judicial",
+    "permiso_sufragio",
+    "licencia_remunerada",
+    "licencia_no_remunerada"
+  ].map((value) => ({
+    value,
+    label: payrollGetAbsenceTypeMeta(value).optionLabel
+  }));
+}
+
+function buildPayrollAbsenceTypeOptionsHtml(selectedValue = "") {
+  const normalizedSelected = payrollNormalizeAbsenceTypeKey(selectedValue);
+  return payrollAbsenceSelectOptions()
+    .map((opt) => `<option value="${escapeAttr(opt.value)}"${opt.value === normalizedSelected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`)
+    .join("");
+}
+
+function buildPayrollAbsenceSubtypeOptionsHtml(absenceType, selectedValue = "") {
+  const normalizedSelected = payrollNormalizeAbsenceSubtype(absenceType, selectedValue);
+  const options = payrollGetAbsenceSubtypeOptions(absenceType);
+  if (!options.length) return `<option value="">No aplica</option>`;
+  return options
+    .map((opt) => `<option value="${escapeAttr(opt.value)}"${opt.value === normalizedSelected ? " selected" : ""}>${escapeHtml(opt.label)}</option>`)
+    .join("");
+}
+
+function payrollAbsenceIsIncapacityType(absenceType) {
+  const key = payrollNormalizeAbsenceTypeKey(absenceType);
+  return key === "incapacidad_eps" || key === "incapacidad_arl";
+}
+
+function payrollAbsenceRecognizedUnit(absenceType, absenceSubtype = "") {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
+  if (typeKey === "permiso_sufragio") return "jornada";
+  const meta = payrollGetAbsenceTypeMeta(absenceType, absenceSubtype);
+  return meta.quantityKind === "business" ? "habil" : "calendario";
+}
+
+function payrollComputeAbsenceSuggestedRecognizedDays({ absenceType, absenceSubtype, startDate, endDate }) {
+  const abStart = payrollParseLocalYmd(startDate);
+  const abEnd = payrollParseLocalYmd(endDate) || abStart;
+  const subtype = payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype);
+  if (payrollNormalizeAbsenceTypeKey(absenceType) === "permiso_sufragio") {
+    return subtype === "jurado" ? 1 : 0.5;
+  }
+  if (!abStart || !abEnd) return 1;
+  return payrollAbsenceRecognizedUnit(absenceType, absenceSubtype) === "habil"
+    ? payrollInclusiveBusinessDaysLocal(abStart, abEnd)
+    : payrollInclusiveCalendarDaysLocal(abStart, abEnd);
+}
+
+function payrollFormatAbsenceQuantity(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return "0";
+  return num.toLocaleString("es-CO", {
+    minimumFractionDigits: Number.isInteger(num) ? 0 : 1,
+    maximumFractionDigits: 2
+  });
+}
+
+function wireHrAbsenceFormBehavior(form) {
+  if (!form || form.dataset.hrAbsenceBehaviorBound === "1") return;
+  form.dataset.hrAbsenceBehaviorBound = "1";
+  const typeEl = form.querySelector('[name="absenceType"]');
+  const subtypeWrap = form.querySelector("[data-absence-subtype-wrap]");
+  const subtypeEl = form.querySelector('[name="absenceSubtype"]');
+  const startEl = form.querySelector('[name="startDate"]');
+  const endEl = form.querySelector('[name="endDate"]');
+  const recognizedEl = form.querySelector('[name="recognizedDays"]');
+  const hintEl = form.querySelector("[data-absence-recognition-hint]");
+  if (!typeEl || !subtypeEl || !recognizedEl) return;
+
+  const sync = () => {
+    subtypeEl.innerHTML = buildPayrollAbsenceSubtypeOptionsHtml(typeEl.value, subtypeEl.value);
+    const showSubtype = payrollGetAbsenceSubtypeOptions(typeEl.value).length > 0;
+    if (subtypeWrap) {
+      subtypeWrap.classList.toggle("hidden", !showSubtype);
+      subtypeWrap.setAttribute("aria-hidden", showSubtype ? "false" : "true");
+    }
+    if (!showSubtype) subtypeEl.value = "";
+    const suggested = payrollComputeAbsenceSuggestedRecognizedDays({
+      absenceType: typeEl.value,
+      absenceSubtype: subtypeEl.value,
+      startDate: startEl?.value,
+      endDate: endEl?.value
+    });
+    if (!recognizedEl.dataset.userEdited || !String(recognizedEl.value || "").trim()) {
+      recognizedEl.value = String(suggested);
+    }
+    if (hintEl) {
+      const unit = payrollAbsenceRecognizedUnit(typeEl.value, subtypeEl.value);
+      const subtypeLabel = payrollAbsenceSubtypeLabel(typeEl.value, subtypeEl.value);
+      hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.`;
+    }
+  };
+
+  typeEl.addEventListener("change", () => {
+    delete recognizedEl.dataset.userEdited;
+    sync();
+  });
+  subtypeEl.addEventListener("change", () => {
+    delete recognizedEl.dataset.userEdited;
+    sync();
+  });
+  startEl?.addEventListener("change", () => {
+    delete recognizedEl.dataset.userEdited;
+    sync();
+  });
+  endEl?.addEventListener("change", () => {
+    delete recognizedEl.dataset.userEdited;
+    sync();
+  });
+  recognizedEl.addEventListener("input", () => {
+    recognizedEl.dataset.userEdited = "1";
+  });
+  sync();
 }
 
 function payrollMergeAbsenceSlipRows(rows) {
   const acc = new Map();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     if (!row || typeof row !== "object") return;
-    const quantity = Math.max(0, Math.round(parseNum(row.quantity)));
+    const quantity = Math.max(0, Number(parseNum(row.quantity)));
     if (quantity <= 0) return;
     const typeLabel = String(row.typeLabel || "Ausentismo").trim() || "Ausentismo";
     const conceptLabel = String(row.conceptLabel || "Días de ausentismo registrados").trim() || "Días de ausentismo registrados";
     const key = `${typeLabel}__${conceptLabel}`;
     const prev = acc.get(key);
     if (prev) {
-      prev.quantity += quantity;
+      prev.quantity = Math.round((prev.quantity + quantity) * 100) / 100;
     } else {
       acc.set(key, { typeLabel, conceptLabel, quantity });
     }
@@ -2807,11 +3040,18 @@ function buildPayrollAbsenceSlipRowsForPeriod({ employeeId, periodStart, periodE
     if (!abStart || !abEnd) return;
     const ov = payrollOverlapInclusiveLocal(abStart, abEnd, periodStart, periodEnd);
     if (!ov) return;
-    const concept = payrollAbsenceConceptForSlip(ab?.absenceType || ab?.type);
+    const concept = payrollAbsenceConceptForSlip(ab?.absenceType || ab?.type, ab?.absenceSubtype || ab?.subtype);
+    const recognizedDays = Number(parseNum(ab?.recognizedDays ?? ab?.diasReconocidos ?? 0));
+    const recognizedUnit = String(ab?.recognizedUnit || ab?.unidadDiasReconocidos || "").trim().toLowerCase();
+    const fullOverlap =
+      payrollFmtYmdLocal(ov.s) === payrollFmtYmdLocal(abStart) &&
+      payrollFmtYmdLocal(ov.e) === payrollFmtYmdLocal(abEnd);
     const quantity =
-      concept.quantityKind === "business"
-        ? payrollInclusiveBusinessDaysLocal(ov.s, ov.e)
-        : payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
+      recognizedDays > 0 && (fullOverlap || recognizedUnit === "jornada" || concept.quantityKind === "recognized")
+        ? recognizedDays
+        : concept.quantityKind === "business"
+          ? payrollInclusiveBusinessDaysLocal(ov.s, ov.e)
+          : payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
     rows.push({
       typeLabel: concept.typeLabel,
       conceptLabel: concept.conceptLabel,
@@ -2894,7 +3134,7 @@ function computePayrollIncapacityColombiaForMonth({ employee, liquidacionMonthYm
   const episodes = [];
 
   for (const ab of absences) {
-    if (String(ab.absenceType || "").toLowerCase() !== "incapacidad") continue;
+    if (!payrollAbsenceIsIncapacityType(ab.absenceType)) continue;
     const abStart = payrollParseLocalYmd(ab.startDate);
     const abEnd = payrollParseLocalYmd(ab.endDate) || abStart;
     if (!abStart || !abEnd) continue;
@@ -2905,7 +3145,8 @@ function computePayrollIncapacityColombiaForMonth({ employee, liquidacionMonthYm
     if (!ov) continue;
 
     const rad = String(ab.supportNumber || "").trim();
-    const baseLabel = rad ? `Incapacidad · radicado ${rad}` : "Incapacidad";
+    const baseTypeLabel = payrollAbsenceTypeLabel(ab.absenceType || ab.type);
+    const baseLabel = rad ? `${baseTypeLabel} · radicado ${rad}` : baseTypeLabel;
 
     if (cl.kind === "incapacidad_arl") {
       const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
@@ -3403,10 +3644,16 @@ let state = {
     editUserId: "",
     editCompanyId: "",
     section: "pending",
+    createUserMinimized: false,
+    createCompanyMinimized: false,
     /** Tarjeta «Editar usuario» colapsada (solo cabecera). */
     editMinimized: false,
     /** Tarjeta «Asignar permisos» colapsada tras guardar. */
     permissionsMinimized: false
+  },
+  adminUsersDrafts: {
+    createUser: {},
+    createCompany: {}
   },
   vehiclesUi: {
     workspace: "fleet"
@@ -7252,6 +7499,78 @@ function confirmDiscardCreateForm(formEl) {
   return window.confirm("Se perderán los cambios no guardados de este formulario. ¿Desea continuar?");
 }
 
+function readAdminUsersFormDraft(formEl, opts = {}) {
+  if (!formEl) return {};
+  const excludeNames = new Set(Array.isArray(opts.excludeNames) ? opts.excludeNames.map((x) => String(x || "")) : []);
+  const excludeTypes = new Set(Array.isArray(opts.excludeTypes) ? opts.excludeTypes.map((x) => String(x || "").toLowerCase()) : ["file"]);
+  const out = {};
+  const byName = new Map();
+  [...formEl.querySelectorAll("input[name], select[name], textarea[name]")].forEach((field) => {
+    const name = String(field.name || "").trim();
+    if (!name || excludeNames.has(name)) return;
+    if (!byName.has(name)) byName.set(name, []);
+    byName.get(name).push(field);
+  });
+  byName.forEach((fields, name) => {
+    const first = fields[0];
+    const type = String(first.type || "").toLowerCase();
+    if (excludeTypes.has(type)) return;
+    if (type === "checkbox") {
+      out[name] = fields.filter((field) => field.checked).map((field) => String(field.value || ""));
+      return;
+    }
+    if (type === "radio") {
+      const checked = fields.find((field) => field.checked);
+      out[name] = checked ? String(checked.value || "") : "";
+      return;
+    }
+    out[name] = String(first.value || "");
+  });
+  return out;
+}
+
+function applyAdminUsersFormDraft(formEl, draft = {}) {
+  if (!formEl || !draft || typeof draft !== "object") return;
+  Object.entries(draft).forEach(([name, rawValue]) => {
+    const safeName =
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(name)
+        : String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const fields = [...formEl.querySelectorAll(`[name="${safeName}"]`)];
+    if (!fields.length) return;
+    const first = fields[0];
+    const type = String(first.type || "").toLowerCase();
+    if (type === "checkbox") {
+      const selected = new Set(Array.isArray(rawValue) ? rawValue.map((x) => String(x || "")) : []);
+      fields.forEach((field) => {
+        field.checked = selected.has(String(field.value || ""));
+      });
+      return;
+    }
+    if (type === "radio") {
+      fields.forEach((field) => {
+        field.checked = String(field.value || "") === String(rawValue || "");
+      });
+      return;
+    }
+    first.value = rawValue == null ? "" : String(rawValue);
+  });
+}
+
+function syncInlineAdminCardCollapse(btn, expanded) {
+  if (!btn) return;
+  btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  btn.innerHTML = `${expanded ? IC.x : IC.plus} ${expanded ? "Minimizar formulario" : "Mostrar formulario"}`;
+  const toolbar = btn.closest(".toolbar.hr-create-toolbar");
+  const panel = toolbar?.nextElementSibling || null;
+  if (panel) panel.classList.toggle("hidden", !expanded);
+  const card = btn.closest(".p-card");
+  if (card) {
+    card.classList.toggle("p-card--expanded", expanded);
+    card.classList.toggle("p-card--collapsed", !expanded);
+  }
+}
+
 /**
  * Administración · Usuarios: acerca el scroll al formulario visible (edición,
  * creación de usuario/empresa o permisos) para no quedar abajo del listado.
@@ -7270,11 +7589,12 @@ function scrollToAdminUsersFocusedForm() {
 function wireAdminCompanyLocationSelects() {
   const createForm = document.getElementById("form-admin-company-create");
   if (createForm) {
+    const draft = getAdminUsersDraft("createCompany");
     attachDepartmentCitySelects(createForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']",
-      initialDepartment: "",
-      initialCity: ""
+      initialDepartment: String(draft.department || ""),
+      initialCity: String(draft.city || "")
     });
   }
   const editForm = document.getElementById("form-admin-company-edit");
@@ -8024,7 +8344,7 @@ function approvalDetailLine(approval) {
         .filter(Boolean)
         .join(" · ") || "—";
     case "register_hr_absence":
-      return [String(p.absenceType || "").trim(), p.startDate && p.endDate ? `${p.startDate} → ${p.endDate}` : ""]
+      return [payrollAbsenceTypeLabel(p.absenceType), p.startDate && p.endDate ? `${p.startDate} → ${p.endDate}` : ""]
         .filter(Boolean)
         .join(" · ") || "—";
     case "mark_payroll_paid":
@@ -13510,14 +13830,7 @@ function transportCalendarHtml() {
     .map((a) => {
       const ts = new Date(`${String(a.startDate || "")}T12:00:00`).getTime();
       if (!Number.isFinite(ts)) return null;
-      const typeLabel =
-        a.absenceType === "incapacidad"
-          ? "Incapacidad"
-          : a.absenceType === "vacaciones"
-            ? "Vacaciones"
-            : a.absenceType === "licencia"
-              ? "Licencia"
-              : "Novedad";
+      const typeLabel = payrollAbsenceTypeLabel(a.absenceType);
       return {
         kind: "absence",
         id: String(a.id || ""),
@@ -14122,7 +14435,11 @@ function adminUsersHtml(current) {
       <legend>${IC.shield} Permisos del usuario</legend>
       <div class="perm-grid">${permissionChecks(defaultPermissionsForRole(ROLES.ADMIN))}</div>
     </fieldset>
-    <button class="btn btn-primary full" type="submit">${IC.userPlus} Crear usuario</button>
+    <div class="form-flow-actions full">
+      <button class="btn btn-outline btn-sm" type="button" data-action="toggle-admin-create-user-panel">Minimizar</button>
+      <button class="btn btn-action btn-sm" type="button" data-action="cancel-admin-create-panel" data-panel="create-user">${IC.x} Cancelar</button>
+      <button class="btn btn-primary" type="submit">${IC.userPlus} Crear usuario</button>
+    </div>
   </form>`;
 
   const fComp = `<form id="form-admin-company-create" class="p-form">
@@ -14191,8 +14508,12 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city"><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección operativa")}<input name="address" maxlength="180" placeholder="Dirección de cargue/descargue o sede principal" /></label>
       </div>
-      <button class="btn btn-primary full" type="submit">${IC.plus} Registrar empresa</button>
     </fieldset>
+    <div class="form-flow-actions full">
+      <button class="btn btn-outline btn-sm" type="button" data-action="toggle-admin-create-company-panel">Minimizar</button>
+      <button class="btn btn-action btn-sm" type="button" data-action="cancel-admin-create-panel" data-panel="create-company">${IC.x} Cancelar</button>
+      <button class="btn btn-primary" type="submit">${IC.plus} Registrar empresa</button>
+    </div>
   </form>`;
 
   const fCompanyEdit = editingCompany
@@ -14457,27 +14778,23 @@ function adminUsersHtml(current) {
   );
 
   if (ui.panel === "create-user") {
+    const createUserExpanded = !ui.createUserMinimized;
     actionsPaneHtml += pcardWrapPro(
       "userPlus",
       "Crear nuevo usuario",
       "Alta completa",
-      `<div class="toolbar hr-create-toolbar">
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-admin-panel" data-panel="create-user">${IC.x} Cancelar</button>
-      </div>
-      <p class="admin-users-form-lead muted">Alta centralizada en un solo formulario, sin paneles adicionales alrededor.</p>${fUser}`,
-      focusCardClass
+      `<p class="admin-users-form-lead muted">Alta centralizada en un solo formulario, sin paneles adicionales alrededor.</p>${adminUsersCollapsibleCardBody(createUserExpanded, "toggle-admin-create-user-panel", fUser)}`,
+      `${createUserExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
   if (ui.panel === "create-company") {
+    const createCompanyExpanded = !ui.createCompanyMinimized;
     actionsPaneHtml += pcardWrapPro(
       "plus",
       "Registrar empresa",
       "Directorio empresarial",
-      `<div class="toolbar hr-create-toolbar">
-        <button class="btn btn-sm btn-action" type="button" data-action="toggle-admin-panel" data-panel="create-company">${IC.x} Cancelar</button>
-      </div>
-      <p class="admin-users-form-lead muted">Use este flujo solo cuando necesite crear una empresa nueva para asociar usuarios.</p>${fComp}`,
-      focusCardClass
+      `<p class="admin-users-form-lead muted">Use este flujo solo cuando necesite crear una empresa nueva para asociar usuarios.</p>${adminUsersCollapsibleCardBody(createCompanyExpanded, "toggle-admin-create-company-panel", fComp)}`,
+      `${createCompanyExpanded ? "p-card--expanded" : "p-card--collapsed"} ${focusCardClass}`
     );
   }
   if (ui.panel === "set-permissions") {
@@ -19354,12 +19671,12 @@ function payrollHtml() {
     ${renderHrFormHero({
       eyebrow: "Novedad de personal",
       title: "Ausencias e incapacidades sin ruido",
-      description: "Complete el evento, el soporte y las observaciones en un formato más compacto pero cómodo de leer y diligenciar.",
+      description: "Registre vacaciones, incapacidades, licencias y permisos laborales usuales en Colombia con soporte y observaciones.",
       tone: "payroll",
       badges: [
-        renderHrFormHeroBadge("EPS", "o entidad"),
+        renderHrFormHeroBadge("EPS / ARL", "o entidad"),
         renderHrFormHeroBadge("Fechas", "desde / hasta"),
-        renderHrFormHeroBadge("Soporte", "adjunto lógico")
+        renderHrFormHeroBadge("Colombia", "tipos laborales")
       ]
     })}
     <fieldset class="form-section form-section-violet full">
@@ -19367,22 +19684,22 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.idDoc}</option>`).join("")}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de ausencia")}
-          <select name="absenceType" required>
-            <option value="incapacidad">Incapacidad (EPS / enfermedad general o accidente)</option>
-            <option value="vacaciones">Vacaciones remuneradas</option>
-            <option value="licencia">Licencia (maternidad/paternidad u otra)</option>
-            <option value="calamidad">Licencia por calamidad doméstica (3 días/calendario año)</option>
-          </select>
+          <select name="absenceType" required>${buildPayrollAbsenceTypeOptionsHtml("incapacidad_eps")}</select>
+        </label>
+        <label class="hidden" data-absence-subtype-wrap aria-hidden="true">${fieldLabel(IC.layers, "Subtipo")}
+          <select name="absenceSubtype">${buildPayrollAbsenceSubtypeOptionsHtml("incapacidad_eps", "")}</select>
         </label>
         <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="startDate" required /></label>
         <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="endDate" required /></label>
+        <label>${fieldLabel(IC.hash, "Días reconocidos")}<input type="number" name="recognizedDays" min="0.5" step="0.5" value="1" required /></label>
+        <p class="full muted" data-absence-recognition-hint style="margin:0;font-size:0.82rem"></p>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.file} Soporte</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.hash, "No. incapacidad o soporte")}<input name="supportNumber" placeholder="Código EPS / radicado" /></label>
-        <label class="full">${fieldLabel(IC.heart, "EPS o entidad")}<select name="epsEntity">${epsOptions}<option value="Otra">Otra</option></select></label>
+        <label class="full">${fieldLabel(IC.hash, "No. soporte o radicado")}<input name="supportNumber" placeholder="Radicado, acta, certificado o soporte" /></label>
+        <label class="full">${fieldLabel(IC.heart, "EPS / ARL / entidad")}<select name="epsEntity">${epsOptions}<option value="ARL">ARL</option><option value="Juzgado">Juzgado</option><option value="Registraduría">Registraduría</option><option value="Otra">Otra</option></select></label>
         <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
       </div>
     </fieldset>
@@ -19393,9 +19710,9 @@ function payrollHtml() {
       (a) => `<tr>
       <td>${fmtDate(a.createdAt)}</td>
       <td>${a.employeeName}</td>
-      <td>${a.absenceType === "incapacidad" ? "Incapacidad" : a.absenceType === "vacaciones" ? "Vacaciones" : a.absenceType === "licencia" ? "Licencia" : "Calamidad"}</td>
+      <td>${escapeHtml(payrollAbsenceTypeLabel(a.absenceType))}${a.absenceSubtype ? `<br><span class="muted" style="font-size:0.8rem">${escapeHtml(payrollAbsenceSubtypeLabel(a.absenceType, a.absenceSubtype) || String(a.absenceSubtype))}</span>` : ""}</td>
       <td>${a.startDate} → ${a.endDate}</td>
-      <td>${a.days}</td>
+      <td>${escapeHtml(payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days))}</td>
       <td><span class="muted">${a.supportNumber || "-"}</span></td>
       <td><div class="toolbar">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.eye} Ver</button>
@@ -19406,8 +19723,8 @@ function payrollHtml() {
     )
     .join("");
   const absenceTable = absenceRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
-    : emptyState("Sin incapacidades ni vacaciones registradas.");
+    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
+    : emptyState("Sin ausencias laborales registradas.");
   const empTable = employeeRows
     ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Auxilio legal</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
     : emptyState("No hay empleados registrados.");
@@ -19494,7 +19811,7 @@ function payrollHtml() {
   const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${createCollapsibleProCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll", "Abrir formulario")}</div>`;
   const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
   const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
-  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Incapacidades, vacaciones, licencias y calamidad doméstica", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Vacaciones, incapacidades, licencias y permisos laborales Colombia", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
       <header class="payroll-panel-intro ops-block-head">
         <h3>Nuevos registros</h3>
@@ -21486,8 +21803,8 @@ function enforceColombianFormStandards() {
   });
   setAttr("#form-interview input[name='when']", { min: colombiaDatetimeLocalString() });
 
-  setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado incapacidad/vacaciones" });
-  ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "Otra"], "Seleccione EPS/entidad...");
+  setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado o soporte legal" });
+  ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "ARL", "Juzgado", "Registraduría", "Otra"], "Seleccione EPS/ARL o entidad...");
 
   setAttr("#form-sst-compliance input[name='documentCode']", { minlength: "4", maxlength: "32" });
 
@@ -22505,12 +22822,36 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const panel = String(btn.dataset.panel || "");
       const ui = getAdminUsersUi();
-      const willOpen = ui.panel !== panel;
+      const samePanel = ui.panel === panel;
+      const isCreateUser = panel === "create-user";
+      const isCreateCompany = panel === "create-company";
+      if (samePanel && isCreateUser) {
+        if (ui.createUserMinimized) {
+          document.querySelector("[data-action='toggle-admin-create-user-panel']")?.click();
+        } else {
+          scrollToAdminUsersFocusedForm();
+        }
+        return;
+      }
+      if (samePanel && isCreateCompany) {
+        if (ui.createCompanyMinimized) {
+          document.querySelector("[data-action='toggle-admin-create-company-panel']")?.click();
+        } else {
+          scrollToAdminUsersFocusedForm();
+        }
+        return;
+      }
+      const willOpen =
+        !samePanel ||
+        (isCreateUser && ui.createUserMinimized) ||
+        (isCreateCompany && ui.createCompanyMinimized);
       setAdminUsersUi({
-        panel: ui.panel === panel ? "" : panel,
+        panel: samePanel && !willOpen ? "" : panel,
         editUserId: "",
         editCompanyId: "",
         section: "actions",
+        createUserMinimized: isCreateUser ? false : ui.createUserMinimized,
+        createCompanyMinimized: isCreateCompany ? false : ui.createCompanyMinimized,
         editMinimized: false,
         permissionsMinimized: panel === "set-permissions" ? false : ui.permissionsMinimized
       });
@@ -22518,6 +22859,45 @@ function bindDynamicEvents() {
       if (willOpen && getAdminUsersUi().panel) {
         scrollToAdminUsersFocusedForm();
       }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-create-user-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ui = getAdminUsersUi();
+      const nextExpanded = Boolean(ui.createUserMinimized);
+      setAdminUsersUi({ createUserMinimized: !nextExpanded });
+      syncInlineAdminCardCollapse(btn, nextExpanded);
+      if (nextExpanded) scrollToAdminUsersFocusedForm();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-create-company-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ui = getAdminUsersUi();
+      const nextExpanded = Boolean(ui.createCompanyMinimized);
+      setAdminUsersUi({ createCompanyMinimized: !nextExpanded });
+      syncInlineAdminCardCollapse(btn, nextExpanded);
+      if (nextExpanded) scrollToAdminUsersFocusedForm();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='cancel-admin-create-panel']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = String(btn.dataset.panel || "");
+      const formEl = btn.closest("form");
+      if (!panel || !formEl) return;
+      if (!confirmDiscardCreateForm(formEl)) return;
+      if (panel === "create-user") {
+        clearAdminUsersDraft("createUser");
+        setAdminUsersUi({ panel: "", createUserMinimized: false });
+      } else if (panel === "create-company") {
+        clearAdminUsersDraft("createCompany");
+        setAdminUsersUi({ panel: "", createCompanyMinimized: false });
+      } else {
+        return;
+      }
+      renderPortalView();
     });
   });
 
@@ -22830,15 +23210,26 @@ function bindDynamicEvents() {
 
   const adminUserCreate = document.getElementById("form-admin-user-create");
   if (adminUserCreate) {
+    const draft = getAdminUsersDraft("createUser");
     attachDepartmentCitySelects(adminUserCreate, {
       departmentSelector: "select[name='department']",
-      citySelector: "select[name='city']"
+      citySelector: "select[name='city']",
+      initialDepartment: String(draft.department || ""),
+      initialCity: String(draft.city || "")
     });
     bindPasswordStrengthSuite(
       adminUserCreate.querySelector("input[name='password']"),
       adminUserCreate.querySelector("#admin-password-strength-suite")
     );
     wireAdminUserFormPermGridOnRoleChange(adminUserCreate);
+    if (draft.role) repaintPermGridInForm(adminUserCreate, draft.role || ROLES.ADMIN);
+    applyAdminUsersFormDraft(adminUserCreate, draft);
+    adminUserCreate.addEventListener("input", () => {
+      setAdminUsersDraft("createUser", readAdminUsersFormDraft(adminUserCreate, { excludeNames: ["password"] }));
+    });
+    adminUserCreate.addEventListener("change", () => {
+      setAdminUsersDraft("createUser", readAdminUsersFormDraft(adminUserCreate, { excludeNames: ["password"] }));
+    });
     wireFormSubmitGuard(adminUserCreate, async (event) => {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(adminUserCreate).entries());
@@ -22875,7 +23266,15 @@ function bindDynamicEvents() {
           requestedByName: actor?.name || "Usuario"
         });
         notify(userMessage("userApprovalQueued"), "info");
-        state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
+        clearAdminUsersDraft("createUser");
+        state.adminUsersUi = {
+          ...getAdminUsersUi(),
+          panel: "",
+          editUserId: "",
+          editCompanyId: "",
+          section: "actions",
+          createUserMinimized: false
+        };
         renderPortalView();
         return;
       }
@@ -22908,13 +23307,29 @@ function bindDynamicEvents() {
       });
       await writeAwaitServer(KEYS.users, users);
       notify(userMessage("userCreated"), "success");
-      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
+      clearAdminUsersDraft("createUser");
+      state.adminUsersUi = {
+        ...getAdminUsersUi(),
+        panel: "",
+        editUserId: "",
+        editCompanyId: "",
+        section: "actions",
+        createUserMinimized: false
+      };
       renderPortalView();
     });
   }
 
   const adminCompanyCreate = document.getElementById("form-admin-company-create");
   if (adminCompanyCreate) {
+    const draft = getAdminUsersDraft("createCompany");
+    applyAdminUsersFormDraft(adminCompanyCreate, draft);
+    adminCompanyCreate.addEventListener("input", () => {
+      setAdminUsersDraft("createCompany", readAdminUsersFormDraft(adminCompanyCreate));
+    });
+    adminCompanyCreate.addEventListener("change", () => {
+      setAdminUsersDraft("createCompany", readAdminUsersFormDraft(adminCompanyCreate));
+    });
     wireFormSubmitGuard(adminCompanyCreate, async (event) => {
       const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
       const logoFile = adminCompanyCreate.querySelector("input[name='logoFile']")?.files?.[0] || null;
@@ -23010,7 +23425,15 @@ function bindDynamicEvents() {
         return;
       }
       notify(userMessage("companyCreated"), "success");
-      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
+      clearAdminUsersDraft("createCompany");
+      state.adminUsersUi = {
+        ...getAdminUsersUi(),
+        panel: "",
+        editUserId: "",
+        editCompanyId: "",
+        section: "actions",
+        createCompanyMinimized: false
+      };
       renderPortalView();
     });
   }
@@ -24411,14 +24834,7 @@ function bindDynamicEvents() {
       }
       const absence = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
       if (!absence) return;
-      const typeLabel =
-        absence.absenceType === "incapacidad"
-          ? "Incapacidad"
-          : absence.absenceType === "vacaciones"
-            ? "Vacaciones"
-            : absence.absenceType === "licencia"
-              ? "Licencia"
-              : "Novedad";
+      const typeLabel = payrollAbsenceTypeLabel(absence.absenceType);
       openInfoModal({
         title: `${typeLabel} · ${escapeHtml(String(absence.employeeName || "Colaborador"))}`,
         subtitle: `${escapeHtml(String(absence.startDate || "-"))} → ${escapeHtml(String(absence.endDate || "-"))}`,
@@ -26467,6 +26883,7 @@ function bindDynamicEvents() {
 
   const absenceForm = document.getElementById("form-hr-absence");
   if (absenceForm) {
+    wireHrAbsenceFormBehavior(absenceForm);
     wireFormSubmitGuard(absenceForm, async (event) => {
       const actor = currentUser();
       const data = Object.fromEntries(new FormData(absenceForm).entries());
@@ -26482,15 +26899,34 @@ function bindDynamicEvents() {
         return;
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+      const absenceType = payrollNormalizeAbsenceTypeKey(data.absenceType);
+      const absenceSubtype = payrollNormalizeAbsenceSubtype(absenceType, data.absenceSubtype);
+      const recognizedDays = Math.max(
+        0.5,
+        Number(
+          parseNum(
+            data.recognizedDays ||
+              payrollComputeAbsenceSuggestedRecognizedDays({
+                absenceType,
+                absenceSubtype,
+                startDate: data.startDate,
+                endDate: data.endDate
+              })
+          )
+        )
+      );
       const list = read(KEYS.hrAbsences, []);
       const absencePayload = {
         id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
-        absenceType: data.absenceType,
+        absenceType,
+        absenceSubtype: absenceSubtype || null,
         startDate: data.startDate,
         endDate: data.endDate,
         days,
+        recognizedDays,
+        recognizedUnit: payrollAbsenceRecognizedUnit(absenceType, absenceSubtype),
         supportNumber: String(data.supportNumber || "").trim(),
         epsEntity: String(data.epsEntity || "").trim(),
         notes: String(data.notes || "").trim(),
@@ -27229,7 +27665,7 @@ function bindDynamicEvents() {
               ${absenceDetailRows
                 .map(
                   (row) =>
-                    `<tr><td style="${cL}">${escapeHtml(String(row.typeLabel || "Ausentismo"))}</td><td style="${cL}">${escapeHtml(String(row.conceptLabel || ""))}</td><td style="${cR}">${Math.max(0, Math.round(parseNum(row.quantity))).toLocaleString("es-CO")}</td></tr>`
+                    `<tr><td style="${cL}">${escapeHtml(String(row.typeLabel || "Ausentismo"))}</td><td style="${cL}">${escapeHtml(String(row.conceptLabel || ""))}</td><td style="${cR}">${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
                 )
                 .join("")}
             </tbody>
@@ -29643,7 +30079,8 @@ function bindExtendedViewEditHandlers() {
         notify(userMessage("genericError"), "error");
         return;
       }
-      const typeLabel = a.absenceType === "incapacidad" ? "Incapacidad" : a.absenceType === "vacaciones" ? "Vacaciones" : a.absenceType === "licencia" ? "Licencia" : "Calamidad";
+      const typeLabel = payrollAbsenceTypeLabel(a.absenceType);
+      const subtypeLabel = payrollAbsenceSubtypeLabel(a.absenceType, a.absenceSubtype);
       const sections = [
         {
           icon: "calendar",
@@ -29651,11 +30088,13 @@ function bindExtendedViewEditHandlers() {
           rows: renderDetailRows([
             ["Empleado", `<strong>${escapeHtml(String(a.employeeName || "-"))}</strong>`],
             ["Tipo", escapeHtml(typeLabel)],
+            ["Subtipo", escapeHtml(subtypeLabel || "No aplica")],
             ["Inicio", fmtDateOr(a.startDate)],
             ["Fin", fmtDateOr(a.endDate)],
-            ["Días", String(parseNum(a.days || 0))],
+            ["Días calendario", String(parseNum(a.days || 0))],
+            ["Días reconocidos", payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days)],
             ["Soporte (N°)", escapeHtml(String(a.supportNumber || "-"))],
-            ["Entidad/EPS", escapeHtml(String(a.epsEntity || "-"))],
+            ["Entidad/EPS/ARL", escapeHtml(String(a.epsEntity || "-"))],
             ["Registrado", fmtDateOr(a.createdAt)]
           ])
         },
@@ -29692,18 +30131,21 @@ function bindExtendedViewEditHandlers() {
             name: "absenceType",
             label: "Tipo",
             type: "select",
-            value: target.absenceType || "incapacidad",
-            options: [
-              { value: "incapacidad", label: "Incapacidad" },
-              { value: "vacaciones", label: "Vacaciones" },
-              { value: "licencia", label: "Licencia" },
-              { value: "calamidad", label: "Calamidad" }
-            ]
+            value: payrollNormalizeAbsenceTypeKey(target.absenceType || "incapacidad_eps"),
+            options: payrollAbsenceSelectOptions()
+          },
+          {
+            name: "absenceSubtype",
+            label: "Subtipo",
+            type: "select",
+            value: payrollNormalizeAbsenceSubtype(target.absenceType, target.absenceSubtype),
+            options: [{ value: "", label: "No aplica" }, ...payrollGetAbsenceSubtypeOptions("permiso_sufragio")]
           },
           { name: "startDate", label: "Fecha de inicio", type: "date", value: target.startDate || "", required: true },
           { name: "endDate", label: "Fecha de fin", type: "date", value: target.endDate || "", required: true },
+          { name: "recognizedDays", label: "Días reconocidos", type: "number", value: String(target.recognizedDays ?? target.days ?? 1), min: 0.5, step: 0.5 },
           { name: "supportNumber", label: "N° soporte / radicado", value: target.supportNumber || "" },
-          { name: "epsEntity", label: "EPS o entidad", value: target.epsEntity || "" },
+          { name: "epsEntity", label: "EPS / ARL / entidad", value: target.epsEntity || "" },
           { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
         ],
         onSubmit: (form) => {
@@ -29718,6 +30160,8 @@ function bindExtendedViewEditHandlers() {
             return false;
           }
           const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
+          const normalizedType = payrollNormalizeAbsenceTypeKey(form.absenceType || target.absenceType);
+          const normalizedSubtype = payrollNormalizeAbsenceSubtype(normalizedType, form.absenceSubtype);
           write(
             KEYS.hrAbsences,
             all.map((a) =>
@@ -29725,10 +30169,13 @@ function bindExtendedViewEditHandlers() {
                 ? a
                 : {
                     ...a,
-                    absenceType: String(form.absenceType || a.absenceType),
+                    absenceType: normalizedType,
+                    absenceSubtype: normalizedSubtype || null,
                     startDate: form.startDate,
                     endDate: form.endDate,
                     days,
+                    recognizedDays: Math.max(0.5, Number(parseNum(form.recognizedDays || a.recognizedDays || days))),
+                    recognizedUnit: payrollAbsenceRecognizedUnit(normalizedType, normalizedSubtype),
                     supportNumber: String(form.supportNumber || "").trim(),
                     epsEntity: String(form.epsEntity || "").trim(),
                     notes: String(form.notes || "").trim()

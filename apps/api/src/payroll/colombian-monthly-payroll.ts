@@ -83,20 +83,39 @@ export type NoveltyClassification =
   | { kind: "licencia_no_remunerada"; label: string }
   | { kind: "pagada_otra"; label: string };
 
+function humanizeAusenciaTipo(tipo: string): string {
+  const raw = String(tipo || "").trim();
+  const t = raw.toLowerCase();
+  if (!t) return "Ausencia";
+  if (t.includes("vacac")) return "Vacaciones";
+  if (t.includes("arl")) return "Incapacidad ARL";
+  if (t.includes("incapaci") || t === "eps") return "Incapacidad EPS";
+  if (t.includes("matern")) return "Licencia de maternidad";
+  if (t.includes("patern")) return "Licencia de paternidad";
+  if (t.includes("luto") || t.includes("duelo")) return "Licencia por luto";
+  if (t.includes("calam")) return "Calamidad doméstica";
+  if ((t.includes("cita") && t.includes("med")) || t.includes("medic")) return "Permiso cita médica";
+  if (t.includes("judic")) return "Permiso citación judicial";
+  if (t.includes("sufrag") || t.includes("vot")) return "Permiso por sufragio";
+  if (/sin\s*goce|no.?remuner/i.test(t)) return "Licencia no remunerada";
+  if (t.includes("licen") || t.includes("permiso")) return "Licencia remunerada";
+  return raw;
+}
+
 export function classifyAusenciaTipo(tipo: string, observaciones: string | null): NoveltyClassification {
   const t = String(tipo || "").trim().toLowerCase();
   const obs = String(observaciones || "").trim().toLowerCase();
   if (/\barl\b|origen.?labor|risk|riesgo.?labor/i.test(obs) || t.includes("arl")) {
-    return { kind: "incapacidad_arl", label: tipo || "ARL" };
+    return { kind: "incapacidad_arl", label: humanizeAusenciaTipo(tipo) || "Incapacidad ARL" };
   }
-  if (t.includes("sin.?goce") || t.includes("no.?remuner") || /sin goce/i.test(obs)) {
-    return { kind: "licencia_no_remunerada", label: tipo || "Licencia sin goce" };
+  if (/sin\s*goce|no.?remuner/i.test(t) || /sin\s*goce|no.?remuner/i.test(obs)) {
+    return { kind: "licencia_no_remunerada", label: humanizeAusenciaTipo(tipo) || "Licencia no remunerada" };
   }
   if (t.includes("incapaci") || t === "eps" || /\beps\b/.test(obs)) {
-    return { kind: "incapacidad_eps", label: tipo || "Incapacidad" };
+    return { kind: "incapacidad_eps", label: humanizeAusenciaTipo(tipo) || "Incapacidad EPS" };
   }
-  if (t.includes("vacac")) return { kind: "vacaciones", label: tipo || "Vacaciones" };
-  return { kind: "pagada_otra", label: tipo || "Otra ausencia remunerada orientativa" };
+  if (t.includes("vacac")) return { kind: "vacaciones", label: humanizeAusenciaTipo(tipo) || "Vacaciones" };
+  return { kind: "pagada_otra", label: humanizeAusenciaTipo(tipo) || "Otra ausencia remunerada orientativa" };
 }
 
 export type ColombiaPayrollCutDeps = {

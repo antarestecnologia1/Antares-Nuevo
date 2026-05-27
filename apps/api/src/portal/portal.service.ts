@@ -470,6 +470,7 @@ export class PortalService implements OnModuleInit {
     await this.ensurePreferenciasNotificacionSchema();
     await this.ensureEmpleadosNominaSchema();
     await this.ensureLiquidacionesNominaSchema();
+    await this.ensureAusenciasLaboralesSchema();
     await this.ensureAuditoriaTransporteSchema();
     await this.ensureRegistrosFlotaSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
@@ -914,6 +915,103 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureAuditoriaTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
+    }
+  }
+
+  /** Ausencias laborales: subtipos y días reconocidos (40). */
+  private async ensureAusenciasLaboralesSchema() {
+    if (!(await this.tableExists("ausencias_laborales"))) return;
+    const alters = [
+      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS subtipo_ausencia VARCHAR(64)`,
+      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS dias_reconocidos NUMERIC(6,2)`,
+      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS unidad_dias_reconocidos VARCHAR(16)`
+    ];
+    for (const q of alters) {
+      try {
+        await this.pool.query(q);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureAusenciasLaboralesSchema: ${sanitizeLogText(msg)}`);
+      }
+    }
+    try {
+      await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET subtipo_ausencia = 'votante'
+        WHERE tipo_ausencia = 'permiso_sufragio'
+          AND (subtipo_ausencia IS NULL OR btrim(subtipo_ausencia) = '')
+      `);
+      await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET dias_reconocidos = CASE
+          WHEN tipo_ausencia = 'permiso_sufragio' AND subtipo_ausencia = 'jurado' THEN 1.00
+          WHEN tipo_ausencia = 'permiso_sufragio' THEN 0.50
+          ELSE GREATEST(dias_calendario, 1)::numeric
+        END
+        WHERE dias_reconocidos IS NULL OR dias_reconocidos <= 0
+      `);
+      await this.pool.query(`
+        UPDATE public.ausencias_laborales
+        SET unidad_dias_reconocidos = CASE
+          WHEN tipo_ausencia = 'permiso_sufragio' THEN 'jornada'
+          WHEN tipo_ausencia IN ('vacaciones', 'licencia_luto', 'permiso_cita_medica', 'permiso_citacion_judicial') THEN 'habil'
+          ELSE 'calendario'
+        END
+        WHERE unidad_dias_reconocidos IS NULL OR btrim(unidad_dias_reconocidos) = ''
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ALTER COLUMN dias_reconocidos SET DEFAULT 1.00
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ALTER COLUMN unidad_dias_reconocidos SET DEFAULT 'calendario'
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ALTER COLUMN dias_reconocidos SET NOT NULL
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ALTER COLUMN unidad_dias_reconocidos SET NOT NULL
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        DROP CONSTRAINT IF EXISTS chk_ausencias_dias_reconocidos
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ADD CONSTRAINT chk_ausencias_dias_reconocidos
+        CHECK (dias_reconocidos > 0)
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        DROP CONSTRAINT IF EXISTS chk_ausencias_unidad_dias_reconocidos
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ADD CONSTRAINT chk_ausencias_unidad_dias_reconocidos
+        CHECK (unidad_dias_reconocidos IN ('calendario', 'habil', 'jornada'))
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        DROP CONSTRAINT IF EXISTS chk_ausencias_sufragio_subtipo
+      `);
+      await this.pool.query(`
+        ALTER TABLE public.ausencias_laborales
+        ADD CONSTRAINT chk_ausencias_sufragio_subtipo
+        CHECK (
+          tipo_ausencia <> 'permiso_sufragio'
+          OR subtipo_ausencia IN ('jurado', 'votante')
+        )
+      `);
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_ausencias_tipo_periodo
+          ON public.ausencias_laborales (tipo_ausencia, fecha_inicio, fecha_fin)
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureAusenciasLaboralesSchema: ajuste final no fatal ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -4084,10 +4182,14 @@ export class PortalService implements OnModuleInit {
       employeeName: row.nombre_empleado,
       type: row.tipo_ausencia,
       absenceType: row.tipo_ausencia,
+      subtype: row.subtipo_ausencia,
+      absenceSubtype: row.subtipo_ausencia,
       startDate: row.fecha_inicio,
       endDate: row.fecha_fin,
       calendarDays: row.dias_calendario,
       days: row.dias_calendario,
+      recognizedDays: row.dias_reconocidos != null ? Number(row.dias_reconocidos) : Number(row.dias_calendario),
+      recognizedUnit: row.unidad_dias_reconocidos ?? "calendario",
       supportNumber: row.numero_soporte,
       epsEntity: row.entidad_eps,
       notes: row.observaciones,
@@ -6733,11 +6835,29 @@ export class PortalService implements OnModuleInit {
           Number(pickPortalField(row, "calendarDays", "days") ?? row.calendarDays ?? row.days) || 1
         )
       );
+      const subtipoRaw = pickPortalField(row, "subtype", "absenceSubtype");
+      const subtipo = subtipoRaw != null ? String(subtipoRaw).trim() || null : null;
+      const diasReconocidos = Math.max(
+        0.5,
+        Number(
+          pickPortalField(row, "recognizedDays", "diasReconocidos") ?? row.recognizedDays ?? 1
+        ) || 0.5
+      );
+      const unidadRaw = pickPortalField(row, "recognizedUnit", "unidadDiasReconocidos");
+      const unidad =
+        unidadRaw != null && String(unidadRaw).trim()
+          ? String(unidadRaw).trim()
+          : tipo === "permiso_sufragio"
+            ? "jornada"
+            : ["vacaciones", "licencia_luto", "permiso_cita_medica", "permiso_citacion_judicial"].includes(tipo)
+              ? "habil"
+              : "calendario";
       await c.query(
         `INSERT INTO ausencias_laborales (
           id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
+          subtipo_ausencia, dias_reconocidos, unidad_dias_reconocidos,
           numero_soporte, entidad_eps, observaciones
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10)
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10, $11, $12, $13)
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
           nombre_empleado = EXCLUDED.nombre_empleado,
@@ -6745,6 +6865,9 @@ export class PortalService implements OnModuleInit {
           fecha_inicio = EXCLUDED.fecha_inicio,
           fecha_fin = EXCLUDED.fecha_fin,
           dias_calendario = EXCLUDED.dias_calendario,
+          subtipo_ausencia = EXCLUDED.subtipo_ausencia,
+          dias_reconocidos = EXCLUDED.dias_reconocidos,
+          unidad_dias_reconocidos = EXCLUDED.unidad_dias_reconocidos,
           numero_soporte = EXCLUDED.numero_soporte,
           entidad_eps = EXCLUDED.entidad_eps,
           observaciones = EXCLUDED.observaciones`,
@@ -6756,6 +6879,9 @@ export class PortalService implements OnModuleInit {
           row.startDate,
           row.endDate,
           dias,
+          subtipo,
+          diasReconocidos,
+          unidad,
           (pickPortalField(row, "supportNumber") as string) || null,
           (pickPortalField(row, "epsEntity") as string) || null,
           (row.notes as string) || null
