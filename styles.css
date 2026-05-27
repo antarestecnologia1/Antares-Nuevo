@@ -14926,27 +14926,52 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   margin-inline: auto;
 }
 
-.hr-form-card {
-  width: min(100%, 56rem);
-  margin-inline: auto;
-}
-
-.hr-form-card--md {
-  width: min(100%, 56rem);
-}
-
-.hr-form-card--lg {
-  width: min(100%, 66rem);
-}
-
+.hr-form-card,
+.hr-form-card--md,
+.hr-form-card--lg,
 .hr-form-card--xl {
-  width: min(100%, 78rem);
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
 }
 
 .hr-form-card .p-card-body {
   display: grid;
-  gap: 1rem;
-  padding: 1.15rem 1.2rem 1.25rem;
+  gap: 1.1rem;
+  padding: 1.2rem 1.3rem 1.35rem;
+}
+
+.hr-form-card .hr-data-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.9rem 1.2rem;
+  padding: 1.15rem 1.3rem 1rem;
+}
+
+.hr-form-card .hr-data-card__brand {
+  align-items: flex-start;
+  gap: 0.9rem;
+}
+
+.hr-form-card .hr-data-card__titles {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.hr-form-card .hr-data-card__titles h2 {
+  font-size: 1.14rem;
+}
+
+.hr-form-card .hr-data-card__stat {
+  max-width: 24rem;
+  padding: 0.56rem 0.82rem;
+  border-radius: 14px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: right;
+  white-space: normal;
 }
 
 .hr-form-card .hr-form-compact,
@@ -14961,10 +14986,6 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   gap: 0.82rem 0.95rem;
 }
 
-.hr-form-card--xl .form-section-grid {
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-}
-
 .hr-form-card .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
   min-height: 100%;
   padding: 0.68rem 0.8rem;
@@ -14972,9 +14993,24 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
 
+.hr-form-card .form-section-grid input,
+.hr-form-card .form-section-grid select {
+  min-height: 2.7rem;
+}
+
+.hr-form-card .form-section-grid textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
 .hr-form-card .form-section {
   border-radius: 16px;
+  padding: 1.05rem 1.15rem 1rem;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+}
+
+.hr-form-card .form-section legend {
+  font-size: 0.9rem;
 }
 
 .hr-form-card .hr-form-wizard-toolbar {
@@ -14996,6 +15032,51 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 .hr-form-card .hr-form-wizard-footer {
   margin-top: 1.15rem;
   padding-top: 1rem;
+}
+
+.hr-form-card--payroll .hr-data-card__head {
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.96), rgba(255, 255, 255, 0.94));
+}
+
+.hr-form-card--hiring .hr-data-card__head {
+  background: linear-gradient(180deg, rgba(238, 242, 255, 0.96), rgba(255, 255, 255, 0.94));
+}
+
+.ops-block--payroll-flow {
+  gap: 1rem;
+}
+
+.ops-block--payroll-flow .auth-tab-panels {
+  padding: 0.75rem;
+  border-radius: 24px;
+}
+
+.ops-block--payroll-flow .auth-tab-panel {
+  width: 100%;
+}
+
+@media (min-width: 960px) {
+  .hr-form-card--md .form-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-form-card--lg .form-section-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hr-form-card--xl .form-section-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1380px) {
+  .hr-form-card--lg .form-section-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hr-form-card--xl .form-section-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .hr-form-hero {
@@ -15357,6 +15438,14 @@ body[data-theme="dark"] .hr-form-card .form-section-grid label:not(.route-rate-c
 
 body[data-theme="dark"] .hr-form-card .form-section {
   box-shadow: 0 18px 36px rgba(2, 8, 18, 0.28);
+}
+
+body[data-theme="dark"] .hr-form-card--payroll .hr-data-card__head {
+  background: linear-gradient(180deg, rgba(8, 44, 43, 0.92), rgba(10, 22, 38, 0.88));
+}
+
+body[data-theme="dark"] .hr-form-card--hiring .hr-data-card__head {
+  background: linear-gradient(180deg, rgba(29, 37, 79, 0.92), rgba(10, 22, 38, 0.88));
 }
 
 body[data-theme="dark"] .hr-form-wizard-lead {
@@ -15738,9 +15827,24 @@ body[data-theme="dark"] .hiring-shell--workspace .hr-guide-drawer {
     padding: 0.95rem;
   }
 
+  .hr-form-card .hr-data-card__head {
+    grid-template-columns: 1fr;
+    padding: 1rem 1rem 0.9rem;
+  }
+
+  .hr-form-card .hr-data-card__stat {
+    max-width: none;
+    text-align: left;
+  }
+
   .hr-form-card .form-section-grid,
   .hr-form-card--xl .form-section-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ops-block--payroll-flow .auth-tab-panels {
+    padding: 0.55rem;
+    border-radius: 18px;
   }
 
   .hr-form-hero {
