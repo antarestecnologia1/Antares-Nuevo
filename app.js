@@ -30,6 +30,8 @@ const IC = {
   printer: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
   chevronLeft: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
   chevronRight: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  chevronDown: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  rotateCcw: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
   building: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><line x1="9" y1="15" x2="9.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/></svg>',
   badge: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13.5l1 7L12 18l-4.5 2.5 1-7"/></svg>',
   lock: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
@@ -133,6 +135,18 @@ const MODULE_PANEL_LABELS = {
   expand: "Abrir formulario"
 };
 
+const MODULE_PANEL_BTN_TITLES = {
+  minimize: "Ocultar el formulario y conservar lo que escribió",
+  expand: "Mostrar el formulario de nuevo",
+  cancel: "Vaciar todos los campos y empezar de cero"
+};
+
+function renderModulePanelBtnInner(iconHtml, label) {
+  const icon = String(iconHtml || "").trim();
+  const text = escapeHtml(String(label || "").trim());
+  return `<span class="module-panel-btn__inner">${icon}<span class="module-panel-btn__label">${text}</span></span>`;
+}
+
 function renderModulePanelToggleBtn(opts = {}) {
   const expanded = Boolean(opts.expanded);
   const toggleAction = String(opts.toggleAction || "toggle-create-panel").trim();
@@ -140,9 +154,9 @@ function renderModulePanelToggleBtn(opts = {}) {
   const panelAttr = panelId ? ` data-panel="${escapeAttr(panelId)}"` : "";
   const expandLabel = String(opts.expandLabel || MODULE_PANEL_LABELS.expand).trim();
   if (expanded) {
-    return `<button type="button" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--minimize" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="true">${escapeHtml(MODULE_PANEL_LABELS.minimize)}</button>`;
+    return `<button type="button" class="btn btn-sm module-panel-btn module-panel-btn--minimize" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="true" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.minimize)}">${renderModulePanelBtnInner(IC.chevronDown, MODULE_PANEL_LABELS.minimize)}</button>`;
   }
-  return `<button type="button" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--expand" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="false">${IC.plus} ${escapeHtml(expandLabel)}</button>`;
+  return `<button type="button" class="btn btn-sm module-panel-btn module-panel-btn--expand" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="false" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.expand)}">${renderModulePanelBtnInner(IC.plus, expandLabel)}</button>`;
 }
 
 function renderModulePanelCancelBtn(opts = {}) {
@@ -150,7 +164,8 @@ function renderModulePanelCancelBtn(opts = {}) {
   const panelId = String(opts.panelId || "").trim();
   const panelAttr = panelId ? ` data-panel="${escapeAttr(panelId)}"` : "";
   const cancelLabel = String(opts.cancelLabel || MODULE_PANEL_LABELS.cancel).trim();
-  return `<button type="button" class="btn btn-sm btn-action module-panel-btn module-panel-btn--cancel" data-action="${escapeAttr(cancelAction)}"${panelAttr}>${IC.x} ${escapeHtml(cancelLabel)}</button>`;
+  const title = String(opts.title || MODULE_PANEL_BTN_TITLES.cancel).trim();
+  return `<button type="button" class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel" data-action="${escapeAttr(cancelAction)}"${panelAttr} title="${escapeAttr(title)}">${renderModulePanelBtnInner(IC.rotateCcw, cancelLabel)}</button>`;
 }
 
 /** Barra superior: expandir (colapsado) o minimizar (expandido) — misma posición en todos los módulos. */
@@ -209,7 +224,8 @@ function renderModalCloseBtn(id = "crud-close") {
 /** Cancelar en pie de modal (mismo estilo que módulos). */
 function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LABELS.cancel) {
   const safeId = String(id || "crud-cancel").trim() || "crud-cancel";
-  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-action module-panel-btn module-panel-btn--cancel">${IC.x} ${escapeHtml(String(label || MODULE_PANEL_LABELS.cancel))}</button>`;
+  const safeLabel = String(label || MODULE_PANEL_LABELS.cancel).trim();
+  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.cancel)}">${renderModulePanelBtnInner(IC.rotateCcw, safeLabel)}</button>`;
 }
 
 function renderModalHead(title, opts = {}) {
@@ -607,6 +623,141 @@ function contractTypeRequiresDurationPlazo(contractType) {
   return t === "Termino fijo" || t === "Prestacion de servicios";
 }
 
+function isFixedTermContractType(contractType) {
+  return String(contractType || "").trim() === "Termino fijo";
+}
+
+function addDaysToYmd(ymd, deltaDays) {
+  const n = normalizePortalDateYmd(ymd);
+  if (!n) return "";
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return "";
+  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + Math.trunc(Number(deltaDays) || 0));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Término fijo: fin = ingreso + 1 año calendario (salvo fecha fin explícita). */
+function resolveEmployeeContractEndDateYmd(contractType, startDateYmd, raw = {}) {
+  const start = normalizePortalDateYmd(startDateYmd);
+  if (!isFixedTermContractType(contractType)) {
+    return normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
+  }
+  const explicit = normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
+  if (explicit) return explicit;
+  return start ? addOneYearToYmd(start) : "";
+}
+
+function ensureEmployeeContractFields(emp) {
+  const e = emp && typeof emp === "object" ? { ...emp } : {};
+  const ct = String(e.contractType || "").trim();
+  if (!isFixedTermContractType(ct)) return e;
+  if (!String(e.contractDuration || e.contractDurationText || "").trim()) {
+    e.contractDuration = "1 año";
+  }
+  const start = normalizePortalDateYmd(e.startDate);
+  if (!normalizePortalDateYmd(e.contractEndDate) && start) {
+    e.contractEndDate = addOneYearToYmd(start);
+  }
+  return e;
+}
+
+/**
+ * Colombia (CST): si no se renovará el contrato a término fijo, avisar con al menos 30 días de anticipación.
+ * @returns meta para tarjetas y perfil
+ */
+function computeEmployeeContractRenewalMeta(emp) {
+  const e = ensureEmployeeContractFields(emp || {});
+  if (!isFixedTermContractType(e.contractType)) {
+    return { applies: false, statusSlug: "na" };
+  }
+  const endYmd = normalizePortalDateYmd(e.contractEndDate);
+  if (!endYmd) {
+    return {
+      applies: true,
+      statusSlug: "unknown",
+      endYmd: "",
+      noticeDeadlineYmd: "",
+      daysToEnd: null,
+      headline: "Término fijo sin fecha fin",
+      detail: "Complete la fecha de ingreso para calcular el plazo de un año.",
+      pillLabel: "Sin fecha fin",
+      pillTone: "warn"
+    };
+  }
+  const daysToEnd = daysUntil(endYmd);
+  const noticeDeadlineYmd = addDaysToYmd(endYmd, -30);
+  let statusSlug = "active";
+  let headline = `Vence ${fmtDateOr(endYmd)}`;
+  let detail = `Si no renovará, notifique por escrito a más tardar el ${fmtDateOr(noticeDeadlineYmd)} (30 días de anticipación, CST).`;
+  let pillLabel = "Vigente";
+  let pillTone = "ok";
+  if (daysToEnd < 0) {
+    statusSlug = "expired";
+    headline = "Contrato vencido";
+    detail = `Finalizó el ${fmtDateOr(endYmd)}. Revise renovación o terminación.`;
+    pillLabel = "Vencido";
+    pillTone = "alert";
+  } else if (daysToEnd <= 30) {
+    statusSlug = "notice_window";
+    headline = `Vence en ${daysToEnd} día${daysToEnd === 1 ? "" : "s"}`;
+    detail = `Ventana de aviso: notifique la no renovación antes del ${fmtDateOr(noticeDeadlineYmd)} si aplica.`;
+    pillLabel = "Aviso urgente";
+    pillTone = "alert";
+  }
+  return {
+    applies: true,
+    statusSlug,
+    endYmd,
+    noticeDeadlineYmd,
+    daysToEnd,
+    headline,
+    detail,
+    pillLabel,
+    pillTone
+  };
+}
+
+/** Vista previa de fin de contrato (término fijo = 1 año desde ingreso). */
+function bindFixedTermContractEndPreview(root, cfg) {
+  const contractSel = root.querySelector(cfg.contractSelect);
+  const startEl = root.querySelector(cfg.startDate);
+  const endEl = root.querySelector(cfg.contractEndDate);
+  const wrap = root.querySelector(cfg.endWrap);
+  const hintEl = cfg.hint ? root.querySelector(cfg.hint) : null;
+  const unitSel = cfg.unit ? root.querySelector(cfg.unit) : null;
+  const amtEl = cfg.amount ? root.querySelector(cfg.amount) : null;
+  if (!contractSel || !startEl || !endEl || !wrap) return () => {};
+  const sync = () => {
+    const fixed = isFixedTermContractType(contractSel.value);
+    setContractDurationBranchVisible(wrap, fixed);
+    if (!fixed) {
+      endEl.value = "";
+      if (hintEl) hintEl.textContent = "";
+      return;
+    }
+    if (unitSel) {
+      unitSel.value = "anios";
+      unitSel.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    if (amtEl && !String(amtEl.value || "").trim()) amtEl.value = "1";
+    const start = normalizePortalDateYmd(startEl.value);
+    const endYmd = resolveEmployeeContractEndDateYmd("Termino fijo", start, { contractEndDate: endEl.value });
+    endEl.value = endYmd;
+    if (hintEl) {
+      const notice = endYmd ? addDaysToYmd(endYmd, -30) : "";
+      hintEl.textContent = endYmd
+        ? `Plazo legal sugerido: 1 año (hasta ${fmtDateOr(endYmd)}). Si no renovará, avise al trabajador antes del ${fmtDateOr(notice)}.`
+        : "Indique la fecha de ingreso para calcular la fecha fin.";
+    }
+  };
+  contractSel.addEventListener("change", sync);
+  startEl.addEventListener("change", sync);
+  startEl.addEventListener("input", sync);
+  return sync;
+}
+
 /** Oculta ramas del bloque de plazo sin dejar “cajas” vacías del grid de labels. */
 function setContractDurationBranchVisible(el, show) {
   if (!el) return;
@@ -661,12 +812,15 @@ function setupContractDurationPlazoVisibility(root, cfg) {
   if (!contractSel || !block) return () => {};
   const syncBranch = wireContractDurationBranch({ unitSel, qtyWrap, otherWrap, amtEl, otherEl });
   const sync = () => {
-    const need = contractTypeRequiresDurationPlazo(String(contractSel.value || ""));
+    const ct = String(contractSel.value || "").trim();
+    const need = contractTypeRequiresDurationPlazo(ct);
     setContractDurationBranchVisible(block, need);
     if (unitSel) {
       if (need) {
         unitSel.setAttribute("required", "required");
-        if (!String(unitSel.value || "").trim()) unitSel.value = "meses";
+        if (!String(unitSel.value || "").trim()) {
+          unitSel.value = isFixedTermContractType(ct) ? "anios" : "meses";
+        }
       } else {
         unitSel.removeAttribute("required");
         unitSel.value = "";
@@ -4580,14 +4734,15 @@ function readArray(key) {
   return Array.isArray(value) ? value : [];
 }
 
-function write(key, value) {
+function write(key, value, opts = {}) {
+  const skipSyncSchedule = opts?.skipSyncSchedule === true;
   const P = window.AntaresPersistence;
   if (P && typeof P.write === "function") {
-    P.write(key, value);
+    P.write(key, value, opts);
   } else {
     const stored = capStoredArrayRows(key, value);
     localStorage.setItem(key, JSON.stringify(stored));
-    if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+    if (!skipSyncSchedule && window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
       window.AntaresPortalSync.schedule(key, stored);
     }
   }
@@ -4606,14 +4761,16 @@ function write(key, value) {
  * En modo sólo navegador (sin URL de API/token) sólo persiste la proyección en memoria.
  * @throws Las mismas errores que `AntaresPortalSync.flushStorageKeyNow` cuando el servidor rechaza tras reintentos.
  */
-async function writeAwaitServer(storageKeyLike, value) {
-  write(storageKeyLike, value);
+async function writeAwaitServer(storageKeyLike, value, opts = {}) {
+  write(storageKeyLike, value, { skipSyncSchedule: true });
   const api = window.AntaresApi;
   const sync = window.AntaresPortalSync;
   if (!sync || typeof sync.flushStorageKeyNow !== "function") return;
   if (!api || typeof api.getBase !== "function" || !api.getBase()) return;
   if (typeof api.getAccessToken !== "function" || !String(api.getAccessToken() || "").trim()) return;
-  await sync.flushStorageKeyNow(storageKeyLike);
+  await sync.flushStorageKeyNow(storageKeyLike, {
+    notifyOnFailure: opts.notifyOnFailure !== false
+  });
 }
 
 function decodeJwtPayload(token) {
@@ -4974,6 +5131,9 @@ function __applyPortalBootstrapPayloadInner(p) {
           const o = { ...row };
           if (!String(o.contractDuration || "").trim() && String(o.contractDurationText || "").trim()) {
             o.contractDuration = String(o.contractDurationText).trim();
+          }
+          if (!String(o.costCenter || "").trim() && String(o.centro_costos || o.centroCostos || "").trim()) {
+            o.costCenter = String(o.centro_costos || o.centroCostos).trim();
           }
           return normalizePayrollEmployeeRowDates(o);
         })
@@ -6799,6 +6959,15 @@ function normalizePayrollEmployeeRowDates(emp) {
   e.psychoTestDate = e.occupationalExamDate;
   e.psychoTestExpiry = e.occupationalExamExpiry;
   e.contractEndDate = normalizePortalDateYmd(first(e.contractEndDate, e.fecha_fin_contrato));
+  Object.assign(e, ensureEmployeeContractFields(e));
+  if (!String(e.costCenter || "").trim()) {
+    e.costCenter = String(first(e.costCenter, e.centro_costos, e.centroCostos) || "").trim();
+  }
+  if (!String(e.contractDuration || "").trim()) {
+    e.contractDuration = String(
+      first(e.contractDuration, e.contractDurationText, e.duracion_contrato_texto) || ""
+    ).trim();
+  }
   return e;
 }
 
@@ -8202,6 +8371,47 @@ function collapseCreatePanel(panelId) {
   state.createPanels = { ...(state.createPanels || {}), [id]: false };
 }
 
+/** Limpia estado transitorio antes de reiniciar un panel de alta al cancelar. */
+function prepareCancelCreatePanel(panelId) {
+  const id = String(panelId || "").trim();
+  if (!id) return;
+  if (id === "create-route-rate") {
+    state.pendingRouteRateEditKey = null;
+  }
+}
+
+/**
+ * Cancelar en paneles de alta: descarta cambios, reinicia el formulario (re-render)
+ * y mantiene el panel abierto. «Minimizar» sigue siendo solo `toggle-create-panel`.
+ */
+function resetCreatePanelForm(panelId, formEl) {
+  const id = String(panelId || "").trim();
+  if (!id || !formEl) return false;
+  if (!confirmDiscardCreateForm(formEl)) return false;
+  prepareCancelCreatePanel(id);
+  const PAYROLL_CREATE_IDS = ["create-employee", "create-payroll", "create-payroll-settlement", "create-hr-absence"];
+  const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
+  const payrollSet = new Set(PAYROLL_CREATE_IDS);
+  const hiringSet = new Set(HIRING_CREATE_IDS);
+  state.createPanels = { ...(state.createPanels || {}) };
+  if (payrollSet.has(id)) {
+    PAYROLL_CREATE_IDS.forEach((pid) => {
+      state.createPanels[pid] = pid === id;
+    });
+  } else if (hiringSet.has(id)) {
+    HIRING_CREATE_IDS.forEach((pid) => {
+      state.createPanels[pid] = pid === id;
+    });
+  } else {
+    state.createPanels[id] = true;
+  }
+  renderPortalView();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => scrollToCreatePanelForm(id));
+  });
+  return true;
+}
+
 function formHasDirtyValues(formEl) {
   if (!formEl) return false;
   const fields = [...formEl.querySelectorAll("input, select, textarea")];
@@ -8452,6 +8662,36 @@ function notifyAdminUsers(title, body) {
 
 function notifyHrUsers(title, body) {
   void dispatchPortalNotification({ audience: "hr", title, body });
+}
+
+let __contractRenewalNoticeCheckWallMs = 0;
+
+/** Pide al servidor crear notificaciones de aviso de no renovación (término fijo) y refresca la bandeja. */
+async function refreshContractRenewalNotificationsFromServer() {
+  const api = window.AntaresApi;
+  if (!api?.postJson || !portalCanRefreshFromApi()) return false;
+  const actor = currentUser();
+  if (!actor || !hasPermission(actor, PERMISSIONS.PAYROLL_MANAGE)) return false;
+  const now = Date.now();
+  if (now - __contractRenewalNoticeCheckWallMs < 45000) return false;
+  __contractRenewalNoticeCheckWallMs = now;
+  try {
+    await api.postJson("/portal/hr/contract-renewal-notices/run", {});
+    await applyPortalBootstrapFromApi();
+    try {
+      reconcileNotificationsCacheForSession();
+      updateNotificationBadge();
+    } catch (_e) {
+      /* noop */
+    }
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function scheduleContractRenewalNotificationCheck() {
+  void refreshContractRenewalNotificationsFromServer();
 }
 
 async function writeNotificationsAwaitServer() {
@@ -14368,6 +14608,127 @@ function directoryOpsToneFromSlug(slug) {
   return "neutral";
 }
 
+function summarizePayrollEmployeeForDirectory(emp) {
+  const raw = normalizePayrollEmployeeRowDates(emp || {});
+  const contract = computeEmployeeContractRenewalMeta(raw);
+  const companyName = getCompanyById(raw.companyId)?.name || "Sin empresa";
+  const roleLabel = String(raw.workerRole || "").toLowerCase() === "conductor" ? "Conductor" : "Empleado";
+  const searchBlob = [
+    raw.name,
+    raw.idDoc,
+    raw.position,
+    raw.contractType,
+    raw.costCenter,
+    companyName,
+    roleLabel
+  ]
+    .map((v) => String(v || "").toLowerCase())
+    .join(" ");
+  return {
+    raw,
+    contract,
+    companyName,
+    roleLabel,
+    searchBlob,
+    transportCop: readEmployeeTransportAllowanceCop(raw),
+    salaryCop: parseNum(raw.baseSalary)
+  };
+}
+
+function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes) {
+  const e = item.raw;
+  const contract = item.contract;
+  const avCss = employeeAvatarCssUrl(e.avatarUrl);
+  const initials = String(e.name || "E")
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
+  const avatarInner = avCss ? `<img src="${escapeAttr(e.avatarUrl)}" alt="" loading="lazy" />` : initials;
+  const avatarClass = avCss
+    ? "directory-card__avatar directory-card__avatar--photo"
+    : "directory-card__avatar";
+  const statusSlug = contract.applies ? contract.statusSlug : "indefinite";
+  const opsTone = directoryOpsToneFromSlug(
+    contract.statusSlug === "notice_window" || contract.statusSlug === "expired"
+      ? "alert"
+      : contract.statusSlug === "unknown"
+        ? "warn"
+        : "ok"
+  );
+  const contractPillTone =
+    contract.pillTone === "alert" ? "alert" : contract.pillTone === "warn" ? "warn" : "ok";
+  const contractOps =
+    contract.applies && contract.headline
+      ? directoryOpsHtml(contract.headline, contract.detail, opsTone)
+      : directoryOpsHtml(
+          String(e.contractType || "Contrato"),
+          e.contractDuration ? `Plazo: ${e.contractDuration}` : "Sin plazo definido",
+          "neutral"
+        );
+  const selectHtml = hrAdminDeletes
+    ? `<label class="directory-card__select" title="Seleccionar para eliminación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
+    : "";
+  return `<article class="directory-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+    <header class="directory-card__head">
+      <div class="directory-card__identity">
+        <div class="${avatarClass}">${avatarInner}</div>
+        <div class="directory-card__heading">
+          <p class="directory-card__kicker">${escapeHtml(item.companyName)} · ${escapeHtml(item.roleLabel)}</p>
+          <h4 class="directory-card__title">${escapeHtml(String(e.name || "Colaborador"))}</h4>
+        </div>
+      </div>
+      <div class="directory-card__status-stack">
+        ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : directoryPillHtml(String(e.contractType || "Contrato").slice(0, 24), "neutral")}
+        ${selectHtml}
+      </div>
+    </header>
+    ${contractOps}
+    <div class="directory-card__metrics">
+      ${directoryChipHtml("Salario", `$${item.salaryCop.toLocaleString("es-CO")}`)}
+      ${directoryChipHtml("Aux. legal", `$${item.transportCop.toLocaleString("es-CO")}`)}
+      ${directoryChipHtml("Ingreso", fmtDateOr(e.startDate, "—"))}
+      ${directoryChipHtml("Fin contrato", contract.applies ? fmtDateOr(contract.endYmd, "—") : "N/A", contract.statusSlug === "notice_window" ? "warn" : "neutral")}
+    </div>
+    <dl class="directory-card__facts">
+      ${directoryFactHtml("Documento", `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—")}
+      ${directoryFactHtml("Cargo", String(e.position || "—"))}
+      ${directoryFactHtml("Centro costos", String(e.costCenter || "—"))}
+      ${directoryFactHtml("Tipo contrato", String(e.contractType || "—"))}
+      ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovación", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
+    </dl>
+    <footer class="directory-card__actions">
+      <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
+      <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
+      <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
+      ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
+    </footer>
+  </article>`;
+}
+
+function wirePayrollEmployeeDirectoryFilters() {
+  const searchEl = document.getElementById("payroll-employee-search");
+  const filterEl = document.getElementById("payroll-employee-contract-filter");
+  const cards = [...document.querySelectorAll(".directory-card--employee")];
+  if (!cards.length) return;
+  const apply = () => {
+    const q = String(searchEl?.value || "")
+      .trim()
+      .toLowerCase();
+    const cf = String(filterEl?.value || "all");
+    cards.forEach((card) => {
+      const blob = String(card.getAttribute("data-employee-search") || "");
+      const slug = String(card.getAttribute("data-employee-contract-filter") || "all");
+      const matchQ = !q || blob.includes(q);
+      const matchC = cf === "all" || slug === cf;
+      card.classList.toggle("is-filtered-out", !(matchQ && matchC));
+    });
+  };
+  searchEl?.addEventListener("input", apply);
+  filterEl?.addEventListener("change", apply);
+  apply();
+}
+
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
@@ -15159,7 +15520,7 @@ function transportTripsHtml() {
       `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>`,
       {
         className: "form-flow-actions full transport-route-form-actions",
-        extraActionsHtml: `<button class="btn btn-sm btn-action module-panel-btn module-panel-btn--cancel" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>`
+        extraActionsHtml: `<button class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel module-panel-btn--cancel-edit" id="route-rate-cancel-edit" type="button" style="display:none" title="Salir del modo edición sin guardar cambios">${renderModulePanelBtnInner(IC.x, "Cancelar edición")}</button>`
       }
     )}
   </form>`;
@@ -20392,7 +20753,9 @@ function normalizeDriverRowForEditor(raw) {
 }
 
 async function syncDriverFromEmployee(employee, extraDriverData = {}) {
-  if (!employee || String(employee.workerRole || "") !== "conductor") return;
+  if (!employee || String(employee.workerRole || "") !== "conductor") {
+    return { ok: true, skipped: true };
+  }
   const drivers = read(KEYS.drivers, []);
   const doc = String(employee.idDoc || "").trim();
   const existing = drivers.find((d) => String(d.idDoc || "").trim() === doc);
@@ -20452,23 +20815,25 @@ async function syncDriverFromEmployee(employee, extraDriverData = {}) {
     hiredAt: existing?.hiredAt || nowIso()
   };
   if (!nextDriver.license || !nextDriver.licenseExpiry) {
-    notify(userMessage("payrollDriverLicenseSync"), "error");
-    return;
+    return { ok: false, message: userMessage("payrollDriverLicenseSync") };
   }
   if (new Date(nextDriver.licenseExpiry).getTime() <= Date.now()) {
-    notify(userMessage("payrollLicenseExpired"), "error");
-    return;
-  }
-  if (existing) {
-    const nextDrivers = drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d));
-    try {
-      await writeAwaitServer(KEYS.drivers, nextDrivers);
-    } catch (_e) {}
-    return;
+    return { ok: false, message: userMessage("payrollLicenseExpired") };
   }
   try {
-    await writeAwaitServer(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers]);
-  } catch (_e) {}
+    if (existing) {
+      const nextDrivers = drivers.map((d) => (d.id === existing.id ? { ...d, ...nextDriver } : d));
+      await writeAwaitServer(KEYS.drivers, nextDrivers, { notifyOnFailure: false });
+      return { ok: true };
+    }
+    await writeAwaitServer(KEYS.drivers, [{ id: newUuidV4(), ...nextDriver }, ...drivers], { notifyOnFailure: false });
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      message: String(err?.message || "No fue posible sincronizar la ficha de conductor en el servidor.")
+    };
+  }
 }
 
 function contractDedupKey(row) {
@@ -20824,24 +21189,13 @@ function payrollHtml() {
   const legalCurrentCap = Math.max(0, parseNum(legalDraft.smmlvCop) * CO_TRANSPORT_ALLOWANCE_MAX_SMMLV);
   const healthRatePct = (parseNum(legalDraft.healthEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
   const pensionRatePct = (parseNum(legalDraft.pensionEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
-  const employeeRows = employees
-    .map((e) => {
-      const avCss = employeeAvatarCssUrl(e.avatarUrl);
-      const avatar = avCss
-        ? `<span class="emp-avatar" style="background-image:url('${avCss}')" role="img" aria-label=""></span>`
-        : `<span class="emp-avatar emp-avatar-letter" aria-hidden="true">${escapeHtml(String(e.name || "E").charAt(0).toUpperCase())}</span>`;
-      const transportAllowanceLabel = `$${readEmployeeTransportAllowanceCop(e).toLocaleString("es-CO")}`;
-      return `<tr>
-      ${hrAdminDeletes ? `<td><input type="checkbox" data-employee-select value="${e.id}" /></td>` : ""}
-      <td><div class="emp-cell-name">${avatar}<div><strong>${escapeHtml(e.name || "")}</strong><br><span class="muted">${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</span></div></div></td><td>${escapeHtml(String(e.idDoc || ""))}</td><td>${escapeHtml(String(e.position || ""))}</td><td>${escapeHtml(String(e.contractType || ""))}</td><td>${escapeHtml(getCompanyById(e.companyId)?.name || "-")}</td><td>$${parseNum(e.baseSalary).toLocaleString("es-CO")}</td><td>${transportAllowanceLabel}</td><td>${fmtDate(e.startDate)}</td>
-      <td><div class="toolbar employee-table-actions">
-        <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
-        <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
-        <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato Word</button>
-        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-      </div></td>
-    </tr>`;
-    })
+  const employeeSummaries = employees.map((e) => summarizePayrollEmployeeForDirectory(e));
+  const fixedTermCount = employeeSummaries.filter((s) => isFixedTermContractType(s.raw.contractType)).length;
+  const contractNoticeCount = employeeSummaries.filter(
+    (s) => s.contract.applies && (s.contract.statusSlug === "notice_window" || s.contract.statusSlug === "expired")
+  ).length;
+  const employeeCards = employeeSummaries
+    .map((item) => renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes))
     .join("");
   const runRows = sortedRuns
     .map((r) => {
@@ -20902,7 +21256,6 @@ function payrollHtml() {
     ${renderHrFormHero({
       eyebrow: "Alta de colaborador",
       title: "Registro completo de Gestión humana",
-      description: "Ahora que este flujo vive por separado, aprovecha mejor el ancho disponible para diligenciar la ficha, validar datos y cerrar con menos desplazamiento.",
       tone: "payroll",
       badges: [
         renderHrFormHeroBadge("6 pasos", "guiados"),
@@ -21004,7 +21357,11 @@ function payrollHtml() {
             </div>
           </div>
         </div>
-        <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" id="emp-start-date" required /></label>
+        <div id="emp-contract-end-wrap" class="emp-contract-end-preview full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
+          <label>${fieldLabel(IC.calendar, "Fecha fin del contrato")}<input type="date" name="contractEndDate" id="emp-contract-end-date" readonly tabindex="-1" aria-readonly="true" /></label>
+          <p class="muted emp-contract-renewal-hint" id="emp-contract-renewal-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45"></p>
+        </div>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" value="${CO_HR_RULES.minMonthlySalary}" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <label>${fieldLabel(IC.dollar, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="emp-transport-allowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
         <p class="full muted" id="emp-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
@@ -21262,8 +21619,38 @@ function payrollHtml() {
   const absenceTable = absenceRows
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
-  const empTable = employeeRows
-    ? `<div style="margin-bottom:0.8rem" class="toolbar">${hrAdminDeletes ? `<button id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button><button id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados (cascada)</button>` : ""}</div><div class="table-wrap"><table><thead><tr>${hrAdminDeletes ? "<th></th>" : ""}<th>Nombre/Rol</th><th>Cedula</th><th>Cargo</th><th>Contrato</th><th>Empresa</th><th>Base</th><th>Auxilio legal</th><th>Ingreso</th><th>Acciones</th></tr></thead><tbody>${employeeRows}</tbody></table></div>`
+  const employeeHeroStrip = moduleFleetHeroStrip([
+    { label: "Colaboradores", value: employees.length },
+    { label: "Término fijo", value: fixedTermCount },
+    {
+      label: "Aviso renovación",
+      value: contractNoticeCount,
+      tone: contractNoticeCount ? "warn" : undefined
+    },
+    {
+      label: "Conductores",
+      value: employeeSummaries.filter((s) => s.roleLabel === "Conductor").length
+    }
+  ]);
+  const employeeToolbar = `<div class="payroll-employee-toolbar">
+      <label class="payroll-employee-search">${fieldLabel(IC.search, "Buscar")}
+        <input type="search" id="payroll-employee-search" placeholder="Nombre, documento, cargo, centro de costos…" autocomplete="off" />
+      </label>
+      <label class="payroll-employee-filter">${fieldLabel(IC.calendar, "Contrato")}
+        <select id="payroll-employee-contract-filter">
+          <option value="all">Todos</option>
+          <option value="notice_window">Aviso urgente (≤30 días)</option>
+          <option value="expired">Vencidos</option>
+          <option value="active">Término fijo vigente</option>
+        </select>
+      </label>
+      ${hrAdminDeletes ? `<div class="payroll-employee-toolbar-actions toolbar">
+        <button type="button" id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button>
+        <button type="button" id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados</button>
+      </div>` : ""}
+    </div>`;
+  const empTable = employeeCards
+    ? `${employeeHeroStrip}${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
     : emptyState("No hay empleados registrados.");
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${sortedRuns.map((r) => renderPayrollRunCard(r)).join("")}</div>`
@@ -21331,6 +21718,15 @@ function payrollHtml() {
       value: employees.length,
       help: "Fichas con contrato y datos de seguridad social.",
       tone: "ok"
+    },
+    {
+      icon: IC.alertTriangle,
+      label: "Contratos — aviso no renovación",
+      value: contractNoticeCount,
+      help: contractNoticeCount
+        ? "Término fijo en ventana de 30 días o vencido: notifique por escrito si no renovará (CST)."
+        : "Sin contratos a término fijo en ventana de aviso.",
+      tone: contractNoticeCount ? "warn" : "ok"
     }
   ]);
   const payrollOperateNav = renderModuleWindowTabs({
@@ -23512,7 +23908,7 @@ function renderPortalView() {
 function describeContractDurationForDocx(data) {
   const ct = String(data.contractType || "");
   const start = String(data.startDate || "").trim();
-  const end = String(data.endDate || "").trim();
+  const end = String(data.endDate || data.contractEndDate || "").trim();
   if (ct === "Termino fijo" && start && end) return `Término fijo: ${start} a ${end}`;
   if (ct === "Termino fijo") return "Término fijo (plazo contractual en cláusulas)";
   if (ct === "Prestacion de servicios") return "Prestación de servicios";
@@ -23675,7 +24071,12 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
     raw.contractType || position.contractTypeDefault || "Termino indefinido"
   ).trim();
   const needsDurationPlazo = contractTypeRequiresDurationPlazo(effectiveContractType);
-  const composedDur = needsDurationPlazo ? composeContractDurationText(raw) : "";
+  let composedDur = needsDurationPlazo ? composeContractDurationText(raw) : "";
+  if (isFixedTermContractType(effectiveContractType) && !String(composedDur || "").trim()) {
+    composedDur = "1 año";
+  }
+  const startDateYmd = normalizePortalDateYmd(raw.startDate);
+  const contractEndDate = resolveEmployeeContractEndDateYmd(effectiveContractType, startDateYmd, raw);
   if (needsDurationPlazo && !String(composedDur || "").trim()) {
     const unitDur = String(raw.contractDurationUnit || "").trim().toLowerCase();
     const msg =
@@ -23741,10 +24142,11 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
             )
           : "oficina"),
       contractDuration: composedDur,
+      contractEndDate,
       bankName: String(raw.bankName || "").trim(),
       bankAccount: String(raw.bankAccount || "").trim(),
       bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
-      startDate: normalizePortalDateYmd(raw.startDate),
+      startDate: startDateYmd,
       license: String(raw.license || "").trim(),
       licenseCategory: String(raw.licenseCategory || "").trim(),
       licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
@@ -23795,96 +24197,115 @@ function fmtProfileCell(value) {
   return escapeHtml(s);
 }
 
+/** Creado / actualizado: ISO con hora en zona Colombia, no UTC crudo del servidor. */
+function fmtProfileAuditTimestamp(value) {
+  if (value == null || String(value).trim() === "") return "—";
+  const raw = String(value).trim();
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime()) && /T|\d{2}:\d{2}/.test(raw)) {
+    return fmtDate(d);
+  }
+  return raw;
+}
+
 function employeeProfileKvRow(label, value) {
   return `<div class="employee-profile-kv"><span>${escapeHtml(label)}</span><strong>${fmtProfileCell(value)}</strong></div>`;
 }
 
 function buildEmployeePayrollProfileBodyHtml(emp) {
   if (!emp) return `<p class="muted">Sin datos.</p>`;
-  const css = employeeAvatarCssUrl(emp.avatarUrl);
-  const initial = escapeHtml(String(emp.name || "E").charAt(0).toUpperCase());
+  const e = normalizePayrollEmployeeRowDates(emp);
+  const contractRenewal = computeEmployeeContractRenewalMeta(e);
+  const css = employeeAvatarCssUrl(e.avatarUrl);
+  const initial = escapeHtml(String(e.name || "E").charAt(0).toUpperCase());
   const heroBanner = css
     ? `<div class="employee-profile-hero-photo" style="background-image:url('${css}')" role="img" aria-label="Foto del colaborador"></div>`
     : `<div class="employee-profile-hero-photo employee-profile-hero-photo--letter" aria-hidden="true"><span>${initial}</span></div>`;
   const heroAvatar = css
-    ? `<div class="employee-profile-hero-avatar" role="img" aria-label="Foto del colaborador"><img src="${escapeAttr(emp.avatarUrl)}" alt="Foto de ${escapeAttr(String(emp.name || "Empleado"))}" loading="lazy" /></div>`
+    ? `<div class="employee-profile-hero-avatar" role="img" aria-label="Foto del colaborador"><img src="${escapeAttr(e.avatarUrl)}" alt="Foto de ${escapeAttr(String(e.name || "Empleado"))}" loading="lazy" /></div>`
     : `<div class="employee-profile-hero-avatar employee-profile-hero-avatar--letter" aria-hidden="true"><span>${initial}</span></div>`;
   const hero = `${heroBanner}<div class="employee-profile-hero-photo-wrap">${heroAvatar}<p class="employee-profile-hero-photo-caption muted">${css ? "Foto del colaborador" : "Sin foto cargada — recomendamos subirla al editar el empleado."}</p></div>`;
-  const docs = `${String(emp.documentType || "").trim()} ${String(emp.idDoc || "").trim()}`.trim();
-  const companyName = getCompanyById(emp.companyId)?.name || "—";
-  const isDriver = String(emp.workerRole || "").toLowerCase() === "conductor";
+  const docs = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim();
+  const companyName = getCompanyById(e.companyId)?.name || "—";
+  const isDriver = String(e.workerRole || "").toLowerCase() === "conductor";
   const driverBlock = isDriver
     ? `
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Conductor</h4><div class="employee-profile-grid">
-      ${employeeProfileKvRow("N° licencia", emp.license)}
-      ${employeeProfileKvRow("Categoría licencia", emp.licenseCategory)}
-      ${employeeProfileKvRow("Vence licencia", emp.licenseExpiry)}
-      ${employeeProfileKvRow("Examen ocupacional", emp.occupationalExamDate)}
-      ${employeeProfileKvRow("Vence examen ocupacional", emp.occupationalExamExpiry)}
-      ${employeeProfileKvRow("Examen instruvial", emp.instruvialExamDate)}
-      ${employeeProfileKvRow("Vence examen instruvial", emp.instruvialExamExpiry)}
-      ${employeeProfileKvRow("Curso conducción defensiva", emp.defensiveCourse)}
+      ${employeeProfileKvRow("N° licencia", e.license)}
+      ${employeeProfileKvRow("Categoría licencia", e.licenseCategory)}
+      ${employeeProfileKvRow("Vence licencia", e.licenseExpiry)}
+      ${employeeProfileKvRow("Examen ocupacional", e.occupationalExamDate)}
+      ${employeeProfileKvRow("Vence examen ocupacional", e.occupationalExamExpiry)}
+      ${employeeProfileKvRow("Examen instruvial", e.instruvialExamDate)}
+      ${employeeProfileKvRow("Vence examen instruvial", e.instruvialExamExpiry)}
+      ${employeeProfileKvRow("Curso conducción defensiva", e.defensiveCourse)}
     </div></section>`
     : "";
   return `
   <article class="employee-profile-card">${hero}<div class="employee-profile-intro">
-      <h3 class="employee-profile-name">${escapeHtml(String(emp.name || "").trim())}</h3>
-      <p class="employee-profile-intro-meta muted">${escapeHtml(String(emp.position || "").trim())} · ${escapeHtml(String(emp.contractType || "").trim())}${isDriver ? ` · ${escapeHtml("Conductor")}` : ""}</p>
-      <span class="employee-profile-chip">${fmtProfileCell(`${parseNum(emp.baseSalary).toLocaleString("es-CO")} COP · salario base`)}</span>
+      <h3 class="employee-profile-name">${escapeHtml(String(e.name || "").trim())}</h3>
+      <p class="employee-profile-intro-meta muted">${escapeHtml(String(e.position || "").trim())} · ${escapeHtml(String(e.contractType || "").trim())}${isDriver ? ` · ${escapeHtml("Conductor")}` : ""}</p>
+      <span class="employee-profile-chip">${fmtProfileCell(`${parseNum(e.baseSalary).toLocaleString("es-CO")} COP · salario base`)}</span>
     </div>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Identidad</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Documento", docs)}
-      ${employeeProfileKvRow("Fecha de nacimiento", emp.birthDate)}
-      ${employeeProfileKvRow("Género", emp.gender)}
-      ${employeeProfileKvRow("Estado civil", emp.maritalStatus)}
-      ${employeeProfileKvRow("Nivel educativo", emp.educationLevel)}
-      ${employeeProfileKvRow("Tipo sangre RH", emp.bloodType)}
+      ${employeeProfileKvRow("Fecha de nacimiento", e.birthDate)}
+      ${employeeProfileKvRow("Género", e.gender)}
+      ${employeeProfileKvRow("Estado civil", e.maritalStatus)}
+      ${employeeProfileKvRow("Nivel educativo", e.educationLevel)}
+      ${employeeProfileKvRow("Tipo sangre RH", e.bloodType)}
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Contacto</h4><div class="employee-profile-grid">
-      ${employeeProfileKvRow("Departamento", emp.department)}
-      ${employeeProfileKvRow("Ciudad", emp.city)}
-      ${employeeProfileKvRow("Dirección", emp.address)}
-      ${employeeProfileKvRow("Teléfono celular", emp.phone)}
-      ${employeeProfileKvRow("Correo personal", emp.personalEmail)}
-      ${employeeProfileKvRow("Contacto emergencia", emp.emergencyContact)}
-      ${employeeProfileKvRow("Tel. emergencia", emp.emergencyPhone)}
-      ${employeeProfileKvRow("Parentesco emergencia", emp.emergencyRelation)}
+      ${employeeProfileKvRow("Departamento", e.department)}
+      ${employeeProfileKvRow("Ciudad", e.city)}
+      ${employeeProfileKvRow("Dirección", e.address)}
+      ${employeeProfileKvRow("Teléfono celular", e.phone)}
+      ${employeeProfileKvRow("Correo personal", e.personalEmail)}
+      ${employeeProfileKvRow("Contacto emergencia", e.emergencyContact)}
+      ${employeeProfileKvRow("Tel. emergencia", e.emergencyPhone)}
+      ${employeeProfileKvRow("Parentesco emergencia", e.emergencyRelation)}
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Salud</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow(
         "¿Condición médica?",
-        String(emp.hasIllness || "").toLowerCase() === "si" ? "Sí" : "No"
+        String(e.hasIllness || "").toLowerCase() === "si" ? "Sí" : "No"
       )}
       ${
-        String(emp.hasIllness || "").toLowerCase() === "si"
-          ? employeeProfileKvRow("Detalle médico", emp.illnessDescription || "Sin detalle")
+        String(e.hasIllness || "").toLowerCase() === "si"
+          ? employeeProfileKvRow("Detalle médico", e.illnessDescription || "Sin detalle")
           : ""
       }
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Laboral</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Empresa", companyName)}
-      ${employeeProfileKvRow("Fecha ingreso", emp.startDate)}
-      ${employeeProfileKvRow("Creado", emp.createdAt)}
-      ${employeeProfileKvRow("Última actualización", emp.updatedAt)}
-      ${employeeProfileKvRow("Duración contrato", emp.contractDuration || emp.contractDurationText)}
-      ${employeeProfileKvRow("Centro costos", emp.costCenter)}
-      ${employeeProfileKvRow("Periodicidad", emp.payFrequency)}
-      ${employeeProfileKvRow("Aux. transporte (COP)", readEmployeeTransportAllowanceCop(emp).toLocaleString("es-CO"))}
-      ${employeeProfileKvRow("Tipo cotizante", emp.contributorType)}
-      ${employeeProfileKvRow("ARL nivel riesgo", emp.arlRiskLevel)}
-      ${employeeProfileKvRow("Plantilla contrato Word", emp.contractTemplateKind)}
+      ${employeeProfileKvRow("Fecha ingreso", e.startDate)}
+      ${employeeProfileKvRow("Fecha fin contrato", e.contractEndDate)}
+      ${
+        contractRenewal.applies
+          ? employeeProfileKvRow("Aviso no renovación (máx.)", fmtDateOr(contractRenewal.noticeDeadlineYmd, "—"))
+          : ""
+      }
+      ${employeeProfileKvRow("Creado", fmtProfileAuditTimestamp(e.createdAt))}
+      ${employeeProfileKvRow("Última actualización", fmtProfileAuditTimestamp(e.updatedAt))}
+      ${employeeProfileKvRow("Duración contrato", e.contractDuration || e.contractDurationText)}
+      ${employeeProfileKvRow("Centro costos", e.costCenter)}
+      ${employeeProfileKvRow("Periodicidad", e.payFrequency)}
+      ${employeeProfileKvRow("Aux. transporte (COP)", readEmployeeTransportAllowanceCop(e).toLocaleString("es-CO"))}
+      ${employeeProfileKvRow("Tipo cotizante", e.contributorType)}
+      ${employeeProfileKvRow("ARL nivel riesgo", e.arlRiskLevel)}
+      ${employeeProfileKvRow("Plantilla contrato Word", e.contractTemplateKind)}
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Seguridad social</h4><div class="employee-profile-grid">
-      ${employeeProfileKvRow("EPS", emp.eps)}
-      ${employeeProfileKvRow("Fondo pensión", emp.pensionFund)}
-      ${employeeProfileKvRow("ARL", emp.arl)}
-      ${employeeProfileKvRow("Cesantías", emp.severanceFund)}
-      ${employeeProfileKvRow("Caja compensación", emp.compensationFund)}
+      ${employeeProfileKvRow("EPS", e.eps)}
+      ${employeeProfileKvRow("Fondo pensión", e.pensionFund)}
+      ${employeeProfileKvRow("ARL", e.arl)}
+      ${employeeProfileKvRow("Cesantías", e.severanceFund)}
+      ${employeeProfileKvRow("Caja compensación", e.compensationFund)}
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Pagos</h4><div class="employee-profile-grid">
-      ${employeeProfileKvRow("Banco", emp.bankName)}
-      ${employeeProfileKvRow("Tipo cuenta", emp.bankAccountType)}
-      ${employeeProfileKvRow("N° cuenta", emp.bankAccount)}
+      ${employeeProfileKvRow("Banco", e.bankName)}
+      ${employeeProfileKvRow("Tipo cuenta", e.bankAccountType)}
+      ${employeeProfileKvRow("N° cuenta", e.bankAccount)}
     </div></section>
     ${driverBlock}</article>`;
 }
@@ -23958,6 +24379,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
     String(e.contractDuration || e.contractDurationText || "").trim()
   );
   const showPlazoBlockInit = contractTypeRequiresDurationPlazo(String(e.contractType || "").trim());
+  const showFixedEndInit = isFixedTermContractType(String(e.contractType || "").trim());
   return [
     {
       type: "hidden",
@@ -24023,7 +24445,11 @@ function buildPayrollEmployeeEditModalFields(emp) {
 </div>
 </div>
 </div>
-<label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
+<label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" id="employee-modal-start-date" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
+<div id="emp-edit-contract-end-wrap" class="emp-contract-end-preview full${showFixedEndInit ? "" : " hidden"}" style="grid-column:1/-1"${showFixedEndInit ? "" : " hidden"}>
+<label><span>${escapeHtml("Fecha fin del contrato")}</span><input type="date" name="contractEndDate" id="emp-edit-contract-end-date" readonly tabindex="-1" value="${escapeAttr(normalizePortalDateYmd(e.contractEndDate))}" /></label>
+<p class="muted emp-contract-renewal-hint" id="emp-edit-contract-renewal-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45"></p>
+</div>
 <label><span>${escapeHtml("Salario base (COP)")}</span><input type="number" name="baseSalary" id="employee-modal-salary" min="${CO_HR_RULES.minMonthlySalary}" required value="${escapeAttr(parseNum(e.baseSalary))}" /></label>
 <label><span>${escapeHtml("Auxilio legal transporte / conectividad")}</span><input type="number" name="transportAllowance" id="employee-modal-transport-allowance" min="0" value="${escapeAttr(readEmployeeTransportAllowanceCop(e))}" /></label>
 <p class="full muted modal-field-hint" id="employee-modal-legal-comp-hint" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(e.baseSalary))}</p>
@@ -24121,7 +24547,11 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
     salario_letras: wordsSalary,
     duracion_contrato:
       String(employee.contractDuration || employee.contractDurationText || "").trim() ||
-      describeContractDurationForDocx({ contractType: ct, startDate: signDate, endDate: employee.endDate || "" }),
+      describeContractDurationForDocx({
+        contractType: ct,
+        startDate: signDate,
+        endDate: employee.contractEndDate || employee.endDate || ""
+      }),
     cargo_empleado: positionName,
     signDate
   };
@@ -24359,9 +24789,7 @@ function bindDynamicEvents() {
       const panelId = String(btn.dataset.panel || "");
       const formEl = btn.closest("form");
       if (!panelId || !formEl) return;
-      if (!confirmDiscardCreateForm(formEl)) return;
-      collapseCreatePanel(panelId);
-      renderPortalView();
+      resetCreatePanelForm(panelId, formEl);
     });
   });
 
@@ -24455,14 +24883,25 @@ function bindDynamicEvents() {
       if (!confirmDiscardCreateForm(formEl)) return;
       if (panel === "create-user") {
         clearAdminUsersDraft("createUser");
-        setAdminUsersUi({ panel: "", createUserMinimized: false });
+        setAdminUsersUi({
+          panel: "create-user",
+          createUserMinimized: false,
+          editUserId: "",
+          editCompanyId: ""
+        });
       } else if (panel === "create-company") {
         clearAdminUsersDraft("createCompany");
-        setAdminUsersUi({ panel: "", createCompanyMinimized: false });
+        setAdminUsersUi({
+          panel: "create-company",
+          createCompanyMinimized: false,
+          editUserId: "",
+          editCompanyId: ""
+        });
       } else {
         return;
       }
       renderPortalView();
+      scrollToAdminUsersFocusedForm();
     });
   });
 
@@ -24680,6 +25119,8 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const formEl = document.getElementById("form-admin-user-edit");
+      if (formEl && !confirmDiscardCreateForm(formEl)) return;
       setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", section: "actions", editMinimized: false });
       renderPortalView();
     });
@@ -24697,6 +25138,8 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-company']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const formEl = document.getElementById("form-admin-company-edit");
+      if (formEl && !confirmDiscardCreateForm(formEl)) return;
       state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
@@ -28302,6 +28745,15 @@ function bindDynamicEvents() {
       amount: "#emp-contract-duration-amount",
       otherText: "#emp-contract-duration-other"
     });
+    const syncFixedTermEnd = bindFixedTermContractEndPreview(employeeForm, {
+      contractSelect: "#emp-contract-type",
+      startDate: "#emp-start-date",
+      contractEndDate: "#emp-contract-end-date",
+      endWrap: "#emp-contract-end-wrap",
+      hint: "#emp-contract-renewal-hint",
+      unit: "#emp-contract-duration-unit",
+      amount: "#emp-contract-duration-amount"
+    });
     const syncEmpFromPosition = () => {
       const position = getPositionById(String(empPosSelect?.value || ""));
       applyPositionCatalogToEmployeeForm(employeeForm, position, {
@@ -28315,6 +28767,7 @@ function bindDynamicEvents() {
         onAfterApply: () => {
           employeeCompRule.sync({ force: true });
           syncPlazoVisibility();
+          syncFixedTermEnd();
         }
       });
       if (!position) syncPlazoVisibility();
@@ -28324,6 +28777,7 @@ function bindDynamicEvents() {
       syncEmpFromPosition();
     }
     syncPlazoVisibility();
+    syncFixedTermEnd();
     const empIllnessSelect = employeeForm.querySelector("#emp-has-illness");
     const empIllnessDetailLabel = employeeForm.querySelector("#emp-illness-detail-label");
     const empIllnessDetail = employeeForm.querySelector("#emp-illness-detail");
@@ -28462,11 +28916,25 @@ function bindDynamicEvents() {
           notify(String(err?.message || "No fue posible guardar el empleado en el servidor."), "error");
           return;
         }
-        await syncDriverFromEmployee(payload, {
-          license: payload.license,
-          licenseCategory: payload.licenseCategory,
-          licenseExpiry: payload.licenseExpiry
-        });
+        scheduleContractRenewalNotificationCheck();
+        if (payload.workerRole === "conductor") {
+          const driverSync = await syncDriverFromEmployee(payload, {
+            license: payload.license,
+            licenseCategory: payload.licenseCategory,
+            licenseExpiry: payload.licenseExpiry
+          });
+          if (!driverSync.ok) {
+            notify(
+              driverSync.message || userMessage("employeeCreatedDriverSyncFail"),
+              "error"
+            );
+            state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+            persistHrWorkspace("payroll", "data");
+            collapseCreatePanel("create-employee");
+            renderPortalView();
+            return;
+          }
+        }
         state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
         persistHrWorkspace("payroll", "data");
         collapseCreatePanel("create-employee");
@@ -28474,6 +28942,17 @@ function bindDynamicEvents() {
         renderPortalView();
       };
       await saveEmployee(resolvedAvatar);
+    }, {
+      busyText: "Guardando empleado…",
+      submitButton: employeeForm.querySelector(".hr-form-wizard-submit"),
+      lockExtraButtons: [
+        employeeForm.querySelector("[data-hr-wizard-next]"),
+        employeeForm.querySelector("[data-hr-wizard-prev]"),
+        employeeForm.querySelector("[data-action='employee-form-generate-contract-draft']"),
+        employeeForm.querySelector("[data-action='cancel-create-panel']"),
+        employeeForm.querySelector("[data-action='toggle-create-panel']")
+      ].filter(Boolean),
+      wireKey: "employeeSubmitGuardWired"
     });
   }
 
@@ -28633,6 +29112,15 @@ function bindDynamicEvents() {
             amount: "#emp-edit-contract-duration-amount",
             otherText: "#emp-edit-contract-duration-other"
           });
+          const syncFixedTermEdit = bindFixedTermContractEndPreview(formEl, {
+            contractSelect: "#employee-modal-contract-type",
+            startDate: "#employee-modal-start-date",
+            contractEndDate: "#emp-edit-contract-end-date",
+            endWrap: "#emp-edit-contract-end-wrap",
+            hint: "#emp-edit-contract-renewal-hint",
+            unit: "#emp-edit-contract-duration-unit",
+            amount: "#emp-edit-contract-duration-amount"
+          });
           const syncFromPos = () => {
             const p = getPositionById(String(pos?.value || ""));
             applyPositionCatalogToEmployeeForm(formEl, p, {
@@ -28646,11 +29134,13 @@ function bindDynamicEvents() {
               onAfterApply: () => {
                 compensationRule.sync({ force: true });
                 syncPlazoEdit();
+                syncFixedTermEdit();
               }
             });
             if (!p) syncPlazoEdit();
           };
           pos?.addEventListener("change", syncFromPos);
+          syncFixedTermEdit();
           const illnessSel = formEl.querySelector("[data-emp-edit-illness]");
           const illnessDetailLabel = formEl.querySelector("[data-emp-edit-illness-detail]");
           const illnessDetailField = illnessDetailLabel?.querySelector("textarea[name='illnessDescription']");
@@ -28739,8 +29229,15 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible guardar el empleado en el servidor."), "error");
             return false;
           }
+          scheduleContractRenewalNotificationCheck();
           const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
-          if (refreshed && refreshed.workerRole === "conductor") await syncDriverFromEmployee(refreshed);
+          if (refreshed && refreshed.workerRole === "conductor") {
+            const driverSync = await syncDriverFromEmployee(refreshed);
+            if (!driverSync.ok) {
+              notify(driverSync.message || userMessage("employeeCreatedDriverSyncFail"), "error");
+              return false;
+            }
+          }
           notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
           return true;
@@ -28775,11 +29272,16 @@ function bindDynamicEvents() {
     });
   });
 
+  wirePayrollEmployeeDirectoryFilters();
+
   const employeesSelectAll = document.getElementById("employees-select-all");
   if (employeesSelectAll) {
     employeesSelectAll.addEventListener("click", (event) => {
       event.preventDefault();
-      const checks = [...nodes.viewRoot.querySelectorAll("[data-employee-select]")];
+      const checks = [
+        ...nodes.viewRoot.querySelectorAll(".directory-card--employee [data-employee-select]"),
+        ...nodes.viewRoot.querySelectorAll("[data-employee-select]")
+      ];
       const allSelected = checks.length > 0 && checks.every((check) => check.checked);
       checks.forEach((check) => {
         check.checked = !allSelected;
@@ -28795,7 +29297,13 @@ function bindDynamicEvents() {
         notify(userMessage("adminOnlyModule"), "error");
         return;
       }
-      const selectedIds = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) => String(check.value || ""));
+      const selectedIds = [
+        ...new Set(
+          [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) =>
+            String(check.value || "")
+          )
+        )
+      ];
       if (!selectedIds.length) {
         notify(userMessage("employeesBulkSelect"), "error");
         return;

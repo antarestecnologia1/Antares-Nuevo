@@ -27,6 +27,11 @@ import {
   liquidationCutIfClosingToday
 } from "../payroll/payroll-cut-bogota";
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
+import { timestamptzStringColombiaNow, timestamptzToColombiaIso } from "../common/colombia-time";
+import {
+  computeEmployeeContractRenewalMeta,
+  contractNoticeRefToken
+} from "./employee-contract-renewal";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 import type { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import type { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
@@ -1887,6 +1892,16 @@ export class PortalService implements OnModuleInit {
     const laborSystemHistoryPromise =
       canPayroll || canHiring ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
 
+    if (canPayroll) {
+      try {
+        await this.runFixedTermContractRenewalNotifications();
+      } catch (e) {
+        this.logger.warn(
+          `Avisos contrato término fijo: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    }
+
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
       admin ? this.loadCounters() : Promise.resolve({}),
@@ -3567,6 +3582,122 @@ export class PortalService implements OnModuleInit {
     return { ok: true, count: recipients.length };
   }
 
+  /**
+   * Inserta notificaciones in-app para RRHH/administración (sin actor JWT).
+   * Usado por avisos automáticos de contratos a término fijo.
+   */
+  private async dispatchHrNotificationFromSystem(title: string, body: string): Promise<number> {
+    const targetIds = await this.loadUserIdsByRoles([
+      "admin",
+      "rrhh",
+      "administracion",
+      "auxiliar_administrativo",
+      "lider_administrativo"
+    ]);
+    const unique = [...new Set(targetIds)];
+    if (!unique.length) return 0;
+
+    let recipients = unique;
+    try {
+      const blocked = await this.pool.query<{ id: string }>(
+        `SELECT id_usuario::text AS id FROM preferencias_notificacion_usuario
+         WHERE id_usuario = ANY($1::uuid[]) AND notificaciones_habilitadas = false`,
+        [unique]
+      );
+      const skip = new Set(blocked.rows.map((x) => x.id));
+      recipients = unique.filter((id) => !skip.has(id));
+    } catch {
+      recipients = unique;
+    }
+    if (!recipients.length) return 0;
+
+    for (const uid of recipients) {
+      await this.pool.query(
+        `INSERT INTO notificaciones (id_usuario, titulo, cuerpo) VALUES ($1::uuid, $2, $3)`,
+        [uid, title, body]
+      );
+    }
+    return recipients.length;
+  }
+
+  private async contractRenewalNoticeRecentlySent(refToken: string, withinDays = 7): Promise<boolean> {
+    const ref = String(refToken || "").trim();
+    if (!ref) return false;
+    const days = Math.max(1, Math.min(30, Math.floor(withinDays)));
+    const r = await this.pool.query<{ ok: number }>(
+      `SELECT 1 AS ok FROM notificaciones
+       WHERE cuerpo LIKE $1
+         AND fecha_creacion > now() - ($2::text || ' days')::interval
+       LIMIT 1`,
+      [`%${ref}%`, String(days)]
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
+  /** Avisos de no renovación / vencimiento para contratos a término fijo. */
+  async runFixedTermContractRenewalNotifications(): Promise<{ ok: true; notices: number }> {
+    const r = await this.pool.query(`SELECT * FROM empleados_nomina`);
+    let notices = 0;
+    for (const row of r.rows) {
+      const emp = this.mapEmployeeRow(row);
+      const meta = computeEmployeeContractRenewalMeta({
+        contractType: emp.contractType,
+        startDate: emp.startDate,
+        contractEndDate: emp.contractEndDate
+      });
+      if (!meta.applies) continue;
+      if (meta.statusSlug !== "notice_window" && meta.statusSlug !== "expired") continue;
+
+      const ref = contractNoticeRefToken(String(emp.id ?? ""), meta.endYmd, meta.statusSlug);
+      const dedupeDays = meta.statusSlug === "expired" ? 14 : 7;
+      if (await this.contractRenewalNoticeRecentlySent(ref, dedupeDays)) continue;
+
+      const name = String(emp.name || "Colaborador").trim();
+      const doc = String(emp.idDoc || "").trim();
+      const title =
+        meta.statusSlug === "expired"
+          ? `Contrato vencido · ${name}`
+          : `Aviso no renovación · ${name}`;
+      const body = [
+        ref,
+        meta.detail,
+        doc ? `Documento: ${doc}.` : "",
+        `Vencimiento: ${meta.endYmd}.`,
+        meta.noticeDeadlineYmd && meta.statusSlug === "notice_window"
+          ? `Notificar no renovación a más tardar el ${meta.noticeDeadlineYmd}.`
+          : "",
+        "Revise Gestión humana → Consultar datos → Colaboradores."
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const count = await this.dispatchHrNotificationFromSystem(title, body.slice(0, 4000));
+      if (count > 0) notices += 1;
+    }
+    return { ok: true, notices };
+  }
+
+  private roleMayRunContractRenewalNotices(role: JwtRole): boolean {
+    const r = String(role || "").toLowerCase();
+    return (
+      this.isAdmin(role) ||
+      r === "rrhh" ||
+      r === "administracion" ||
+      r === "auxiliar_administrativo" ||
+      r === "lider_administrativo"
+    );
+  }
+
+  async runFixedTermContractRenewalNotificationsForActor(
+    _actorUserId: string,
+    role: JwtRole
+  ): Promise<{ ok: true; notices: number }> {
+    if (!this.roleMayRunContractRenewalNotices(role)) {
+      throw new ForbiddenException();
+    }
+    return this.runFixedTermContractRenewalNotifications();
+  }
+
   private async loadUserIdsByRoles(roles: string[]): Promise<string[]> {
     const normalized = roles.map((r) => String(r || "").toLowerCase()).filter(Boolean);
     if (!normalized.length) return [];
@@ -4165,8 +4296,12 @@ export class PortalService implements OnModuleInit {
       hasIllness: e.tiene_condicion_medica === true ? "si" : "no",
       illnessDescription:
         typeof e.descripcion_condicion_medica === "string" ? e.descripcion_condicion_medica : "",
-      createdAt: e.fecha_creacion ? new Date(e.fecha_creacion as string).toISOString() : new Date().toISOString(),
-      updatedAt: e.fecha_actualizacion ? new Date(e.fecha_actualizacion as string).toISOString() : null
+      createdAt: e.fecha_creacion
+        ? timestamptzToColombiaIso(e.fecha_creacion as string | Date)
+        : timestamptzStringColombiaNow(),
+      updatedAt: e.fecha_actualizacion
+        ? timestamptzToColombiaIso(e.fecha_actualizacion as string | Date)
+        : null
     };
   }
 
@@ -5701,7 +5836,8 @@ export class PortalService implements OnModuleInit {
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
           curso_conduccion_defensiva,
-          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo
+          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
+          fecha_creacion, fecha_actualizacion
         ) VALUES (
           $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
           $7::date, $8, $9, $10, $11,
@@ -5714,7 +5850,8 @@ export class PortalService implements OnModuleInit {
           $36, $37, $38, $39,
           $40, $41, $42,
           $43::date, $44::date, $45::date, $46::date, $47,
-          $48, $49, $50, $51, $52
+          $48, $49, $50, $51, $52,
+          COALESCE($53::timestamptz, now()), COALESCE($54::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -5767,7 +5904,8 @@ export class PortalService implements OnModuleInit {
           fecha_fin_contrato = EXCLUDED.fecha_fin_contrato,
           jornada_laboral = EXCLUDED.jornada_laboral,
           correo_corporativo = EXCLUDED.correo_corporativo,
-          url_avatar = EXCLUDED.url_avatar`;
+          url_avatar = EXCLUDED.url_avatar,
+          fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
 
     const UPSERT_M19 = `INSERT INTO empleados_nomina (
           id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
@@ -5784,7 +5922,8 @@ export class PortalService implements OnModuleInit {
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
           curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
-          tiene_condicion_medica, descripcion_condicion_medica
+          tiene_condicion_medica, descripcion_condicion_medica,
+          fecha_creacion, fecha_actualizacion
         ) VALUES (
           $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
           $7::date, $8, $9, $10, $11,
@@ -5798,7 +5937,8 @@ export class PortalService implements OnModuleInit {
           $40, $41, $42,
           $43::date, $44::date, $45::date, $46::date, $47,
           $48, $49, $50, $51, $52,
-          $53::boolean, $54
+          $53::boolean, $54,
+          COALESCE($55::timestamptz, now()), COALESCE($56::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -5853,7 +5993,8 @@ export class PortalService implements OnModuleInit {
           correo_corporativo = EXCLUDED.correo_corporativo,
           tiene_condicion_medica = EXCLUDED.tiene_condicion_medica,
           descripcion_condicion_medica = EXCLUDED.descripcion_condicion_medica,
-          url_avatar = EXCLUDED.url_avatar`;
+          url_avatar = EXCLUDED.url_avatar,
+          fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
 
     for (const raw of data) {
       const e = raw as Record<string, unknown>;
@@ -5928,7 +6069,7 @@ export class PortalService implements OnModuleInit {
         base,
         p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
         periodicidadPago,
-        (p(e, "costCenter") as string) || null,
+        ((p(e, "costCenter", "centro_costos", "centroCostos") as string) || "").trim() || null,
         (p(e, "contributorType") as string) || null,
         (p(e, "arlRiskLevel") as string) || null,
         (p(e, "contractTemplateKind", "contractTemplate") as string) || null,
@@ -5956,15 +6097,36 @@ export class PortalService implements OnModuleInit {
         (p(e, "corporateEmail") as string) || null
       ];
 
-      if (tier === 0) await c.query(UPSERT_LEGACY, base52);
+      const portalEmpAuditTs = (v: unknown): string | null => {
+        if (v == null || v === "") return null;
+        const d = new Date(String(v).trim());
+        if (Number.isNaN(d.getTime())) return null;
+        return timestamptzToColombiaIso(d);
+      };
+      const createdAtTs =
+        portalEmpAuditTs(pickPortalField(e, "createdAt", "fecha_creacion")) ??
+        timestamptzStringColombiaNow();
+      const updatedAtTs =
+        portalEmpAuditTs(pickPortalField(e, "updatedAt", "fecha_actualizacion")) ?? createdAtTs;
+
+      if (tier === 0) await c.query(UPSERT_LEGACY, [...base52, createdAtTs, updatedAtTs]);
       else
         await c.query(UPSERT_M19, [
           ...base52,
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
             ? ((p(e, "illnessDescription") as string) || "").trim() || null
-            : null
+            : null,
+          createdAtTs,
+          updatedAtTs
         ]);
+    }
+    try {
+      await this.runFixedTermContractRenewalNotifications();
+    } catch (e) {
+      this.logger.warn(
+        `Avisos contrato tras sync empleados: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
   }
 

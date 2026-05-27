@@ -101,7 +101,9 @@
     }
   }
 
-  async function flush(entity, data) {
+  async function flush(entity, data, opts) {
+    opts = opts && typeof opts === "object" ? opts : {};
+    const notifyOnFailure = opts.notifyOnFailure !== false;
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return;
     var lastErr = null;
@@ -140,7 +142,7 @@
     var errStatus =
       lastErr && typeof lastErr === "object" && typeof lastErr.status === "number" ? lastErr.status : 0;
     /** 403 en segundo plano (p. ej. emails solo admin) no es fallo de red. */
-    if (errStatus !== 403) {
+    if (errStatus !== 403 && notifyOnFailure) {
       notifySyncFailureDebounced();
     }
     const msg =
@@ -158,7 +160,7 @@
    * confirmar escritura antes de cerrar modal o refrescar vistas.
    * @throws {Error} si fallan los reintentos al servidor y la sesión API está configurada.
    */
-  async function flushStorageKeyNow(storageKey) {
+  async function flushStorageKeyNow(storageKey, opts) {
     if (bootstrapDepth > 0) return;
     if (EXCLUDED_STORAGE_KEYS.has(storageKey)) return;
     const entity = STORAGE_TO_ENTITY[storageKey];
@@ -177,7 +179,7 @@
     }
     if (data === undefined || data === null) return;
 
-    await flush(entity, data);
+    await flush(entity, data, opts);
   }
 
   /** Envía un payload explícito (p. ej. filas ya mapeadas para PostgreSQL) sin leer de memoria. */

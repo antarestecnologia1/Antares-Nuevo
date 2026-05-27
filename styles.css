@@ -15302,25 +15302,99 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   gap: 0.5rem;
 }
 
+.module-panel-actions__group--secondary {
+  padding: 0.3rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  gap: 0.35rem;
+}
+
 .module-panel-actions__group--primary {
   margin-inline-start: auto;
+}
+
+.module-panel-btn__inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  line-height: 1.1;
+}
+
+.module-panel-btn__label {
+  white-space: nowrap;
 }
 
 .module-panel-actions--footer .module-panel-btn,
 .module-panel-toolbar .module-panel-btn {
   min-height: 2.5rem;
-  border-radius: 12px;
+  padding-inline: 0.85rem;
+  border-radius: 11px;
   font-size: 0.8rem;
   font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.module-panel-actions--footer .module-panel-btn .btn-icon,
+.module-panel-toolbar .module-panel-btn .btn-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.92;
 }
 
 .module-panel-btn--minimize,
 .module-panel-btn--expand {
-  min-width: 7.5rem;
+  min-width: 7.35rem;
 }
 
 .module-panel-btn--cancel {
-  min-width: 6.75rem;
+  min-width: 7.1rem;
+  margin-inline-start: 0.1rem;
+  padding-inline-start: 0.95rem;
+  border-inline-start: 1px solid rgba(148, 163, 184, 0.35);
+  border-top-left-radius: 9px;
+  border-bottom-left-radius: 9px;
+}
+
+.module-panel-btn--minimize,
+.module-panel-btn--expand {
+  color: #334155;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  border: 1px solid rgba(100, 116, 139, 0.32);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.module-panel-btn--minimize:hover,
+.module-panel-btn--expand:hover {
+  color: #0f172a;
+  border-color: rgba(71, 85, 105, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #e8eef5 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.95) inset, 0 8px 18px rgba(15, 23, 42, 0.09);
+  transform: translateY(-1px);
+}
+
+.module-panel-btn--minimize:focus-visible,
+.module-panel-btn--expand:focus-visible,
+.module-panel-btn--cancel:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 2px;
+}
+
+.module-panel-btn--cancel.btn-danger-soft {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset, 0 6px 14px rgba(220, 38, 38, 0.08);
+}
+
+.module-panel-btn--cancel.btn-danger-soft:hover {
+  transform: translateY(-1px);
+}
+
+.module-panel-btn--cancel-edit {
+  margin-inline-start: 0;
+  padding-inline-start: 0.85rem;
+  border-inline-start: 0;
 }
 
 .hr-action-card__head .module-panel-toolbar {
@@ -15381,6 +15455,27 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   .module-panel-toolbar .module-panel-btn {
     flex: 1 1 100%;
     min-width: 0;
+  }
+
+  .module-panel-actions__group--secondary {
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .module-panel-btn--cancel {
+    margin-inline-start: 0;
+    padding-inline-start: 0.85rem;
+    border-inline-start: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.28);
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    padding-top: 0.55rem;
+    margin-top: 0.15rem;
+  }
+
+  body[data-theme="dark"] .module-panel-btn--cancel {
+    border-top-color: rgba(148, 163, 184, 0.22);
   }
 }
 
@@ -21725,8 +21820,63 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .vehicle-ops-cards.directory-grid,
-.drivers-grid.directory-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+.drivers-grid.directory-grid,
+.payroll-employees-grid.directory-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
+.directory-card--employee {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 252, 255, 0.98)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 44%);
+}
+
+.directory-card--employee.directory-card--contract-notice_window::before,
+.directory-card--employee.directory-card--contract-expired::before {
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+}
+
+.directory-card--employee.directory-card--contract-active::before {
+  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+}
+
+.directory-card--employee.is-filtered-out {
+  display: none;
+}
+
+.directory-card__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  margin-top: 0.25rem;
+}
+
+.payroll-employee-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.payroll-employee-search,
+.payroll-employee-filter {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.payroll-employee-toolbar-actions {
+  margin-left: auto;
+}
+
+.emp-contract-end-preview input[readonly] {
+  background: rgba(var(--primary-rgb), 0.06);
+  cursor: default;
 }
 
 .directory-card {
@@ -22109,6 +22259,31 @@ body[data-theme="dark"] .directory-card--company .directory-card__kicker {
 body[data-theme="dark"] .module-panel-toolbar,
 body[data-theme="dark"] .module-panel-actions {
   color: #e8f1ff;
+}
+
+body[data-theme="dark"] .module-panel-actions__group--secondary {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+  border-color: rgba(100, 116, 139, 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+body[data-theme="dark"] .module-panel-btn--minimize,
+body[data-theme="dark"] .module-panel-btn--expand {
+  color: #e2e8f0;
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.55), rgba(30, 41, 59, 0.82));
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 6px 14px rgba(2, 6, 23, 0.28);
+}
+
+body[data-theme="dark"] .module-panel-btn--minimize:hover,
+body[data-theme="dark"] .module-panel-btn--expand:hover {
+  color: #f8fafc;
+  border-color: rgba(203, 213, 225, 0.42);
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.62), rgba(30, 41, 59, 0.92));
+}
+
+body[data-theme="dark"] .module-panel-btn--cancel {
+  border-inline-start-color: rgba(148, 163, 184, 0.28);
 }
 
 body[data-theme="dark"] .directory-card--user .directory-card__tags .perm-tag,

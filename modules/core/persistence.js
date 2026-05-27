@@ -102,7 +102,9 @@
       }
     },
 
-    write(key, value) {
+    write(key, value, opts) {
+      opts = opts && typeof opts === "object" ? opts : {};
+      var skipSyncSchedule = opts.skipSyncSchedule === true;
       if (SERVER_BACKED_STORAGE_KEYS.has(key)) {
         var stored = trimArrayRowsIfNeeded(key, value);
         serverBackedMemory[key] = stored;
@@ -111,14 +113,14 @@
         } catch (_e) {
           /* noop */
         }
-        if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+        if (!skipSyncSchedule && window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
           window.AntaresPortalSync.schedule(key, stored);
         }
         return;
       }
       var plain = trimArrayRowsIfNeeded(key, value);
       localStorage.setItem(key, JSON.stringify(plain));
-      if (window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+      if (!skipSyncSchedule && window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
         window.AntaresPortalSync.schedule(key, plain);
       }
     },

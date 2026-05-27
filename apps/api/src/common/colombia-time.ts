@@ -23,3 +23,10 @@ export function timestamptzStringColombiaNow(date: Date = new Date()): string {
 
 /** Alias en español usado por otros módulos (p. ej. nómina). */
 export const marcaTiempoColombiaIso = timestamptzStringColombiaNow;
+
+/** Serializa un instante (Postgres `timestamptz`, ISO UTC, etc.) en hora de negocio Colombia (-05:00). */
+export function timestamptzToColombiaIso(raw: string | Date): string {
+  const d = raw instanceof Date ? raw : new Date(String(raw).trim());
+  if (Number.isNaN(d.getTime())) return timestamptzStringColombiaNow();
+  return timestamptzStringColombiaNow(d);
+}

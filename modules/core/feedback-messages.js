@@ -201,6 +201,8 @@
     employeeCreatedWithContract: "Empleado creado y contrato Word generado.",
     employeeCreatedWordFail: (msg) => `Empleado creado. No se pudo generar Word: ${msg}`,
     employeeCreatedOk: "Empleado registrado correctamente.",
+    employeeCreatedDriverSyncFail:
+      "El empleado quedó guardado, pero no se pudo sincronizar la ficha de conductor. Revise licencia y conexión, luego edite el empleado.",
     employeeContractWordOk: "Contrato Word generado. Revise la carpeta de descargas.",
     hrAbsenceDeleted: "Ausencia eliminada del expediente digital.",
     payrollRunDeleted: "Liquidacion eliminada del historial.",

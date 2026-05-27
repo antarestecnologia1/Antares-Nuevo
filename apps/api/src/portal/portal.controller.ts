@@ -128,6 +128,15 @@ export class PortalController {
     return this.portal.dispatchNotification(req.user.userId, req.user.role, dto);
   }
 
+  /** Genera notificaciones de aviso de no renovación / vencimiento (contratos a término fijo). */
+  @Post("hr/contract-renewal-notices/run")
+  runContractRenewalNotices(@Req() req: { user: ReqUser }) {
+    return this.portal.runFixedTermContractRenewalNotificationsForActor(
+      req.user.userId,
+      req.user.role
+    );
+  }
+
   /** Solo admin: aprueba usuario pendiente y asigna id_empresa en PostgreSQL. */
   @Post("approve-pending-user")
   approvePendingUser(@Req() req: { user: ReqUser }, @Body() dto: ApprovePendingUserDto) {
