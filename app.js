@@ -493,12 +493,14 @@ function renderHiringModuleHead({
   activeCandidates,
   urgentItems,
   contractsThisMonth,
-  candidateConversion
+  candidateConversion,
+  hiredCandidates,
+  totalCandidates
 }) {
   const chips = [
     `<span class="payroll-head-stat"><strong>${openVacancies}</strong> vacantes abiertas</span>`,
     `<span class="payroll-head-stat payroll-head-stat--muted"><strong>${activeCandidates}</strong> en proceso</span>`,
-    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>${candidateConversion}%</strong> conversión</span>`
+    `<span class="payroll-head-stat payroll-head-stat--muted" title="${hiredCandidates ?? 0} contratados de ${totalCandidates ?? 0} candidatos registrados"><strong>${candidateConversion}%</strong> contratación</span>`
   ];
   if (urgentItems > 0) {
     chips.push(
@@ -518,18 +520,19 @@ function renderHiringModuleHead({
 
 function renderHiringDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
   const tabs = [
-    { id: "candidates", label: "Candidatos", count: counts.candidates ?? 0 },
-    { id: "vacancies", label: "Vacantes", count: counts.vacancies ?? 0 },
-    { id: "interviews", label: "Entrevistas", count: counts.interviews ?? 0 },
-    { id: "contracts", label: "Contratos", count: counts.contracts ?? 0 },
-    { id: "positions", label: "Cargos", count: counts.positions ?? 0 }
+    { id: "candidates", label: "Candidatos", count: counts.candidates ?? 0, icon: "user" },
+    { id: "vacancies", label: "Vacantes", count: counts.vacancies ?? 0, icon: "send" },
+    { id: "interviews", label: "Entrevistas", count: counts.interviews ?? 0, icon: "calendar" },
+    { id: "contracts", label: "Contratos", count: counts.contracts ?? 0, icon: "file" },
+    { id: "positions", label: "Cargos", count: counts.positions ?? 0, icon: "briefcase" }
   ];
   const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
   return `<nav class="${navClass}" role="tablist" aria-label="Consultas de contratación">
     ${tabs
       .map((t) => {
         const active = activeId === t.id;
-        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-data-section" data-section="${escapeAttr(t.id)}"><span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
+        const icon = IC[t.icon] ? `<span class="payroll-data-nav-ico" aria-hidden="true">${IC[t.icon]}</span>` : "";
+        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-data-section" data-section="${escapeAttr(t.id)}">${icon}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
       })
       .join("")}
   </nav>`;
@@ -4972,6 +4975,148 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
   return { ok: true };
 }
 
+function canManageHiringModule(user) {
+  const actor = user || currentUser();
+  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.HIRING_MANAGE);
+}
+
+const HIRING_RRHH_EDIT_ACTIONS = new Set([
+  "edit-vacancy",
+  "edit-position",
+  "edit-candidate",
+  "edit-interview",
+  "candidate-status",
+  "toggle-position"
+]);
+
+function canPerformHiringEditAction(action) {
+  return HIRING_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageHiringModule();
+}
+
+function hiringPipelineStatusClass(status) {
+  const s = String(status || "");
+  if (s === "Contratado") return "status-viaje_asignado";
+  if (s === "Descartado") return "status-rechazada";
+  if (s === "Oferta enviada") return "status-viaje_completado";
+  if (s === "Entrevistado") return "status-en_transito";
+  if (s === "Preseleccionado") return "status-pendiente";
+  return "status-pendiente";
+}
+
+function hiringPipelineSelectOptions(currentStatus) {
+  const current = String(currentStatus || PIPELINE[0]);
+  const allowed = PIPELINE_TRANSITIONS[current] || [];
+  const options = new Set([current, ...allowed]);
+  return [...options]
+    .map((p) => `<option value="${escapeAttr(p)}"${p === current ? " selected" : ""}>${escapeHtml(p)}</option>`)
+    .join("");
+}
+
+function computeHiringConversionPct(candidates) {
+  const rows = Array.isArray(candidates) ? candidates : [];
+  if (!rows.length) return 0;
+  const hired = rows.filter((c) => String(c.status || "") === "Contratado").length;
+  return Math.round((hired / rows.length) * 100);
+}
+
+function formatInterviewModeLabel(mode) {
+  const m = String(mode || "").trim().toLowerCase();
+  if (m === "virtual") return "Virtual";
+  if (m === "telefonica" || m === "telefónica") return "Telefónica";
+  if (m === "presencial") return "Presencial";
+  return mode ? String(mode) : "—";
+}
+
+function getCandidateVacancyAndPosition(candidate) {
+  const vacancy =
+    read(KEYS.vacancies, []).find((v) => String(v.id) === String(candidate?.vacancyId || "")) || null;
+  const position = vacancy ? getPositionById(String(vacancy.positionId || "")) : null;
+  return { vacancy, position };
+}
+
+function hiringEmptyState(text, cta = null) {
+  const ctaHtml =
+    cta && cta.action
+      ? `<div class="hiring-empty-actions"><button type="button" class="btn btn-primary btn-sm" data-action="${escapeAttr(
+          cta.action
+        )}"${cta.section ? ` data-section="${escapeAttr(cta.section)}"` : ""}>${IC.plus} ${escapeHtml(
+          cta.label || "Registrar"
+        )}</button></div>`
+      : "";
+  return `<div class="empty-state hiring-empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${escapeHtml(
+    text
+  )}</p>${ctaHtml}</div>`;
+}
+
+function applyCandidateToEmployeeForm(form, candidate) {
+  if (!form || !candidate) return false;
+  const { position } = getCandidateVacancyAndPosition(candidate);
+  const setVal = (selector, value) => {
+    const el = form.querySelector(selector);
+    if (el && value != null && String(value).trim() !== "") el.value = String(value);
+  };
+  setVal("input[name='name']", candidate.name);
+  setVal("select[name='documentType']", candidate.documentType || "CC");
+  setVal("input[name='idDoc']", candidate.idDoc);
+  setVal("input[name='birthDate']", String(candidate.birthDate || "").slice(0, 10));
+  setVal("select[name='educationLevel']", candidate.educationLevel);
+  setVal("input[name='phone']", candidate.phone);
+  setVal("input[name='personalEmail']", candidate.email);
+  setVal("input[name='address']", candidate.address);
+  setVal("input[name='startDate']", colombiaTodayIsoDate());
+  const deptSel = form.querySelector("select[name='department']");
+  if (deptSel && candidate.department) {
+    setFormSelectValue(deptSel, candidate.department);
+    deptSel.dispatchEvent(new Event("change", { bubbles: true }));
+    requestAnimationFrame(() => setVal("select[name='city']", candidate.city));
+  } else {
+    setVal("select[name='city']", candidate.city);
+  }
+  const posSel = form.querySelector("#emp-position-select, select[name='positionId']");
+  if (posSel && position) {
+    setFormSelectValue(posSel, position.id);
+    posSel.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  const hintEl = form.querySelector("#emp-position-catalog-hint");
+  if (hintEl) {
+    hintEl.textContent = `Datos precargados desde candidato «${String(candidate.name || "").trim()}». Complete seguridad social, banco y demás campos obligatorios antes de guardar.`;
+  }
+  form.dataset.prefillCandidateId = String(candidate.id || "");
+  return true;
+}
+
+function openPayrollEmployeeFromCandidate(candidateId) {
+  const cid = String(candidateId || "").trim();
+  if (!cid) return;
+  state.hiringUi = { ...(state.hiringUi || {}), prefillEmployeeFromCandidateId: cid };
+  state.payrollUi = { ...(state.payrollUi || {}), workspace: "operate", operateSection: "employee" };
+  state.createPanels = { ...(state.createPanels || {}), "create-employee": true };
+  persistHrWorkspace("payroll", "operate");
+  persistHrWorkspace("hiring", state.hiringUi?.workspace || "data");
+  state.currentView = "payroll";
+  renderPortalView();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => scrollToCreatePanelForm("create-employee"));
+  });
+}
+
+function openHiringContractFromCandidate(candidateId) {
+  const cid = String(candidateId || "").trim();
+  if (!cid) return;
+  state.hiringUi = {
+    ...(state.hiringUi || {}),
+    prefillContractFromCandidateId: cid,
+    workspace: "operate",
+    operateSection: "contract"
+  };
+  state.createPanels = { ...(state.createPanels || {}), "create-contract": true };
+  persistHrWorkspace("hiring", "operate");
+  renderPortalView();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => scrollToCreatePanelForm("create-contract"));
+  });
+}
+
 let state = {
   session: null,
   currentView: "dashboard",
@@ -5159,9 +5304,26 @@ function hydrateHrWorkspaceFromStorage() {
       if (p !== ws) persistHrWorkspace("payroll", ws);
     }
     if (h) {
-      const ws = normalizeHrWorkspace("hiring", h);
-      state.hiringUi = { ...(state.hiringUi || {}), workspace: ws };
-      if (h !== ws) persistHrWorkspace("hiring", ws);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(h);
+      } catch (_jsonErr) {
+        parsed = null;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state.hiringUi = {
+          ...(state.hiringUi || {}),
+          workspace: normalizeHrWorkspace("hiring", parsed.workspace),
+          operateSection: normalizeHiringOperateSection(parsed.operateSection),
+          dataSection: normalizeHiringDataSection(parsed.dataSection),
+          candidateFilter: String(parsed.candidateFilter || "active"),
+          vacancyFilter: String(parsed.vacancyFilter || "open"),
+          candidateSort: String(parsed.candidateSort || "recent")
+        };
+      } else {
+        const ws = normalizeHrWorkspace("hiring", h);
+        state.hiringUi = { ...(state.hiringUi || {}), workspace: ws };
+      }
     }
   } catch (_e) {}
 }
@@ -5220,8 +5382,21 @@ function persistHrWorkspace(moduleId, workspace) {
   try {
     if (moduleId === "payroll" && HR_VALID_PAYROLL_WS.has(ws)) {
       localStorage.setItem(HR_WORKSPACE_STORAGE.payroll, ws);
-    } else if (moduleId === "hiring" && HR_VALID_HIRING_WS.has(ws)) {
-      localStorage.setItem(HR_WORKSPACE_STORAGE.hiring, ws);
+    } else if (moduleId === "hiring") {
+      const ui = { ...(state.hiringUi || {}) };
+      if (HR_VALID_HIRING_WS.has(ws)) ui.workspace = ws;
+      state.hiringUi = ui;
+      localStorage.setItem(
+        HR_WORKSPACE_STORAGE.hiring,
+        JSON.stringify({
+          workspace: normalizeHrWorkspace("hiring", ui.workspace),
+          operateSection: normalizeHiringOperateSection(ui.operateSection),
+          dataSection: normalizeHiringDataSection(ui.dataSection),
+          candidateFilter: String(ui.candidateFilter || "active"),
+          vacancyFilter: String(ui.vacancyFilter || "open"),
+          candidateSort: String(ui.candidateSort || "recent")
+        })
+      );
     }
   } catch (_e) {}
 }
@@ -23390,6 +23565,49 @@ function installCandidateCvDownloadDelegation() {
   });
 }
 
+function renderHiringCandidateCard(c, ctx) {
+  const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
+  const expCargo = parseNum(c.experienceYears || 0);
+  const canDlCv = Boolean(ctx.canDlCv);
+  const statusClass = hiringPipelineStatusClass(c.status);
+  const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
+  return `<article class="hiring-candidate-card">
+    <header class="hiring-candidate-card__head">
+      <div>
+        <h4>${escapeHtml(String(c.name || ""))}</h4>
+        <p class="muted">${escapeHtml(String(c.vacancyTitle || "-"))}</p>
+      </div>
+      <span class="status ${statusClass}">${escapeHtml(String(c.status || ""))}</span>
+    </header>
+    <dl class="hiring-candidate-card__meta">
+      <div><dt>Contacto</dt><dd>${escapeHtml(String(c.email || "-"))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></dd></div>
+      <div><dt>Experiencia</dt><dd>${expCargo} años · Edad ${ageInfo.age != null ? `${ageInfo.age} años` : "—"}</dd></div>
+      <div><dt>Etapa</dt><dd><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select></dd></div>
+    </dl>
+    <div class="toolbar hiring-candidate-card__actions">
+      <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+      ${
+        ctx.canScheduleInterview
+          ? `<button type="button" class="btn btn-sm btn-action" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
+          : ""
+      }
+      <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}">${IC.download} CV</button>
+      ${
+        ctx.canEdit
+          ? `<button class="btn btn-sm btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Abrir alta de empleado con datos precargados">${IC.userPlus} Empleado</button>`
+          : ""
+      }
+      ${
+        ctx.canEdit && employeeMatch
+          ? `<button class="btn btn-sm btn-action" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Generar contrato Word">${IC.file} Contrato</button>`
+          : ""
+      }
+      ${ctx.canEdit ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+      ${ctx.canDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
+    </div>
+  </article>`;
+}
+
 function hiringHtml() {
   const vacancies = read(KEYS.vacancies, []);
   const vacanciesOpenForApply = vacancies.filter(isVacancyAcceptingApplications);
@@ -23435,7 +23653,8 @@ function hiringHtml() {
     return days >= 0 && days <= 30;
   });
 
-  const positionAdminEdits = isAdminActor();
+  const positionCanEdit = canManageHiringModule();
+  const positionCanDelete = isAdminActor();
   const positionRows = positions
     .map((p) => `<tr class="hiring-table-row hiring-table-row--position">
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(p.name || ""))}</strong><span>Catálogo base de contratación</span></div></td>
@@ -23448,15 +23667,16 @@ function hiringHtml() {
       <td>${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}</td>
       <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-position" data-id="${escapeAttr(String(p.id))}">${IC.eye} Ver</button>
-        ${positionAdminEdits ? `<button class="btn btn-sm btn-action" data-action="edit-position" data-id="${escapeAttr(String(p.id))}">${IC.edit} Editar</button>` : ""}
+        ${positionCanEdit ? `<button class="btn btn-sm btn-action" data-action="edit-position" data-id="${escapeAttr(String(p.id))}">${IC.edit} Editar</button>` : ""}
         <button class="btn btn-sm btn-action" data-action="toggle-position" data-id="${escapeAttr(String(p.id))}">${IC.toggle} Estado</button>
-        ${positionAdminEdits ? `<button class="btn btn-sm btn-reject" data-action="delete-position" data-id="${escapeAttr(String(p.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+        ${positionCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-position" data-id="${escapeAttr(String(p.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`)
     .join("");
 
   const filteredVacancies = vacancies.filter((v) => (vacancyFilter === "open" ? v.status === "Publicada" : true));
-  const vacancyAdminDeletes = currentUser()?.role === ROLES.ADMIN;
+  const vacancyCanEdit = canManageHiringModule();
+  const vacancyCanDelete = isAdminActor();
   const filteredCandidates = candidates.filter((c) => {
     if (candidateFilter === "active") return !["Contratado", "Descartado"].includes(String(c.status || ""));
     if (candidateFilter === "finalized") return ["Contratado", "Descartado"].includes(String(c.status || ""));
@@ -23469,7 +23689,7 @@ function hiringHtml() {
   });
   const vacRows = filteredVacancies
     .map((v) => {
-      const delCell = vacancyAdminDeletes
+      const delCell = vacancyCanDelete
         ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vacancy" data-id="${escapeAttr(String(v.id))}" title="Solo administradores del sistema">${IC.trash} Eliminar</button>`
         : `<span class="muted" title="Eliminar solo con rol administrador">—</span>`;
       const statusHtml =
@@ -23486,14 +23706,15 @@ function hiringHtml() {
       <td>${statusHtml}</td>
       <td class="hiring-table-cell-actions"><div class="toolbar vacancy-row-actions hiring-table-actions">${[
         `<button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>`,
-        vacancyAdminDeletes ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : "",
+        vacancyCanEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : "",
         `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>`,
         delCell
       ].filter(Boolean).join("")}</div></td>
     </tr>`;
     })
     .join("");
-  const hiringAdminMutates = isAdminActor();
+  const hiringCanEdit = canManageHiringModule();
+  const hiringCanDelete = isAdminActor();
   const candRows = sortedCandidates
     .map((c) => {
       const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
@@ -23502,14 +23723,16 @@ function hiringHtml() {
       const cvDlRow = extractCandidateCvDownload(c);
       const canDlCv = Boolean(cvDlRow?.href) || candidateMayHaveCvInStorage(c);
       const canScheduleInterview = !["Contratado", "Descartado"].includes(String(c.status || ""));
+      const statusClass = hiringPipelineStatusClass(c.status);
+      const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
       return `<tr class="hiring-table-row hiring-table-row--candidate">
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(c.name || ""))}</strong><span>Pipeline de selección</span></div></td>
       <td>${escapeHtml(String(c.email || ""))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></td>
       <td>${escapeHtml(String(c.vacancyTitle || "-"))}</td>
       <td><strong>${expCargo} años</strong> en el cargo<br><span class="muted">Edad: ${escapeHtml(ageStr)} · Nac.: ${escapeHtml(ageInfo.birthLabel)}</span><br><span class="muted">Disp.: ${escapeHtml(String(c.availabilityDate || "-"))}</span></td>
       <td><span class="muted">${escapeHtml(String(c.source || "Portal"))}</span></td>
-      <td><span class="status status-en_transito">${escapeHtml(String(c.status || ""))}</span></td>
-      <td><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${PIPELINE.map((p) => `<option ${c.status === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select></td>
+      <td><span class="status ${statusClass}">${escapeHtml(String(c.status || ""))}</span></td>
+      <td><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select></td>
       <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
         ${
@@ -23518,21 +23741,45 @@ function hiringHtml() {
             : ""
         }
         <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar CV" : "Sin CV disponible"}">${IC.download} Descargar CV</button>
-        ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
-        ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+        ${
+          hiringCanEdit
+            ? `<button type="button" class="btn btn-sm btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Alta en Gestión humana con datos precargados">${IC.userPlus} Empleado</button>`
+            : ""
+        }
+        ${
+          hiringCanEdit && employeeMatch
+            ? `<button type="button" class="btn btn-sm btn-action" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Generar contrato Word">${IC.file} Contrato</button>`
+            : ""
+        }
+        ${hiringCanEdit ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+        ${hiringCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
+    })
+    .join("");
+  const candCards = sortedCandidates
+    .map((c) => {
+      const cvDlRow = extractCandidateCvDownload(c);
+      const canDlCv = Boolean(cvDlRow?.href) || candidateMayHaveCvInStorage(c);
+      const canScheduleInterview = !["Contratado", "Descartado"].includes(String(c.status || ""));
+      return renderHiringCandidateCard(c, {
+        canEdit: hiringCanEdit,
+        canDelete: hiringCanDelete,
+        canScheduleInterview,
+        canDlCv
+      });
     })
     .join("");
   const interviewRows = interviews
     .map((i) => `<tr class="hiring-table-row hiring-table-row--interview">
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(i.candidateName || "-"))}</strong><span>Entrevista agendada</span></div></td>
       <td>${escapeHtml(formatInterviewWhenDisplay(i.when))}</td>
+      <td>${escapeHtml(formatInterviewModeLabel(i.mode || i.modality))}<br><span class="muted">${escapeHtml(String(i.place || "-"))}</span></td>
       <td>${escapeHtml(String(i.interviewer || "-"))}</td>
       <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye} Ver</button>
-        ${hiringAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-interview" data-id="${escapeAttr(String(i.id))}">${IC.edit} Editar</button>` : ""}
-        ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-interview" data-id="${escapeAttr(String(i.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+        ${hiringCanEdit ? `<button class="btn btn-sm btn-action" data-action="edit-interview" data-id="${escapeAttr(String(i.id))}">${IC.edit} Editar</button>` : ""}
+        ${hiringCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-interview" data-id="${escapeAttr(String(i.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`)
     .join("");
@@ -23547,7 +23794,7 @@ function hiringHtml() {
       <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
         <button class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
-        ${hiringAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+        ${hiringCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`)
     .join("");
@@ -23620,6 +23867,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" id="vacancy-salary-offer" required placeholder="Mín. SMMLV" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <p class="full muted" id="vacancy-salary-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Se precarga desde el cargo; no puede ser inferior al salario del catálogo ni al SMMLV.</p>
         <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
+        <label>${fieldLabel(IC.calendar, "Visible en web desde")}<input type="date" name="publishedFrom" /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. Si se deja vacío, la vacante puede mostrarse de inmediato en el portal de empleos.</span></label>
         <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
       </div>
     </fieldset>
@@ -23727,6 +23975,7 @@ function hiringHtml() {
     ${renderManagedCreateFormActions("create-interview", `<button class="btn btn-primary" type="submit">${IC.calendar} Guardar entrevista</button>`)}
   </form>`;
   const signDateDefault = colombiaTodayIsoDate();
+  const candidatesForContractSelect = candidates.filter((c) => !["Descartado"].includes(String(c.status || "")));
   const fCon = `<form id="form-contract" class="p-form p-form-colored hr-form-flow">
     ${renderHrFormHero({
       eyebrow: "Formalización",
@@ -23759,7 +24008,18 @@ function hiringHtml() {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.file} Descargar contrato Word</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.position || "-"} · CC ${e.idDoc || "-"}</option>`).join("")}</select></label>
+        <label class="full">${fieldLabel(IC.user, "Origen del contrato")}<select name="contractPersonMode" id="contract-person-mode">
+          <option value="employee">Empleado ya registrado</option>
+          <option value="candidate">Candidato en proceso</option>
+        </select></label>
+        <label class="full hiring-contract-employee-picker">${fieldLabel(IC.user, "Empleado")}<select name="employeeId"><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.position || "-"} · CC ${e.idDoc || "-"}</option>`).join("")}</select></label>
+        <label class="full hiring-contract-candidate-picker hidden" hidden>${fieldLabel(IC.user, "Candidato")}<select name="candidateId"><option value="">Seleccione</option>${candidatesForContractSelect
+          .map(
+            (c) =>
+              `<option value="${escapeAttr(String(c.id))}">${escapeHtml(String(c.name || ""))} · ${escapeHtml(String(c.status || PIPELINE[0]))} · CC ${escapeHtml(String(c.idDoc || "-"))}</option>`
+          )
+          .join("")}</select><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Debe existir un empleado con la misma cédula. Use «Crear empleado» desde el candidato si aún no está en nómina.</span></label>
+        <p class="full muted hidden" id="contract-candidate-match-hint" style="font-size:0.82rem;line-height:1.45;margin:0"></p>
         <label>${fieldLabel(IC.file, "Plantilla Word")}<select name="contractTemplateKind">
           ${renderContractTemplateSelectOptions("", true)}
         </select></label>
@@ -23791,14 +24051,26 @@ function hiringHtml() {
     </div>
   </form>`;
 
-  const tPos = positionRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Auxilio transporte</th><th>Integral</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>` : emptyState("Sin cargos definidos");
-  const tVac = vacRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--vacancies"><table class="hiring-table hiring-table--vacancies"><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicacion</th><th>Cupos</th><th>Salario</th><th>Limite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>` : emptyState("Sin vacantes");
-  const tCand = candRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>` : emptyState("Sin candidatos");
+  const tPos = positionRows
+    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--positions"><table class="hiring-table hiring-table--positions"><thead><tr><th>Cargo</th><th>Rol</th><th>Salario</th><th>Auxilio transporte</th><th>Integral</th><th>Contrato</th><th>Base legal</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${positionRows}</tbody></table></div>`
+    : hiringEmptyState("Sin cargos definidos", { action: "hiring-operate-section", section: "position", label: "Definir cargo" });
+  const tVac = vacRows
+    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--vacancies"><table class="hiring-table hiring-table--vacancies"><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicación</th><th>Cupos</th><th>Salario</th><th>Límite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>`
+    : hiringEmptyState("Sin vacantes", { action: "hiring-operate-section", section: "vacancy", label: "Publicar vacante" });
+  const tCand = candRows
+    ? `<div class="hiring-cards hiring-cards--candidates">${candCards}</div><div class="hiring-table-desktop table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>`
+    : hiringEmptyState(
+        candidateFilter === "finalized" ? "Sin candidatos finalizados" : "Sin candidatos en esta vista",
+        { action: "hiring-operate-section", section: "candidate", label: "Registrar candidato" }
+      );
   const tInt = interviewRows
-    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--interviews"><table class="hiring-table hiring-table--interviews"><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
-    : emptyState("Sin entrevistas");
-  const tCon = contractRows ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--contracts"><table class="hiring-table hiring-table--contracts"><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>` : emptyState("Sin contratos");
-  const candidateConversion = candidates.length ? Math.round((contracts.length / Math.max(candidates.length, 1)) * 100) : 0;
+    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--interviews"><table class="hiring-table hiring-table--interviews"><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Modalidad / lugar</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
+    : hiringEmptyState("Sin entrevistas", { action: "hiring-operate-section", section: "interview", label: "Programar entrevista" });
+  const tCon = contractRows
+    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--contracts"><table class="hiring-table hiring-table--contracts"><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>`
+    : hiringEmptyState("Sin contratos", { action: "hiring-operate-section", section: "contract", label: "Generar contrato" });
+  const hiredCandidates = candidates.filter((c) => String(c.status || "") === "Contratado").length;
+  const candidateConversion = computeHiringConversionPct(candidates);
   const urgentItems = soonClosingVacancies.length + contractsEndingSoon.length;
 
   const hiringModuleHead = renderHiringModuleHead({
@@ -23806,7 +24078,9 @@ function hiringHtml() {
     activeCandidates: activeCandidates.length,
     urgentItems,
     contractsThisMonth: contractsThisMonth.length,
-    candidateConversion
+    candidateConversion,
+    hiredCandidates,
+    totalCandidates: candidates.length
   });
   const hiringOperateNav = renderModuleWindowTabs({
     ariaLabel: "Flujos de Contratación",
@@ -23832,6 +24106,7 @@ function hiringHtml() {
     </section>`;
   const hiringQuickBarCandidates = `<div class="payroll-quick-bar" role="group" aria-label="Filtros de candidatos">
       <button type="button" class="payroll-quick-pill${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active">Activos</button>
+      <button type="button" class="payroll-quick-pill${candidateFilter === "finalized" ? " is-active" : ""}" data-action="hiring-candidates-finalized">Finalizados</button>
       <button type="button" class="payroll-quick-pill${candidateFilter === "all" ? " is-active" : ""}" data-action="hiring-candidates-all">Todos</button>
       <button type="button" class="payroll-quick-pill${candidateSort === "pipeline" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="pipeline">Por etapa</button>
       <button type="button" class="payroll-quick-pill${candidateSort === "experience" ? " is-active" : ""}" data-action="hiring-sort-candidates" data-sort="experience">Experiencia</button>
@@ -25564,12 +25839,20 @@ function renderContractMergePreviewHtml(employee, opts = {}) {
 function syncContractFormFromSelection(form) {
   if (!form) return;
   const employeeSelect = form.querySelector("select[name='employeeId']");
+  const candidateSelect = form.querySelector("select[name='candidateId']");
+  const personMode = String(form.querySelector("#contract-person-mode")?.value || "employee");
   const templateSelect = form.querySelector("select[name='contractTemplateKind']");
   const signDateEl = form.querySelector("input[name='signDate']");
   const previewEl = form.querySelector("[data-contract-merge-preview]");
-  const employee = read(KEYS.payrollEmployees, []).find(
+  let employee = read(KEYS.payrollEmployees, []).find(
     (item) => String(item.id) === String(employeeSelect?.value || "")
   );
+  if (personMode === "candidate") {
+    const candidate = read(KEYS.candidates, []).find(
+      (item) => String(item.id) === String(candidateSelect?.value || "")
+    );
+    employee = candidate ? findPayrollEmployeeByIdDoc(candidate.idDoc) : null;
+  }
   if (!employee) {
     if (previewEl) previewEl.innerHTML = renderContractMergePreviewHtml(null);
     return;
@@ -25772,6 +26055,7 @@ function portalNonAdminRestrictedCaptureClick(event) {
     return;
   }
   if (isAdminActor()) return;
+  if (canPerformHiringEditAction(action)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -25789,6 +26073,7 @@ function portalNonAdminRestrictedCaptureChange(event) {
     return;
   }
   if (isAdminActor()) return;
+  if (canPerformHiringEditAction(action)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -25807,10 +26092,17 @@ function abortIfNotAdmin(reason = "adminOnlyModule") {
   return true;
 }
 
+function abortUnlessCanManageHiring(reason = "adminOnlyModule") {
+  if (canManageHiringModule()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
 function bindDynamicEvents() {
   const actor = currentUser();
   const isAdmin = actor?.role === ROLES.ADMIN;
   const fleetDriverEditor = canEditFleetDriverAsAdmin(actor);
+  const hiringEditor = canManageHiringModule(actor);
   const restrictedActions = PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
 
   if (!fleetDriverEditor) {
@@ -25825,6 +26117,7 @@ function bindDynamicEvents() {
     nodes.viewRoot.querySelectorAll("[data-action]").forEach((node) => {
       const action = String(node.dataset.action || "");
       if (FLEET_DRIVER_EDIT_ACTIONS.has(action) && fleetDriverEditor) return;
+      if (HIRING_RRHH_EDIT_ACTIONS.has(action) && hiringEditor) return;
       if (!restrictedActions.has(action)) return;
       if (node.matches("button")) node.classList.add("hidden");
       if (node.matches("select")) {
@@ -29972,6 +30265,18 @@ function bindDynamicEvents() {
     syncEmpCreateAvatarInitial();
     bindHrFormWizard(employeeForm);
     applyDocumentFieldConstraints(employeeForm);
+    const prefillCandidateId = String(state.hiringUi?.prefillEmployeeFromCandidateId || "").trim();
+    if (prefillCandidateId) {
+      state.hiringUi = { ...(state.hiringUi || {}), prefillEmployeeFromCandidateId: "" };
+      const prefillCandidate = read(KEYS.candidates, []).find((c) => String(c.id) === prefillCandidateId);
+      if (prefillCandidate) {
+        applyCandidateToEmployeeForm(employeeForm, prefillCandidate);
+        employeeCompRule.sync({ force: true });
+        syncPlazoVisibility();
+        syncFixedTermEnd();
+        notify(`Formulario precargado desde candidato «${String(prefillCandidate.name || "").trim()}». Complete seguridad social y banco.`, "info");
+      }
+    }
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const raw = Object.fromEntries(new FormData(employeeForm).entries());
@@ -31488,6 +31793,7 @@ function bindDynamicEvents() {
       all.unshift(stampCreatedRecord({
         id: newUuidV4(),
         ...data,
+        publishedFrom: String(data.publishedFrom || "").trim(),
         openings: Math.max(1, parseNum(data.openings || 1)),
         salaryOffer: salaryValidation.salaryOffer,
         positionName: position.name,
@@ -31676,6 +31982,17 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-finalized']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
+      state.hiringUi.candidateFilter = "finalized";
+      state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='hiring-vacancies-open']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
@@ -31713,8 +32030,25 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const section = normalizeHiringOperateSection(btn.dataset.section);
       state.hiringUi = { ...(state.hiringUi || {}), operateSection: section, workspace: "operate" };
+      const panelBySection = {
+        position: "create-position",
+        vacancy: "create-vacancy",
+        candidate: "create-candidate",
+        interview: "create-interview",
+        contract: "create-contract"
+      };
+      const panelId = panelBySection[section];
+      if (panelId) {
+        state.createPanels = { ...(state.createPanels || {}) };
+        ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"].forEach((id) => {
+          state.createPanels[id] = id === panelId;
+        });
+      }
       persistHrWorkspace("hiring", "operate");
       renderPortalView();
+      if (panelId) {
+        requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+      }
     });
   });
 
@@ -31952,6 +32286,58 @@ function bindDynamicEvents() {
 
   const contractForm = document.getElementById("form-contract");
   if (contractForm) {
+    const syncContractPersonMode = () => {
+      const mode = String(contractForm.querySelector("#contract-person-mode")?.value || "employee");
+      const empPicker = contractForm.querySelector(".hiring-contract-employee-picker");
+      const candPicker = contractForm.querySelector(".hiring-contract-candidate-picker");
+      const empSel = contractForm.querySelector("select[name='employeeId']");
+      const candSel = contractForm.querySelector("select[name='candidateId']");
+      const hint = contractForm.querySelector("#contract-candidate-match-hint");
+      const isCandidate = mode === "candidate";
+      if (empPicker) {
+        empPicker.classList.toggle("hidden", isCandidate);
+        empPicker.toggleAttribute("hidden", isCandidate);
+      }
+      if (candPicker) {
+        candPicker.classList.toggle("hidden", !isCandidate);
+        candPicker.toggleAttribute("hidden", !isCandidate);
+      }
+      if (empSel) {
+        if (isCandidate) empSel.removeAttribute("required");
+        else empSel.setAttribute("required", "required");
+      }
+      if (candSel) {
+        if (isCandidate) candSel.setAttribute("required", "required");
+        else candSel.removeAttribute("required");
+      }
+      if (hint && isCandidate) {
+        const cand = read(KEYS.candidates, []).find((c) => String(c.id) === String(candSel?.value || ""));
+        const emp = cand ? findPayrollEmployeeByIdDoc(cand.idDoc) : null;
+        if (!cand) {
+          hint.classList.add("hidden");
+          hint.setAttribute("hidden", "hidden");
+          hint.textContent = "";
+        } else if (emp) {
+          hint.classList.remove("hidden");
+          hint.removeAttribute("hidden");
+          hint.textContent = `Empleado vinculado: ${emp.name} (CC ${emp.idDoc}). Se generará el contrato sobre su ficha.`;
+        } else {
+          hint.classList.remove("hidden");
+          hint.removeAttribute("hidden");
+          hint.textContent =
+            "Aún no hay empleado con esta cédula. Regístrelo desde «Crear empleado» en el candidato antes de generar el contrato.";
+        }
+      } else if (hint) {
+        hint.classList.add("hidden");
+        hint.setAttribute("hidden", "hidden");
+      }
+    };
+    contractForm.querySelector("#contract-person-mode")?.addEventListener("change", syncContractPersonMode);
+    contractForm.querySelector("select[name='candidateId']")?.addEventListener("change", () => {
+      syncContractPersonMode();
+      syncContractFormFromSelection(contractForm);
+    });
+    syncContractPersonMode();
     contractForm.querySelectorAll("[data-action='contract-test-docx']").forEach((btn) => {
       btn.addEventListener("click", async (event) => {
         event.preventDefault();
@@ -31974,11 +32360,45 @@ function bindDynamicEvents() {
 
     bindHrFormWizard(contractForm);
 
+    const applyPendingContractCandidate = () => {
+      const cid = String(state.hiringUi?.prefillContractFromCandidateId || "").trim();
+      if (!cid) return;
+      state.hiringUi = { ...(state.hiringUi || {}), prefillContractFromCandidateId: "" };
+      const modeEl = contractForm.querySelector("#contract-person-mode");
+      const candSel = contractForm.querySelector("select[name='candidateId']");
+      if (modeEl) modeEl.value = "candidate";
+      if (candSel && [...candSel.options].some((o) => String(o.value) === cid)) candSel.value = cid;
+      syncContractPersonMode();
+      syncContractFormFromSelection(contractForm);
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(applyPendingContractCandidate);
+    });
+
     wireFormSubmitGuard(
       contractForm,
       async (event) => {
       const data = Object.fromEntries(new FormData(contractForm).entries());
-      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
+      const personMode = String(data.contractPersonMode || "employee");
+      let employee = null;
+      let linkedCandidate = null;
+      if (personMode === "candidate") {
+        linkedCandidate = read(KEYS.candidates, []).find((c) => String(c.id) === String(data.candidateId || ""));
+        if (!linkedCandidate) {
+          notify("Seleccione un candidato válido.", "error");
+          return;
+        }
+        employee = findPayrollEmployeeByIdDoc(linkedCandidate.idDoc);
+        if (!employee) {
+          notify(
+            "Primero registre al candidato como empleado (botón «Empleado» en Consultar o desde el detalle del candidato).",
+            "error"
+          );
+          return;
+        }
+      } else {
+        employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
+      }
       if (!employee) {
         notify(userMessage("contractPickEmployee"), "error");
         return;
@@ -32029,8 +32449,10 @@ function bindDynamicEvents() {
         const recordBase = {
           employeeId: employee.id,
           employeeName: employee.name,
-          personType: "Empleado",
-          sourceTag: "Generado desde contratación",
+          candidateId: linkedCandidate ? String(linkedCandidate.id) : "",
+          candidateName: linkedCandidate ? String(linkedCandidate.name || "") : "",
+          personType: linkedCandidate ? "Candidato" : "Empleado",
+          sourceTag: linkedCandidate ? "Generado desde candidato" : "Generado desde contratación",
           positionId: String(employee.positionId || employeePosition?.id || "").trim(),
           position: payload.cargo_empleado,
           positionName: payload.cargo_empleado,
@@ -32048,7 +32470,7 @@ function bindDynamicEvents() {
           pensionFund: String(employee.pensionFund || "").trim(),
           arl: String(employee.arl || "").trim(),
           schedule: String(employee.workSchedule || employeePosition?.workSchedule || "Diurna").trim(),
-          source: "Empleado",
+          source: linkedCandidate ? "Candidato" : "Empleado",
           content: contractText
         };
         if (existingIdx >= 0) {
@@ -32072,6 +32494,21 @@ function bindDynamicEvents() {
         const deduped = dedupContracts(all);
         try {
           await writeAwaitServer(KEYS.contracts, deduped);
+          if (linkedCandidate) {
+            const statusValidation = validateCandidatePipelineTransition(linkedCandidate, "Contratado");
+            if (statusValidation.ok) {
+              const nextCandidates = read(KEYS.candidates, []).map((c) =>
+                String(c.id) === String(linkedCandidate.id)
+                  ? stampUpdatedRecord({ ...c, status: "Contratado", updatedAt: nowIso() })
+                  : c
+              );
+              try {
+                await writeAwaitServer(KEYS.candidates, nextCandidates);
+              } catch (_candErr) {
+                /* contrato ya guardado */
+              }
+            }
+          }
           state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
           state.hiringUi.workspace = "data";
           persistHrWorkspace("hiring", "data");
@@ -33456,7 +33893,7 @@ function bindExtendedViewEditHandlers() {
   /* ============= VACANTE: EDITAR ============= */
   nodes.viewRoot.querySelectorAll("[data-action='edit-vacancy']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.vacancies, []);
       const target = all.find((v) => String(v.id) === String(btn.dataset.id || ""));
       if (!target) return;
@@ -33488,6 +33925,12 @@ function bindExtendedViewEditHandlers() {
           { name: "openings", label: "Cupos", type: "number", value: parseNum(target.openings || 1), required: true },
           { name: "salaryOffer", label: "Salario ofrecido (COP)", type: "number", value: parseNum(target.salaryOffer || 0), required: true },
           { name: "deadline", label: "Cierre postulaciones", type: "date", value: target.deadline || "", required: true },
+          {
+            name: "publishedFrom",
+            label: "Visible en web desde",
+            type: "date",
+            value: String(target.publishedFrom || target.visibleFrom || "").slice(0, 10)
+          },
           { name: "requirements", label: "Requisitos y perfil", type: "textarea", value: target.requirements || "", rows: 4 },
           {
             name: "status",
@@ -33610,7 +34053,7 @@ function bindExtendedViewEditHandlers() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-position']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.positions, []);
       const target = all.find((p) => String(p.id) === String(btn.dataset.id || ""));
       if (!target) return;
@@ -33783,6 +34226,34 @@ function bindExtendedViewEditHandlers() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='create-employee-from-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortUnlessCanManageHiring()) return;
+      const cid = String(btn.dataset.candidateId || "").trim();
+      if (!cid) return;
+      openPayrollEmployeeFromCandidate(cid);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='generate-contract-from-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortUnlessCanManageHiring()) return;
+      const cid = String(btn.dataset.candidateId || "").trim();
+      if (!cid) return;
+      const cand = read(KEYS.candidates, []).find((c) => String(c.id) === cid);
+      if (!cand) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      if (!findPayrollEmployeeByIdDoc(cand.idDoc)) {
+        notify("Registre primero al candidato como empleado antes de generar el contrato.", "error");
+        openPayrollEmployeeFromCandidate(cid);
+        return;
+      }
+      openHiringContractFromCandidate(cid);
+    });
+  });
+
   /* ============= CANDIDATO: VER / EDITAR / ELIMINAR ============= */
   nodes.viewRoot.querySelectorAll("[data-action='view-candidate']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -33803,7 +34274,7 @@ function bindExtendedViewEditHandlers() {
       const statusShow = String(c.status || c.pipelineStage || "").trim();
       const postulationRows = [
         ["Vacante", escapeHtml(String(c.vacancyTitle || "-"))],
-        ["Estado", statusShow ? `<span class="status status-en_transito">${escapeHtml(statusShow)}</span>` : ""],
+        ["Estado", statusShow ? `<span class="status ${hiringPipelineStatusClass(statusShow)}">${escapeHtml(statusShow)}</span>` : "—"],
         ["Origen", escapeHtml(String(c.source || "Portal"))],
         ["Años de experiencia en el cargo", `${String(parseNum(c.experienceYears || 0))} años`]
       ];
@@ -33844,20 +34315,36 @@ function bindExtendedViewEditHandlers() {
         }
       ];
       const cvDlModal = extractCandidateCvDownload(c);
-      const canDlCvModal = Boolean(cvDlModal?.href);
+      const canDlCvModal = Boolean(cvDlModal?.href) || candidateMayHaveCvInStorage(c);
+      const canSchedule = !["Contratado", "Descartado"].includes(String(c.status || ""));
+      const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
+      const modalActions = [
+        `<button type="button" class="btn btn-action"${canDlCvModal ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}">${IC.download} Descargar CV</button>`,
+        canSchedule && canManageHiringModule()
+          ? `<button type="button" class="btn btn-action" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Agendar entrevista</button>`
+          : "",
+        canManageHiringModule()
+          ? `<button type="button" class="btn btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Crear empleado</button>`
+          : "",
+        canManageHiringModule() && employeeMatch
+          ? `<button type="button" class="btn btn-primary" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.file} Generar contrato</button>`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("");
       openInfoModal({
         title: String(c.name || "Candidato"),
         subtitle: String(c.vacancyTitle || ""),
         bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
         wide: true,
-        secondaryActionsHtml: `<button type="button" class="btn btn-action"${canDlCvModal ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCvModal ? "Descargar CV" : "Sin CV disponible"}">${IC.download} Descargar CV</button>`
+        secondaryActionsHtml: modalActions
       });
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-candidate']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.candidates, []);
       const target = all.find((c) => String(c.id) === String(btn.dataset.id || ""));
       if (!target) return;
@@ -33873,7 +34360,9 @@ function bindExtendedViewEditHandlers() {
         { value: "", label: "Seleccione..." },
         ...CO_CATALOGS.educationLevel.map((level) => ({ value: level, label: level }))
       ];
-      const statusOpts = PIPELINE.map((s) => ({ value: s, label: s }));
+      const statusOpts = [...new Set([String(target.status || PIPELINE[0]), ...(PIPELINE_TRANSITIONS[String(target.status || PIPELINE[0])] || [])])].map(
+        (s) => ({ value: s, label: s })
+      );
       openEditModal({
         title: "Editar candidato",
         subtitle: String(target.name || ""),
@@ -34062,7 +34551,7 @@ function bindExtendedViewEditHandlers() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-interview']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.interviews, []);
       const target = all.find((i) => String(i.id) === String(btn.dataset.id || ""));
       if (!target) return;

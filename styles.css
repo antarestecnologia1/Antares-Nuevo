@@ -18339,6 +18339,96 @@ body[data-theme="dark"] .profile-avatar.has-image {
   min-width: 14rem;
 }
 
+.hiring-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1.5rem 1rem;
+}
+
+.hiring-empty-actions {
+  margin-top: 0.15rem;
+}
+
+.hiring-cards {
+  display: none;
+  gap: 0.75rem;
+}
+
+.hiring-candidate-card {
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.hiring-candidate-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.55rem;
+}
+
+.hiring-candidate-card__head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.hiring-candidate-card__meta {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+}
+
+.hiring-candidate-card__meta dt {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-soft);
+  margin-bottom: 0.1rem;
+}
+
+.hiring-candidate-card__meta dd {
+  margin: 0;
+}
+
+.hiring-candidate-card__actions {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (max-width: 960px) {
+  .hiring-cards--candidates {
+    display: grid;
+  }
+
+  .hiring-table-desktop {
+    display: none;
+  }
+
+  .hiring-shell .hiring-table {
+    min-width: 0;
+  }
+}
+
+@media (min-width: 961px) {
+  .hiring-table-desktop {
+    display: block;
+  }
+}
+
+.hiring-contract-candidate-picker:not(.hidden) {
+  display: block;
+}
+
+.hiring-contract-employee-picker.hidden {
+  display: none;
+}
+
 .hiring-table-actions {
   gap: 0.38rem !important;
   justify-content: flex-end;

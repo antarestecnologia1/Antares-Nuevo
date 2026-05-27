@@ -368,7 +368,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await ensureHrWorkspace("data");
     await clickVisible(`[data-action='hiring-data-section'][data-section='${sectionId}']`);
     await page.waitForFunction((section) => {
-      const panel = document.querySelector(`[data-hiring-data-pane="${section}"]`);
+      const panel = document.querySelector(`[data-hiring-section="${section}"]`);
       return panel && !panel.hidden && !panel.classList.contains("hidden");
     }, sectionId);
   };
