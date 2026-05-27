@@ -4787,7 +4787,9 @@ const CO_CATALOGS = {
   axleConfig: ["2 ejes (4 llantas)", "3 ejes (6 llantas)", "4 ejes (8 llantas)", "5 ejes (10 llantas)", "6 ejes (12 llantas)"],
   documentTypes: ["CC", "CE", "PAS", "PEP", "TI"],
   contractTypes: ["Termino indefinido", "Termino fijo", "Obra o labor", "Prestacion de servicios", "Aprendizaje SENA"],
-  workSchedule: ["Diurna", "Nocturna", "Mixta", "Por turnos"],
+  /** Tipos con plantilla Word en documentacion/ (solo formulario de cargo). */
+  positionContractTypes: ["Termino indefinido", "Termino fijo", "Prestacion de servicios"],
+  workSchedule: ["Diurna", "Nocturna", "Mixta"],
   payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"], // mismo canon que apps/api/src/payroll/payroll-frequency.ts → periodicidad_pago
   contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
   banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
@@ -23443,7 +23445,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.truck, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="position-transport-allowance" value="${suggestedEmployeeTransportAllowanceCop(CO_HR_RULES.minMonthlySalary)}" min="0" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <p class="full muted" id="position-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
         <label>${fieldLabel(IC.activity, "Tipo de contrato sugerido")}<select name="contractTypeDefault" required>
-          ${CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("")}
+          ${CO_CATALOGS.positionContractTypes.map((c) => `<option>${c}</option>`).join("")}
         </select></label>
         <label>${fieldLabel(IC.clock, "Jornada laboral")}<select name="workSchedule">${workScheduleOpts}</select></label>
         <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel">${arlRiskOpts}</select></label>
@@ -33442,7 +33444,7 @@ function bindExtendedViewEditHandlers() {
       if (!target) return;
       const contractOpts = [
         { value: "", label: "Seleccione..." },
-        ...CO_CATALOGS.contractTypes.map((c) => ({ value: c, label: c }))
+        ...CO_CATALOGS.positionContractTypes.map((c) => ({ value: c, label: c }))
       ];
       const scheduleOpts = [
         { value: "", label: "Seleccione..." },
