@@ -109,6 +109,8 @@ export type ColombiaPayrollCutDeps = {
   fechaIngresoEmpresa: Date;
   ausenciasEnPeriodo: AbsenceInput[];
   smmlv: number;
+  healthEmployeeRate?: number;
+  pensionEmployeeRate?: number;
   cesantiasBaseInteresOpcional?: number;
 };
 
@@ -120,6 +122,8 @@ export type ColombiaAutoPayrollDeps = {
   fechaIngresoEmpresa: Date;
   ausenciasEnPeriodo: AbsenceInput[];
   smmlv: number;
+  healthEmployeeRate?: number;
+  pensionEmployeeRate?: number;
   cesantiasBaseInteresOpcional?: number;
 };
 
@@ -311,8 +315,8 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
   const intDays = payInt ? 360 : null;
   const interesesCop = payInt ? Math.round(baseCes * CESANTIAS_INTERES_ANUAL) : 0;
 
-  const healthDeduction = ibcComputed * HEALTH_EMPLOYEE_RATE;
-  const pensionDeduction = ibcComputed * PENSION_EMPLOYEE_RATE;
+  const healthDeduction = ibcComputed * Math.max(0, d.healthEmployeeRate ?? HEALTH_EMPLOYEE_RATE);
+  const pensionDeduction = ibcComputed * Math.max(0, d.pensionEmployeeRate ?? PENSION_EMPLOYEE_RATE);
   const solidarityDeduction =
     ibcComputed > d.smmlv * SOLIDARITY_SMMLV_MULTIPLIER ? ibcComputed * SOLIDARITY_RATE : 0;
 

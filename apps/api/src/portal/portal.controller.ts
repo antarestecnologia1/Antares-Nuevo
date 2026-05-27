@@ -17,6 +17,7 @@ import { SyncKeyDto } from "./dto/sync-key.dto";
 import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
 import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
+import { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -88,6 +89,11 @@ export class PortalController {
   @Post("notification-preferences")
   notificationPreferences(@Req() req: { user: ReqUser }, @Body() dto: NotificationPreferencesDto) {
     return this.portal.updateNotificationPreferences(req.user.userId, dto);
+  }
+
+  @Post("labor-system-parameters")
+  laborSystemParameters(@Req() req: { user: ReqUser }, @Body() dto: UpsertLaborSystemParametersDto) {
+    return this.portal.upsertLaborSystemParameters(req.user.userId, req.user.role, dto);
   }
 
   @Post("sync-key")

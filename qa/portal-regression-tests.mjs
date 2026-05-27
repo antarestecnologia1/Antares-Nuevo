@@ -27,6 +27,8 @@ function run() {
   const appJs = read("app.js");
   const portalArchitectureJs = read("modules/portal/architecture.js");
   const stylesCss = read("styles.css");
+  const portalControllerTs = read("apps/api/src/portal/portal.controller.ts");
+  const portalServiceTs = read("apps/api/src/portal/portal.service.ts");
   const portalSource = `${appJs}\n${portalArchitectureJs}`;
 
   // 1) Index integrity
@@ -138,6 +140,41 @@ function run() {
       "Generar y descargar contrato Word"
     ],
     "contract-word-flow"
+  );
+
+  // 6) Parametros legales anuales: UI + endpoint + bootstrap historico
+  includesAll(
+    appJs,
+    [
+      '"legal"',
+      "Parametros legales anuales",
+      'id="form-payroll-legal-params"',
+      'data-action="payroll-legal-set-year"',
+      'postPortalAuthorized("/portal/labor-system-parameters", body)',
+      'name="healthEmployeeRatePct"',
+      'name="pensionEmployeeRatePct"',
+      'name="platformReferenceMode"',
+      'name="platformReferenceYear"'
+    ],
+    "annual-legal-parameters-ui"
+  );
+  includesAll(
+    portalControllerTs,
+    ['@Post("labor-system-parameters")', "upsertLaborSystemParameters"],
+    "annual-legal-parameters-controller"
+  );
+  includesAll(
+    portalServiceTs,
+    [
+      "loadLaborSystemParametersHistory",
+      "systemParametersHistory",
+      "ensureSystemParametersSchema",
+      "legalWeeklyHoursDb",
+      "healthEmployeeRateDb",
+      "pensionEmployeeRateDb",
+      'referenceMode: forcedYear != null ? "manual" : "automatic"'
+    ],
+    "annual-legal-parameters-service"
   );
 
   console.log("OK portal-regression-tests");

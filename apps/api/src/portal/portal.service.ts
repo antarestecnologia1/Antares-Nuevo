@@ -29,6 +29,7 @@ import {
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 import type { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
+import type { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { LIQUIDACION_UPSERT } from "./liquidacion-upsert";
 import { randomUUID } from "node:crypto";
 
@@ -39,12 +40,32 @@ type PortalLaborSystemRules = {
   minMonthlySalaryCop: number;
   transportAllowanceCop: number;
   legalWeeklyHours: number;
+  healthEmployeeRate: number;
+  pensionEmployeeRate: number;
   uvtCop: number | null;
+  activeYear: number;
+  referenceMode: "automatic" | "manual";
+};
+
+type PortalLaborSystemParametersHistoryRow = {
+  year: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  smmlvCop: number | null;
+  minMonthlySalaryCop: number | null;
+  transportAllowanceCop: number | null;
+  legalWeeklyHours: number | null;
+  healthEmployeeRate: number | null;
+  pensionEmployeeRate: number | null;
+  uvtCop: number | null;
+  isCurrent: boolean;
 };
 
 const DEFAULT_FRONTEND_MIN_MONTHLY_SALARY_COP = 1_750_905;
 const DEFAULT_FRONTEND_TRANSPORT_ALLOWANCE_COP = 249_095;
 const DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS = 46;
+const DEFAULT_HEALTH_EMPLOYEE_RATE = 0.04;
+const DEFAULT_PENSION_EMPLOYEE_RATE = 0.04;
 const SYSTEM_PARAMETER_ALIASES = {
   smmlv: [
     "smmlv",
@@ -59,7 +80,54 @@ const SYSTEM_PARAMETER_ALIASES = {
     "subsidio_transporte",
     "subsidio_transporte_cop"
   ],
-  uvt: ["uvt", "uvt_cop", "unidad_valor_tributario"]
+  uvt: ["uvt", "uvt_cop", "unidad_valor_tributario"],
+  legalWeeklyHours: [
+    "horas_legales_semanales",
+    "horas_legales",
+    "legal_weekly_hours",
+    "legal_weekly_hours_cop"
+  ],
+  healthEmployeeRate: ["porcentaje_salud_empleado", "salud_empleado", "health_employee_rate"],
+  pensionEmployeeRate: ["porcentaje_pension_empleado", "pension_empleado", "pension_employee_rate"],
+  platformReferenceYear: ["vigencia_laboral_activa", "anio_laboral_activo", "labor_active_year"]
+} as const;
+
+const LABOR_SYSTEM_PARAMETER_DEFS = {
+  smmlvCop: {
+    dbKey: "smmlv",
+    aliases: SYSTEM_PARAMETER_ALIASES.smmlv,
+    description: "Salario mínimo legal mensual vigente"
+  },
+  transportAllowanceCop: {
+    dbKey: "auxilio_transporte",
+    aliases: SYSTEM_PARAMETER_ALIASES.transportAllowance,
+    description: "Auxilio legal de transporte / conectividad"
+  },
+  uvtCop: {
+    dbKey: "uvt",
+    aliases: SYSTEM_PARAMETER_ALIASES.uvt,
+    description: "Unidad de valor tributario"
+  },
+  legalWeeklyHours: {
+    dbKey: "horas_legales_semanales",
+    aliases: SYSTEM_PARAMETER_ALIASES.legalWeeklyHours,
+    description: "Horas legales semanales"
+  },
+  healthEmployeeRate: {
+    dbKey: "porcentaje_salud_empleado",
+    aliases: SYSTEM_PARAMETER_ALIASES.healthEmployeeRate,
+    description: "Porcentaje aporte salud empleado"
+  },
+  pensionEmployeeRate: {
+    dbKey: "porcentaje_pension_empleado",
+    aliases: SYSTEM_PARAMETER_ALIASES.pensionEmployeeRate,
+    description: "Porcentaje aporte pensión empleado"
+  },
+  platformReferenceYear: {
+    dbKey: "vigencia_laboral_activa",
+    aliases: SYSTEM_PARAMETER_ALIASES.platformReferenceYear,
+    description: "Año de vigencia laboral aplicado en la plataforma"
+  }
 } as const;
 
 /** UUID v4 — mismas entradas que acepta PostgreSQL al castear ::uuid */
@@ -174,6 +242,16 @@ function coerceSystemParameterNumber(rawNumeric: unknown, rawText: unknown): num
         : sanitized.replace(/,/g, "");
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function laborSystemParameterFieldFromKey(raw: unknown): keyof typeof LABOR_SYSTEM_PARAMETER_DEFS | null {
+  const key = normalizeSystemParameterKey(raw);
+  if (!key) return null;
+  for (const field of Object.keys(LABOR_SYSTEM_PARAMETER_DEFS) as Array<keyof typeof LABOR_SYSTEM_PARAMETER_DEFS>) {
+    const aliases = LABOR_SYSTEM_PARAMETER_DEFS[field].aliases;
+    if (aliases.some((alias) => normalizeSystemParameterKey(alias) === key)) return field;
+  }
+  return null;
 }
 
 function redactPortalUserDirectoryFields<T extends Record<string, unknown>>(row: T): T {
@@ -386,6 +464,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureTarifasTrayectoSchema();
     await this.ensureUsuariosSchema();
     await this.ensureEmpresasSchema();
+    await this.ensureSystemParametersSchema();
     await this.ensureProspectosContactoB2bSchema();
     await this.ensureSolicitudesTransporteSchema();
     await this.ensurePreferenciasNotificacionSchema();
@@ -397,6 +476,80 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`pruneTransportDeletionAudits startup: ${sanitizeLogText(msg)}`);
     });
+  }
+
+  private async ensureSystemParametersSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS parametros_sistema (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          clave VARCHAR(64) NOT NULL,
+          valor_numerico NUMERIC(18,4),
+          valor_texto TEXT,
+          vigente_desde DATE NOT NULL DEFAULT CURRENT_DATE,
+          vigente_hasta DATE,
+          descripcion TEXT
+        )
+      `);
+      await this.pool.query(`ALTER TABLE parametros_sistema ADD COLUMN IF NOT EXISTS id UUID`);
+      await this.pool.query(`UPDATE parametros_sistema SET id = gen_random_uuid() WHERE id IS NULL`);
+      await this.pool.query(`ALTER TABLE parametros_sistema ALTER COLUMN id SET DEFAULT gen_random_uuid()`);
+      await this.pool.query(`ALTER TABLE parametros_sistema ALTER COLUMN id SET NOT NULL`);
+      await this.pool.query(`
+        DO $$
+        DECLARE
+          pk_name text;
+          pk_cols text[];
+        BEGIN
+          SELECT c.conname, array_agg(a.attname ORDER BY u.ord)
+            INTO pk_name, pk_cols
+          FROM pg_constraint c
+          JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord) ON true
+          JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+          WHERE c.conrelid = 'parametros_sistema'::regclass
+            AND c.contype = 'p'
+          GROUP BY c.conname;
+          IF pk_name IS NOT NULL AND (array_length(pk_cols, 1) <> 1 OR pk_cols[1] <> 'id') THEN
+            EXECUTE format('ALTER TABLE parametros_sistema DROP CONSTRAINT %I', pk_name);
+          END IF;
+        END
+        $$;
+      `);
+      await this.pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conrelid = 'parametros_sistema'::regclass
+              AND contype = 'p'
+          ) THEN
+            ALTER TABLE parametros_sistema ADD CONSTRAINT parametros_sistema_pkey PRIMARY KEY (id);
+          END IF;
+        END
+        $$;
+      `);
+      await this.pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_parametros_sistema_clave_vigencia
+           ON parametros_sistema ((lower(trim(clave))), vigente_desde)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_parametros_sistema_lookup_vigencia
+           ON parametros_sistema ((lower(trim(clave))), vigente_desde DESC, vigente_hasta DESC NULLS LAST)`
+      );
+      await this.pool.query(
+        `ALTER TABLE parametros_sistema
+           DROP CONSTRAINT IF EXISTS chk_parametros_sistema_vigencia`
+      );
+      await this.pool.query(
+        `ALTER TABLE parametros_sistema
+           ADD CONSTRAINT chk_parametros_sistema_vigencia
+           CHECK (vigente_hasta IS NULL OR vigente_hasta >= vigente_desde)`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureSystemParametersSchema fallo no fatal: ${sanitizeLogText(msg)}`);
+    }
   }
 
   /** Sincroniza `tarifas_trayecto` con migración `09_tarifas_trayecto_clientes.sql`. */
@@ -961,27 +1114,116 @@ export class PortalService implements OnModuleInit {
     return null;
   }
 
+  private async loadPlatformLaborReferenceYear(client?: PoolClient): Promise<number | null> {
+    const active = await this.loadActiveSystemParameters(new Date(), client);
+    const year = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.platformReferenceYear);
+    if (year == null) return null;
+    const normalized = Math.trunc(Number(year));
+    return Number.isFinite(normalized) && normalized >= 2020 && normalized <= 2100 ? normalized : null;
+  }
+
   private async loadLaborSystemRules(
     referenceDate: Date = new Date(),
     client?: PoolClient
   ): Promise<PortalLaborSystemRules> {
-    const active = await this.loadActiveSystemParameters(referenceDate, client);
+    const forcedYear = await this.loadPlatformLaborReferenceYear(client);
+    const effectiveReferenceDate =
+      forcedYear != null ? new Date(Date.UTC(forcedYear, 0, 1, 12, 0, 0, 0)) : referenceDate;
+    const active = await this.loadActiveSystemParameters(effectiveReferenceDate, client);
     const smmlvDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.smmlv);
     const transportAllowanceDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.transportAllowance);
     const uvtDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.uvt);
+    const legalWeeklyHoursDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.legalWeeklyHours);
+    const healthEmployeeRateDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.healthEmployeeRate);
+    const pensionEmployeeRateDb = this.pickActiveSystemParameter(active, SYSTEM_PARAMETER_ALIASES.pensionEmployeeRate);
     const smmlvFallback = Math.max(
       0,
       Number(this.config.get<string>("PAYROLL_SMMLV_COP")) || SMMLV_COP_REFERENCE_2026
     );
+    const activeYear =
+      forcedYear != null ? forcedYear : Number(this.pgDateUtc(effectiveReferenceDate).slice(0, 4)) || new Date().getUTCFullYear();
 
     return {
       smmlvCop: smmlvDb ?? smmlvFallback,
       // Cuando existe en BD, el piso salarial del portal se alinea al mismo SMMLV vigente.
       minMonthlySalaryCop: smmlvDb ?? DEFAULT_FRONTEND_MIN_MONTHLY_SALARY_COP,
       transportAllowanceCop: transportAllowanceDb ?? DEFAULT_FRONTEND_TRANSPORT_ALLOWANCE_COP,
-      legalWeeklyHours: DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS,
-      uvtCop: uvtDb
+      legalWeeklyHours: legalWeeklyHoursDb ?? DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS,
+      healthEmployeeRate: healthEmployeeRateDb ?? DEFAULT_HEALTH_EMPLOYEE_RATE,
+      pensionEmployeeRate: pensionEmployeeRateDb ?? DEFAULT_PENSION_EMPLOYEE_RATE,
+      uvtCop: uvtDb,
+      activeYear,
+      referenceMode: forcedYear != null ? "manual" : "automatic"
     };
+  }
+
+  private async loadLaborSystemParametersHistory(
+    referenceDate: Date = new Date(),
+    client?: PoolClient
+  ): Promise<PortalLaborSystemParametersHistoryRow[]> {
+    if (!(await this.tableExists("parametros_sistema"))) return [];
+    const db = client ?? this.pool;
+    const allAliases = [
+      ...SYSTEM_PARAMETER_ALIASES.smmlv,
+      ...SYSTEM_PARAMETER_ALIASES.transportAllowance,
+      ...SYSTEM_PARAMETER_ALIASES.uvt,
+      ...SYSTEM_PARAMETER_ALIASES.legalWeeklyHours,
+      ...SYSTEM_PARAMETER_ALIASES.healthEmployeeRate,
+      ...SYSTEM_PARAMETER_ALIASES.pensionEmployeeRate
+    ].map((item) => normalizeSystemParameterKey(item));
+    const rows = await db.query<{
+      clave_norm: string;
+      valor_numerico: string | null;
+      valor_texto: string | null;
+      vigente_desde: string;
+      vigente_hasta: string | null;
+    }>(
+      `SELECT lower(trim(clave)) AS clave_norm,
+              valor_numerico::text AS valor_numerico,
+              valor_texto,
+              vigente_desde::text AS vigente_desde,
+              vigente_hasta::text AS vigente_hasta
+         FROM parametros_sistema
+        WHERE lower(trim(clave)) = ANY($1::text[])
+        ORDER BY vigente_desde DESC, vigente_hasta DESC NULLS LAST, lower(trim(clave)) ASC`,
+      [allAliases]
+    );
+    const refDateSql = this.pgDateUtc(referenceDate);
+    const history = new Map<string, PortalLaborSystemParametersHistoryRow>();
+    for (const row of rows.rows) {
+      const field = laborSystemParameterFieldFromKey(row.clave_norm);
+      if (!field || field === "platformReferenceYear") continue;
+      const groupKey = `${row.vigente_desde}|${row.vigente_hasta || ""}`;
+      const year = Number(String(row.vigente_desde || "").slice(0, 4)) || 0;
+      const isCurrent =
+        String(row.vigente_desde || "") <= refDateSql &&
+        (!row.vigente_hasta || String(row.vigente_hasta) >= refDateSql);
+      const base =
+        history.get(groupKey) ||
+        {
+          year,
+          effectiveFrom: row.vigente_desde,
+          effectiveTo: row.vigente_hasta,
+          smmlvCop: null,
+          minMonthlySalaryCop: null,
+          transportAllowanceCop: null,
+          legalWeeklyHours: null,
+          healthEmployeeRate: null,
+          pensionEmployeeRate: null,
+          uvtCop: null,
+          isCurrent
+        };
+      const value = coerceSystemParameterNumber(row.valor_numerico, row.valor_texto);
+      if (field === "smmlvCop") {
+        base.smmlvCop = value;
+        base.minMonthlySalaryCop = value;
+      } else {
+        base[field] = value;
+      }
+      base.isCurrent = base.isCurrent || isCurrent;
+      history.set(groupKey, base);
+    }
+    return [...history.values()].sort((a, b) => String(b.effectiveFrom).localeCompare(String(a.effectiveFrom)));
   }
 
   private isAdmin(role: JwtRole) {
@@ -1289,6 +1531,115 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  async upsertLaborSystemParameters(userId: string, role: JwtRole, dto: UpsertLaborSystemParametersDto) {
+    if (!this.isAdmin(role)) throw new ForbiddenException();
+    const year = Math.trunc(Number(dto.year));
+    if (!Number.isFinite(year) || year < 2020 || year > 2100) {
+      throw new BadRequestException("Indique un año válido para la vigencia.");
+    }
+    const smmlvCop = Math.max(1, Number(dto.smmlvCop) || 0);
+    const transportAllowanceCop = Math.max(0, Number(dto.transportAllowanceCop) || 0);
+    const uvtCop =
+      dto.uvtCop === undefined || dto.uvtCop === null || Number(dto.uvtCop) <= 0 ? null : Number(dto.uvtCop);
+    const legalWeeklyHours = Math.max(1, Number(dto.legalWeeklyHours) || DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS);
+    const healthEmployeeRate = Math.max(0, Number(dto.healthEmployeeRate) || 0);
+    const pensionEmployeeRate = Math.max(0, Number(dto.pensionEmployeeRate) || 0);
+    const platformReferenceYear =
+      dto.platformReferenceYear === undefined || dto.platformReferenceYear === null
+        ? null
+        : Math.trunc(Number(dto.platformReferenceYear));
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await this.upsertLaborSystemParameterValueTx(
+        client,
+        LABOR_SYSTEM_PARAMETER_DEFS.smmlvCop.dbKey,
+        smmlvCop,
+        startDate,
+        endDate,
+        `${LABOR_SYSTEM_PARAMETER_DEFS.smmlvCop.description} ${year}`
+      );
+      await this.upsertLaborSystemParameterValueTx(
+        client,
+        LABOR_SYSTEM_PARAMETER_DEFS.transportAllowanceCop.dbKey,
+        transportAllowanceCop,
+        startDate,
+        endDate,
+        `${LABOR_SYSTEM_PARAMETER_DEFS.transportAllowanceCop.description} ${year}`
+      );
+      await this.upsertLaborSystemParameterValueTx(
+        client,
+        LABOR_SYSTEM_PARAMETER_DEFS.legalWeeklyHours.dbKey,
+        legalWeeklyHours,
+        startDate,
+        endDate,
+        `${LABOR_SYSTEM_PARAMETER_DEFS.legalWeeklyHours.description} ${year}`
+      );
+      await this.upsertLaborSystemParameterValueTx(
+        client,
+        LABOR_SYSTEM_PARAMETER_DEFS.healthEmployeeRate.dbKey,
+        healthEmployeeRate,
+        startDate,
+        endDate,
+        `${LABOR_SYSTEM_PARAMETER_DEFS.healthEmployeeRate.description} ${year}`
+      );
+      await this.upsertLaborSystemParameterValueTx(
+        client,
+        LABOR_SYSTEM_PARAMETER_DEFS.pensionEmployeeRate.dbKey,
+        pensionEmployeeRate,
+        startDate,
+        endDate,
+        `${LABOR_SYSTEM_PARAMETER_DEFS.pensionEmployeeRate.description} ${year}`
+      );
+      if (uvtCop != null) {
+        await this.upsertLaborSystemParameterValueTx(
+          client,
+          LABOR_SYSTEM_PARAMETER_DEFS.uvtCop.dbKey,
+          uvtCop,
+          startDate,
+          endDate,
+          `${LABOR_SYSTEM_PARAMETER_DEFS.uvtCop.description} ${year}`
+        );
+      } else {
+        await client.query(
+          `DELETE FROM parametros_sistema
+            WHERE lower(trim(clave)) = lower(trim($1))
+              AND vigente_desde = $2::date`,
+          [LABOR_SYSTEM_PARAMETER_DEFS.uvtCop.dbKey, startDate]
+        );
+      }
+      await this.upsertPlatformLaborReferenceYearTx(client, platformReferenceYear);
+      let affectedPayrollRuns = 0;
+      if (await this.tableExists("liquidaciones_nomina")) {
+        const payrollCount = await client.query<{ total: string }>(
+          `SELECT COUNT(*)::text AS total
+             FROM liquidaciones_nomina
+            WHERE left(COALESCE(periodo_mes, ''), 4) = $1`,
+          [String(year)]
+        );
+        affectedPayrollRuns = Number(payrollCount.rows[0]?.total || 0);
+      }
+      const activeRules = await this.loadLaborSystemRules(new Date(), client);
+      const history = await this.loadLaborSystemParametersHistory(new Date(), client);
+      await client.query("COMMIT");
+      return {
+        ok: true,
+        year,
+        affectedPayrollRuns,
+        platformReferenceYear,
+        systemParameters: activeRules,
+        systemParametersHistory: history
+      };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async bootstrap(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
     const [empresaId, permissionSet] = await Promise.all([
@@ -1311,12 +1662,15 @@ export class PortalService implements OnModuleInit {
     const canSeeAllCompanies =
       admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canViewContactB2b;
     const laborSystemRulesPromise = this.loadLaborSystemRules();
+    const laborSystemHistoryPromise =
+      canPayroll || canHiring ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
 
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
       admin ? this.loadCounters() : Promise.resolve({}),
       canPayroll ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
       laborSystemRulesPromise,
+      laborSystemHistoryPromise,
       canTransportTrips ? this.loadTripRouteRates() : Promise.resolve({}),
       canTransportData ? this.loadVehicles() : Promise.resolve([]),
       canTransportData ? this.loadDrivers() : Promise.resolve([]),
@@ -1351,6 +1705,7 @@ export class PortalService implements OnModuleInit {
       counters,
       travelAllowanceRules,
       systemParameters,
+      systemParametersHistory,
       tripRouteRates,
       vehicles,
       drivers,
@@ -1390,6 +1745,7 @@ export class PortalService implements OnModuleInit {
       vehicleTechnicalLogs,
       travelAllowanceRules,
       systemParameters,
+      systemParametersHistory,
       vacancies,
       candidates,
       positions,
@@ -1403,6 +1759,77 @@ export class PortalService implements OnModuleInit {
       deletedTransportRequestLogs,
       notificationPreferences
     };
+  }
+
+  private async upsertLaborSystemParameterValueTx(
+    client: PoolClient,
+    dbKey: string,
+    value: number,
+    effectiveFrom: string,
+    effectiveTo: string,
+    description: string
+  ) {
+    await client.query(
+      `UPDATE parametros_sistema
+          SET vigente_hasta = LEAST(COALESCE(vigente_hasta, $2::date), ($1::date - INTERVAL '1 day')::date)
+        WHERE lower(trim(clave)) = lower(trim($3))
+          AND vigente_desde < $1::date
+          AND (vigente_hasta IS NULL OR vigente_hasta >= $1::date)
+          AND vigente_desde <> $1::date`,
+      [effectiveFrom, effectiveTo, dbKey]
+    );
+    const existing = await client.query<{ id: string }>(
+      `SELECT id::text
+         FROM parametros_sistema
+        WHERE lower(trim(clave)) = lower(trim($1))
+          AND vigente_desde = $2::date
+        LIMIT 1`,
+      [dbKey, effectiveFrom]
+    );
+    if (existing.rows[0]?.id) {
+      await client.query(
+        `UPDATE parametros_sistema
+            SET clave = $2,
+                valor_numerico = $3,
+                valor_texto = NULL,
+                vigente_hasta = $4::date,
+                descripcion = $5
+          WHERE id = $1::uuid`,
+        [existing.rows[0].id, dbKey, value, effectiveTo, description]
+      );
+      return;
+    }
+    await client.query(
+      `INSERT INTO parametros_sistema (
+         id, clave, valor_numerico, valor_texto, vigente_desde, vigente_hasta, descripcion
+       ) VALUES (
+         gen_random_uuid(), $1, $2, NULL, $3::date, $4::date, $5
+       )`,
+      [dbKey, value, effectiveFrom, effectiveTo, description]
+    );
+  }
+
+  private async upsertPlatformLaborReferenceYearTx(client: PoolClient, year: number | null) {
+    await client.query(
+      `DELETE FROM parametros_sistema
+        WHERE lower(trim(clave)) = lower(trim($1))`,
+      [LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.dbKey]
+    );
+    if (year == null || !Number.isFinite(year) || year < 2020 || year > 2100) return;
+    const effectiveFrom = this.pgDateUtc(new Date());
+    await client.query(
+      `INSERT INTO parametros_sistema (
+         id, clave, valor_numerico, valor_texto, vigente_desde, vigente_hasta, descripcion
+       ) VALUES (
+         gen_random_uuid(), $1, $2, NULL, $3::date, NULL, $4
+       )`,
+      [
+        LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.dbKey,
+        year,
+        effectiveFrom,
+        `${LABOR_SYSTEM_PARAMETER_DEFS.platformReferenceYear.description}: ${year}`
+      ]
+    );
   }
 
   async syncKey(key: PortalSyncKey, data: unknown, userId: string, role: JwtRole) {
@@ -5607,6 +6034,8 @@ export class PortalService implements OnModuleInit {
             fechaIngresoEmpresa: hireDate,
             ausenciasEnPeriodo: absList,
             smmlv,
+            healthEmployeeRate: laborRules.healthEmployeeRate,
+            pensionEmployeeRate: laborRules.pensionEmployeeRate,
             cesantiasBaseInteresOpcional: cesBaseOpt
           });
         } catch (ex) {

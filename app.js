@@ -184,11 +184,12 @@ function renderHrAlertCards(items = []) {
   return `<div class="hr-alert-grid">${cards}</div>`;
 }
 
-const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs"]);
+const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "legal"]);
 const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "settlement", "absence"]);
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
 const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
+const TRANSPORT_TRIPS_WORKSPACES = new Set(["trips", "routes"]);
 const ADMIN_USERS_SECTIONS = new Set(["actions", "pending", "users", "companies", "sessions"]);
 const HISTORY_WORKSPACES = new Set(["explore", "fleet", "audit"]);
 
@@ -215,6 +216,11 @@ function normalizeHiringDataSection(value) {
 function normalizeVehicleWorkspaceSection(value) {
   const v = String(value || "fleet");
   return VEHICLE_MODULE_SECTIONS.has(v) ? v : "fleet";
+}
+
+function normalizeTransportTripsWorkspace(value) {
+  const v = String(value || "trips");
+  return TRANSPORT_TRIPS_WORKSPACES.has(v) ? v : "trips";
 }
 
 function normalizeAdminUsersSection(value, hasPending = false) {
@@ -330,7 +336,8 @@ function renderPayrollDataSectionNav(activeId, counts = {}) {
   const tabs = [
     { id: "employees", label: "Empleados", count: counts.employees ?? 0, icon: "user" },
     { id: "absences", label: "Ausencias", count: counts.absences ?? 0, icon: "calendar" },
-    { id: "runs", label: "Liquidaciones", count: counts.runs ?? 0, icon: "dollar" }
+    { id: "runs", label: "Liquidaciones", count: counts.runs ?? 0, icon: "dollar" },
+    { id: "legal", label: "Parametros legales", count: counts.legal ?? 0, icon: "hash" }
   ];
   return `<nav class="payroll-data-nav" role="tablist" aria-label="Listas de personal y nómina">
     ${tabs
@@ -2901,7 +2908,11 @@ const CO_SYSTEM_PARAMS_DEFAULTS = {
   minMonthlySalaryCop: CO_HR_RULES.minMonthlySalary,
   transportAllowanceCop: CO_HR_RULES.transportAllowance,
   legalWeeklyHours: CO_HR_RULES.legalWeeklyHours,
-  uvtCop: null
+  healthEmployeeRate: CO_PAYROLL.healthEmployeeRate,
+  pensionEmployeeRate: CO_PAYROLL.pensionEmployeeRate,
+  uvtCop: null,
+  activeYear: new Date().getFullYear(),
+  referenceMode: "automatic"
 };
 
 function normalizeSystemParametersPayload(raw) {
@@ -2910,13 +2921,24 @@ function normalizeSystemParametersPayload(raw) {
   const minMonthlySalaryCop = Math.max(0, parseNum(raw.minMonthlySalaryCop ?? raw.minMonthlySalary ?? smmlvCop));
   const transportAllowanceCop = Math.max(0, parseNum(raw.transportAllowanceCop ?? raw.transportAllowance));
   const legalWeeklyHours = Math.max(0, parseNum(raw.legalWeeklyHours));
+  const healthEmployeeRate = Math.max(0, parseNum(raw.healthEmployeeRate ?? raw.saludEmployeeRate ?? raw.healthRate));
+  const pensionEmployeeRate = Math.max(0, parseNum(raw.pensionEmployeeRate ?? raw.pensionRate));
   const uvtParsed = Math.max(0, parseNum(raw.uvtCop ?? raw.uvt));
+  const activeYear = Math.max(
+    2020,
+    Math.trunc(Number(raw.activeYear ?? raw.platformReferenceYear ?? new Date().getFullYear()) || new Date().getFullYear())
+  );
+  const referenceMode = String(raw.referenceMode || "").trim().toLowerCase() === "manual" ? "manual" : "automatic";
   return {
     smmlvCop: smmlvCop || CO_SYSTEM_PARAMS_DEFAULTS.smmlvCop,
     minMonthlySalaryCop: minMonthlySalaryCop || smmlvCop || CO_SYSTEM_PARAMS_DEFAULTS.minMonthlySalaryCop,
     transportAllowanceCop: transportAllowanceCop || CO_SYSTEM_PARAMS_DEFAULTS.transportAllowanceCop,
     legalWeeklyHours: legalWeeklyHours || CO_SYSTEM_PARAMS_DEFAULTS.legalWeeklyHours,
-    uvtCop: uvtParsed || null
+    healthEmployeeRate: healthEmployeeRate || CO_SYSTEM_PARAMS_DEFAULTS.healthEmployeeRate,
+    pensionEmployeeRate: pensionEmployeeRate || CO_SYSTEM_PARAMS_DEFAULTS.pensionEmployeeRate,
+    uvtCop: uvtParsed || null,
+    activeYear,
+    referenceMode
   };
 }
 
@@ -2924,6 +2946,8 @@ function applySystemParametersToClientRules(raw) {
   const normalized = normalizeSystemParametersPayload(raw);
   if (!normalized) return null;
   CO_PAYROLL.smmlv = normalized.smmlvCop;
+  CO_PAYROLL.healthEmployeeRate = normalized.healthEmployeeRate;
+  CO_PAYROLL.pensionEmployeeRate = normalized.pensionEmployeeRate;
   CO_HR_RULES.minMonthlySalary = normalized.minMonthlySalaryCop;
   CO_HR_RULES.transportAllowance = normalized.transportAllowanceCop;
   CO_HR_RULES.legalWeeklyHours = normalized.legalWeeklyHours;
@@ -2963,14 +2987,16 @@ function readEmployeeTransportAllowanceCop(employee) {
 function employeeTransportAllowanceGuidance(baseSalary) {
   const legalAux = parseNum(CO_HR_RULES.transportAllowance).toLocaleString("es-CO");
   const cap = colombiaTransportAllowanceSalaryCapCop().toLocaleString("es-CO");
+  const activeParams = normalizeSystemParametersPayload(read(KEYS.systemParameters, null)) || CO_SYSTEM_PARAMS_DEFAULTS;
+  const activeYear = Math.max(2020, Math.trunc(Number(activeParams.activeYear) || new Date().getFullYear()));
   if (colombiaTransportAllowanceEligible(baseSalary)) {
-    return `2026: se sugiere auxilio legal de transporte/conectividad por $${legalAux}. Aplica hasta 2 SMMLV ($${cap}).`;
+    return `${activeYear}: se sugiere auxilio legal de transporte/conectividad por $${legalAux}. Aplica hasta 2 SMMLV ($${cap}).`;
   }
   const salary = Math.max(0, parseNum(baseSalary));
   if (salary > 0) {
-    return `2026: si el salario supera 2 SMMLV ($${cap}), el auxilio legal se registra en $0. Si la empresa reconoce un valor adicional, debe tratarse como beneficio extralegal.`;
+    return `${activeYear}: si el salario supera 2 SMMLV ($${cap}), el auxilio legal se registra en $0. Si la empresa reconoce un valor adicional, debe tratarse como beneficio extralegal.`;
   }
-  return `2026: el SMMLV es $${parseNum(CO_HR_RULES.minMonthlySalary).toLocaleString("es-CO")} y el auxilio legal de transporte/conectividad es $${legalAux}.`;
+  return `${activeYear}: el SMMLV es $${parseNum(CO_HR_RULES.minMonthlySalary).toLocaleString("es-CO")} y el auxilio legal de transporte/conectividad es $${legalAux}.`;
 }
 
 function bindEmployeeTransportAllowanceRule(form, config = {}) {
@@ -3016,6 +3042,42 @@ function hydrateSystemParametersFromCache() {
 }
 
 hydrateSystemParametersFromCache();
+
+function laborSystemParametersHistoryRows() {
+  return Array.isArray(state.systemParametersHistory) ? state.systemParametersHistory.filter(Boolean) : [];
+}
+
+function laborSystemParametersDraftForYear(yearLike, historyRows = laborSystemParametersHistoryRows()) {
+  const active = normalizeSystemParametersPayload(read(KEYS.systemParameters, null)) || CO_SYSTEM_PARAMS_DEFAULTS;
+  const numericYear = Math.max(2020, Math.trunc(Number(yearLike) || new Date().getFullYear()));
+  const exact = historyRows.find((row) => Number(row?.year) === numericYear) || null;
+  const fallback = exact || historyRows[0] || {};
+  return {
+    year: numericYear,
+    effectiveFrom: String(fallback.effectiveFrom || `${numericYear}-01-01`),
+    effectiveTo: String(fallback.effectiveTo || `${numericYear}-12-31`),
+    smmlvCop: Math.max(0, parseNum(fallback.smmlvCop ?? fallback.minMonthlySalaryCop ?? active.smmlvCop)),
+    minMonthlySalaryCop: Math.max(
+      0,
+      parseNum(fallback.minMonthlySalaryCop ?? fallback.smmlvCop ?? active.minMonthlySalaryCop)
+    ),
+    transportAllowanceCop: Math.max(0, parseNum(fallback.transportAllowanceCop ?? active.transportAllowanceCop)),
+    legalWeeklyHours: Math.max(0, parseNum(fallback.legalWeeklyHours ?? active.legalWeeklyHours)),
+    healthEmployeeRate: Math.max(0, parseNum(fallback.healthEmployeeRate ?? active.healthEmployeeRate)),
+    pensionEmployeeRate: Math.max(0, parseNum(fallback.pensionEmployeeRate ?? active.pensionEmployeeRate)),
+    uvtCop: Math.max(0, parseNum(fallback.uvtCop ?? active.uvtCop ?? 0)),
+    activeYear: Math.max(2020, Math.trunc(Number(active.activeYear) || numericYear)),
+    referenceMode: active.referenceMode === "manual" ? "manual" : "automatic",
+    isCurrent: Boolean(fallback.isCurrent)
+  };
+}
+
+function laborSystemParametersSelectableYears(historyRows = laborSystemParametersHistoryRows()) {
+  const currentYear = new Date().getFullYear();
+  return [...new Set([currentYear + 1, currentYear, ...historyRows.map((row) => Number(row?.year) || 0).filter(Boolean)])].sort(
+    (a, b) => b - a
+  );
+}
 
 const CO_CATALOGS = {
   licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
@@ -3092,6 +3154,7 @@ let state = {
   session: null,
   currentView: "dashboard",
   portalContacts: [],
+  systemParametersHistory: [],
   adminUserSessions: [],
   adminUserSessionsLoading: false,
   adminUserSessionsError: null,
@@ -3136,6 +3199,9 @@ let state = {
   vehiclesUi: {
     workspace: "fleet"
   },
+  transportTripsUi: {
+    workspace: "trips"
+  },
   requestsUi: {
     companyId: ""
   },
@@ -3165,6 +3231,9 @@ let state = {
     workspace: "operate",
     dataSection: "employees",
     operateSection: "employee"
+  },
+  payrollLegalUi: {
+    year: String(new Date().getFullYear())
   },
   hiringUi: {
     candidateFilter: "active",
@@ -3630,6 +3699,9 @@ function __applyPortalBootstrapPayloadInner(p) {
   }
   if (p.systemParameters !== undefined) {
     applySystemParametersFromBootstrapPayload(p.systemParameters);
+  }
+  if (p.systemParametersHistory !== undefined) {
+    state.systemParametersHistory = Array.isArray(p.systemParametersHistory) ? p.systemParametersHistory : [];
   }
   if (p.contacts !== undefined) {
     state.portalContacts = Array.isArray(p.contacts) ? p.contacts : [];
@@ -5943,7 +6015,7 @@ function wireRouteRateScopeSection(formEl) {
 function openRouteRateInlineEdit(storageKey) {
   const key = String(storageKey || "").trim();
   if (!key) return;
-  state.createPanels = { ...(state.createPanels || {}), "create-route-rate": true };
+  state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace: "routes" };
   state.pendingRouteRateEditKey = key;
   renderPortalView();
 }
@@ -12789,6 +12861,8 @@ function transportTripsHtml() {
   const todayIso = colombiaTodayIsoDate();
   const todaysTrips = trips.filter((r) => requestPickupIsoDate(r) === todayIso).length;
   const departmentsOpts = departmentOptions();
+  const transportTripsUi = state.transportTripsUi || { workspace: "trips" };
+  const transportTripsWorkspace = normalizeTransportTripsWorkspace(transportTripsUi.workspace);
 
   /**
    * Filtros rápidos del módulo: dejamos una sola vista (tarjetas) reemplazando
@@ -12980,9 +13054,19 @@ function transportTripsHtml() {
       </div>`
     : emptyState("Aún no has configurado tarifas por trayecto. Crea la primera para que el sistema sugiera el precio cuando asignes un viaje a esa ruta.");
 
-  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored">
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored transport-route-form" autocomplete="off">
+    ${renderHrFormHero({
+      eyebrow: "Catálogo de trayectos",
+      title: "Configura trayectos y tarifas sugeridas",
+      description: "Define la ruta, el alcance por cliente y el valor pactado para que el sistema sugiera el precio correcto al asignar nuevos viajes.",
+      badges: [
+        renderHrFormHeroBadge("Ruta", "origen y destino"),
+        renderHrFormHeroBadge("Clientes", "general o específico"),
+        renderHrFormHeroBadge("COP", "autocompletado")
+      ]
+    })}
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
-    <fieldset class="form-section form-section-blue full">
+    <fieldset class="form-section form-section-blue transport-route-form-fieldset transport-route-form-fieldset--origin">
       <legend>${IC.mapPin} Paso 1 · Ciudad de origen</legend>
       <p class="muted form-section-hint">Indica desde dónde sale el viaje. Selecciona primero el departamento y luego la ciudad.</p>
       <div class="form-section-grid">
@@ -12990,7 +13074,7 @@ function transportTripsHtml() {
         <label>${fieldLabel(IC.mapPin, "Ciudad de origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Primero elige departamento...</option></select></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-violet full">
+    <fieldset class="form-section form-section-violet transport-route-form-fieldset transport-route-form-fieldset--destination">
       <legend>${IC.mapPin} Paso 2 · Ciudad de destino</legend>
       <p class="muted form-section-hint">Indica hasta dónde llega el viaje.</p>
       <div class="form-section-grid">
@@ -12998,14 +13082,14 @@ function transportTripsHtml() {
         <label>${fieldLabel(IC.mapPin, "Ciudad de destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Primero elige departamento...</option></select></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-emerald full">
+    <fieldset class="form-section form-section-emerald transport-route-form-fieldset transport-route-form-fieldset--price">
       <legend>${IC.dollar} Paso 3 · Tarifa pactada</legend>
       <p class="muted form-section-hint">Valor en pesos colombianos (COP) que se autocompletará cada vez que se asigne un viaje en esta ruta.</p>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ejemplo: 4.200.000" /></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-amber full route-rate-scope-fieldset">
+    <fieldset class="form-section form-section-amber full route-rate-scope-fieldset transport-route-form-fieldset transport-route-form-fieldset--scope">
       <legend>${IC.briefcase} Paso 4 · ¿A qué clientes aplica?</legend>
       <p class="muted form-section-hint">Elija <strong>General</strong> si la tarifa es la misma para todos, o <strong>Por empresa</strong> y marque los clientes. Use la búsqueda si tiene muchas empresas registradas.</p>
       <div class="route-rate-scope-mount" data-route-rate-scope-mount>
@@ -13013,7 +13097,7 @@ function transportTripsHtml() {
       </div>
       <p class="muted full" id="route-rate-editing-hint" style="margin:0.35rem 0 0;display:none">Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
     </fieldset>
-    <div class="toolbar full" style="justify-content:flex-start;gap:0.5rem">
+    <div class="toolbar full transport-route-form-actions" style="justify-content:flex-start;gap:0.5rem">
       <button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>
       <button class="btn btn-outline" id="route-rate-cancel-edit" type="button" style="display:none">${IC.x} Cancelar edición</button>
     </div>
@@ -13035,12 +13119,12 @@ function transportTripsHtml() {
     pendingForTrip.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Sin pendientes</span>`;
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored create-trip-form" autocomplete="off">
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored create-trip-form transport-trip-create-form" autocomplete="off">
     <header class="create-trip-hero">
       <div class="create-trip-hero-icon" aria-hidden="true">${IC.truck}</div>
       <div class="create-trip-hero-copy">
         <h3 class="create-trip-hero-title">Asignación de viaje</h3>
-        <p class="create-trip-hero-sub">Solicitud → recursos → tarifa en un solo flujo</p>
+        <p class="create-trip-hero-sub">Solicitud, recursos y tarifa organizados en un mismo flujo operativo.</p>
       </div>
       ${pendingBadge}
     </header>
@@ -13049,7 +13133,7 @@ function transportTripsHtml() {
       <li class="create-trip-step create-trip-step--locked" data-step="2"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Recursos</span></li>
       <li class="create-trip-step create-trip-step--locked" data-step="3"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
     </ol>
-    <fieldset class="form-section full create-trip-fieldset create-trip-fieldset--step1">
+    <fieldset class="form-section full create-trip-fieldset create-trip-fieldset--step1 transport-trip-create-form__request">
       <legend>${IC.compass} Solicitud</legend>
       <div class="create-trip-request-stack">
         <label class="create-trip-request-select-label">${fieldLabel(IC.inbox, "Solicitud pendiente", { required: true })}
@@ -13064,7 +13148,7 @@ function transportTripsHtml() {
         </div>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-emerald full create-trip-fieldset create-trip-fieldset--step2">
+    <fieldset class="form-section form-section-emerald create-trip-fieldset create-trip-fieldset--step2 transport-trip-create-form__resources">
       <legend>${IC.truck} Vehículo y conductor</legend>
       <div class="create-trip-surface create-trip-fleet-shell">
         <div class="create-trip-fleet-head">
@@ -13087,7 +13171,7 @@ function transportTripsHtml() {
         </div>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-violet full create-trip-fieldset create-trip-fieldset--step3">
+    <fieldset class="form-section form-section-violet create-trip-fieldset create-trip-fieldset--step3 transport-trip-create-form__pricing">
       <legend>${IC.dollar} Tarifa y precio</legend>
       <div id="create-trip-rate-fields" class="create-trip-rate-surface create-trip-surface create-trip-surface--premium">
         ${createTripEmptyHint("dollar", "Tarifa pendiente", "Al elegir la solicitud se cargarán las tarifas sugeridas para la ruta.")}
@@ -13105,25 +13189,63 @@ function transportTripsHtml() {
     </footer>
   </form>`;
 
-  const heroStrip = `<div class="fleet-hero-strip fleet-hero-strip--solo">
-      <div class="fleet-hero-metrics">
-        <div class="fleet-hero-metric"><span>Viajes</span><strong>${trips.length}</strong></div>
-        <div class="fleet-hero-metric"><span>En operacion</span><strong>${activeOps}</strong></div>
-        <div class="fleet-hero-metric"><span>Programados hoy</span><strong>${todaysTrips}</strong></div>
-        <div class="fleet-hero-metric"><span>Completados</span><strong>${completedTrips}</strong></div>
-        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Sin asignar</span><strong>${pendingForTrip.length}</strong></div>
-        <div class="fleet-hero-metric fleet-hero-metric-warn"><span>Con standby</span><strong>${standbyTrips}</strong></div>
-        <div class="fleet-hero-metric fleet-hero-metric-alert"><span>Pendientes vencidas</span><strong>${pendingExpired.length}</strong></div>
-        <div class="fleet-hero-metric"><span>Tarifas trayecto</span><strong>${rateEntries.length}</strong></div>
+  const moduleHead = `<header class="ops-module-head ops-module-head--rich transport-module-head">
+      <div class="ops-module-title">
+        <span class="ops-module-kicker">Transporte · Operación</span>
+        <h2>Viajes y trayectos</h2>
+        <p class="ops-module-subtitle">Separe la asignación operativa del catálogo de rutas y tarifas usando las pestañas del módulo, sin mezclar ambos flujos en la misma vista.</p>
       </div>
+      <div class="ops-module-chips">
+        <span class="ops-chip"><strong>${activeOps}</strong> viajes activos</span>
+        <span class="ops-chip${pendingForTrip.length ? " ops-chip--warn" : ""}"><strong>${pendingForTrip.length}</strong> por asignar</span>
+      </div>
+    </header>`;
+  const workspaceNav = renderModuleWindowTabs({
+    ariaLabel: "Secciones del módulo Viajes y trayectos",
+    activeId: transportTripsWorkspace,
+    action: "transport-trips-workspace",
+    valueAttr: "workspace",
+    tabs: [
+      { id: "trips", label: "Viajes", count: trips.length },
+      { id: "routes", label: "Trayectos", count: rateEntries.length }
+    ]
+  });
+  const tripsCreateCard = pcardWrapPro(
+    "truck",
+    "Asignar viaje",
+    `${pendingForTrip.length} solicitud${pendingForTrip.length === 1 ? "" : "es"} pendiente${pendingForTrip.length === 1 ? "" : "s"} · flujo guiado en 3 pasos`,
+    createTripForm,
+    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip"
+  );
+  const routesCreateCard = pcardWrapPro(
+    "mapPin",
+    "Configurar trayecto y tarifa",
+    `${rateEntries.length} ${rateEntries.length === 1 ? "ruta catalogada" : "rutas catalogadas"} para autocompletado`,
+    routeRateForm,
+    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--route"
+  );
+  const tripsPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "trips" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="trips"${transportTripsWorkspace === "trips" ? "" : " hidden"}>
+      <section class="ops-block transport-workspace-stack">
+        <header class="payroll-panel-intro ops-block-head">
+          <h3>Viajes</h3>
+          <p class="ops-block-lead muted">Administra la asignación operativa y consulta los viajes del día, activos, en standby o cerrados sin mezclar este flujo con el catálogo de trayectos.</p>
+        </header>
+        ${tripsCreateCard}
+        ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}
+      </section>
+    </div>`;
+  const routesPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "routes" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="routes"${transportTripsWorkspace === "routes" ? "" : " hidden"}>
+      <section class="ops-block transport-workspace-stack">
+        <header class="payroll-panel-intro ops-block-head">
+          <h3>Trayectos</h3>
+          <p class="ops-block-lead muted">Mantén aparte el catálogo de rutas y tarifas por cliente para que el equipo configure precios sugeridos sin interferir con la operación diaria de viajes.</p>
+        </header>
+        ${routesCreateCard}
+        ${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}
+      </section>
     </div>`;
 
-  const actionGrid = `<div class="dash-grid trips-actions-row--two">
-    ${createCollapsibleCard("create-trip", "truck", "Asignar viaje", `${pendingForTrip.length} solicitud${pendingForTrip.length === 1 ? "" : "es"} pendiente${pendingForTrip.length === 1 ? "" : "s"} · flujo guiado en 3 pasos`, createTripForm, "Abrir asignación")}
-    ${createCollapsibleCard("create-route-rate", "dollar", "Configurar nueva tarifa por trayecto", "Define el precio sugerido para una ruta. Al crear un viaje con esa misma ruta, este valor se autocompletará en la asignación.", routeRateForm, "Configurar tarifa")}
-  </div>`;
-
-  return `${heroStrip}${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}${actionGrid}${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}`;
+  return `${moduleHead}${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
 }
 
 function transportCalendarHtml() {
@@ -18604,6 +18726,16 @@ function payrollHtml() {
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
+  const canEditLegalParameters = currentUser()?.role === ROLES.ADMIN;
+  const legalHistory = laborSystemParametersHistoryRows();
+  const legalSelectedYear = Number(state.payrollLegalUi?.year || legalHistory[0]?.year || now.getFullYear());
+  const legalDraft = laborSystemParametersDraftForYear(legalSelectedYear, legalHistory);
+  const legalYearOptions = laborSystemParametersSelectableYears(legalHistory);
+  const legalAppliedYearOptions = [...new Set([legalDraft.year, ...legalYearOptions])].sort((a, b) => b - a);
+  const payrollRunsForLegalYear = allRuns.filter((run) => String(run.month || "").startsWith(`${legalDraft.year}`)).length;
+  const legalCurrentCap = Math.max(0, parseNum(legalDraft.smmlvCop) * CO_TRANSPORT_ALLOWANCE_MAX_SMMLV);
+  const healthRatePct = (parseNum(legalDraft.healthEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
+  const pensionRatePct = (parseNum(legalDraft.pensionEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
   const employeeRows = employees
     .map((e) => {
       const avCss = employeeAvatarCssUrl(e.avatarUrl);
@@ -19140,10 +19272,144 @@ function payrollHtml() {
       <div class="payroll-insight-item"><span class="payroll-insight-label">Viático interdepartamental</span><p class="payroll-insight-value">$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} / viaje</p><p class="muted" style="margin:0.25rem 0 0">Actualizado: ${escapeHtml(rulesUpdatedLabel)}</p></div>
       <div class="payroll-insight-item"><span class="payroll-insight-label">Acciones</span><p class="payroll-insight-value"><button type="button" class="btn btn-sm btn-action" id="export-payroll">${IC.download} Exportar CSV</button></p></div>
     </div>`;
+  const legalSummary = renderHrAlertCards([
+    {
+      icon: IC.dollar,
+      label: `SMMLV ${legalDraft.year}`,
+      value: `$${parseNum(legalDraft.smmlvCop).toLocaleString("es-CO")}`,
+      help: `Vigencia ${escapeHtml(legalDraft.effectiveFrom)} a ${escapeHtml(legalDraft.effectiveTo || "abierta")}.`,
+      tone: legalDraft.isCurrent ? "ok" : "info"
+    },
+    {
+      icon: IC.activity,
+      label: "Auxilio legal",
+      value: `$${parseNum(legalDraft.transportAllowanceCop).toLocaleString("es-CO")}`,
+      help: `Tope automatico: hasta 2 SMMLV = $${legalCurrentCap.toLocaleString("es-CO")}.`,
+      tone: "info"
+    },
+    {
+      icon: IC.hash,
+      label: "Horas legales semanales",
+      value: parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours),
+      help: "Referencia usada por formularios y calculos conectados a RRHH.",
+      tone: "ok"
+    },
+    {
+      icon: IC.heart,
+      label: "Salud / pensión",
+      value: `${healthRatePct}% / ${pensionRatePct}%`,
+      help: "Porcentaje de aporte del empleado usado en liquidaciones y desprendibles.",
+      tone: "info"
+    },
+    {
+      icon: IC.calendar,
+      label: "Liquidaciones del ano",
+      value: payrollRunsForLegalYear,
+      help: payrollRunsForLegalYear
+        ? "Cambiar esta vigencia impacta referencias legales ya usadas en periodos de nomina."
+        : "Aun no hay liquidaciones registradas para este ano.",
+      tone: payrollRunsForLegalYear ? "warn" : "ok"
+    }
+  ]);
+  const legalYearOptionsHtml = legalYearOptions
+    .map(
+      (year) =>
+        `<option value="${year}" ${year === legalDraft.year ? "selected" : ""}>${escapeHtml(
+          String(year)
+        )}</option>`
+    )
+    .join("");
+  const legalAppliedYearOptionsHtml = legalAppliedYearOptions
+    .map(
+      (year) =>
+        `<option value="${year}" ${year === legalDraft.activeYear ? "selected" : ""}>${escapeHtml(String(year))}</option>`
+    )
+    .join("");
+  const legalHistoryRows = legalHistory.length
+    ? legalHistory
+        .map((row) => {
+          const rowYear = Number(row.year) || 0;
+          const rowRuns = allRuns.filter((run) => String(run.month || "").startsWith(`${rowYear}`)).length;
+          return `<tr>
+            <td><strong>${escapeHtml(String(rowYear || "—"))}</strong><div class="muted">${escapeHtml(String(row.effectiveFrom || "—"))} → ${escapeHtml(String(row.effectiveTo || "—"))}</div></td>
+            <td>$${parseNum(row.smmlvCop).toLocaleString("es-CO")}</td>
+            <td>$${parseNum(row.transportAllowanceCop).toLocaleString("es-CO")}</td>
+            <td>${((parseNum(row.healthEmployeeRate) || 0) * 100).toFixed(2).replace(/\.00$/, "")}%</td>
+            <td>${((parseNum(row.pensionEmployeeRate) || 0) * 100).toFixed(2).replace(/\.00$/, "")}%</td>
+            <td>${row.uvtCop != null ? `$${parseNum(row.uvtCop).toLocaleString("es-CO")}` : "—"}</td>
+            <td>${escapeHtml(String(parseNum(row.legalWeeklyHours || 0) || "—"))}</td>
+            <td>${rowRuns}</td>
+            <td>${row.isCurrent ? '<span class="status status-completada">Activa</span>' : '<span class="status">Historica</span>'}</td>
+            <td><button type="button" class="btn btn-sm btn-outline" data-action="payroll-legal-set-year" data-year="${escapeAttr(String(rowYear))}">Cargar</button></td>
+          </tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="10" class="muted">Aun no hay vigencias guardadas en base de datos. Puede crear la primera desde este panel.</td></tr>`;
+  const legalReadOnlyNotice = canEditLegalParameters
+    ? ""
+    : `<p class="muted" style="margin:0 0 1rem">Solo administradores pueden editar esta pestaña. RRHH la ve en modo consulta para revisar historico y parametros activos.</p>`;
+  const legalPayrollWarning = payrollRunsForLegalYear
+    ? `<p class="status status-pendiente" style="display:inline-flex;margin:0 0 1rem">Advertencia: ${payrollRunsForLegalYear} liquidacion${payrollRunsForLegalYear === 1 ? "" : "es"} del año ${legalDraft.year} ya usan referencias legales de esa vigencia.</p>`
+    : "";
+  const legalPane = `<div class="payroll-data-pane${payrollDataSection === "legal" ? "" : " hidden"}" data-payroll-section="legal">
+      ${pcardWrapPro(
+        "hash",
+        "Parametros legales anuales",
+        "Administre año a año el salario minimo, auxilio, UVT, salud, pension y horas legales. Contratacion y nomina consumen la vigencia aplicada.",
+        `${legalReadOnlyNotice}
+        ${legalSummary}
+        ${legalPayrollWarning}
+        <form id="form-payroll-legal-params" class="p-form p-form-colored hr-form-flow hr-form-compact">
+          <label>${fieldLabel(IC.calendar, "Año de vigencia")}
+            <select name="year" data-action="payroll-legal-set-year">${legalYearOptionsHtml}</select>
+          </label>
+          <label>${fieldLabel(IC.dollar, "SMMLV")}
+            <input name="smmlvCop" type="number" min="1" step="1" value="${escapeAttr(String(parseNum(legalDraft.smmlvCop)))}" ${canEditLegalParameters ? "" : "disabled"} />
+          </label>
+          <label>${fieldLabel(IC.activity, "Auxilio transporte / conectividad")}
+            <input name="transportAllowanceCop" type="number" min="0" step="1" value="${escapeAttr(String(parseNum(legalDraft.transportAllowanceCop)))}" ${canEditLegalParameters ? "" : "disabled"} />
+          </label>
+          <label>${fieldLabel(IC.heart, "Salud empleado")}
+            <input name="healthEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(healthRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />
+          </label>
+          <label>${fieldLabel(IC.shield, "Pensión empleado")}
+            <input name="pensionEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(pensionRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />
+          </label>
+          <label>${fieldLabel(IC.hash, "UVT")}
+            <input name="uvtCop" type="number" min="0" step="1" value="${escapeAttr(String(parseNum(legalDraft.uvtCop || 0) || ""))}" ${canEditLegalParameters ? "" : "disabled"} />
+          </label>
+          <label>${fieldLabel(IC.clock, "Horas legales semanales")}
+            <input name="legalWeeklyHours" type="number" min="1" max="168" step="1" value="${escapeAttr(String(parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)))}" ${canEditLegalParameters ? "" : "disabled"} />
+          </label>
+          <label>${fieldLabel(IC.layers, "Vigencia aplicada en plataforma")}
+            <select name="platformReferenceMode" ${canEditLegalParameters ? "" : "disabled"}>
+              <option value="automatic" ${legalDraft.referenceMode === "automatic" ? "selected" : ""}>Automática por fecha actual</option>
+              <option value="manual" ${legalDraft.referenceMode === "manual" ? "selected" : ""}>Forzar vigencia manual</option>
+            </select>
+          </label>
+          <label>${fieldLabel(IC.calendar, "Año aplicado globalmente")}
+            <select name="platformReferenceYear" ${canEditLegalParameters ? "" : "disabled"}>${legalAppliedYearOptionsHtml}</select>
+          </label>
+          <div style="grid-column:1 / -1">
+            <p class="muted" style="margin:0">El portal calcula el tope automatico del auxilio con <strong>2 SMMLV</strong>. Para ${legalDraft.year} la referencia seria <strong>$${legalCurrentCap.toLocaleString("es-CO")}</strong>. La plataforma hoy está en modo <strong>${legalDraft.referenceMode === "manual" ? `manual (${escapeHtml(String(legalDraft.activeYear))})` : "automático"}</strong>.</p>
+          </div>
+          ${
+            canEditLegalParameters
+              ? `<div style="grid-column:1 / -1;display:flex;justify-content:flex-end"><button type="submit" class="btn btn-primary">${IC.check} Guardar vigencia ${escapeHtml(
+                  String(legalDraft.year)
+                )}</button></div>`
+              : ""
+          }
+        </form>
+        <div class="table-wrap" style="margin-top:1rem"><table><thead><tr><th>Año</th><th>SMMLV</th><th>Auxilio</th><th>Salud</th><th>Pensión</th><th>UVT</th><th>Horas</th><th>Liquidaciones</th><th>Estado</th><th></th></tr></thead><tbody>${legalHistoryRows}</tbody></table></div>`,
+        "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll"
+      )}
+    </div>`;
   const payrollDataNav = renderPayrollDataSectionNav(payrollDataSection, {
     employees: employees.length,
     absences: absences.length,
-    runs: runs.length
+    runs: runs.length,
+    legal: legalHistory.length || 1
   });
   const employeesPane = `<div class="payroll-data-pane${payrollDataSection === "employees" ? "" : " hidden"}" data-payroll-section="employees">
       <div class="payroll-table-shell">${empTable}</div>
@@ -19162,7 +19428,7 @@ function payrollHtml() {
         ${filtersHtml}
       </div>
       ${payrollDataNav}
-      <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}</div>
+      <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}${legalPane}</div>
     </section>`;
   const payrollFleetHero = moduleFleetHeroStrip(
     [
@@ -22015,6 +22281,14 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='transport-trips-workspace']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const workspace = normalizeTransportTripsWorkspace(btn.dataset.workspace);
+      state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace };
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-permissions-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const ui = getAdminUsersUi();
@@ -23591,6 +23865,79 @@ function bindDynamicEvents() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-set-year']").forEach((el) => {
+    const applyYearSelection = (yearLike) => {
+      const year = String(Math.max(2020, Math.trunc(Number(yearLike) || new Date().getFullYear())));
+      state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year };
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    };
+    if (el.tagName === "SELECT") {
+      el.addEventListener("change", () => applyYearSelection(el.value));
+      return;
+    }
+    el.addEventListener("click", () => applyYearSelection(el.dataset.year));
+  });
+
+  const payrollLegalForm = nodes.viewRoot.querySelector("#form-payroll-legal-params");
+  if (payrollLegalForm) {
+    payrollLegalForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify("Solo administradores pueden editar los parametros legales.", "error");
+        return;
+      }
+      const fd = new FormData(payrollLegalForm);
+      const year = Math.max(2020, Math.trunc(Number(fd.get("year")) || new Date().getFullYear()));
+      const body = {
+        year,
+        smmlvCop: Math.max(1, parseNum(fd.get("smmlvCop"))),
+        transportAllowanceCop: Math.max(0, parseNum(fd.get("transportAllowanceCop"))),
+        healthEmployeeRate: Math.max(0, parseNum(fd.get("healthEmployeeRatePct")) / 100),
+        pensionEmployeeRate: Math.max(0, parseNum(fd.get("pensionEmployeeRatePct")) / 100),
+        uvtCop: String(fd.get("uvtCop") || "").trim() ? Math.max(0, parseNum(fd.get("uvtCop"))) : null,
+        legalWeeklyHours: Math.max(1, parseNum(fd.get("legalWeeklyHours")) || CO_HR_RULES.legalWeeklyHours),
+        platformReferenceYear:
+          String(fd.get("platformReferenceMode") || "automatic") === "manual"
+            ? Math.max(2020, Math.trunc(Number(fd.get("platformReferenceYear")) || year))
+            : null
+      };
+      const submit = async () => {
+        try {
+          const saved = await postPortalAuthorized("/portal/labor-system-parameters", body);
+          if (saved?.systemParameters) applySystemParametersFromBootstrapPayload(saved.systemParameters);
+          if (saved?.systemParametersHistory !== undefined) {
+            state.systemParametersHistory = Array.isArray(saved.systemParametersHistory) ? saved.systemParametersHistory : [];
+          }
+          state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(year) };
+          state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
+          persistHrWorkspace("payroll", "data");
+          renderPortalView();
+          notify(
+            saved?.affectedPayrollRuns
+              ? `Vigencia ${year} guardada. Se detectaron ${saved.affectedPayrollRuns} liquidaciones de ese año.`
+              : `Vigencia ${year} guardada correctamente. Plataforma en ${body.platformReferenceYear ? `modo manual ${body.platformReferenceYear}` : "modo automático"}.`,
+            saved?.affectedPayrollRuns ? "warn" : "success"
+          );
+        } catch (err) {
+          notify(err?.message || "No se pudieron guardar los parametros legales.", "error");
+        }
+      };
+      const affectedRuns = readArray(KEYS.payrollRuns).filter((run) => String(run.month || "").startsWith(`${year}`)).length;
+      if (affectedRuns > 0) {
+        openConfirmModal({
+          title: `Actualizar vigencia ${year}`,
+          message: `Este año ya tiene ${affectedRuns} liquidacion${affectedRuns === 1 ? "" : "es"} registradas. Confirme para actualizar las referencias legales sin borrar el historico.`,
+          confirmText: "Guardar vigencia",
+          onConfirm: submit
+        });
+        return;
+      }
+      await submit();
+    });
+  }
+
   nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const id = String(btn.dataset.id || "");
@@ -24522,7 +24869,12 @@ function bindDynamicEvents() {
     if (pendingEditKey) {
       state.pendingRouteRateEditKey = null;
       populateRouteRateInlineForm(pendingEditKey);
-      scrollToCreatePanelForm("create-route-rate");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const formEl = document.getElementById("form-route-rate");
+          if (formEl) scrollIntoViewSmoothBlockStart(formEl);
+        });
+      });
     }
     wireFormSubmitGuard(routeRateFormEl, async (event) => {
       const fd = new FormData(routeRateFormEl);
@@ -26569,8 +26921,8 @@ function bindDynamicEvents() {
 
         const dedRowsMes =
           `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-          `<tr><td style="${cL}">Aporte obligatorio salud — empleado (4% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-          `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (4% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+          `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+          `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
           `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
           `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
 
