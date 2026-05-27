@@ -12106,12 +12106,344 @@ function installVehicleCardActionsDelegation() {
 }
 
 async function setDriverAvailability(driverId, available) {
+  const key = String(driverId ?? "").trim();
+  if (!key) return false;
   const drivers = read(KEYS.drivers, []);
   const updatedTs = nowIso();
-  const next = drivers.map((d) => (d.id === driverId ? { ...d, available, updatedAt: updatedTs } : d));
+  let found = false;
+  const next = drivers.map((d) => {
+    if (String(d.id ?? "").trim() !== key) return d;
+    found = true;
+    return { ...d, available: Boolean(available), updatedAt: updatedTs };
+  });
+  if (!found) return false;
   try {
     await writeAwaitServer(KEYS.drivers, next);
-  } catch (_e) {}
+    recalculateResourceAvailability();
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function findPortalDriverById(driverId) {
+  const id = String(driverId ?? "").trim();
+  if (!id) return null;
+  return read(KEYS.drivers, []).find((d) => String(d.id ?? "").trim() === id) || null;
+}
+
+function portalDetailTileMarkup(iconSvg, label, valueHtml, opts = {}) {
+  const { href = "", muted = false } = opts;
+  const inner = `<span class="portal-detail-tile-icon" aria-hidden="true">${iconSvg}</span><span class="portal-detail-tile-text"><span class="portal-detail-tile-label">${escapeHtml(label)}</span><span class="portal-detail-tile-value">${valueHtml}</span></span>`;
+  if (href) {
+    return `<a class="portal-detail-tile" href="${escapeAttr(href)}">${inner}</a>`;
+  }
+  return `<div class="portal-detail-tile${muted ? " portal-detail-tile--muted" : ""}" role="group">${inner}</div>`;
+}
+
+function openDriverDetailSheetModal(driver) {
+  if (!driver) return;
+  const d = driver;
+  const company = getCompanyById(d.companyId);
+  const companyName = String(company?.name || "").trim();
+  const avatarCss = employeeAvatarCssUrl(d.photoUrl);
+  const avatarUrlRaw = String(d.photoUrl || "").trim();
+  const avatarHero = avatarCss
+    ? `<div class="portal-detail-logo portal-detail-logo--avatar"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" /></div>`
+    : `<div class="portal-detail-logo portal-detail-logo--avatar portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(
+        (String(d.name || "C").charAt(0) || "C").toUpperCase()
+      )}</span></div>`;
+  const buildDateChip = (rawValue, missingLabel = "Sin fecha", warnDays = 60) => {
+    const ymd = normalizePortalDateYmd(rawValue);
+    if (!ymd) {
+      return {
+        bucket: "missing",
+        label: missingLabel,
+        chipHtml: `<span class="status status-pendiente">${escapeHtml(missingLabel)}</span>`
+      };
+    }
+    const days = daysUntil(ymd);
+    if (days < 0) {
+      return {
+        bucket: "expired",
+        label: `Vencida hace ${Math.abs(days)}d`,
+        chipHtml: '<span class="status status-rechazada">Vencida</span>'
+      };
+    }
+    if (days <= warnDays) {
+      const label = days === 0 ? "Vence hoy" : `Vence en ${days}d`;
+      return {
+        bucket: "warning",
+        label,
+        chipHtml: `<span class="status status-pendiente">${escapeHtml(label)}</span>`
+      };
+    }
+    return {
+      bucket: "ok",
+      label: `Vigente · ${days}d`,
+      chipHtml: '<span class="status status-viaje_asignado">Vigente</span>'
+    };
+  };
+  const licenseMeta = buildDateChip(d.licenseExpiry, "Sin fecha");
+  const courseMeta = (() => {
+    const raw = String(d.defensiveCourse || "").trim().toLowerCase();
+    if (raw === "no_aplica") {
+      return {
+        bucket: "ok",
+        label: "No aplica",
+        chipHtml: '<span class="status status-viaje_asignado">No aplica</span>'
+      };
+    }
+    if (raw === "vencido") {
+      return {
+        bucket: "expired",
+        label: "Curso vencido",
+        chipHtml: '<span class="status status-rechazada">Vencido</span>'
+      };
+    }
+    if (raw === "vigente") return buildDateChip(d.defensiveCourseExpiry, "Sin fecha");
+    if (!raw && !d.defensiveCourseExpiry) {
+      return {
+        bucket: "missing",
+        label: "Sin registro",
+        chipHtml: '<span class="status status-pendiente">Sin registro</span>'
+      };
+    }
+    return buildDateChip(d.defensiveCourseExpiry, "Sin registro");
+  })();
+  const driverTrips = getActiveTrips().filter((trip) => String(trip.trip?.driverId || "") === String(d.id || ""));
+  const nowTs = Date.now();
+  const occupancy = (() => {
+    if (isManuallyUnavailable(d)) return { tone: "offline", detail: "Marcado manualmente como no disponible", trip: null };
+    if (!driverTrips.length) return { tone: "available", detail: "Sin viaje activo", trip: null };
+    const ongoing = driverTrips.find((trip) => describeTripTimingVsNow(trip, nowTs).timing === "ongoing") || null;
+    if (ongoing) {
+      const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
+      return {
+        tone: "busy",
+        trip: ongoing,
+        detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+      };
+    }
+    const upcoming = driverTrips
+      .map((trip) => ({ trip, info: describeTripTimingVsNow(trip, nowTs) }))
+      .filter((item) => item.info.timing === "upcoming")
+      .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
+    if (upcoming) {
+      return {
+        tone: "scheduled",
+        trip: upcoming.trip,
+        detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+      };
+    }
+    return { tone: "available", detail: "Sin cruce horario activo", trip: driverTrips[0] || null };
+  })();
+  const availabilityTag =
+    occupancy.tone === "offline"
+      ? '<span class="status status-fleet-offline">No disponible</span>'
+      : occupancy.tone === "busy"
+        ? '<span class="status status-fleet-ocupado">Ocupado</span>'
+        : occupancy.tone === "scheduled"
+          ? '<span class="status status-fleet-programado">Reservado</span>'
+          : '<span class="status status-fleet-disponible">Disponible</span>';
+  const comparendos = Math.max(0, parseNum(d.comparendos || 0));
+  const comparendosTag =
+    comparendos > 0
+      ? `<span class="driver-doc-pill driver-doc-pill--warning">${comparendos} comparendo${comparendos === 1 ? "" : "s"}</span>`
+      : "";
+  const phoneDisp = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "";
+  const rawPhone = String(d.phone || "").trim();
+  const telDigits = rawPhone.replace(/\D/g, "");
+  const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
+  const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
+  const phoneBlock = telHref
+    ? portalDetailTileMarkup(IC.phone, "Teléfono", phoneValue, { href: telHref })
+    : portalDetailTileMarkup(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+  const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
+  const companyBlock = portalDetailTileMarkup(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
+  const licenseBlock = portalDetailTileMarkup(
+    IC.file,
+    "Licencia",
+    escapeHtml(`${String(d.license || "Sin licencia")} · ${String(d.licenseCategory || "Sin categoría")}`),
+    { muted: !d.license }
+  );
+  const emergencyValue = String(d.emergencyPhone || "").trim()
+    ? escapeHtml(String(d.emergencyPhone || "").trim())
+    : `<span class="muted">Sin teléfono</span>`;
+  const emergencyBlock = portalDetailTileMarkup(IC.heart, "Emergencia", emergencyValue, {
+    muted: !String(d.emergencyPhone || "").trim()
+  });
+  const tripTitle = occupancy.trip
+    ? `Viaje ${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}`
+    : occupancy.tone === "offline"
+      ? "Fuera de operación"
+      : "Disponible para asignación";
+  const tripSub = occupancy.trip
+    ? `${escapeHtml(String(occupancy.trip.clientName || occupancy.trip.companyName || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}`
+    : escapeHtml(String(occupancy.detail || "Sin viaje activo"));
+  const renderDetailRows = (pairs) =>
+    pairs
+      .filter((p) => p && p[1] !== null && p[1] !== undefined && String(p[1]).trim() !== "")
+      .map(
+        ([label, value]) =>
+          `<div class="detail-row"><span class="detail-row-label">${escapeHtml(String(label))}</span><span class="detail-row-value">${value}</span></div>`
+      )
+      .join("");
+  const buildDetailGrid = (sections) =>
+    sections
+      .filter((sec) => sec && sec.rows && sec.rows.trim())
+      .map(
+        (sec) =>
+          `<section class="detail-section"><h4 class="detail-section-title">${IC[sec.icon] || ""}<span>${escapeHtml(sec.title)}</span></h4><div class="detail-section-grid">${sec.rows}</div></section>`
+      )
+      .join("");
+  const sections = [
+    {
+      icon: "user",
+      title: "Datos personales",
+      rows: renderDetailRows([
+        ["Nombre", `<strong>${escapeHtml(String(d.name || "-"))}</strong>`],
+        ["Documento", escapeHtml(String(d.idDoc || "-"))],
+        ["Teléfono", escapeHtml(String(d.phone || "-"))],
+        ["Tipo de sangre", escapeHtml(String(d.bloodType || "-"))],
+        ["Contacto emergencia", escapeHtml(String(d.emergencyContact || "-"))],
+        ["Tel. emergencia", escapeHtml(String(d.emergencyPhone || "-"))],
+        ["Empresa", escapeHtml(String(companyName || "-"))]
+      ])
+    },
+    {
+      icon: "file",
+      title: "Licencia y formación",
+      rows: renderDetailRows([
+        ["N° licencia", escapeHtml(String(d.license || "-"))],
+        ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
+        ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
+        ["Examen ocupacional", fmtDateOr(d.occupationalExamDate)],
+        ["Vence examen ocupacional", fmtDateOr(d.occupationalExamExpiry)],
+        ["Examen instruvial", fmtDateOr(d.instruvialExamDate)],
+        ["Vence examen instruvial", fmtDateOr(d.instruvialExamExpiry)],
+        ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "-"))} ${courseMeta.chipHtml}`],
+        ["Vence curso defensivo", fmtDateOr(d.defensiveCourseExpiry)],
+        ["Años experiencia", String(parseNum(d.experienceYears || 0))]
+      ])
+    },
+    {
+      icon: "shield",
+      title: "Seguridad social y disciplina",
+      rows: renderDetailRows([
+        ["EPS", escapeHtml(String(d.eps || "-"))],
+        ["ARL", escapeHtml(String(d.arl || "-"))],
+        ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
+        ["Estado operativo", availabilityTag],
+        ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
+      ])
+    }
+  ];
+  const bodyHtml = `<div class="portal-detail-modal">
+  <div class="portal-detail-hero">
+    ${avatarHero}
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.user} Conductor operativo</p>
+      <div class="portal-detail-badges">${availabilityTag} ${licenseMeta.chipHtml} ${comparendosTag}</div>
+      <p class="portal-detail-meta"><span class="muted">Documento</span> <strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong></p>
+      <ul class="portal-detail-stats" aria-label="Resumen">
+        <li><strong>${companyName ? escapeHtml(companyName) : "—"}</strong><span>Empresa</span></li>
+        <li><strong>${escapeHtml(String(d.licenseCategory || "—"))}</strong><span>Categoría</span></li>
+        <li><strong>${escapeHtml(`${parseNum(d.experienceYears || 0)} año${parseNum(d.experienceYears || 0) === 1 ? "" : "s"}`)}</strong><span>Experiencia</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="portal-detail-tiles">${phoneBlock}${companyBlock}${licenseBlock}${emergencyBlock}</div>
+  <section class="portal-detail-loc" aria-label="Operación actual">
+    <h4 class="portal-detail-loc-title">${IC.truck} Operación actual</h4>
+    <p class="portal-detail-loc-line"><strong>${tripTitle}</strong></p>
+    <p class="portal-detail-loc-sub muted">${IC.clock} ${tripSub}</p>
+  </section>
+  <div class="detail-grid">${buildDetailGrid(sections)}</div>
+</div>`;
+  openInfoModal({
+    title: `Conductor ${String(d.name || "")}`,
+    subtitle: `${String(d.licenseCategory || "")} · ${String(d.idDoc || "")}`,
+    bodyHtml,
+    wide: true,
+    extraModalCardClass: "modal-card--portal-detail",
+    secondaryActionsHtml: isAdminActor()
+      ? `<button type="button" class="btn btn-action" data-driver-sheet-action="edit">${IC.edit} Editar conductor</button>`
+      : "",
+    afterMount: (contentEl) => {
+      contentEl.querySelector("[data-driver-sheet-action='edit']")?.addEventListener("click", () => {
+        document.getElementById("crud-modal")?.classList.add("hidden");
+        nodes.viewRoot?.querySelector(`[data-action='edit-driver'][data-id="${escapeAttr(String(d.id || ""))}"]`)?.click();
+      });
+    }
+  });
+}
+
+function togglePortalDriverManualAvailability(driverId) {
+  const target = findPortalDriverById(driverId);
+  if (!target) {
+    notify("No se encontró el conductor. Actualice la página.", "error");
+    return;
+  }
+  if (target.autoBusy) {
+    notify(
+      "Este conductor está en un viaje activo. La disponibilidad se ajustará al finalizar el viaje.",
+      "info"
+    );
+    return;
+  }
+  const name = String(target.name || "Conductor").trim();
+  const markingUnavailable = !isManuallyUnavailable(target);
+  openConfirmModal({
+    title: "Cambiar disponibilidad",
+    message: markingUnavailable
+      ? `¿Marcar a ${name} como no disponible manualmente? No se ofrecerá en asignaciones hasta reactivarlo.`
+      : `¿Marcar a ${name} como disponible nuevamente?`,
+    confirmText: markingUnavailable ? "Marcar no disponible" : "Marcar disponible",
+    onConfirm: async () => {
+      try {
+        const ok = await setDriverAvailability(target.id, !markingUnavailable);
+        if (!ok) {
+          notify("No fue posible actualizar la disponibilidad.", "error");
+          return;
+        }
+        notify(
+          markingUnavailable ? `${name} marcado como no disponible.` : `${name} marcado como disponible.`,
+          "success"
+        );
+        renderPortalView();
+      } catch (err) {
+        notify(String(err?.message || "No fue posible actualizar la disponibilidad."), "error");
+      }
+    }
+  });
+}
+
+function installDriverCardActionsDelegation() {
+  if (state.driverCardActionsDelegationBound || !nodes.viewRoot) return;
+  state.driverCardActionsDelegationBound = true;
+  nodes.viewRoot.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-action='view-driver'], [data-action='toggle-driver']");
+    if (!btn || !nodes.viewRoot.contains(btn)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const did = String(btn.dataset.id || "").trim();
+    if (!did) return;
+    const action = String(btn.dataset.action || "");
+    if (action === "view-driver") {
+      const driver = findPortalDriverById(did);
+      if (!driver) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      openDriverDetailSheetModal(driver);
+      return;
+    }
+    if (action === "toggle-driver") {
+      if (abortIfNotAdmin()) return;
+      togglePortalDriverManualAvailability(did);
+    }
+  });
 }
 
 function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "", selectedTripValue = null) {
@@ -22620,6 +22952,7 @@ function renderPortalViewImpl() {
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
   installVehicleCardActionsDelegation();
+  installDriverCardActionsDelegation();
   enforceColombianFormStandards();
   wireAdminCompanyLocationSelects();
   wireAdminCompanyLogoOvals();
@@ -26956,29 +27289,7 @@ function bindDynamicEvents() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='toggle-driver']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (abortIfNotAdmin()) return;
-      const all = read(KEYS.drivers, []);
-      const did = String(btn.dataset.id || "").trim();
-      const target = all.find((v) => String(v.id || "").trim() === did);
-      if (!target) {
-        notify("No se encontró el conductor.", "error");
-        return;
-      }
-      const nextAvailable = target.available === false;
-      const ok = await setDriverAvailability(target.id, nextAvailable);
-      if (!ok) {
-        notify("No fue posible actualizar la disponibilidad del conductor.", "error");
-        return;
-      }
-      notify(
-        nextAvailable ? "Conductor marcado como disponible." : "Conductor marcado como no disponible.",
-        "success"
-      );
-      renderPortalView();
-    });
-  });
+  /* Conductor Ver/Estado: installDriverCardActionsDelegation() */
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-driver']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -30226,219 +30537,7 @@ function bindExtendedViewEditHandlers() {
   };
 
   /* Vehículo Ver/Estado: installVehicleCardActionsDelegation() */
-
-  /* ============= CONDUCTOR: VER ============= */
-  nodes.viewRoot.querySelectorAll("[data-action='view-driver']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const d = read(KEYS.drivers, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
-      if (!d) {
-        notify(userMessage("genericError"), "error");
-        return;
-      }
-      const company = getCompanyById(d.companyId);
-      const companyName = String(company?.name || "").trim();
-      const avatarCss = employeeAvatarCssUrl(d.photoUrl);
-      const avatarUrlRaw = String(d.photoUrl || "").trim();
-      const avatarHero = avatarCss
-        ? `<div class="portal-detail-logo portal-detail-logo--avatar"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" /></div>`
-        : `<div class="portal-detail-logo portal-detail-logo--avatar portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(
-            (String(d.name || "C").charAt(0) || "C").toUpperCase()
-          )}</span></div>`;
-      const buildDateChip = (rawValue, missingLabel = "Sin fecha", warnDays = 60) => {
-        const ymd = normalizePortalDateYmd(rawValue);
-        if (!ymd) {
-          return {
-            bucket: "missing",
-            label: missingLabel,
-            chipHtml: `<span class="status status-pendiente">${escapeHtml(missingLabel)}</span>`
-          };
-        }
-        const days = daysUntil(ymd);
-        if (days < 0) {
-          return {
-            bucket: "expired",
-            label: `Vencida hace ${Math.abs(days)}d`,
-            chipHtml: '<span class="status status-rechazada">Vencida</span>'
-          };
-        }
-        if (days <= warnDays) {
-          const label = days === 0 ? "Vence hoy" : `Vence en ${days}d`;
-          return {
-            bucket: "warning",
-            label,
-            chipHtml: `<span class="status status-pendiente">${escapeHtml(label)}</span>`
-          };
-        }
-        return {
-          bucket: "ok",
-          label: `Vigente · ${days}d`,
-          chipHtml: '<span class="status status-viaje_asignado">Vigente</span>'
-        };
-      };
-      const licenseMeta = buildDateChip(d.licenseExpiry, "Sin fecha");
-      const courseMeta = (() => {
-        const raw = String(d.defensiveCourse || "").trim().toLowerCase();
-        if (raw === "no_aplica") {
-          return {
-            bucket: "ok",
-            label: "No aplica",
-            chipHtml: '<span class="status status-viaje_asignado">No aplica</span>'
-          };
-        }
-        if (raw === "vencido") {
-          return {
-            bucket: "expired",
-            label: "Curso vencido",
-            chipHtml: '<span class="status status-rechazada">Vencido</span>'
-          };
-        }
-        if (raw === "vigente") return buildDateChip(d.defensiveCourseExpiry, "Sin fecha");
-        if (!raw && !d.defensiveCourseExpiry) {
-          return {
-            bucket: "missing",
-            label: "Sin registro",
-            chipHtml: '<span class="status status-pendiente">Sin registro</span>'
-          };
-        }
-        return buildDateChip(d.defensiveCourseExpiry, "Sin registro");
-      })();
-      const driverTrips = getActiveTrips().filter((trip) => String(trip.trip?.driverId || "") === String(d.id || ""));
-      const nowTs = Date.now();
-      const occupancy = (() => {
-        if (isManuallyUnavailable(d)) return { tone: "offline", detail: "Marcado manualmente como no disponible", trip: null };
-        if (!driverTrips.length) return { tone: "available", detail: "Sin viaje activo", trip: null };
-        const ongoing = driverTrips.find((trip) => describeTripTimingVsNow(trip, nowTs).timing === "ongoing") || null;
-        if (ongoing) {
-          const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
-          return {
-            tone: "busy",
-            trip: ongoing,
-            detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
-          };
-        }
-        const upcoming = driverTrips
-          .map((trip) => ({ trip, info: describeTripTimingVsNow(trip, nowTs) }))
-          .filter((item) => item.info.timing === "upcoming")
-          .sort((a, b) => parseNum(a.info.minutes) - parseNum(b.info.minutes))[0];
-        if (upcoming) {
-          return {
-            tone: "scheduled",
-            trip: upcoming.trip,
-            detail: `Reservado · inicia en ${upcoming.info.minutes} min`
-          };
-        }
-        return { tone: "available", detail: "Sin cruce horario activo", trip: driverTrips[0] || null };
-      })();
-      const availabilityTag = occupancy.tone === "offline"
-        ? '<span class="status status-fleet-offline">No disponible</span>'
-        : occupancy.tone === "busy"
-          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
-          : occupancy.tone === "scheduled"
-            ? '<span class="status status-fleet-programado">Reservado</span>'
-            : '<span class="status status-fleet-disponible">Disponible</span>';
-      const comparendos = Math.max(0, parseNum(d.comparendos || 0));
-      const comparendosTag = comparendos > 0
-        ? `<span class="driver-doc-pill driver-doc-pill--warning">${comparendos} comparendo${comparendos === 1 ? "" : "s"}</span>`
-        : "";
-      const phoneDisp = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "";
-      const rawPhone = String(d.phone || "").trim();
-      const telDigits = rawPhone.replace(/\D/g, "");
-      const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
-      const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
-      const phoneBlock = telHref
-        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
-        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
-      const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
-      const companyBlock = portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
-      const licenseBlock = portalDetailTile(
-        IC.file,
-        "Licencia",
-        escapeHtml(`${String(d.license || "Sin licencia")} · ${String(d.licenseCategory || "Sin categoría")}`),
-        { muted: !d.license }
-      );
-      const emergencyValue = String(d.emergencyPhone || "").trim() ? escapeHtml(String(d.emergencyPhone || "").trim()) : `<span class="muted">Sin teléfono</span>`;
-      const emergencyBlock = portalDetailTile(IC.heart, "Emergencia", emergencyValue, { muted: !String(d.emergencyPhone || "").trim() });
-      const tripTitle = occupancy.trip
-        ? `Viaje ${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}`
-        : occupancy.tone === "offline"
-          ? "Fuera de operación"
-          : "Disponible para asignación";
-      const tripSub = occupancy.trip
-        ? `${escapeHtml(String(occupancy.trip.clientName || occupancy.trip.companyName || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}`
-        : escapeHtml(String(occupancy.detail || "Sin viaje activo"));
-      const sections = [
-        {
-          icon: "user",
-          title: "Datos personales",
-          rows: renderDetailRows([
-            ["Nombre", `<strong>${escapeHtml(String(d.name || "-"))}</strong>`],
-            ["Documento", escapeHtml(String(d.idDoc || "-"))],
-            ["Teléfono", escapeHtml(String(d.phone || "-"))],
-            ["Tipo de sangre", escapeHtml(String(d.bloodType || "-"))],
-            ["Contacto emergencia", escapeHtml(String(d.emergencyContact || "-"))],
-            ["Tel. emergencia", escapeHtml(String(d.emergencyPhone || "-"))],
-            ["Empresa", escapeHtml(String(companyName || "-"))]
-          ])
-        },
-        {
-          icon: "file",
-          title: "Licencia y formación",
-          rows: renderDetailRows([
-            ["N° licencia", escapeHtml(String(d.license || "-"))],
-            ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
-            ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
-            ["Examen ocupacional", fmtDateOr(d.occupationalExamDate)],
-            ["Vence examen ocupacional", fmtDateOr(d.occupationalExamExpiry)],
-            ["Examen instruvial", fmtDateOr(d.instruvialExamDate)],
-            ["Vence examen instruvial", fmtDateOr(d.instruvialExamExpiry)],
-            ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "-"))} ${courseMeta.chipHtml}`],
-            ["Vence curso defensivo", fmtDateOr(d.defensiveCourseExpiry)],
-            ["Años experiencia", String(parseNum(d.experienceYears || 0))]
-          ])
-        },
-        {
-          icon: "shield",
-          title: "Seguridad social y disciplina",
-          rows: renderDetailRows([
-            ["EPS", escapeHtml(String(d.eps || "-"))],
-            ["ARL", escapeHtml(String(d.arl || "-"))],
-            ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
-            ["Estado operativo", availabilityTag],
-            ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
-          ])
-        }
-      ];
-      const bodyHtml = `<div class="portal-detail-modal">
-  <div class="portal-detail-hero">
-    ${avatarHero}
-    <div class="portal-detail-hero-main">
-      <p class="portal-detail-eyebrow">${IC.user} Conductor operativo</p>
-      <div class="portal-detail-badges">${availabilityTag} ${licenseMeta.chipHtml} ${comparendosTag}</div>
-      <p class="portal-detail-meta"><span class="muted">Documento</span> <strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong></p>
-      <ul class="portal-detail-stats" aria-label="Resumen">
-        <li><strong>${companyName ? escapeHtml(companyName) : "—"}</strong><span>Empresa</span></li>
-        <li><strong>${escapeHtml(String(d.licenseCategory || "—"))}</strong><span>Categoría</span></li>
-        <li><strong>${escapeHtml(`${parseNum(d.experienceYears || 0)} año${parseNum(d.experienceYears || 0) === 1 ? "" : "s"}`)}</strong><span>Experiencia</span></li>
-      </ul>
-    </div>
-  </div>
-  <div class="portal-detail-tiles">${phoneBlock}${companyBlock}${licenseBlock}${emergencyBlock}</div>
-  <section class="portal-detail-loc" aria-label="Operación actual">
-    <h4 class="portal-detail-loc-title">${IC.truck} Operación actual</h4>
-    <p class="portal-detail-loc-line"><strong>${tripTitle}</strong></p>
-    <p class="portal-detail-loc-sub muted">${IC.clock} ${tripSub}</p>
-  </section>
-  <div class="detail-grid">${buildDetailGrid(sections)}</div>
-</div>`;
-      openInfoModal({
-        title: `Conductor ${String(d.name || "")}`,
-        subtitle: `${String(d.licenseCategory || "")} · ${String(d.idDoc || "")}`,
-        bodyHtml,
-        wide: true,
-        extraModalCardClass: "modal-card--portal-detail"
-      });
-    });
-  });
+  /* Conductor Ver/Estado: installDriverCardActionsDelegation() */
 
   /* ============= EMPRESA: VER ============= */
   nodes.viewRoot.querySelectorAll("[data-action='view-company']").forEach((btn) => {
