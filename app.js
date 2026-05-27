@@ -222,10 +222,13 @@ function renderModalCloseBtn(id = "crud-close") {
 }
 
 /** Cancelar en pie de modal (mismo estilo que módulos). */
-function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LABELS.cancel) {
+function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LABELS.cancel, btnClass = "") {
   const safeId = String(id || "crud-cancel").trim() || "crud-cancel";
   const safeLabel = String(label || MODULE_PANEL_LABELS.cancel).trim();
-  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.cancel)}">${renderModulePanelBtnInner(IC.rotateCcw, safeLabel)}</button>`;
+  const classes =
+    String(btnClass || "").trim() ||
+    "btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel";
+  return `<button type="button" id="${escapeAttr(safeId)}" class="${escapeAttr(classes)}" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.cancel)}">${renderModulePanelBtnInner(IC.rotateCcw, safeLabel)}</button>`;
 }
 
 function renderModalHead(title, opts = {}) {
@@ -255,11 +258,12 @@ function renderModalFooterActions(opts = {}) {
   const showCancel = opts.showCancel !== false;
   const cancelId = String(opts.cancelId || "crud-cancel").trim() || "crud-cancel";
   const cancelLabel = String(opts.cancelLabel || MODULE_PANEL_LABELS.cancel).trim();
+  const cancelBtnClass = String(opts.cancelBtnClass || "").trim();
   const secondaryHtml = String(opts.secondaryHtml || "").trim();
   const primaryHtml = String(opts.primaryHtml || "").trim();
   return `<div class="module-panel-actions module-panel-actions--footer modal-edit-actions${extraClass ? ` ${escapeAttr(extraClass)}` : ""}">
     <div class="module-panel-actions__group module-panel-actions__group--secondary">
-      ${showCancel ? renderModalCancelBtn(cancelId, cancelLabel) : ""}
+      ${showCancel ? renderModalCancelBtn(cancelId, cancelLabel, cancelBtnClass) : ""}
       ${secondaryHtml}
     </div>
     ${primaryHtml ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${primaryHtml}</div>` : ""}
@@ -1582,6 +1586,8 @@ function openConfirmModalAsync({
   confirmText = "Confirmar",
   cancelText = "Cancelar",
   confirmBtnClass = "btn-primary",
+  cancelBtnClass = "",
+  confirmIcon = "check",
   cardClass = "modal-card-edit",
   onConfirm
 }) {
@@ -1591,12 +1597,15 @@ function openConfirmModalAsync({
     if (card) card.className = `modal-card ${cardClass}`.trim();
     const content = modal.querySelector("#crud-modal-content");
     const safeConfirmClass = String(confirmBtnClass || "btn-primary").trim() || "btn-primary";
+    const confirmIconHtml = IC[String(confirmIcon || "check")] || IC.check;
+    const safeCancelBtnClass = String(cancelBtnClass || "").trim();
     content.innerHTML = `
     ${renderModalHead(title)}
     <p class="modal-body-lead">${escapeHtml(message)}</p>
     ${renderModalFooterActions({
       cancelLabel: cancelText,
-      primaryHtml: `<button type="button" id="crud-confirm" class="btn ${escapeAttr(safeConfirmClass)}">${IC.check} ${escapeHtml(confirmText)}</button>`
+      cancelBtnClass: safeCancelBtnClass,
+      primaryHtml: `<button type="button" id="crud-confirm" class="btn ${escapeAttr(safeConfirmClass)}">${confirmIconHtml} ${escapeHtml(confirmText)}</button>`
     })}
   `;
     let settled = false;
@@ -8848,7 +8857,11 @@ function confirmDiscardCreateFormAsync(formEl, opts = {}) {
       "Se perderán los cambios no guardados de este formulario. Los datos que escribió no se guardarán.",
     confirmText: opts.confirmText || "Sí, descartar",
     cancelText: opts.cancelText || "Seguir editando",
-    confirmBtnClass: opts.confirmBtnClass || "btn-action btn-danger-soft",
+    confirmBtnClass: opts.confirmBtnClass || "btn-reject",
+    cancelBtnClass:
+      opts.cancelBtnClass ||
+      "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel modal-btn--safe",
+    confirmIcon: opts.confirmIcon || "x",
     cardClass: "modal-card-edit modal-card--discard"
   });
 }

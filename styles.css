@@ -7476,6 +7476,43 @@ body[data-theme="dark"] .modal-card--discard .modal-body-lead {
   color: #fde68a;
 }
 
+/* Descartar cambios: acción segura (outline) vs destructiva (rojo) */
+.modal-card--discard .modal-edit-actions .modal-btn--safe {
+  min-width: 7.5rem;
+  margin-inline-start: 0;
+  padding-inline-start: 0.85rem;
+  border-inline-start: 0;
+  color: var(--primary-dark, #1e40af);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--line));
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.modal-card--discard .modal-edit-actions .modal-btn--safe:hover {
+  color: var(--primary, #2563eb);
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--line));
+  background: linear-gradient(180deg, #f8fbff, #eef6ff);
+}
+
+.modal-card--discard .modal-edit-actions .module-panel-actions__group--primary .btn-reject {
+  min-width: 7.5rem;
+  min-height: 2.5rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+body[data-theme="dark"] .modal-card--discard .modal-edit-actions .modal-btn--safe {
+  color: #dbeafe;
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+body[data-theme="dark"] .modal-card--discard .modal-edit-actions .modal-btn--safe:hover {
+  color: #ffffff;
+  border-color: rgba(148, 196, 255, 0.45);
+  background: linear-gradient(180deg, #334155, #1e293b);
+}
+
 .modal-card-edit {
   width: min(1040px, 97%);
 }
