@@ -24,7 +24,8 @@ import {
 } from "../payroll/colombian-monthly-payroll";
 import {
   bogotaCalendarPartsFromInstant,
-  liquidationCutIfClosingToday
+  liquidationCutIfClosingToday,
+  liquidationLatestClosedCutAsOf
 } from "../payroll/payroll-cut-bogota";
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
 import { timestamptzStringColombiaNow, timestamptzToColombiaIso } from "../common/colombia-time";
@@ -33,6 +34,8 @@ import {
   contractNoticeRefToken
 } from "./employee-contract-renewal";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
+import type { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
+import type { CreateFleetMaintenanceLogDto } from "./dto/create-fleet-maintenance-log.dto";
 import type { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import type { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { LIQUIDACION_UPSERT } from "./liquidacion-upsert";
@@ -6424,8 +6427,10 @@ export class PortalService implements OnModuleInit {
    * Solo genera cuando `referenceDate` coincide con día de **cierre** del corte (`payroll-cut-bogota`).
    */
   async generateAutomaticLiquidacionesForReferenceDate(
-    reference: Date = new Date()
+    reference: Date = new Date(),
+    options?: { force?: boolean }
   ): Promise<{ created: number; skipped: number; messages: string[] }> {
+    const force = options?.force === true;
     const { y: by, m0: bm0, dom: bdom } = bogotaCalendarPartsFromInstant(reference);
     const cesBaseOptRaw = this.config.get<string>("PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP");
     const cesBaseOpt =
@@ -6465,7 +6470,9 @@ export class PortalService implements OnModuleInit {
         }
 
         const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
-        const cut = liquidationCutIfClosingToday(freq, by, bm0, bdom);
+        const cut = force
+          ? liquidationLatestClosedCutAsOf(freq, by, bm0, bdom)
+          : liquidationCutIfClosingToday(freq, by, bm0, bdom);
         if (!cut) {
           skipped += 1;
           continue;
@@ -6588,7 +6595,7 @@ export class PortalService implements OnModuleInit {
           paid: false,
           paidAt: null,
           approvedBy: null,
-          payrollKind: "mensual",
+          payrollKind: freq,
           payPrimaServicios: payPrima,
           primaServiciosCop: payPrima ? primaCop : 0,
           primaServiciosDays: payPrima ? primaDays : null,
@@ -6635,13 +6642,13 @@ export class PortalService implements OnModuleInit {
     const mb = monthUtcBounds(p);
     if (!mb) throw new BadRequestException("periodoYm inválido");
     const refDate = mb.monthEnd;
-    return this.generateAutomaticLiquidacionesForReferenceDate(refDate);
+    return this.generateAutomaticLiquidacionesForReferenceDate(refDate, { force: true });
   }
 
   /**
    * Alta directa en PostgreSQL (Historial → Combustible). No reemplaza toda la tabla.
    */
-  async createFleetFuelLog(userId: string, role: JwtRole, body: Record<string, unknown>) {
+  async createFleetFuelLog(userId: string, role: JwtRole, body: CreateFleetFuelLogDto) {
     const permissionSet = this.isAdmin(role)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.loadPortalPermissionSet(userId);
@@ -6651,7 +6658,11 @@ export class PortalService implements OnModuleInit {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const saved = await this.upsertFleetFuelLogRow(client, body, userId);
+      const saved = await this.upsertFleetFuelLogRow(
+        client,
+        body as unknown as Record<string, unknown>,
+        userId
+      );
       await client.query("COMMIT");
       return saved;
     } catch (e) {
@@ -6665,7 +6676,7 @@ export class PortalService implements OnModuleInit {
   /**
    * Alta directa en PostgreSQL (Historial → Taller). No reemplaza toda la tabla.
    */
-  async createFleetMaintenanceLog(userId: string, role: JwtRole, body: Record<string, unknown>) {
+  async createFleetMaintenanceLog(userId: string, role: JwtRole, body: CreateFleetMaintenanceLogDto) {
     const permissionSet = this.isAdmin(role)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.loadPortalPermissionSet(userId);
@@ -6675,7 +6686,11 @@ export class PortalService implements OnModuleInit {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const saved = await this.upsertFleetMaintenanceLogRow(client, body, userId);
+      const saved = await this.upsertFleetMaintenanceLogRow(
+        client,
+        body as unknown as Record<string, unknown>,
+        userId
+      );
       await client.query("COMMIT");
       return saved;
     } catch (e) {

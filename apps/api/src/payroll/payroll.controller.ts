@@ -26,7 +26,9 @@ export class PayrollController {
    */
   @Roles("admin", "rrhh")
   @Post("autogenerate-period")
-  triggerAutogenerate(@Body() body: { fechaReferencia?: string; periodoYm?: string }) {
+  triggerAutogenerate(
+    @Body() body: { fechaReferencia?: string; periodoYm?: string; force?: boolean }
+  ) {
     return this.automation.triggerAutogeneration(body);
   }
 }

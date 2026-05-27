@@ -420,6 +420,87 @@ function normalizeHistoryWorkspace(value) {
   return HISTORY_WORKSPACES.has(v) ? v : "explore";
 }
 
+/** Alineado con apps/api/src/payroll/payroll-frequency.ts */
+function normalizePayrollFrequencyJs(raw) {
+  const s = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!s || s.includes("mensual")) return "mensual";
+  if (s.includes("quincen")) return "quincenal";
+  if (s.includes("catorcen")) return "catorcenal";
+  if (s.includes("seman")) return "semanal";
+  return "mensual";
+}
+
+function payrollPeriodCalendarYm(periodKey) {
+  const key = String(periodKey || "").trim();
+  const m = key.match(/^(\d{4}-\d{2})/);
+  return m ? m[1] : key.slice(0, 7);
+}
+
+function formatPayrollPeriodLabel(periodKey) {
+  const key = String(periodKey || "").trim();
+  if (!key) return "—";
+  const ym = payrollPeriodCalendarYm(key);
+  let monthTitle = ym;
+  if (monthRange(ym)) {
+    const [y, m] = ym.split("-").map(Number);
+    monthTitle = new Date(y, m - 1, 15).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  }
+  if (/-Q1$/i.test(key)) return `${monthTitle} · 1ª quincena`;
+  if (/-Q2$/i.test(key)) return `${monthTitle} · 2ª quincena`;
+  if (/-C1$/i.test(key)) return `${monthTitle} · 1.er catorcenio`;
+  if (/-C2$/i.test(key)) return `${monthTitle} · 2.º catorcenio`;
+  const sm = key.match(/-S(\d+)$/i);
+  if (sm) return `${monthTitle} · semana ${sm[1]}`;
+  return key;
+}
+
+function payrollRunTypeLabel(run) {
+  const pk = String(run?.payrollKind || "").trim().toLowerCase();
+  if (pk === "terminacion") return "Terminación contractual";
+  if (pk === "quincenal") return "Nómina quincenal";
+  if (pk === "catorcenal") return "Nómina catorcenal";
+  if (pk === "semanal") return "Nómina semanal";
+  const key = String(run?.month || "");
+  if (/-Q[12]$/i.test(key)) return "Nómina quincenal";
+  if (/-C[12]$/i.test(key)) return "Nómina catorcenal";
+  if (/-S\d+$/i.test(key)) return "Nómina semanal";
+  return "Nómina mensual";
+}
+
+function payrollRunMatchesPeriodFilter(run, period, currentYm, previousYm) {
+  if (period === "all") return true;
+  const runYm = payrollPeriodCalendarYm(run.month);
+  if (period === "current") return runYm === currentYm;
+  if (period === "previous") return runYm === previousYm;
+  return true;
+}
+
+function buildPayrollPeriodKeyFromForm(monthYm, payFrequency, quincenaHalf) {
+  const ym = String(monthYm || "").trim();
+  const freq = normalizePayrollFrequencyJs(payFrequency);
+  if (freq === "quincenal") {
+    const half = String(quincenaHalf || "Q1").trim().toUpperCase();
+    return `${ym}-${half === "Q2" ? "Q2" : "Q1"}`;
+  }
+  return ym;
+}
+
+function payrollDaysInManualCut(monthYm, payFrequency, quincenaHalf) {
+  const freq = normalizePayrollFrequencyJs(payFrequency);
+  const range = monthRange(monthYm);
+  if (!range) return 30;
+  if (freq !== "quincenal") return 30;
+  if (String(quincenaHalf || "Q1").toUpperCase() === "Q2") {
+    const end = new Date(range.end);
+    const start = new Date(range.start);
+    start.setDate(16);
+    return Math.max(1, Math.min(30, Math.round((end - start) / 86400000) + 1));
+  }
+  return 15;
+}
+
 function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters || {}) {
   const source = Array.isArray(allRuns) ? allRuns : [];
   const period = String(filters.period || "all");
@@ -430,10 +511,7 @@ function filterPayrollRunsByUiState(allRuns = [], filters = state.payrollFilters
   const previousDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const previousYm = `${previousDate.getFullYear()}-${String(previousDate.getMonth() + 1).padStart(2, "0")}`;
   return source.filter((run) => {
-    const matchPeriod =
-      period === "all" ||
-      (period === "current" && String(run.month || "") === currentYm) ||
-      (period === "previous" && String(run.month || "") === previousYm);
+    const matchPeriod = payrollRunMatchesPeriodFilter(run, period, currentYm, previousYm);
     const matchEmployee = !employee || String(run.employeeId || "") === employee;
     const matchStatus =
       status === "all" ||
@@ -472,9 +550,8 @@ function payrollRunAlreadyExists(runs = [], employeeId, month, payrollKind = "me
 function renderPayrollRunCard(run) {
   const paid = Boolean(run.paid);
   const stateTone = paid ? "paid" : "pending";
-  const monthLabel = String(run.month || "").trim() || "—";
-  const pk = String(run.payrollKind || "mensual");
-  const typeLabel = pk === "terminacion" ? "Terminación contractual" : "Nómina mensual";
+  const monthLabel = formatPayrollPeriodLabel(run.month);
+  const typeLabel = payrollRunTypeLabel(run);
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
   const tags = [];
   const hasAbsenceDetail = String(run.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
@@ -3920,15 +3997,47 @@ function wireMonthlyPayrollConcepts(form) {
     recalcInteresesCop();
   };
 
+  const quincenaWrap = form.querySelector("#payroll-quincena-wrap");
+  const freqHint = form.querySelector("#payroll-freq-hint");
+  const syncPayFrequencyUi = () => {
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
+    const freq = normalizePayrollFrequencyJs(emp?.payFrequency);
+    const isQuinc = freq === "quincenal";
+    if (quincenaWrap) {
+      quincenaWrap.classList.toggle("hidden", !isQuinc);
+      quincenaWrap.toggleAttribute("hidden", !isQuinc);
+      quincenaWrap.setAttribute("aria-hidden", isQuinc ? "false" : "true");
+    }
+    if (freqHint) {
+      if (!emp) {
+        freqHint.classList.add("hidden");
+        freqHint.textContent = "";
+      } else {
+        freqHint.classList.remove("hidden");
+        freqHint.textContent = isQuinc
+          ? "Periodicidad quincenal: liquide 1ª o 2ª quincena del mes. Salario y auxilio se prorratean (÷30 × días del corte)."
+          : `Periodicidad ${String(emp.payFrequency || "Mensual")}: liquidación del mes calendario completo.`;
+      }
+    }
+    if (isQuinc) {
+      const qSel = form.querySelector("#payroll-quincena-select");
+      const dom = new Date().getDate();
+      if (qSel && dom >= 16) qSel.value = "Q2";
+    }
+  };
+
   monthEl.addEventListener("change", onMonthChange);
   empEl.addEventListener("change", () => {
     syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
     syncAuxTransportFromEmployee();
+    syncPayFrequencyUi();
     recalcPrimaCop();
     recalcInteresesCop();
   });
+  form.querySelector("#payroll-quincena-select")?.addEventListener("change", onMonthChange);
   syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
   syncAuxTransportFromEmployee();
+  syncPayFrequencyUi();
 
   if (cbP && daysP && copP) {
     cbP.addEventListener("change", applyPrima);
@@ -21221,7 +21330,7 @@ function payrollHtml() {
   const sortedRuns = sortPayrollRunsByUiState(runs, runSort);
   const pending = allRuns.filter((r) => !r.paid).length;
   const totalPayrollMonth = allRuns
-    .filter((r) => String(r.month || "") === currentYm)
+    .filter((r) => payrollPeriodCalendarYm(r.month) === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
@@ -21246,21 +21355,19 @@ function payrollHtml() {
   const runRows = sortedRuns
     .map((r) => {
       const state = r.paid ? "paid" : "pending";
-      const monthLabel = String(r.month || "").trim();
+      const monthLabel = formatPayrollPeriodLabel(r.month);
       const pk = String(r.payrollKind || "mensual");
       const typeCell = (() => {
         if (pk === "terminacion") return '<span class="status status-viaje_asignado">Terminación</span>';
-        const bits = [];
+        const bits = [escapeHtml(payrollRunTypeLabel(r).replace(/^Nómina\s+/i, ""))];
         const orig = String(r.liquidacionOrigin || r.origenLiquidacion || "manual").toLowerCase();
-        if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor (cron día 13)">Automática</span>');
+        if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor según periodicidad de pago">Automática</span>');
         if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
         if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
         if (String(r.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(r, read(KEYS.hrAbsences, []))) {
           bits.push("Ausentismo");
         }
-        return bits.length
-          ? `<span class="muted">Nómina</span><br><span class="muted" style="font-size:0.76rem">${bits.join(" · ")} incl.</span>`
-          : `<span class="muted">Nómina</span>`;
+        return `<span class="muted">${bits.join(" · ")}</span>`;
       })();
       return `<tr data-payroll-state="${state}">
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
@@ -21486,24 +21593,49 @@ function payrollHtml() {
       </div>
     </div>
   </form>`;
+  const todayYmdBulk = new Date().toISOString().slice(0, 10);
+  const formPayBulk = `<section class="form-section form-section-violet full payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
+      <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva (todos los empleados)</h4>
+      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
+        Genera borradores en el servidor según la <strong>periodicidad de pago</strong> de cada colaborador (mensual, quincenal, etc.).
+        Use la fecha de cierre del período que desea liquidar (ej. día 15 para 1ª quincena, último día del mes para 2ª quincena o mensual).
+      </p>
+      <div class="form-section-grid">
+        <label>${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
+        <label class="full" style="display:flex;align-items:flex-start;gap:0.5rem;margin:0">
+          <input type="checkbox" id="payroll-bulk-force" checked style="margin-top:0.2rem" />
+          <span>Generar el último corte ya cerrado en esa fecha (recomendado si hoy no es día 15 ni fin de mes)</span>
+        </label>
+      </div>
+      <div class="toolbar" style="margin-top:0.75rem">
+        <button type="button" class="btn btn-primary" id="payroll-bulk-generate">${IC.dollar} Generar liquidaciones masivas</button>
+      </div>
+    </section>`;
   const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
     ${renderHrFormHero({
-      eyebrow: "Nómina mensual",
-      title: "Liquide el periodo con mejor lectura",
-      description: "Mantenga visibles salario base, novedades y deducciones en una sola vista para registrar el mes sin abrir paneles extra.",
+      eyebrow: "Liquidación individual",
+      title: "Liquide el periodo según periodicidad del empleado",
+      description: "El cálculo respeta mensual o quincenal según la ficha del colaborador. Para muchos empleados a la vez use la liquidación masiva debajo.",
       tone: "payroll",
       badges: [
-        renderHrFormHeroBadge("Mensual", "periodo"),
+        renderHrFormHeroBadge("Individual", "1 empleado"),
         renderHrFormHeroBadge("Variables", "pagos y deducciones"),
-        renderHrFormHeroBadge("1 vista", "menos scroll")
+        renderHrFormHeroBadge("Masiva", "abajo")
       ]
     })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.workerRole === "conductor" ? "Conductor" : "Empleado"} · ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`).join("")}</select></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
-        <label>${fieldLabel(IC.calendar, "Mes a liquidar")}<input type="month" name="month" required /></label>
+        <p class="full muted hidden" id="payroll-freq-hint" style="font-size:0.82rem;margin:0"></p>
+        <label>${fieldLabel(IC.calendar, "Mes calendario")}<input type="month" name="month" required /></label>
+        <label id="payroll-quincena-wrap" class="hidden" aria-hidden="true">${fieldLabel(IC.clock, "Quincena")}
+          <select name="payrollQuincena" id="payroll-quincena-select">
+            <option value="Q1">1ª quincena (días 1–15)</option>
+            <option value="Q2">2ª quincena (días 16–fin de mes)</option>
+          </select>
+        </label>
       </div>
     </fieldset>
     <fieldset id="payroll-prima-fieldset" class="form-section form-section-amber full hidden" aria-hidden="true">
@@ -21788,7 +21920,7 @@ function payrollHtml() {
     ]
   });
   const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${createCollapsibleProCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll", "Abrir formulario")}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Calcular nómina del mes", "Liquidación mensual con prestaciones, deducciones y novedades", formPay, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Calcular nómina", "Individual o masiva según periodicidad de pago", `${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
   const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario")}</div>`;
   const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Vacaciones, incapacidades, licencias y permisos laborales Colombia", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario")}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
@@ -29392,6 +29524,50 @@ function bindDynamicEvents() {
     });
   }
 
+  const payrollBulkBtn = document.getElementById("payroll-bulk-generate");
+  if (payrollBulkBtn) {
+    payrollBulkBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const actor = currentUser();
+      if (!actor || ![ROLES.ADMIN, ROLES.RRHH].includes(actor.role)) {
+        notify("Solo administradores o recursos humanos pueden ejecutar liquidación masiva.", "error");
+        return;
+      }
+      const fechaEl = document.getElementById("payroll-bulk-fecha");
+      const forceEl = document.getElementById("payroll-bulk-force");
+      const fechaReferencia = String(fechaEl?.value || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaReferencia)) {
+        notify("Indique una fecha de cierre válida (YYYY-MM-DD).", "error");
+        return;
+      }
+      const force = Boolean(forceEl?.checked);
+      payrollBulkBtn.disabled = true;
+      try {
+        const result = await postPortalAuthorized("/payroll/autogenerate-period", {
+          fechaReferencia,
+          force
+        });
+        if (result && typeof result === "object") {
+          const created = Number(result.created || 0);
+          const skipped = Number(result.skipped || 0);
+          const msgs = Array.isArray(result.messages) ? result.messages.filter(Boolean) : [];
+          await applyPortalBootstrapFromApi();
+          notify(
+            `Liquidación masiva: ${created} creada(s), ${skipped} omitida(s).${msgs.length ? ` Detalle: ${msgs.slice(0, 3).join(" · ")}` : ""}`,
+            created > 0 ? "success" : skipped > 0 && created === 0 ? "warn" : "info"
+          );
+          state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+          persistHrWorkspace("payroll", "data");
+          renderPortalView();
+        }
+      } catch (err) {
+        notify(String(err?.message || "No fue posible ejecutar la liquidación masiva."), "error");
+      } finally {
+        payrollBulkBtn.disabled = false;
+      }
+    });
+  }
+
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
     wireMonthlyPayrollConcepts(payrollForm);
@@ -29406,7 +29582,11 @@ function bindDynamicEvents() {
         notify(userMessage("payrollSelectMonth"), "error");
         return;
       }
-      const payPrima = Boolean(data.payPrimaServicios);
+      const payFreqNorm = normalizePayrollFrequencyJs(employee.payFrequency);
+      const periodKey = buildPayrollPeriodKeyFromForm(data.month, employee.payFrequency, data.payrollQuincena);
+      const payrollKind = payFreqNorm === "mensual" ? "mensual" : payFreqNorm;
+      const diasCorte = payrollDaysInManualCut(data.month, employee.payFrequency, data.payrollQuincena);
+      const payPrima = Boolean(data.payPrimaServicios) && payFreqNorm === "mensual";
       if (payPrima && !payrollMonthIsPrimaSemester(data.month)) {
         notify("La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).", "error");
         return;
@@ -29450,19 +29630,32 @@ function bindDynamicEvents() {
       }
       const linkedDriver = employee.workerRole === "conductor" ? resolveDriverForEmployee(employee) : null;
       const monthlyDriver = linkedDriver ? calculateDriverTripReport(linkedDriver.id, data.month) : null;
-      const autoTravelAllowance = monthlyDriver ? monthlyDriver.viaticTotal : 0;
-      const autoFuelReimbursement = linkedDriver
+      let autoTravelAllowance = monthlyDriver ? monthlyDriver.viaticTotal : 0;
+      let autoFuelReimbursement = linkedDriver
         ? readFuelLogs()
             .filter((log) => String(log.driverId || "") === String(linkedDriver.id) && String(log.paidBy || "empresa") === "conductor" && dateInRange(log.date, monthRange(data.month)))
             .reduce((acc, log) => acc + parseNum(log.totalCost), 0)
         : 0;
+      if (payFreqNorm === "quincenal" && diasCorte < 30) {
+        const prorate = diasCorte / 30;
+        autoTravelAllowance = Math.round(autoTravelAllowance * prorate);
+        autoFuelReimbursement = Math.round(autoFuelReimbursement * prorate);
+      }
       const travelAllowanceManual = parseNum(data.travelAllowanceManual);
       const fuelReimbursementManual = parseNum(data.fuelReimbursementManual);
       const travelAllowance = autoTravelAllowance + travelAllowanceManual;
       const fuelReimbursement = autoFuelReimbursement + fuelReimbursementManual;
-      const baseSalary = parseNum(employee.baseSalary);
+      const baseSalaryMonthly = parseNum(employee.baseSalary);
+      const baseSalary =
+        payFreqNorm === "quincenal"
+          ? Math.round((baseSalaryMonthly / 30) * diasCorte)
+          : baseSalaryMonthly;
       const extras = parseNum(data.extras);
-      const aux = parseNum(data.aux);
+      const auxRaw = parseNum(data.aux);
+      const aux =
+        payFreqNorm === "quincenal" && auxRaw > 0
+          ? Math.round((auxRaw / 30) * diasCorte)
+          : auxRaw;
       const bonus = parseNum(data.bonus);
       const empleadoAuxilioRef = readEmployeeTransportAllowanceCop(employee);
       const payrollAbsencesAll = read(KEYS.hrAbsences, []);
@@ -29515,7 +29708,7 @@ function bindDynamicEvents() {
         id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
-        month: data.month,
+        month: periodKey,
         gross,
         ibc,
         travelAllowance,
@@ -29539,7 +29732,7 @@ function bindDynamicEvents() {
         net,
         paid: false,
         createdAt: nowIso(),
-        payrollKind: "mensual",
+        payrollKind,
         payPrimaServicios: payPrima,
         primaServiciosDays: payPrima ? primaDaysRounded : null,
         primaServiciosCop: payPrima ? primaServiciosCop : 0,
@@ -29550,8 +29743,11 @@ function bindDynamicEvents() {
         settlementDetail: null
       };
       const runs = read(KEYS.payrollRuns, []);
-      if (payrollRunAlreadyExists(runs, employee.id, data.month, "mensual")) {
-        notify("Ya existe una liquidación mensual para este empleado y periodo.", "error");
+      if (payrollRunAlreadyExists(runs, employee.id, periodKey, payrollKind)) {
+        notify(
+          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y periodo.`,
+          "error"
+        );
         return;
       }
       runs.unshift(run);
@@ -30067,8 +30263,7 @@ function bindDynamicEvents() {
       ]
         .concat(
           rows.map((r) => {
-            const tipo =
-              String(r.payrollKind || "mensual") === "terminacion" ? "terminacion" : "mensual";
+            const tipo = String(r.payrollKind || "mensual").toLowerCase();
             const esc = (v) =>
               `"${String(v ?? "")
                 .replace(/\\/g, "\\\\")

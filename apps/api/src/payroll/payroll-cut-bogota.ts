@@ -115,3 +115,43 @@ export function liquidationCutIfClosingToday(
   }
   return null;
 }
+
+/**
+ * Último corte ya cerrado en el mes civil `y-m0` según el día `dom` (Bogotá).
+ * Útil para liquidación masiva manual sin esperar al día exacto de cierre.
+ */
+export function liquidationLatestClosedCutAsOf(
+  frequency: PayrollFrequencyNorm,
+  y: number,
+  m0: number,
+  dom: number
+): LiquidationCut | null {
+  const ld = lastDayOfMonth(y, m0);
+
+  if (frequency === "mensual") {
+    if (dom < ld) return null;
+    return liquidationCutIfClosingToday("mensual", y, m0, ld);
+  }
+
+  if (frequency === "quincenal") {
+    if (dom >= ld) return liquidationCutIfClosingToday("quincenal", y, m0, ld);
+    if (dom >= 15) return liquidationCutIfClosingToday("quincenal", y, m0, 15);
+    return null;
+  }
+
+  if (frequency === "catorcenal") {
+    if (dom >= ld) return liquidationCutIfClosingToday("catorcenal", y, m0, ld);
+    if (dom >= 14) return liquidationCutIfClosingToday("catorcenal", y, m0, 14);
+    return null;
+  }
+
+  let latest: LiquidationCut | null = null;
+  for (let start = 1; start <= ld; start += 7) {
+    const end = Math.min(start + 6, ld);
+    if (dom >= end) {
+      const c = liquidationCutIfClosingToday("semanal", y, m0, end);
+      if (c) latest = c;
+    }
+  }
+  return latest;
+}

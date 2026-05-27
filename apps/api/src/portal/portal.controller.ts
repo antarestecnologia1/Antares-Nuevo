@@ -17,6 +17,8 @@ import { SyncKeyDto } from "./dto/sync-key.dto";
 import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
 import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
+import { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
+import { CreateFleetMaintenanceLogDto } from "./dto/create-fleet-maintenance-log.dto";
 import { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { PortalService } from "./portal.service";
 
@@ -103,14 +105,14 @@ export class PortalController {
 
   /** Historial flota: alta en registros_combustible (PostgreSQL). */
   @Post("fleet/fuel-logs")
-  createFleetFuelLog(@Req() req: { user: ReqUser }, @Body() body: Record<string, unknown>) {
-    return this.portal.createFleetFuelLog(req.user.userId, req.user.role, body);
+  createFleetFuelLog(@Req() req: { user: ReqUser }, @Body() dto: CreateFleetFuelLogDto) {
+    return this.portal.createFleetFuelLog(req.user.userId, req.user.role, dto);
   }
 
   /** Historial flota: alta en registros_mantenimiento_vehiculo (PostgreSQL). */
   @Post("fleet/maintenance-logs")
-  createFleetMaintenanceLog(@Req() req: { user: ReqUser }, @Body() body: Record<string, unknown>) {
-    return this.portal.createFleetMaintenanceLog(req.user.userId, req.user.role, body);
+  createFleetMaintenanceLog(@Req() req: { user: ReqUser }, @Body() dto: CreateFleetMaintenanceLogDto) {
+    return this.portal.createFleetMaintenanceLog(req.user.userId, req.user.role, dto);
   }
 
   /**
