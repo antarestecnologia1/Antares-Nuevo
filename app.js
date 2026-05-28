@@ -1093,7 +1093,7 @@ function bindFixedTermContractEndPreview(root, cfg) {
     const fixed = isFixedTermContractType(contractSel.value);
     setContractDurationBranchVisible(wrap, fixed);
     if (!fixed) {
-      endEl.value = "";
+      clearFormDateInput(endEl);
       if (hintEl) hintEl.textContent = "";
       return;
     }
@@ -1111,7 +1111,7 @@ function bindFixedTermContractEndPreview(root, cfg) {
     if (window.AntaresValidation?.portalDateInputSetIso) {
       window.AntaresValidation.portalDateInputSetIso(endEl, endYmd);
     } else {
-      endEl.value = endYmd;
+      setFormDateByName(root, "contractEndDate", endYmd);
     }
     if (hintEl) {
       const notice = endYmd ? addDaysToYmd(endYmd, -30) : "";
@@ -1688,10 +1688,10 @@ function openEditModal({
       devWarn("openEditModal afterMount", err);
     }
   }
-  wireEditModalFieldValues(formEl, fields);
-  enhanceTripAssignmentSelects(formEl);
   window.AntaresValidation?.decorateFormFields?.(formEl);
+  wireEditModalFieldValues(formEl, fields);
   window.AntaresValidation?.resyncPortalDateValuesInRoot?.(formEl);
+  enhanceTripAssignmentSelects(formEl);
   scrollIntoViewSmoothBlockStart(formEl);
   scrollOpenCrudModalIntoView();
   wireFormSubmitGuard(
@@ -2343,8 +2343,8 @@ function openEditTripModal(req) {
         .filter((d) => String(d.id || "") !== String(req.trip.driverId || ""))
         .map((d) => ({ value: String(d.id || ""), label: `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}` }))
     );
-  const etaPickup = String(req.trip.etaPickup || "");
-  const etaDelivery = String(req.trip.etaDelivery || "");
+  const etaPickupLocal = String(toInputDate(req.trip.etaPickup || "") || "").slice(0, 16);
+  const etaDeliveryLocal = String(toInputDate(req.trip.etaDelivery || "") || "").slice(0, 16);
   openEditModal({
     title: `Editar viaje ${req.trip.tripNumber}`,
     subtitle: `Solicitud ${req.requestNumber || req.id} · ${req.clientName || ""}`,
@@ -2355,8 +2355,8 @@ function openEditTripModal(req) {
       { name: "vehicleId", label: "Vehículo", type: "select", value: req.trip.vehicleId || "", required: true, options: vehicleOptions },
       { name: "driverId", label: "Conductor", type: "select", value: req.trip.driverId || "", required: true, options: driverOptions },
       { type: "section", id: "edit-trip-times", title: "Fechas estimadas", hint: "Permite reprogramar la recogida o la entrega del viaje." },
-      { name: "etaPickup", label: "Recogida (fecha y hora)", type: "datetime-local", value: etaPickup ? etaPickup.slice(0, 16) : "", required: true },
-      { name: "etaDelivery", label: "Entrega (fecha y hora)", type: "datetime-local", value: etaDelivery ? etaDelivery.slice(0, 16) : "", required: true },
+      { name: "etaPickup", label: "Recogida (fecha y hora)", type: "datetime-local", value: etaPickupLocal, required: true },
+      { name: "etaDelivery", label: "Entrega (fecha y hora)", type: "datetime-local", value: etaDeliveryLocal, required: true },
       { type: "section", id: "edit-trip-money", title: "Tarifa y observaciones", hint: "Ajustes manuales que no exigen cambiar el estado del viaje." },
       { name: "tripValue", label: "Tarifa del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || 0), required: false },
       { name: "tripNotes", label: "Observaciones del viaje", type: "textarea", value: req.trip.notes || "", rows: 3 }
@@ -4717,18 +4717,31 @@ function wireEditModalFieldValues(formEl, fields) {
       return;
     }
     if (f.type === "date") {
-      const inp = formEl.querySelector(`input[type="date"][name="${f.name}"]`);
       const norm = normalizePortalDateYmd(f.value);
-      if (inp && norm) inp.value = norm;
+      if (norm) setFormDateByName(formEl, f.name, norm);
       return;
     }
     if (f.type === "datetime-local") {
-      const inp = formEl.querySelector(`input[type="datetime-local"][name="${f.name}"]`);
-      if (!inp || f.value == null) return;
+      if (f.value == null || String(f.value).trim() === "") return;
       const raw = String(f.value).trim();
       const local =
         raw.length >= 16 && raw.includes("T") ? raw.slice(0, 16) : String(toInputDate(raw) || "").slice(0, 16);
-      if (local) inp.value = local;
+      if (!local) return;
+      const V = window.AntaresValidation;
+      const hidden = formEl.querySelector(
+        `input[type="hidden"][name="${f.name}"][data-portal-datetime-iso="1"]`
+      );
+      const wrap = hidden?.closest?.(".portal-datetime-dmy-row");
+      if (wrap && V?.portalDatetimeInputSetIso) {
+        V.portalDatetimeInputSetIso(wrap, local);
+        return;
+      }
+      const inp = formEl.querySelector(`input[type="datetime-local"][name="${f.name}"]`);
+      if (!inp) return;
+      inp.value = local;
+      V?.mountPortalDatetimeDmyInput?.(inp);
+      const mountedWrap = inp.closest?.(".portal-datetime-dmy-row") || inp;
+      V?.portalDatetimeInputSetIso?.(mountedWrap, local);
       return;
     }
     if (f.type === "time") {
@@ -5035,10 +5048,23 @@ const CO_CATALOGS = {
 };
 
 function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Seleccione...") {
-  const normalizedSelected = String(selected || "");
-  const options = values.map((value) => {
+  const matched = matchCatalogOptionValue(values, selected);
+  const normalizedSelected = String(matched || selected || "").trim();
+  const list = Array.isArray(values) ? [...values] : [];
+  if (
+    normalizedSelected &&
+    !list.some((v) => String(v).trim().toLowerCase() === normalizedSelected.toLowerCase())
+  ) {
+    list.push(normalizedSelected);
+  }
+  const options = list.map((value) => {
     const safeValue = String(value || "").trim();
-    return `<option value="${safeValue}" ${safeValue === normalizedSelected ? "selected" : ""}>${safeValue}</option>`;
+    const sel =
+      safeValue === normalizedSelected ||
+      safeValue.toLowerCase() === normalizedSelected.toLowerCase()
+        ? "selected"
+        : "";
+    return `<option value="${safeValue}" ${sel}>${safeValue}</option>`;
   });
   return [`<option value="">${placeholder}</option>`, ...options].join("");
 }
@@ -7487,22 +7513,22 @@ function addCalendarYearsIsoDate(isoDateStr, years = 1) {
 /** SOAT y tecnomecánica: al cambiar fecha de expedición, sugerir vencimiento un año después. */
 function bindVehicleDocExpiryAutoFill(formEl) {
   if (!formEl || typeof formEl.querySelector !== "function") return;
-  const soatExpEl = formEl.querySelector("input[name='soatExpeditionDate']");
-  const soatVenEl = formEl.querySelector("input[name='soatExpiryDate']");
+  const soatExpEl = queryPortalDateField(formEl, "soatExpeditionDate");
+  const soatVenEl = queryPortalDateField(formEl, "soatExpiryDate");
   if (soatExpEl && soatVenEl) {
     const syncSoat = () => {
-      const iso = window.AntaresValidation?.portalDateInputValueIso?.(soatExpEl) || soatExpEl.value;
+      const iso = readFormDateIso(formEl, "soatExpeditionDate");
       const next = addCalendarYearsIsoDate(iso, 1);
       if (next) window.AntaresValidation?.portalDateInputSetIso?.(soatVenEl, next);
     };
     soatExpEl.addEventListener("change", syncSoat);
     soatExpEl.addEventListener("blur", syncSoat);
   }
-  const techExpEl = formEl.querySelector("input[name='techInspectionExpeditionDate']");
-  const techVenEl = formEl.querySelector("input[name='techInspectionExpiryDate']");
+  const techExpEl = queryPortalDateField(formEl, "techInspectionExpeditionDate");
+  const techVenEl = queryPortalDateField(formEl, "techInspectionExpiryDate");
   if (techExpEl && techVenEl) {
     const syncTech = () => {
-      const iso = window.AntaresValidation?.portalDateInputValueIso?.(techExpEl) || techExpEl.value;
+      const iso = readFormDateIso(formEl, "techInspectionExpeditionDate");
       const next = addCalendarYearsIsoDate(iso, 1);
       if (next) window.AntaresValidation?.portalDateInputSetIso?.(techVenEl, next);
     };
@@ -7914,11 +7940,30 @@ function portalUpgradeDates(root) {
   V.prepareFormsInRoot?.(scope);
 }
 
-/** Asigna fecha ISO a un campo por `name` (visible DMY + hidden). */
+/** Campo de fecha visible (DMY) o nativo dentro de un formulario o panel. */
+function queryPortalDateField(root, fieldNameOrId) {
+  return window.AntaresValidation?.findPortalDateVisibleInForm?.(root, fieldNameOrId) || null;
+}
+
+/** Lee fecha ISO desde un campo del formulario (DMY, hidden o nativo). */
+function readFormDateIso(root, fieldNameOrId) {
+  const el = queryPortalDateField(root, fieldNameOrId);
+  if (!el) return "";
+  const iso = window.AntaresValidation?.portalDateInputValueIso?.(el);
+  return iso || normalizePortalDateYmd(el.value) || "";
+}
+
+/** Asigna fecha ISO a un campo por `name` o `id` (visible DMY + hidden). */
 function setFormDateByName(form, fieldName, isoYmd) {
   const ymd = normalizePortalDateYmd(isoYmd);
   if (!form || !fieldName || !ymd) return;
   window.AntaresValidation?.setPortalFormDateByName?.(form, fieldName, ymd);
+}
+
+function setFormDateById(root, elementId, isoYmd) {
+  const ymd = normalizePortalDateYmd(isoYmd);
+  if (!root || !elementId || !ymd) return;
+  window.AntaresValidation?.setPortalFormDateById?.(root, elementId, ymd);
 }
 
 function clearFormDateInput(el) {
@@ -17539,11 +17584,7 @@ function adminUsersHtml(current) {
     : "";
 
   const genderOptsEdit = editingUser
-    ? `<option value="">— Sin especificar —</option>${CO_CATALOGS.genders.map((g) => {
-        const ug = String(editingUser.gender || "").trim().toUpperCase();
-        const sel = ug === g.trim().toUpperCase() ? " selected" : "";
-        return `<option value="${escapeAttr(g)}"${sel}>${escapeHtml(g)}</option>`;
-      }).join("")}`
+    ? selectOptionsFromCatalog(CO_CATALOGS.genders, editingUser.gender, "— Sin especificar —")
     : "";
 
   const userOptions = users
@@ -22360,10 +22401,10 @@ function normalizeDriverFormPayloadForStorage(data) {
   if (d.address != null) d.address = normalizeLatinUpperForDb(d.address);
   if (d.department != null) d.department = normalizeLatinForDb(d.department);
   if (d.city != null) d.city = normalizeLatinForDb(d.city);
-  if (d.eps != null) d.eps = normalizeLatinUpperForDb(d.eps);
-  if (d.arl != null) d.arl = normalizeLatinUpperForDb(d.arl);
+  if (d.eps != null) d.eps = matchCatalogOptionValue(CO_CATALOGS.eps, d.eps);
+  if (d.arl != null) d.arl = matchCatalogOptionValue(CO_CATALOGS.arl, d.arl);
   if (d.emergencyContact != null) d.emergencyContact = normalizeLatinUpperForDb(d.emergencyContact);
-  if (d.bloodType != null) d.bloodType = normalizeLatinUpperForDb(d.bloodType);
+  if (d.bloodType != null) d.bloodType = matchCatalogOptionValue(CO_CATALOGS.bloodTypes, d.bloodType);
   d.phone = normalizePortalPhoneForStorage(d.phone);
   d.emergencyPhone = normalizePortalPhoneForStorage(d.emergencyPhone);
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
@@ -22536,10 +22577,80 @@ async function syncDriverFromEmployee(employee, extraDriverData = {}) {
   }
 }
 
+const SST_COMPLIANCE_RECORD_TYPES = [
+  "Afiliacion EPS",
+  "Afiliacion pension",
+  "Afiliacion ARL",
+  "Examen medico ocupacional",
+  "Capacitacion SST",
+  "Inspeccion documental"
+];
+
+const SST_COMPLIANCE_STATUSES = ["Pendiente", "En gestion", "Cumplido"];
+
 function normalizeSstComplianceRow(row) {
   if (!row || typeof row !== "object") return row;
   const due = normalizePortalDateYmd(row.dueDate || row.expiryDate);
-  return { ...row, dueDate: due, expiryDate: due };
+  const recordType = String(row.recordType || "").trim();
+  const status = String(row.status || "Pendiente").trim();
+  const rtMatch =
+    SST_COMPLIANCE_RECORD_TYPES.find(
+      (t) => t.toLowerCase() === recordType.toLowerCase()
+    ) || recordType;
+  const stMatch =
+    SST_COMPLIANCE_STATUSES.find((t) => t.toLowerCase() === status.toLowerCase()) || status;
+  return { ...row, dueDate: due, expiryDate: due, recordType: rtMatch, status: stMatch };
+}
+
+function normalizeVacancyRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const v = { ...raw };
+  v.deadline = normalizePortalDateYmd(v.deadline);
+  v.publishedFrom = normalizePortalDateYmd(v.publishedFrom || v.visibleFrom);
+  return v;
+}
+
+function normalizePositionRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const p = { ...raw };
+  p.contractTypeDefault = matchCatalogOptionValue(CO_CATALOGS.positionContractTypes, p.contractTypeDefault);
+  p.workSchedule = matchCatalogOptionValue(CO_CATALOGS.workSchedule, p.workSchedule);
+  p.arlRiskLevel = matchCatalogOptionValue(CO_CATALOGS.arlRiskLevels, p.arlRiskLevel);
+  return p;
+}
+
+function normalizeCandidateRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const c = { ...raw };
+  c.documentType =
+    matchCatalogOptionValue(CO_CATALOGS.documentTypes, c.documentType) || String(c.documentType || "CC").trim();
+  c.educationLevel = matchCatalogOptionValue(CO_CATALOGS.educationLevel, c.educationLevel);
+  c.birthDate = normalizePortalDateYmd(c.birthDate);
+  c.availabilityDate = normalizePortalDateYmd(c.availabilityDate);
+  const phoneDisp = formatPortalPhoneForDisplay(c.phone);
+  if (phoneDisp) c.phone = phoneDisp;
+  return c;
+}
+
+function normalizeInterviewRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const i = { ...raw };
+  const rawWhen = String(i.when || "").trim();
+  i.whenLocal =
+    rawWhen.length >= 16 && rawWhen.includes("T") && !rawWhen.endsWith("Z") && !/[+-]\d{2}:\d{2}$/.test(rawWhen)
+      ? rawWhen.slice(0, 16)
+      : String(toInputDate(rawWhen) || "").slice(0, 16);
+  return i;
+}
+
+function normalizeHrAbsenceRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const a = { ...raw };
+  a.startDate = normalizePortalDateYmd(a.startDate);
+  a.endDate = normalizePortalDateYmd(a.endDate);
+  a.absenceType = payrollNormalizeAbsenceTypeKey(a.absenceType || "incapacidad_eps");
+  a.absenceSubtype = payrollNormalizeAbsenceSubtype(a.absenceType, a.absenceSubtype);
+  return a;
 }
 
 function patchApprovalRowForEmployee(approval, employee, empId, empName) {
@@ -23194,6 +23305,7 @@ function mountUniversalModuleFilters() {
     </div>
   `;
   nodes.viewRoot.prepend(host);
+  portalUpgradeDates(host);
 
   const input = host.querySelector("#module-filter-text");
   const colSelect = host.querySelector("#module-filter-column");
@@ -23266,8 +23378,8 @@ function mountUniversalModuleFilters() {
     if (valueInput) valueInput.value = "";
     if (colSelect) colSelect.value = "";
     if (statusSelect) statusSelect.value = "";
-    if (fromInput) fromInput.value = "";
-    if (toInput) toInput.value = "";
+    if (fromInput) clearFormDateInput(fromInput);
+    if (toInput) clearFormDateInput(toInput);
     apply();
   });
 
@@ -23611,7 +23723,7 @@ function payrollHtml() {
         <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). Quedan pendientes de pago para que pueda programar el desembolso con al menos dos días de anticipación.</p>
       </div>
       <div class="payroll-bulk-fields">
-        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" value="${escapeAttr(todayYmdBulk)}" required /></label>
+        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
         <label class="payroll-bulk-option">
           <input type="checkbox" id="payroll-bulk-force" checked />
           <span class="payroll-bulk-option__copy">
@@ -25605,8 +25717,9 @@ function contactLeadsHtml() {
       const company = escapeHtml(String(c.companyName || "").trim());
       const emailRaw = String(c.email || "").trim();
       const phoneRaw = String(c.phone || "").trim();
+      const phoneDisp = formatPortalPhoneForDisplay(phoneRaw) || phoneRaw;
       const email = escapeHtml(emailRaw);
-      const phone = escapeHtml(phoneRaw);
+      const phone = escapeHtml(phoneDisp);
       const svc = escapeHtml(String(c.serviceType || "").trim()) || "—";
       const op = escapeHtml(String(c.operationType || "").trim()) || "—";
       const role = escapeHtml(String(c.role || "").trim()) || "—";
@@ -25616,7 +25729,7 @@ function contactLeadsHtml() {
       const brief = escapeHtml(String(c.message || "").trim() || "(Sin mensaje corporativo)");
       const briefHtml = brief.replace(/\r\n|\r|\n/g, "<br />");
       const mailHref = escapeAttr(emailRaw);
-      const telHref = escapeAttr(phoneRaw.replace(/\s+/g, ""));
+      const telHref = escapeAttr(phoneDisp.replace(/\s+/g, ""));
 
       return `<article class="b2b-leads-card ${hueClass}">
         <header class="b2b-leads-card-top">
@@ -25867,6 +25980,11 @@ function enforceColombianFormStandards() {
     if (authContent) V.prepareFormsInRoot(authContent);
     if (nodes.b2bForm) V.decorateFormFields(nodes.b2bForm);
   }
+  const todayYmd = colombiaTodayIsoDate();
+  ["pickup-date", "delivery-date"].forEach((id) => {
+    const el = queryPortalDateField(nodes.viewRoot || document, id);
+    if (el) el.dataset.antaresDateMin = todayYmd;
+  });
 }
 
 let __schedulePortalViewMicrotask = null;
@@ -29306,7 +29424,16 @@ function bindDynamicEvents() {
           { name: "distanceKm", label: "Distancia estimada (km)", type: "number", min: 0, step: 0.01, value: parseNum(req.distanceKm || 0), required: false },
           { type: "section", id: "edit-req-contact", title: "Contacto en sitio", hint: "Persona que recibe / entrega." },
           { name: "siteContactName", label: "Nombre de contacto", value: req.siteContactName || req.contactName || "", required: true },
-          { name: "siteContactPhone", label: "Teléfono de contacto", value: req.siteContactPhone || req.contactPhone || "", required: true },
+          {
+            name: "siteContactPhone",
+            label: "Teléfono de contacto",
+            value:
+              formatPortalPhoneForDisplay(req.siteContactPhone || req.contactPhone || "") ||
+              req.siteContactPhone ||
+              req.contactPhone ||
+              "",
+            required: true
+          },
           { name: "notes", label: "Observaciones", type: "textarea", value: req.notes || req.observations || "", rows: 3 }
         ],
         afterMount: (formEl) => {
@@ -30865,6 +30992,7 @@ function bindDynamicEvents() {
   const bindHistoryFleetFilters = (formId, applyFn) => {
     const form = document.getElementById(formId);
     if (!form) return;
+    portalUpgradeDates(form);
     const refresh = () => applyFn(readFormEntriesNormalized(form));
     form.addEventListener("change", refresh);
     form.addEventListener("input", (event) => {
@@ -30929,6 +31057,7 @@ function bindDynamicEvents() {
 
   const historyFilter = document.getElementById("history-filter");
   if (historyFilter) {
+    portalUpgradeDates(historyFilter);
     const refreshHistoryResults = () => {
       const histUi = state.historyUi || { quickFilter: "all" };
       const data = readFormEntriesNormalized(historyFilter);
@@ -31760,9 +31889,9 @@ function bindDynamicEvents() {
       }
       const fechaEl = document.getElementById("payroll-bulk-fecha");
       const forceEl = document.getElementById("payroll-bulk-force");
-      const fechaReferencia = String(fechaEl?.value || "").trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaReferencia)) {
-        notify("Indique una fecha de cierre válida (YYYY-MM-DD).", "error");
+      const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || readFormDateIso(document, "fechaReferencia");
+      if (!fechaReferencia) {
+        notify("Indique una fecha de cierre válida (DD/MM/AAAA).", "error");
         return;
       }
       const force = Boolean(forceEl?.checked);
@@ -34306,6 +34435,8 @@ function initGlobalEvents() {
   installCandidateCvDownloadDelegation();
   installEmployeeContractDelegation();
   initB2BFormExperience();
+  portalUpgradeDates(nodes.viewRoot);
+  if (nodes.b2bForm) portalUpgradeDates(nodes.b2bForm);
 }
 
 function bindExtendedViewEditHandlers() {
@@ -34693,7 +34824,7 @@ function bindExtendedViewEditHandlers() {
     btn.addEventListener("click", () => {
       if (abortIfNotAdmin()) return;
       const all = read(KEYS.hrAbsences, []);
-      const target = all.find((x) => String(x.id) === String(btn.dataset.id || ""));
+      const target = normalizeHrAbsenceRowForEditor(all.find((x) => String(x.id) === String(btn.dataset.id || "")));
       if (!target) return;
       openEditModal({
         title: "Editar ausencia",
@@ -34704,14 +34835,14 @@ function bindExtendedViewEditHandlers() {
             name: "absenceType",
             label: "Tipo",
             type: "select",
-            value: payrollNormalizeAbsenceTypeKey(target.absenceType || "incapacidad_eps"),
+            value: target.absenceType,
             options: payrollAbsenceSelectOptions()
           },
           {
             name: "absenceSubtype",
             label: "Subtipo",
             type: "select",
-            value: payrollNormalizeAbsenceSubtype(target.absenceType, target.absenceSubtype),
+            value: target.absenceSubtype,
             options: payrollGetAbsenceSubtypeOptions(target.absenceType).length
               ? payrollGetAbsenceSubtypeOptions(target.absenceType)
               : [{ value: "", label: "No aplica" }]
@@ -34807,7 +34938,7 @@ function bindExtendedViewEditHandlers() {
     btn.addEventListener("click", () => {
       if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.vacancies, []);
-      const target = all.find((v) => String(v.id) === String(btn.dataset.id || ""));
+      const target = normalizeVacancyRowForEditor(all.find((v) => String(v.id) === String(btn.dataset.id || "")));
       if (!target) return;
       const positions = read(KEYS.positions, []).filter((p) => p.active !== false);
       const positionOpts = [
@@ -34841,7 +34972,7 @@ function bindExtendedViewEditHandlers() {
             name: "publishedFrom",
             label: "Visible en web desde",
             type: "date",
-            value: String(target.publishedFrom || target.visibleFrom || "").slice(0, 10)
+            value: target.publishedFrom || ""
           },
           { name: "requirements", label: "Requisitos y perfil", type: "textarea", value: target.requirements || "", rows: 4 },
           {
@@ -34967,20 +35098,14 @@ function bindExtendedViewEditHandlers() {
     btn.addEventListener("click", () => {
       if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.positions, []);
-      const target = all.find((p) => String(p.id) === String(btn.dataset.id || ""));
+      const target = normalizePositionRowForEditor(all.find((p) => String(p.id) === String(btn.dataset.id || "")));
       if (!target) return;
-      const contractOpts = [
-        { value: "", label: "Seleccione..." },
-        ...CO_CATALOGS.positionContractTypes.map((c) => ({ value: c, label: c }))
-      ];
-      const scheduleOpts = [
-        { value: "", label: "Seleccione..." },
-        ...CO_CATALOGS.workSchedule.map((s) => ({ value: s, label: s }))
-      ];
-      const arlOpts = [
-        { value: "", label: "Seleccione..." },
-        ...CO_CATALOGS.arlRiskLevels.map((s) => ({ value: s, label: s }))
-      ];
+      const contractOpts = editModalCatalogSelectOptions(
+        CO_CATALOGS.positionContractTypes,
+        target.contractTypeDefault
+      );
+      const scheduleOpts = editModalCatalogSelectOptions(CO_CATALOGS.workSchedule, target.workSchedule);
+      const arlOpts = editModalCatalogSelectOptions(CO_CATALOGS.arlRiskLevels, target.arlRiskLevel);
       openEditModal({
         title: "Editar cargo",
         subtitle: String(target.name || ""),
@@ -35283,7 +35408,7 @@ function bindExtendedViewEditHandlers() {
           { name: "phone", label: "Teléfono", value: target.phone || "" },
           { name: "documentType", label: "Tipo documento", type: "select", value: target.documentType || "CC", options: docTypeOpts, required: true },
           { name: "idDoc", label: "N° documento", value: target.idDoc || "", required: true },
-          { name: "birthDate", label: "Fecha de nacimiento", type: "date", value: String(target.birthDate || "").slice(0, 10), required: true },
+          { name: "birthDate", label: "Fecha de nacimiento", type: "date", value: target.birthDate || "", required: true },
           { name: "city", label: "Ciudad", value: target.city || "" },
           { name: "department", label: "Departamento", value: target.department || "" },
           { name: "address", label: "Dirección", value: target.address || "" },
@@ -35473,14 +35598,14 @@ function bindExtendedViewEditHandlers() {
     btn.addEventListener("click", () => {
       if (abortUnlessCanManageHiring()) return;
       const all = read(KEYS.interviews, []);
-      const target = all.find((i) => String(i.id) === String(btn.dataset.id || ""));
+      const target = normalizeInterviewRowForEditor(all.find((i) => String(i.id) === String(btn.dataset.id || "")));
       if (!target) return;
       openEditModal({
         title: "Editar entrevista",
         subtitle: String(target.candidateName || ""),
         submitText: "Guardar cambios",
         fields: [
-          { name: "when", label: "Fecha y hora", type: "datetime-local", value: target.when || "", required: true },
+          { name: "when", label: "Fecha y hora", type: "datetime-local", value: target.whenLocal || "", required: true },
           { name: "interviewer", label: "Entrevistador(a)", value: target.interviewer || "", required: true },
           {
             name: "modality",
@@ -35659,8 +35784,15 @@ function bindExtendedViewEditHandlers() {
     btn.addEventListener("click", () => {
       if (abortIfNotAdmin()) return;
       const all = read(KEYS.sstCompliance, []);
-      const target = all.find((x) => String(x.id) === String(btn.dataset.id || ""));
+      const target = normalizeSstComplianceRow(
+        all.find((x) => String(x.id) === String(btn.dataset.id || ""))
+      );
       if (!target) return;
+      const recordTypeOpts = editModalCatalogSelectOptions(
+        SST_COMPLIANCE_RECORD_TYPES,
+        target.recordType
+      );
+      const sstStatusOpts = editModalCatalogSelectOptions(SST_COMPLIANCE_STATUSES, target.status || "Pendiente");
       openEditModal({
         title: "Editar control SST",
         subtitle: String(target.recordType || ""),
@@ -35671,15 +35803,8 @@ function bindExtendedViewEditHandlers() {
             label: "Tipo de control",
             type: "select",
             value: target.recordType || "",
-            options: [
-              { value: "", label: "Seleccione..." },
-              { value: "Afiliacion EPS", label: "Afiliacion EPS" },
-              { value: "Afiliacion pension", label: "Afiliacion pension" },
-              { value: "Afiliacion ARL", label: "Afiliacion ARL" },
-              { value: "Examen medico ocupacional", label: "Examen medico ocupacional" },
-              { value: "Capacitacion SST", label: "Capacitacion SST" },
-              { value: "Inspeccion documental", label: "Inspeccion documental" }
-            ]
+            options: recordTypeOpts,
+            required: true
           },
           { name: "provider", label: "Entidad / proveedor", value: target.provider || "", required: true },
           { name: "dueDate", label: "Vencimiento", type: "date", value: target.dueDate || "", required: true },
@@ -35688,11 +35813,7 @@ function bindExtendedViewEditHandlers() {
             label: "Estado",
             type: "select",
             value: target.status || "Pendiente",
-            options: [
-              { value: "Pendiente", label: "Pendiente" },
-              { value: "En gestion", label: "En gestion" },
-              { value: "Cumplido", label: "Cumplido" }
-            ]
+            options: sstStatusOpts
           },
           { name: "documentCode", label: "Código documental", value: target.documentCode || "" },
           { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }

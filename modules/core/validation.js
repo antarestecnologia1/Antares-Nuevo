@@ -331,27 +331,53 @@
     visibleEl.value = ymd ? formatIsoDateToDmy(ymd) : "";
   }
 
-  /** Asigna una fecha ISO (YYYY-MM-DD) por `name`, sincronizando visible DMY e input oculto. */
+  function cssEscapePortal(s) {
+    const t = String(s ?? "");
+    return typeof CSS !== "undefined" && typeof CSS.escape === "function"
+      ? CSS.escape(t)
+      : t.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  /** Campo visible DMY o `type="date"` nativo dentro de un formulario o contenedor. */
+  function findPortalDateVisibleInForm(root, fieldNameOrId) {
+    if (!root?.querySelector || !fieldNameOrId) return null;
+    const esc = cssEscapePortal(fieldNameOrId);
+    const hidden = root.querySelector(
+      `input[type="hidden"][name="${esc}"][data-portal-date-iso="1"]`
+    );
+    if (hidden?.previousElementSibling?.classList?.contains("portal-date-dmy")) {
+      return hidden.previousElementSibling;
+    }
+    const byName = root.querySelector(`input[name="${esc}"]`);
+    if (byName?.classList?.contains("portal-date-dmy")) return byName;
+    if (byName && String(byName.type || "").toLowerCase() === "date") return byName;
+    const byId = root.querySelector(`#${esc}`);
+    if (byId?.classList?.contains("portal-date-dmy")) return byId;
+    if (byId && String(byId.type || "").toLowerCase() === "date") return byId;
+    return byName || byId;
+  }
+
+  /** Asigna una fecha ISO (YYYY-MM-DD) por `name` o `id`, sincronizando visible DMY e input oculto. */
   function setPortalFormDateByName(form, fieldName, isoYmd) {
     if (!form || !fieldName) return;
     const ymd = isValidIsoDate(isoYmd)
       ? String(isoYmd).trim().slice(0, 10)
       : parseDmyToIsoDate(isoYmd) || "";
     if (!ymd) return;
-    const esc =
-      typeof CSS !== "undefined" && typeof CSS.escape === "function"
-        ? CSS.escape(String(fieldName))
-        : String(fieldName).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const vis = findPortalDateVisibleInForm(form, fieldName);
+    if (vis) {
+      portalDateInputSetIso(vis, ymd);
+      return;
+    }
+    const esc = cssEscapePortal(fieldName);
     const hidden = form.querySelector(
       `input[type="hidden"][name="${esc}"][data-portal-date-iso="1"]`
     );
     if (hidden) {
       hidden.value = ymd;
-      const vis = hidden.previousElementSibling;
-      if (vis?.classList?.contains("portal-date-dmy")) {
-        portalDateInputSetIso(vis, ymd);
-        return;
-      }
+      const visAfter = hidden.previousElementSibling;
+      if (visAfter?.classList?.contains("portal-date-dmy")) portalDateInputSetIso(visAfter, ymd);
+      return;
     }
     let el =
       form.querySelector(`input[name="${esc}"]`) ||
@@ -368,6 +394,11 @@
       return;
     }
     el.value = ymd;
+  }
+
+  function setPortalFormDateById(root, elementId, isoYmd) {
+    if (!root || !elementId) return;
+    setPortalFormDateByName(root, elementId, isoYmd);
   }
 
   function syncPortalDateHiddenFromVisible(visibleEl) {
@@ -1508,6 +1539,8 @@
     portalDateInputValueIso,
     portalDateInputSetIso,
     setPortalFormDateByName,
+    setPortalFormDateById,
+    findPortalDateVisibleInForm,
     resyncPortalDateValuesInRoot,
     clearPortalDateInput,
     mountPortalDateDmyInput,
