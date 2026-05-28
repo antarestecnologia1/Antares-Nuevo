@@ -22,6 +22,34 @@ function redactEmailForLog(raw: string | undefined | null): string {
   return `${safeLocal}@${safeHost}${rest.length ? "." + rest.join(".") : ""}`;
 }
 
+/** Quita saltos de línea/espacios extra al pegar MAIL_FROM en Render u otros paneles. */
+function normalizeMailFrom(raw: string): string {
+  return String(raw || "")
+    .replace(/[\r\n]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractEmailAddress(from: string): string {
+  const trimmed = normalizeMailFrom(from);
+  const angle = trimmed.match(/<([^>]+)>/);
+  return (angle ? angle[1] : trimmed).trim().toLowerCase();
+}
+
+function isPlausibleEmailAddress(addr: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr);
+}
+
+const RESEND_BLOCKED_FROM_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "yahoo.com",
+  "icloud.com"
+]);
+
 function sanitizeLogText(raw: unknown, maxLength = 160): string {
   const text = String(raw ?? "")
     .replace(/\s+/g, " ")
@@ -59,6 +87,15 @@ export class MailService implements OnModuleInit {
 
   onModuleInit() {
     const fromConfigured = Boolean(this.resolveMailFrom());
+    if (this.resend && fromConfigured) {
+      const outbound = this.resolveOutboundFrom();
+      const configuredAddr = extractEmailAddress(this.resolveMailFrom());
+      if (outbound.replyTo && configuredAddr !== extractEmailAddress(outbound.from)) {
+        this.logger.warn(
+          `Correo (Resend): MAIL_FROM=${redactEmailForLog(configuredAddr)} no puede usarse como remitente en Resend; envíos con From=${redactEmailForLog(extractEmailAddress(outbound.from))} y Reply-To=${redactEmailForLog(outbound.replyTo)}. Para mostrar su dominio corporativo, verifique el dominio en Resend y defina RESEND_VERIFIED_FROM.`
+        );
+      }
+    }
     if (this.resend) {
       this.logger.log(
         `Correo (Resend): cliente activo. MAIL_FROM ${fromConfigured ? "definido" : "no definido — usando remitente de prueba Resend (solo envíos de prueba)"}.`
@@ -77,12 +114,55 @@ export class MailService implements OnModuleInit {
 
   private resolveMailFrom(): string {
     const explicit =
-      this.config.get<string>("MAIL_FROM")?.trim() ||
-      this.config.get<string>("MAIL_FROM_ADDRESS")?.trim() ||
-      process.env.MAIL_FROM?.trim() ||
-      process.env.MAIL_FROM_ADDRESS?.trim() ||
+      this.config.get<string>("MAIL_FROM") ||
+      this.config.get<string>("MAIL_FROM_ADDRESS") ||
+      process.env.MAIL_FROM ||
+      process.env.MAIL_FROM_ADDRESS ||
       "";
-    return explicit;
+    const normalized = normalizeMailFrom(explicit);
+    if (!normalized) return "";
+    const addr = extractEmailAddress(normalized);
+    if (!isPlausibleEmailAddress(addr)) {
+      this.logger.error(
+        `MAIL_FROM inválido o incompleto (${sanitizeLogText(normalized)}). Use una sola línea, p. ej. Transportes Antares <antarestecnologia1@gmail.com>.`
+      );
+      return "";
+    }
+    return normalized;
+  }
+
+  private resolveResendVerifiedFrom(): string {
+    const explicit =
+      this.config.get<string>("RESEND_VERIFIED_FROM") ||
+      process.env.RESEND_VERIFIED_FROM ||
+      "";
+    const normalized = normalizeMailFrom(explicit);
+    if (!normalized) return "";
+    const addr = extractEmailAddress(normalized);
+    if (!isPlausibleEmailAddress(addr)) {
+      this.logger.error(
+        `RESEND_VERIFIED_FROM inválido (${sanitizeLogText(normalized)}); se usará onboarding@resend.dev si hace falta.`
+      );
+      return "";
+    }
+    return normalized;
+  }
+
+  /**
+   * Remitente real para Resend. MAIL_FROM en Gmail/Hotmail/etc. se usa como Reply-To;
+   * el From debe ser un dominio verificado en Resend (RESEND_VERIFIED_FROM).
+   */
+  private resolveOutboundFrom(): { from: string; replyTo?: string } {
+    const configuredFrom = this.resolveMailFrom();
+    const fallback = this.resolveResendVerifiedFrom() || "onboarding@resend.dev";
+    if (!configuredFrom) {
+      return { from: fallback };
+    }
+    const domain = extractEmailAddress(configuredFrom).split("@")[1] || "";
+    if (RESEND_BLOCKED_FROM_DOMAINS.has(domain)) {
+      return { from: fallback, replyTo: extractEmailAddress(configuredFrom) };
+    }
+    return { from: configuredFrom };
   }
 
   async send(to: string, subject: string, html: string) {
@@ -92,18 +172,18 @@ export class MailService implements OnModuleInit {
       );
       return;
     }
-    const configuredFrom = this.resolveMailFrom();
-    const from = configuredFrom || "onboarding@resend.dev";
-    if (!configuredFrom) {
+    const { from, replyTo } = this.resolveOutboundFrom();
+    if (!this.resolveMailFrom()) {
       this.logger.warn(
-        `MAIL_FROM no definido; usando onboarding@resend.dev (solo válido en modo prueba de Resend). En producción use MAIL_FROM="Nombre <noreply@dominio-verificado>".`
+        `MAIL_FROM no definido o inválido; usando ${redactEmailForLog(extractEmailAddress(from))} (modo prueba Resend si es onboarding@resend.dev).`
       );
     }
     const result = await this.resend.emails.send({
       from,
       to,
       subject,
-      html
+      html,
+      ...(replyTo ? { replyTo } : {})
     });
     if (result && typeof result === "object" && "error" in result && result.error) {
       const msg =

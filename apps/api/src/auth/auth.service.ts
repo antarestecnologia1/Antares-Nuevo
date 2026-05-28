@@ -14,6 +14,11 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { timestamptzStringColombiaNow } from "../common/colombia-time";
+import {
+  normalizeDbText,
+  normalizeDbTextUpper,
+  normalizePersonTypeForDb
+} from "../common/normalize-db-text";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
 import {
   normalizeDatabaseUrl,
@@ -203,7 +208,7 @@ export class AuthService {
       ) VALUES (
         $1, $2, $3, $4::rol_usuario, 'pendiente'::estado_cuenta_usuario
       ) RETURNING id::text AS id`,
-      [email, passwordHash, dto.name.trim(), rolDb]
+      [email, passwordHash, normalizeDbTextUpper(dto.name) ?? email, rolDb]
     );
     const newId = inserted.rows[0]?.id;
     if (newId) {
@@ -237,10 +242,10 @@ export class AuthService {
       }
 
       const passwordHash = await bcrypt.hash(dto.password, 10);
-      const firstName = this.normalizeDbTextUpper(dto.firstName) ?? "";
-      const middleName = this.normalizeDbTextUpper(dto.middleName);
-      const lastName = this.normalizeDbTextUpper(dto.lastName) ?? "";
-      const secondLastName = this.normalizeDbTextUpper(dto.secondLastName);
+      const firstName = normalizeDbTextUpper(dto.firstName) ?? "";
+      const middleName = normalizeDbTextUpper(dto.middleName);
+      const lastName = normalizeDbTextUpper(dto.lastName) ?? "";
+      const secondLastName = normalizeDbTextUpper(dto.secondLastName);
       const fullName = [firstName, middleName, lastName, secondLastName]
         .map((s) => String(s || "").trim())
         .filter(Boolean)
@@ -250,13 +255,13 @@ export class AuthService {
       let numeroPersonal: string | null = null;
       let nitEmpresa: string | null = null;
       if (docType === "NIT") {
-        nitEmpresa = this.normalizeDbTextUpper(dto.companyNit) || this.normalizeDbTextUpper(dto.taxId);
-        numeroPersonal = this.normalizeDbTextUpper(dto.personalTaxId);
+        nitEmpresa = normalizeDbTextUpper(dto.companyNit) || normalizeDbTextUpper(dto.taxId);
+        numeroPersonal = normalizeDbTextUpper(dto.personalTaxId);
         if (!nitEmpresa || !numeroPersonal) {
           throw new BadRequestException("Indique NIT de empresa y cédula del usuario.");
         }
       } else {
-        numeroPersonal = this.normalizeDbTextUpper(dto.taxId);
+        numeroPersonal = normalizeDbTextUpper(dto.taxId);
         if (!numeroPersonal) {
           throw new BadRequestException("Indique el número de documento.");
         }
@@ -373,18 +378,18 @@ export class AuthService {
             middleName,
             lastName || null,
             secondLastName,
-            this.normalizePersonTypeForDb(dto.personType),
-            this.normalizeDbTextUpper(dto.documentType),
+            normalizePersonTypeForDb(dto.personType),
+            normalizeDbTextUpper(dto.documentType),
             numeroPersonal,
             nitEmpresa,
             dto.birthDate || null,
-            this.normalizeDbTextUpper(dto.gender),
-            this.normalizeDbTextUpper(dto.position),
-            this.normalizeDbTextUpper(dto.workArea),
-            this.normalizeDbTextUpper(dto.phone),
-            this.normalizeDbText(dto.department),
-            this.normalizeDbText(dto.city),
-            this.normalizeDbTextUpper(dto.address),
+            normalizeDbTextUpper(dto.gender),
+            normalizeDbTextUpper(dto.position),
+            normalizeDbTextUpper(dto.workArea),
+            normalizeDbTextUpper(dto.phone),
+            normalizeDbText(dto.department),
+            normalizeDbText(dto.city),
+            normalizeDbTextUpper(dto.address),
             vinculoDb,
             JSON.stringify(checklist),
             regAtColombia
@@ -431,17 +436,17 @@ export class AuthService {
                 email,
                 passwordHash,
                 fullName || dto.email,
-                this.normalizePersonTypeForDb(dto.personType),
-                this.normalizeDbTextUpper(dto.documentType),
+                normalizePersonTypeForDb(dto.personType),
+                normalizeDbTextUpper(dto.documentType),
                 numeroPersonal,
-                this.normalizeDbTextUpper(dto.phone),
+                normalizeDbTextUpper(dto.phone),
                 dto.birthDate || null,
-                this.normalizeDbTextUpper(dto.gender),
-                this.normalizeDbTextUpper(dto.position),
-                this.normalizeDbTextUpper(dto.workArea),
-                this.normalizeDbText(dto.department),
-                this.normalizeDbText(dto.city),
-                this.normalizeDbTextUpper(dto.address),
+                normalizeDbTextUpper(dto.gender),
+                normalizeDbTextUpper(dto.position),
+                normalizeDbTextUpper(dto.workArea),
+                normalizeDbText(dto.department),
+                normalizeDbText(dto.city),
+                normalizeDbTextUpper(dto.address),
                 vinculoDb,
                 regAtColombia
               ]
@@ -1100,34 +1105,6 @@ export class AuthService {
       this.logger.warn(`Bienvenida vía Supabase falló (${redactEmailForLog(email)}): ${sanitizeLogText(detail)}`);
       return detail;
     }
-  }
-
-  /** Texto libre (nombres, dirección, etc.): mayúsculas + sin tildes. No usar en departamento/ciudad (catálogo). */
-  private normalizeDbTextUpper(value: string | undefined | null): string | null {
-    const t = this.normalizeDbText(value);
-    if (!t) return null;
-    return t.toUpperCase();
-  }
-
-  /** tipo_persona solo "Natural" | "Juridica": igualdad en SQL sin LOWER() ni índices funcionales. */
-  private normalizePersonTypeForDb(value: string | undefined | null): string {
-    const t = this.normalizeDbText(value);
-    if (!t) return "Natural";
-    const k = t.toLowerCase();
-    if (k === "juridica") return "Juridica";
-    return "Natural";
-  }
-
-  /** Texto persistido en BD sin tildes; ñ → n (consistente con el portal). */
-  private normalizeDbText(value: string | undefined | null): string | null {
-    if (value == null) return null;
-    const t = String(value).trim();
-    if (!t) return null;
-    return t
-      .normalize("NFD")
-      .replace(/\p{M}/gu, "")
-      .replace(/ñ/g, "n")
-      .replace(/Ñ/g, "N");
   }
 
   private assertStrongPassword(password: string) {

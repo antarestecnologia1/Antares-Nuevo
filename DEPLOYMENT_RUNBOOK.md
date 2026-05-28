@@ -63,28 +63,58 @@ Variables locales: `npm run setup` crea `apps/api/.env` para Postgres Docker; pa
 
 **Correo de bienvenida (Resend)**
 
-El registro por API dispara un correo HTML (`MailService.sendPortalRegistrationWelcome`) con bienvenida y **estado de la cuenta** (pendiente de aprobación o ya aprobada), según `estado_cuenta` en Postgres. Para que se envíe:
+El registro por API dispara un correo HTML (`MailService.sendPortalRegistrationWelcome`) con bienvenida y **estado de la cuenta** (pendiente de aprobación o ya aprobada), según `estado_cuenta` en Postgres. Implementación: `apps/api/src/mail/mail.service.ts`.
 
 1. **Cuenta en Resend**  
-   Entra en [https://resend.com](https://resend.com), crea cuenta y accede al dashboard.
+   [https://resend.com](https://resend.com) → dashboard.
 
-2. **`RESEND_API_KEY`**  
-   En el panel: **API Keys** → **Create API Key**. Copia el valor (empieza por `re_`) y pégalo en:
-   - `apps/api/.env` en local, y
-   - Variables de entorno del servicio en **Render** (o tu host), p. ej. `RESEND_API_KEY=re_xxxx`.
+2. **`RESEND_API_KEY`** (Render y `apps/api/.env`, valor `re_...`).
 
-3. **`MAIL_FROM`**  
-   Resend exige un remitente de **dominio verificado** (no basta un Gmail arbitrario).
-   - En Resend: **Domains** → **Add domain** → sigue los registros DNS (SPF/DKIM) que te indiquen para tu dominio (ej. `transportesantares.co`).
-   - Cuando el dominio esté **Verified**, usa una dirección de ese dominio, por ejemplo:
-     - `Antares <notificaciones@transportesantares.co>`  
-     o solo `notificaciones@transportesantares.co`  
-     Ese string completo va en `MAIL_FROM`.
-   - **Modo prueba:** sin dominio propio, Resend permite `MAIL_FROM=onboarding@resend.dev` solo para envíos de prueba muy limitados; para producción hay que verificar dominio.
+3. **`MAIL_FROM`** — **una sola línea**, sin Enter al pegar en Render:
 
-4. **URL del enlace “Ir al portal” en el correo** (opcional pero recomendado)
+   ```text
+   Transportes Antares <antarestecnologia1@gmail.com>
+   ```
 
-- `PORTAL_PUBLIC_URL` o `PUBLIC_PORTAL_URL` — URL pública del portal (ej. `https://app.transportesantares.co`). Si no se define, el código usa un valor por defecto.
+   O solo: `antarestecnologia1@gmail.com`
+
+   La API **normaliza** saltos de línea y espacios extra (error frecuente: `antarestecnologia1@` + salto de línea → Resend rechaza el envío).
+
+4. **Gmail / Hotmail / Yahoo no pueden ser el remitente real en Resend**  
+   Resend no verifica `gmail.com`. Si `MAIL_FROM` usa uno de esos dominios, la API:
+   - envía con **`RESEND_VERIFIED_FROM`** si está definido, o con `onboarding@resend.dev` (solo pruebas limitadas);
+   - pone el correo de `MAIL_FROM` en **Reply-To** (las respuestas llegan a ese buzón).
+
+5. **Producción (correos a clientes corporativos)** — verificar dominio en Resend y definir:
+
+   ```text
+   RESEND_VERIFIED_FROM=Transportes Antares <notificaciones@transportesantares.co>
+   ```
+
+   Pasos en Resend: **Domains** → **Add domain** → DNS SPF/DKIM → estado **Verified**.
+
+   | Variable | Ejemplo Render (copiar tal cual, una línea) |
+   |----------|---------------------------------------------|
+   | `MAIL_FROM` | `Transportes Antares <antarestecnologia1@gmail.com>` |
+   | `RESEND_VERIFIED_FROM` | `Transportes Antares <notificaciones@transportesantares.co>` |
+   | `RESEND_API_KEY` | `re_...` (desde panel Resend) |
+
+   Tras cambiar variables en Render: **guardar** y **redeploy** del Web Service.
+
+6. **URL del botón “Acceder al portal” en el correo**
+
+   - `PORTAL_PUBLIC_URL` o `PUBLIC_PORTAL_URL` — ej. `https://www.transportesantares.co`
+   - Debe alinearse con `window.__PORTAL_PUBLIC_ORIGIN__` en `config/antares.public.js`.
+
+**Errores Resend habituales**
+
+| Mensaje | Causa | Acción |
+|---------|--------|--------|
+| `Domain not verified: Verify gmail.com` | `MAIL_FROM` es Gmail o quedó truncado con salto de línea | Corregir `MAIL_FROM` en una línea; usar `RESEND_VERIFIED_FROM` con dominio verificado |
+| `from` incompleto en el log (`antarestecnologia1@`) | Variable partida en Render | Repegar valor completo sin Enter |
+| Correo no llega a terceros con `onboarding@resend.dev` | Modo prueba Resend | Verificar dominio y `RESEND_VERIFIED_FROM` |
+
+Documentación ampliada: `docs/CONTEXTO_PROYECTO.md` (sección Correo).
 
 **Opcionales (otros)**
 

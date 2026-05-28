@@ -35,6 +35,19 @@ import { employeeIsConductorServiceProvider, employeeReceivesPayrollNomina } fro
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
 import { timestamptzStringColombiaNow, timestamptzToColombiaIso } from "../common/colombia-time";
 import {
+  normalizeCatalogTextFromUnknown,
+  normalizeDbTextUpperFromUnknown,
+  normalizeDbTextUpperOrNullFromUnknown,
+  normalizeEmailFromUnknown,
+  normalizeFreeTextPayloadRecord,
+  normalizePersonTypeForDb
+} from "../common/normalize-db-text";
+
+const nu = normalizeDbTextUpperFromUnknown;
+const nuN = normalizeDbTextUpperOrNullFromUnknown;
+const cat = normalizeCatalogTextFromUnknown;
+const em = normalizeEmailFromUnknown;
+import {
   computeEmployeeContractRenewalMeta,
   contractNoticeRefToken
 } from "./employee-contract-renewal";
@@ -4705,7 +4718,7 @@ export class PortalService implements OnModuleInit {
     const type = String(typeRaw || "").trim().toLowerCase();
     const base =
       payload && typeof payload === "object" && !Array.isArray(payload)
-        ? { ...(payload as Record<string, unknown>) }
+        ? normalizeFreeTextPayloadRecord(payload as Record<string, unknown>)
         : {};
 
     if (type === "create_user") {
@@ -4956,29 +4969,33 @@ export class PortalService implements OnModuleInit {
         WHERE id = $1::uuid`,
         [
           u.id,
-          u.name ?? null,
-          u.firstName ?? null,
-          u.middleName ?? null,
-          u.lastName ?? null,
-          u.secondLastName ?? null,
-          u.phone ?? null,
-          u.department ?? null,
-          u.city ?? null,
-          u.address ?? null,
-          u.emergencyContact ?? null,
-          u.emergencyPhone ?? null,
-          parentesco,
-          u.avatarUrl ?? null,
-          u.position ?? null,
-          u.workArea ?? null,
+          nuN(u.name),
+          nuN(u.firstName),
+          nuN(u.middleName),
+          nuN(u.lastName),
+          nuN(u.secondLastName),
+          nuN(u.phone),
+          cat(u.department),
+          cat(u.city),
+          nuN(u.address),
+          nuN(u.emergencyContact),
+          nuN(u.emergencyPhone),
+          nuN(parentesco),
+          u.avatarUrl != null && String(u.avatarUrl).trim() !== "" ? String(u.avatarUrl).trim() : null,
+          nuN(u.position),
+          nuN(u.workArea),
           u.profileQualityChecklist ? JSON.stringify(u.profileQualityChecklist) : null,
           fechaIngresoPortal,
-          String(rec.personType ?? "").trim() || null,
-          String(rec.gender ?? "").trim() || null,
+          rec.personType != null && String(rec.personType).trim() !== ""
+            ? normalizePersonTypeForDb(String(rec.personType))
+            : null,
+          nuN(rec.gender),
           fechaNacimiento,
-          String(rec.documentType ?? "").trim() || null,
-          String(rec.taxId ?? rec.personalDoc ?? "").trim() || null,
-          String(rec.company ?? "").trim() || null
+          nuN(rec.documentType),
+          rec.taxId != null || rec.personalDoc != null
+            ? String(rec.taxId ?? rec.personalDoc ?? "").trim() || null
+            : null,
+          nuN(rec.company)
         ]
       );
       if (admin && rec.twoFactorEnabled !== undefined && rec.twoFactorEnabled !== null) {
@@ -5062,30 +5079,19 @@ export class PortalService implements OnModuleInit {
           ? null
           : String(logoPick).trim();
       const emailPick = pickPortalField(rec, "email", "correo_empresarial", "correo");
-      const correoEmp =
-        emailPick === undefined || emailPick === null || String(emailPick).trim() === ""
-          ? null
-          : String(emailPick).trim().slice(0, 120);
+      const correoEmpRaw = em(emailPick);
+      const correoEmp = correoEmpRaw ? correoEmpRaw.slice(0, 120) : null;
       const contactPick = pickPortalField(rec, "contactName", "nombre_contacto");
-      const nombreContacto =
-        contactPick === undefined || contactPick === null || String(contactPick).trim() === ""
-          ? null
-          : String(contactPick).trim().slice(0, 255);
+      const nombreContactoRaw = nuN(contactPick);
+      const nombreContacto = nombreContactoRaw ? nombreContactoRaw.slice(0, 255) : null;
       const deptPick = pickPortalField(rec, "department", "departamento");
-      const departamento =
-        deptPick === undefined || deptPick === null || String(deptPick).trim() === ""
-          ? null
-          : String(deptPick).trim().slice(0, 120);
+      const departamentoRaw = cat(deptPick);
+      const departamento = departamentoRaw ? departamentoRaw.slice(0, 120) : null;
       const cityPick = pickPortalField(rec, "city", "ciudad");
-      const ciudad =
-        cityPick === undefined || cityPick === null || String(cityPick).trim() === ""
-          ? null
-          : String(cityPick).trim().slice(0, 120);
+      const ciudadRaw = cat(cityPick);
+      const ciudad = ciudadRaw ? ciudadRaw.slice(0, 120) : null;
       const addrPick = pickPortalField(rec, "address", "direccion_operativa", "direccion");
-      const direccionOp =
-        addrPick === undefined || addrPick === null || String(addrPick).trim() === ""
-          ? null
-          : String(addrPick).trim();
+      const direccionOp = nuN(addrPick);
       await c.query(
         `INSERT INTO empresas (id, nombre, nit, telefono, correo_empresarial, nombre_contacto, departamento, ciudad, direccion_operativa, tipo_relacion_empresa, activo, url_logo)
          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::tipo_relacion_empresa, $11, $12)
@@ -5103,9 +5109,9 @@ export class PortalService implements OnModuleInit {
            url_logo = EXCLUDED.url_logo`,
         [
           id,
-          String(nombre).trim(),
+          nu(nombre),
           String(nit).trim(),
-          telefono,
+          telefono != null ? nu(String(telefono)) : null,
           correoEmp,
           nombreContacto,
           departamento,
@@ -5156,17 +5162,17 @@ export class PortalService implements OnModuleInit {
           mensaje = EXCLUDED.mensaje`,
         [
           row.id,
-          row.contactName,
-          row.companyName,
-          row.nit,
-          row.role,
-          row.phone,
-          row.email,
-          row.serviceType,
-          row.operationType,
-          row.frequency,
-          row.serviceWindow,
-          row.message
+          nu(row.contactName),
+          nu(row.companyName),
+          String(row.nit ?? "").trim(),
+          nu(row.role),
+          String(row.phone ?? "").trim(),
+          em(row.email),
+          nu(row.serviceType),
+          nu(row.operationType),
+          nu(row.frequency),
+          nu(row.serviceWindow),
+          nu(row.message)
         ]
       );
     }
@@ -5571,8 +5577,8 @@ export class PortalService implements OnModuleInit {
         (empresaId && String(req.clientCompanyId || "") === String(empresaId));
       if (!ownerOk) throw new ForbiddenException();
 
-      const contactName = String(req.contactName ?? req.siteContactName ?? "").trim();
-      const contactPhone = String(req.contactPhone ?? req.siteContactPhone ?? "").trim();
+      const contactName = nu(req.contactName ?? req.siteContactName);
+      const contactPhone = nu(req.contactPhone ?? req.siteContactPhone);
       if (!contactName || !contactPhone) {
         throw new BadRequestException(
           "Faltan contacto en sitio y/o teléfono en una solicitud (nombre y teléfono son obligatorios en base de datos)."
@@ -5590,8 +5596,8 @@ export class PortalService implements OnModuleInit {
       } else {
         weightKg = Math.max(0, Number(req.weightKg) || 0);
       }
-      const observations =
-        String(req.observations ?? req.notes ?? "").trim() || null;
+      const observationsRaw = nuN(req.observations ?? req.notes);
+      const observations = observationsRaw || null;
       const tipoServicio = this.solicitudModoTransporteFromPayload(req);
       const refrigeracionTermoking = this.solicitudRefrigeracionFromPayload(req);
       const insuredValue =
@@ -5662,18 +5668,18 @@ export class PortalService implements OnModuleInit {
           req.requestNumber,
           req.clientUserId,
           req.clientCompanyId || null,
-          req.clientName,
-          req.requestedByName,
-          req.originDepartment,
-          req.originCity,
-          req.originAddress,
-          req.destinationDepartment,
-          req.destinationCity,
-          req.destinationAddress,
+          nu(req.clientName),
+          nu(req.requestedByName),
+          cat(req.originDepartment),
+          cat(req.originCity),
+          nu(req.originAddress),
+          cat(req.destinationDepartment),
+          cat(req.destinationCity),
+          nu(req.destinationAddress),
           req.pickupAt,
           req.etaDelivery,
           vehicleType,
-          req.cargoDescription,
+          nu(req.cargoDescription),
           tipoServicio,
           refrigeracionTermoking,
           boxesNum,
@@ -5687,7 +5693,7 @@ export class PortalService implements OnModuleInit {
           insuredValue,
           Number(req.standbyChargeTotal) || 0,
           JSON.stringify(Array.isArray(req.standbyEvents) ? req.standbyEvents : []),
-          req.rejectionReason || null,
+          nuN(req.rejectionReason),
           req.approvedAt || null,
           req.approvedBy || null,
           autoApproved,
@@ -5737,7 +5743,7 @@ export class PortalService implements OnModuleInit {
             tripDb.vehicleTipoAsignado || null,
             tripDb.driverName,
             tripDb.driverPhone,
-            t.route || null,
+            t.route != null && String(t.route).trim() !== "" ? nu(t.route) : null,
             tripDb.pickupProg,
             tripDb.deliveryProg,
             t.assignedBy || null,
@@ -5797,30 +5803,37 @@ export class PortalService implements OnModuleInit {
         [
           v.id,
           String(v.plate).toUpperCase(),
-          v.brand || "N/D",
-          v.model || "N/D",
+          nu(v.brand) || "N/D",
+          nu(v.model) || "N/D",
           Number(v.year) || 2020,
-          v.color || "N/D",
-          v.type || "Camion",
+          nu(v.color) || "N/D",
+          nu(v.type) || "CAMION",
           Number(v.capacityKg) || 1,
           Boolean(v.refrigerated),
-          v.bodyType || "Furgon",
-          v.fuelType || "Diesel",
-          v.axleConfig || "4x2",
-          v.engineNumber || "N/D",
-          (v.vin || "XXXXXXXXXXX").slice(0, 17),
-          v.ownershipCard || "N/D",
+          nu(v.bodyType) || "FURGON",
+          nu(v.fuelType) || "DIESEL",
+          nu(v.axleConfig) || "4X2",
+          nu(v.engineNumber) || "N/D",
+          String(v.vin || "XXXXXXXXXXX")
+            .trim()
+            .toUpperCase()
+            .slice(0, 17),
+          nu(v.ownershipCard) || "N/D",
           v.soatExpeditionDate || new Date().toISOString().slice(0, 10),
           v.soatExpiryDate || new Date().toISOString().slice(0, 10),
           v.techInspectionExpeditionDate || new Date().toISOString().slice(0, 10),
           v.techInspectionExpiryDate || new Date().toISOString().slice(0, 10),
-          v.rcPolicyContract || null,
-          v.rcPolicyExtra || null,
+          nuN(v.rcPolicyContract),
+          nuN(v.rcPolicyExtra),
           v.rcPolicyExpiry || null,
           Boolean(v.hasGps),
-          v.gpsProvider || null,
-          v.satelliteProviderUser || null,
-          v.satelliteProviderPassword || null,
+          nuN(v.gpsProvider),
+          v.satelliteProviderUser != null && String(v.satelliteProviderUser).trim() !== ""
+            ? String(v.satelliteProviderUser).trim()
+            : null,
+          v.satelliteProviderPassword != null && String(v.satelliteProviderPassword).trim() !== ""
+            ? String(v.satelliteProviderPassword)
+            : null,
           v.available !== false,
           Boolean(v.autoBusy)
         ]
@@ -5851,11 +5864,15 @@ export class PortalService implements OnModuleInit {
 
       const bloodRaw = p(d, "bloodType", "tipo_sangre");
       const bloodSql =
-        bloodRaw != null && String(bloodRaw).trim() !== "" ? String(bloodRaw).trim().slice(0, 8) : null;
+        bloodRaw != null && String(bloodRaw).trim() !== ""
+          ? (nuN(bloodRaw)?.slice(0, 8) ?? null)
+          : null;
       const epsRaw = p(d, "eps");
-      const epsSql = epsRaw != null && String(epsRaw).trim() !== "" ? String(epsRaw).trim().slice(0, 120) : null;
+      const epsSql =
+        epsRaw != null && String(epsRaw).trim() !== "" ? (nuN(epsRaw)?.slice(0, 120) ?? null) : null;
       const arlRaw = p(d, "arl");
-      const arlSql = arlRaw != null && String(arlRaw).trim() !== "" ? String(arlRaw).trim().slice(0, 120) : null;
+      const arlSql =
+        arlRaw != null && String(arlRaw).trim() !== "" ? (nuN(arlRaw)?.slice(0, 120) ?? null) : null;
       const comparendosRaw = p(d, "comparendos", "comparendos_pendientes");
       const comparendosNum = Number(comparendosRaw);
       const comparendosSql = Number.isFinite(comparendosNum)
@@ -5880,17 +5897,21 @@ export class PortalService implements OnModuleInit {
         new Date().toISOString().slice(0, 10);
 
       const idDoc = String(d.idDoc ?? "0000000").trim().slice(0, 32) || "0000000";
-      const docType = String(d.documentType || "CC")
-        .trim()
-        .slice(0, 8) || "CC";
-      const licenseCategory = String(d.licenseCategory || "C2")
-        .trim()
-        .slice(0, 8) || "C2";
-      const phone = String(d.phone || "3000000000").trim().slice(0, 32) || "3000000000";
+      const docType =
+        String(d.documentType || "CC")
+          .trim()
+          .toUpperCase()
+          .slice(0, 8) || "CC";
+      const licenseCategory =
+        String(d.licenseCategory || "C2")
+          .trim()
+          .toUpperCase()
+          .slice(0, 8) || "C2";
+      const phone = (nu(d.phone || "3000000000").slice(0, 32) || "3000000000");
       const defCourseRaw = p(d, "defensiveDrivingCourse", "defensiveCourse", "curso_conduccion_defensiva");
       const defCourseSql =
         defCourseRaw != null && String(defCourseRaw).trim() !== ""
-          ? String(defCourseRaw).trim().slice(0, 32)
+          ? (nuN(defCourseRaw)?.slice(0, 32) ?? null)
           : null;
 
       try {
@@ -5947,14 +5968,14 @@ export class PortalService implements OnModuleInit {
         [
           d.id,
           companyIdSql,
-          String(d.name || "Conductor").trim().slice(0, 255) || "Conductor",
+          (nu(d.name || "Conductor").slice(0, 255) || "CONDUCTOR"),
           docType,
           idDoc,
           phone,
-          d.department != null ? String(d.department).trim().slice(0, 120) : null,
-          d.city != null ? String(d.city).trim().slice(0, 120) || "Bogota" : "Bogota",
-          d.address != null ? String(d.address).trim().slice(0, 2000) || "N/D" : "N/D",
-          String(d.license || "N").trim().slice(0, 64) || "N",
+          d.department != null ? (cat(d.department)?.slice(0, 120) ?? null) : null,
+          d.city != null ? (cat(d.city)?.slice(0, 120) || "Bogota") : "Bogota",
+          d.address != null ? (nu(d.address).slice(0, 2000) || "N/D") : "N/D",
+          nu(d.license || "N").slice(0, 64) || "N",
           licenseCategory,
           licenseExpirySql,
           occExam,
@@ -5968,11 +5989,11 @@ export class PortalService implements OnModuleInit {
           arlSql,
           comparendosSql,
           anosSql,
-          p(d, "emergencyContact") != null ? String(p(d, "emergencyContact")).trim().slice(0, 255) : null,
-          p(d, "emergencyPhone") != null ? String(p(d, "emergencyPhone")).trim().slice(0, 32) : null,
+          p(d, "emergencyContact") != null ? (nuN(p(d, "emergencyContact"))?.slice(0, 255) ?? null) : null,
+          p(d, "emergencyPhone") != null ? (nuN(p(d, "emergencyPhone"))?.slice(0, 32) ?? null) : null,
           d.available !== false,
           Boolean(d.autoBusy),
-          d.contractType != null ? String(d.contractType).trim().slice(0, 80) : null,
+          d.contractType != null ? (nuN(d.contractType)?.slice(0, 80) ?? null) : null,
           d.baseSalary != null && Number.isFinite(Number(d.baseSalary)) ? Number(d.baseSalary) : null,
           portalDateYmdOrNull(d.startDate),
           hiredOk,
@@ -6011,7 +6032,7 @@ export class PortalService implements OnModuleInit {
         `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz)
          ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo, fecha_lectura = EXCLUDED.fecha_lectura`,
-        [n.id, n.userId, n.title, n.body, (n.readAt ?? null) as string | Date | null]
+        [n.id, n.userId, nuN(n.title), nuN(n.body), (n.readAt ?? null) as string | Date | null]
       );
     }
 
@@ -6070,7 +6091,7 @@ export class PortalService implements OnModuleInit {
            cuerpo = EXCLUDED.cuerpo,
            fecha_envio_real = COALESCE(EXCLUDED.fecha_envio_real, correos_salida.fecha_envio_real),
            error_envio = EXCLUDED.error_envio`,
-        [e.id, e.to, e.subject, e.body, e.sentAt || null, e.error || null]
+        [e.id, em(e.to), nuN(e.subject), nuN(e.body), e.sentAt || null, e.error != null ? String(e.error).trim() : null]
       );
     }
   }
@@ -6294,25 +6315,27 @@ export class PortalService implements OnModuleInit {
       if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
       if (this.skipUnlessPersistUuid("syncPayrollEmployees.companyId", e.companyId)) continue;
       const p = pickPortalField;
-      const name = String(e.name ?? "").trim() || "Empleado";
-      const docType = String(e.documentType || "CC");
-      const idDoc = String(e.idDoc || "0");
-      const city = String(p(e, "city") ?? "Bogota");
-      const address = String(p(e, "address") ?? "N/D");
-      const phone = String(p(e, "phone") ?? "3000000000");
-      const emContact = String(p(e, "emergencyContact") ?? "N/D");
-      const emPhone = String(p(e, "emergencyPhone") ?? "3000000000");
-      const emRel = String(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar");
-      const posText = String(p(e, "position") ?? "Empleado");
-      const contract = String(p(e, "contractType") ?? "Indefinido");
+      const name = nu(e.name ?? "Empleado") || "EMPLEADO";
+      const docType = String(e.documentType || "CC")
+        .trim()
+        .toUpperCase();
+      const idDoc = String(e.idDoc || "0").trim();
+      const city = cat(p(e, "city") ?? "Bogota") ?? "Bogota";
+      const address = nu(p(e, "address") ?? "N/D") || "N/D";
+      const phone = nu(p(e, "phone") ?? "3000000000") || "3000000000";
+      const emContact = nu(p(e, "emergencyContact") ?? "N/D") || "N/D";
+      const emPhone = nu(p(e, "emergencyPhone") ?? "3000000000") || "3000000000";
+      const emRel = nu(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar") || "FAMILIAR";
+      const posText = nu(p(e, "position") ?? "Empleado") || "EMPLEADO";
+      const contract = nu(p(e, "contractType") ?? "Indefinido") || "INDEFINIDO";
       const start = String(p(e, "startDate") ?? new Date().toISOString().slice(0, 10));
       const base = Number(p(e, "baseSalary")) || 0;
-      const bank = String(p(e, "bankName", "bank") ?? "Bancolombia");
-      const acctNum = String(p(e, "bankAccount", "accountNumber") ?? "0");
-      const acctType = String(p(e, "bankAccountType", "accountType") ?? "Ahorros");
-      const eps = String(p(e, "eps") ?? "Sura");
-      const pension = String(p(e, "pensionFund") ?? "Porvenir");
-      const arl = String(p(e, "arl") ?? "Sura");
+      const bank = nu(p(e, "bankName", "bank") ?? "Bancolombia") || "BANCOLOMBIA";
+      const acctNum = String(p(e, "bankAccount", "accountNumber") ?? "0").trim();
+      const acctType = nu(p(e, "bankAccountType", "accountType") ?? "Ahorros") || "AHORROS";
+      const eps = nu(p(e, "eps") ?? "Sura") || "SURA";
+      const pension = nu(p(e, "pensionFund") ?? "Porvenir") || "PORVENIR";
+      const arl = nu(p(e, "arl") ?? "Sura") || "SURA";
       const role = String(e.workerRole || "empleado").toLowerCase();
 
       const periodicidadRaw = p(
@@ -6342,51 +6365,53 @@ export class PortalService implements OnModuleInit {
         docType,
         idDoc,
         portalDateOrNull(p(e, "birthDate")),
-        (p(e, "gender") as string) || null,
-        (p(e, "maritalStatus") as string) || null,
-        (p(e, "bloodType") as string) || null,
-        (p(e, "educationLevel") as string) || null,
-        (p(e, "department") as string) || null,
+        nuN(p(e, "gender")),
+        nuN(p(e, "maritalStatus")),
+        nuN(p(e, "bloodType")),
+        nuN(p(e, "educationLevel")),
+        cat(p(e, "department")),
         city,
         address,
         phone,
-        (p(e, "personalEmail") as string) || null,
+        em(p(e, "personalEmail")),
         emContact,
         emPhone,
         emRel,
         posText,
         contract,
-        ((p(e, "contractDuration", "contractDurationText") as string) || "").trim() || null,
+        nuN(p(e, "contractDuration", "contractDurationText")),
         start,
         base,
         p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
         periodicidadPago,
-        ((p(e, "costCenter", "centro_costos", "centroCostos") as string) || "").trim() || null,
-        (p(e, "contributorType") as string) || null,
-        (p(e, "arlRiskLevel") as string) || null,
-        (p(e, "contractTemplateKind", "contractTemplate") as string) || null,
+        nuN(p(e, "costCenter", "centro_costos", "centroCostos")),
+        nuN(p(e, "contributorType")),
+        nuN(p(e, "arlRiskLevel")),
+        nuN(p(e, "contractTemplateKind", "contractTemplate")),
         eps,
         pension,
         arl,
-        (p(e, "severanceFund") as string) || null,
-        (p(e, "compensationFund") as string) || null,
+        nuN(p(e, "severanceFund")),
+        nuN(p(e, "compensationFund")),
         bank,
         acctType,
         acctNum,
         role,
-        (p(e, "license", "licenseNumber") as string) || null,
-        (p(e, "licenseCategory") as string) || null,
+        nuN(p(e, "license", "licenseNumber")),
+        p(e, "licenseCategory") != null
+          ? String(p(e, "licenseCategory")).trim().toUpperCase() || null
+          : null,
         portalDateOrNull(p(e, "licenseExpiry")),
         occExam,
         occExpiry,
         intraExam,
         intraExpiry,
-        (p(e, "defensiveCourse", "defensiveDrivingCourse") as string) || null,
+        nuN(p(e, "defensiveCourse", "defensiveDrivingCourse")),
         p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
         portalDateOrNull(p(e, "contractEndDate")),
-        (p(e, "workSchedule") as string) || null,
+        nuN(p(e, "workSchedule")),
         (p(e, "avatarUrl") as string) || null,
-        (p(e, "corporateEmail") as string) || null
+        em(p(e, "corporateEmail"))
       ];
 
       const portalEmpAuditTs = (v: unknown): string | null => {
@@ -6407,7 +6432,7 @@ export class PortalService implements OnModuleInit {
           ...base52,
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
           String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
-            ? ((p(e, "illnessDescription") as string) || "").trim() || null
+            ? nuN(p(e, "illnessDescription"))
             : null,
           createdAtTs,
           updatedAtTs
@@ -6431,7 +6456,7 @@ export class PortalService implements OnModuleInit {
     return [
       run.id,
       run.employeeId,
-      run.employeeName,
+      nu(run.employeeName),
       run.month,
       this.syncPayrollNumeric(run.gross),
       this.syncPayrollNumeric(run.ibc),
@@ -7653,7 +7678,7 @@ export class PortalService implements OnModuleInit {
         raw.vehicleId,
         plate,
         raw.driverId,
-        String(pickPortalField(raw, "driverName", "nombre_conductor") ?? "").trim() || "—",
+        nu(pickPortalField(raw, "driverName", "nombre_conductor") || "—") || "—",
         pickPortalField(raw, "tripNumber", "numero_viaje") || null,
         liters,
         totalCost,
@@ -7661,7 +7686,7 @@ export class PortalService implements OnModuleInit {
         raw.odometerKm != null || raw.kilometraje_odometro != null
           ? Number(raw.odometerKm ?? raw.kilometraje_odometro)
           : null,
-        pickPortalField(raw, "station", "estacion") || null,
+        nuN(pickPortalField(raw, "station", "estacion")),
         paidBy,
         regUser
       ]
@@ -7696,7 +7721,7 @@ export class PortalService implements OnModuleInit {
     const followUpStatus = String(
       pickPortalField(raw, "followUpStatus", "status", "estado_seguimiento") ?? "Pendiente"
     ).trim();
-    const description = String(pickPortalField(raw, "description", "descripcion") ?? "").trim();
+    const description = nu(pickPortalField(raw, "description", "descripcion") ?? "");
     if (!description) throw new BadRequestException("descripcion requerida");
     const regUser =
       registeredByUserId && PG_UUID_V4_RE.test(String(registeredByUserId).trim())
@@ -7822,14 +7847,14 @@ export class PortalService implements OnModuleInit {
              auxilio_transporte = EXCLUDED.auxilio_transporte`,
           [
             p.id,
-            p.name,
-            p.workerRole || "empleado",
+            nu(p.name),
+            String(p.workerRole || "empleado").toLowerCase(),
             baseSalary,
-            p.contractTypeDefault || "Indefinido",
-            p.legalBasis || "",
+            nu(p.contractTypeDefault || "Indefinido"),
+            nu(p.legalBasis || ""),
             p.active !== false,
-            (pickPortalField(p, "workSchedule", "schedule") as string) || null,
-            (pickPortalField(p, "arlRiskLevel") as string) || null,
+            nuN(pickPortalField(p, "workSchedule", "schedule")),
+            nuN(pickPortalField(p, "arlRiskLevel")),
             integral ? true : integralRaw === false || integralRaw === "false" ? false : null,
             transportAllowance
           ]
@@ -7872,19 +7897,19 @@ export class PortalService implements OnModuleInit {
           [
             v.id,
             v.positionId,
-            v.title,
-            (pickPortalField(v, "department") as string) || null,
-            v.city || "Bogota",
-            (pickPortalField(v, "modality") as string) || null,
-            (pickPortalField(v, "workday") as string) || null,
+            nu(v.title),
+            cat(pickPortalField(v, "department")),
+            cat(v.city) ?? "Bogota",
+            nuN(pickPortalField(v, "modality")),
+            nuN(pickPortalField(v, "workday")),
             v.deadline || new Date().toISOString().slice(0, 10),
             portalDateOrNull(pickPortalField(v, "publishedFrom", "visibleFrom")),
             cupos,
             Number(v.salaryOffer) || 0,
-            (pickPortalField(v, "positionName") as string) || null,
-            (pickPortalField(v, "workerRole") as string) || "empleado",
-            (pickPortalField(v, "contractTypeDefault") as string) || null,
-            (pickPortalField(v, "requirements") as string) || null,
+            nuN(pickPortalField(v, "positionName")),
+            String(pickPortalField(v, "workerRole") || "empleado").toLowerCase(),
+            nuN(pickPortalField(v, "contractTypeDefault")),
+            nuN(pickPortalField(v, "requirements")),
             v.status || "Publicada"
           ]
         );
@@ -7940,16 +7965,18 @@ export class PortalService implements OnModuleInit {
           [
             x.id,
             x.vacancyId,
-            x.name,
-            x.email,
-            x.phone,
-            x.documentType,
-            x.idDoc,
+            nu(x.name),
+            em(x.email),
+            nu(x.phone),
+            String(x.documentType || "CC")
+              .trim()
+              .toUpperCase(),
+            String(x.idDoc || "").trim(),
             portalDateOrNull(pickPortalField(x, "birthDate")),
-            (pickPortalField(x, "educationLevel") as string) || null,
-            (pickPortalField(x, "department") as string) || null,
-            x.city || "Bogota",
-            (pickPortalField(x, "address") as string) || null,
+            nuN(pickPortalField(x, "educationLevel")),
+            cat(pickPortalField(x, "department")),
+            cat(x.city) ?? "Bogota",
+            nuN(pickPortalField(x, "address")),
             Number(x.experienceYears) || 0,
             Number.isFinite(salaryAsp) ? salaryAsp : 0,
             avail || new Date().toISOString().slice(0, 10),
@@ -7980,12 +8007,12 @@ export class PortalService implements OnModuleInit {
           [
             i.id,
             i.candidateId,
-            i.candidateName || "",
+            nu(i.candidateName || ""),
             i.when || new Date().toISOString(),
-            i.interviewer || "RH",
-            (pickPortalField(i, "modality", "mode") as string) || null,
-            (pickPortalField(i, "locationOrLink", "place") as string) || null,
-            (i.notes as string) || null
+            nu(i.interviewer || "RH"),
+            nuN(pickPortalField(i, "modality", "mode")),
+            nuN(pickPortalField(i, "locationOrLink", "place")),
+            nuN(i.notes)
           ]
         );
       }
@@ -8058,28 +8085,28 @@ export class PortalService implements OnModuleInit {
             texto_contenido_resumen = EXCLUDED.texto_contenido_resumen`,
           [
             row.id,
-            (pickPortalField(row, "sourceTag", "source") as string) || null,
-            (pickPortalField(row, "personType") as string) || (employeeId ? "Empleado" : "Candidato"),
+            nuN(pickPortalField(row, "sourceTag", "source")),
+            nu(pickPortalField(row, "personType") || (employeeId ? "Empleado" : "Candidato")),
             candRaw || null,
-            (pickPortalField(row, "candidateName") as string) || "",
+            nu(pickPortalField(row, "candidateName") || ""),
             employeeId || null,
-            (pickPortalField(row, "employeeName") as string) || "",
+            nu(pickPortalField(row, "employeeName") || ""),
             String(pickPortalField(row, "workerRole") || "empleado").toLowerCase(),
             positionId,
-            (pickPortalField(row, "positionName", "position") as string) || "",
+            nu(pickPortalField(row, "positionName", "position") || ""),
             salaryPactado,
             pickPortalField(row, "startDate") || new Date().toISOString().slice(0, 10),
             companyId,
-            (pickPortalField(row, "companyName") as string) || "",
-            (pickPortalField(row, "contractType") as string) || "Indefinido",
-            (pickPortalField(row, "templateKind", "contractTemplateKind") as string) || "oficina",
-            (pickPortalField(row, "idDocSnapshot") as string) || null,
-            (pickPortalField(row, "eps") as string) || "Sura",
-            (pickPortalField(row, "pensionFund") as string) || "Porvenir",
-            (pickPortalField(row, "arl") as string) || "Sura",
-            (pickPortalField(row, "schedule", "workSchedule") as string) || "Diurna",
+            nu(pickPortalField(row, "companyName") || ""),
+            nu(pickPortalField(row, "contractType") || "Indefinido"),
+            nu(pickPortalField(row, "templateKind", "contractTemplateKind") || "oficina"),
+            String(pickPortalField(row, "idDocSnapshot") || "").trim() || null,
+            nu(pickPortalField(row, "eps") || "Sura"),
+            nu(pickPortalField(row, "pensionFund") || "Porvenir"),
+            nu(pickPortalField(row, "arl") || "Sura"),
+            nu(pickPortalField(row, "schedule", "workSchedule") || "Diurna"),
             auxilioTransporte,
-            (pickPortalField(row, "content") as string) || null
+            nuN(pickPortalField(row, "content"))
           ]
         );
       }
@@ -8147,17 +8174,17 @@ export class PortalService implements OnModuleInit {
         [
           row.id,
           row.employeeId,
-          row.employeeName,
+          nu(row.employeeName),
           tipo,
           row.startDate,
           row.endDate,
           dias,
-          subtipo,
+          subtipo != null ? nu(subtipo) : null,
           diasReconocidos,
-          unidad,
-          (pickPortalField(row, "supportNumber") as string) || null,
-          (pickPortalField(row, "epsEntity") as string) || null,
-          (row.notes as string) || null
+          unidad != null ? nu(unidad) : null,
+          nuN(pickPortalField(row, "supportNumber")),
+          nuN(pickPortalField(row, "epsEntity")),
+          nuN(row.notes)
         ]
       );
     }
@@ -8187,15 +8214,15 @@ export class PortalService implements OnModuleInit {
         [
           row.id,
           row.employeeId,
-          row.employeeName,
-          row.recordType,
-          row.provider,
+          nu(row.employeeName),
+          nu(row.recordType),
+          nu(row.provider),
           (row as { dueDate?: unknown; expiryDate?: unknown }).dueDate ??
             (row as { expiryDate?: unknown }).expiryDate,
-          row.status || "Pendiente",
-          row.documentCode || null,
-          row.notes || null,
-          row.createdBy || "Portal"
+          nu(row.status || "Pendiente"),
+          nuN(row.documentCode),
+          nuN(row.notes),
+          nu(row.createdBy || "Portal")
         ]
       );
     }
@@ -8309,7 +8336,15 @@ export class PortalService implements OnModuleInit {
           ids_empresas = EXCLUDED.ids_empresas,
           activo = EXCLUDED.activo,
           fecha_actualizacion = now()`,
-        [resolvedId, row.od, row.oc, row.dd, row.dc, row.cop, idsPg]
+        [
+          resolvedId,
+          cat(row.od) ?? row.od,
+          cat(row.oc) ?? row.oc,
+          cat(row.dd) ?? row.dd,
+          cat(row.dc) ?? row.dc,
+          row.cop,
+          idsPg
+        ]
       );
     }
     if (keepIds.size) {
@@ -8342,11 +8377,11 @@ export class PortalService implements OnModuleInit {
         [
           a.id,
           a.type,
-          a.title,
+          nu(a.title),
           JSON.stringify(payload),
           a.status || "pendiente",
           reqBy,
-          a.requestedByName || "",
+          nu(a.requestedByName || ""),
           a.reviewedAt || null,
           a.reviewedBy || null,
           a.rejectionReason || null

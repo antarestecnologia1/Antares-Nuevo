@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   Allow,
   IsDateString,
@@ -14,18 +14,21 @@ import {
   Min,
   MinLength
 } from "class-validator";
+import { transformStripCatalog, transformStripEmail, transformStripUpper } from "../../common/normalize-db-text";
 
 /** Postulación pública (index.html sección Carreras). */
 export class CreateJobApplicationDto {
   @IsUUID("4")
   vacancyId!: string;
 
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MinLength(2)
   @MaxLength(255)
   name!: string;
 
+  @Transform(transformStripEmail)
   @IsEmail()
   @MaxLength(320)
   email!: string;
@@ -35,6 +38,7 @@ export class CreateJobApplicationDto {
   @MaxLength(40)
   phone!: string;
 
+  @Transform(({ value }) => (typeof value === "string" ? value.trim().toUpperCase() : value))
   @IsString()
   @IsIn(["CC", "CE", "PAS"])
   documentType!: string;
@@ -45,12 +49,14 @@ export class CreateJobApplicationDto {
   @MaxLength(32)
   idDoc!: string;
 
+  @Transform(transformStripCatalog)
   @IsString()
   @IsNotEmpty()
   @MinLength(2)
   @MaxLength(120)
   city!: string;
 
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MinLength(4)

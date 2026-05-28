@@ -6,8 +6,8 @@
 - **`apps/api`**: API NestJS, PostgreSQL vía `pg`, JWT, Supabase (Auth/archivos según `.env`).
 - **`apps/web`**: aplicación Next.js (login de demostración / despliegue opcional).
 - **`BD/postgres`**: scripts SQL del esquema.
-- **`docs/`**: notas de despliegue (p. ej. Supabase + Render).
-- **`DEPLOYMENT_RUNBOOK.md`**: checklist de producción.
+- **`docs/`**: notas de despliegue y **[contexto completo del proyecto](docs/CONTEXTO_PROYECTO.md)**.
+- **`DEPLOYMENT_RUNBOOK.md`**: checklist de producción (incluye Resend / correo en Render).
 
 ## Requisitos
 

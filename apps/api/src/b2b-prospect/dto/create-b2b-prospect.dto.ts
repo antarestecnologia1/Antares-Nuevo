@@ -7,6 +7,7 @@ import {
   MaxLength,
   MinLength
 } from "class-validator";
+import { transformStripEmail, transformStripUpper } from "../../common/normalize-db-text";
 import { TransformStripNulTrim } from "../../common/transformers/strip-nul-trim.transform";
 
 function normalizeCoNit(value: unknown): unknown {
@@ -16,7 +17,7 @@ function normalizeCoNit(value: unknown): unknown {
 
 /** Payload alineado con el formulario index.html (#b2b-form). */
 export class CreateB2bProspectDto {
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MinLength(2)
@@ -26,7 +27,7 @@ export class CreateB2bProspectDto {
   })
   name!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MinLength(2)
@@ -42,7 +43,7 @@ export class CreateB2bProspectDto {
   })
   taxId!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
@@ -54,36 +55,36 @@ export class CreateB2bProspectDto {
   @MaxLength(32)
   phone!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "").trim().toLowerCase() : value))
+  @Transform(transformStripEmail)
   @IsEmail()
   @MaxLength(320)
   email!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
   serviceType!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
   operationType!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
   operationFrequency!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
   startWindow!: string;
 
-  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value))
+  @Transform(transformStripUpper)
   @IsString()
   @MinLength(30)
   @MaxLength(8000)

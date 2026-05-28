@@ -7,6 +7,11 @@ import { CreateB2bProspectDto } from "./dto/create-b2b-prospect.dto";
 import { CreateJobApplicationDto } from "./dto/create-job-application.dto";
 import { R2Service } from "../uploads/r2.service";
 import { bogotaCalendarYmdFromDate } from "../common/colombia-time";
+import {
+  normalizeCatalogTextFromUnknown,
+  normalizeDbTextUpperFromUnknown,
+  normalizeEmailFromUnknown
+} from "../common/normalize-db-text";
 
 const JOB_CV_MIME_ALLOWED = new Set([
   "application/pdf",
@@ -286,9 +291,7 @@ export class B2bProspectService {
       throw new BadRequestException("Telefono invalido.");
     }
 
-    const email = String(dto.email || "")
-      .trim()
-      .toLowerCase();
+    const email = normalizeEmailFromUnknown(dto.email) ?? "";
     const idDoc = String(dto.idDoc || "")
       .trim()
       .replace(/\s+/g, "");
@@ -315,7 +318,7 @@ export class B2bProspectService {
     const expNotes = String(dto.experience ?? "").trim();
     const adjuntos: Record<string, unknown>[] = [];
     if (expNotes) {
-      adjuntos.push({ kind: "experience_notes", text: expNotes });
+      adjuntos.push({ kind: "experience_notes", text: normalizeDbTextUpperFromUnknown(expNotes) });
     }
     await this.attachJobApplicationCvJson(adjuntos, dto, attachment);
 
@@ -349,16 +352,16 @@ export class B2bProspectService {
         RETURNING id::text AS id`,
         [
           dto.vacancyId,
-          dto.name.trim(),
+          normalizeDbTextUpperFromUnknown(dto.name),
           email,
           phone,
-          dto.documentType,
+          String(dto.documentType || "").trim().toUpperCase(),
           idDoc,
-          dto.city.trim(),
-          dto.address.trim(),
+          normalizeCatalogTextFromUnknown(dto.city) ?? dto.city.trim(),
+          normalizeDbTextUpperFromUnknown(dto.address),
           birthSql,
           expYears,
-          tituloVacante,
+          normalizeDbTextUpperFromUnknown(tituloVacante),
           JSON.stringify(adjuntos)
         ]
       );
@@ -500,9 +503,7 @@ export class B2bProspectService {
       throw new BadRequestException("El mensaje debe tener al menos 30 caracteres.");
     }
 
-    const email = String(dto.email || "")
-      .trim()
-      .toLowerCase();
+    const email = normalizeEmailFromUnknown(dto.email) ?? "";
 
     const ins = await this.pool.query<{ id: string }>(
       `INSERT INTO prospectos_contacto_b2b (
@@ -511,17 +512,17 @@ export class B2bProspectService {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id::text AS id`,
       [
-        dto.name.trim(),
-        dto.company.trim(),
+        normalizeDbTextUpperFromUnknown(dto.name),
+        normalizeDbTextUpperFromUnknown(dto.company),
         dto.taxId.trim(),
-        dto.position.trim(),
+        normalizeDbTextUpperFromUnknown(dto.position),
         phoneCheck.formatted,
         email,
-        dto.serviceType.trim(),
-        dto.operationType.trim(),
-        dto.operationFrequency.trim(),
-        dto.startWindow.trim(),
-        msg
+        normalizeDbTextUpperFromUnknown(dto.serviceType),
+        normalizeDbTextUpperFromUnknown(dto.operationType),
+        normalizeDbTextUpperFromUnknown(dto.operationFrequency),
+        normalizeDbTextUpperFromUnknown(dto.startWindow),
+        normalizeDbTextUpperFromUnknown(msg)
       ]
     );
 

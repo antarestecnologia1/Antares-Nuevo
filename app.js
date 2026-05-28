@@ -7530,6 +7530,50 @@ function companyKindLabel(kind) {
   return "Cliente";
 }
 
+/** Claves de payload que no deben normalizarse (contraseñas, hashes, credenciales satelital). */
+function isPasswordPayloadKey(key) {
+  const k = String(key || "").trim();
+  if (!k) return false;
+  if (
+    k === "password" ||
+    k === "passwordHash" ||
+    k === "satelliteProviderPassword" ||
+    k === "hash_contrasena"
+  ) {
+    return true;
+  }
+  const lower = k.toLowerCase();
+  return lower.includes("password") || lower.includes("contrasena");
+}
+
+/** Normaliza strings en objetos de formulario/autorización (alineado con API normalizeFreeTextPayloadRecord). */
+function normalizePayloadTextFields(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const out = { ...payload };
+  for (const [k, v] of Object.entries(out)) {
+    if (isPasswordPayloadKey(k)) continue;
+    if (typeof v !== "string") continue;
+    const keyLc = k.toLowerCase();
+    if (keyLc === "email" || keyLc.endsWith("email")) {
+      out[k] = normalizeEmail(v);
+      continue;
+    }
+    if (
+      keyLc === "department" ||
+      keyLc === "city" ||
+      keyLc === "departamento" ||
+      keyLc === "ciudad" ||
+      keyLc.endsWith("department") ||
+      keyLc.endsWith("city")
+    ) {
+      out[k] = normalizeLatinForDb(v);
+      continue;
+    }
+    out[k] = normalizeLatinUpperForDb(v);
+  }
+  return out;
+}
+
 /** Chip en tarjetas (`.role-chip` fuerza mayúsculas); texto corto para no desalinear la cabecera. */
 function companyKindChipShortLabel(kind) {
   const k = normalizeCompanyKindForDb(kind);
@@ -10093,21 +10137,21 @@ async function sanitizeApprovalPayloadForQueue(type, payload) {
     if (!next.passwordHash && passwordRaw) {
       next.passwordHash = await hashPassword(passwordRaw);
     }
-    return next;
+    return normalizePayloadTextFields(next);
   }
   if (type === "mark_payroll_paid") {
-    return {
+    return normalizePayloadTextFields({
       payrollRunId: String(base.payrollRunId || "").trim(),
       employeeName: String(base.employeeName || "").trim(),
       month: String(base.month || "").trim()
-    };
+    });
   }
   if (type === "approve_trip_request") {
     return {
       requestId: String(base.requestId || "").trim()
     };
   }
-  return base;
+  return normalizePayloadTextFields(base);
 }
 
 async function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
@@ -21799,6 +21843,14 @@ function normalizeDriverRowForEditor(raw) {
 function normalizeDriverFormPayloadForStorage(data) {
   if (!data || typeof data !== "object") return data;
   const d = { ...data };
+  if (d.name != null) d.name = normalizeLatinUpperForDb(d.name);
+  if (d.address != null) d.address = normalizeLatinUpperForDb(d.address);
+  if (d.department != null) d.department = normalizeLatinForDb(d.department);
+  if (d.city != null) d.city = normalizeLatinForDb(d.city);
+  if (d.eps != null) d.eps = normalizeLatinUpperForDb(d.eps);
+  if (d.arl != null) d.arl = normalizeLatinUpperForDb(d.arl);
+  if (d.emergencyContact != null) d.emergencyContact = normalizeLatinUpperForDb(d.emergencyContact);
+  if (d.bloodType != null) d.bloodType = normalizeLatinUpperForDb(d.bloodType);
   d.phone = normalizePortalPhoneForStorage(d.phone);
   d.emergencyPhone = normalizePortalPhoneForStorage(d.emergencyPhone);
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
@@ -25431,41 +25483,41 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
   return {
     ok: true,
     payload: {
-      name: String(raw.name || "").trim(),
+      name: normalizeLatinUpperForDb(String(raw.name || "").trim()),
       documentType: raw.documentType,
       idDoc: docNormalized,
       birthDate: normalizePortalDateYmd(raw.birthDate),
-      gender: String(raw.gender || "").trim(),
-      maritalStatus: String(raw.maritalStatus || "").trim(),
-      educationLevel: String(raw.educationLevel || "").trim(),
-      personalEmail: String(raw.personalEmail || "").trim(),
-      emergencyRelation: String(raw.emergencyRelation || "").trim(),
+      gender: normalizeLatinUpperForDb(raw.gender),
+      maritalStatus: normalizeLatinUpperForDb(raw.maritalStatus),
+      educationLevel: normalizeLatinUpperForDb(raw.educationLevel),
+      personalEmail: normalizeEmail(String(raw.personalEmail || "")),
+      emergencyRelation: normalizeLatinUpperForDb(raw.emergencyRelation),
       hasIllness: String(raw.hasIllness || "no").toLowerCase() === "si" ? "si" : "no",
       illnessDescription:
         String(raw.hasIllness || "no").toLowerCase() === "si"
-          ? String(raw.illnessDescription || "").trim()
+          ? normalizeLatinUpperForDb(String(raw.illnessDescription || "").trim())
           : "",
       positionId: position.id,
-      position: position.name,
+      position: normalizeLatinUpperForDb(position.name),
       workerRole: position.workerRole || "empleado",
-      contractType: effectiveContractType,
-      city: String(raw.city || "").trim(),
-      department: String(raw.department || "").trim(),
-      address: String(raw.address || "").trim(),
+      contractType: normalizeLatinUpperForDb(effectiveContractType),
+      city: normalizeLatinForDb(String(raw.city || "").trim()),
+      department: normalizeLatinForDb(String(raw.department || "").trim()),
+      address: normalizeLatinUpperForDb(String(raw.address || "").trim()),
       phone: normalizePortalPhoneForStorage(String(raw.phone || "").trim()),
-      emergencyContact: String(raw.emergencyContact || "").trim(),
-      emergencyPhone: String(raw.emergencyPhone || "").trim(),
-      bloodType: String(raw.bloodType || "").trim(),
+      emergencyContact: normalizeLatinUpperForDb(String(raw.emergencyContact || "").trim()),
+      emergencyPhone: normalizePortalPhoneForStorage(String(raw.emergencyPhone || "").trim()),
+      bloodType: normalizeLatinUpperForDb(String(raw.bloodType || "").trim()),
       companyId: raw.companyId,
-      eps: String(raw.eps || "").trim(),
-      pensionFund: String(raw.pensionFund || "").trim(),
-      arl: String(raw.arl || "").trim(),
-      severanceFund: String(raw.severanceFund || "").trim(),
-      compensationFund: String(raw.compensationFund || "").trim(),
-      arlRiskLevel: String(raw.arlRiskLevel || position.arlRiskLevel || "").trim(),
-      workSchedule: String(raw.workSchedule || position.workSchedule || position.schedule || "").trim(),
-      contributorType: String(raw.contributorType || "").trim(),
-      costCenter: String(raw.costCenter || "").trim(),
+      eps: normalizeLatinUpperForDb(raw.eps),
+      pensionFund: normalizeLatinUpperForDb(raw.pensionFund),
+      arl: normalizeLatinUpperForDb(raw.arl),
+      severanceFund: normalizeLatinUpperForDb(raw.severanceFund),
+      compensationFund: normalizeLatinUpperForDb(raw.compensationFund),
+      arlRiskLevel: normalizeLatinUpperForDb(raw.arlRiskLevel || position.arlRiskLevel || ""),
+      workSchedule: normalizeLatinUpperForDb(raw.workSchedule || position.workSchedule || position.schedule || ""),
+      contributorType: normalizeLatinUpperForDb(raw.contributorType),
+      costCenter: normalizeLatinUpperForDb(raw.costCenter),
       payFrequency: String(raw.payFrequency || "Mensual").trim(),
       baseSalary,
       transportAllowance: resolveEmployeeTransportAllowanceCop(
@@ -26770,7 +26822,7 @@ function bindDynamicEvents() {
       const registrationKindCreate = normalizeRegistrationKindForDb(data.registrationKind);
       users.push({
         id: newUuidV4(),
-        name: normalizeLatinForDb(data.name),
+        name: normalizeLatinUpperForDb(data.name),
         email: normalizeEmail(data.email),
         password: await hashPassword(data.password),
         role: data.role,
@@ -26778,13 +26830,13 @@ function bindDynamicEvents() {
         accountStatus: ACCOUNT_STATUS.APROBADO,
         personType: normalizePersonTypeForDb(data.personType),
         documentIssuedAt: data.documentIssuedAt || "",
-        company: normalizeLatinForDb(data.company || company.name),
+        company: normalizeLatinUpperForDb(data.company || company.name),
         companyId: company.id,
         taxId: data.taxId,
         phone: normalizePortalPhoneForStorage(data.phone),
         city: normalizeLatinForDb(data.city),
         department: normalizeLatinForDb(data.department),
-        address: normalizeLatinForDb(data.address),
+        address: normalizeLatinUpperForDb(data.address),
         registrationKind: registrationKindCreate,
         profileQualityChecklist: {
           registrationKind: registrationKindCreate
@@ -26831,7 +26883,7 @@ function bindDynamicEvents() {
         notify(userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
-      const nameTrim = normalizeLatinForDb(String(data.name || "").trim());
+      const nameTrim = normalizeLatinUpperForDb(String(data.name || "").trim());
       if (!nameTrim) {
         notify(userMessage("validationStep"), "error");
         return;
@@ -26855,10 +26907,10 @@ function bindDynamicEvents() {
         notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
         return;
       }
-      const contactName = normalizeLatinForDb(String(data.contactName || ""));
+      const contactName = normalizeLatinUpperForDb(String(data.contactName || ""));
       const department = normalizeLatinForDb(String(data.department || ""));
       const city = normalizeLatinForDb(String(data.city || ""));
-      const address = normalizeLatinForDb(String(data.address || ""));
+      const address = normalizeLatinUpperForDb(String(data.address || ""));
       const logoUrl = await resolveEmployeeAvatarUrl(logoFile, "");
       if (!String(logoUrl || "").trim()) {
         notify("No fue posible procesar el logo de la empresa. Intente de nuevo.", "error");
@@ -26960,7 +27012,7 @@ function bindDynamicEvents() {
         notify(userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
-      const nameTrim = normalizeLatinForDb(String(data.name || "").trim());
+      const nameTrim = normalizeLatinUpperForDb(String(data.name || "").trim());
       if (!nameTrim) {
         notify(userMessage("validationStep"), "error");
         return;
@@ -27002,10 +27054,10 @@ function bindDynamicEvents() {
         notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
         return;
       }
-      const contactName = normalizeLatinForDb(String(data.contactName || ""));
+      const contactName = normalizeLatinUpperForDb(String(data.contactName || ""));
       const department = normalizeLatinForDb(String(data.department || ""));
       const city = normalizeLatinForDb(String(data.city || ""));
-      const address = normalizeLatinForDb(String(data.address || ""));
+      const address = normalizeLatinUpperForDb(String(data.address || ""));
       const nextCompanies = companies.map((c) =>
         String(c.id) === companyId
           ? stampUpdatedRecord({
@@ -27179,13 +27231,13 @@ function bindDynamicEvents() {
           }
         }
       }
-      const fn = normalizeLatinForDb(String(data.firstName ?? "").trim());
-      const mn = normalizeLatinForDb(String(data.middleName ?? "").trim());
-      const ln = normalizeLatinForDb(String(data.lastName ?? "").trim());
-      const sln = normalizeLatinForDb(String(data.secondLastName ?? "").trim());
+      const fn = normalizeLatinUpperForDb(String(data.firstName ?? "").trim());
+      const mn = normalizeLatinUpperForDb(String(data.middleName ?? "").trim());
+      const ln = normalizeLatinUpperForDb(String(data.lastName ?? "").trim());
+      const sln = normalizeLatinUpperForDb(String(data.secondLastName ?? "").trim());
       const composedFromParts = [fn, mn, ln, sln].filter(Boolean).join(" ").trim();
-      const nameFromInput = normalizeLatinForDb(String(data.name ?? "").trim());
-      const resolvedFullName = nameFromInput || composedFromParts || normalizeLatinForDb(String(existing.name ?? "").trim());
+      const nameFromInput = normalizeLatinUpperForDb(String(data.name ?? "").trim());
+      const resolvedFullName = nameFromInput || composedFromParts || normalizeLatinUpperForDb(String(existing.name ?? "").trim());
       const birthIn = String(data.birthDate ?? "").trim();
       const birthStored =
         !birthIn
@@ -27240,14 +27292,14 @@ function bindDynamicEvents() {
               gender: genderStored,
               avatarUrl: resolvedAvatarUrl,
               companyId: company.id,
-              company: normalizeLatinForDb(String(data.company || company.name).trim()),
+              company: normalizeLatinUpperForDb(String(data.company || company.name).trim()),
               taxId: String(data.taxId || "").trim(),
               phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
               city: normalizeLatinForDb(String(data.city || "").trim()),
               department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
-              address: normalizeLatinForDb(String(data.address || u.address || "").trim()),
-              position: normalizeLatinForDb(String(data.position ?? u.position ?? "").trim()),
-              workArea: normalizeLatinForDb(String(data.workArea ?? u.workArea ?? "").trim()),
+              address: normalizeLatinUpperForDb(String(data.address || u.address || "").trim()),
+              position: normalizeLatinUpperForDb(String(data.position ?? u.position ?? "").trim()),
+              workArea: normalizeLatinUpperForDb(String(data.workArea ?? u.workArea ?? "").trim()),
               registrationKind: registrationKindStored,
               profileQualityChecklist: {
                 ...(u.profileQualityChecklist && typeof u.profileQualityChecklist === "object"
@@ -27859,10 +27911,10 @@ function bindDynamicEvents() {
         }
       }
       payloadRest.tripValue = 0;
-      const contactName = String(siteContactName ?? "").trim();
-      const contactPhone = String(siteContactPhone ?? "").trim();
+      const contactName = normalizeLatinUpperForDb(String(siteContactName ?? "").trim());
+      const contactPhone = normalizePortalPhoneForStorage(String(siteContactPhone ?? "").trim());
       const boxesCount = 0;
-      const notesTrim = String(notes ?? "").trim();
+      const notesTrim = normalizeLatinUpperForDb(String(notes ?? "").trim());
       const insuredValueNum = Math.max(0, parseNum(payloadRest.insuredValue));
       const distanceKmNum = Math.max(0, parseNum(payloadRest.distanceKm));
       const all = reqRead();
@@ -27872,11 +27924,18 @@ function bindDynamicEvents() {
         id: newUuidV4(),
         requestNumber,
         clientUserId: user.id,
-        clientName: reqCompany.name || user.company || "",
+        clientName: normalizeLatinUpperForDb(reqCompany.name || user.company || ""),
         clientCompanyId: reqCompany.id,
         clientCompanyLogoUrl: companyProfileLogoUrl(reqCompany),
-        requestedByName: user.name,
+        requestedByName: normalizeLatinUpperForDb(user.name),
         ...payloadRest,
+        originDepartment: normalizeLatinForDb(payloadRest.originDepartment || ""),
+        originCity: normalizeLatinForDb(payloadRest.originCity || ""),
+        originAddress: normalizeLatinUpperForDb(payloadRest.originAddress || ""),
+        destinationDepartment: normalizeLatinForDb(payloadRest.destinationDepartment || ""),
+        destinationCity: normalizeLatinForDb(payloadRest.destinationCity || ""),
+        destinationAddress: normalizeLatinUpperForDb(payloadRest.destinationAddress || ""),
+        cargoDescription: normalizeLatinUpperForDb(payloadRest.cargoDescription || ""),
         serviceType,
         refrigeracionTermoking,
         contactName,
@@ -29559,30 +29618,30 @@ function bindDynamicEvents() {
       list.push(stampCreatedRecord({
         id: newUuidV4(),
         plate,
-        brand: String(data.brand || "").trim(),
-        model: String(data.model || "").trim(),
+        brand: normalizeLatinUpperForDb(data.brand),
+        model: normalizeLatinUpperForDb(data.model),
         year: modelYear,
-        type: data.type,
-        color: String(data.color || "").trim(),
+        type: normalizeLatinUpperForDb(data.type),
+        color: normalizeLatinUpperForDb(data.color),
         capacityKg: parseNum(data.capacityKg),
         refrigerated: data.refrigerated === "true",
-        bodyType: String(data.bodyType || "").trim(),
-        fuelType: String(data.fuelType || "").trim(),
-        axleConfig: String(data.axleConfig || "").trim(),
-        engineNumber: String(data.engineNumber || "").trim(),
+        bodyType: normalizeLatinUpperForDb(data.bodyType),
+        fuelType: normalizeLatinUpperForDb(data.fuelType),
+        axleConfig: normalizeLatinUpperForDb(data.axleConfig),
+        engineNumber: normalizeLatinUpperForDb(data.engineNumber),
         vin: String(data.vin || "").trim().toUpperCase(),
-        ownershipCard: String(data.ownershipCard || "").trim(),
+        ownershipCard: normalizeLatinUpperForDb(data.ownershipCard),
         soatExpeditionDate,
         soatExpiryDate,
         techInspectionExpeditionDate,
         techInspectionExpiryDate,
-        rcPolicyContract: String(data.rcPolicyContract || "").trim(),
-        rcPolicyExtra: String(data.rcPolicyExtra || "").trim(),
+        rcPolicyContract: normalizeLatinUpperForDb(data.rcPolicyContract),
+        rcPolicyExtra: normalizeLatinUpperForDb(data.rcPolicyExtra),
         rcPolicyExpiry: data.rcPolicyExpiry || "",
         hasGps: data.hasGps === "true",
-        gpsProvider: String(data.gpsProvider || "").trim(),
+        gpsProvider: normalizeLatinUpperForDb(data.gpsProvider),
         satelliteProviderUser: String(data.satelliteProviderUser || "").trim(),
-        satelliteProviderPassword: String(data.satelliteProviderPassword || "").trim(),
+        satelliteProviderPassword: String(data.satelliteProviderPassword || ""),
         available: true
       }));
       try {
@@ -31857,13 +31916,22 @@ function bindDynamicEvents() {
       const all = read(KEYS.vacancies, []);
       all.unshift(stampCreatedRecord({
         id: newUuidV4(),
-        ...data,
+        positionId: data.positionId,
+        title: normalizeLatinUpperForDb(data.title || `Vacante ${position.name}`),
+        department: normalizeLatinForDb(data.department || ""),
+        city: normalizeLatinForDb(data.city || ""),
+        modality: normalizeLatinUpperForDb(data.modality || ""),
+        workday: normalizeLatinUpperForDb(data.workday || ""),
+        deadline: data.deadline,
         publishedFrom: String(data.publishedFrom || "").trim(),
         openings: Math.max(1, parseNum(data.openings || 1)),
         salaryOffer: salaryValidation.salaryOffer,
         positionName: position.name,
         workerRole: position.workerRole || "empleado",
-        contractTypeDefault: position.contractTypeDefault || "Termino indefinido",
+        contractTypeDefault: normalizeLatinUpperForDb(
+          data.contractTypeDefault || position.contractTypeDefault || "Termino indefinido"
+        ),
+        requirements: normalizeLatinUpperForDb(data.requirements || ""),
         status: "Publicada"
       }));
       try {
@@ -31907,15 +31975,15 @@ function bindDynamicEvents() {
       const all = read(KEYS.positions, []);
       all.unshift(stampCreatedRecord({
         id: newUuidV4(),
-        name: String(data.name || "").trim(),
+        name: normalizeLatinUpperForDb(String(data.name || "").trim()),
         workerRole: String(data.workerRole || "empleado"),
         baseSalary: comp.baseSalary,
         transportAllowance: comp.transportAllowance,
-        contractTypeDefault: String(data.contractTypeDefault || "Termino indefinido"),
-        workSchedule: String(data.workSchedule || "").trim(),
-        arlRiskLevel: String(data.arlRiskLevel || "").trim(),
+        contractTypeDefault: normalizeLatinUpperForDb(data.contractTypeDefault || "Termino indefinido"),
+        workSchedule: normalizeLatinUpperForDb(data.workSchedule),
+        arlRiskLevel: normalizeLatinUpperForDb(data.arlRiskLevel),
         integralSalary: String(data.integralSalary || "false") === "true",
-        legalBasis: String(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
+        legalBasis: normalizeLatinUpperForDb(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
         active: true
       }));
       try {
@@ -32183,16 +32251,16 @@ function bindDynamicEvents() {
       const all = read(KEYS.candidates, []);
       all.unshift(stampCreatedRecord({
         id: newUuidV4(),
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
+        name: normalizeLatinUpperForDb(data.name),
+        email: normalizeEmail(data.email),
+        phone: normalizePortalPhoneForStorage(data.phone),
         documentType: data.documentType,
         idDoc: data.idDoc,
         birthDate: birthRaw,
-        department: data.department || "",
-        city: data.city,
-        address: data.address,
-        educationLevel: String(data.educationLevel || "").trim(),
+        department: normalizeLatinForDb(data.department || ""),
+        city: normalizeLatinForDb(data.city),
+        address: normalizeLatinUpperForDb(data.address),
+        educationLevel: normalizeLatinUpperForDb(data.educationLevel || ""),
         experienceYears: Math.max(0, parseNum(data.experienceYears || 0)),
         expectedSalary,
         availabilityDate: data.availabilityDate || "",
@@ -32734,7 +32802,7 @@ function bindDynamicEvents() {
           const compName = p.companyName || getCompanyById(p.companyId)?.name || "";
           users.push({
             id: newUuidV4(),
-            name: normalizeLatinForDb(p.name),
+            name: normalizeLatinUpperForDb(p.name),
             email: normalizeEmail(p.email),
             password: nextPasswordHash,
             role: p.role,
@@ -32742,13 +32810,13 @@ function bindDynamicEvents() {
             personType: normalizePersonTypeForDb(p.personType),
             documentIssuedAt: p.documentIssuedAt || "",
             accountStatus: ACCOUNT_STATUS.APROBADO,
-            company: normalizeLatinForDb(compName),
+            company: normalizeLatinUpperForDb(compName),
             companyId: p.companyId,
             taxId: p.taxId,
             phone: normalizePortalPhoneForStorage(p.phone || ""),
             city: normalizeLatinForDb(p.city || ""),
             department: normalizeLatinForDb(p.department || ""),
-            address: normalizeLatinForDb(p.address || ""),
+            address: normalizeLatinUpperForDb(p.address || ""),
             permissions: normalizeSavedUserPermissions(
               p.role,
               p.permissions || defaultPermissionsForRole(p.role)
@@ -32779,7 +32847,8 @@ function bindDynamicEvents() {
         }
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
-        drivers.push({ id: newUuidV4(), ...approval.payload, available: true, hiredAt: nowIso() });
+        const driverRow = normalizeDriverFormPayloadForStorage({ ...approval.payload });
+        drivers.push({ id: newUuidV4(), ...driverRow, available: true, hiredAt: nowIso() });
         try {
           await writeAwaitServer(KEYS.drivers, drivers);
         } catch (err) {
@@ -32791,17 +32860,17 @@ function bindDynamicEvents() {
         if (!existsEmployee) {
           employees.push({
             id: newUuidV4(),
-            name: approval.payload.name,
+            name: normalizeLatinUpperForDb(approval.payload.name),
             idDoc: approval.payload.idDoc,
             documentType: approval.payload.documentType || "CC",
-            position: "Conductor",
-            contractType: approval.payload.contractType || "Indefinido",
+            position: "CONDUCTOR",
+            contractType: normalizeLatinUpperForDb(approval.payload.contractType || "Indefinido"),
             workerRole: "conductor",
-            city: approval.payload.city || "",
-            address: approval.payload.address || "",
-            phone: approval.payload.phone || "",
-            emergencyContact: approval.payload.emergencyContact || "",
-            emergencyPhone: approval.payload.emergencyPhone || "",
+            city: normalizeLatinForDb(approval.payload.city || ""),
+            address: normalizeLatinUpperForDb(approval.payload.address || ""),
+            phone: normalizePortalPhoneForStorage(approval.payload.phone || ""),
+            emergencyContact: normalizeLatinUpperForDb(approval.payload.emergencyContact || ""),
+            emergencyPhone: normalizePortalPhoneForStorage(approval.payload.emergencyPhone || ""),
             companyId: approval.payload.companyId || "",
             baseSalary: parseNum(approval.payload.baseSalary),
             payFrequency: "Mensual",
@@ -33354,17 +33423,17 @@ function initGlobalEvents() {
 
       try {
         await api.postJsonPublic("/public/b2b-prospect", {
-          name: data.name,
-          company: data.company,
+          name: normalizeLatinUpperForDb(data.name),
+          company: normalizeLatinUpperForDb(data.company),
           taxId: data.taxId,
-          position: data.position,
+          position: normalizeLatinUpperForDb(data.position),
           phone: data.phone,
-          email: data.email,
-          serviceType: data.serviceType,
-          operationType: data.operationType,
-          operationFrequency: data.operationFrequency,
-          startWindow: data.startWindow,
-          message: messageValue
+          email: normalizeEmail(data.email),
+          serviceType: normalizeLatinUpperForDb(data.serviceType),
+          operationType: normalizeLatinUpperForDb(data.operationType),
+          operationFrequency: normalizeLatinUpperForDb(data.operationFrequency),
+          startWindow: normalizeLatinUpperForDb(data.startWindow),
+          message: normalizeLatinUpperForDb(messageValue)
         });
         nodes.b2bForm.reset();
         if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
@@ -35185,15 +35254,15 @@ function openPublicVacancyApplyModal(vacancy) {
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: newUuidV4(),
-        name: nm,
+        name: normalizeLatinUpperForDb(nm),
         email: normalizeEmail(String(fd.get("email") || "")),
-        phone: String(fd.get("phone") || "").trim(),
+        phone: normalizePortalPhoneForStorage(String(fd.get("phone") || "").trim()),
         documentType: String(fd.get("documentType") || ""),
         idDoc: docValidation.normalized,
         birthDate: birth,
         experienceYears: expY,
-        city: String(fd.get("city") || "").trim(),
-        address: String(fd.get("address") || "").trim(),
+        city: normalizeLatinForDb(String(fd.get("city") || "").trim()),
+        address: normalizeLatinUpperForDb(String(fd.get("address") || "").trim()),
         vacancyId: vacLocal.id,
         vacancyTitle: vacLocal.title,
         experienceNotes: "",
