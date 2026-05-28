@@ -8267,12 +8267,12 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
     ? `<span class="approve-trip-pill approve-trip-pill--tk">Termoking</span>`
     : `<span class="approve-trip-pill approve-trip-pill--dry">Sin Termoking</span>`;
   return `
-    <div class="approve-trip-hero" role="region" aria-label="Resumen de la solicitud">
+    <div class="approve-trip-hero assign-revamp-hero" role="region" aria-label="Resumen de la solicitud">
       <div class="approve-trip-hero-top">
         ${srcBadge}
         ${tkPill}
       </div>
-      <p class="approve-trip-hero-kicker">Revise los datos y confirme la aprobación</p>
+      <p class="approve-trip-hero-kicker">Confirmación rápida</p>
       <p class="approve-trip-hero-ref"><span class="approve-trip-ref-pill">${ref}</span></p>
       <div class="approve-trip-hero-route">${IC.mapPin}<span>${route}</span></div>
       <div class="approve-trip-hero-grid">
@@ -9514,7 +9514,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     })
     .join("");
 
-  return `<div class="create-trip-rate-inner assign-trip-rate-inner">
+  return `<div class="create-trip-rate-inner assign-trip-rate-inner assign-trip-rate-card">
     <label class="full create-trip-rate-catalog assign-trip-field">${fieldLabel(IC.layers, "Tarifa catálogo")}
       <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
     </label>
@@ -17278,7 +17278,7 @@ function transportTripsHtml() {
     pendingForTrip.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Sin pendientes</span>`;
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored assign-trip-form create-trip-form transport-trip-create-form" autocomplete="off">
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored assign-trip-form assign-trip-form--revamp create-trip-form transport-trip-create-form" autocomplete="off">
     <div class="assign-trip-top">
       <ol class="create-trip-stepper create-trip-stepper--track assign-trip-stepper" aria-label="Pasos para asignar viaje">
         <li class="create-trip-step create-trip-step--current" data-step="1" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
@@ -29784,7 +29784,7 @@ function bindDynamicEvents() {
         title: "Aprobar solicitud de viaje",
         subtitle: "",
         introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "table"),
-        extraModalCardClass: "modal-card-edit--approve-trip",
+          extraModalCardClass: "modal-card-edit--approve-trip modal-card-edit--assign-revamp",
         submitText: "Confirmar aprobación",
         afterMount: (formEl) => {
           if (typeof tripRateUi.afterMount === "function") tripRateUi.afterMount(formEl);
@@ -29796,7 +29796,7 @@ function bindDynamicEvents() {
             type: "section",
             id: "approve-decision",
             title: "1. Modo de aprobación",
-            hint: "Puede dejar la solicitud lista para asignación posterior o cerrar el circuito ahora con vehículo y conductor."
+            hint: "Apruebe ahora o complete la asignación en este paso."
           },
           {
             name: "mode",
@@ -29821,8 +29821,8 @@ function bindDynamicEvents() {
             id: "approve-resources",
             title: "2. Vehículo y conductor",
             hint: needsTermoking
-              ? "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), con equipo Termoking según la etiqueta, y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si la franja recogida→entrega de esta solicitud se cruza con otro viaje del mismo vehículo o conductor; si hay hueco entre la hora fin de un viaje y la hora inicio del siguiente, el recurso puede reutilizarse. Si eligió «solo aprobar», puede dejar sin asignar."
-              : "Liste: solo unidades del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula), y conductores. Estados: ocupado, no disponible, documentación vencida. «Ocupado» solo si la franja recogida→entrega de esta solicitud se cruza con otro viaje del mismo vehículo o conductor; si hay hueco entre la hora fin de un viaje y la hora inicio del siguiente, el recurso puede reutilizarse. Si eligió «solo aprobar», puede dejar sin asignar."
+              ? "Se muestran opciones compatibles con tipo de camión y Termoking."
+              : "Se muestran opciones compatibles con el tipo de camión solicitado."
           },
           {
             name: "vehicleId",
@@ -29880,7 +29880,7 @@ function bindDynamicEvents() {
             type: "section",
             id: "approve-price",
             title: "3. Precio del viaje",
-            hint: "Obligatorio si asigna vehículo y conductor. Si solo aprueba pendiente, puede dejar el valor en 0 o una referencia."
+            hint: "Solo es obligatorio si asigna vehículo y conductor."
           },
           ...tripRateUi.fields.map((tf) => ({ ...tf, full: true }))
         ],
@@ -34004,7 +34004,7 @@ function bindDynamicEvents() {
           title: "Aprobar solicitud de viaje",
           subtitle: "",
           introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "auth"),
-          extraModalCardClass: "modal-card-edit--approve-trip",
+          extraModalCardClass: "modal-card-edit--approve-trip modal-card-edit--assign-revamp",
           submitText: "Aprobar",
           afterMount: (formEl) => {
             if (typeof tripRateUi.afterMount === "function") tripRateUi.afterMount(formEl);
@@ -34015,9 +34015,7 @@ function bindDynamicEvents() {
               type: "section",
               id: "auth-approve-hint",
               title: "Asignación opcional",
-              hint: "Deje vehículo y conductor en «sin asignar» para solo aprobar la solicitud. Si completa ambos, deberá indicar el precio del viaje."
-              + " Solo se listan vehículos del mismo tipo que pidió el cliente (Turbo, Camión o Tractomula)."
-              + " Estados: ocupado (solo si el horario se cruza con otro viaje del mismo recurso), no disponible, documentación o licencia vencida."
+              hint: "Puede aprobar sin asignar. Si completa vehículo y conductor, indique precio."
             },
             {
               name: "vehicleId",
@@ -34066,7 +34064,7 @@ function bindDynamicEvents() {
               type: "section",
               id: "auth-approve-price",
               title: "Precio del viaje",
-              hint: "Requerido solo si asigna vehículo y conductor."
+              hint: "Obligatorio solo si hay asignación completa."
             },
             ...tripRateUi.fields.map((tf) => ({ ...tf, full: true }))
           ],

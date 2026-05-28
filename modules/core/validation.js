@@ -418,9 +418,18 @@
     return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
   }
 
+  function shouldKeepNativeDateInput(el) {
+    if (!el) return false;
+    if (String(el.dataset?.portalDateNative || "") === "1") return true;
+    const n = String(el.name || "").trim().toLowerCase();
+    const i = String(el.id || "").trim().toLowerCase();
+    return n === "pickupdate" || n === "deliverydate" || i === "pickup-date" || i === "delivery-date";
+  }
+
   function mountPortalDateDmyInput(el) {
     if (!el || el.dataset.portalDateDmyMounted === "1") return el;
     if (String(el.type || "").toLowerCase() !== "date") return el;
+    if (shouldKeepNativeDateInput(el)) return el;
 
     const fieldName = String(el.name || "").trim();
     const isoSeed = String(el.value || "").trim().slice(0, 10);
@@ -781,7 +790,10 @@
     }
     const type = String(el.type || "").toLowerCase();
     if (type === "email") return { field: "email", blur: "email", restrict: "email-local" };
-    if (type === "date") return { field: "date-dmy", blur: "date-dmy" };
+    if (type === "date") {
+      if (shouldKeepNativeDateInput(el)) return { field: "date-iso", blur: "date-iso" };
+      return { field: "date-dmy", blur: "date-dmy" };
+    }
     if (type === "number") return { blur: "decimal", restrict: "decimal" };
     return null;
   }
