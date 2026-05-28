@@ -8712,7 +8712,7 @@ function syncSearchableSelectInputFromValue(selectEl) {
 
 function renderSearchableSelectDropdown(selectEl, filterText = "") {
   const parts = getSearchableSelectParts(selectEl);
-  if (!parts?.list) return;
+  if (!parts?.list) return [];
   const needle = String(filterText || "")
     .trim()
     .toLowerCase()
@@ -8734,7 +8734,7 @@ function renderSearchableSelectDropdown(selectEl, filterText = "") {
   if (!rows.length) {
     parts.list.innerHTML = `<li class="searchable-select-empty" role="presentation">Sin coincidencias</li>`;
     parts.list.classList.remove("hidden");
-    return;
+    return rows;
   }
   parts.list.innerHTML = rows
     .map(
@@ -8743,13 +8743,53 @@ function renderSearchableSelectDropdown(selectEl, filterText = "") {
     )
     .join("");
   parts.list.classList.remove("hidden");
+  return rows;
+}
+
+function positionSearchableSelectDropdown(selectEl) {
+  const parts = getSearchableSelectParts(selectEl);
+  if (!parts?.list || !parts.input) return;
+  const useFixed = Boolean(selectEl.closest?.("#form-create-trip, .modal-body, .auth-modal"));
+  if (!useFixed) {
+    parts.list.classList.remove("searchable-select-dropdown--fixed");
+    parts.list.style.left = "";
+    parts.list.style.top = "";
+    parts.list.style.width = "";
+    return;
+  }
+  const rect = parts.input.getBoundingClientRect();
+  parts.list.classList.add("searchable-select-dropdown--fixed");
+  parts.list.style.left = `${Math.max(8, rect.left)}px`;
+  parts.list.style.top = `${rect.bottom + 4}px`;
+  parts.list.style.width = `${Math.max(rect.width, 220)}px`;
+}
+
+function openSearchableSelectDropdown(selectEl, filterText = "") {
+  const parts = getSearchableSelectParts(selectEl);
+  if (!parts?.input || parts.input.disabled) return;
+  renderSearchableSelectDropdown(selectEl, filterText ?? parts.input.value);
+  parts.wrap.classList.add("searchable-select--open");
+  parts.input.setAttribute("aria-expanded", "true");
+  positionSearchableSelectDropdown(selectEl);
+}
+
+function closeSearchableSelectDropdown(selectEl) {
+  const parts = getSearchableSelectParts(selectEl);
+  if (!parts?.list) return;
+  parts.list.classList.add("hidden");
+  parts.list.classList.remove("searchable-select-dropdown--fixed");
+  parts.list.style.left = "";
+  parts.list.style.top = "";
+  parts.list.style.width = "";
+  parts.wrap?.classList.remove("searchable-select--open");
+  parts.input?.setAttribute("aria-expanded", "false");
 }
 
 function refreshSearchableSelect(selectEl) {
   if (!selectEl || selectEl.dataset.searchableMounted !== "1") return;
   syncSearchableSelectInputFromValue(selectEl);
-  const parts = getSearchableSelectParts(selectEl);
-  if (parts?.list) parts.list.classList.add("hidden");
+  closeSearchableSelectDropdown(selectEl);
+  syncCreateTripCompactPickList(selectEl);
 }
 
 function mountSearchableSelect(selectEl, opts = {}) {
@@ -8768,19 +8808,41 @@ function mountSearchableSelect(selectEl, opts = {}) {
   selectEl.parentNode.insertBefore(wrap, selectEl);
   wrap.appendChild(selectEl);
 
+  const row = document.createElement("div");
+  row.className = "searchable-select-row";
+  wrap.appendChild(row);
+
   const input = document.createElement("input");
   input.type = "search";
   input.className = "searchable-select-input";
   input.setAttribute("autocomplete", "off");
   input.setAttribute("spellcheck", "false");
   input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-expanded", "false");
   input.placeholder = placeholder;
-  wrap.insertBefore(input, selectEl);
+  row.appendChild(input);
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "searchable-select-toggle";
+  toggle.setAttribute("aria-label", "Mostrar opciones");
+  toggle.textContent = "▼";
+  row.appendChild(toggle);
+
+  const hint = document.createElement("p");
+  hint.className = "searchable-select-hint";
+  hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
+  wrap.appendChild(hint);
 
   const list = document.createElement("ul");
   list.className = "searchable-select-dropdown hidden";
   list.setAttribute("role", "listbox");
   wrap.appendChild(list);
+
+  const pickMount = document.createElement("div");
+  pickMount.className = "create-trip-pick-list-mount hidden";
+  pickMount.setAttribute("aria-hidden", "true");
+  wrap.appendChild(pickMount);
 
   selectEl.classList.add("searchable-select-native");
   selectEl.dataset.searchableMounted = "1";
@@ -8791,19 +8853,25 @@ function mountSearchableSelect(selectEl, opts = {}) {
     if (!match) return;
     selectEl.value = v;
     syncSearchableSelectInputFromValue(selectEl);
-    list.classList.add("hidden");
+    closeSearchableSelectDropdown(selectEl);
     selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+    syncCreateTripCompactPickList(selectEl);
   };
 
-  input.addEventListener("focus", () => {
-    renderSearchableSelectDropdown(selectEl, input.value);
-  });
-  input.addEventListener("input", () => {
-    renderSearchableSelectDropdown(selectEl, input.value);
+  const openDropdown = () => openSearchableSelectDropdown(selectEl, input.value);
+
+  input.addEventListener("focus", openDropdown);
+  input.addEventListener("click", openDropdown);
+  input.addEventListener("input", () => openSearchableSelectDropdown(selectEl, input.value));
+  toggle.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    if (list.classList.contains("hidden")) openDropdown();
+    else closeSearchableSelectDropdown(selectEl);
+    input.focus();
   });
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape") {
-      list.classList.add("hidden");
+      closeSearchableSelectDropdown(selectEl);
       syncSearchableSelectInputFromValue(selectEl);
       return;
     }
@@ -8822,14 +8890,127 @@ function mountSearchableSelect(selectEl, opts = {}) {
   input.addEventListener("blur", () => {
     window.setTimeout(() => {
       if (!wrap.contains(document.activeElement)) {
-        list.classList.add("hidden");
+        closeSearchableSelectDropdown(selectEl);
         syncSearchableSelectInputFromValue(selectEl);
       }
     }, 120);
   });
-  selectEl.addEventListener("change", () => syncSearchableSelectInputFromValue(selectEl));
+  selectEl.addEventListener("change", () => {
+    syncSearchableSelectInputFromValue(selectEl);
+    syncCreateTripCompactPickList(selectEl);
+  });
+
+  if (!selectEl.dataset.searchableRepositionWired) {
+    selectEl.dataset.searchableRepositionWired = "1";
+    const reposition = () => {
+      if (!list.classList.contains("hidden")) positionSearchableSelectDropdown(selectEl);
+    };
+    window.addEventListener("resize", reposition, { passive: true });
+    window.addEventListener("scroll", reposition, { passive: true, capture: true });
+  }
 
   refreshSearchableSelect(selectEl);
+}
+
+/** Lista compacta visible cuando hay pocas opciones (crear viaje). */
+function syncCreateTripCompactPickList(selectEl) {
+  const parts = getSearchableSelectParts(selectEl);
+  const mount = parts?.wrap?.querySelector(".create-trip-pick-list-mount");
+  if (!mount || !selectEl.closest("#form-create-trip")) return;
+  const rows = [...selectEl.options]
+    .map((opt) => ({
+      text: String(opt.textContent || "").trim(),
+      value: String(opt.value || ""),
+      disabled: opt.disabled
+    }))
+    .filter((row) => row.text || row.value);
+  const selectable = rows.filter((row) => row.value && !row.disabled);
+  if (selectable.length < 1 || selectable.length > 6) {
+    mount.classList.add("hidden");
+    mount.setAttribute("aria-hidden", "true");
+    mount.innerHTML = "";
+    return;
+  }
+  mount.classList.remove("hidden");
+  mount.setAttribute("aria-hidden", "false");
+  const current = String(selectEl.value || "");
+  mount.innerHTML = `<div class="create-trip-pick-list" role="listbox">${selectable
+    .map((row) => {
+      const selected = row.value === current ? " is-selected" : "";
+      return `<button type="button" class="create-trip-pick-option${selected}" data-value="${escapeAttr(row.value)}" role="option"${selected ? ' aria-selected="true"' : ""}>${escapeHtml(row.text)}</button>`;
+    })
+    .join("")}</div>`;
+  mount.querySelectorAll(".create-trip-pick-option").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.getAttribute("data-value");
+      const match = [...selectEl.options].find((o) => String(o.value) === String(v) && !o.disabled);
+      if (!match) return;
+      selectEl.value = String(v);
+      syncSearchableSelectInputFromValue(selectEl);
+      closeSearchableSelectDropdown(selectEl);
+      selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      syncCreateTripCompactPickList(selectEl);
+    });
+  });
+}
+
+function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, driverCandidates, vehicles, drivers) {
+  if (!formEl) return;
+  const needsTermoking = requestRequiresTermoking(request);
+  const setHint = (name, html) => {
+    const sel = formEl.querySelector(`select[name='${name}']`);
+    const field = sel?.closest(".create-trip-fleet-field");
+    if (!field) return;
+    let box = field.querySelector(".create-trip-resource-empty");
+    if (!html) {
+      box?.remove();
+      const parts = getSearchableSelectParts(sel);
+      const hint = parts?.wrap?.querySelector(".searchable-select-hint");
+      if (hint) {
+        hint.classList.remove("searchable-select-hint--warn");
+        hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
+      }
+      return;
+    }
+    if (!box) {
+      box = document.createElement("p");
+      box.className = "create-trip-resource-empty";
+      field.appendChild(box);
+    }
+    box.innerHTML = html;
+    const parts = getSearchableSelectParts(sel);
+    const hint = parts?.wrap?.querySelector(".searchable-select-hint");
+    if (hint) {
+      hint.classList.add("searchable-select-hint--warn");
+      hint.textContent = "Revise el mensaje debajo.";
+    }
+  };
+  if (!vehicles.length) {
+    const blocked = vehicleCandidates.filter((v) => v.wrongTruckType).length;
+    const termokingBlock = vehicleCandidates.filter(
+      (v) =>
+        !v.wrongTruckType &&
+        ((needsTermoking && !vehicleHasTermokingEquipment(v)) ||
+          (!needsTermoking && vehicleHasTermokingEquipment(v)))
+    ).length;
+    let msg = needsTermoking
+      ? "No hay vehículos con Termoking listos para esta solicitud."
+      : "No hay vehículos secos (sin Termoking) listos para esta solicitud.";
+    if (blocked) msg += ` ${blocked} unidad(es) no coinciden con el tipo de camión pedido.`;
+    if (termokingBlock) msg += ` ${termokingBlock} unidad(es) no cumplen Termoking de la solicitud.`;
+    if (!vehicleCandidates.length) msg = "No hay vehículos registrados en flota.";
+    setHint("vehicleId", escapeHtml(msg));
+  } else {
+    setHint("vehicleId", "");
+  }
+  if (!drivers.length) {
+    let msg = driverCandidates.length
+      ? "Hay conductores en lista pero ninguno está disponible (ocupado, no disponible o licencia vencida)."
+      : "No hay conductores en flota. Sincronice desde Gestión humana (rol conductor).";
+    setHint("driverId", escapeHtml(msg));
+  } else {
+    setHint("driverId", "");
+  }
 }
 
 /** Vehículo y conductor en crear viaje, aprobar solicitud y autorizaciones. */
@@ -8855,9 +9036,12 @@ function setTripAssignmentFieldsDisabled(formEl, disabled) {
       if (disabled) {
         searchable.input.setAttribute("disabled", "disabled");
         searchable.input.setAttribute("aria-disabled", "true");
+        searchable.wrap?.querySelector(".searchable-select-toggle")?.setAttribute("disabled", "disabled");
+        closeSearchableSelectDropdown(el);
       } else {
         searchable.input.removeAttribute("disabled");
         searchable.input.removeAttribute("aria-disabled");
+        searchable.wrap?.querySelector(".searchable-select-toggle")?.removeAttribute("disabled");
       }
     }
     if (disabled) {
@@ -9147,7 +9331,7 @@ function refreshCreateTripModuleForm(formEl) {
   }
 
   if (rateMount) {
-    rateMount.innerHTML = `<div class="form-section-grid create-trip-rate-mount">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
+    rateMount.innerHTML = `<div class="create-trip-rate-mount">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
     wireTripRateChoiceSelect(formEl);
     const rateChoiceSel = formEl.querySelector("select[name='tripRateChoice']");
     restoreSelectValue(rateChoiceSel, prevRateChoice);
@@ -9160,6 +9344,7 @@ function refreshCreateTripModuleForm(formEl) {
     }
   }
   enhanceTripAssignmentSelects(formEl);
+  updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, driverCandidates, vehicles, drivers);
   updateCreateTripStepper(formEl);
 }
 
@@ -9997,6 +10182,73 @@ function positionSelectOptions(selectedId = "") {
   return getActivePositions()
     .map((position) => `<option value="${position.id}" ${position.id === selectedId ? "selected" : ""}>${position.name} · $${parseNum(position.baseSalary).toLocaleString("es-CO")}</option>`)
     .join("");
+}
+
+function dispatchPositionsCatalogUpdated() {
+  try {
+    window.dispatchEvent(new CustomEvent("antares-positions-catalog-updated"));
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+function refreshPositionSelectsInDocument() {
+  const placeholder = "Seleccione un cargo creado en Contratación";
+  document.querySelectorAll("select[name='positionId'], #emp-position-select").forEach((sel) => {
+    const prev = String(sel.value || "").trim();
+    const keep = prev && getPositionById(prev)?.active !== false ? prev : "";
+    const isEmp = sel.id === "emp-position-select" || sel.closest("#form-employee");
+    const head = isEmp
+      ? `<option value="">${placeholder}</option>`
+      : `<option value="">Seleccione</option>`;
+    sel.innerHTML = `${head}${positionSelectOptions(keep)}`;
+    if (keep) sel.value = keep;
+  });
+}
+
+function ensurePositionsCatalogLiveSelects() {
+  if (window.__antaresPositionsSelectLiveWired) return;
+  window.__antaresPositionsSelectLiveWired = true;
+  document.addEventListener("antares-positions-catalog-updated", () => refreshPositionSelectsInDocument());
+}
+
+/**
+ * Guarda cargos en memoria al instante; sincroniza con PostgreSQL en segundo plano (o en espera si optimistic=false).
+ * @returns {Promise<boolean>}
+ */
+async function persistPositionsCatalog(nextList, opts = {}) {
+  const optimistic = opts.optimistic !== false;
+  const prev = read(KEYS.positions, []);
+  write(KEYS.positions, nextList, { skipSyncSchedule: true });
+  dispatchPositionsCatalogUpdated();
+  if (!optimistic) {
+    try {
+      await writeAwaitServer(KEYS.positions, nextList, { notifyOnFailure: opts.notifyOnFailure });
+      return true;
+    } catch (err) {
+      write(KEYS.positions, prev, { skipSyncSchedule: true });
+      dispatchPositionsCatalogUpdated();
+      if (opts.notifyOnFailure !== false) {
+        notify(String(err?.message || "No fue posible guardar el cargo en el servidor."), "error");
+      }
+      return false;
+    }
+  }
+  void (async () => {
+    try {
+      await writeAwaitServer(KEYS.positions, nextList, { notifyOnFailure: false });
+    } catch (err) {
+      write(KEYS.positions, prev, { skipSyncSchedule: true });
+      dispatchPositionsCatalogUpdated();
+      if (opts.notifyOnFailure !== false) {
+        notify(
+          String(err?.message || "El cargo se guardó en pantalla pero no se sincronizó con el servidor."),
+          "error"
+        );
+      }
+    }
+  })();
+  return true;
 }
 
 function ensureCompaniesAndUserMapping() {
@@ -13435,26 +13687,27 @@ function historyVehicleColumn(request) {
 }
 
 /** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud restringe el tipo cuando `vehicleType` está informado; Termoking vía `refrigeracionTermoking` o legacy en `serviceType`. */
-const TRIP_ASSIGNMENT_FLEET_TYPES = new Set(["Camion", "Turbo", "Tractomula"]);
+const TRIP_ASSIGNMENT_FLEET_TYPE_KEYS = new Set(["camion", "turbo", "tractomula"]);
 
 function normalizeFleetTypeForTripAssignment(type) {
   return String(type || "")
     .trim()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 /** Turbo / Camión / Tractomula de la solicitud ↔ mismo tipo en flota (tolerante a tildes/mayúsculas). Sin tipo requerido → no se filtra (datos legacy). */
 function vehicleMatchesRequestTruckType(vehicle, request) {
   const reqLabel = normalizeRequestRequiredTruckType(request?.vehicleType);
   if (!reqLabel) return true;
-  const reqKey = normalizeFleetTypeForTripAssignment(reqLabel).toLowerCase();
-  const vKey = normalizeFleetTypeForTripAssignment(vehicle?.type).toLowerCase();
+  const reqKey = normalizeFleetTypeForTripAssignment(reqLabel);
+  const vKey = normalizeFleetTypeForTripAssignment(vehicle?.type);
   return Boolean(reqKey && vKey && reqKey === vKey);
 }
 
 function isVehicleEligibleForTripAssignment(vehicle) {
-  return TRIP_ASSIGNMENT_FLEET_TYPES.has(normalizeFleetTypeForTripAssignment(vehicle?.type));
+  return TRIP_ASSIGNMENT_FLEET_TYPE_KEYS.has(normalizeFleetTypeForTripAssignment(vehicle?.type));
 }
 
 /** Etiqueta unificada en selects de asignación; con Termoking en solicitud muestra bandera explícita. */
@@ -25566,6 +25819,7 @@ function renderPortalViewImpl() {
   wireAdminCompanyLocationSelects();
   wireAdminCompanyLogoOvals();
   applyModuleMicroAnimations();
+  ensurePositionsCatalogLiveSelects();
 }
 
 function renderPortalView() {
@@ -30599,6 +30853,7 @@ function bindDynamicEvents() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    ensurePositionsCatalogLiveSelects();
     const empPosSelect = employeeForm.querySelector("#emp-position-select");
     const empSalary = employeeForm.querySelector("#emp-base-salary");
     const empContract = employeeForm.querySelector("#emp-contract-type");
@@ -32271,12 +32526,8 @@ function bindDynamicEvents() {
         legalBasis: normalizeLatinUpperForDb(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
         active: true
       }));
-      try {
-        await writeAwaitServer(KEYS.positions, all);
-      } catch (err) {
-        notify(String(err?.message || "No fue posible guardar el cargo en el servidor."), "error");
-        return;
-      }
+      const ok = await persistPositionsCatalog(all, { optimistic: true });
+      if (!ok) return;
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "data";
       persistHrWorkspace("hiring", "data");
@@ -32294,12 +32545,8 @@ function bindDynamicEvents() {
       const nextPositions = all.map((p) =>
         p.id === target.id ? { ...p, active: target.active === false, updatedAt: nowIso() } : p
       );
-      try {
-        await writeAwaitServer(KEYS.positions, nextPositions);
-      } catch (err) {
-        notify(String(err?.message || "No fue posible actualizar el cargo en el servidor."), "error");
-        return;
-      }
+      const ok = await persistPositionsCatalog(nextPositions, { optimistic: true });
+      if (!ok) return;
       notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
       renderPortalView();
     });
@@ -34590,12 +34837,8 @@ function bindExtendedViewEditHandlers() {
                     legalBasis: String(form.legalBasis || "").trim()
                   })
             );
-          try {
-            await writeAwaitServer(KEYS.positions, nextPos);
-          } catch (err) {
-            notify(String(err?.message || "No fue posible guardar el cargo en el servidor."), "error");
-            return false;
-          }
+          const ok = await persistPositionsCatalog(nextPos, { optimistic: true });
+          if (!ok) return false;
           notify("Cargo actualizado.", "success");
           renderPortalView();
           return true;

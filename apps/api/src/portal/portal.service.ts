@@ -8248,6 +8248,86 @@ export class PortalService implements OnModuleInit {
     );
   }
 
+  /** Un solo INSERT…UNNEST en lugar de N round-trips (catálogo de cargos suele ser pequeño pero el sync es frecuente). */
+  private async upsertPositionsBatch(c: PoolClient, data: unknown): Promise<void> {
+    if (!Array.isArray(data)) return;
+    const ids: string[] = [];
+    const names: string[] = [];
+    const roles: string[] = [];
+    const salaries: number[] = [];
+    const contracts: string[] = [];
+    const legal: string[] = [];
+    const active: boolean[] = [];
+    const schedules: (string | null)[] = [];
+    const arlLevels: (string | null)[] = [];
+    const integral: (boolean | null)[] = [];
+    const transport: (number | null)[] = [];
+
+    for (const raw of data) {
+      const p = raw as Record<string, unknown>;
+      if (!p?.id) continue;
+      if (this.skipUnlessPersistUuid("syncHrKeys.positions", p.id)) continue;
+      const id = String(p.id).trim();
+      const integralRaw = pickPortalField(p, "integralSalary");
+      const integralVal =
+        integralRaw === true ||
+        integralRaw === "true" ||
+        (typeof integralRaw === "string" && integralRaw.toLowerCase() === "true")
+          ? true
+          : integralRaw === false || integralRaw === "false"
+            ? false
+            : null;
+      const transportRaw = pickPortalField(p, "transportAllowance");
+      const transportAllowance =
+        transportRaw != null && String(transportRaw).trim() !== ""
+          ? Math.max(0, Number(transportRaw) || 0)
+          : null;
+
+      ids.push(id);
+      names.push(nu(p.name));
+      roles.push(String(p.workerRole || "empleado").toLowerCase());
+      salaries.push(Number(p.baseSalary) || 0);
+      contracts.push(nu(p.contractTypeDefault || "Indefinido"));
+      legal.push(nu(p.legalBasis || ""));
+      active.push(p.active !== false);
+      schedules.push(nuN(pickPortalField(p, "workSchedule", "schedule")));
+      arlLevels.push(nuN(pickPortalField(p, "arlRiskLevel")));
+      integral.push(integralVal);
+      transport.push(transportAllowance);
+    }
+
+    if (!ids.length) return;
+
+    await c.query(
+      `INSERT INTO cargos (
+          id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal,
+          activo, jornada_referencia, nivel_riesgo_arl, salario_integral, auxilio_transporte
+        )
+        SELECT
+          u.id, u.nombre, u.rol_trabajador, u.salario_base_mensual, u.tipo_contrato_sugerido, u.fundamento_legal,
+          u.activo, u.jornada_referencia, u.nivel_riesgo_arl, u.salario_integral, u.auxilio_transporte
+        FROM UNNEST(
+          $1::uuid[], $2::text[], $3::text[], $4::numeric[], $5::text[], $6::text[],
+          $7::boolean[], $8::text[], $9::text[], $10::boolean[], $11::numeric[]
+        ) AS u(
+          id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal,
+          activo, jornada_referencia, nivel_riesgo_arl, salario_integral, auxilio_transporte
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          nombre = EXCLUDED.nombre,
+          rol_trabajador = EXCLUDED.rol_trabajador,
+          salario_base_mensual = EXCLUDED.salario_base_mensual,
+          tipo_contrato_sugerido = EXCLUDED.tipo_contrato_sugerido,
+          fundamento_legal = EXCLUDED.fundamento_legal,
+          activo = EXCLUDED.activo,
+          jornada_referencia = EXCLUDED.jornada_referencia,
+          nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
+          salario_integral = EXCLUDED.salario_integral,
+          auxilio_transporte = EXCLUDED.auxilio_transporte`,
+      [ids, names, roles, salaries, contracts, legal, active, schedules, arlLevels, integral, transport]
+    );
+  }
+
   private async syncHrKeys(
     c: PoolClient,
     key: PortalSyncKey,
@@ -8260,50 +8340,7 @@ export class PortalService implements OnModuleInit {
       await this.syncListWithPruning(c, hrTable, data, deletedIds);
     }
     if (key === "positions") {
-      for (const raw of data) {
-        const p = raw as Record<string, unknown>;
-        if (!p?.id) continue;
-        if (this.skipUnlessPersistUuid("syncHrKeys.positions", p.id)) continue;
-        const integralRaw = pickPortalField(p, "integralSalary");
-        const integral =
-          integralRaw === true ||
-          integralRaw === "true" ||
-          (typeof integralRaw === "string" && integralRaw.toLowerCase() === "true");
-        const baseSalary = Number(p.baseSalary) || 0;
-        const transportRaw = pickPortalField(p, "transportAllowance");
-        const transportAllowance =
-          transportRaw != null && String(transportRaw).trim() !== ""
-            ? Math.max(0, Number(transportRaw) || 0)
-            : null;
-        await c.query(
-          `INSERT INTO cargos (id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido, fundamento_legal, activo, jornada_referencia, nivel_riesgo_arl, salario_integral, auxilio_transporte)
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-           ON CONFLICT (id) DO UPDATE SET
-             nombre = EXCLUDED.nombre,
-             rol_trabajador = EXCLUDED.rol_trabajador,
-             salario_base_mensual = EXCLUDED.salario_base_mensual,
-             tipo_contrato_sugerido = EXCLUDED.tipo_contrato_sugerido,
-             fundamento_legal = EXCLUDED.fundamento_legal,
-             activo = EXCLUDED.activo,
-             jornada_referencia = EXCLUDED.jornada_referencia,
-             nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
-             salario_integral = EXCLUDED.salario_integral,
-             auxilio_transporte = EXCLUDED.auxilio_transporte`,
-          [
-            p.id,
-            nu(p.name),
-            String(p.workerRole || "empleado").toLowerCase(),
-            baseSalary,
-            nu(p.contractTypeDefault || "Indefinido"),
-            nu(p.legalBasis || ""),
-            p.active !== false,
-            nuN(pickPortalField(p, "workSchedule", "schedule")),
-            nuN(pickPortalField(p, "arlRiskLevel")),
-            integral ? true : integralRaw === false || integralRaw === "false" ? false : null,
-            transportAllowance
-          ]
-        );
-      }
+      await this.upsertPositionsBatch(c, data);
       return;
     }
     if (key === "vacancies") {

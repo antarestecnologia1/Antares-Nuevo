@@ -4520,7 +4520,17 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 .transport-trip-create-form > .transport-trip-create-form__resources .create-trip-surface,
 .transport-trip-create-form > .transport-trip-create-form__pricing .create-trip-surface {
-  height: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.transport-trip-create-form .form-section,
+.transport-trip-create-form .create-trip-fleet-shell,
+.transport-trip-create-form .create-trip-resource-card,
+.transport-trip-create-form .create-trip-fleet-field,
+.transport-trip-create-form .create-trip-rate-surface,
+.transport-trip-create-form .create-trip-rate-inner {
+  overflow: visible;
 }
 
 .transport-route-form > .hr-form-hero,
@@ -5004,11 +5014,11 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 .searchable-select-dropdown {
   position: absolute;
-  z-index: 40;
+  z-index: 120;
   left: 0;
   right: 0;
-  top: calc(100% - 0.15rem);
-  max-height: 14rem;
+  top: calc(100% + 0.2rem);
+  max-height: min(14rem, 42vh);
   overflow-y: auto;
   margin: 0;
   padding: 0.25rem 0;
@@ -5019,8 +5029,118 @@ body[data-theme="dark"] .modal-edit-section-title {
   box-shadow: 0 8px 24px color-mix(in srgb, var(--text-main) 12%, transparent);
 }
 
+.searchable-select-dropdown.searchable-select-dropdown--fixed {
+  position: fixed;
+  right: auto;
+  z-index: 5000;
+}
+
 .searchable-select-dropdown.hidden {
   display: none;
+}
+
+.searchable-select--open .searchable-select-input {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.searchable-select-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.searchable-select-row .searchable-select-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.searchable-select-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 6%, var(--white));
+  color: var(--primary-dark, #0d3f78);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.searchable-select-toggle:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 12%, var(--white));
+}
+
+.searchable-select-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.searchable-select-hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--muted, #64748b);
+}
+
+.searchable-select-hint--warn {
+  color: #b45309;
+}
+
+.create-trip-resource-empty {
+  margin: 0.15rem 0 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: #92400e;
+  background: color-mix(in srgb, #f59e0b 12%, var(--white));
+  border: 1px solid color-mix(in srgb, #f59e0b 28%, var(--line));
+}
+
+.create-trip-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  max-height: 9.5rem;
+  overflow-y: auto;
+}
+
+.create-trip-pick-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.42rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+.create-trip-pick-option:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  background: color-mix(in srgb, var(--primary) 8%, var(--white));
+}
+
+.create-trip-pick-option.is-selected {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--line));
+  background: color-mix(in srgb, var(--primary) 14%, var(--white));
+  font-weight: 700;
+}
+
+.create-trip-pick-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .searchable-select-option {
@@ -5423,7 +5543,48 @@ body[data-theme="dark"] .searchable-select-dropdown {
 .create-trip-rate-inner {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
+}
+
+.hr-form-card .create-trip-rate-mount.form-section-grid,
+.hr-form-card .create-trip-rate-mount .create-trip-rate-catalog,
+.hr-form-card .create-trip-rate-mount .create-trip-price-field {
+  min-height: 0;
+}
+
+.hr-form-card .create-trip-rate-mount .create-trip-rate-catalog,
+.hr-form-card .create-trip-rate-mount .create-trip-price-field--hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  min-height: 0;
+}
+
+.hr-form-card .create-trip-rate-mount select.trip-rate-choice-select {
+  min-height: 2.45rem;
+  max-height: 2.65rem;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+
+.hr-form-card .create-trip-rate-mount .trip-rate-meta {
+  margin-top: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.hr-form-card .create-trip-rate-mount .create-trip-price-field--hero .create-trip-price-wrap {
+  min-height: 2.55rem;
+}
+
+.hr-form-card .create-trip-rate-mount .create-trip-price-field--hero input {
+  font-size: 1rem;
+  padding: 0.5rem 0.65rem;
 }
 
 .create-trip-price-wrap {
