@@ -30675,11 +30675,24 @@ function bindDynamicEvents() {
         notify(userMessage("employeeDeleteNotFound"), "error");
         return;
       }
+      const targetDoc = String(target.idDoc || "").trim();
+      const employeeContracts = read(KEYS.contracts, [])
+        .filter((c) => {
+          const byEmployeeId = String(c.employeeId || "") === String(target.id || "");
+          const byDocument = targetDoc && String(c.idDocSnapshot || "").trim() === targetDoc;
+          return byEmployeeId || byDocument;
+        })
+        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      const latestEmployeeContract = employeeContracts[0] || null;
+      const contractAction = latestEmployeeContract
+        ? `<button type="button" class="btn btn-action" data-action="view-contract" data-id="${escapeAttr(String(latestEmployeeContract.id || ""))}">${IC.download} Descargar contrato</button>`
+        : "";
       openInfoModal({
         title: "Ficha del colaborador",
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
         bodyHtml: buildEmployeePayrollProfileBodyHtml(target),
-        wide: true
+        wide: true,
+        secondaryActionsHtml: contractAction
       });
     });
   });
