@@ -9409,6 +9409,8 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
+    /** En crear viaje usamos select nativo para evitar glitches de popup en algunos layouts. */
+    if (sel.closest("#form-create-trip")) return;
     mountSearchableSelect(sel, { force: true });
   });
 }

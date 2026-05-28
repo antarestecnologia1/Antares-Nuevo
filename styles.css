@@ -5081,6 +5081,23 @@ body[data-theme="dark"] .modal-edit-section-title {
   border: 0;
 }
 
+/* Fallback estable: en crear viaje, si no está montado el wrapper searchable,
+   mostramos el select nativo (camión / conductor) para evitar listas flotantes rotas. */
+#form-create-trip select.searchable-select-native:not([data-searchable-mounted="1"]) {
+  position: static;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0.48rem 0.62rem;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+}
+
 .searchable-select-dropdown {
   position: absolute;
   z-index: 120;
