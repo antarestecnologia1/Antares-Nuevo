@@ -23526,7 +23526,7 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .user-grid.directory-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 0.82rem;
 }
 
@@ -23716,26 +23716,63 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .directory-card--user .directory-card__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.5rem 0.62rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.48rem;
+}
+
+.directory-card--user .directory-card__identity {
+  width: 100%;
 }
 
 .directory-card--user .directory-card__status-stack {
-  flex: none;
-  max-width: min(8.5rem, 38%);
-  justify-self: end;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: stretch;
+  width: 100%;
+  max-width: none;
+  gap: 0.35rem 0.45rem;
 }
 
 .directory-card--user .directory-card__status-stack .role-chip {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   text-transform: none;
   letter-spacing: 0.02em;
+}
+
+.directory-card--user .directory-card__title {
+  overflow: visible;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  word-break: break-word;
+}
+
+.directory-card--user .directory-card__subline {
+  overflow: visible;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  word-break: break-word;
+}
+
+.directory-card--user .directory-card__subline--email {
+  word-break: break-all;
+}
+
+.directory-card--user .directory-card__ops-detail {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.directory-card--user .directory-chip strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  display: block;
 }
 
 .directory-card__ops {
@@ -24028,7 +24065,7 @@ body[data-theme="dark"] .notif-card-unread {
 }
 
 .user-grid.directory-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 0.85rem;
 }
 
@@ -26536,7 +26573,7 @@ body[data-theme="dark"] .request-company-hub-metrics small {
 }
 
 .portal-main .user-grid.directory-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
 }
 
 .portal-main .user-grid-companies {

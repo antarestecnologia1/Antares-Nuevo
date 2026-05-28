@@ -9638,6 +9638,34 @@ function refreshCreateTripModuleForm(formEl) {
 
   const fleetStats = formEl.querySelector("#create-trip-fleet-stats");
 
+  const tripFormUser = currentUser();
+  if (request && !canAssignTripFromViajesModule(request, tripFormUser)) {
+    if (preview) {
+      preview.innerHTML = createTripEmptyHint(
+        "lock",
+        "Solicitud no disponible para asignar",
+        request.status === STATUS.PENDIENTE
+          ? "Apruebe la solicitud en Centro de autorizaciones; luego podrá asignar el viaje aquí."
+          : "Esta solicitud no está en un estado válido para asignación de viaje."
+      );
+      preview.classList.add("create-trip-summary-panel--active", "assign-trip-preview--filled");
+    }
+    if (fleetStats) fleetStats.innerHTML = "";
+    if (vehSel) {
+      vehSel.innerHTML = `<option value="">No asignable en este módulo</option>`;
+      vehSel.disabled = true;
+    }
+    if (drvSel) {
+      drvSel.innerHTML = `<option value="">No asignable en este módulo</option>`;
+      drvSel.disabled = true;
+    }
+    if (rateMount) {
+      rateMount.innerHTML = createTripEmptyHint("lock", "Apruebe la solicitud primero");
+    }
+    updateCreateTripStepper(formEl);
+    return;
+  }
+
   if (!request) {
     if (preview) {
       preview.innerHTML = createTripEmptyHint("inbox", "Seleccione una solicitud");
@@ -11144,6 +11172,15 @@ function registrationKindLabel(kind) {
     .toLowerCase();
   if (k === "empleado_interno") return "Empleado interno";
   return "Cliente externo";
+}
+
+/** Etiqueta breve para chips de tarjeta de usuario. */
+function registrationKindChipLabel(kind) {
+  const k = String(kind || "")
+    .trim()
+    .toLowerCase();
+  if (k === "empleado_interno") return "Interno";
+  return "Externo";
 }
 
 function portalRegistrationInboxInitials(name) {
@@ -15355,14 +15392,26 @@ function getVisibleRequestsForUser(user) {
   return requests.filter((request) => transportRequestBelongsToUserScope(request, user));
 }
 
-/** Pendientes elegibles en Transporte · Viajes (asignación exige aprobación salvo flujo de aprobación). */
+/**
+ * Solicitudes visibles en Transporte · Viajes para asignar.
+ * - Con permiso de aprobación: Pendiente o Aprobada pendiente asignación (flujo en un paso).
+ * - Solo transport_trips: únicamente ya aprobadas.
+ */
 function pendingRequestsForTripAssignment(user) {
-  return getVisibleRequestsForUser(user).filter((r) => {
+  const u = user || currentUser();
+  return getVisibleRequestsForUser(u).filter((r) => {
     if (r.trip) return false;
     if (r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION) return true;
-    if (r.status === STATUS.PENDIENTE && canApproveTransportRequests(user)) return true;
+    if (r.status === STATUS.PENDIENTE && canApproveTransportRequests(u)) return true;
     return false;
   });
+}
+
+function canAssignTripFromViajesModule(request, user) {
+  if (!request) return false;
+  if (request.status === STATUS.APROBADA_PENDIENTE_ASIGNACION) return true;
+  if (request.status === STATUS.PENDIENTE && canApproveTransportRequests(user)) return true;
+  return false;
 }
 
 function hasPermission(user, permission) {
@@ -16551,10 +16600,11 @@ function directoryToneFromBucket(raw) {
   return "ok";
 }
 
-function directoryChipHtml(label, value, tone = "neutral") {
+function directoryChipHtml(label, value, tone = "neutral", title = "") {
   const safeValue = String(value ?? "").trim() || "Sin dato";
   const toneClass = tone && tone !== "neutral" ? ` directory-chip--${escapeAttr(tone)}` : "";
-  return `<span class="directory-chip${toneClass}"><small>${escapeHtml(label)}</small><strong>${escapeHtml(safeValue)}</strong></span>`;
+  const titleAttr = String(title || "").trim() ? ` title="${escapeAttr(String(title).trim())}"` : "";
+  return `<span class="directory-chip${toneClass}"><small>${escapeHtml(label)}</small><strong${titleAttr}>${escapeHtml(safeValue)}</strong></span>`;
 }
 
 function directoryFactHtml(label, value, opts = {}) {
@@ -17594,11 +17644,25 @@ function transportTripsHtml() {
     )}
   </form>`;
 
-  const pendingSelectOpts = pendingForTrip
-    .map(
-      (r) =>
-        `<option value="${escapeAttr(r.id)}" data-createdby="${escapeAttr(r.requestedByName || "-")}" data-route="${escapeAttr(`${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}`)}" data-company="${escapeAttr(r.clientName || "-")}">${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${escapeHtml(r.originCity || "")} → ${escapeHtml(r.destinationCity || "")}</option>`
-    )
+  const canApproveInViajes = canApproveTransportRequests(tripUser);
+  const tripAssignOptionLabel = (r) => {
+    const stateTag =
+      r.status === STATUS.PENDIENTE ? "Pendiente" : "Aprobada";
+    return `${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(stateTag)} · ${escapeHtml(r.clientName || "")} · ${escapeHtml(r.originCity || "")} → ${escapeHtml(r.destinationCity || "")}`;
+  };
+  const tripAssignOptionHtml = (r) =>
+    `<option value="${escapeAttr(r.id)}" data-createdby="${escapeAttr(r.requestedByName || "-")}" data-route="${escapeAttr(`${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}`)}" data-company="${escapeAttr(r.clientName || "-")}">${tripAssignOptionLabel(r)}</option>`;
+  const pendingApproveTrip = pendingForTrip.filter((r) => r.status === STATUS.PENDIENTE);
+  const pendingAssignTrip = pendingForTrip.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION);
+  const pendingSelectOpts = [
+    canApproveInViajes && pendingApproveTrip.length
+      ? `<optgroup label="Pendientes (puede aprobar y asignar)">${pendingApproveTrip.map(tripAssignOptionHtml).join("")}</optgroup>`
+      : "",
+    pendingAssignTrip.length
+      ? `<optgroup label="Aprobadas · por asignar">${pendingAssignTrip.map(tripAssignOptionHtml).join("")}</optgroup>`
+      : pendingForTrip.map(tripAssignOptionHtml).join("")
+  ]
+    .filter(Boolean)
     .join("");
   const expiredPendingOpts = pendingExpired
     .map((r) => {
@@ -17608,8 +17672,8 @@ function transportTripsHtml() {
     .join("");
   const pendingBadge =
     pendingForTrip.length > 0
-      ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"}</span>`
-      : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Sin pendientes</span>`;
+      ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>`
+      : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">${canApproveInViajes ? "Sin solicitudes por asignar" : "Sin aprobadas por asignar"}</span>`;
   const topTripActions = `<div class="module-panel-actions module-panel-actions--footer form-flow-actions full create-trip-top-actions">
     <div class="module-panel-actions__bar">
       <div class="module-panel-actions__group module-panel-actions__group--secondary">
@@ -17634,9 +17698,9 @@ function transportTripsHtml() {
       </header>
       <div class="assign-trip-block-body">
         <label class="assign-trip-field assign-trip-field--request">
-          <span class="assign-trip-field-label">${fieldLabel(IC.inbox, "Pendiente", { required: true })}</span>
+          <span class="assign-trip-field-label">${fieldLabel(IC.inbox, "Solicitud", { required: true })}</span>
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
-            <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : "Sin pendientes"}</option>
+            <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : canApproveInViajes ? "Sin solicitudes pendientes" : "Apruebe solicitudes en Autorizaciones primero"}</option>
             ${pendingSelectOpts}
             ${expiredPendingOpts ? `<optgroup label="Vencidas (no asignables)">${expiredPendingOpts}</optgroup>` : ""}
           </select>
@@ -17703,7 +17767,7 @@ function transportTripsHtml() {
     "create-trip",
     "truck",
     "Asignar viaje",
-    `${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"} · 3 pasos`,
+    `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"} · 3 pasos`,
     createTripForm,
     "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip",
     "Abrir formulario"
@@ -18132,7 +18196,8 @@ function adminUsersHtml(current) {
     const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
     const locationLabel = u.city ? `${String(u.city)}${u.department ? `, ${String(u.department)}` : ""}` : "Sin ubicacion";
     const permissionCount = namedPerms.length;
-    const registrationLabel = u.registrationKind ? registrationKindLabel(u.registrationKind) : "Sin vinculo";
+    const profileChipLabel = u.registrationKind ? registrationKindChipLabel(u.registrationKind) : "—";
+    const profileChipTitle = u.registrationKind ? registrationKindLabel(u.registrationKind) : "";
     const joinedLabel = fmtDateOr(u.systemJoinDate || u.registeredAt || u.createdAt, "—");
     const docLabel = String(u.idDoc || u.taxId || "").trim() || "Sin documento";
     const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin teléfono";
@@ -18161,12 +18226,11 @@ function adminUsersHtml(current) {
         ? "alert"
         : "ok";
     const roleTag = u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn");
-    const contactLine = [
-      String(u.email || "Sin correo"),
-      locationLabel !== "Sin ubicacion" ? locationLabel : ""
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    const emailLine = String(u.email || "Sin correo");
+    const locationOnly = locationLabel !== "Sin ubicacion" ? locationLabel : "";
+    const contactSublineHtml = locationOnly
+      ? `<p class="directory-card__subline directory-card__subline--email">${escapeHtml(emailLine)}</p><p class="directory-card__subline">${escapeHtml(locationOnly)}</p>`
+      : `<p class="directory-card__subline directory-card__subline--email">${escapeHtml(emailLine)}</p>`;
     const permPreview = namedPerms.length
       ? [
           ...visiblePerms.map((label) => `<span class="perm-tag">${escapeHtml(label)}</span>`),
@@ -18209,7 +18273,7 @@ function adminUsersHtml(current) {
           <div class="directory-card__heading">
             <p class="directory-card__kicker">${escapeHtml(companyName)}</p>
             <h4 class="directory-card__title">${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="directory-card__title-note">Tu cuenta</span>' : ""}</h4>
-            <p class="directory-card__subline">${escapeHtml(contactLine)}</p>
+            ${contactSublineHtml}
           </div>
         </div>
         <div class="directory-card__status-stack">
@@ -18221,7 +18285,7 @@ function adminUsersHtml(current) {
       <div class="directory-card__metrics directory-card__metrics--triple">
         ${directoryChipHtml("Permisos", String(permissionCount), permissionCount ? "ok" : "warn")}
         ${directoryChipHtml("2FA", u.twoFactorEnabled ? "On" : "Off", u.twoFactorEnabled ? "ok" : "warn")}
-        ${directoryChipHtml("Perfil", registrationLabel)}
+        ${directoryChipHtml("Perfil", profileChipLabel, "neutral", profileChipTitle)}
       </div>
       <dl class="directory-card__facts">
         ${directoryFactHtml("Documento", docLabel)}
@@ -30507,12 +30571,13 @@ function bindDynamicEvents() {
       }
       const allowApproveAndAssign =
         request.status === STATUS.PENDIENTE && canApproveTransportRequests(actor);
-      if (request.status === STATUS.PENDIENTE && !allowApproveAndAssign) {
-        notify(userMessage("requestMustBeApprovedBeforeAssign"), "error");
-        return;
-      }
-      if (![STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(request.status)) {
-        notify(userMessage("requestNotReadyForTripAssign"), "error");
+      if (!canAssignTripFromViajesModule(request, actor)) {
+        notify(
+          request.status === STATUS.PENDIENTE
+            ? userMessage("requestMustBeApprovedBeforeAssign")
+            : userMessage("requestNotReadyForTripAssign"),
+          "error"
+        );
         return;
       }
       if (!isRequestPickupSameDayOrFuture(request)) {
