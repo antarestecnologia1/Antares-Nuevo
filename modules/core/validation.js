@@ -420,10 +420,12 @@
 
   function shouldKeepNativeDateInput(el) {
     if (!el) return false;
+    if (String(el.dataset?.portalDateDmy || "") === "1") return false;
     if (String(el.dataset?.portalDateNative || "") === "1") return true;
     const n = String(el.name || "").trim().toLowerCase();
     const i = String(el.id || "").trim().toLowerCase();
-    return n === "pickupdate" || n === "deliverydate" || i === "pickup-date" || i === "delivery-date";
+    if (n === "pickupdate" || n === "deliverydate" || i === "pickup-date" || i === "delivery-date") return true;
+    return true;
   }
 
   function mountPortalDateDmyInput(el) {
@@ -556,6 +558,7 @@
     const dateEl = document.createElement("input");
     dateEl.type = "date";
     dateEl.value = dateIso;
+    dateEl.dataset.portalDateDmy = "1";
     if (required) dateEl.required = true;
     if (min) dateEl.min = min.slice(0, 10);
     if (max) dateEl.max = max.slice(0, 10);
