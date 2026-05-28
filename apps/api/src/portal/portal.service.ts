@@ -576,6 +576,10 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`pruneTransportDeletionAudits startup: ${sanitizeLogText(msg)}`);
     });
+    await this.backfillConductoresFromPayrollEmployees().catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`backfillConductoresFromPayrollEmployees: ${sanitizeLogText(msg)}`);
+    });
   }
 
   private async ensureSystemParametersSchema() {
@@ -6146,6 +6150,289 @@ export class PortalService implements OnModuleInit {
   }
 
   /**
+   * Empleados con rol conductor en RRHH deben existir en `conductores` para asignar viajes.
+   * Si solo se sincronizó `empleados_nomina`, la flota queda vacía en asignación.
+   */
+  private async backfillConductoresFromPayrollEmployees(): Promise<void> {
+    if (!(await this.tableExists("empleados_nomina")) || !(await this.tableExists("conductores"))) {
+      return;
+    }
+    const r = await this.pool.query(
+      `SELECT e.*
+       FROM empleados_nomina e
+       WHERE lower(trim(coalesce(e.rol_trabajador, ''))) = 'conductor'
+         AND e.numero_licencia IS NOT NULL
+         AND trim(e.numero_licencia) <> ''
+         AND e.fecha_vencimiento_licencia IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM conductores c
+           WHERE trim(c.numero_documento) = trim(e.numero_documento)
+         )`
+    );
+    if (!r.rows.length) return;
+    const client = await this.pool.connect();
+    try {
+      for (const row of r.rows) {
+        await this.upsertConductorFromPayrollDbRow(client, row as Record<string, unknown>);
+      }
+      this.logger.log(
+        `backfillConductoresFromPayrollEmployees: ${r.rows.length} conductor(es) creados desde RRHH`
+      );
+    } finally {
+      client.release();
+    }
+  }
+
+  private async upsertConductorFromPayrollEmployeePayload(
+    c: PoolClient,
+    e: Record<string, unknown>
+  ): Promise<void> {
+    const role = String(e.workerRole || "empleado").toLowerCase();
+    if (role !== "conductor") return;
+    const p = pickPortalField;
+    const license = String(p(e, "license", "licenseNumber") ?? "").trim();
+    const licenseExpiry = portalDateYmdOrNull(p(e, "licenseExpiry"));
+    if (!license || !licenseExpiry) return;
+    const empId = String(e.id ?? "").trim();
+    if (!PG_UUID_V4_RE.test(empId)) return;
+    const idDoc = String(e.idDoc || "").trim();
+    if (!idDoc) return;
+
+    const existing = await c.query<{ id: string }>(
+      `SELECT id::text AS id FROM conductores WHERE trim(numero_documento) = trim($1) LIMIT 1`,
+      [idDoc]
+    );
+    const conductorId = existing.rows[0]?.id?.trim() || empId;
+
+    const occExam = portalDateOrNull(
+      p(e, "occupationalExamDate", "psychoTestDate", "psychometricExamDate")
+    );
+    const intraExam = portalDateOrNull(p(e, "instruvialExamDate", "intravehicularExamDate"));
+    const occExpiry =
+      portalDateOrNull(p(e, "occupationalExamExpiry")) ?? (occExam ? portalYmdPlusYears(occExam, 1) : null);
+    const intraExpiry =
+      portalDateOrNull(p(e, "instruvialExamExpiry")) ?? (intraExam ? portalYmdPlusYears(intraExam, 1) : null);
+
+    await this.upsertConductorRow(c, {
+      id: conductorId,
+      companyId: portalUuidOrNull(e.companyId),
+      name: nu(e.name ?? "Conductor").slice(0, 255) || "CONDUCTOR",
+      documentType: String(e.documentType || "CC").trim().toUpperCase().slice(0, 8) || "CC",
+      idDoc,
+      phone: nu(p(e, "phone") ?? "3000000000").slice(0, 32) || "3000000000",
+      department: e.department != null ? (cat(p(e, "department"))?.slice(0, 120) ?? null) : null,
+      city: cat(p(e, "city") ?? "Bogota") ?? "Bogota",
+      address: nu(p(e, "address") ?? "N/D").slice(0, 2000) || "N/D",
+      license: license.slice(0, 64),
+      licenseCategory:
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.licenseCategories, p(e, "licenseCategory")) ||
+        "C2",
+      licenseExpiry,
+      occExam,
+      occExpiry,
+      intraExam,
+      intraExpiry,
+      defensiveCourse: normalizeDefensiveCourseForDb(p(e, "defensiveCourse", "defensiveDrivingCourse")),
+      bloodType: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.bloodTypes, p(e, "bloodType")),
+      eps: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.eps, p(e, "eps")),
+      arl: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.arl, p(e, "arl")),
+      emergencyContact: nuN(p(e, "emergencyContact")),
+      emergencyPhone: nuN(p(e, "emergencyPhone")),
+      contractType: nuN(p(e, "contractType")),
+      baseSalary: Number.isFinite(Number(p(e, "baseSalary"))) ? Number(p(e, "baseSalary")) : null,
+      startDate: portalDateOrNull(p(e, "startDate")),
+      avatarUrl: (p(e, "avatarUrl") as string) || null,
+      hiredAt: p(e, "hiredAt", "startDate") as string | null
+    });
+  }
+
+  private async upsertConductorFromPayrollDbRow(
+    c: PoolClient,
+    row: Record<string, unknown>
+  ): Promise<void> {
+    const empId = String(row.id ?? "").trim();
+    if (!PG_UUID_V4_RE.test(empId)) return;
+    const idDoc = String(row.numero_documento ?? "").trim();
+    const license = String(row.numero_licencia ?? "").trim();
+    const licenseExpiry = portalDateYmdOrNull(row.fecha_vencimiento_licencia);
+    if (!idDoc || !license || !licenseExpiry) return;
+
+    const existing = await c.query<{ id: string }>(
+      `SELECT id::text AS id FROM conductores WHERE trim(numero_documento) = trim($1) LIMIT 1`,
+      [idDoc]
+    );
+    const conductorId = existing.rows[0]?.id?.trim() || empId;
+
+    const occExam = portalDateYmdOrNull(row.fecha_examen_ocupacional);
+    const intraExam = portalDateYmdOrNull(row.fecha_examen_instruvial);
+    const occExpiry =
+      portalDateYmdOrNull(row.fecha_vencimiento_examen_ocupacional) ??
+      (occExam ? portalYmdPlusYears(occExam, 1) : null);
+    const intraExpiry =
+      portalDateYmdOrNull(row.fecha_vencimiento_examen_instruvial) ??
+      (intraExam ? portalYmdPlusYears(intraExam, 1) : null);
+
+    await this.upsertConductorRow(c, {
+      id: conductorId,
+      companyId: portalUuidOrNull(row.id_empresa),
+      name: nu(row.nombre_completo ?? "Conductor").slice(0, 255) || "CONDUCTOR",
+      documentType: String(row.tipo_documento || "CC").trim().toUpperCase().slice(0, 8) || "CC",
+      idDoc,
+      phone: nu(row.telefono ?? "3000000000").slice(0, 32) || "3000000000",
+      department: row.departamento != null ? (cat(row.departamento)?.slice(0, 120) ?? null) : null,
+      city: cat(row.ciudad ?? "Bogota") ?? "Bogota",
+      address: nu(row.direccion ?? "N/D").slice(0, 2000) || "N/D",
+      license: license.slice(0, 64),
+      licenseCategory: String(row.categoria_licencia || "C2").trim().toUpperCase().slice(0, 8) || "C2",
+      licenseExpiry,
+      occExam,
+      occExpiry,
+      intraExam,
+      intraExpiry,
+      defensiveCourse:
+        row.curso_conduccion_defensiva != null
+          ? normalizeDefensiveCourseForDb(String(row.curso_conduccion_defensiva))
+          : null,
+      bloodType: row.tipo_sangre != null ? String(row.tipo_sangre).trim() : null,
+      eps: row.eps != null ? String(row.eps).trim() : null,
+      arl: row.arl != null ? String(row.arl).trim() : null,
+      emergencyContact: row.contacto_emergencia != null ? String(row.contacto_emergencia).trim() : null,
+      emergencyPhone: row.telefono_emergencia != null ? String(row.telefono_emergencia).trim() : null,
+      contractType: row.tipo_contrato != null ? String(row.tipo_contrato).trim() : null,
+      baseSalary: row.salario_base != null ? Number(row.salario_base) : null,
+      startDate: portalDateYmdOrNull(row.fecha_ingreso),
+      avatarUrl: row.url_avatar != null ? String(row.url_avatar).trim() : null,
+      hiredAt: row.fecha_ingreso != null ? String(row.fecha_ingreso) : null
+    });
+  }
+
+  private async upsertConductorRow(
+    c: PoolClient,
+    d: {
+      id: string;
+      companyId: string | null;
+      name: string;
+      documentType: string;
+      idDoc: string;
+      phone: string;
+      department: string | null;
+      city: string;
+      address: string;
+      license: string;
+      licenseCategory: string;
+      licenseExpiry: string;
+      occExam: string | null;
+      occExpiry: string | null;
+      intraExam: string | null;
+      intraExpiry: string | null;
+      defensiveCourse: string | null;
+      bloodType: string | null;
+      eps: string | null;
+      arl: string | null;
+      emergencyContact: string | null;
+      emergencyPhone: string | null;
+      contractType: string | null;
+      baseSalary: number | null;
+      startDate: string | null;
+      avatarUrl: string | null;
+      hiredAt: string | null;
+    }
+  ): Promise<void> {
+    let urlFotoSql: string | null = d.avatarUrl != null ? String(d.avatarUrl).trim() : "";
+    if (!urlFotoSql || urlFotoSql.startsWith("data:") || urlFotoSql.length > 2048) {
+      urlFotoSql = null;
+    }
+    const hiredRaw = d.hiredAt;
+    const hiredTs =
+      hiredRaw != null && String(hiredRaw).trim() !== "" ? new Date(String(hiredRaw)) : null;
+    const hiredOk = hiredTs && !Number.isNaN(hiredTs.getTime()) ? hiredTs : null;
+    const bloodSql =
+      d.bloodType != null && String(d.bloodType).trim() !== ""
+        ? (nuN(d.bloodType)?.slice(0, 8) ?? null)
+        : null;
+    const epsSql =
+      d.eps != null && String(d.eps).trim() !== "" ? (nuN(d.eps)?.slice(0, 120) ?? null) : null;
+    const arlSql =
+      d.arl != null && String(d.arl).trim() !== "" ? (nuN(d.arl)?.slice(0, 120) ?? null) : null;
+
+    await c.query(
+      `INSERT INTO conductores (
+          id, id_empresa, nombre_completo, tipo_documento, numero_documento, telefono, departamento, ciudad, direccion,
+          numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
+          fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva,
+          fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
+          contacto_emergencia, telefono_emergencia,
+          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto
+        ) VALUES (
+          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
+          $13::date, $14::date, $15::date, $16::date, $17,
+          $18::date, $19, $20, $21, 0, 0,
+          $22, $23,
+          true, false, $24, $25, $26::date, $27::timestamptz,
+          $28
+        )
+        ON CONFLICT (numero_documento) DO UPDATE SET
+          id_empresa = COALESCE(EXCLUDED.id_empresa, conductores.id_empresa),
+          nombre_completo = EXCLUDED.nombre_completo,
+          tipo_documento = EXCLUDED.tipo_documento,
+          telefono = EXCLUDED.telefono,
+          departamento = EXCLUDED.departamento,
+          ciudad = EXCLUDED.ciudad,
+          direccion = EXCLUDED.direccion,
+          numero_licencia = EXCLUDED.numero_licencia,
+          categoria_licencia = EXCLUDED.categoria_licencia,
+          fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
+          fecha_examen_ocupacional = EXCLUDED.fecha_examen_ocupacional,
+          fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
+          fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          tipo_sangre = EXCLUDED.tipo_sangre,
+          eps = EXCLUDED.eps,
+          arl = EXCLUDED.arl,
+          contacto_emergencia = EXCLUDED.contacto_emergencia,
+          telefono_emergencia = EXCLUDED.telefono_emergencia,
+          tipo_contrato = EXCLUDED.tipo_contrato,
+          salario_base = EXCLUDED.salario_base,
+          fecha_inicio = EXCLUDED.fecha_inicio,
+          url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto),
+          fecha_actualizacion = now()`,
+      [
+        d.id,
+        d.companyId,
+        d.name,
+        d.documentType,
+        d.idDoc,
+        d.phone,
+        d.department,
+        d.city,
+        d.address,
+        d.license,
+        d.licenseCategory,
+        d.licenseExpiry,
+        d.occExam,
+        d.occExpiry,
+        d.intraExam,
+        d.intraExpiry,
+        d.defensiveCourse,
+        null,
+        bloodSql,
+        epsSql,
+        arlSql,
+        d.emergencyContact,
+        d.emergencyPhone,
+        d.contractType,
+        d.baseSalary,
+        d.startDate,
+        hiredOk,
+        urlFotoSql
+      ]
+    );
+  }
+
+  /**
    * Sincroniza notificaciones: UPSERT más **poda** — las filas que ya no llegan desde el navegador
    * para cada destinatario se eliminan, para que al recargar no reaparezcan.
    */
@@ -6583,6 +6870,17 @@ export class PortalService implements OnModuleInit {
           createdAtTs,
           updatedAtTs
         ]);
+
+      if (role === "conductor") {
+        try {
+          await this.upsertConductorFromPayrollEmployeePayload(c, e);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(
+            `upsertConductorFromPayrollEmployeePayload id=${String(e.id)}: ${sanitizeLogText(msg)}`
+          );
+        }
+      }
     }
     try {
       await this.runFixedTermContractRenewalNotifications();
