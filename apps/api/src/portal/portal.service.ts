@@ -1639,6 +1639,109 @@ export class PortalService implements OnModuleInit {
     return keys.some((k) => permissionSet.has(k));
   }
 
+  /**
+   * Completa Mi perfil con datos de `empleados_nomina` cuando en `usuarios` vienen vacíos
+   * (común en RRHH: ficha de nómina completa, cuenta portal sin contacto de emergencia).
+   */
+  private async enrichPortalUserProfileFromPayrollEmployee<T extends Record<string, unknown>>(
+    user: T
+  ): Promise<T> {
+    const emergencyRel = String(
+      (user as { emergencyRelationship?: string }).emergencyRelationship ??
+        (user as { emergencyRelation?: string }).emergencyRelation ??
+        ""
+    ).trim();
+    const needEmergency =
+      !String(user.emergencyContact ?? "").trim() ||
+      !String(user.emergencyPhone ?? "").trim() ||
+      !emergencyRel;
+    const needPhone = !String(user.phone ?? "").trim();
+    const needBirth = !String(user.birthDate ?? "").trim();
+    const needLocation = !String(user.city ?? "").trim() && !String(user.department ?? "").trim();
+    if (!needEmergency && !needPhone && !needBirth && !needLocation) {
+      return user;
+    }
+    if (!(await this.tableExists("empleados_nomina"))) return user;
+
+    const email = String(user.email ?? "").trim();
+    const docDigits = String(user.personalDoc ?? user.taxId ?? "").replace(/\D/g, "");
+    const fullName = [
+      user.firstName,
+      user.middleName,
+      user.lastName,
+      user.secondLastName,
+      user.name
+    ]
+      .map((s) => String(s ?? "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    if (!email && docDigits.length < 5 && fullName.length < 6) return user;
+
+    const r = await this.pool.query<{
+      contacto_emergencia: string | null;
+      telefono_emergencia: string | null;
+      parentesco_emergencia: string | null;
+      telefono: string | null;
+      departamento: string | null;
+      ciudad: string | null;
+      direccion: string | null;
+      fecha_nacimiento: string | Date | null;
+      genero: string | null;
+    }>(
+      `SELECT en.contacto_emergencia, en.telefono_emergencia, en.parentesco_emergencia,
+              en.telefono, en.departamento, en.ciudad, en.direccion, en.fecha_nacimiento, en.genero
+         FROM empleados_nomina en
+        WHERE ($1::text <> '' AND lower(trim(coalesce(en.correo_personal, ''))) = lower(trim($1::text)))
+           OR ($2::text <> '' AND length($2::text) >= 5
+               AND regexp_replace(trim(coalesce(en.numero_documento, '')), '[^0-9]', '', 'g') = $2::text)
+           OR ($3::text <> '' AND length($3::text) >= 6
+               AND upper(regexp_replace(trim(coalesce(en.nombre_completo, '')), '\\s+', ' ', 'g'))
+                 = upper(regexp_replace(trim($3::text), '\\s+', ' ', 'g')))
+        ORDER BY en.fecha_creacion DESC NULLS LAST
+        LIMIT 1`,
+      [email, docDigits, fullName]
+    );
+    if (!r.rows.length) return user;
+
+    return this.applyPayrollEmployeeProfileEnrichment(user, r.rows[0]);
+  }
+
+  private applyPayrollEmployeeProfileEnrichment<T extends Record<string, unknown>>(
+    user: T,
+    emp: {
+      contacto_emergencia: string | null;
+      telefono_emergencia: string | null;
+      parentesco_emergencia: string | null;
+      telefono: string | null;
+      departamento: string | null;
+      ciudad: string | null;
+      direccion: string | null;
+      fecha_nacimiento: string | Date | null;
+      genero: string | null;
+    }
+  ): T {
+    const out = { ...user } as T & Record<string, unknown>;
+    const fill = (key: string, val: unknown) => {
+      if (val == null || String(val).trim() === "") return;
+      if (!String(out[key] ?? "").trim()) out[key] = String(val).trim();
+    };
+    fill("emergencyContact", emp.contacto_emergencia);
+    fill("emergencyPhone", emp.telefono_emergencia);
+    const rel = emp.parentesco_emergencia;
+    fill("emergencyRelationship", rel);
+    fill("emergencyRelation", rel);
+    fill("phone", emp.telefono);
+    fill("department", emp.departamento);
+    fill("city", emp.ciudad);
+    fill("address", emp.direccion);
+    if (!String(out.birthDate ?? "").trim() && emp.fecha_nacimiento) {
+      out.birthDate = this.sqlEmployeeDateToPortalYmd(emp.fecha_nacimiento);
+    }
+    fill("gender", emp.genero);
+    return out as T;
+  }
+
   private async findPayrollEmployeeIdByDocument(
     c: PoolClient | null,
     document: string
@@ -2236,8 +2339,14 @@ export class PortalService implements OnModuleInit {
       sstCompliance
     ] = independent;
 
-    const [users, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs] =
+    const [usersRaw, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs] =
       dependent;
+
+    const users = await Promise.all(
+      (usersRaw as Array<Record<string, unknown>>).map(async (u) =>
+        String(u.id) === String(userId) ? this.enrichPortalUserProfileFromPayrollEmployee(u) : u
+      )
+    );
 
     const notificationPreferences = await this.loadNotificationPreferencesForPortal(userId);
 
@@ -3413,7 +3522,8 @@ export class PortalService implements OnModuleInit {
       throw new BadRequestException("Usuario no encontrado");
     }
     const [row] = await this.finalizePortalUserRowsFromJoin(r.rows, userId, true);
-    return row ?? null;
+    if (!row) return null;
+    return this.enrichPortalUserProfileFromPayrollEmployee(row);
   }
 
   /**
@@ -3492,7 +3602,16 @@ export class PortalService implements OnModuleInit {
         company: row.company || "",
         createdAt: createdIso,
         registeredAt: createdIso,
-        emergencyRelation: String((row as { emergencyRelationship?: string }).emergencyRelationship ?? ""),
+        emergencyRelation: String(
+          (row as { emergencyRelationship?: string }).emergencyRelationship ??
+            (row as { emergencyRelation?: string }).emergencyRelation ??
+            ""
+        ),
+        emergencyRelationship: String(
+          (row as { emergencyRelationship?: string }).emergencyRelationship ??
+            (row as { emergencyRelation?: string }).emergencyRelation ??
+            ""
+        ),
         systemJoinDate: portalSinceStr,
         portalSince: portalSinceStr
       };

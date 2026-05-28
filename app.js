@@ -15319,6 +15319,89 @@ function portalUserCompanyDisplay(user) {
   return fromUser || "-";
 }
 
+function portalProfileEmergencyFilled(user) {
+  return Boolean(
+    String(user?.emergencyContact || "").trim() && String(user?.emergencyPhone || "").trim()
+  );
+}
+
+/** Falta algún dato de emergencia (nombre, teléfono o parentesco). */
+function portalProfileEmergencyNeedsEnrichment(user) {
+  if (!user) return true;
+  return (
+    !String(user.emergencyContact || "").trim() ||
+    !String(user.emergencyPhone || "").trim() ||
+    !String(user.emergencyRelationship || user.emergencyRelation || "").trim()
+  );
+}
+
+function portalProfileEnrichmentChanged(before, after) {
+  if (!after?.id) return false;
+  const keys = [
+    "emergencyContact",
+    "emergencyPhone",
+    "emergencyRelation",
+    "emergencyRelationship",
+    "phone",
+    "birthDate",
+    "city",
+    "department"
+  ];
+  return keys.some(
+    (k) => !String(before?.[k] ?? "").trim() && String(after?.[k] ?? "").trim()
+  );
+}
+
+function portalUserPayrollMatchKey(user, employee) {
+  const doc = portalUserDocumentValue(user).replace(/\D/g, "");
+  const eDoc = String(employee?.idDoc || "").replace(/\D/g, "");
+  const email = String(user?.email || "").trim().toLowerCase();
+  const eMail = String(employee?.personalEmail || "").trim().toLowerCase();
+  const foldName = (s) => String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
+  const uName = foldName(getPortalUserDisplayName(user));
+  const eName = foldName(employee?.name);
+  return (
+    (doc.length >= 5 && eDoc === doc) ||
+    (email && eMail && eMail === email) ||
+    (uName.length >= 6 && eName === uName)
+  );
+}
+
+/**
+ * Si el usuario portal no tiene contacto de emergencia, toma los datos de su ficha en nómina
+ * (documento, correo personal o nombre completo) ya cargada en caché por bootstrap.
+ */
+function enrichPortalUserFromPayrollCache(user) {
+  if (!user || typeof user !== "object") return user;
+  if (!portalProfileEmergencyNeedsEnrichment(user)) return user;
+
+  const employees = read(KEYS.payrollEmployees, []);
+  const match = employees.find((e) => portalUserPayrollMatchKey(user, e));
+  if (!match) return user;
+
+  const emergencyRelation = String(
+    user.emergencyRelation || user.emergencyRelationship || match.emergencyRelation || ""
+  ).trim();
+
+  return {
+    ...user,
+    emergencyContact: String(user.emergencyContact || match.emergencyContact || "").trim(),
+    emergencyPhone: String(user.emergencyPhone || match.emergencyPhone || "").trim(),
+    emergencyRelation,
+    emergencyRelationship: emergencyRelation,
+    phone: String(user.phone || match.phone || "").trim(),
+    birthDate: String(user.birthDate || match.birthDate || "").trim(),
+    city: String(user.city || match.city || "").trim(),
+    department: String(user.department || match.department || "").trim(),
+    address: String(user.address || match.address || "").trim()
+  };
+}
+
+/** Usuario listo para pintar Mi perfil (portal + respaldo nómina en caché). */
+function resolvePortalProfileUser(user) {
+  return enrichPortalUserFromPayrollCache(user);
+}
+
 /**
  * Hidrata la fila del usuario autenticado desde GET /portal/me (datos completos de BD).
  * Necesario porque el JWT y el profileSnapshot no incluyen teléfono, documento ni fechas.
@@ -15330,12 +15413,18 @@ async function hydrateOwnProfileFromApi() {
   try {
     const me = await api.getJson("/portal/me");
     if (me && me.id) {
-      upsertPortalUserRowIntoCache(me);
+      upsertPortalUserRowIntoCache(enrichPortalUserFromPayrollCache(me));
       syncSessionProfileSnapshotFromCache();
       return true;
     }
   } catch (err) {
     devWarn("Portal: GET /portal/me fallo.", err?.message || err);
+  }
+  const cur = currentUser();
+  const local = enrichPortalUserFromPayrollCache(cur);
+  if (local?.id && portalProfileEnrichmentChanged(cur, local)) {
+    upsertPortalUserRowIntoCache(local);
+    return true;
   }
   return false;
 }
@@ -26000,18 +26089,22 @@ function profileSystemJoinDateValue(user) {
 }
 
 function profileHtml(user) {
-  const companyName = portalUserCompanyDisplay(user);
-  const docValue = portalUserDocumentValue(user);
-  const joinedIso = profileSystemJoinDateValue(user);
-  const joinedDate = joinedIso ? fmtDate(joinedIso) : user.createdAt ? fmtDate(user.createdAt) : "No disponible";
-  const displayName = getPortalUserDisplayName(user);
+  const u = resolvePortalProfileUser(user);
+  const companyName = portalUserCompanyDisplay(u);
+  const docValue = portalUserDocumentValue(u);
+  const joinedIso = profileSystemJoinDateValue(u);
+  const joinedDate = joinedIso ? fmtDate(joinedIso) : u.createdAt ? fmtDate(u.createdAt) : "No disponible";
+  const displayName = getPortalUserDisplayName(u);
+  const emergencyName = String(u.emergencyContact || "").trim();
+  const emergencyPhone = String(u.emergencyPhone || "").trim();
+  const emergencyRelation = String(u.emergencyRelationship || u.emergencyRelation || "").trim();
   const accountStatusLabel =
-    normalizeUserAccountStatus(user) === ACCOUNT_STATUS.PENDIENTE
+    normalizeUserAccountStatus(u) === ACCOUNT_STATUS.PENDIENTE
       ? "Pendiente"
-      : normalizeUserAccountStatus(user) === ACCOUNT_STATUS.RECHAZADO
+      : normalizeUserAccountStatus(u) === ACCOUNT_STATUS.RECHAZADO
         ? "Rechazada"
         : "Aprobada";
-  const roleLabel = formatPortalRoleLabel(user.role) || "Usuario";
+  const roleLabel = formatPortalRoleLabel(u.role) || "Usuario";
   const profileFields = [
     "name",
     "phone",
@@ -26026,11 +26119,13 @@ function profileHtml(user) {
   ];
   const filled = profileFields.filter((f) => {
     if (f === "taxId" || f === "personalDoc") return Boolean(docValue);
-    return String(user[f] ?? "").trim();
+    if (f === "emergencyContact") return Boolean(emergencyName);
+    if (f === "emergencyPhone") return Boolean(emergencyPhone);
+    return String(u[f] ?? "").trim();
   }).length;
   const profilePct = Math.round((filled / profileFields.length) * 100);
-  const daysInPortal = user.createdAt
-    ? Math.max(0, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000))
+  const daysInPortal = u.createdAt
+    ? Math.max(0, Math.floor((Date.now() - new Date(u.createdAt).getTime()) / 86400000))
     : 0;
   const profileHero = moduleFleetHeroStrip([
     {
@@ -26041,12 +26136,12 @@ function profileHtml(user) {
     { label: "Dias en portal", value: daysInPortal },
     {
       label: "Cuenta",
-      value: user.accountStatus === ACCOUNT_STATUS.APROBADO ? "Activa" : "Revision",
-      tone: user.accountStatus !== ACCOUNT_STATUS.APROBADO ? "warn" : undefined
+      value: u.accountStatus === ACCOUNT_STATUS.APROBADO ? "Activa" : "Revision",
+      tone: u.accountStatus !== ACCOUNT_STATUS.APROBADO ? "warn" : undefined
     },
-    { label: "Permisos", value: (user.permissions || []).length }
+    { label: "Permisos", value: (u.permissions || []).length }
   ]);
-  const profileAvatarCss = employeeAvatarCssUrl(user.avatarUrl);
+  const profileAvatarCss = employeeAvatarCssUrl(u.avatarUrl);
   const body = `<section class="profile-shell profile-shell-centered">
     <article class="profile-hero-card profile-hero-card-centered">
       <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${profileAvatarCss ? "has-image" : ""}" style="${profileAvatarCss ? `background-image:url('${profileAvatarCss}');` : ""}" title="Cambiar foto de perfil">
@@ -26055,7 +26150,7 @@ function profileHtml(user) {
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
         <h3>${escapeHtml(displayName)}</h3>
-        <p>${user.email || "-"}</p>
+        <p>${u.email || "-"}</p>
         <div class="profile-hero-chips">
           <span>${escapeHtml(roleLabel)}</span>
           <span>${escapeHtml(accountStatusLabel)}</span>
@@ -26070,7 +26165,7 @@ function profileHtml(user) {
     </div>
     <section class="profile-key-data">
       <article class="profile-key-item"><p>Documento / NIT</p><strong>${escapeHtml(docValue || "Sin registrar")}</strong></article>
-      <article class="profile-key-item"><p>Telefono</p><strong>${escapeHtml(user.phone ? formatPortalPhoneForDisplay(String(user.phone)) : "Sin registrar")}</strong></article>
+      <article class="profile-key-item"><p>Telefono</p><strong>${escapeHtml(u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin registrar")}</strong></article>
       <article class="profile-key-item"><p>Empresa</p><strong>${companyName}</strong></article>
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
@@ -26080,32 +26175,32 @@ function profileHtml(user) {
         <legend>${IC.user} Información personal</legend>
         <div class="form-section-grid">
           <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" value="${escapeAttr(displayName)}" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-          <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${user.email || ""}" disabled /></label>
+          <label>${fieldLabel(IC.mail, "Correo corporativo")}<input type="email" value="${escapeAttr(u.email || "")}" disabled /></label>
           <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType">
-            <option value="CC" ${user.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
-            <option value="CE" ${user.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
-            <option value="NIT" ${user.documentType === "NIT" ? "selected" : ""}>NIT</option>
-            <option value="PAS" ${user.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
+            <option value="CC" ${u.documentType === "CC" ? "selected" : ""}>Cédula de ciudadanía</option>
+            <option value="CE" ${u.documentType === "CE" ? "selected" : ""}>Cédula de extranjería</option>
+            <option value="NIT" ${u.documentType === "NIT" ? "selected" : ""}>NIT</option>
+            <option value="PAS" ${u.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
           </select></label>
           <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${escapeAttr(docValue)}" placeholder="Ej: 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
-          <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${user.birthDate || ""}" data-antares-validate-blur="date-iso" /></label>
-          <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+          <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${escapeAttr(u.birthDate || "")}" data-antares-validate-blur="date-iso" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${escapeAttr(u.phone || "")}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         </div>
       </fieldset>
 
       <fieldset class="form-section form-section-cyan full">
         <legend>${IC.heart} Contacto de emergencia</legend>
         <div class="form-section-grid">
-          <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${user.emergencyContact || ""}" placeholder="Nombre completo" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-          <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${user.emergencyPhone || ""}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
-          <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${escapeAttr(user.emergencyRelationship || user.emergencyRelation || "")}" placeholder="Cónyuge, padre..." /></label>
+          <label>${fieldLabel(IC.user, "Nombre")}<input name="emergencyContact" value="${escapeAttr(emergencyName)}" placeholder="Nombre completo" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+          <label>${fieldLabel(IC.phone, "Teléfono")}<input name="emergencyPhone" value="${escapeAttr(emergencyPhone)}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+          <label>${fieldLabel(IC.heart, "Parentesco")}<input name="emergencyRelation" value="${escapeAttr(emergencyRelation)}" placeholder="Cónyuge, padre..." /></label>
         </div>
       </fieldset>
 
       <fieldset class="form-section form-section-amber full">
         <legend>${IC.calendar} Ingreso al portal</legend>
         <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(profileSystemJoinDateValue(user))}" disabled aria-readonly="true" /></label>
+          <label class="full">${fieldLabel(IC.calendar, "Fecha de ingreso al sistema")}<input type="date" name="systemJoinDate" value="${escapeAttr(profileSystemJoinDateValue(u))}" disabled aria-readonly="true" /></label>
         </div>
       </fieldset>
 
@@ -26113,7 +26208,7 @@ function profileHtml(user) {
         <legend>${IC.briefcase} Empresa asociada</legend>
         <label class="full">
           <input value="${companyName}" disabled />
-          <input type="hidden" name="companyId" value="${user.companyId || ""}" />
+          <input type="hidden" name="companyId" value="${escapeAttr(u.companyId || "")}" />
         </label>
       </fieldset>
 
@@ -26768,10 +26863,24 @@ function renderPortalViewImpl() {
       }
     }
   }
-  if (view === "profile" && portalCanRefreshFromApi() && prevPortalView !== "profile") {
-    void hydrateOwnProfileFromApi().then((ok) => {
-      if (ok) scheduleRenderPortalView();
-    });
+  if (view === "profile") {
+    const cur = currentUser();
+    const fromPayroll = enrichPortalUserFromPayrollCache(cur);
+    if (fromPayroll?.id && portalProfileEnrichmentChanged(cur, fromPayroll)) {
+      upsertPortalUserRowIntoCache(fromPayroll);
+      scheduleRenderPortalView();
+    }
+    const stillMissing = portalProfileEmergencyNeedsEnrichment(fromPayroll || cur);
+    if (portalCanRefreshFromApi() && stillMissing && !state.__profileMeHydrating) {
+      state.__profileMeHydrating = true;
+      void hydrateOwnProfileFromApi()
+        .then((ok) => {
+          if (ok) scheduleRenderPortalView();
+        })
+        .finally(() => {
+          state.__profileMeHydrating = false;
+        });
+    }
   }
   if (view === "requests" && prevPortalView !== "requests") {
     state.deletedTransportRequestsLogMinimized = true;
