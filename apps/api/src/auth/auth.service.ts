@@ -155,6 +155,7 @@ export class AuthService {
   /** Cliente para `signInWithOtp` (correo enviado por GoTrue). Prefiere anon key si existe. */
   private readonly supabaseOtpMailer: ReturnType<typeof createClient> | null;
   private readonly supabaseEnabled: boolean;
+  private sessionsStorageReady = false;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -972,12 +973,46 @@ export class AuthService {
     `);
   }
 
+  /**
+   * Normaliza el almacenamiento de sesiones activas:
+   * - Crea tabla si no existe.
+   * - Deja solo la sesión más reciente por usuario.
+   * - Garantiza índice único por `id_usuario` para poder usar UPSERT en refresh/login.
+   */
+  private async ensureSessionsStorageReady(): Promise<void> {
+    if (this.sessionsStorageReady) return;
+    await this.ensureSessionsTable();
+    await this.pool.query(`
+      DELETE FROM sesiones_usuario s_old
+      USING sesiones_usuario s_new
+      WHERE s_old.id_usuario = s_new.id_usuario
+        AND (
+          s_old.fecha_creacion < s_new.fecha_creacion
+          OR (
+            s_old.fecha_creacion = s_new.fecha_creacion
+            AND s_old.id::text < s_new.id::text
+          )
+        )
+    `);
+    await this.pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_sesiones_usuario_por_usuario
+      ON sesiones_usuario (id_usuario)
+    `);
+    this.sessionsStorageReady = true;
+  }
+
   private async persistUserSession(userId: string, refreshHash: string, refreshToken: string): Promise<void> {
     const expiry = this.refreshTokenExpiryFromJwt(refreshToken);
     try {
+      await this.ensureSessionsStorageReady();
       await this.pool.query(
         `INSERT INTO sesiones_usuario (id_usuario, hash_token, fecha_expiracion)
-         VALUES ($1::uuid, $2, $3::timestamptz)`,
+         VALUES ($1::uuid, $2, $3::timestamptz)
+         ON CONFLICT (id_usuario)
+         DO UPDATE SET
+           hash_token = EXCLUDED.hash_token,
+           fecha_expiracion = EXCLUDED.fecha_expiracion,
+           fecha_creacion = now()`,
         [userId, refreshHash, expiry.toISOString()]
       );
       await this.pool.query(
@@ -988,10 +1023,15 @@ export class AuthService {
       );
     } catch (err: any) {
       if (String(err?.code || "") !== "42P01") throw err;
-      await this.ensureSessionsTable();
+      await this.ensureSessionsStorageReady();
       await this.pool.query(
         `INSERT INTO sesiones_usuario (id_usuario, hash_token, fecha_expiracion)
-         VALUES ($1::uuid, $2, $3::timestamptz)`,
+         VALUES ($1::uuid, $2, $3::timestamptz)
+         ON CONFLICT (id_usuario)
+         DO UPDATE SET
+           hash_token = EXCLUDED.hash_token,
+           fecha_expiracion = EXCLUDED.fecha_expiracion,
+           fecha_creacion = now()`,
         [userId, refreshHash, expiry.toISOString()]
       );
     }
