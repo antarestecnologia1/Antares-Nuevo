@@ -770,7 +770,14 @@
                   </label>
                   <label>
                     <span>Empresa</span>
-                    <input name="company" placeholder="Ej. FloraExport SAS" required data-antares-max="255" />
+                    <input
+                      name="company"
+                      placeholder="Ej. FloraExport SAS"
+                      required
+                      data-antares-field="db-upper"
+                      data-antares-validate-blur="db-upper"
+                      data-antares-max="255"
+                    />
                   </label>
                   <label>
                     <span>NIT/RUT</span>
@@ -789,9 +796,8 @@
                       name="position"
                       placeholder="Ej. Directora de Operaciones"
                       required
-                      data-antares-restrict="person-name"
-                      data-antares-validate-blur="person-name"
-                      data-antares-field="person-name"
+                      data-antares-validate-blur="db-upper"
+                      data-antares-field="db-upper"
                     />
                   </label>
                   <label class="phone-field-b2b">
@@ -1173,7 +1179,7 @@
     <script defer src="./config/antares.public.js?v=20260507-render-only"></script>
     <script defer src="./config/supabase.public.js?v=20260503-1"></script>
     <script defer src="./modules/core/runtime-security.js?v=20260503-runtime-sec"></script>
-    <script defer src="./modules/core/validation.js?v=20260516-validation-guard"></script>
+    <script defer src="./modules/core/validation.js?v=20260528-all-modules"></script>
     <script defer src="./modules/core/persistence.js"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

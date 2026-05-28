@@ -1986,6 +1986,13 @@ label {
   box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.14) !important;
 }
 
+/* Formularios de alta: vista en mayúsculas; el valor se normaliza al blur/enviar (AntaresValidation). */
+input[data-antares-field="person-name"],
+input[data-antares-field="db-upper"],
+textarea[data-antares-field="db-upper-multiline"] {
+  text-transform: uppercase;
+}
+
 .field-error {
   display: block;
   margin-top: 0.35rem;

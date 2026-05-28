@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   IsIn,
   IsNumber,
@@ -10,6 +10,7 @@ import {
   Min,
   MinLength
 } from "class-validator";
+import { transformStripMultilineUpper, transformStripNulTrim } from "../../common/normalize-db-text";
 
 const PORTAL_DATE =
   /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
@@ -24,6 +25,7 @@ export class CreateFleetMaintenanceLogDto {
   @IsUUID("4")
   id!: string;
 
+  @Transform(transformStripNulTrim)
   @IsString()
   @Matches(PORTAL_DATE, { message: "date debe ser YYYY-MM-DD o ISO 8601" })
   date!: string;
@@ -50,6 +52,7 @@ export class CreateFleetMaintenanceLogDto {
   @IsIn(INTERVENTION_TYPES)
   type?: (typeof INTERVENTION_TYPES)[number];
 
+  @Transform(transformStripMultilineUpper)
   @IsString()
   @MinLength(1)
   @MaxLength(8000)

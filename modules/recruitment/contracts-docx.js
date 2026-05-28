@@ -171,11 +171,14 @@
       Number.isFinite(salaryNumber) && salaryNumber > 0
         ? Math.round(salaryNumber).toLocaleString("es-CO")
         : String(Math.round(Number(salaryNumber) || 0));
-    const ciudadTrabajador = String(input.ciudad_empleado || input.municipio_empleado || "").trim();
+    const ciudadRaw = String(input.ciudad_empleado || input.municipio_empleado || "").trim();
+    const deptRaw = String(input.departamento_empleado || input.department || "").trim();
+    const ciudadTrabajador = formatContractCityWithDepartment(ciudadRaw, deptRaw);
+    const municipioTrabajador = formatContractMunicipioOnly(ciudadRaw, deptRaw);
     const pairs = [
       ["nombre_empleado", String(input.nombre_empleado || "").trim()],
       ["cedula_empleado", String(input.cedula_empleado || "").trim()],
-      ["municipio_empleado", String(input.municipio_empleado || ciudadTrabajador).trim()],
+      ["municipio_empleado", municipioTrabajador],
       ["ciudad_empleado", ciudadTrabajador],
       ["banco_cuenta_bancaria", String(input.banco_cuenta_bancaria || "").trim()],
       ["cuenta_bancaria", String(input.cuenta_bancaria || "").trim()],
@@ -187,81 +190,82 @@
     return pairs.sort((a, b) => b[0].length - a[0].length);
   }
 
-  /**
-   * Rellena el parrafo tipo constancia:
-   * "Para constancia se firma ... en la ciudad de _____ a los ___ dias del mes de _____ de _____"
-   * Incluye tolerancia a saltos de linea Word y runs partidos (XML).
-   */
-  function replaceDateSentence(xml, city, dateValue) {
-    const dt = dateValue ? new Date(`${dateValue}T12:00:00`) : new Date();
-    const validDate = Number.isFinite(dt.getTime()) ? dt : new Date();
-    const day = String(validDate.getDate());
-    const month = MONTHS_ES[validDate.getMonth()];
-    const year = String(validDate.getFullYear());
-    const c = escapeXml(city);
-    const d = escapeXml(day);
-    const m = escapeXml(month);
-    const y = escapeXml(year);
-
-    let out = xml;
-    const blank = "[\\s_\\u00a0]{1,}";
-
-    out = out.replace(new RegExp(`(en la ciudad de\\s*)(${blank})`, "gi"), `$1${c}`);
-    out = out.replace(new RegExp(`(a los\\s*)(${blank})(d[ií]as)`, "gi"), `$1${d} $3`);
-    out = out.replace(new RegExp(`(mes de\\s*)(${blank})(\\s*de\\s*)(${blank})`, "gi"), `$1${m}$3${y}`);
-    out = out.replace(new RegExp(`(de\\s*)(${blank})(\\s*</w:t>)`, "gi"), `$1${y}$3`);
-
-    out = out.replace(
-      /(en la ciudad de\s*)(<\/w:t><\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>)([\s_]+)(<\/w:t>)/gi,
-      `$1$2${c}$4`
-    );
-    out = out.replace(
-      /(a los\s*)(<\/w:t><\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>)([\s_]+)(<\/w:t>\s*<\/w:r>\s*<w:r[^>]*>\s*<w:t[^>]*>)(d[ií]as)/gi,
-      `$1$2${d}$4$5`
-    );
-
-    return out;
+  /** Ciudad + departamento para domicilio y firma (una sola vez). */
+  function formatContractCityWithDepartment(city, department) {
+    const c = String(city || "").trim();
+    const d = String(department || "").trim();
+    if (!c) return d;
+    if (!d) return c;
+    if (c.toLowerCase().includes(d.toLowerCase())) return c;
+    return `${c}, ${d}`;
   }
 
   /**
-   * Completa el párrafo de constancia cuando Word parte runs (<w:t>…</w:t>) entre ciudad / día / mes-año.
-   * También cubre la variante de prestación de servicios (una sola línea con día/mes/año).
+   * Solo municipio: la plantilla "término fijo" añade " Antioquia" después del marcador.
    */
-  function replaceConstanciaParagraphs(xml, city, dateValue) {
-    let out = replaceDateSentence(xml, city, dateValue);
+  function formatContractMunicipioOnly(city, department) {
+    const c = String(city || "").trim();
+    const d = String(department || "").trim();
+    if (!c) return "";
+    if (!d) return c;
+    const deptRe = new RegExp(`[,\\s]*${d.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "i");
+    return c.replace(deptRe, "").trim() || c;
+  }
 
+  function parseContractSignDateParts(dateValue) {
     const dt = dateValue ? new Date(`${dateValue}T12:00:00`) : new Date();
     const validDate = Number.isFinite(dt.getTime()) ? dt : new Date();
-    const day = String(validDate.getDate());
-    const monthWord = MONTHS_ES[validDate.getMonth()];
-    const year = String(validDate.getFullYear());
-    const c = escapeXml(city);
-    const d = escapeXml(day);
-    const m = escapeXml(monthWord);
-    const y = escapeXml(year);
+    return {
+      day: String(validDate.getDate()),
+      month: MONTHS_ES[validDate.getMonth()],
+      year: String(validDate.getFullYear())
+    };
+  }
 
-    /** Prestación de servicios / línea única: "Para constancia se firma el día … del mes de … del AAAA." */
-    out = out.replace(
-      /Para constancia se firma el d[ií]a[\s_\u00a0]+del mes de[\s_\u00a0]+del\s*\d{4}\./gi,
-      `Para constancia se firma el día ${d} del mes de ${m} del ${y}.`
-    );
+  function extractXmlBlock(paraXml, tag) {
+    const re = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, "i");
+    const m = paraXml.match(re);
+    return m ? m[0] : "";
+  }
 
-    out = out.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/gi, (para) => {
-      if (!para.includes("Para constancia")) return para;
-      if (!para.includes("_")) return para;
+  /** Reconstruye el párrafo con un solo run para evitar artefactos cuando Word parte "de" / año en varios <w:t>. */
+  function rebuildConstanciaParagraphXml(paraXml, sentenceText) {
+    const pPr = extractXmlBlock(paraXml, "w:pPr");
+    const rPr = extractXmlBlock(paraXml, "w:rPr");
+    return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(sentenceText)}</w:t></w:r></w:p>`;
+  }
 
-      let p = para;
-      p = p.replace(/en la ciudad de[\s_\u00a0]{6,}/gi, `en la ciudad de ${c} `);
-      p = p.replace(/a los[\s_\u00a0]+d[ií]as/gi, `a los ${d} días`);
-      p = p.replace(/del mes de[\s_\u00a0]{4,}(?=\s*<\/w:t>)/gi, `del mes de ${m} `);
-      p = p.replace(/(<w:t[^>]*(?:xml:space="preserve")?>)(\s*[\s_\u00a0]{4,}\.)(<\/w:t>)/gi, (full, open, mid, close) => {
-        if (!/_/i.test(mid)) return full;
-        return `${open} ${y}.${close}`;
-      });
-      return p;
+  /**
+   * Párrafo de constancia / firma. Las plantillas parten el XML entre "mes de", "de" y el año;
+   * los reemplazos parciales generaban "2026de 2026" o "La Cejaa". Se reescribe el párrafo entero.
+   */
+  function replaceConstanciaParagraphs(xml, cityForSignature, dateValue) {
+    const city = String(cityForSignature || "").trim();
+    const { day, month, year } = parseContractSignDateParts(dateValue);
+
+    return xml.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/gi, (para) => {
+      const plain = para.replace(/<[^>]+>/g, "");
+      if (!plain.includes("Para constancia")) return para;
+
+      if (/Para constancia se firma el d[ií]a/i.test(plain)) {
+        const sentence = `Para constancia se firma el día ${day} del mes de ${month} del ${year}.`;
+        return rebuildConstanciaParagraphXml(para, sentence);
+      }
+
+      if (/Para constancia se firma en dos ejemplares/i.test(plain)) {
+        const sentence =
+          `Para constancia se firma en dos ejemplares del mismo tenor y valor, por los que en ellas intervine, ` +
+          `en la ciudad de ${city} a los ${day} días del mes de ${month} de ${year}.`;
+        return rebuildConstanciaParagraphXml(para, sentence);
+      }
+
+      return para;
     });
+  }
 
-    return out;
+  /** Quita resaltado Word (p. ej. amarillo en cuenta_bancaria de la plantilla). */
+  function stripWordHighlightFormatting(xml) {
+    return xml.replace(/<w:highlight\b[^/]*\/>/gi, "");
   }
 
   /**
@@ -351,7 +355,11 @@
 
     const salaryNumber = Number(input.salario || 0);
     const mergeEntries = buildContractDocxMergeEntries(input);
-    const ciudadFirma = mergeEntries.find((x) => x[0] === "ciudad_empleado")?.[1] || "";
+    /** Solo municipio en firma: la plantilla término fijo ya añade " Antioquia" tras municipio_empleado en el cuerpo. */
+    const ciudadFirma =
+      mergeEntries.find((x) => x[0] === "municipio_empleado")?.[1] ||
+      mergeEntries.find((x) => x[0] === "ciudad_empleado")?.[1]?.split(",")[0]?.trim() ||
+      "";
     const cedulaVal = mergeEntries.find((x) => x[0] === "cedula_empleado")?.[1] || "";
     const salaryWords =
       mergeEntries.find((x) => x[0] === "salario_letras")?.[1] ||
@@ -374,6 +382,7 @@
         });
         next = replaceConstanciaParagraphs(next, ciudadFirma, input.signDate || "");
         next = injectCedulaAfterCcRuns(next, cedulaVal);
+        next = stripWordHighlightFormatting(next);
         zip.file(entry, next);
       })
     );

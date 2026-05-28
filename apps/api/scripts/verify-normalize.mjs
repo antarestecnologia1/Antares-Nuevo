@@ -6,6 +6,9 @@ import {
   normalizeCatalogText,
   normalizeEmail,
   normalizeFreeTextPayloadRecord,
+  normalizeMultilineText,
+  sanitizeSyncKeyPayload,
+  stripNulFromUnknown,
   isPasswordFieldKey
 } from "../dist/common/normalize-db-text.js";
 
@@ -44,6 +47,22 @@ assert(norm.satelliteProviderPassword === "Gps#99", "satellite password intacta"
 
 assert(isPasswordFieldKey("passwordConfirm"), "detecta passwordConfirm");
 assert(!isPasswordFieldKey("firstName"), "no marca firstName como password");
+
+assert(normalizeMultilineText("  hola\u0000\n\n\nmundo  ") === "hola\n\nmundo", "multilínea sin NUL");
+const withNul = stripNulFromUnknown({ a: "x\u0000y", b: [{ c: "z\u0000" }] });
+assert(withNul.a === "xy" && withNul.b[0].c === "z", "stripNulFromUnknown recursivo");
+
+const reasonPayload = normalizeFreeTextPayloadRecord({
+  firstName: "ana",
+  reason: "Cliente pidió\u0000 pausa",
+  notes: "Observación\n\nextra"
+});
+assert(reasonPayload.firstName === "ANA", "reason payload firstName");
+assert(reasonPayload.reason === "Cliente pidió pausa", "reason preserva mayúsculas");
+assert(reasonPayload.notes === "OBSERVACION\n\nEXTRA", "notes en mayúsculas");
+
+const syncClean = sanitizeSyncKeyPayload([{ name: "a\u0000b" }]);
+assert(syncClean[0].name === "ab", "sanitizeSyncKeyPayload");
 
 if (failed) {
   console.error(`\n${failed} prueba(s) fallaron.`);

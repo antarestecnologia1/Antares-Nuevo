@@ -46,15 +46,152 @@
       .toLowerCase();
   }
 
-  /** Alineado con app.js / API: MAYÚSCULAS + sin tildes. No usar en contraseñas. */
-  function normalizeLatinUpperForDb(value) {
-    const t = String(value ?? "")
+  /** Sin tildes (ñ → n). No usar en contraseñas. */
+  function normalizeLatinForDb(value) {
+    if (value == null) return "";
+    return String(value)
       .trim()
       .normalize("NFD")
       .replace(/\p{M}/gu, "")
       .replace(/ñ/g, "n")
       .replace(/Ñ/g, "N");
+  }
+
+  /** Alineado con app.js / API: MAYÚSCULAS + sin tildes. No usar en contraseñas ni catálogo departamento/ciudad. */
+  function normalizeLatinUpperForDb(value) {
+    const t = normalizeLatinForDb(value);
     return t ? t.toUpperCase() : "";
+  }
+
+  const PRESERVE_CASE_PAYLOAD_KEYS = new Set([
+    "reason",
+    "motivo",
+    "body",
+    "subject",
+    "experience",
+    "redirectto",
+    "turnstiletoken"
+  ]);
+
+  /** Selects, UUIDs y enums: solo trim/NUL (no MAYÚSCULAS forzadas). */
+  const TRIM_ONLY_PAYLOAD_KEYS = new Set([
+    "role",
+    "status",
+    "registrationkind",
+    "accountstatus",
+    "paidby",
+    "documenttype",
+    "persontype",
+    "gender",
+    "interventiontype",
+    "type",
+    "ratescope",
+    "refrigerated",
+    "hasgps",
+    "modality",
+    "workerrole",
+    "contracttype",
+    "absencetype",
+    "recordtype",
+    "followupstatus",
+    "servicetype",
+    "operationtype",
+    "operationfrequency",
+    "startwindow",
+    "twofactorenabled",
+    "acceptterms",
+    "maritalstatus",
+    "educationlevel",
+    "bloodtype",
+    "licensecategory",
+    "platformreferencemode"
+  ]);
+
+  function stripNulTrimValue(value) {
+    return String(value ?? "")
+      .replace(/\u0000/g, "")
+      .trim();
+  }
+
+  function isPasswordPayloadKey(key) {
+    const k = String(key || "").trim();
+    if (!k) return false;
+    if (k === "password" || k === "passwordHash" || k === "passwordConfirm" || k === "confirmPassword") return true;
+    const lower = k.toLowerCase();
+    return lower.includes("password") || lower.includes("contrasena");
+  }
+
+  /** Normaliza strings de payloads de formularios de alta/edición antes de guardar en BD. */
+  function normalizePayloadTextFields(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+    const out = { ...payload };
+    for (const [k, v] of Object.entries(out)) {
+      if (isPasswordPayloadKey(k)) continue;
+      if (typeof v !== "string") continue;
+      const keyLc = k.toLowerCase();
+      if (PRESERVE_CASE_PAYLOAD_KEYS.has(keyLc) || keyLc.endsWith("reason") || keyLc.endsWith("motivo")) {
+        out[k] = sanitizeMultiline(v, 8000);
+        continue;
+      }
+      if (keyLc === "email" || keyLc.endsWith("email")) {
+        out[k] = normalizeEmail(v);
+        continue;
+      }
+      if (
+        TRIM_ONLY_PAYLOAD_KEYS.has(keyLc) ||
+        keyLc.endsWith("id") ||
+        keyLc.endsWith("at") ||
+        keyLc.endsWith("token") ||
+        keyLc.includes("password")
+      ) {
+        out[k] = stripNulTrimValue(v);
+        continue;
+      }
+      if (
+        keyLc === "department" ||
+        keyLc === "city" ||
+        keyLc === "departamento" ||
+        keyLc === "ciudad" ||
+        keyLc.endsWith("department") ||
+        keyLc.endsWith("city")
+      ) {
+        out[k] = normalizeLatinForDb(v);
+        continue;
+      }
+      if (keyLc.includes("notes") || keyLc === "message" || keyLc === "requirements" || keyLc === "description") {
+        const m = sanitizeMultiline(v, 8000);
+        out[k] = m ? normalizeLatinUpperForDb(m) : "";
+        continue;
+      }
+      out[k] = normalizeLatinUpperForDb(v);
+    }
+    return out;
+  }
+
+  function applyDomFormPatch(form, patch) {
+    if (!form || !patch || typeof patch !== "object") return;
+    for (const [name, val] of Object.entries(patch)) {
+      if (!name) continue;
+      const el = form.elements?.namedItem?.(name);
+      if (!el) continue;
+      if (el instanceof RadioNodeList) {
+        for (const node of el) {
+          if (node instanceof HTMLInputElement && node.value === val) node.checked = true;
+        }
+        continue;
+      }
+      if ("value" in el && typeof val === "string") el.value = val;
+    }
+  }
+
+  function readNormalizedFormObject(form) {
+    if (!form) return {};
+    decorateFormFields(form);
+    const result = validateDomForm(form);
+    if (!result.ok) return null;
+    applyDomFormPatch(form, result.patch);
+    const raw = Object.fromEntries(new FormData(form).entries());
+    return normalizePayloadTextFields(raw);
   }
 
   function isValidEmail(raw) {
@@ -153,7 +290,7 @@
   }
 
   const FORM_GUARD_SELECTOR =
-    "form.p-form, form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, #b2b-form";
+    "form.p-form, form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, form.hr-form-flow, #b2b-form, form.calendar-filters-bar, form.history-filter-form, form.history-fleet-filter-form, form.payroll-data-toolbar-filters";
 
   /** Nombres de campo → reglas Antares (solo si el input aún no tiene `data-antares-field`). */
   const FIELD_NAME_RULES = [
@@ -163,6 +300,19 @@
       attrs: { field: "person-name", blur: "person-name", restrict: "person-name" }
     },
     { re: /^name$/i, attrs: { field: "person-name", blur: "person-name", restrict: "person-name" } },
+    {
+      re: /^(company|position|workArea|brand|model|type|color|bodyType|fuelType|axleConfig|ownershipCard|gpsProvider|station|provider|recordType|documentCode|eps|arl|bloodType|maritalStatus|educationLevel|illnessDescription|title|departmentName|positionName|modality|workerRole)$/i,
+      attrs: { field: "db-upper", blur: "db-upper" }
+    },
+    {
+      re: /^(address|originAddress|destinationAddress|cargoDescription|legalRep|contactName|siteContactName|rcPolicyContract|rcPolicyExtra|engineNumber)$/i,
+      attrs: { field: "db-upper", blur: "db-upper" }
+    },
+    {
+      re: /^(department|city|departamento|ciudad)$/i,
+      attrs: { field: "catalog", blur: "catalog" },
+      skip: (el) => el.tagName === "SELECT"
+    },
     { re: /^(taxId|idDoc)$/i, attrs: { field: "doc", restrict: "alnum-doc" } },
     { re: /^(companyNit|nit)$/i, attrs: { field: "nit", restrict: "alnum-doc" } },
     { re: /^personalTaxId$/i, attrs: { field: "doc", restrict: "alnum-doc" } },
@@ -176,7 +326,11 @@
       attrs: { blur: "decimal", restrict: "decimal" }
     },
     { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
-    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|endDate|deadline|when|soat|techInspection|rcPolicyExpiry)/i, attrs: { blur: "date-iso" } }
+    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|endDate|deadline|when|soat|techInspection|rcPolicyExpiry)/i, attrs: { blur: "date-iso" } },
+    { re: /^q$/i, attrs: { max: 200 } },
+    { re: /^(notes|message|requirements|description)$/i, attrs: { field: "db-upper-multiline", blur: "db-upper-multiline" } },
+    { re: /^(reason|motivo)$/i, attrs: { field: "preserve-text", blur: "preserve-text", max: 4000 } },
+    { re: /^(experience|content|subject|body)$/i, attrs: { field: "preserve-text", blur: "preserve-text", max: 12000 } }
   ];
 
   function applyFieldRuleAttrs(el, attrs) {
@@ -195,7 +349,14 @@
     for (const rule of FIELD_NAME_RULES) {
       if (rule.skip && rule.skip(el)) continue;
       if (rule.re.test(n)) {
-        if (tagName === "SELECT" && (rule.attrs?.blur === "decimal" || rule.attrs?.restrict === "decimal")) return null;
+        if (tagName === "SELECT") {
+          const blur = rule.attrs?.blur;
+          const field = rule.attrs?.field;
+          if (blur === "decimal" || rule.attrs?.restrict === "decimal") return null;
+          if (blur === "db-upper" || field === "db-upper") return null;
+          if (blur === "person-name" || field === "person-name") return null;
+          if (blur === "catalog" || field === "catalog") return null;
+        }
         return rule.attrs;
       }
     }
@@ -245,14 +406,24 @@
     fields.forEach((el) => {
       if (!el.name && !el.id) return;
       const name = el.name || el.id;
-      if (name === "company" || name === "position" || name === "workArea" || name === "cargoDescription") {
-        if (!el.getAttribute("data-antares-max")) el.setAttribute("data-antares-max", name === "cargoDescription" ? "500" : "255");
+      if (name === "company" || name === "position" || name === "workArea") {
+        applyFieldRuleAttrs(el, { field: "db-upper", blur: "db-upper", max: 255 });
         return;
       }
-      if (name === "address" || name === "originAddress" || name === "destinationAddress" || name === "notes" || name === "message") {
-        if (!el.getAttribute("data-antares-max")) {
-          el.setAttribute("data-antares-max", name === "message" ? "8000" : name === "notes" ? "2000" : "500");
-        }
+      if (name === "cargoDescription") {
+        applyFieldRuleAttrs(el, { field: "db-upper", blur: "db-upper", max: 500 });
+        return;
+      }
+      if (name === "address" || name === "originAddress" || name === "destinationAddress") {
+        applyFieldRuleAttrs(el, { field: "db-upper", blur: "db-upper", max: 500 });
+        return;
+      }
+      if (name === "notes") {
+        applyFieldRuleAttrs(el, { field: "db-upper-multiline", blur: "db-upper-multiline", max: 2000 });
+        return;
+      }
+      if (name === "message") {
+        applyFieldRuleAttrs(el, { field: "db-upper-multiline", blur: "db-upper-multiline", max: 8000 });
         return;
       }
       const rules = resolveFieldRules(name, el);
@@ -293,6 +464,7 @@
         const form = ev.target;
         if (!(form instanceof HTMLFormElement)) return;
         if (form.getAttribute("data-antares-no-guard") === "1") return;
+        if (form.dataset.submitGuardWired === "1" || form.dataset.crudSubmitGuardWired === "1") return;
         if (!form.matches(FORM_GUARD_SELECTOR)) return;
         decorateFormFields(form);
         const result = validateDomForm(form);
@@ -300,7 +472,9 @@
           ev.preventDefault();
           ev.stopImmediatePropagation();
           onInvalid(form, result.firstInvalid);
+          return;
         }
+        applyDomFormPatch(form, result.patch);
       },
       true
     );
@@ -436,6 +610,54 @@
         setFieldError(el, MSG.personName);
         return false;
       }
+      if (s && s !== el.value) el.value = normalizeLatinUpperForDb(s);
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "db-upper") {
+      const maxAttr = Number(el.getAttribute("data-antares-max") || 255);
+      const m = Number.isFinite(maxAttr) ? maxAttr : 255;
+      const s = sanitizeOneLineText(raw, m);
+      if (el.required && !s) {
+        setFieldError(el, MSG.required);
+        return false;
+      }
+      if (s) el.value = normalizeLatinUpperForDb(s);
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "db-upper-multiline") {
+      const maxAttr = Number(el.getAttribute("data-antares-max") || 8000);
+      const m = Number.isFinite(maxAttr) ? maxAttr : 8000;
+      const s = sanitizeMultiline(raw, m);
+      if (el.required && !s) {
+        setFieldError(el, MSG.required);
+        return false;
+      }
+      if (s) el.value = normalizeLatinUpperForDb(s);
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "catalog") {
+      const s = sanitizeOneLineText(raw, 120);
+      if (el.required && !s) {
+        setFieldError(el, MSG.required);
+        return false;
+      }
+      if (s) el.value = normalizeLatinForDb(s);
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "preserve-text") {
+      const maxAttr = Number(el.getAttribute("data-antares-max") || 4000);
+      const m = Number.isFinite(maxAttr) ? maxAttr : 4000;
+      const isTa = String(el.tagName || "").toUpperCase() === "TEXTAREA";
+      const s = isTa ? sanitizeMultiline(raw, m) : sanitizeOneLineText(raw, m);
+      if (el.required && !s) {
+        setFieldError(el, MSG.required);
+        return false;
+      }
+      if (s && s !== el.value) el.value = s;
       clearFieldError(el);
       return true;
     }
@@ -476,6 +698,32 @@
       const s = sanitizeOneLineText(raw, 200);
       if (!RE_PERSON_NAME.test(s)) return { ok: false, message: MSG.personName, patchValue: undefined };
       return { ok: true, message: "", patchValue: normalizeLatinUpperForDb(s) };
+    }
+    if (kind === "db-upper") {
+      const maxAttr = Number(el.getAttribute("data-antares-max") || 255);
+      const m = Number.isFinite(maxAttr) ? maxAttr : 255;
+      const s = sanitizeOneLineText(raw, m);
+      if (!s) return { ok: true, message: "", patchValue: "" };
+      return { ok: true, message: "", patchValue: normalizeLatinUpperForDb(s) };
+    }
+    if (kind === "db-upper-multiline") {
+      const maxAttr = Number(el.getAttribute("data-antares-max") || 8000);
+      const m = Number.isFinite(maxAttr) ? maxAttr : 8000;
+      const s = sanitizeMultiline(raw, m);
+      if (!s) return { ok: true, message: "", patchValue: "" };
+      return { ok: true, message: "", patchValue: normalizeLatinUpperForDb(s) };
+    }
+    if (kind === "catalog") {
+      const s = sanitizeOneLineText(raw, 120);
+      if (!s) return { ok: true, message: "", patchValue: "" };
+      return { ok: true, message: "", patchValue: normalizeLatinForDb(s) };
+    }
+    if (kind === "preserve-text") {
+      const maxAttr = Number(el.getAttribute("data-antares-max") || 4000);
+      const m = Number.isFinite(maxAttr) ? maxAttr : 4000;
+      const isTa = String(el.tagName || "").toUpperCase() === "TEXTAREA";
+      const s = isTa ? sanitizeMultiline(raw, m) : sanitizeOneLineText(raw, m);
+      return { ok: true, message: "", patchValue: s || "" };
     }
     if (kind === "nit" || kind === "cc" || kind === "ce" || kind === "pas") {
       const r = validateColombianDocument(kind.toUpperCase(), raw);
@@ -532,8 +780,13 @@
     const maxLenAttr = el.getAttribute("data-antares-max");
     if (maxLenAttr && raw) {
       const m = Number(maxLenAttr);
-      if (Number.isFinite(m) && raw.length > m) {
-        return { ok: false, message: MSG.maxLen(m), patchValue: undefined };
+      if (Number.isFinite(m)) {
+        const isMultiline = String(el.tagName || "").toUpperCase() === "TEXTAREA";
+        const s = isMultiline ? sanitizeMultiline(raw, m) : sanitizeOneLineText(raw, m);
+        if (s.length > m) {
+          return { ok: false, message: MSG.maxLen(m), patchValue: undefined };
+        }
+        if (s !== raw) return { ok: true, message: "", patchValue: s };
       }
     }
     if (el.required && !raw && type !== "number") {
@@ -795,9 +1048,17 @@
     );
   }
 
+  function readFormEntriesNormalized(form) {
+    if (!form) return {};
+    return normalizePayloadTextFields(Object.fromEntries(new FormData(form).entries()));
+  }
+
   window.AntaresValidation = {
     MSG,
     normalizeEmail,
+    normalizeLatinForDb,
+    normalizeLatinUpperForDb,
+    normalizePayloadTextFields,
     isValidEmail,
     validateColombianDocument,
     isValidIsoDate,
@@ -811,6 +1072,9 @@
     validateB2bProspectClient,
     validateProfileForm,
     validateDomForm,
+    applyDomFormPatch,
+    readNormalizedFormObject,
+    readFormEntriesNormalized,
     decorateFormFields,
     prepareFormsInRoot,
     installFormSubmitGuard,

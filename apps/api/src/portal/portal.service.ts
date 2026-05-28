@@ -44,8 +44,15 @@ import {
   normalizeDbTextUpperOrNullFromUnknown,
   normalizeEmailFromUnknown,
   normalizeFreeTextPayloadRecord,
+  sanitizeSyncKeyPayload,
   normalizePersonTypeForDb
 } from "../common/normalize-db-text";
+import {
+  matchPayrollCatalogOption,
+  normalizeContractTemplateKindForDb,
+  normalizeDefensiveCourseForDb,
+  PAYROLL_EMPLOYEE_CATALOG
+} from "../common/payroll-employee-catalogs";
 
 const nu = normalizeDbTextUpperFromUnknown;
 const nuN = normalizeDbTextUpperOrNullFromUnknown;
@@ -3052,6 +3059,7 @@ export class PortalService implements OnModuleInit {
     role: JwtRole,
     deletedIds?: string[]
   ) {
+    data = sanitizeSyncKeyPayload(data);
     const admin = this.isAdmin(role);
     const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
     const can = (permission: string) => admin || this.hasPortalPermission(permissionSet, permission);
@@ -6448,16 +6456,25 @@ export class PortalService implements OnModuleInit {
       const emPhone = nu(p(e, "emergencyPhone") ?? "3000000000") || "3000000000";
       const emRel = nu(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar") || "FAMILIAR";
       const posText = nu(p(e, "position") ?? "Empleado") || "EMPLEADO";
-      const contract = nu(p(e, "contractType") ?? "Indefinido") || "INDEFINIDO";
+      const role = String(e.workerRole || "empleado").toLowerCase();
+      const contract =
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.contractTypes, p(e, "contractType")) ||
+        "Termino indefinido";
       const start = String(p(e, "startDate") ?? new Date().toISOString().slice(0, 10));
       const base = Number(p(e, "baseSalary")) || 0;
-      const bank = nu(p(e, "bankName", "bank") ?? "Bancolombia") || "BANCOLOMBIA";
+      const bank =
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.banks, p(e, "bankName", "bank")) ||
+        "Bancolombia";
       const acctNum = String(p(e, "bankAccount", "accountNumber") ?? "0").trim();
-      const acctType = nu(p(e, "bankAccountType", "accountType") ?? "Ahorros") || "AHORROS";
-      const eps = nu(p(e, "eps") ?? "Sura") || "SURA";
-      const pension = nu(p(e, "pensionFund") ?? "Porvenir") || "PORVENIR";
-      const arl = nu(p(e, "arl") ?? "Sura") || "SURA";
-      const role = String(e.workerRole || "empleado").toLowerCase();
+      const acctType =
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.accountTypes, p(e, "bankAccountType", "accountType")) ||
+        "Ahorros";
+      const eps =
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.eps, p(e, "eps")) || "Sura";
+      const pension =
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.pensionFunds, p(e, "pensionFund")) ||
+        "Porvenir";
+      const arl = matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.arl, p(e, "arl")) || "Sura";
 
       const periodicidadRaw = p(
         e,
@@ -6486,10 +6503,10 @@ export class PortalService implements OnModuleInit {
         docType,
         idDoc,
         portalDateOrNull(p(e, "birthDate")),
-        nuN(p(e, "gender")),
-        nuN(p(e, "maritalStatus")),
-        nuN(p(e, "bloodType")),
-        nuN(p(e, "educationLevel")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.genders, p(e, "gender")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.maritalStatus, p(e, "maritalStatus")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.bloodTypes, p(e, "bloodType")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.educationLevel, p(e, "educationLevel")),
         cat(p(e, "department")),
         city,
         address,
@@ -6506,31 +6523,36 @@ export class PortalService implements OnModuleInit {
         p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
         periodicidadPago,
         nuN(p(e, "costCenter", "centro_costos", "centroCostos")),
-        nuN(p(e, "contributorType")),
-        nuN(p(e, "arlRiskLevel")),
-        nuN(p(e, "contractTemplateKind", "contractTemplate")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.contributorTypes, p(e, "contributorType")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.arlRiskLevels, p(e, "arlRiskLevel")),
+        normalizeContractTemplateKindForDb(
+          p(e, "contractTemplateKind", "contractTemplate"),
+          contract,
+          role
+        ),
         eps,
         pension,
         arl,
-        nuN(p(e, "severanceFund")),
-        nuN(p(e, "compensationFund")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.severanceFunds, p(e, "severanceFund")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.compensationFunds, p(e, "compensationFund")),
         bank,
         acctType,
         acctNum,
         role,
         nuN(p(e, "license", "licenseNumber")),
-        p(e, "licenseCategory") != null
-          ? String(p(e, "licenseCategory")).trim().toUpperCase() || null
-          : null,
+        matchPayrollCatalogOption(
+          PAYROLL_EMPLOYEE_CATALOG.licenseCategories,
+          p(e, "licenseCategory")
+        ),
         portalDateOrNull(p(e, "licenseExpiry")),
         occExam,
         occExpiry,
         intraExam,
         intraExpiry,
-        nuN(p(e, "defensiveCourse", "defensiveDrivingCourse")),
+        normalizeDefensiveCourseForDb(p(e, "defensiveCourse", "defensiveDrivingCourse")),
         p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
         portalDateOrNull(p(e, "contractEndDate")),
-        nuN(p(e, "workSchedule")),
+        matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.workSchedule, p(e, "workSchedule")),
         (p(e, "avatarUrl") as string) || null,
         em(p(e, "corporateEmail"))
       ];

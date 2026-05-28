@@ -7,7 +7,11 @@ import {
   MaxLength,
   MinLength
 } from "class-validator";
-import { transformStripEmail, transformStripUpper } from "../../common/normalize-db-text";
+import {
+  transformStripEmail,
+  transformStripMultilineUpper,
+  transformStripUpper
+} from "../../common/normalize-db-text";
 import { TransformStripNulTrim } from "../../common/transformers/strip-nul-trim.transform";
 
 function normalizeCoNit(value: unknown): unknown {
@@ -84,7 +88,7 @@ export class CreateB2bProspectDto {
   @MaxLength(80)
   startWindow!: string;
 
-  @Transform(transformStripUpper)
+  @Transform(transformStripMultilineUpper)
   @IsString()
   @MinLength(30)
   @MaxLength(8000)

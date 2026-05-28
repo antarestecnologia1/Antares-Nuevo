@@ -14,7 +14,15 @@ import {
   Min,
   MinLength
 } from "class-validator";
-import { transformStripCatalog, transformStripEmail, transformStripUpper } from "../../common/normalize-db-text";
+import {
+  transformStripCatalog,
+  transformStripDoc,
+  transformStripEmail,
+  transformStripMultiline,
+  transformStripNulTrim,
+  transformStripPhoneDigits,
+  transformStripUpper
+} from "../../common/normalize-db-text";
 
 /** Postulación pública (index.html sección Carreras). */
 export class CreateJobApplicationDto {
@@ -33,9 +41,11 @@ export class CreateJobApplicationDto {
   @MaxLength(320)
   email!: string;
 
+  @Transform(transformStripPhoneDigits)
   @IsString()
   @IsNotEmpty()
-  @MaxLength(40)
+  @MinLength(7)
+  @MaxLength(15)
   phone!: string;
 
   @Transform(({ value }) => (typeof value === "string" ? value.trim().toUpperCase() : value))
@@ -43,6 +53,7 @@ export class CreateJobApplicationDto {
   @IsIn(["CC", "CE", "PAS"])
   documentType!: string;
 
+  @Transform(transformStripDoc)
   @IsString()
   @IsNotEmpty()
   @MinLength(4)
@@ -76,11 +87,13 @@ export class CreateJobApplicationDto {
 
   /** Resumen libre opcional (el formulario público puede omitirlo). */
   @IsOptional()
+  @Transform(transformStripMultiline)
   @IsString()
   @MaxLength(12000)
   experience?: string;
 
   @IsOptional()
+  @Transform(transformStripNulTrim)
   @IsString()
   @MaxLength(512)
   attachmentFileName?: string;

@@ -113,10 +113,110 @@ export function transformStripCatalog({ value }: { value: unknown }): unknown {
   return normalizeCatalogText(t) ?? "";
 }
 
+/** Para class-transformer: trim + sin NUL (sin cambiar mayúsculas). */
+export function transformStripNulTrim({ value }: { value: unknown }): unknown {
+  if (typeof value !== "string") return value;
+  return value.replace(/\u0000/g, "").trim();
+}
+
+/** Texto multilínea: sin NUL, saltos normalizados, sin mayúsculas forzadas. */
+export function normalizeMultilineText(value: string | undefined | null, maxLen?: number): string | null {
+  let s = String(value ?? "")
+    .replace(/\u0000/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  s = s.replace(/\n{3,}/g, "\n\n").trim();
+  if (maxLen && s.length > maxLen) s = s.slice(0, maxLen);
+  return s || null;
+}
+
+/** Para class-transformer: motivos, cuerpos de notificación, etc. */
+export function transformStripMultiline({ value }: { value: unknown }): unknown {
+  if (typeof value !== "string") return value;
+  return normalizeMultilineText(value) ?? "";
+}
+
+/** Multilínea persistida en BD como mayúsculas sin tildes (mensajes B2B, notas). */
+export function transformStripMultilineUpper({ value }: { value: unknown }): unknown {
+  if (typeof value !== "string") return value;
+  const t = normalizeMultilineText(value);
+  if (!t) return "";
+  return normalizeDbTextUpper(t) ?? "";
+}
+
+/** Solo dígitos (teléfonos en DTO). */
+export function transformStripPhoneDigits({ value }: { value: unknown }): unknown {
+  if (typeof value !== "string") return value;
+  return value.replace(/\u0000/g, "").replace(/\D/g, "").trim();
+}
+
+/** Documento alfanumérico compacto. */
+export function transformStripDoc({ value }: { value: unknown }): unknown {
+  if (typeof value !== "string") return value;
+  return value
+    .replace(/\u0000/g, "")
+    .replace(/[.\s]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+function isPreserveCaseMultilineKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return (
+    k === "reason" ||
+    k === "motivo" ||
+    k === "body" ||
+    k === "experience" ||
+    k === "description" ||
+    k === "content" ||
+    k === "subject" ||
+    k.endsWith("reason") ||
+    k.endsWith("motivo") ||
+    k.endsWith("description") ||
+    k.endsWith("experience")
+  );
+}
+
+function isMultilineUpperKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return k === "message" || k === "notes" || k === "requirements" || k.endsWith("notes");
+}
+
+function shouldSkipStringNormalizeKey(key: string): boolean {
+  const k = key.toLowerCase();
+  if (isPasswordFieldKey(key)) return true;
+  if (k === "id" || k.endsWith("id") || k.includes("uuid")) return true;
+  if (k.includes("url") || k.includes("hash") || k.includes("token") || k.includes("secret")) return true;
+  if (k.endsWith("at") && (k.includes("created") || k.includes("updated") || k.includes("expir"))) return true;
+  return false;
+}
+
+/** Elimina caracteres NUL en cualquier string dentro de JSON (sync-key, arrays). */
+export function stripNulFromUnknown(raw: unknown, depth = 0): unknown {
+  if (depth > 24) return raw;
+  if (typeof raw === "string") return raw.replace(/\u0000/g, "");
+  if (Array.isArray(raw)) return raw.map((item) => stripNulFromUnknown(item, depth + 1));
+  if (raw && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(o)) {
+      out[k] = stripNulFromUnknown(v, depth + 1);
+    }
+    return out;
+  }
+  return raw;
+}
+
+/** Sanitiza el array/objeto de sync-key antes de persistir. */
+export function sanitizeSyncKeyPayload(data: unknown): unknown {
+  return stripNulFromUnknown(data);
+}
+
 /** Normaliza strings en payloads JSON (p. ej. autorizaciones); no toca contraseñas. */
 export function normalizeFreeTextPayloadRecord(payload: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = { ...payload };
   for (const [k, v] of Object.entries(out)) {
+    if (shouldSkipStringNormalizeKey(k)) continue;
     if (isPasswordFieldKey(k)) continue;
     if (typeof v !== "string") continue;
     const keyLc = k.toLowerCase();
@@ -135,6 +235,19 @@ export function normalizeFreeTextPayloadRecord(payload: Record<string, unknown>)
     ) {
       const c = normalizeCatalogText(v);
       if (c) out[k] = c;
+      continue;
+    }
+    if (isPreserveCaseMultilineKey(k)) {
+      const m = normalizeMultilineText(v);
+      if (m) out[k] = m;
+      continue;
+    }
+    if (isMultilineUpperKey(k)) {
+      const m = normalizeMultilineText(v);
+      if (m) {
+        const u = normalizeDbTextUpper(m);
+        if (u) out[k] = u;
+      }
       continue;
     }
     const u = normalizeDbTextUpper(v);

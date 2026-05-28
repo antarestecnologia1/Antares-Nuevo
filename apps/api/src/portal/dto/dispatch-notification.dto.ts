@@ -1,11 +1,15 @@
+import { Transform } from "class-transformer";
 import { IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from "class-validator";
+import { transformStripMultiline, transformStripUpper } from "../../common/normalize-db-text";
 
 export class DispatchNotificationDto {
+  @Transform(transformStripUpper)
   @IsString()
   @MinLength(1)
   @MaxLength(255)
   title!: string;
 
+  @Transform(transformStripMultiline)
   @IsString()
   @MinLength(1)
   @MaxLength(4000)

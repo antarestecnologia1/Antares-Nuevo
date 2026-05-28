@@ -1401,12 +1401,11 @@ function lockFormSubmitUi(formEl, opts = {}) {
 
 /** Restaura el estado del botón de envío tras `lockFormSubmitUi`. */
 function releaseFormSubmitUi(formEl, opts = {}) {
-  if (!formEl) return;
-  formEl.dataset.submitting = "0";
+  if (formEl) formEl.dataset.submitting = "0";
   const submitBtn =
     opts.submitButton ??
-    formEl.querySelector?.("button[type='submit']") ??
-    formEl.querySelector?.("[data-step-submit]");
+    formEl?.querySelector?.("button[type='submit']") ??
+    formEl?.querySelector?.("[data-step-submit]");
   if (submitBtn) {
     submitBtn.disabled = false;
     submitBtn.removeAttribute("aria-busy");
@@ -1423,6 +1422,24 @@ function releaseFormSubmitUi(formEl, opts = {}) {
 }
 
 /**
+ * Ejecuta una acción async bloqueando un botón (evita doble clic y saturación del servidor).
+ * @param {HTMLElement} btn
+ * @param {() => void|Promise<void>} fn
+ * @param {{ busyText?: string, lockExtraButtons?: HTMLElement[] }} [opts]
+ */
+async function runWithBusyButton(btn, fn, opts = {}) {
+  if (!btn || typeof fn !== "function" || btn.dataset.busy === "1") return;
+  btn.dataset.busy = "1";
+  lockFormSubmitUi(null, { ...opts, submitButton: btn });
+  try {
+    await fn();
+  } finally {
+    releaseFormSubmitUi(null, { ...opts, submitButton: btn });
+    btn.dataset.busy = "0";
+  }
+}
+
+/**
  * Evita doble envío en formularios async: bloquea el submit hasta que termina el handler.
  * @param {HTMLFormElement} formEl
  * @param {(event: SubmitEvent) => void|boolean|Promise<void|boolean>} onSubmit
@@ -1436,6 +1453,7 @@ function wireFormSubmitGuard(formEl, onSubmit, opts = {}) {
   formEl.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (formEl.dataset.submitting === "1") return;
+    if (!prepareCreationFormForSubmit(formEl)) return;
     formEl.dataset.submitting = "1";
     lockFormSubmitUi(formEl, opts);
     try {
@@ -1665,8 +1683,9 @@ function openEditModal({
           notify(userMessage("validationStep"), "error");
           return false;
         }
+        V.applyDomFormPatch?.(currentForm, domVal.patch);
       }
-      const payload = Object.fromEntries(new FormData(currentForm).entries());
+      const payload = readFormEntriesNormalized(currentForm);
       const fileInputs = [...currentForm.querySelectorAll("input[type='file']")];
       fileInputs.forEach((input) => {
         if (input.multiple) {
@@ -5885,6 +5904,16 @@ function __applyPortalBootstrapPayloadInner(p) {
           if (!String(o.costCenter || "").trim() && String(o.centro_costos || o.centroCostos || "").trim()) {
             o.costCenter = String(o.centro_costos || o.centroCostos).trim();
           }
+          const wr =
+            o.workerRole ||
+            (String(o.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
+          Object.assign(
+            o,
+            sanitizePayrollEmployeeFieldsForPersist({
+              ...o,
+              workerRole: wr
+            })
+          );
           return normalizePayrollEmployeeRowDates(o);
         })
       );
@@ -7553,32 +7582,34 @@ function isPasswordPayloadKey(key) {
   return lower.includes("password") || lower.includes("contrasena");
 }
 
-/** Normaliza strings en objetos de formulario/autorización (alineado con API normalizeFreeTextPayloadRecord). */
+/** Normaliza strings en objetos de formulario/autorización (delegado en AntaresValidation). */
 function normalizePayloadTextFields(payload) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
-  const out = { ...payload };
-  for (const [k, v] of Object.entries(out)) {
-    if (isPasswordPayloadKey(k)) continue;
-    if (typeof v !== "string") continue;
-    const keyLc = k.toLowerCase();
-    if (keyLc === "email" || keyLc.endsWith("email")) {
-      out[k] = normalizeEmail(v);
-      continue;
-    }
-    if (
-      keyLc === "department" ||
-      keyLc === "city" ||
-      keyLc === "departamento" ||
-      keyLc === "ciudad" ||
-      keyLc.endsWith("department") ||
-      keyLc.endsWith("city")
-    ) {
-      out[k] = normalizeLatinForDb(v);
-      continue;
-    }
-    out[k] = normalizeLatinUpperForDb(v);
+  const fn = window.AntaresValidation?.normalizePayloadTextFields;
+  if (typeof fn === "function") return fn(payload);
+  return payload;
+}
+
+/** Valida, aplica mayúsculas en campos de texto y devuelve false si el formulario no es válido. */
+function prepareCreationFormForSubmit(formEl) {
+  const V = window.AntaresValidation;
+  if (!V || !formEl) return true;
+  V.decorateFormFields?.(formEl);
+  const domVal = V.validateDomForm(formEl);
+  if (!domVal.ok) {
+    domVal.firstInvalid?.focus?.();
+    notify(userMessage("validationStep"), "error");
+    return false;
   }
-  return out;
+  V.applyDomFormPatch?.(formEl, domVal.patch);
+  return true;
+}
+
+/** Lee FormData tras validación previa y normaliza texto para BD (todos los módulos). */
+function readFormEntriesNormalized(formEl) {
+  const fn = window.AntaresValidation?.readFormEntriesNormalized;
+  if (typeof fn === "function") return fn(formEl);
+  if (!formEl) return {};
+  return normalizePayloadTextFields(Object.fromEntries(new FormData(formEl).entries()));
 }
 
 /** Chip en tarjetas (`.role-chip` fuerza mayúsculas); texto corto para no desalinear la cabecera. */
@@ -11403,7 +11434,7 @@ function bindAuthForms() {
         notify(userMessage("authLoginLock", secs), "error");
         return;
       }
-      const data = Object.fromEntries(new FormData(login).entries());
+      const data = readFormEntriesNormalized(login);
       const passwordRaw = String(data.password || "");
       const V = window.AntaresValidation;
       if (V && typeof V.validateAuthLogin === "function") {
@@ -11630,7 +11661,7 @@ function bindAuthForms() {
       register,
       async (event) => {
       syncPhoneHiddenFull(register, "register");
-      const data = Object.fromEntries(new FormData(register).entries());
+      const data = readFormEntriesNormalized(register);
       const Vreg = window.AntaresValidation;
       if (Vreg && typeof Vreg.validateDomForm === "function") {
         const domVal = Vreg.validateDomForm(register);
@@ -11888,7 +11919,7 @@ function bindAuthForms() {
 
   if (recover) {
     wireFormSubmitGuard(recover, async (event) => {
-      const data = Object.fromEntries(new FormData(recover).entries());
+      const data = readFormEntriesNormalized(recover);
       const V = window.AntaresValidation;
       if (V && typeof V.validateDomForm === "function") {
         const domVal = V.validateDomForm(recover);
@@ -15746,6 +15777,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <div class="directory-card__compact-actions toolbar">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
+        <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
         ${selectHtml}
       </div>
@@ -22305,6 +22337,217 @@ function normalizeDocumentDigits(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+/**
+ * Reglas de persistencia empleado (portal ↔ PostgreSQL empleados_nomina):
+ * — MAYÚSCULAS sin tildes: nombre, dirección, contacto emergencia, cargo texto, centro costos, etc.
+ * — Catálogo (texto exacto): EPS, banco, tipo contrato, género, plantilla Word (oficina|fijo|prestacion).
+ * — Sin mayúsculas forzadas: departamento/ciudad, correo, teléfono, selects de catálogo.
+ */
+function sanitizePayrollEmployeeFieldsForPersist(fields) {
+  const f = fields && typeof fields === "object" ? { ...fields } : {};
+  const wr =
+    String(f.workerRole || "").trim() ||
+    (String(f.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
+  const contractType =
+    matchCatalogOptionValue(CO_CATALOGS.contractTypes, f.contractType) ||
+    String(f.contractType || "Termino indefinido").trim();
+  return {
+    ...f,
+    name: normalizeLatinUpperForDb(String(f.name || "").trim()),
+    documentType: matchCatalogOptionValue(CO_CATALOGS.documentTypes, f.documentType) || String(f.documentType || "CC").trim(),
+    gender: matchCatalogOptionValue(CO_CATALOGS.genders, f.gender),
+    maritalStatus: matchCatalogOptionValue(CO_CATALOGS.maritalStatus, f.maritalStatus),
+    educationLevel: matchCatalogOptionValue(CO_CATALOGS.educationLevel, f.educationLevel),
+    bloodType: matchCatalogOptionValue(CO_CATALOGS.bloodTypes, f.bloodType),
+    department: normalizeLatinForDb(String(f.department || "").trim()),
+    city: normalizeLatinForDb(String(f.city || "").trim()),
+    address: normalizeLatinUpperForDb(String(f.address || "").trim()),
+    phone: normalizePortalPhoneForStorage(String(f.phone || "").trim()),
+    personalEmail: normalizeEmail(String(f.personalEmail || "")),
+    emergencyContact: normalizeLatinUpperForDb(String(f.emergencyContact || "").trim()),
+    emergencyPhone: normalizePortalPhoneForStorage(String(f.emergencyPhone || "").trim()),
+    emergencyRelation: normalizeLatinUpperForDb(String(f.emergencyRelation || "").trim()),
+    position: normalizeLatinUpperForDb(String(f.position || "").trim()),
+    workerRole: wr,
+    contractType,
+    costCenter: normalizeLatinUpperForDb(String(f.costCenter || "").trim()),
+    payFrequency: matchCatalogOptionValue(CO_CATALOGS.payFrequency, f.payFrequency) || String(f.payFrequency || "Mensual").trim(),
+    arlRiskLevel: matchCatalogOptionValue(CO_CATALOGS.arlRiskLevels, f.arlRiskLevel),
+    workSchedule: matchCatalogOptionValue(CO_CATALOGS.workSchedule, f.workSchedule),
+    contributorType: matchCatalogOptionValue(CO_CATALOGS.contributorTypes, f.contributorType),
+    eps: matchCatalogOptionValue(CO_CATALOGS.eps, f.eps),
+    pensionFund: matchCatalogOptionValue(CO_CATALOGS.pensionFunds, f.pensionFund),
+    arl: matchCatalogOptionValue(CO_CATALOGS.arl, f.arl),
+    severanceFund: matchCatalogOptionValue(CO_CATALOGS.severanceFunds, f.severanceFund),
+    compensationFund: matchCatalogOptionValue(CO_CATALOGS.compensationFunds, f.compensationFund),
+    bankName: matchCatalogOptionValue(CO_CATALOGS.banks, f.bankName),
+    bankAccountType: matchCatalogOptionValue(CO_CATALOGS.accountTypes, f.bankAccountType || "Ahorros"),
+    bankAccount: String(f.bankAccount || "").trim(),
+    licenseCategory: matchCatalogOptionValue(CO_CATALOGS.licenseCategories, f.licenseCategory),
+    contractTemplateKind: normalizeContractTemplateKind(f.contractTemplateKind, contractType, wr),
+    illnessDescription:
+      String(f.hasIllness || "").toLowerCase() === "si"
+        ? normalizeLatinUpperForDb(String(f.illnessDescription || "").trim())
+        : ""
+  };
+}
+
+/** Aplica validación en vivo (mayúsculas / catálogo) a campos libres del formulario de empleado. */
+function wirePayrollEmployeeFormFieldSanitization(formEl) {
+  if (!formEl) return;
+  const upperBlur = [
+    "input[name='address']",
+    "input[name='costCenter']",
+    "textarea[name='illnessDescription']",
+    "textarea[name='contractDurationOther']"
+  ];
+  upperBlur.forEach((sel) => {
+    const el = formEl.querySelector(sel);
+    if (!el || el.dataset.payrollSanitizeWired === "1") return;
+    el.dataset.payrollSanitizeWired = "1";
+    const mode =
+      String(el.tagName || "").toUpperCase() === "TEXTAREA" && sel.includes("contractDurationOther")
+        ? "preserve-text"
+        : "db-upper";
+    el.setAttribute("data-antares-validate-blur", mode);
+    if (mode === "db-upper") el.setAttribute("data-antares-field", "db-upper");
+  });
+  window.AntaresValidation?.decorateFormFields?.(formEl);
+}
+
+/** Coincide valor guardado (p. ej. mayúsculas en BD) con opción del catálogo del formulario. */
+function matchCatalogOptionValue(catalog, stored) {
+  const s = String(stored || "").trim();
+  if (!s) return "";
+  const list = Array.isArray(catalog) ? catalog : [];
+  const exact = list.find((v) => String(v).trim() === s);
+  if (exact) return exact;
+  const lower = s.toLowerCase();
+  const ci = list.find((v) => String(v).trim().toLowerCase() === lower);
+  return ci || s;
+}
+
+function normalizeContractTemplateKind(raw, contractType, workerRole) {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^documentacion\//, "");
+  const byFile = {
+    "contrato_administrativo_oficina.docx": "oficina",
+    contrato_administrativo_oficina: "oficina",
+    "contrato_termino_fijo.docx": "fijo",
+    contrato_termino_fijo: "fijo",
+    "contrato_prestacion_de_servicios.docx": "prestacion",
+    contrato_prestacion_de_servicios: "prestacion"
+  };
+  if (byFile[s]) return byFile[s];
+  if (["oficina", "fijo", "prestacion"].includes(s)) return s;
+  if (s.includes("termino_fijo") || s.includes("término_fijo")) return "fijo";
+  if (s.includes("prestacion")) return "prestacion";
+  if (s.includes("oficina") || s.includes("administrativo")) return "oficina";
+  if (window.RecruitmentDomain?.inferTemplateKind) {
+    return window.RecruitmentDomain.inferTemplateKind(
+      String(contractType || "Termino indefinido"),
+      String(workerRole || "empleado")
+    );
+  }
+  return "oficina";
+}
+
+function prepareEmployeeForContractDocx(employee) {
+  const e = ensureEmployeeContractFields(normalizePayrollEmployeeRowDates({ ...(employee || {}) }));
+  const positionName = getPositionById(String(e.positionId || ""))?.name || String(e.position || "").trim();
+  const wr = String(
+    e.workerRole || (positionName.toLowerCase().includes("conductor") ? "conductor" : "empleado")
+  );
+  const contractType = String(e.contractType || "Termino indefinido").trim();
+  let contractDuration = String(e.contractDuration || e.contractDurationText || "").trim();
+  if (!contractDuration && isFixedTermContractType(contractType)) {
+    contractDuration = "1 año";
+  }
+  return {
+    ...e,
+    position: positionName || e.position,
+    workerRole: wr,
+    city: String(e.city || "").trim(),
+    bankName: matchCatalogOptionValue(CO_CATALOGS.banks, e.bankName),
+    bankAccountType: matchCatalogOptionValue(CO_CATALOGS.accountTypes, e.bankAccountType || "Ahorros"),
+    eps: matchCatalogOptionValue(CO_CATALOGS.eps, e.eps),
+    pensionFund: matchCatalogOptionValue(CO_CATALOGS.pensionFunds, e.pensionFund),
+    arl: matchCatalogOptionValue(CO_CATALOGS.arl, e.arl),
+    contractTemplateKind: normalizeContractTemplateKind(e.contractTemplateKind, contractType, wr),
+    contractDuration
+  };
+}
+
+async function runEmployeeContractGeneration(employeeId) {
+  const id = String(employeeId || "").trim();
+  const empRaw = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === id);
+  if (!empRaw) {
+    notify(userMessage("genericError"), "error");
+    return;
+  }
+  const emp = prepareEmployeeForContractDocx(empRaw);
+  const miss = validateEmployeeContractDocFields(emp);
+  if (miss.length) {
+    notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
+    return;
+  }
+  try {
+    await generateOfficialWordContract(
+      buildEmployeeContractDocxPayload(emp, { contractTemplateKind: emp.contractTemplateKind })
+    );
+    notify(userMessage("employeeContractWordOk"), "success");
+  } catch (err) {
+    notify(String(err?.message || userMessage("genericError")), "error");
+  }
+}
+
+function syncEmployeeEditCatalogSelects(formEl, employee) {
+  if (!formEl || !employee) return;
+  const pairs = [
+    ["eps", CO_CATALOGS.eps],
+    ["pensionFund", CO_CATALOGS.pensionFunds],
+    ["arl", CO_CATALOGS.arl],
+    ["severanceFund", CO_CATALOGS.severanceFunds],
+    ["compensationFund", CO_CATALOGS.compensationFunds],
+    ["bankName", CO_CATALOGS.banks],
+    ["bankAccountType", CO_CATALOGS.accountTypes],
+    ["contributorType", CO_CATALOGS.contributorTypes],
+    ["licenseCategory", CO_CATALOGS.licenseCategories],
+    ["bloodType", CO_CATALOGS.bloodTypes]
+  ];
+  for (const [name, catalog] of pairs) {
+    const sel = formEl.querySelector(`select[name='${name}']`);
+    if (!sel) continue;
+    setFormSelectValue(sel, matchCatalogOptionValue(catalog, employee[name]));
+  }
+  const tplSel = formEl.querySelector("select[name='contractTemplateKind']");
+  if (tplSel) {
+    setFormSelectValue(
+      tplSel,
+      normalizeContractTemplateKind(employee.contractTemplateKind, employee.contractType, employee.workerRole)
+    );
+  }
+}
+
+function installEmployeeContractDelegation() {
+  if (typeof document === "undefined" || !document.body) return;
+  if (document.body.dataset.antaresEmpContractBound === "1") return;
+  document.body.dataset.antaresEmpContractBound = "1";
+  document.body.addEventListener("click", async (event) => {
+    const btn =
+      event.target instanceof Element
+        ? event.target.closest("[data-action='employee-generate-contract']")
+        : null;
+    if (!btn) return;
+    event.preventDefault();
+    const id = String(btn.dataset.id || "").trim();
+    if (!id || btn.disabled || btn.dataset.busy === "1") return;
+    await runWithBusyButton(btn, () => runEmployeeContractGeneration(id), { busyText: "Generando…" });
+  });
+}
+
 async function deleteEmployeesCascade(employeeIds = []) {
   const ids = [...new Set(employeeIds.map((id) => String(id || "").trim()).filter(Boolean))];
   if (!ids.length) return 0;
@@ -22764,7 +23007,7 @@ function payrollHtml() {
           <option value="no">No</option>
           <option value="si">Sí</option>
         </select></label>
-        <label class="full hidden" id="emp-illness-detail-label">${fieldLabel(IC.alertTriangle, "¿Cuál? (descripción libre)")}<textarea name="illnessDescription" id="emp-illness-detail" rows="2" placeholder="Detalle breve para uso médico/HR (alergias, condiciones crónicas, medicación regular, etc.)"></textarea></label>
+        <label class="full hidden" id="emp-illness-detail-label">${fieldLabel(IC.alertTriangle, "¿Cuál? (descripción libre)")}<textarea name="illnessDescription" id="emp-illness-detail" rows="2" placeholder="Detalle breve para uso médico/HR (alergias, condiciones crónicas, medicación regular, etc.)" data-antares-validate-blur="db-upper-multiline" data-antares-field="db-upper-multiline"></textarea></label>
       </div>
     </fieldset>
       </div>
@@ -22775,12 +23018,12 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" /></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
         <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
         <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
-        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." /></label>
+        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." data-antares-restrict="person-name" data-antares-field="person-name" /></label>
       </div>
     </fieldset>
       </div>
@@ -22821,7 +23064,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.dollar, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="emp-transport-allowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
         <p class="full muted" id="emp-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
         <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
-        <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" /></label>
+        <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
         <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel" id="emp-arl-risk-level">${arlRiskOpts}</select></label>
         <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
@@ -25487,45 +25730,31 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
           : "Complete la duración del contrato: unidad (meses o años) o texto en “Otro”.";
     return { ok: false, msg };
   }
+  const sanitized = sanitizePayrollEmployeeFieldsForPersist({
+    ...raw,
+    position: position.name,
+    workerRole: position.workerRole || "empleado",
+    contractType: effectiveContractType,
+    arlRiskLevel: raw.arlRiskLevel || position.arlRiskLevel || "",
+    workSchedule: raw.workSchedule || position.workSchedule || position.schedule || "",
+    contractTemplateKind:
+      raw.contractTemplateKind ||
+      (window.RecruitmentDomain?.inferTemplateKind
+        ? window.RecruitmentDomain.inferTemplateKind(
+            effectiveContractType,
+            position.workerRole || "empleado"
+          )
+        : "oficina")
+  });
   return {
     ok: true,
     payload: {
-      name: normalizeLatinUpperForDb(String(raw.name || "").trim()),
-      documentType: raw.documentType,
+      ...sanitized,
       idDoc: docNormalized,
       birthDate: normalizePortalDateYmd(raw.birthDate),
-      gender: normalizeLatinUpperForDb(raw.gender),
-      maritalStatus: normalizeLatinUpperForDb(raw.maritalStatus),
-      educationLevel: normalizeLatinUpperForDb(raw.educationLevel),
-      personalEmail: normalizeEmail(String(raw.personalEmail || "")),
-      emergencyRelation: normalizeLatinUpperForDb(raw.emergencyRelation),
       hasIllness: String(raw.hasIllness || "no").toLowerCase() === "si" ? "si" : "no",
-      illnessDescription:
-        String(raw.hasIllness || "no").toLowerCase() === "si"
-          ? normalizeLatinUpperForDb(String(raw.illnessDescription || "").trim())
-          : "",
       positionId: position.id,
-      position: normalizeLatinUpperForDb(position.name),
-      workerRole: position.workerRole || "empleado",
-      contractType: normalizeLatinUpperForDb(effectiveContractType),
-      city: normalizeLatinForDb(String(raw.city || "").trim()),
-      department: normalizeLatinForDb(String(raw.department || "").trim()),
-      address: normalizeLatinUpperForDb(String(raw.address || "").trim()),
-      phone: normalizePortalPhoneForStorage(String(raw.phone || "").trim()),
-      emergencyContact: normalizeLatinUpperForDb(String(raw.emergencyContact || "").trim()),
-      emergencyPhone: normalizePortalPhoneForStorage(String(raw.emergencyPhone || "").trim()),
-      bloodType: normalizeLatinUpperForDb(String(raw.bloodType || "").trim()),
       companyId: raw.companyId,
-      eps: normalizeLatinUpperForDb(raw.eps),
-      pensionFund: normalizeLatinUpperForDb(raw.pensionFund),
-      arl: normalizeLatinUpperForDb(raw.arl),
-      severanceFund: normalizeLatinUpperForDb(raw.severanceFund),
-      compensationFund: normalizeLatinUpperForDb(raw.compensationFund),
-      arlRiskLevel: normalizeLatinUpperForDb(raw.arlRiskLevel || position.arlRiskLevel || ""),
-      workSchedule: normalizeLatinUpperForDb(raw.workSchedule || position.workSchedule || position.schedule || ""),
-      contributorType: normalizeLatinUpperForDb(raw.contributorType),
-      costCenter: normalizeLatinUpperForDb(raw.costCenter),
-      payFrequency: String(raw.payFrequency || "Mensual").trim(),
       baseSalary,
       transportAllowance: resolveEmployeeTransportAllowanceCop(
         raw.transportAllowance != null && String(raw.transportAllowance).trim() !== ""
@@ -25533,28 +25762,16 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
           : position.transportAllowance,
         baseSalary
       ),
-      contractTemplateKind:
-        String(raw.contractTemplateKind || "").trim() ||
-        (window.RecruitmentDomain?.inferTemplateKind
-          ? window.RecruitmentDomain.inferTemplateKind(
-              effectiveContractType,
-              position.workerRole || "empleado"
-            )
-          : "oficina"),
       contractDuration: composedDur,
       contractEndDate,
-      bankName: String(raw.bankName || "").trim(),
-      bankAccount: String(raw.bankAccount || "").trim(),
-      bankAccountType: String(raw.bankAccountType || "Ahorros").trim(),
       startDate: startDateYmd,
       license: String(raw.license || "").trim(),
-      licenseCategory: String(raw.licenseCategory || "").trim(),
       licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
       occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),
       occupationalExamExpiry: addOneYearToYmd(raw.occupationalExamDate),
       instruvialExamDate: normalizePortalDateYmd(raw.instruvialExamDate),
       instruvialExamExpiry: addOneYearToYmd(raw.instruvialExamDate),
-      defensiveCourse: String(raw.defensiveCourse || "").trim(),
+      defensiveCourse: String(raw.defensiveCourse || "").trim().toLowerCase(),
       avatarUrl
     }
   };
@@ -26009,16 +26226,21 @@ function syncContractFormFromSelection(form) {
 }
 
 function buildEmployeeContractDocxPayload(employee, opts = {}) {
-  let kind = String(opts.contractTemplateKind || "").trim().toLowerCase();
-  const signDate = String(opts.signDate || employee.startDate || colombiaTodayIsoDate()).trim();
-  const positionName = getPositionById(String(employee.positionId || ""))?.name || String(employee.position || "").trim();
-  const wr = String(employee.workerRole || (String(positionName).toLowerCase().includes("conductor") ? "conductor" : "empleado"));
-  const ct = String(employee.contractType || "Termino indefinido");
+  const emp = prepareEmployeeForContractDocx(employee);
+  let kind = normalizeContractTemplateKind(
+    opts.contractTemplateKind || emp.contractTemplateKind,
+    emp.contractType,
+    emp.workerRole
+  );
+  const signDate = String(opts.signDate || emp.startDate || colombiaTodayIsoDate()).trim();
+  const positionName = String(emp.position || "").trim();
+  const wr = String(emp.workerRole || "empleado");
+  const ct = String(emp.contractType || "Termino indefinido");
   const templates = window.RecruitmentDomain?.TEMPLATE_BY_KIND || {};
   if (!kind || !templates[kind]) {
     kind = window.RecruitmentDomain?.inferTemplateKind ? window.RecruitmentDomain.inferTemplateKind(ct, wr) : "oficina";
   }
-  const base = parseNum(employee.baseSalary);
+  const base = parseNum(emp.baseSalary);
   const wordsSalary =
     window.RecruitmentDomain?.formatSalarioLetrasPesos
       ? window.RecruitmentDomain.formatSalarioLetrasPesos(base)
@@ -26027,19 +26249,21 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
     contractTemplateKind: kind,
     contractType: ct,
     workerRole: wr,
-    nombre_empleado: String(employee.name || "").trim(),
-    cedula_empleado: String(employee.idDoc || "").trim(),
-    ciudad_empleado: String(employee.city || "").trim(),
-    banco_cuenta_bancaria: String(employee.bankName || "").trim(),
-    cuenta_bancaria: String(employee.bankAccount || "").trim(),
+    nombre_empleado: String(emp.name || "").trim(),
+    cedula_empleado: String(emp.idDoc || "").trim(),
+    ciudad_empleado: String(emp.city || "").trim(),
+    municipio_empleado: String(emp.city || "").trim(),
+    departamento_empleado: String(emp.department || "").trim(),
+    banco_cuenta_bancaria: String(emp.bankName || "").trim(),
+    cuenta_bancaria: String(emp.bankAccount || "").trim(),
     salario: base,
     salario_letras: wordsSalary,
     duracion_contrato:
-      String(employee.contractDuration || employee.contractDurationText || "").trim() ||
+      String(emp.contractDuration || emp.contractDurationText || "").trim() ||
       describeContractDurationForDocx({
         contractType: ct,
         startDate: signDate,
-        endDate: employee.contractEndDate || employee.endDate || ""
+        endDate: emp.contractEndDate || emp.endDate || ""
       }),
     cargo_empleado: positionName,
     signDate
@@ -26068,6 +26292,7 @@ function buildContractDocxTestPayload(templateKind) {
     nombre_empleado: "Nombre Apellido Ejemplo",
     cedula_empleado: "1000000000",
     ciudad_empleado: "Bogota D.C.",
+    departamento_empleado: "Cundinamarca",
     banco_cuenta_bancaria: "Bancolombia",
     cuenta_bancaria: "000000000000",
     salario: CO_HR_RULES.minMonthlySalary,
@@ -26780,7 +27005,7 @@ function bindDynamicEvents() {
     });
     wireFormSubmitGuard(adminUserCreate, async (event) => {
       const actor = currentUser();
-      const data = Object.fromEntries(new FormData(adminUserCreate).entries());
+      const data = readFormEntriesNormalized(adminUserCreate);
       const permissions = [...adminUserCreate.querySelectorAll("input[name='permissions']:checked")].map(
         (input) => input.value
       );
@@ -26879,7 +27104,7 @@ function bindDynamicEvents() {
       setAdminUsersDraft("createCompany", readAdminUsersFormDraft(adminCompanyCreate));
     });
     wireFormSubmitGuard(adminCompanyCreate, async (event) => {
-      const data = Object.fromEntries(new FormData(adminCompanyCreate).entries());
+      const data = readFormEntriesNormalized(adminCompanyCreate);
       const logoFile = adminCompanyCreate.querySelector("input[name='logoFile']")?.files?.[0] || null;
       if (!logoFile) {
         notify("Debe cargar el logo de la empresa.", "error");
@@ -26989,7 +27214,7 @@ function bindDynamicEvents() {
   const adminCompanyEdit = document.getElementById("form-admin-company-edit");
   if (adminCompanyEdit) {
     wireFormSubmitGuard(adminCompanyEdit, async (event) => {
-      const data = Object.fromEntries(new FormData(adminCompanyEdit).entries());
+      const data = readFormEntriesNormalized(adminCompanyEdit);
       const logoFile = adminCompanyEdit.querySelector("input[name='logoFile']")?.files?.[0] || null;
       let logoUrlResolved = String(data.logoUrlExisting || "").trim();
       if (logoFile) {
@@ -27185,7 +27410,7 @@ function bindDynamicEvents() {
     bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
     wireAdminUserFormPermGridOnRoleChange(adminUserEdit);
     wireFormSubmitGuard(adminUserEdit, async (event) => {
-      const data = Object.fromEntries(new FormData(adminUserEdit).entries());
+      const data = readFormEntriesNormalized(adminUserEdit);
       const userId = String(data.id || "");
       if (!userId) return;
       const users = read(KEYS.users, []);
@@ -27853,7 +28078,7 @@ function bindDynamicEvents() {
       requestForm,
       async (event) => {
       const user = currentUser();
-      const data = Object.fromEntries(new FormData(requestForm).entries());
+      const data = readFormEntriesNormalized(requestForm);
       const requestCompanyId = String(data.companyId || "").trim();
       if (!requestCompanyId) {
         notify("Debe seleccionar la empresa asociada.", "error");
@@ -28147,8 +28372,8 @@ function bindDynamicEvents() {
 
   const payrollLegalForm = nodes.viewRoot.querySelector("#form-payroll-legal-params");
   if (payrollLegalForm) {
-    payrollLegalForm.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
+    payrollLegalForm.setAttribute("data-antares-skip-validate", "1");
+    wireFormSubmitGuard(payrollLegalForm, async () => {
       if (currentUser()?.role !== ROLES.ADMIN) {
         notify("Solo administradores pueden editar los parametros legales.", "error");
         return;
@@ -28197,7 +28422,7 @@ function bindDynamicEvents() {
         return;
       }
       await submit();
-    });
+    }, { busyText: "Guardando vigencia…" });
   }
 
   const runPayrollLegalDelete = async (yearLike) => {
@@ -29030,7 +29255,7 @@ function bindDynamicEvents() {
     }
 
     wireFormSubmitGuard(createTripForm, async (event) => {
-      const data = Object.fromEntries(new FormData(createTripForm).entries());
+      const data = readFormEntriesNormalized(createTripForm);
       const requestId = String(data.requestId || "");
       if (!requestId) {
         notify(userMessage("bulkSelectPending"), "error");
@@ -29168,7 +29393,7 @@ function bindDynamicEvents() {
     }
     wireFormSubmitGuard(routeRateFormEl, async (event) => {
       const fd = new FormData(routeRateFormEl);
-      const data = Object.fromEntries(fd.entries());
+      const data = readFormEntriesNormalized(routeRateFormEl);
       const scopeField = routeRateFormEl.querySelector("[data-route-rate-scope-field]");
       const scope = String(scopeField?.value || data.rateScope || "all");
       const companyIdsRaw = [...fd.getAll("rateClientCompanies")]
@@ -29622,7 +29847,7 @@ function bindDynamicEvents() {
   if (vehicleForm) {
     bindVehicleDocExpiryAutoFill(vehicleForm);
     wireFormSubmitGuard(vehicleForm, async (event) => {
-      const data = Object.fromEntries(new FormData(vehicleForm).entries());
+      const data = readFormEntriesNormalized(vehicleForm);
       const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
         notify(userMessage("vehiclePlateInvalid"), "error");
@@ -29694,7 +29919,7 @@ function bindDynamicEvents() {
     });
     wireFormSubmitGuard(driverForm, async (event) => {
       const actor = currentUser();
-      const data = Object.fromEntries(new FormData(driverForm).entries());
+      const data = readFormEntriesNormalized(driverForm);
       if (!/^\d{10,15}$/.test(String(data.phone || "").trim())) {
         notify(userMessage("driverPhoneInvalid"), "error");
         return;
@@ -30143,7 +30368,7 @@ function bindDynamicEvents() {
   const bindHistoryFleetFilters = (formId, applyFn) => {
     const form = document.getElementById(formId);
     if (!form) return;
-    const refresh = () => applyFn(Object.fromEntries(new FormData(form).entries()));
+    const refresh = () => applyFn(readFormEntriesNormalized(form));
     form.addEventListener("change", refresh);
     form.addEventListener("input", (event) => {
       if (event.target?.matches?.("input[type='search']")) refresh();
@@ -30209,7 +30434,7 @@ function bindDynamicEvents() {
   if (historyFilter) {
     const refreshHistoryResults = () => {
       const histUi = state.historyUi || { quickFilter: "all" };
-      const data = Object.fromEntries(new FormData(historyFilter).entries());
+      const data = readFormEntriesNormalized(historyFilter);
       const items = applyHistoryFilters(reqRead(), {
         quickFilter: histUi.quickFilter,
         formData: data
@@ -30259,7 +30484,7 @@ function bindDynamicEvents() {
     fuelLitersInput?.addEventListener("input", refreshFuelPerLiterHint);
     fuelCostInput?.addEventListener("input", refreshFuelPerLiterHint);
     wireFormSubmitGuard(fuelLogForm, async (event) => {
-      const data = Object.fromEntries(new FormData(fuelLogForm).entries());
+      const data = readFormEntriesNormalized(fuelLogForm);
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
       if (!vehicle || !driver) {
@@ -30305,7 +30530,7 @@ function bindDynamicEvents() {
   if (technicalLogForm) {
     wireMoneyInputs(technicalLogForm);
     wireFormSubmitGuard(technicalLogForm, async (event) => {
-      const data = Object.fromEntries(new FormData(technicalLogForm).entries());
+      const data = readFormEntriesNormalized(technicalLogForm);
       const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
       if (!vehicle) {
         notify(userMessage("fuelSelectVehicle"), "error");
@@ -30345,6 +30570,7 @@ function bindDynamicEvents() {
 
   const employeeForm = document.getElementById("form-employee");
   if (employeeForm) {
+    wirePayrollEmployeeFormFieldSanitization(employeeForm);
     attachDepartmentCitySelects(employeeForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
@@ -30445,51 +30671,64 @@ function bindDynamicEvents() {
         notify(`Formulario precargado desde candidato «${String(prefillCandidate.name || "").trim()}». Complete seguridad social y banco.`, "info");
       }
     }
+    const employeeContractDraftLockButtons = [
+      employeeForm.querySelector(".hr-form-wizard-submit"),
+      employeeForm.querySelector("[data-hr-wizard-next]"),
+      employeeForm.querySelector("[data-hr-wizard-prev]"),
+      employeeForm.querySelector("[data-action='cancel-create-panel']"),
+      employeeForm.querySelector("[data-action='toggle-create-panel']")
+    ].filter(Boolean);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        const raw = Object.fromEntries(new FormData(employeeForm).entries());
-        const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
-        if (!docValidation.ok) {
-          notify(docValidation.message, "error");
-          return;
-        }
-        const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
-          avatarUrl: "",
-          stripLargeAvatar: false
-        });
-        if (!packed.ok) {
-          notify(packed.msg, "error");
-          return;
-        }
-        const payload = packed.payload;
-        const miss = validateEmployeeContractDocFields(payload);
-        if (miss.length) {
-          notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
-          return;
-        }
-        if (payload.workerRole === "conductor") {
-          if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
-            notify(userMessage("employeeDriverFieldsRequired"), "error");
-            return;
-          }
-          if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-            notify(userMessage("payrollLicenseExpired"), "error");
-            return;
-          }
-        }
-        try {
-          await generateOfficialWordContract(
-            buildEmployeeContractDocxPayload(payload, { contractTemplateKind: payload.contractTemplateKind })
-          );
-          notify(userMessage("employeeContractWordOk"), "success");
-        } catch (err) {
-          notify(String(err?.message || userMessage("genericError")), "error");
-        }
+        await runWithBusyButton(
+          btn,
+          async () => {
+            const raw = readFormEntriesNormalized(employeeForm);
+            const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
+            if (!docValidation.ok) {
+              notify(docValidation.message, "error");
+              return;
+            }
+            const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
+              avatarUrl: "",
+              stripLargeAvatar: false
+            });
+            if (!packed.ok) {
+              notify(packed.msg, "error");
+              return;
+            }
+            const payload = packed.payload;
+            const miss = validateEmployeeContractDocFields(payload);
+            if (miss.length) {
+              notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
+              return;
+            }
+            if (payload.workerRole === "conductor") {
+              if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
+                notify(userMessage("employeeDriverFieldsRequired"), "error");
+                return;
+              }
+              if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+                notify(userMessage("payrollLicenseExpired"), "error");
+                return;
+              }
+            }
+            try {
+              await generateOfficialWordContract(
+                buildEmployeeContractDocxPayload(payload, { contractTemplateKind: payload.contractTemplateKind })
+              );
+              notify(userMessage("employeeContractWordOk"), "success");
+            } catch (err) {
+              notify(String(err?.message || userMessage("genericError")), "error");
+            }
+          },
+          { busyText: "Generando…", lockExtraButtons: employeeContractDraftLockButtons }
+        );
       });
     });
     wireFormSubmitGuard(employeeForm, async (event) => {
       const actor = currentUser();
-      const raw = Object.fromEntries(new FormData(employeeForm).entries());
+      const raw = readFormEntriesNormalized(employeeForm);
       const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
@@ -30587,7 +30826,7 @@ function bindDynamicEvents() {
       lockExtraButtons: [
         employeeForm.querySelector("[data-hr-wizard-next]"),
         employeeForm.querySelector("[data-hr-wizard-prev]"),
-        employeeForm.querySelector("[data-action='employee-form-generate-contract-draft']"),
+        ...employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']"),
         employeeForm.querySelector("[data-action='cancel-create-panel']"),
         employeeForm.querySelector("[data-action='toggle-create-panel']")
       ].filter(Boolean),
@@ -30600,7 +30839,7 @@ function bindDynamicEvents() {
     wireHrAbsenceFormBehavior(absenceForm);
     wireFormSubmitGuard(absenceForm, async (event) => {
       const actor = currentUser();
-      const data = Object.fromEntries(new FormData(absenceForm).entries());
+      const data = readFormEntriesNormalized(absenceForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
         notify(userMessage("absencePickEmployee"), "error");
@@ -30698,22 +30937,7 @@ function bindDynamicEvents() {
         notify(userMessage("employeeDeleteNotFound"), "error");
         return;
       }
-      const targetDoc = String(target.idDoc || "").trim();
-      const targetDocDigits = normalizeDocumentDigits(targetDoc);
-      const employeeContracts = read(KEYS.contracts, [])
-        .filter((c) => {
-          const byEmployeeId = String(c.employeeId || "") === String(target.id || "");
-          const contractDoc = String(c.idDocSnapshot || c.employeeIdDoc || "").trim();
-          const byDocumentExact = targetDoc && contractDoc && contractDoc === targetDoc;
-          const byDocumentDigits =
-            targetDocDigits && normalizeDocumentDigits(contractDoc) === targetDocDigits;
-          return byEmployeeId || byDocumentExact || byDocumentDigits;
-        })
-        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-      const latestEmployeeContract = employeeContracts[0] || null;
-      const contractAction = latestEmployeeContract
-        ? `<button type="button" class="btn btn-action" data-action="view-contract" data-id="${escapeAttr(String(latestEmployeeContract.id || ""))}">${IC.download} Descargar contrato</button>`
-        : "";
+      const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
       openInfoModal({
         title: "Ficha del colaborador",
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
@@ -30832,6 +31056,8 @@ function bindDynamicEvents() {
           };
           editNameInp?.addEventListener("input", syncEditAvatarInitial);
           syncEditAvatarInitial();
+          syncEmployeeEditCatalogSelects(formEl, target);
+          wirePayrollEmployeeFormFieldSanitization(formEl);
         },
         onSubmit: async (payload, formEl) => {
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
@@ -31053,7 +31279,7 @@ function bindDynamicEvents() {
   if (payrollForm) {
     wireMonthlyPayrollConcepts(payrollForm);
     wireFormSubmitGuard(payrollForm, async (event) => {
-      const data = Object.fromEntries(new FormData(payrollForm).entries());
+      const data = readFormEntriesNormalized(payrollForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
         notify(userMessage("contractPickEmployee"), "error");
@@ -31255,7 +31481,7 @@ function bindDynamicEvents() {
   const driverTripPayForm = document.getElementById("form-driver-trip-payment");
   if (driverTripPayForm) {
     wireFormSubmitGuard(driverTripPayForm, async () => {
-      const data = Object.fromEntries(new FormData(driverTripPayForm).entries());
+      const data = readFormEntriesNormalized(driverTripPayForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
       if (!employee) {
         notify(userMessage("contractPickEmployee"), "error");
@@ -31341,7 +31567,7 @@ function bindDynamicEvents() {
   if (settlementForm) {
     wireTerminationSettlementForm(settlementForm);
     wireFormSubmitGuard(settlementForm, async (event) => {
-      const data = Object.fromEntries(new FormData(settlementForm).entries());
+      const data = readFormEntriesNormalized(settlementForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
         notify(userMessage("contractPickEmployee"), "error");
@@ -31757,30 +31983,6 @@ function bindDynamicEvents() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='employee-generate-contract']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = String(btn.dataset.id || "").trim();
-      const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === id);
-      if (!emp) {
-        notify(userMessage("genericError"), "error");
-        return;
-      }
-      const miss = validateEmployeeContractDocFields(emp);
-      if (miss.length) {
-        notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
-        return;
-      }
-      try {
-        await generateOfficialWordContract(
-          buildEmployeeContractDocxPayload(emp, { contractTemplateKind: emp.contractTemplateKind })
-        );
-        notify(userMessage("employeeContractWordOk"), "success");
-      } catch (err) {
-        notify(String(err?.message || userMessage("genericError")), "error");
-      }
-    });
-  });
-
   nodes.viewRoot.querySelectorAll("[data-action='delete-hr-absence']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (currentUser()?.role !== ROLES.ADMIN) {
@@ -31925,7 +32127,7 @@ function bindDynamicEvents() {
     }
 
     wireFormSubmitGuard(vacancyForm, async (event) => {
-      const data = Object.fromEntries(new FormData(vacancyForm).entries());
+      const data = readFormEntriesNormalized(vacancyForm);
       const deadlineOk = (() => {
         const s = String(data.deadline || "").trim();
         const parts = s.split("-");
@@ -32008,7 +32210,7 @@ function bindDynamicEvents() {
       hintSelector: "#position-legal-comp-hint"
     });
     wireFormSubmitGuard(positionForm, async (event) => {
-      const data = Object.fromEntries(new FormData(positionForm).entries());
+      const data = readFormEntriesNormalized(positionForm);
       const minSalary = CO_HR_RULES.minMonthlySalary;
       const baseSalary =
         String(data.salaryBasis || "smmlv") === "smmlv" ? minSalary : parseNum(data.baseSalary);
@@ -32246,7 +32448,7 @@ function bindDynamicEvents() {
     bindHrFormWizard(candidateForm);
     applyDocumentFieldConstraints(candidateForm);
     wireFormSubmitGuard(candidateForm, async (event) => {
-      const data = Object.fromEntries(new FormData(candidateForm).entries());
+      const data = readFormEntriesNormalized(candidateForm);
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
@@ -32379,7 +32581,7 @@ function bindDynamicEvents() {
   const interviewForm = document.getElementById("form-interview");
   if (interviewForm) {
     wireFormSubmitGuard(interviewForm, async (event) => {
-      const data = Object.fromEntries(new FormData(interviewForm).entries());
+      const data = readFormEntriesNormalized(interviewForm);
       const interviewTs = new Date(String(data.when || "")).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
         notify(userMessage("interviewScheduleFuture"), "error");
@@ -32514,16 +32716,30 @@ function bindDynamicEvents() {
       syncContractFormFromSelection(contractForm);
     });
     syncContractPersonMode();
+    const contractFormBusyLockButtons = [
+      contractForm.querySelector(".hr-form-wizard-submit"),
+      contractForm.querySelector("[data-hr-wizard-next]"),
+      contractForm.querySelector("[data-hr-wizard-prev]"),
+      contractForm.querySelector("[data-action='cancel-create-panel']"),
+      contractForm.querySelector("[data-action='toggle-create-panel']"),
+      ...contractForm.querySelectorAll("[data-action='contract-test-docx']")
+    ].filter(Boolean);
     contractForm.querySelectorAll("[data-action='contract-test-docx']").forEach((btn) => {
       btn.addEventListener("click", async (event) => {
         event.preventDefault();
         const kind = String(btn.dataset.template || "oficina");
-        try {
-          await generateOfficialWordContract(buildContractDocxTestPayload(kind));
-          notify(userMessage("contractTestDownloaded", kind), "success");
-        } catch (err) {
-          notify(userMessage("contractWordError", String(err?.message || err)), "error");
-        }
+        await runWithBusyButton(
+          btn,
+          async () => {
+            try {
+              await generateOfficialWordContract(buildContractDocxTestPayload(kind));
+              notify(userMessage("contractTestDownloaded", kind), "success");
+            } catch (err) {
+              notify(userMessage("contractWordError", String(err?.message || err)), "error");
+            }
+          },
+          { busyText: "Generando…", lockExtraButtons: contractFormBusyLockButtons }
+        );
       });
     });
     const templateSelect = contractForm.querySelector("select[name='contractTemplateKind']");
@@ -32554,7 +32770,7 @@ function bindDynamicEvents() {
     wireFormSubmitGuard(
       contractForm,
       async (event) => {
-      const data = Object.fromEntries(new FormData(contractForm).entries());
+      const data = readFormEntriesNormalized(contractForm);
       const personMode = String(data.contractPersonMode || "employee");
       let employee = null;
       let linkedCandidate = null;
@@ -32697,14 +32913,18 @@ function bindDynamicEvents() {
       }
       renderPortalView();
       },
-      { busyText: "Generando contrato…" }
+      {
+        busyText: "Generando…",
+        submitButton: contractForm.querySelector(".hr-form-wizard-submit"),
+        lockExtraButtons: contractFormBusyLockButtons
+      }
     );
   }
 
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
     wireFormSubmitGuard(sstComplianceForm, async (event) => {
-      const data = Object.fromEntries(new FormData(sstComplianceForm).entries());
+      const data = readFormEntriesNormalized(sstComplianceForm);
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
         notify(userMessage("sstPickEmployee"), "error");
@@ -32749,7 +32969,7 @@ function bindDynamicEvents() {
     wireFormSubmitGuard(profileForm, async (event) => {
       const actor = currentUser();
       if (!actor) return;
-      const data = Object.fromEntries(new FormData(profileForm).entries());
+      const data = readFormEntriesNormalized(profileForm);
       const Vprof = window.AntaresValidation;
       if (Vprof && typeof Vprof.validateProfileForm === "function") {
         const pv = Vprof.validateProfileForm(data);
@@ -33215,6 +33435,7 @@ function bindDynamicEvents() {
             nombre_empleado: displayName,
             cedula_empleado: docId,
             ciudad_empleado: String(employee?.city || c.companyName || "").trim(),
+            departamento_empleado: String(employee?.department || "").trim(),
             banco_cuenta_bancaria: String(employee?.bankName || "").trim(),
             cuenta_bancaria: String(employee?.bankAccount || "").trim(),
             salario: salaryVal,
@@ -33379,7 +33600,7 @@ function initGlobalEvents() {
     setB2bFormFeedback("", "");
     syncPhoneHiddenFull(nodes.b2bForm, "b2b");
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
-    const data = Object.fromEntries(new FormData(nodes.b2bForm).entries());
+    const data = readFormEntriesNormalized(nodes.b2bForm);
     const V = window.AntaresValidation;
     const jumpToStepForField = (selector) => {
       const field = nodes.b2bForm.querySelector(selector);
@@ -33572,6 +33793,7 @@ function initGlobalEvents() {
 
   initRequiredFieldIndicators();
   installCandidateCvDownloadDelegation();
+  installEmployeeContractDelegation();
   initB2BFormExperience();
 }
 
