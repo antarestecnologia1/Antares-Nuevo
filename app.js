@@ -1102,9 +1102,17 @@ function bindFixedTermContractEndPreview(root, cfg) {
       unitSel.dispatchEvent(new Event("change", { bubbles: true }));
     }
     if (amtEl && !String(amtEl.value || "").trim()) amtEl.value = "1";
-    const start = normalizePortalDateYmd(startEl.value);
-    const endYmd = resolveEmployeeContractEndDateYmd("Termino fijo", start, { contractEndDate: endEl.value });
-    endEl.value = endYmd;
+    const start = normalizePortalDateYmd(
+      window.AntaresValidation?.portalDateInputValueIso?.(startEl) || startEl.value
+    );
+    const endYmd = resolveEmployeeContractEndDateYmd("Termino fijo", start, {
+      contractEndDate: window.AntaresValidation?.portalDateInputValueIso?.(endEl) || endEl.value
+    });
+    if (window.AntaresValidation?.portalDateInputSetIso) {
+      window.AntaresValidation.portalDateInputSetIso(endEl, endYmd);
+    } else {
+      endEl.value = endYmd;
+    }
     if (hintEl) {
       const notice = endYmd ? addDaysToYmd(endYmd, -30) : "";
       hintEl.textContent = endYmd
@@ -7392,8 +7400,9 @@ function bindVehicleDocExpiryAutoFill(formEl) {
   const soatVenEl = formEl.querySelector("input[name='soatExpiryDate']");
   if (soatExpEl && soatVenEl) {
     const syncSoat = () => {
-      const next = addCalendarYearsIsoDate(soatExpEl.value, 1);
-      if (next) soatVenEl.value = next;
+      const iso = window.AntaresValidation?.portalDateInputValueIso?.(soatExpEl) || soatExpEl.value;
+      const next = addCalendarYearsIsoDate(iso, 1);
+      if (next) window.AntaresValidation?.portalDateInputSetIso?.(soatVenEl, next);
     };
     soatExpEl.addEventListener("change", syncSoat);
     soatExpEl.addEventListener("blur", syncSoat);
@@ -7402,8 +7411,9 @@ function bindVehicleDocExpiryAutoFill(formEl) {
   const techVenEl = formEl.querySelector("input[name='techInspectionExpiryDate']");
   if (techExpEl && techVenEl) {
     const syncTech = () => {
-      const next = addCalendarYearsIsoDate(techExpEl.value, 1);
-      if (next) techVenEl.value = next;
+      const iso = window.AntaresValidation?.portalDateInputValueIso?.(techExpEl) || techExpEl.value;
+      const next = addCalendarYearsIsoDate(iso, 1);
+      if (next) window.AntaresValidation?.portalDateInputSetIso?.(techVenEl, next);
     };
     techExpEl.addEventListener("change", syncTech);
     techExpEl.addEventListener("blur", syncTech);
@@ -7774,7 +7784,9 @@ function fmtDate(value) {
 
 function fmtDateOr(value, fallback = "—") {
   const ymd = normalizePortalDateYmd(value);
-  return ymd ? ymd : fallback;
+  if (!ymd) return fallback;
+  const dmy = window.AntaresValidation?.formatIsoDateToDmy?.(ymd);
+  return dmy || ymd;
 }
 
 function addYears(dateValue, years) {
@@ -23019,8 +23031,10 @@ function mountUniversalModuleFilters() {
     const colIndex = Number(colSelect?.value || NaN);
     const colNeedle = String(valueInput?.value || "").toLowerCase().trim();
     const selectedStatus = String(statusSelect?.value || "").toLowerCase().trim();
-    const fromDate = String(fromInput?.value || "").trim();
-    const toDate = String(toInput?.value || "").trim();
+    const fromDate =
+      window.AntaresValidation?.portalDateInputValueIso?.(fromInput) || String(fromInput?.value || "").trim();
+    const toDate =
+      window.AntaresValidation?.portalDateInputValueIso?.(toInput) || String(toInput?.value || "").trim();
     let visibleRows = 0;
     let visibleCards = 0;
 
@@ -30728,7 +30742,7 @@ function bindDynamicEvents() {
       refreshHistoryResults();
     });
     historyFilter.addEventListener("change", () => refreshHistoryResults());
-    historyFilter.querySelectorAll("select, input[type='date']").forEach((field) => {
+    historyFilter.querySelectorAll("select, input.portal-date-dmy, input[type='date']").forEach((field) => {
       field.addEventListener("change", () => refreshHistoryResults());
     });
     const liveSearch = historyFilter.querySelector("input[name='q']");

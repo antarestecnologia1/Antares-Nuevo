@@ -18,7 +18,7 @@
     decimal: "Solo se permiten números (use coma o punto para decimales).",
     personName: "Use solo letras, espacios y caracteres habituales en nombres (sin números ni símbolos raros).",
     alnumDoc: "Use solo letras, números y los separadores permitidos para documentos.",
-    date: "Ingrese una fecha válida (formato AAAA-MM-DD).",
+    date: "Ingrese una fecha válida (formato DD/MM/AAAA).",
     nit: "El NIT debe tener formato 900123456 o 900123456-7.",
     cc: "La cédula CC debe tener entre 6 y 10 dígitos.",
     ce: "La cédula CE debe tener entre 6 y 12 dígitos.",
@@ -213,7 +213,13 @@
         }
         continue;
       }
-      if ("value" in el && typeof val === "string") el.value = val;
+      if ("value" in el && typeof val === "string") {
+        if (el.classList?.contains("portal-date-dmy") || el.getAttribute("data-antares-field") === "date-dmy") {
+          portalDateInputSetIso(el, val);
+        } else if ("value" in el) {
+          el.value = val;
+        }
+      }
     }
   }
 
@@ -263,6 +269,131 @@
     const [y, mo, d] = t.split("-").map((x) => Number(x));
     const dt = new Date(y, mo - 1, d);
     return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+  }
+
+  function formatIsoDateToDmy(iso) {
+    const ymd = isValidIsoDate(iso) ? String(iso).trim().slice(0, 10) : "";
+    if (!ymd) return "";
+    const [y, mo, d] = ymd.split("-");
+    return `${d}/${mo}/${y}`;
+  }
+
+  function parseDmyToIsoDate(raw) {
+    const s = String(raw ?? "").trim();
+    if (!s) return "";
+    if (isValidIsoDate(s)) return s.slice(0, 10);
+    const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if (!m) return "";
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    const year = Number(m[3]);
+    const iso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return isValidIsoDate(iso) ? iso : "";
+  }
+
+  function isValidDmyDate(raw) {
+    return Boolean(parseDmyToIsoDate(raw));
+  }
+
+  let portalDateUidSeq = 0;
+
+  function findPortalDateIsoHidden(visibleEl) {
+    if (!visibleEl?.parentElement) return null;
+    const key = String(visibleEl.dataset.portalDateUid || "");
+    if (!key) return null;
+    return visibleEl.parentElement.querySelector(
+      `input[type="hidden"][data-portal-date-iso="1"][data-portal-date-for="${key}"]`
+    );
+  }
+
+  function portalDateInputValueIso(visibleEl) {
+    if (!visibleEl) return "";
+    if (String(visibleEl.type || "").toLowerCase() === "date") {
+      return String(visibleEl.value || "").trim().slice(0, 10);
+    }
+    const hidden = findPortalDateIsoHidden(visibleEl);
+    if (hidden?.value && isValidIsoDate(hidden.value)) return String(hidden.value).trim().slice(0, 10);
+    const attr = visibleEl.getAttribute("data-portal-date-iso-value");
+    if (attr && isValidIsoDate(attr)) return String(attr).trim().slice(0, 10);
+    return parseDmyToIsoDate(visibleEl.value) || "";
+  }
+
+  function portalDateInputSetIso(visibleEl, iso) {
+    if (!visibleEl) return;
+    const ymd = isValidIsoDate(iso) ? String(iso).trim().slice(0, 10) : "";
+    if (String(visibleEl.type || "").toLowerCase() === "date") {
+      visibleEl.value = ymd;
+      return;
+    }
+    const hidden = findPortalDateIsoHidden(visibleEl);
+    if (hidden) hidden.value = ymd;
+    visibleEl.setAttribute("data-portal-date-iso-value", ymd);
+    visibleEl.value = ymd ? formatIsoDateToDmy(ymd) : "";
+  }
+
+  function syncPortalDateHiddenFromVisible(visibleEl) {
+    const iso = parseDmyToIsoDate(visibleEl?.value);
+    const hidden = findPortalDateIsoHidden(visibleEl);
+    if (hidden) hidden.value = iso;
+    if (iso) visibleEl.setAttribute("data-portal-date-iso-value", iso);
+    else visibleEl.removeAttribute("data-portal-date-iso-value");
+    if (iso && visibleEl.value) visibleEl.value = formatIsoDateToDmy(iso);
+    return iso;
+  }
+
+  function formatDmyTypingMask(raw) {
+    const digits = String(raw ?? "").replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  }
+
+  function mountPortalDateDmyInput(el) {
+    if (!el || el.dataset.portalDateDmyMounted === "1") return el;
+    if (String(el.type || "").toLowerCase() !== "date") return el;
+
+    const fieldName = String(el.name || "").trim();
+    const isoSeed = String(el.value || "").trim().slice(0, 10);
+    const minIso = String(el.getAttribute("min") || "").trim();
+    const maxIso = String(el.getAttribute("max") || "").trim();
+    const uid = `pd-${++portalDateUidSeq}`;
+
+    el.type = "text";
+    el.classList.add("portal-date-dmy");
+    el.autocomplete = "off";
+    el.inputMode = "numeric";
+    el.maxLength = 10;
+    el.placeholder = "DD/MM/AAAA";
+    el.dataset.portalDateDmyMounted = "1";
+    el.dataset.portalDateUid = uid;
+    el.setAttribute("data-antares-field", "date-dmy");
+    el.setAttribute("data-antares-validate-blur", "date-dmy");
+    el.setAttribute("data-antares-restrict", "date-dmy");
+    if (minIso) el.dataset.antaresDateMin = minIso;
+    if (maxIso) el.dataset.antaresDateMax = maxIso;
+    el.removeAttribute("min");
+    el.removeAttribute("max");
+
+    if (fieldName) {
+      el.removeAttribute("name");
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = fieldName;
+      hidden.value = isValidIsoDate(isoSeed) ? isoSeed : "";
+      hidden.dataset.portalDateIso = "1";
+      hidden.dataset.portalDateFor = uid;
+      el.insertAdjacentElement("afterend", hidden);
+    } else if (isValidIsoDate(isoSeed)) {
+      el.setAttribute("data-portal-date-iso-value", isoSeed);
+    }
+
+    el.value = isValidIsoDate(isoSeed) ? formatIsoDateToDmy(isoSeed) : "";
+    return el;
+  }
+
+  function upgradePortalDateInputs(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    scope.querySelectorAll('input[type="date"]').forEach((el) => mountPortalDateDmyInput(el));
   }
 
   function parsePercent(raw) {
@@ -399,7 +530,7 @@
     }
     const type = String(el.type || "").toLowerCase();
     if (type === "email") return { field: "email", blur: "email", restrict: "email-local" };
-    if (type === "date") return { blur: "date-iso" };
+    if (type === "date") return { field: "date-dmy", blur: "date-dmy" };
     if (type === "number") return { blur: "decimal", restrict: "decimal" };
     return null;
   }
@@ -470,6 +601,7 @@
         el.setAttribute("data-antares-validate-blur", "required-select");
       }
     });
+    upgradePortalDateInputs(form);
     form.setAttribute("data-antares-decorated", "1");
   }
 
@@ -577,6 +709,8 @@
       next = v.replace(RE_STRIP_ALNUM_DOC, "");
     } else if (mode === "email-local") {
       next = v.replace(/[^\w.@+-]/gi, "");
+    } else if (mode === "date-dmy") {
+      next = formatDmyTypingMask(v);
     }
     if (next !== v) {
       el.value = next;
@@ -602,9 +736,20 @@
       clearFieldError(el);
       return true;
     }
-    if (check === "date-iso") {
-      if (raw && !isValidIsoDate(raw)) {
+    if (check === "date-iso" || check === "date-dmy") {
+      const iso = check === "date-dmy" ? syncPortalDateHiddenFromVisible(el) : raw;
+      if (raw && !isValidIsoDate(iso)) {
         setFieldError(el, MSG.date);
+        return false;
+      }
+      const minIso = String(el.dataset.antaresDateMin || "").trim();
+      const maxIso = String(el.dataset.antaresDateMax || "").trim();
+      if (iso && minIso && isValidIsoDate(minIso) && iso < minIso) {
+        setFieldError(el, `La fecha no puede ser anterior a ${formatIsoDateToDmy(minIso)}.`);
+        return false;
+      }
+      if (iso && maxIso && isValidIsoDate(maxIso) && iso > maxIso) {
+        setFieldError(el, `La fecha no puede ser posterior a ${formatIsoDateToDmy(maxIso)}.`);
         return false;
       }
       clearFieldError(el);
@@ -775,9 +920,18 @@
       if (!r.ok) return { ok: false, message: r.message || MSG.docGeneric, patchValue: undefined };
       return { ok: true, message: "", patchValue: r.normalized };
     }
-    if (kind === "date" || kind === "date-iso") {
-      if (!isValidIsoDate(raw)) return { ok: false, message: MSG.date, patchValue: undefined };
-      return { ok: true, message: "", patchValue: raw.slice(0, 10) };
+    if (kind === "date" || kind === "date-iso" || kind === "date-dmy") {
+      const iso = kind === "date-dmy" ? parseDmyToIsoDate(raw) : raw;
+      if (!isValidIsoDate(iso)) return { ok: false, message: MSG.date, patchValue: undefined };
+      const minIso = String(el.dataset.antaresDateMin || "").trim();
+      const maxIso = String(el.dataset.antaresDateMax || "").trim();
+      if (minIso && isValidIsoDate(minIso) && iso < minIso) {
+        return { ok: false, message: `La fecha no puede ser anterior a ${formatIsoDateToDmy(minIso)}.`, patchValue: undefined };
+      }
+      if (maxIso && isValidIsoDate(maxIso) && iso > maxIso) {
+        return { ok: false, message: `La fecha no puede ser posterior a ${formatIsoDateToDmy(maxIso)}.`, patchValue: undefined };
+      }
+      return { ok: true, message: "", patchValue: iso.slice(0, 10) };
     }
     if (kind === "percent") {
       const n = parsePercent(raw);
@@ -847,9 +1001,10 @@
       if (Number.isFinite(max) && n > max) return { ok: false, message: MSG.numberRange, patchValue: undefined };
       return { ok: true, message: "", patchValue: el.value };
     }
-    if (type === "date" && raw) {
-      if (!isValidIsoDate(raw)) return { ok: false, message: MSG.date, patchValue: undefined };
-      return { ok: true, message: "", patchValue: raw.slice(0, 10) };
+    if ((type === "date" || el.classList.contains("portal-date-dmy")) && raw) {
+      const iso = el.classList.contains("portal-date-dmy") ? parseDmyToIsoDate(raw) : raw;
+      if (!isValidIsoDate(iso)) return { ok: false, message: MSG.date, patchValue: undefined };
+      return { ok: true, message: "", patchValue: iso.slice(0, 10) };
     }
     if (type === "tel" && raw && !el.matches(".js-b2b-phone-national, .js-register-phone-national")) {
       const d = raw.replace(/\D/g, "");
@@ -895,7 +1050,13 @@
         if (!firstInvalid) firstInvalid = el;
         continue;
       }
-      if (explicit && res.patchValue !== undefined && el.name) patch[el.name] = res.patchValue;
+      if (explicit && res.patchValue !== undefined) {
+        if (el.name) patch[el.name] = res.patchValue;
+        else if (el.classList.contains("portal-date-dmy")) {
+          const hiddenIso = findPortalDateIsoHidden(el);
+          if (hiddenIso?.name) patch[hiddenIso.name] = res.patchValue;
+        }
+      }
 
       if (!explicit) {
         res = inferHtmlValidation(el, form);
@@ -904,7 +1065,13 @@
           if (!firstInvalid) firstInvalid = el;
           continue;
         }
-        if (res.patchValue !== undefined && el.name) patch[el.name] = res.patchValue;
+        if (res.patchValue !== undefined) {
+          if (el.name) patch[el.name] = res.patchValue;
+          else if (el.classList.contains("portal-date-dmy")) {
+            const hiddenIso = findPortalDateIsoHidden(el);
+            if (hiddenIso?.name) patch[hiddenIso.name] = res.patchValue;
+          }
+        }
       }
     }
     return { ok: !firstInvalid, firstInvalid, patch };
@@ -1024,7 +1191,7 @@
       if (!dv.ok) return { ok: false, message: dv.message };
     }
 
-    const birth = String(data.birthDate || "").trim();
+    const birth = parseDmyToIsoDate(data.birthDate) || String(data.birthDate || "").trim();
     if (birth && !isValidIsoDate(birth)) return { ok: false, message: MSG.date };
 
     const phone = String(data.phone || "").replace(/\D/g, "");
@@ -1043,6 +1210,7 @@
       sanitized: {
         ...data,
         name,
+        birthDate: birth || "",
         taxId: taxRaw ? validateColombianDocument(docType, taxRaw).normalized : "",
         phone: String(data.phone || "").trim(),
         emergencyContact: emName ? normalizeLatinUpperForDb(emName) : "",
@@ -1100,6 +1268,13 @@
     isValidEmail,
     validateColombianDocument,
     isValidIsoDate,
+    isValidDmyDate,
+    formatIsoDateToDmy,
+    parseDmyToIsoDate,
+    portalDateInputValueIso,
+    portalDateInputSetIso,
+    mountPortalDateDmyInput,
+    upgradePortalDateInputs,
     parsePercent,
     parseMoneyNumber,
     sanitizeOneLineText,
