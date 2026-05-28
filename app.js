@@ -108,7 +108,6 @@ const DEFAULT_OPEN_CREATE_PANELS = new Set([
   "create-vehicle",
   "create-fuel-log",
   "create-technical-log",
-  "create-trip",
   "create-route-rate",
   "create-employee",
   "create-payroll",
@@ -16110,7 +16109,16 @@ function requestFormHtml() {
   const departments = Object.keys(COLOMBIA_LOCATIONS)
     .map((dept) => `<option value="${dept}">${dept}</option>`)
     .join("");
+  const topRequestActions = `<div class="module-panel-actions module-panel-actions--footer form-flow-actions full request-create-top-actions">
+    <div class="module-panel-actions__bar">
+      <div class="module-panel-actions__group module-panel-actions__group--secondary">
+        ${renderModulePanelToggleBtn({ expanded: true, toggleAction: "toggle-create-panel", panelId: "create-request", expandLabel: "Crear solicitud" })}
+        ${renderModulePanelCancelBtn({ cancelAction: "cancel-create-panel", panelId: "create-request" })}
+      </div>
+    </div>
+  </div>`;
   const body = `<form id="form-request" class="p-form p-form-colored">
+    ${topRequestActions}
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Empresa y ruta</legend>
       <div class="form-section-grid">
@@ -17284,7 +17292,16 @@ function transportTripsHtml() {
     pendingForTrip.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Sin pendientes</span>`;
+  const topTripActions = `<div class="module-panel-actions module-panel-actions--footer form-flow-actions full create-trip-top-actions">
+    <div class="module-panel-actions__bar">
+      <div class="module-panel-actions__group module-panel-actions__group--secondary">
+        ${renderModulePanelToggleBtn({ expanded: true, toggleAction: "toggle-create-panel", panelId: "create-trip", expandLabel: "Abrir formulario" })}
+        ${renderModulePanelCancelBtn({ cancelAction: "cancel-create-panel", panelId: "create-trip" })}
+      </div>
+    </div>
+  </div>`;
   const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored assign-trip-form assign-trip-form--revamp create-trip-form transport-trip-create-form" autocomplete="off">
+    ${topTripActions}
     <div class="assign-trip-top">
       <ol class="create-trip-stepper create-trip-stepper--track assign-trip-stepper" aria-label="Pasos para asignar viaje">
         <li class="create-trip-step create-trip-step--current" data-step="1" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
@@ -17344,7 +17361,13 @@ function transportTripsHtml() {
     </section>
     <footer class="assign-trip-footer create-trip-submit-wrap">
       <ul class="assign-trip-checklist create-trip-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
-      ${renderManagedCreateFormActions("create-trip", `<button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje</button>`, { className: "form-flow-actions create-trip-submit-actions assign-trip-submit-actions" })}
+      <div class="module-panel-actions module-panel-actions--footer form-flow-actions create-trip-submit-actions assign-trip-submit-actions">
+        <div class="module-panel-actions__bar">
+          <div class="module-panel-actions__group module-panel-actions__group--primary">
+            <button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje</button>
+          </div>
+        </div>
+      </div>
     </footer>
   </form>`;
 
