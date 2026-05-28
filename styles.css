@@ -5454,6 +5454,27 @@ body[data-theme="dark"] .searchable-select-dropdown {
   background: color-mix(in srgb, var(--primary) 3%, var(--white));
 }
 
+/* Evita que el select nativo reaparezca sobre el buscador personalizado. */
+.assign-trip-form .searchable-select select.searchable-select-native,
+.modal-edit-form .searchable-select select.searchable-select-native {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+/* UI más limpia: no mostrar lista compacta extra debajo. */
+.assign-trip-form--revamp .create-trip-pick-list-mount {
+  display: none !important;
+}
+
 .assign-trip-field select:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--primary) 50%, var(--line));
@@ -5590,6 +5611,13 @@ body[data-theme="dark"] .searchable-select-dropdown {
   border-radius: 13px;
   border-color: color-mix(in srgb, var(--primary) 22%, var(--line));
   background: linear-gradient(160deg, color-mix(in srgb, #10b981 4%, var(--white)), color-mix(in srgb, #0ea5e9 3%, var(--white)));
+}
+
+.assign-trip-form--revamp .searchable-select-dropdown {
+  z-index: 6500;
+  border-radius: 12px;
+  border-color: color-mix(in srgb, var(--primary) 26%, var(--line));
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
 }
 
 .assign-trip-resource:focus-within {
