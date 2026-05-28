@@ -32796,6 +32796,16 @@ function bindDynamicEvents() {
       if (!pop) return;
       const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
       const isTerm = String(run.payrollKind || "mensual") === "terminacion";
+      const workedDays = parseNum(
+        run.workedDays ??
+          run?.noveltiesDetail?.colillaPagoDiasLaborados?.diasLaborados ??
+          run?.noveltiesDetail?.diasServicioEnCorteCalendario ??
+          0
+      );
+      const workedDaysPaymentCop = parseNum(
+        run.workedDaysPaymentCop ?? run?.noveltiesDetail?.colillaPagoDiasLaborados?.pagoDiasLaboradosCop ?? 0
+      );
+      const paidAtLabel = run?.paidAt ? fmtDate(run.paidAt) : "-";
       const logoSrc = payrollDocumentLogoUrl(company);
       const logoAlt = `Logo de ${String(company?.name || "Transportes Antares")}`;
       const causeLabels = {
@@ -32923,6 +32933,11 @@ function bindDynamicEvents() {
             `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
             `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
+        const workedDaysRows =
+          workedDays > 0 || workedDaysPaymentCop > 0
+            ? `<tr><td style="${cL}">Días laborados pagados en el período</td><td style="${cR}">${workedDays.toLocaleString("es-CO")}</td></tr>` +
+              `<tr><td style="${cL}">Pago correspondiente a días laborados</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
+            : `<tr><td style="${cL}" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
 
         payslipBodyBlocks = `
           <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
@@ -32935,6 +32950,8 @@ function bindDynamicEvents() {
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
           <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Días laborados liquidados</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
           <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
             <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
           </tbody></table>`;
@@ -33036,6 +33053,7 @@ function bindDynamicEvents() {
             <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
             ${metaExtra}
             <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
           </table>
           <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
           ${payslipBodyBlocks}
