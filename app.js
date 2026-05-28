@@ -5269,6 +5269,10 @@ let state = {
   adminUserSessions: [],
   adminUserSessionsLoading: false,
   adminUserSessionsError: null,
+  /** True tras la primera carga de GET /portal/user-sessions en esta visita al módulo. */
+  adminUserSessionsHydrated: false,
+  /** Sincronización única al entrar en Usuarios (pendientes + bootstrap en curso). */
+  adminUsersEntryHydrating: false,
   /** Administración · Usuarios: tarjeta «Sesiones» colapsada para ganar espacio vertical. */
   adminSessionsLogMinimized: true,
   /** Solicitudes · Admin: historial de solicitudes eliminadas (inicia colapsado). */
@@ -6323,6 +6327,138 @@ async function refreshAdminUserSessionsFromApi() {
   }
 }
 
+function adminUsersHasPendingInCache() {
+  return read(KEYS.users, []).some((u) => isPortalUserPendingApproval(u));
+}
+
+function resolveAdminUsersSectionAfterEntrySync() {
+  const ui = getAdminUsersUi();
+  const section = normalizeAdminUsersSection(ui.section, adminUsersHasPendingInCache());
+  if (section !== ui.section) setAdminUsersUi({ section });
+}
+
+let __adminUserSessionsLoadGen = 0;
+
+/**
+ * Carga sesiones bajo demanda (pestaña Sesiones o botón Actualizar).
+ * Evita un repintado completo del módulo al entrar en Usuarios.
+ */
+async function ensureAdminUserSessionsLoaded(opts = {}) {
+  const force = Boolean(opts && opts.force);
+  if (!portalCanRefreshFromApi()) return false;
+  if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return false;
+  if (state.adminUserSessionsHydrated && !force) return true;
+  if (state.adminUserSessionsLoading) return false;
+  state.adminUserSessionsLoading = true;
+  state.adminUserSessionsError = null;
+  const gen = ++__adminUserSessionsLoadGen;
+  let ok = false;
+  try {
+    ok = await refreshAdminUserSessionsFromApi();
+  } catch (_e) {
+    ok = false;
+  } finally {
+    if (gen === __adminUserSessionsLoadGen) {
+      state.adminUserSessionsLoading = false;
+      if (ok) state.adminUserSessionsHydrated = true;
+    }
+  }
+  return ok;
+}
+
+/** Pendientes en servidor + bootstrap en curso antes del primer pintado estable del módulo. */
+async function syncAdminUsersModuleOnEntry() {
+  if (!portalCanRefreshFromApi()) return;
+  const tasks = [];
+  const boot = window.__portalBootstrapInFlight;
+  if (boot && typeof boot.then === "function") tasks.push(boot.catch(() => false));
+  if (currentUser()?.role === ROLES.ADMIN) {
+    tasks.push(applyPendingUserRegistrationsFromApi().catch(() => false));
+  }
+  if (tasks.length) await Promise.all(tasks);
+}
+
+function finalizeAdminUsersModuleEntry() {
+  resolveAdminUsersSectionAfterEntrySync();
+  state.adminUsersEntryHydrating = false;
+  const ui = getAdminUsersUi();
+  if (
+    ui.section === "sessions" &&
+    portalCanRefreshFromApi() &&
+    hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)
+  ) {
+    void ensureAdminUserSessionsLoaded().finally(() => {
+      if (state.currentView === "admin-users") scheduleRenderPortalView();
+    });
+    return;
+  }
+  if (state.currentView === "admin-users") scheduleRenderPortalView();
+}
+
+function adminUsersEntryHydratingBodyHtml(activeSection) {
+  const active = String(activeSection || "users");
+  const panelIds = ["actions", "pending", "users", "companies", "sessions"];
+  const panels = panelIds
+    .map((id) => {
+      const hidden = id !== active ? " hidden" : "";
+      const body =
+        id === active
+          ? `<p class="admin-users-inline-note muted">Actualizando directorio desde el servidor…</p>`
+          : "";
+      return `<div class="auth-tab-panel${hidden}" data-admin-users-panel="${escapeAttr(id)}"${hidden}>${body}</div>`;
+    })
+    .join("");
+  return `<div class="auth-tab-panels">${panels}</div>`;
+}
+
+function adminUsersHydratingShellHtml({ pendingUsers, activeUsers, companies, ui }) {
+  const approvedCount = activeUsers.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO).length;
+  const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
+  const inactiveCompaniesCount = Math.max(0, companies.length - activeCompaniesCount);
+  const section = String(ui.section || "users");
+  const sessions = Array.isArray(state.adminUserSessions) ? state.adminUserSessions : [];
+  const hero = `<section class="users-hero-strip users-hero-strip--command">
+    <div class="admin-users-hero-main">
+      <p class="users-hero-kicker">Sistema de acceso y gobierno</p>
+      <h2>Usuarios y permisos con una lectura mas clara</h2>
+      <p>
+        Centralice aprobaciones, altas y cambios de acceso en una vista mas limpia, con menos ruido visual y mejor jerarquia.
+      </p>
+      <div class="admin-users-hero-chips">
+        <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Pendientes ${pendingUsers.length}</span>
+        <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
+        <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Empresas activas ${activeCompaniesCount}</span>
+      </div>
+    </div>
+    <div class="admin-users-hero-panel admin-users-hero-panel--compact">
+      <p class="admin-users-hero-panel__eyebrow">Acciones rapidas</p>
+      <p class="admin-users-hero-panel__copy">
+        Abra solo el flujo que necesita y mantenga el resto del modulo despejado.
+      </p>
+      <div class="users-hero-actions">
+        <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user" disabled>${IC.userPlus} Nuevo usuario</button>
+        <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company" disabled>${IC.building || IC.briefcase} Nueva empresa</button>
+        <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions" disabled>${IC.shield} Asignar permisos</button>
+        <button class="btn btn-outline btn-sm" data-action="refresh-user-sessions" disabled>${IC.activity} Actualizar sesiones</button>
+      </div>
+    </div>
+  </section>`;
+  const workspaceNav = renderModuleWindowTabs({
+    ariaLabel: "Opciones del módulo Usuarios y permisos",
+    activeId: section,
+    action: "admin-users-section",
+    valueAttr: "section",
+    tabs: [
+      { id: "actions", label: "Acciones" },
+      { id: "pending", label: "Pendientes", count: pendingUsers.length },
+      { id: "users", label: "Usuarios", count: activeUsers.length },
+      { id: "companies", label: "Empresas", count: companies.length },
+      { id: "sessions", label: "Sesiones", count: sessions.length }
+    ]
+  });
+  return `${hero}${workspaceNav}${adminUsersEntryHydratingBodyHtml(section)}`;
+}
+
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 window.portalCanRefreshFromApi = portalCanRefreshFromApi;
 
@@ -6331,9 +6467,13 @@ async function startPortalBootstrapForInteractiveSession() {
   const p = window.PortalDataLayer?.refreshCacheFromApi
     ? window.PortalDataLayer.refreshCacheFromApi()
     : applyPortalBootstrapFromApi();
+  const tracked = Promise.resolve(p);
+  window.__portalBootstrapInFlight = tracked.finally(() => {
+    if (window.__portalBootstrapInFlight === tracked) window.__portalBootstrapInFlight = null;
+  });
   let ok = false;
   try {
-    ok = await p;
+    ok = await tracked;
   } catch (_e) {
     /* fallo de red o 401: la vista usa proyección local hasta el próximo intento */
   }
@@ -11252,6 +11392,8 @@ function clearSession() {
   state.adminUserSessions = [];
   state.adminUserSessionsLoading = false;
   state.adminUserSessionsError = null;
+  state.adminUserSessionsHydrated = false;
+  state.adminUsersEntryHydrating = false;
   state.adminSessionsLogMinimized = true;
   state.deletedTransportRequestsLogMinimized = true;
   state.deletedTransportTripsLogMinimized = true;
@@ -17799,6 +17941,9 @@ function adminUsersHtml(current) {
   const pendingUsers = users.filter((u) => isPortalUserPendingApproval(u));
   const pendingIdSet = new Set(pendingUsers.map((u) => u.id));
   const activeUsers = users.filter((u) => !pendingIdSet.has(u.id));
+  if (state.adminUsersEntryHydrating) {
+    return adminUsersHydratingShellHtml({ pendingUsers, activeUsers, companies, ui });
+  }
   const pendingCardsHtml = pendingUsers.map((u) => renderUserCard(u, "pending")).join("");
   const userCards = activeUsers.map((u) => renderUserCard(u, "active")).join("");
 
@@ -26075,19 +26220,23 @@ function renderPortalViewImpl() {
       state.contactLeadsLoading = false;
     }
   }
+  if (prevPortalView === "admin-users" && view !== "admin-users") {
+    state.adminUsersEntryHydrating = false;
+    state.adminUserSessionsHydrated = false;
+  }
   if (view === "admin-users" && hasPermission(user, PERMISSIONS.USERS_MANAGE)) {
     const canSync = portalCanRefreshFromApi();
-    if (prevPortalView !== "admin-users" && canSync) {
-      state.adminUserSessionsLoading = true;
-      state.adminUserSessionsError = null;
-      void refreshAdminUserSessionsFromApi()
-        .catch(() => {})
-        .finally(() => {
-          state.adminUserSessionsLoading = false;
-          scheduleRenderPortalView();
-        });
-    } else if (prevPortalView !== "admin-users") {
-      state.adminUserSessionsLoading = false;
+    if (prevPortalView !== "admin-users") {
+      state.adminUserSessionsHydrated = false;
+      if (canSync) {
+        state.adminUsersEntryHydrating = true;
+        void syncAdminUsersModuleOnEntry()
+          .catch(() => {})
+          .finally(() => finalizeAdminUsersModuleEntry());
+      } else {
+        state.adminUsersEntryHydrating = false;
+        resolveAdminUsersSectionAfterEntrySync();
+      }
     }
   }
   if (view === "requests" && prevPortalView !== "requests") {
@@ -27262,8 +27411,17 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='admin-users-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const section = normalizeAdminUsersSection(btn.dataset.section, read(KEYS.users, []).some((u) => isPortalUserPendingApproval(u)));
+      const section = normalizeAdminUsersSection(btn.dataset.section, adminUsersHasPendingInCache());
       setAdminUsersUi({ section });
+      if (section === "sessions" && portalCanRefreshFromApi() && !state.adminUserSessionsHydrated) {
+        renderPortalView();
+        void ensureAdminUserSessionsLoaded().finally(() => {
+          if (state.currentView === "admin-users" && getAdminUsersUi().section === "sessions") {
+            scheduleRenderPortalView();
+          }
+        });
+        return;
+      }
       renderPortalView();
     });
   });
@@ -27420,15 +27578,10 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='refresh-user-sessions']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
-      state.adminUserSessionsLoading = true;
-      state.adminUserSessionsError = null;
       renderPortalView();
-      void refreshAdminUserSessionsFromApi()
-        .catch(() => {})
-        .finally(() => {
-          state.adminUserSessionsLoading = false;
-          renderPortalView();
-        });
+      void ensureAdminUserSessionsLoaded({ force: true }).finally(() => {
+        if (state.currentView === "admin-users") scheduleRenderPortalView();
+      });
     });
   });
 
@@ -27448,15 +27601,10 @@ function bindDynamicEvents() {
             return;
           }
           notify("Sesiones finalizadas correctamente.", "success");
-          state.adminUserSessionsLoading = true;
-          state.adminUserSessionsError = null;
           renderPortalView();
-          void refreshAdminUserSessionsFromApi()
-            .catch(() => {})
-            .finally(() => {
-              state.adminUserSessionsLoading = false;
-              renderPortalView();
-            });
+          void ensureAdminUserSessionsLoaded({ force: true }).finally(() => {
+            if (state.currentView === "admin-users") scheduleRenderPortalView();
+          });
         }
       });
     });
