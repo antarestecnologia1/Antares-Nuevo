@@ -5098,6 +5098,38 @@ body[data-theme="dark"] .modal-edit-section-title {
   background: var(--white);
 }
 
+.module-shell[data-module-view="authorizations"] select.searchable-select-native:not([data-searchable-mounted="1"]) {
+  position: static;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0.48rem 0.62rem;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.native-trip-filter-input {
+  width: 100%;
+  min-height: 2.3rem;
+  margin: 0 0 0.35rem;
+  padding: 0.44rem 0.58rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 3%, var(--white));
+  font-size: 0.86rem;
+}
+
+.native-trip-filter-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
 .searchable-select-dropdown {
   position: absolute;
   z-index: 120;

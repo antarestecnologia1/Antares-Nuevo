@@ -9181,6 +9181,94 @@ function refreshSearchableSelect(selectEl) {
   syncCreateTripCompactPickList(selectEl);
 }
 
+function normalizeSearchNeedle(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function snapshotNativeTripSelectOptions(selectEl) {
+  if (!selectEl) return [];
+  const rows = [...selectEl.options].map((opt) => ({
+    value: String(opt.value || ""),
+    text: String(opt.textContent || ""),
+    disabled: Boolean(opt.disabled),
+    selected: Boolean(opt.selected)
+  }));
+  selectEl.__nativeTripFilterOptions = rows;
+  return rows;
+}
+
+function applyNativeTripSelectFilter(selectEl, queryText = "") {
+  if (!selectEl) return;
+  const source = Array.isArray(selectEl.__nativeTripFilterOptions)
+    ? selectEl.__nativeTripFilterOptions
+    : snapshotNativeTripSelectOptions(selectEl);
+  const query = normalizeSearchNeedle(queryText);
+  const current = String(selectEl.value || "");
+  const placeholder = source.find((row) => !String(row.value || "").trim()) || null;
+  const candidates = source.filter((row) => String(row.value || "").trim());
+  const filtered = !query
+    ? candidates
+    : candidates.filter((row) => normalizeSearchNeedle(row.text).includes(query));
+  const noMatches = Boolean(query && !filtered.length);
+  const rows = [];
+  if (placeholder) rows.push({ ...placeholder, selected: false });
+  if (noMatches) {
+    rows.push({
+      value: "",
+      text: "Sin coincidencias para la búsqueda",
+      disabled: true,
+      selected: false
+    });
+  } else {
+    rows.push(...filtered);
+  }
+  selectEl.innerHTML = rows
+    .map(
+      (row) =>
+        `<option value="${escapeAttr(row.value)}"${row.disabled ? " disabled" : ""}>${escapeHtml(row.text)}</option>`
+    )
+    .join("");
+  if (current && rows.some((row) => row.value === current && !row.disabled)) {
+    selectEl.value = current;
+  } else if (placeholder) {
+    selectEl.value = String(placeholder.value || "");
+  }
+}
+
+function refreshNativeTripSelectFilter(selectEl) {
+  if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
+  snapshotNativeTripSelectOptions(selectEl);
+  const input = selectEl.__nativeTripFilterInput;
+  applyNativeTripSelectFilter(selectEl, input ? input.value : "");
+}
+
+function mountNativeTripSelectFilter(selectEl) {
+  if (!selectEl || selectEl.tagName !== "SELECT") return;
+  if (selectEl.dataset.nativeTripFilterMounted === "1") {
+    refreshNativeTripSelectFilter(selectEl);
+    return;
+  }
+  const label = selectEl.closest("label");
+  if (!label) return;
+  const input = document.createElement("input");
+  input.type = "search";
+  input.className = "native-trip-filter-input";
+  input.placeholder = "Escriba para filtrar la lista...";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.addEventListener("input", () => {
+    applyNativeTripSelectFilter(selectEl, input.value);
+  });
+  selectEl.insertAdjacentElement("beforebegin", input);
+  selectEl.dataset.nativeTripFilterMounted = "1";
+  selectEl.__nativeTripFilterInput = input;
+  snapshotNativeTripSelectOptions(selectEl);
+}
+
 function mountSearchableSelect(selectEl, opts = {}) {
   if (!selectEl || selectEl.tagName !== "SELECT") return;
   const force = !!(opts && opts.force);
@@ -9409,8 +9497,11 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
-    /** En crear viaje usamos select nativo para evitar glitches de popup en algunos layouts. */
-    if (sel.closest("#form-create-trip")) return;
+    /** En crear viaje y autorizaciones usamos select nativo para evitar glitches de popup. */
+    if (sel.closest("#form-create-trip, .module-shell[data-module-view='authorizations']")) {
+      mountNativeTripSelectFilter(sel);
+      return;
+    }
     mountSearchableSelect(sel, { force: true });
   });
 }
@@ -13747,6 +13838,7 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
     ].join("");
     if (prev && [...vehSel.options].some((o) => o.value === prev && !o.disabled)) vehSel.value = prev;
     refreshSearchableSelect(vehSel);
+    refreshNativeTripSelectFilter(vehSel);
   }
   if (drvSel) {
     const prev = String(drvSel.value || "");
@@ -13764,6 +13856,7 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
     ].join("");
     if (prev && [...drvSel.options].some((o) => o.value === prev && !o.disabled)) drvSel.value = prev;
     refreshSearchableSelect(drvSel);
+    refreshNativeTripSelectFilter(drvSel);
   }
 }
 
@@ -17372,7 +17465,7 @@ function transportTripsHtml() {
       </header>
       <div class="assign-trip-block-body">
         <label class="assign-trip-field assign-trip-field--request">
-          <span class="assign-trip-field-label">${IC.inbox} Pendiente <span class="create-trip-required" aria-hidden="true">*</span></span>
+          <span class="assign-trip-field-label">${fieldLabel(IC.inbox, "Pendiente", { required: true })}</span>
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
             <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : "Sin pendientes"}</option>
             ${pendingSelectOpts}
@@ -17397,11 +17490,11 @@ function transportTripsHtml() {
         <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
         <div class="assign-trip-fleet-grid create-trip-fleet-grid">
           <label class="assign-trip-fleet-field create-trip-fleet-field assign-trip-resource">
-            <span class="assign-trip-resource-label">${IC.truck} Vehículo <span class="create-trip-required" aria-hidden="true">*</span></span>
+            <span class="assign-trip-resource-label">${fieldLabel(IC.truck, "Vehículo", { required: true })}</span>
             <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
           </label>
           <label class="assign-trip-fleet-field create-trip-fleet-field assign-trip-resource">
-            <span class="assign-trip-resource-label">${IC.user} Conductor <span class="create-trip-required" aria-hidden="true">*</span></span>
+            <span class="assign-trip-resource-label">${fieldLabel(IC.user, "Conductor", { required: true })}</span>
             <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
           </label>
         </div>
