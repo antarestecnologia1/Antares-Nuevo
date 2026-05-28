@@ -2959,12 +2959,12 @@ export class PortalService implements OnModuleInit {
         return;
       case "payrollEmployees":
         if (!can("payroll_manage")) throw new ForbiddenException();
-        await this.syncPayrollEmployees(c, data);
+        await this.syncPayrollEmployees(c, data, deletedIds);
         await this.refreshPayrollDraftsAfterEmployeesSync(c, data);
         return;
       case "payrollRuns":
         if (!can("payroll_manage")) throw new ForbiddenException();
-        await this.syncPayrollRuns(c, data);
+        await this.syncPayrollRuns(c, data, deletedIds);
         return;
       case "fuelLogs":
         if (!can("transport_history")) throw new ForbiddenException();
@@ -2988,12 +2988,12 @@ export class PortalService implements OnModuleInit {
         return;
       case "hrAbsences":
         if (!can("payroll_manage")) throw new ForbiddenException();
-        await this.syncHrAbsences(c, data);
+        await this.syncHrAbsences(c, data, deletedIds);
         await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
         return;
       case "sstCompliance":
         if (!can("sst_compliance")) throw new ForbiddenException();
-        await this.syncSst(c, data);
+        await this.syncSst(c, data, deletedIds);
         return;
       case "tripRouteRates":
         if (!can("transport_trips")) throw new ForbiddenException();
@@ -4876,15 +4876,29 @@ export class PortalService implements OnModuleInit {
     await c.query(`DELETE FROM ${table} WHERE id = ANY($1::uuid[])`, [ids]);
   }
 
-  private hrSyncTableForKey(key: PortalSyncKey): string | null {
+  private syncPruneTableForKey(key: PortalSyncKey): string | null {
     const map: Partial<Record<PortalSyncKey, string>> = {
       positions: "cargos",
       vacancies: "vacantes",
       candidates: "candidatos",
       interviews: "entrevistas",
-      contracts: "contratos"
+      contracts: "contratos",
+      payrollEmployees: "empleados_nomina",
+      payrollRuns: "liquidaciones_nomina",
+      hrAbsences: "ausencias_laborales",
+      sstCompliance: "registros_cumplimiento_sst"
     };
     return map[key] ?? null;
+  }
+
+  private async syncListWithPruning(
+    c: PoolClient,
+    table: string,
+    data: unknown[],
+    deletedIds?: string[]
+  ): Promise<void> {
+    await this.deleteRowsByExplicitIds(c, table, deletedIds);
+    await this.deleteRowsNotInIncomingList(c, table, data);
   }
 
   private async syncUsers(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
@@ -6091,10 +6105,14 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async syncPayrollEmployees(c: PoolClient, data: unknown) {
+  private async syncPayrollEmployees(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[]
+  ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const tier = await this.resolvePayrollEmployeeSchemaTier(c);
-    await this.deleteRowsNotInIncomingList(c, "empleados_nomina", data);
+    await this.syncListWithPruning(c, "empleados_nomina", data, deletedIds);
 
     const UPSERT_LEGACY = `INSERT INTO empleados_nomina (
           id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
@@ -6597,11 +6615,11 @@ export class PortalService implements OnModuleInit {
     ]);
   }
 
-  private async syncPayrollRuns(c: PoolClient, data: unknown) {
+  private async syncPayrollRuns(c: PoolClient, data: unknown, deletedIds?: string[]) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const tier = await this.resolvePayrollLiquSchemaTier(c);
     const hasNov = await this.resolvePayrollLiquNovedadesCols(c);
-    await this.deleteRowsNotInIncomingList(c, "liquidaciones_nomina", data);
+    await this.syncListWithPruning(c, "liquidaciones_nomina", data, deletedIds);
     for (const raw of data) {
       const hit = raw as { id?: unknown; employeeId?: unknown };
       if (!hit?.id || !hit.employeeId) continue;
@@ -7768,10 +7786,9 @@ export class PortalService implements OnModuleInit {
     deletedIds?: string[]
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    const hrTable = this.hrSyncTableForKey(key);
+    const hrTable = this.syncPruneTableForKey(key);
     if (hrTable) {
-      await this.deleteRowsByExplicitIds(c, hrTable, deletedIds);
-      await this.deleteRowsNotInIncomingList(c, hrTable, data);
+      await this.syncListWithPruning(c, hrTable, data, deletedIds);
     }
     if (key === "positions") {
       for (const raw of data) {
@@ -8069,9 +8086,9 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async syncHrAbsences(c: PoolClient, data: unknown) {
+  private async syncHrAbsences(c: PoolClient, data: unknown, deletedIds?: string[]) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    await this.deleteRowsNotInIncomingList(c, "ausencias_laborales", data);
+    await this.syncListWithPruning(c, "ausencias_laborales", data, deletedIds);
     for (const raw of data) {
       const row = raw as Record<string, unknown>;
       if (!row?.id || !row.employeeId) continue;
@@ -8146,9 +8163,9 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async syncSst(c: PoolClient, data: unknown) {
+  private async syncSst(c: PoolClient, data: unknown, deletedIds?: string[]) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    await this.deleteRowsNotInIncomingList(c, "registros_cumplimiento_sst", data);
+    await this.syncListWithPruning(c, "registros_cumplimiento_sst", data, deletedIds);
     for (const row of data) {
       if (!row?.id || !row.employeeId) continue;
       if (this.skipUnlessPersistUuid("syncSst", row.id)) continue;

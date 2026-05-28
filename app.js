@@ -5482,6 +5482,34 @@ async function writeAwaitServer(storageKeyLike, value, opts = {}) {
 }
 
 /**
+ * Persiste una lista podada en PostgreSQL; admite lista vacía vía deletedIds.
+ * @returns {Promise<boolean>}
+ */
+async function writePortalListPrunedAwaitServer(storageKey, nextList, deletedIds = [], opts = {}) {
+  const prev = read(storageKey, []);
+  const normalizedDeleted = [
+    ...new Set(
+      (Array.isArray(deletedIds) ? deletedIds : [deletedIds])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    )
+  ];
+  try {
+    await writeAwaitServer(storageKey, nextList, {
+      deletedIds: normalizedDeleted.length ? normalizedDeleted : undefined,
+      notifyOnFailure: opts.notifyOnFailure
+    });
+    return true;
+  } catch (err) {
+    write(storageKey, prev, { skipSyncSchedule: true });
+    if (opts.notifyOnFailure !== false) {
+      notify(String(err?.message || "No se pudo guardar el cambio en el servidor."), "error");
+    }
+    return false;
+  }
+}
+
+/**
  * Quita una fila del catálogo en memoria y confirma en PostgreSQL (incluye lista vacía).
  * @returns {Promise<boolean>} true si el servidor confirmó (o no hay API).
  */
@@ -5492,16 +5520,7 @@ async function removeFromPortalListAwaitServer(storageKey, rowId, opts = {}) {
   if (!Array.isArray(prev)) return false;
   const next = prev.filter((row) => String(row?.id || "") !== id);
   if (next.length === prev.length) return false;
-  try {
-    await writeAwaitServer(storageKey, next, { deletedIds: [id], ...opts });
-    return true;
-  } catch (err) {
-    write(storageKey, prev, { skipSyncSchedule: true });
-    if (opts.notifyOnFailure !== false) {
-      notify(String(err?.message || "No se pudo eliminar en el servidor."), "error");
-    }
-    return false;
-  }
+  return writePortalListPrunedAwaitServer(storageKey, next, [id], opts);
 }
 
 function decodeJwtPayload(token) {
@@ -22236,36 +22255,60 @@ async function deleteEmployeesCascade(employeeIds = []) {
     targets.map((employee) => normalizeDocumentDigits(employee.idDoc)).filter(Boolean)
   );
 
-  try {
-    await writeAwaitServer(
-      KEYS.payrollEmployees,
-      employees.filter((employee) => !ids.includes(String(employee.id)))
-    );
-    await writeAwaitServer(KEYS.payrollRuns, read(KEYS.payrollRuns, []).filter((run) => !ids.includes(String(run.employeeId || ""))));
-    await writeAwaitServer(
-      KEYS.hrAbsences,
-      read(KEYS.hrAbsences, []).filter((absence) => !ids.includes(String(absence.employeeId || "")))
-    );
-    await writeAwaitServer(
-      KEYS.contracts,
-      read(KEYS.contracts, []).filter((contract) => {
-        const employeeId = String(contract.employeeId || "");
-        const docDigits = normalizeDocumentDigits(contract.employeeIdDoc);
-        if (ids.includes(employeeId)) return false;
-        if (docDigits && targetDocDigitsSet.has(docDigits)) return false;
-        return true;
-      })
-    );
-    await writeAwaitServer(
-      KEYS.drivers,
-      read(KEYS.drivers, []).filter((driver) => {
-        const docDigits = normalizeDocumentDigits(driver.idDoc);
-        return !docDigits || !targetDocDigitsSet.has(docDigits);
-      })
-    );
-  } catch (err) {
-    devWarn("deleteEmployeesCascade local sync", err);
-    throw err;
+  const payrollRuns = read(KEYS.payrollRuns, []);
+  const removedRunIds = payrollRuns
+    .filter((run) => ids.includes(String(run.employeeId || "")))
+    .map((run) => String(run.id || ""))
+    .filter(Boolean);
+  const nextPayrollRuns = payrollRuns.filter((run) => !ids.includes(String(run.employeeId || "")));
+
+  const hrAbsences = read(KEYS.hrAbsences, []);
+  const removedAbsenceIds = hrAbsences
+    .filter((absence) => ids.includes(String(absence.employeeId || "")))
+    .map((absence) => String(absence.id || ""))
+    .filter(Boolean);
+  const nextHrAbsences = hrAbsences.filter((absence) => !ids.includes(String(absence.employeeId || "")));
+
+  const contracts = read(KEYS.contracts, []);
+  const removedContractIds = contracts
+    .filter((contract) => {
+      const employeeId = String(contract.employeeId || "");
+      const docDigits = normalizeDocumentDigits(contract.employeeIdDoc);
+      return ids.includes(employeeId) || (docDigits && targetDocDigitsSet.has(docDigits));
+    })
+    .map((contract) => String(contract.id || ""))
+    .filter(Boolean);
+  const nextContracts = contracts.filter((contract) => {
+    const employeeId = String(contract.employeeId || "");
+    const docDigits = normalizeDocumentDigits(contract.employeeIdDoc);
+    if (ids.includes(employeeId)) return false;
+    if (docDigits && targetDocDigitsSet.has(docDigits)) return false;
+    return true;
+  });
+
+  const nextEmployees = employees.filter((employee) => !ids.includes(String(employee.id)));
+  const nextDrivers = read(KEYS.drivers, []).filter((driver) => {
+    const docDigits = normalizeDocumentDigits(driver.idDoc);
+    return !docDigits || !targetDocDigitsSet.has(docDigits);
+  });
+
+  const steps = [
+    [KEYS.payrollEmployees, nextEmployees, ids],
+    [KEYS.payrollRuns, nextPayrollRuns, removedRunIds],
+    [KEYS.hrAbsences, nextHrAbsences, removedAbsenceIds],
+    [KEYS.contracts, nextContracts, removedContractIds],
+    [KEYS.drivers, nextDrivers, []]
+  ];
+
+  for (const [storageKey, nextList, deletedIds] of steps) {
+    const ok = await writePortalListPrunedAwaitServer(storageKey, nextList, deletedIds, {
+      notifyOnFailure: false
+    });
+    if (!ok) {
+      const err = new Error("No se pudo sincronizar la eliminacion en cascada.");
+      devWarn("deleteEmployeesCascade local sync", err);
+      throw err;
+    }
   }
   return targets.length;
 }
@@ -26629,8 +26672,13 @@ function bindDynamicEvents() {
             return;
           }
           const snapshotCompany = read(KEYS.companies, []).find((c) => String(c.id) === String(companyId));
-          const rest = read(KEYS.companies, []).filter((c) => String(c.id) !== companyId);
-          await writeAwaitServer(KEYS.companies, rest);
+          const ok = await removeFromPortalListAwaitServer(KEYS.companies, companyId, { notifyOnFailure: false });
+          if (!ok) {
+            notify("La empresa se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
+            if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+            renderPortalView();
+            return;
+          }
           if (snapshotCompany) {
             appendModuleAuditLog({
               action: "delete",
@@ -27592,21 +27640,23 @@ function bindDynamicEvents() {
             notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
             return;
           }
-          try {
-            const snapshotUser = read(KEYS.users, []).find((user) => String(user.id) === String(userId));
-            await writeAwaitServer(KEYS.users, read(KEYS.users, []).filter((user) => user.id !== userId));
-            if (snapshotUser) {
-              appendModuleAuditLog({
-                action: "delete",
-                moduleId: "users",
-                moduleLabel: "Usuarios y permisos",
-                entityId: String(snapshotUser.id || ""),
-                entityLabel: getPortalUserDisplayName(snapshotUser) || String(snapshotUser.email || "Usuario"),
-                summary: `${formatPortalRoleLabel(snapshotUser.role)} · ${String(snapshotUser.email || "Sin correo")}`
-              });
-            }
-          } catch (_e) {
+          const snapshotUser = read(KEYS.users, []).find((user) => String(user.id) === String(userId));
+          const ok = await removeFromPortalListAwaitServer(KEYS.users, userId, { notifyOnFailure: false });
+          if (!ok) {
+            notify("El usuario se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
+            if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+            renderPortalView();
             return;
+          }
+          if (snapshotUser) {
+            appendModuleAuditLog({
+              action: "delete",
+              moduleId: "users",
+              moduleLabel: "Usuarios y permisos",
+              entityId: String(snapshotUser.id || ""),
+              entityLabel: getPortalUserDisplayName(snapshotUser) || String(snapshotUser.email || "Usuario"),
+              summary: `${formatPortalRoleLabel(snapshotUser.role)} · ${String(snapshotUser.email || "Sin correo")}`
+            });
           }
           notify(userMessage("userDeleted"), "success");
           renderPortalView();
@@ -29433,10 +29483,12 @@ function bindDynamicEvents() {
             return;
           }
           const snapshotVehicle = read(KEYS.vehicles, []).find((vehicle) => String(vehicle.id) === vehicleId);
-          const nextVehicleList = read(KEYS.vehicles, []).filter((vehicle) => String(vehicle.id) !== vehicleId);
-          try {
-            await writeAwaitServer(KEYS.vehicles, nextVehicleList);
-          } catch (_e) {
+          const ok = await removeFromPortalListAwaitServer(KEYS.vehicles, vehicleId, { notifyOnFailure: false });
+          if (!ok) {
+            notify("El vehículo se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
+            if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+            recalculateResourceAvailability();
+            renderPortalView();
             return;
           }
           if (snapshotVehicle) {
@@ -31635,14 +31687,8 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: async () => {
           const removed = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
-          try {
-            await writeAwaitServer(
-              KEYS.hrAbsences,
-              read(KEYS.hrAbsences, []).filter((a) => String(a.id) !== id)
-            );
-          } catch (_e) {
-            return;
-          }
+          const ok = await removeFromPortalListAwaitServer(KEYS.hrAbsences, id);
+          if (!ok) return;
           if (removed?.employeeId) {
             await refreshPayrollDraftsLinked(removed.employeeId, removed.startDate, removed.endDate, {
               notifyOnError: false
@@ -31671,14 +31717,8 @@ function bindDynamicEvents() {
           : "Eliminar este registro de liquidacion.",
         confirmText: "Eliminar liquidacion",
         onConfirm: async () => {
-          try {
-            await writeAwaitServer(
-              KEYS.payrollRuns,
-              read(KEYS.payrollRuns, []).filter((r) => String(r.id) !== id)
-            );
-          } catch (_e) {
-            return;
-          }
+          const ok = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
+          if (!ok) return;
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
         }
@@ -34521,11 +34561,17 @@ function bindExtendedViewEditHandlers() {
           if (interviewIds.length > 0) {
             const prevInterviews = read(KEYS.interviews, []);
             const nextInterviews = prevInterviews.filter((i) => String(i.candidateId || "") !== id);
-            try {
-              await writeAwaitServer(KEYS.interviews, nextInterviews, { deletedIds: interviewIds });
-            } catch (err) {
-              write(KEYS.interviews, prevInterviews, { skipSyncSchedule: true });
-              notify(String(err?.message || "Candidato eliminado, pero no se pudieron quitar las entrevistas en el servidor."), "error");
+            const okInterviews = await writePortalListPrunedAwaitServer(
+              KEYS.interviews,
+              nextInterviews,
+              interviewIds,
+              { notifyOnFailure: false }
+            );
+            if (!okInterviews) {
+              notify(
+                "Candidato eliminado, pero no se pudieron quitar las entrevistas en el servidor. Actualice la página.",
+                "error"
+              );
               renderPortalView();
               return;
             }
@@ -34845,7 +34891,8 @@ function bindExtendedViewEditHandlers() {
         message: `Se eliminará el control "${String(target.recordType || "")}" del expediente.`,
         confirmText: "Eliminar control",
         onConfirm: async () => {
-          await writeAwaitServer(KEYS.sstCompliance, read(KEYS.sstCompliance, []).filter((r) => String(r.id) !== id));
+          const ok = await removeFromPortalListAwaitServer(KEYS.sstCompliance, id);
+          if (!ok) return;
           notify("Control SST eliminado.", "success");
           renderPortalView();
         }
