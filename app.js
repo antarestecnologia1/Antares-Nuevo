@@ -9122,26 +9122,11 @@ function renderSearchableSelectDropdown(selectEl, filterText = "") {
 function positionSearchableSelectDropdown(selectEl) {
   const parts = getSearchableSelectParts(selectEl);
   if (!parts?.list || !parts.input) return;
-  const rect = parts.input.getBoundingClientRect();
-  const viewportW = Math.max(document.documentElement?.clientWidth || 0, window.innerWidth || 0);
-  const viewportH = Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
-  const margin = 8;
-  const desiredWidth = Math.max(rect.width, 220);
-  const maxWidth = Math.max(220, viewportW - margin * 2);
-  const width = Math.min(desiredWidth, maxWidth);
-  let left = rect.left;
-  left = Math.max(margin, Math.min(left, viewportW - width - margin));
-  const maxPanelHeight = Math.min(320, Math.floor(viewportH * 0.42));
-  const spaceBelow = Math.max(0, viewportH - rect.bottom - margin);
-  const spaceAbove = Math.max(0, rect.top - margin);
-  const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
-  const panelHeight = Math.max(120, Math.min(maxPanelHeight, openUp ? spaceAbove - 4 : spaceBelow - 4));
-  const top = openUp ? Math.max(margin, rect.top - panelHeight - 4) : Math.min(viewportH - panelHeight - margin, rect.bottom + 4);
-  parts.list.classList.add("searchable-select-dropdown--fixed");
-  parts.list.style.left = `${left}px`;
-  parts.list.style.top = `${Math.max(margin, top)}px`;
-  parts.list.style.width = `${width}px`;
-  parts.list.style.maxHeight = `${panelHeight}px`;
+  parts.list.classList.remove("searchable-select-dropdown--fixed");
+  parts.list.style.left = "";
+  parts.list.style.top = "";
+  parts.list.style.width = "";
+  parts.list.style.maxHeight = "";
 }
 
 function openSearchableSelectDropdown(selectEl, filterText = "") {
@@ -9168,148 +9153,8 @@ function closeSearchableSelectDropdown(selectEl) {
 function refreshSearchableSelect(selectEl) {
   if (!selectEl || selectEl.dataset.searchableMounted !== "1") return;
   syncSearchableSelectInputFromValue(selectEl);
-  closeSearchableSelectDropdown(selectEl);
-  syncCreateTripCompactPickList(selectEl);
-}
-
-function normalizeSearchNeedle(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function snapshotNativeTripSelectOptions(selectEl) {
-  if (!selectEl) return [];
-  const rows = [...selectEl.options].map((opt) => ({
-    value: String(opt.value || ""),
-    text: String(opt.textContent || ""),
-    disabled: Boolean(opt.disabled),
-    selected: Boolean(opt.selected)
-  }));
-  selectEl.__nativeTripFilterOptions = rows;
-  return rows;
-}
-
-function getNativeTripSelectLabelByValue(selectEl, value) {
-  const rows = Array.isArray(selectEl?.__nativeTripFilterOptions)
-    ? selectEl.__nativeTripFilterOptions
-    : snapshotNativeTripSelectOptions(selectEl);
-  const val = String(value || "");
-  const hit = rows.find((row) => String(row.value) === val);
-  return hit ? String(hit.text || "") : "";
-}
-
-function renderNativeTripDatalist(selectEl) {
-  if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
-  const datalist = selectEl.__nativeTripFilterList;
-  if (!datalist) return;
-  const rows = Array.isArray(selectEl.__nativeTripFilterOptions)
-    ? selectEl.__nativeTripFilterOptions
-    : snapshotNativeTripSelectOptions(selectEl);
-  const options = rows.filter((row) => String(row.value || "").trim() && !row.disabled);
-  datalist.innerHTML = options
-    .map((row) => `<option value="${escapeAttr(String(row.text || "").trim())}"></option>`)
-    .join("");
-}
-
-function findNativeTripValueByLabel(selectEl, label) {
-  const rows = Array.isArray(selectEl?.__nativeTripFilterOptions)
-    ? selectEl.__nativeTripFilterOptions
-    : snapshotNativeTripSelectOptions(selectEl);
-  const needle = normalizeSearchNeedle(label);
-  if (!needle) return "";
-  const exact = rows.find(
-    (row) => String(row.value || "").trim() && !row.disabled && normalizeSearchNeedle(row.text) === needle
-  );
-  return exact ? String(exact.value || "") : "";
-}
-
-function refreshNativeTripSelectFilter(selectEl) {
-  if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
-  snapshotNativeTripSelectOptions(selectEl);
-  renderNativeTripDatalist(selectEl);
-  const input = selectEl.__nativeTripFilterInput;
-  if (input) input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
-}
-
-function mountNativeTripSelectFilter(selectEl) {
-  if (!selectEl || selectEl.tagName !== "SELECT") return;
-  if (selectEl.dataset.nativeTripFilterMounted === "1") {
-    refreshNativeTripSelectFilter(selectEl);
-    return;
-  }
-  const label = selectEl.closest("label");
-  if (!label) return;
-  const input = document.createElement("input");
-  input.type = "search";
-  input.className = "native-trip-filter-input";
-  input.placeholder =
-    String(selectEl.getAttribute("data-searchable-placeholder") || "").trim() || "Escriba para filtrar la lista...";
-  input.autocomplete = "off";
-  input.spellcheck = false;
-  const dataListId = `trip-native-list-${Math.random().toString(36).slice(2, 10)}`;
-  const datalist = document.createElement("datalist");
-  datalist.id = dataListId;
-  input.setAttribute("list", dataListId);
-  input.addEventListener("input", () => {
-    const value = findNativeTripValueByLabel(selectEl, input.value);
-    if (!value) return;
-    if (String(selectEl.value || "") === value) return;
-    selectEl.value = value;
-    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-  input.addEventListener("blur", () => {
-    const value = findNativeTripValueByLabel(selectEl, input.value);
-    if (value) {
-      if (String(selectEl.value || "") !== value) {
-        selectEl.value = value;
-        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      input.value = getNativeTripSelectLabelByValue(selectEl, value);
-      return;
-    }
-    input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
-  });
-  selectEl.insertAdjacentElement("beforebegin", input);
-  input.insertAdjacentElement("afterend", datalist);
-  selectEl.classList.add("searchable-select-native");
-  selectEl.dataset.nativeTripFilterMounted = "1";
-  selectEl.__nativeTripFilterInput = input;
-  selectEl.__nativeTripFilterList = datalist;
-  snapshotNativeTripSelectOptions(selectEl);
-  renderNativeTripDatalist(selectEl);
-  input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
-  selectEl.addEventListener("change", () => {
-    if (selectEl.dataset.nativeTripFilterMounted !== "1") return;
-    input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
-  });
-}
-
-function unmountNativeTripSelectFilter(selectEl) {
-  if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
-  const input = selectEl.__nativeTripFilterInput;
-  const datalist = selectEl.__nativeTripFilterList;
-  if (input && input.remove) input.remove();
-  if (datalist && datalist.remove) datalist.remove();
-  selectEl.classList.remove("searchable-select-native");
-  delete selectEl.__nativeTripFilterInput;
-  delete selectEl.__nativeTripFilterList;
-  delete selectEl.__nativeTripFilterOptions;
-  delete selectEl.dataset.nativeTripFilterMounted;
-}
-
-function unmountSearchableSelect(selectEl) {
-  if (!selectEl || selectEl.dataset.searchableMounted !== "1") return;
   const parts = getSearchableSelectParts(selectEl);
-  if (parts?.wrap?.parentNode) {
-    parts.wrap.parentNode.insertBefore(selectEl, parts.wrap);
-    parts.wrap.remove();
-  }
-  closeSearchableSelectDropdown(selectEl);
-  selectEl.classList.remove("searchable-select-native");
-  delete selectEl.dataset.searchableMounted;
+  if (parts?.list) parts.list.classList.add("hidden");
 }
 
 function mountSearchableSelect(selectEl, opts = {}) {
@@ -9328,44 +9173,19 @@ function mountSearchableSelect(selectEl, opts = {}) {
   selectEl.parentNode.insertBefore(wrap, selectEl);
   wrap.appendChild(selectEl);
 
-  const row = document.createElement("div");
-  row.className = "searchable-select-row";
-  wrap.appendChild(row);
-
   const input = document.createElement("input");
   input.type = "search";
   input.className = "searchable-select-input";
   input.setAttribute("autocomplete", "off");
   input.setAttribute("spellcheck", "false");
   input.setAttribute("aria-autocomplete", "list");
-  input.setAttribute("aria-expanded", "false");
   input.placeholder = placeholder;
-  row.appendChild(input);
-
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "searchable-select-toggle";
-  toggle.setAttribute("aria-label", "Mostrar opciones");
-  toggle.textContent = "▼";
-  row.appendChild(toggle);
-
-  const inAssignTripForm = Boolean(selectEl.closest("#form-create-trip"));
-  if (!inAssignTripForm) {
-    const hint = document.createElement("p");
-    hint.className = "searchable-select-hint";
-    hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
-    wrap.appendChild(hint);
-  }
+  wrap.insertBefore(input, selectEl);
 
   const list = document.createElement("ul");
   list.className = "searchable-select-dropdown hidden";
   list.setAttribute("role", "listbox");
   wrap.appendChild(list);
-
-  const pickMount = document.createElement("div");
-  pickMount.className = "create-trip-pick-list-mount hidden";
-  pickMount.setAttribute("aria-hidden", "true");
-  wrap.appendChild(pickMount);
 
   selectEl.classList.add("searchable-select-native");
   selectEl.dataset.searchableMounted = "1";
@@ -9376,86 +9196,25 @@ function mountSearchableSelect(selectEl, opts = {}) {
     if (!match) return;
     selectEl.value = v;
     syncSearchableSelectInputFromValue(selectEl);
-    closeSearchableSelectDropdown(selectEl);
+    list.classList.add("hidden");
     selectEl.dispatchEvent(new Event("change", { bubbles: true }));
-    syncCreateTripCompactPickList(selectEl);
   };
-
-  const getEnabledListOptions = () =>
-    [...list.querySelectorAll(".searchable-select-option:not(.is-disabled)")];
-
-  const setActiveListOption = (idx) => {
-    const options = getEnabledListOptions();
-    if (!options.length) return null;
-    const safeIdx = Math.max(0, Math.min(idx, options.length - 1));
-    options.forEach((opt, i) => {
-      const active = i === safeIdx;
-      opt.classList.toggle("is-active", active);
-      if (active) opt.scrollIntoView({ block: "nearest" });
-    });
-    return options[safeIdx];
-  };
-
-  const setActiveFromCurrentValue = () => {
-    const options = getEnabledListOptions();
-    if (!options.length) return null;
-    const current = String(selectEl.value || "");
-    const idx = options.findIndex((opt) => String(opt.getAttribute("data-value") || "") === current);
-    return setActiveListOption(idx >= 0 ? idx : 0);
-  };
-
-  const moveActiveListOption = (delta) => {
-    const options = getEnabledListOptions();
-    if (!options.length) return null;
-    const currentIdx = options.findIndex((opt) => opt.classList.contains("is-active"));
-    const base = currentIdx >= 0 ? currentIdx : 0;
-    const next = (base + delta + options.length) % options.length;
-    return setActiveListOption(next);
-  };
-
-  const openDropdown = (filterText = input.value, { preserveActive = false } = {}) => {
-    openSearchableSelectDropdown(selectEl, filterText);
-    if (preserveActive) {
-      const hasActive = list.querySelector(".searchable-select-option.is-active");
-      if (hasActive) return;
-    }
-    setActiveFromCurrentValue();
-  };
-
-  input.addEventListener("focus", () => openDropdown(input.value));
-  input.addEventListener("click", () => openDropdown(input.value));
-  input.addEventListener("input", () => openDropdown(input.value));
-  toggle.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    if (list.classList.contains("hidden")) openDropdown(input.value);
-    else closeSearchableSelectDropdown(selectEl);
-    input.focus();
+  input.addEventListener("focus", () => {
+    renderSearchableSelectDropdown(selectEl, input.value);
+  });
+  input.addEventListener("input", () => {
+    renderSearchableSelectDropdown(selectEl, input.value);
   });
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape") {
-      closeSearchableSelectDropdown(selectEl);
+      list.classList.add("hidden");
       syncSearchableSelectInputFromValue(selectEl);
-      return;
-    }
-    if (ev.key === "ArrowDown") {
-      ev.preventDefault();
-      if (list.classList.contains("hidden")) openDropdown(input.value);
-      else moveActiveListOption(1);
-      return;
-    }
-    if (ev.key === "ArrowUp") {
-      ev.preventDefault();
-      if (list.classList.contains("hidden")) openDropdown(input.value);
-      else moveActiveListOption(-1);
       return;
     }
     if (ev.key === "Enter") {
       ev.preventDefault();
-      if (list.classList.contains("hidden")) openDropdown(input.value);
-      const active = list.querySelector(".searchable-select-option.is-active:not(.is-disabled)");
       const first = list.querySelector(".searchable-select-option:not(.is-disabled)");
-      const target = active || first;
-      if (target) pickValue(target.getAttribute("data-value"));
+      if (first) pickValue(first.getAttribute("data-value"));
     }
   });
   list.addEventListener("mousedown", (ev) => {
@@ -9464,34 +9223,15 @@ function mountSearchableSelect(selectEl, opts = {}) {
     ev.preventDefault();
     pickValue(li.getAttribute("data-value"));
   });
-  list.addEventListener("mousemove", (ev) => {
-    const li = ev.target.closest(".searchable-select-option:not(.is-disabled)");
-    if (!li) return;
-    const options = getEnabledListOptions();
-    const idx = options.indexOf(li);
-    if (idx >= 0) setActiveListOption(idx);
-  });
   input.addEventListener("blur", () => {
     window.setTimeout(() => {
       if (!wrap.contains(document.activeElement)) {
-        closeSearchableSelectDropdown(selectEl);
+        list.classList.add("hidden");
         syncSearchableSelectInputFromValue(selectEl);
       }
     }, 120);
   });
-  selectEl.addEventListener("change", () => {
-    syncSearchableSelectInputFromValue(selectEl);
-    syncCreateTripCompactPickList(selectEl);
-  });
-
-  if (!selectEl.dataset.searchableRepositionWired) {
-    selectEl.dataset.searchableRepositionWired = "1";
-    const reposition = () => {
-      if (!list.classList.contains("hidden")) positionSearchableSelectDropdown(selectEl);
-    };
-    window.addEventListener("resize", reposition, { passive: true });
-    window.addEventListener("scroll", reposition, { passive: true, capture: true });
-  }
+  selectEl.addEventListener("change", () => syncSearchableSelectInputFromValue(selectEl));
 
   refreshSearchableSelect(selectEl);
 }
@@ -9601,13 +9341,6 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
-    /** Solución definitiva: datalist nativo en Viajes/Autorizaciones, sin dropdown custom flotante. */
-    if (sel.closest("#form-create-trip, .module-shell[data-module-view='authorizations']")) {
-      unmountSearchableSelect(sel);
-      mountNativeTripSelectFilter(sel);
-      return;
-    }
-    unmountNativeTripSelectFilter(sel);
     mountSearchableSelect(sel, { force: true });
   });
 }
@@ -9627,18 +9360,10 @@ function setTripAssignmentFieldsDisabled(formEl, disabled) {
       if (disabled) {
         searchable.input.setAttribute("disabled", "disabled");
         searchable.input.setAttribute("aria-disabled", "true");
-        searchable.wrap?.querySelector(".searchable-select-toggle")?.setAttribute("disabled", "disabled");
-        closeSearchableSelectDropdown(el);
       } else {
         searchable.input.removeAttribute("disabled");
         searchable.input.removeAttribute("aria-disabled");
-        searchable.wrap?.querySelector(".searchable-select-toggle")?.removeAttribute("disabled");
       }
-    }
-    const nativeFilterInput = el.__nativeTripFilterInput;
-    if (nativeFilterInput) {
-      if (disabled) nativeFilterInput.setAttribute("disabled", "disabled");
-      else nativeFilterInput.removeAttribute("disabled");
     }
     if (disabled) {
       el.setAttribute("disabled", "disabled");
@@ -13949,7 +13674,6 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
     ].join("");
     if (prev && [...vehSel.options].some((o) => o.value === prev && !o.disabled)) vehSel.value = prev;
     refreshSearchableSelect(vehSel);
-    refreshNativeTripSelectFilter(vehSel);
   }
   if (drvSel) {
     const prev = String(drvSel.value || "");
@@ -13967,7 +13691,6 @@ function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTer
     ].join("");
     if (prev && [...drvSel.options].some((o) => o.value === prev && !o.disabled)) drvSel.value = prev;
     refreshSearchableSelect(drvSel);
-    refreshNativeTripSelectFilter(drvSel);
   }
 }
 
@@ -33150,14 +32873,30 @@ function bindDynamicEvents() {
       }
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
-      openConfirmModal({
+      const removed = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id) || null;
+      openConfirmReasonModal({
         title: "Eliminar ausencia",
-        message: "Se eliminara este registro de ausencia del expediente digital.",
+        message: removed
+          ? `Se eliminará la ausencia de ${String(removed.employeeName || "colaborador")} (${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Indique la justificación.`
+          : "Se eliminará este registro de ausencia del expediente digital. Indique la justificación.",
         confirmText: "Eliminar",
-        onConfirm: async () => {
-          const removed = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
+        onConfirm: async (motivo) => {
           const ok = await removeFromPortalListAwaitServer(KEYS.hrAbsences, id);
           if (!ok) return;
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "hr_absences",
+            moduleLabel: "Ausencias",
+            entityId: id,
+            entityLabel: removed
+              ? `${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")}`
+              : "Ausencia",
+            summary: removed
+              ? `Ausencia eliminada (${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Motivo: ${String(motivo || "").trim()}`
+              : `Ausencia eliminada. Motivo: ${String(motivo || "").trim()}`,
+            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+          });
+          await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
           if (removed?.employeeId) {
             await refreshPayrollDraftsLinked(removed.employeeId, removed.startDate, removed.endDate, {
               notifyOnError: false
@@ -33179,15 +32918,29 @@ function bindDynamicEvents() {
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
       const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
-      openConfirmModal({
+      openConfirmReasonModal({
         title: "Eliminar liquidacion",
         message: run
-          ? `Eliminar el registro de liquidacion (${run.month} · ${run.employeeName}). Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
+          ? `Eliminar el registro de liquidacion (${run.month} · ${run.employeeName}). Indique la justificación. Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
           : "Eliminar este registro de liquidacion.",
         confirmText: "Eliminar liquidacion",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           const ok = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
           if (!ok) return;
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "payroll",
+            moduleLabel: "Nómina laboral",
+            entityId: id,
+            entityLabel: run
+              ? `${String(run.employeeName || "Colaborador")} · ${String(run.month || "-")}`
+              : "Liquidación",
+            summary: run
+              ? `Liquidación eliminada (${String(run.month || "-")} · ${String(run.employeeName || "Colaborador")}). Motivo: ${String(motivo || "").trim()}`
+              : `Liquidación eliminada. Motivo: ${String(motivo || "").trim()}`,
+            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+          });
+          await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
         }
