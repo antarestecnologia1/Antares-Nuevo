@@ -4498,66 +4498,8 @@ body[data-theme="dark"] .modal-edit-section-title {
 
 /* Asignar viaje (módulo viajes) */
 .transport-trips-tab-panels {
-  padding: 0.55rem;
-  border-radius: 22px;
-  border: 1px solid rgba(var(--primary-rgb), 0.08);
-  background: linear-gradient(180deg, rgba(var(--brand-blue-soft-rgb), 0.14), rgba(255, 255, 255, 0.97));
-  box-shadow: 0 18px 38px rgba(var(--primary-rgb), 0.08);
-}
-
-.transport-trips-hero {
   display: grid;
   gap: 0.9rem;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  margin-bottom: 0.85rem;
-  padding: 1rem 1.1rem;
-  border-radius: 18px;
-  border: 1px solid rgba(var(--primary-rgb), 0.12);
-  background: linear-gradient(130deg, rgba(237, 246, 255, 0.98), rgba(247, 250, 255, 0.95));
-}
-
-.transport-trips-hero__main h2 {
-  margin: 0.2rem 0 0.35rem;
-  font-size: 1.2rem;
-}
-
-.transport-trips-hero__stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-.transport-trips-kpi {
-  display: grid;
-  gap: 0.2rem;
-  align-content: center;
-  padding: 0.62rem 0.72rem;
-  border-radius: 12px;
-  border: 1px solid rgba(var(--primary-rgb), 0.1);
-  background: rgba(255, 255, 255, 0.86);
-}
-
-.transport-trips-kpi span {
-  font-size: 0.76rem;
-  color: var(--text-soft);
-}
-
-.transport-trips-kpi strong {
-  font-size: 1.1rem;
-  color: var(--text);
-}
-
-.transport-trips-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(0, 1fr);
-}
-
-@media (min-width: 1180px) {
-  .transport-trips-grid {
-    grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.05fr);
-    align-items: start;
-  }
 }
 
 .transport-ops-toolbar {
@@ -4599,10 +4541,6 @@ body[data-theme="dark"] .modal-edit-section-title {
 }
 
 @media (max-width: 960px) {
-  .transport-trips-hero {
-    grid-template-columns: 1fr;
-  }
-
   .transport-ops-toolbar {
     grid-template-columns: 1fr;
   }
@@ -21406,20 +21344,6 @@ body[data-theme="dark"] .portal-main .users-hero-item,
 body[data-theme="dark"] .portal-main .user-card {
   border-color: color-mix(in srgb, var(--module-border-strong) 88%, #0d1b2d 12%);
   box-shadow: 0 12px 30px rgba(2, 10, 20, 0.36);
-}
-
-body[data-theme="dark"] .transport-trips-hero {
-  border-color: rgba(120, 175, 237, 0.2);
-  background: linear-gradient(130deg, rgba(13, 34, 58, 0.94), rgba(12, 26, 44, 0.95));
-}
-
-body[data-theme="dark"] .transport-trips-kpi {
-  border-color: rgba(120, 175, 237, 0.24);
-  background: rgba(15, 34, 56, 0.82);
-}
-
-body[data-theme="dark"] .transport-trips-kpi span {
-  color: #95b7da;
 }
 
 body[data-theme="dark"] .portal-main .p-card-header {

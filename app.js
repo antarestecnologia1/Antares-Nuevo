@@ -17453,10 +17453,8 @@ function transportTripsHtml() {
           <h3>Viajes</h3>
           <p class="ops-block-lead muted">Administra la asignación operativa y consulta los viajes del día, activos, en standby o cerrados sin mezclar este flujo con el catálogo de trayectos.</p>
         </header>
-        <div class="transport-trips-grid">
-          <div class="transport-trips-grid__create">${tripsCreateCard}</div>
-          <div class="transport-trips-grid__ops">${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}</div>
-        </div>
+        ${tripsCreateCard}
+        ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}
       </section>
     </div>`;
   const routesPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "routes" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="routes"${transportTripsWorkspace === "routes" ? "" : " hidden"}>
@@ -17465,27 +17463,11 @@ function transportTripsHtml() {
           <h3>Trayectos</h3>
           <p class="ops-block-lead muted">Mantén aparte el catálogo de rutas y tarifas por cliente para que el equipo configure precios sugeridos sin interferir con la operación diaria de viajes.</p>
         </header>
-        <div class="transport-trips-grid">
-          <div class="transport-trips-grid__create">${routesCreateCard}</div>
-          <div class="transport-trips-grid__ops">${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}</div>
-        </div>
+        ${routesCreateCard}
+        ${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}
       </section>
     </div>`;
-  const transportTripsHero = `<section class="transport-trips-hero">
-    <div class="transport-trips-hero__main">
-      <p class="users-hero-kicker">Centro operativo de transporte</p>
-      <h2>Viajes, recursos y tarifas en un solo flujo</h2>
-      <p class="muted">Rediseño unificado para asignar viajes más rápido, auditar operación en tiempo real y mantener el catálogo de rutas sin ruido.</p>
-    </div>
-    <div class="transport-trips-hero__stats">
-      <div class="transport-trips-kpi"><span>Activos</span><strong>${activeOps}</strong></div>
-      <div class="transport-trips-kpi"><span>Hoy</span><strong>${todaysTrips}</strong></div>
-      <div class="transport-trips-kpi"><span>Standby</span><strong>${standbyTrips}</strong></div>
-      <div class="transport-trips-kpi"><span>Cerrados</span><strong>${completedTrips}</strong></div>
-    </div>
-  </section>`;
-
-  return `${transportTripsHero}${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
+  return `${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
 }
 
 function transportCalendarHtml() {
