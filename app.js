@@ -7816,6 +7816,14 @@ function addOneYearToYmd(ymd) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Centro de costos: clave portal `costCenter` ↔ columna BD `centro_costos`. */
+function resolvePayrollEmployeeCostCenter(emp) {
+  if (!emp || typeof emp !== "object") return "";
+  const direct = String(emp.costCenter ?? "").trim();
+  if (direct) return direct;
+  return String(emp.centro_costos ?? emp.centroCostos ?? "").trim();
+}
+
 /**
  * Fechas de ficha de nómina en formato `YYYY-MM-DD` para formularios y caché local.
  * Acepta alias snake_case por si algún flujo devuelve columnas crudas de BD.
@@ -7874,9 +7882,7 @@ function normalizePayrollEmployeeRowDates(emp) {
   e.psychoTestExpiry = e.occupationalExamExpiry;
   e.contractEndDate = normalizePortalDateYmd(first(e.contractEndDate, e.fecha_fin_contrato));
   Object.assign(e, ensureEmployeeContractFields(e));
-  if (!String(e.costCenter || "").trim()) {
-    e.costCenter = String(first(e.costCenter, e.centro_costos, e.centroCostos) || "").trim();
-  }
+  e.costCenter = resolvePayrollEmployeeCostCenter(e) || String(first(e.costCenter, e.centro_costos, e.centroCostos) || "").trim();
   if (!String(e.contractDuration || "").trim()) {
     e.contractDuration = String(
       first(e.contractDuration, e.contractDurationText, e.duracion_contrato_texto) || ""
@@ -10191,6 +10197,9 @@ async function sanitizeApprovalPayloadForQueue(type, payload) {
   }
   if (type === "create_driver") {
     return normalizeDriverFormPayloadForStorage(base);
+  }
+  if (type === "create_employee") {
+    return sanitizePayrollEmployeeFieldsForPersist(normalizePayloadTextFields(base));
   }
   return normalizePayloadTextFields(base);
 }
@@ -15825,7 +15834,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     <dl class="directory-card__facts">
       ${directoryFactHtml("Documento", docLine)}
       ${directoryFactHtml("Cargo", String(e.position || "—"))}
-      ${directoryFactHtml("Centro costos", String(e.costCenter || "—"))}
+      ${directoryFactHtml("Centro costos", String(resolvePayrollEmployeeCostCenter(e) || "—"))}
       ${directoryFactHtml("Tipo contrato", String(e.contractType || "—"))}
       ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovación", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
     </dl>
@@ -25910,6 +25919,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Laboral</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Empresa", companyName)}
+      ${employeeProfileKvRow("Centro costos", resolvePayrollEmployeeCostCenter(e))}
       ${employeeProfileKvRow("Fecha ingreso", e.startDate)}
       ${employeeProfileKvRow("Fecha fin contrato", e.contractEndDate)}
       ${
@@ -25917,11 +25927,10 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
           ? employeeProfileKvRow("Aviso no renovación (máx.)", fmtDateOr(contractRenewal.noticeDeadlineYmd, "—"))
           : ""
       }
+      ${employeeProfileKvRow("Duración contrato", e.contractDuration || e.contractDurationText)}
+      ${employeeProfileKvRow("Periodicidad", e.payFrequency)}
       ${employeeProfileKvRow("Creado", fmtProfileAuditTimestamp(e.createdAt))}
       ${employeeProfileKvRow("Última actualización", fmtProfileAuditTimestamp(e.updatedAt))}
-      ${employeeProfileKvRow("Duración contrato", e.contractDuration || e.contractDurationText)}
-      ${employeeProfileKvRow("Centro costos", e.costCenter)}
-      ${employeeProfileKvRow("Periodicidad", e.payFrequency)}
       ${employeeProfileKvRow("Aux. transporte (COP)", readEmployeeTransportAllowanceCop(e).toLocaleString("es-CO"))}
       ${employeeProfileKvRow("Tipo cotizante", e.contributorType)}
       ${employeeProfileKvRow("ARL nivel riesgo", e.arlRiskLevel)}
@@ -26079,7 +26088,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Auxilio legal transporte / conectividad")}</span><input type="number" name="transportAllowance" id="employee-modal-transport-allowance" min="0" value="${escapeAttr(readEmployeeTransportAllowanceCop(e))}" /></label>
 <p class="full muted modal-field-hint" id="employee-modal-legal-comp-hint" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(e.baseSalary))}</p>
 <label><span>${escapeHtml("Periodicidad pago")}</span><select name="payFrequency">${payFreqSel}</select></label>
-<label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(e.costCenter || "")}" /></label>
+<label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(resolvePayrollEmployeeCostCenter(e))}" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
 <label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel" id="employee-modal-arl-risk">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
 <label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" id="employee-modal-contract-template" required>${tmplSel}</select></label>
@@ -30946,12 +30955,22 @@ function bindDynamicEvents() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='view-employee']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(btn.dataset.id || ""));
+    btn.addEventListener("click", async () => {
+      const empId = String(btn.dataset.id || "");
+      let target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId);
       if (!target) {
         notify(userMessage("employeeDeleteNotFound"), "error");
         return;
       }
+      if (!resolvePayrollEmployeeCostCenter(target) && portalCanRefreshFromApi()) {
+        try {
+          await applyPortalBootstrapFromApi();
+          target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId) || target;
+        } catch (_e) {
+          /* usar caché local */
+        }
+      }
+      target = normalizePayrollEmployeeRowDates(target);
       const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
       openInfoModal({
         title: "Ficha del colaborador",

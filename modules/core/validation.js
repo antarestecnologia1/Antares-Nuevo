@@ -334,7 +334,7 @@
     },
     { re: /^name$/i, attrs: { field: "person-name", blur: "person-name", restrict: "person-name" } },
     {
-      re: /^(company|position|workArea|brand|model|type|color|bodyType|fuelType|axleConfig|ownershipCard|gpsProvider|station|provider|recordType|documentCode|eps|arl|bloodType|maritalStatus|educationLevel|illnessDescription|title|departmentName|positionName|modality|workerRole)$/i,
+      re: /^(company|position|workArea|costCenter|brand|model|type|color|bodyType|fuelType|axleConfig|ownershipCard|gpsProvider|station|provider|recordType|documentCode|eps|arl|bloodType|maritalStatus|educationLevel|illnessDescription|title|departmentName|positionName|modality|workerRole)$/i,
       attrs: { field: "db-upper", blur: "db-upper" }
     },
     {
@@ -355,7 +355,8 @@
       skip: (el) => el.matches(".js-b2b-phone-national, .js-register-phone-national")
     },
     {
-      re: /(Salary|salary|Cost|cost|Cop|cop|Amount|amount|Price|price|Value|value|Reimbursement|Allowance|allowance|bonus|Bonus|indemnization|cesantias|prima|vacaciones|otrosSettlement|tripValue|tripRateCop|totalCost|fuelReimbursement|baseSalary|liters|odometerKm|weightKg|capacityKg|fuelles|openings|experienceYears|expectedSalary|salaryOffer|extras|aux|primaServicios|interesesCesantias|vacationDays|days360|primaProp)/,
+      /** Solo nombres de importe; no usar `cost` suelto (rompe `costCenter`). */
+      re: /^(baseSalary|transportAllowance|tripValue|tripRateCop|totalCost|fuelReimbursement|insuredValue|distanceKm|weightKg|capacityKg|fuelles|openings|experienceYears|expectedSalary|salaryOffer|extras|aux|primaServicios|interesesCesantias|vacationDays|days360|primaProp|contractDurationAmount|amount|price|value|bonus|liters|odometerKm|salary|cop)$/i,
       attrs: { blur: "decimal", restrict: "decimal" }
     },
     { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
@@ -378,7 +379,10 @@
     const n = String(name || "");
     const tagName = String(el?.tagName || "").toUpperCase();
     /** Clave de catálogo (`ruta@@empresas`), no un importe — no aplicar reglas numéricas. */
-    if (n === "tripRateChoice" || el?.getAttribute?.("data-antares-skip-validate") === "1") return null;
+    if (n === "tripRateChoice" || n === "costCenter" || el?.getAttribute?.("data-antares-skip-validate") === "1") {
+      if (n === "costCenter") return { field: "db-upper", blur: "db-upper" };
+      return null;
+    }
     for (const rule of FIELD_NAME_RULES) {
       if (rule.skip && rule.skip(el)) continue;
       if (rule.re.test(n)) {
@@ -439,8 +443,9 @@
     fields.forEach((el) => {
       if (!el.name && !el.id) return;
       const name = el.name || el.id;
-      if (name === "company" || name === "position" || name === "workArea") {
-        applyFieldRuleAttrs(el, { field: "db-upper", blur: "db-upper", max: 255 });
+      if (name === "company" || name === "position" || name === "workArea" || name === "costCenter") {
+        applyFieldRuleAttrs(el, { field: "db-upper", blur: "db-upper", max: name === "costCenter" ? 64 : 255 });
+        el.removeAttribute("data-antares-restrict");
         return;
       }
       if (name === "cargoDescription") {

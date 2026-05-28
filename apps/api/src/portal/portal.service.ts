@@ -4625,7 +4625,10 @@ export class PortalService implements OnModuleInit {
       baseSalary: Number(e.salario_base),
       transportAllowance: e.auxilio_transporte != null ? Number(e.auxilio_transporte) : null,
       payFrequency: e.periodicidad_pago,
-      costCenter: e.centro_costos,
+      costCenter:
+        e.centro_costos != null && String(e.centro_costos).trim() !== ""
+          ? String(e.centro_costos).trim()
+          : "",
       contributorType: e.tipo_cotizante,
       arlRiskLevel: e.nivel_riesgo_arl,
       contractTemplateKind: e.tipo_plantilla_contrato,
