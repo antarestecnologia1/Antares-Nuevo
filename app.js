@@ -5886,8 +5886,9 @@ function upsertPortalUserRowIntoCache(row) {
   if (!uid) return null;
   const normalized = normalizePortalBootstrapUserRow(row);
   const users = read(KEYS.users, []);
+  const prev = users.find((u) => String(u.id) === uid);
   const others = users.filter((u) => String(u.id) !== uid);
-  const merged = { ...normalized };
+  const merged = { ...prev, ...normalized };
   write(KEYS.users, [merged, ...others]);
   return merged;
 }
@@ -5986,19 +5987,32 @@ function materializePortalUserFromSession(session) {
   const snap = session.profileSnapshot;
   if (snap && String(snap.id) === String(session.userId)) {
     const users = read(KEYS.users, []);
+    const prev = users.find((u) => String(u.id) === String(snap.id));
     const row = {
       id: String(snap.id),
-      email: String(snap.email || "").trim() || "usuario@portal",
-      name: String(snap.name || "").trim() || String(snap.email || "Usuario").trim() || "Usuario",
-      role: snap.role || session.role || ROLES.CLIENT,
-      accountStatus: "aprobado",
-      companyId: snap.companyId != null ? String(snap.companyId) : "",
-      company: "",
+      email: String(snap.email || prev?.email || "").trim() || "usuario@portal",
+      name: String(snap.name || prev?.name || "").trim() || String(snap.email || "Usuario").trim() || "Usuario",
+      role: snap.role || prev?.role || session.role || ROLES.CLIENT,
+      accountStatus: prev?.accountStatus || snap.accountStatus || "aprobado",
+      companyId: snap.companyId != null ? String(snap.companyId) : String(prev?.companyId || ""),
+      company: String(prev?.company || "").trim(),
       password: "",
-      permissions: Array.isArray(snap.permissions) ? snap.permissions : [],
-      avatarUrl: String(snap.avatarUrl || "").trim(),
-      taxId: "",
-      phone: ""
+      permissions: Array.isArray(snap.permissions) ? snap.permissions : prev?.permissions || [],
+      avatarUrl: String(snap.avatarUrl || prev?.avatarUrl || "").trim(),
+      taxId: portalUserDocumentValue(prev),
+      personalDoc: String(prev?.personalDoc || "").trim(),
+      phone: String(prev?.phone || "").trim(),
+      documentType: String(prev?.documentType || "").trim(),
+      birthDate: String(prev?.birthDate || "").trim(),
+      createdAt: prev?.createdAt || prev?.registeredAt || "",
+      registeredAt: prev?.registeredAt || prev?.createdAt || "",
+      systemJoinDate: profileSystemJoinDateValue(prev),
+      portalSince: String(prev?.portalSince || "").trim(),
+      emergencyContact: String(prev?.emergencyContact || "").trim(),
+      emergencyPhone: String(prev?.emergencyPhone || "").trim(),
+      emergencyRelation: String(prev?.emergencyRelation || prev?.emergencyRelationship || "").trim(),
+      city: String(prev?.city || "").trim(),
+      department: String(prev?.department || "").trim()
     };
     write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))]);
     user = currentUser();
@@ -6034,19 +6048,25 @@ function materializePortalUserFromSession(session) {
    */
   const fallbackRole = session.role || session.profileSnapshot?.role || ROLES.CLIENT;
   const usersFinal = read(KEYS.users, []);
+  const prevFinal = usersFinal.find((u) => String(u.id) === String(session.userId));
   const stubRow = {
     id: String(session.userId),
-    email: String(session.profileSnapshot?.email || "").trim() || "usuario@portal",
-    name: String(session.profileSnapshot?.name || "").trim() || "Usuario",
+    email: String(session.profileSnapshot?.email || prevFinal?.email || "").trim() || "usuario@portal",
+    name: String(session.profileSnapshot?.name || prevFinal?.name || "").trim() || "Usuario",
     role: fallbackRole,
-    accountStatus: "aprobado",
-    companyId: String(session.profileSnapshot?.companyId || ""),
-    company: "",
+    accountStatus: prevFinal?.accountStatus || "aprobado",
+    companyId: String(session.profileSnapshot?.companyId || prevFinal?.companyId || ""),
+    company: String(prevFinal?.company || "").trim(),
     password: "",
-    permissions: Array.isArray(session.profileSnapshot?.permissions) ? session.profileSnapshot.permissions : [],
-    avatarUrl: String(session.profileSnapshot?.avatarUrl || "").trim(),
-    taxId: "",
-    phone: ""
+    permissions: Array.isArray(session.profileSnapshot?.permissions)
+      ? session.profileSnapshot.permissions
+      : prevFinal?.permissions || [],
+    avatarUrl: String(session.profileSnapshot?.avatarUrl || prevFinal?.avatarUrl || "").trim(),
+    taxId: portalUserDocumentValue(prevFinal),
+    personalDoc: String(prevFinal?.personalDoc || "").trim(),
+    phone: String(prevFinal?.phone || "").trim(),
+    documentType: String(prevFinal?.documentType || "").trim(),
+    createdAt: prevFinal?.createdAt || prevFinal?.registeredAt || ""
   };
   write(KEYS.users, [stubRow, ...usersFinal.filter((u) => String(u.id) !== String(stubRow.id))]);
   user = currentUser();
@@ -6352,19 +6372,10 @@ async function applyPortalBootstrapFromApi() {
    * intentamos hidratar el perfil propio para que Mi perfil no quede vacío.
    * Endpoint dedicado: /portal/me (lectura ligera, no depende de tarifas/viajes/etc.).
    */
-  const tryHydrateOwnProfileFallback = async () => {
-    try {
-      const me = await api.getJson("/portal/me");
-      if (me && me.id) {
-        upsertPortalUserRowIntoCache(me);
-        syncSessionProfileSnapshotFromCache();
-      }
-    } catch (_meErr) {
-      /* sin fallback, se usará lo que haya en cache/JWT */
-    }
-  };
+  const tryHydrateOwnProfileFallback = () => hydrateOwnProfileFromApi();
   try {
     await runBootstrap();
+    await hydrateOwnProfileFromApi();
     return true;
   } catch (err) {
     const st = err && typeof err.status === "number" ? err.status : 0;
@@ -15288,6 +15299,45 @@ function formatPortalRoleLabel(role) {
   if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder administrativo";
   if (r === ROLES.LOGISTICA) return "Logística";
   return String(role || "usuario").toUpperCase();
+}
+
+/** Documento/NIT mostrado en UI (bootstrap expone `taxId`, `personalDoc` o legado `idDoc`). */
+function portalUserDocumentValue(user) {
+  if (!user) return "";
+  return String(user.taxId || user.personalDoc || user.personalTaxId || user.idDoc || "").trim();
+}
+
+/** Nombre de empresa para tarjetas y Mi perfil. */
+function portalUserCompanyDisplay(user) {
+  if (!user) return "-";
+  const cid = String(user.companyId || "").trim();
+  if (cid) {
+    const fromCatalog = String(getCompanyById(cid)?.name || "").trim();
+    if (fromCatalog) return fromCatalog;
+  }
+  const fromUser = String(user.company || "").trim();
+  return fromUser || "-";
+}
+
+/**
+ * Hidrata la fila del usuario autenticado desde GET /portal/me (datos completos de BD).
+ * Necesario porque el JWT y el profileSnapshot no incluyen teléfono, documento ni fechas.
+ */
+async function hydrateOwnProfileFromApi() {
+  if (!portalCanRefreshFromApi()) return false;
+  const api = window.AntaresApi;
+  if (!api?.getJson) return false;
+  try {
+    const me = await api.getJson("/portal/me");
+    if (me && me.id) {
+      upsertPortalUserRowIntoCache(me);
+      syncSessionProfileSnapshotFromCache();
+      return true;
+    }
+  } catch (err) {
+    devWarn("Portal: GET /portal/me fallo.", err?.message || err);
+  }
+  return false;
 }
 
 /** Etiqueta breve para chips en tarjetas (cabecera estrecha); el nombre completo va en `title`. */
@@ -25950,13 +26000,23 @@ function profileSystemJoinDateValue(user) {
 }
 
 function profileHtml(user) {
-  const companyName = getCompanyById(user.companyId)?.name || user.company || "-";
-  const joinedDate = user.createdAt ? fmtDate(user.createdAt) : "No disponible";
+  const companyName = portalUserCompanyDisplay(user);
+  const docValue = portalUserDocumentValue(user);
+  const joinedIso = profileSystemJoinDateValue(user);
+  const joinedDate = joinedIso ? fmtDate(joinedIso) : user.createdAt ? fmtDate(user.createdAt) : "No disponible";
   const displayName = getPortalUserDisplayName(user);
+  const accountStatusLabel =
+    normalizeUserAccountStatus(user) === ACCOUNT_STATUS.PENDIENTE
+      ? "Pendiente"
+      : normalizeUserAccountStatus(user) === ACCOUNT_STATUS.RECHAZADO
+        ? "Rechazada"
+        : "Aprobada";
+  const roleLabel = formatPortalRoleLabel(user.role) || "Usuario";
   const profileFields = [
     "name",
     "phone",
     "taxId",
+    "personalDoc",
     "documentType",
     "birthDate",
     "emergencyContact",
@@ -25964,7 +26024,10 @@ function profileHtml(user) {
     "city",
     "department"
   ];
-  const filled = profileFields.filter((f) => String(user[f] ?? "").trim()).length;
+  const filled = profileFields.filter((f) => {
+    if (f === "taxId" || f === "personalDoc") return Boolean(docValue);
+    return String(user[f] ?? "").trim();
+  }).length;
   const profilePct = Math.round((filled / profileFields.length) * 100);
   const daysInPortal = user.createdAt
     ? Math.max(0, Math.floor((Date.now() - new Date(user.createdAt).getTime()) / 86400000))
@@ -25994,20 +26057,20 @@ function profileHtml(user) {
         <h3>${escapeHtml(displayName)}</h3>
         <p>${user.email || "-"}</p>
         <div class="profile-hero-chips">
-          <span>${String(user.role || "perfil").toUpperCase()}</span>
-          <span>${String(user.accountStatus || "activo").toUpperCase()}</span>
+          <span>${escapeHtml(roleLabel)}</span>
+          <span>${escapeHtml(accountStatusLabel)}</span>
           <span>${companyName}</span>
         </div>
       </div>
     </article>
     <div class="profile-stats-strip">
-      <article class="profile-stat-card"><p>Estado de cuenta</p><strong>${user.accountStatus || "Activo"}</strong></article>
+      <article class="profile-stat-card"><p>Estado de cuenta</p><strong>${escapeHtml(accountStatusLabel)}</strong></article>
       <article class="profile-stat-card"><p>Privacidad</p><strong>Datos sensibles ocultos</strong></article>
-      <article class="profile-stat-card"><p>Rol asignado</p><strong>${user.role || "Usuario"}</strong></article>
+      <article class="profile-stat-card"><p>Rol asignado</p><strong>${escapeHtml(roleLabel)}</strong></article>
     </div>
     <section class="profile-key-data">
-      <article class="profile-key-item"><p>Documento / NIT</p><strong>${user.taxId || "Sin registrar"}</strong></article>
-      <article class="profile-key-item"><p>Telefono</p><strong>${user.phone || "Sin registrar"}</strong></article>
+      <article class="profile-key-item"><p>Documento / NIT</p><strong>${escapeHtml(docValue || "Sin registrar")}</strong></article>
+      <article class="profile-key-item"><p>Telefono</p><strong>${escapeHtml(user.phone ? formatPortalPhoneForDisplay(String(user.phone)) : "Sin registrar")}</strong></article>
       <article class="profile-key-item"><p>Empresa</p><strong>${companyName}</strong></article>
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
@@ -26024,7 +26087,7 @@ function profileHtml(user) {
             <option value="NIT" ${user.documentType === "NIT" ? "selected" : ""}>NIT</option>
             <option value="PAS" ${user.documentType === "PAS" ? "selected" : ""}>Pasaporte</option>
           </select></label>
-          <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${user.taxId || ""}" placeholder="Ej: 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+          <label>${fieldLabel(IC.badge, "Documento / NIT")}<input name="taxId" value="${escapeAttr(docValue)}" placeholder="Ej: 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
           <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" value="${user.birthDate || ""}" data-antares-validate-blur="date-iso" /></label>
           <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" value="${user.phone || ""}" placeholder="Ej: 3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         </div>
@@ -26704,6 +26767,11 @@ function renderPortalViewImpl() {
         resolveAdminUsersSectionAfterEntrySync();
       }
     }
+  }
+  if (view === "profile" && portalCanRefreshFromApi() && prevPortalView !== "profile") {
+    void hydrateOwnProfileFromApi().then((ok) => {
+      if (ok) scheduleRenderPortalView();
+    });
   }
   if (view === "requests" && prevPortalView !== "requests") {
     state.deletedTransportRequestsLogMinimized = true;
