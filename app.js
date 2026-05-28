@@ -9128,13 +9128,29 @@ function positionSearchableSelectDropdown(selectEl) {
     parts.list.style.left = "";
     parts.list.style.top = "";
     parts.list.style.width = "";
+    parts.list.style.maxHeight = "";
     return;
   }
   const rect = parts.input.getBoundingClientRect();
+  const viewportW = Math.max(document.documentElement?.clientWidth || 0, window.innerWidth || 0);
+  const viewportH = Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
+  const margin = 8;
+  const desiredWidth = Math.max(rect.width, 220);
+  const maxWidth = Math.max(220, viewportW - margin * 2);
+  const width = Math.min(desiredWidth, maxWidth);
+  let left = rect.left;
+  left = Math.max(margin, Math.min(left, viewportW - width - margin));
+  const maxPanelHeight = Math.min(320, Math.floor(viewportH * 0.42));
+  const spaceBelow = Math.max(0, viewportH - rect.bottom - margin);
+  const spaceAbove = Math.max(0, rect.top - margin);
+  const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+  const panelHeight = Math.max(120, Math.min(maxPanelHeight, openUp ? spaceAbove - 4 : spaceBelow - 4));
+  const top = openUp ? Math.max(margin, rect.top - panelHeight - 4) : Math.min(viewportH - panelHeight - margin, rect.bottom + 4);
   parts.list.classList.add("searchable-select-dropdown--fixed");
-  parts.list.style.left = `${Math.max(8, rect.left)}px`;
-  parts.list.style.top = `${rect.bottom + 4}px`;
-  parts.list.style.width = `${Math.max(rect.width, 220)}px`;
+  parts.list.style.left = `${left}px`;
+  parts.list.style.top = `${Math.max(margin, top)}px`;
+  parts.list.style.width = `${width}px`;
+  parts.list.style.maxHeight = `${panelHeight}px`;
 }
 
 function openSearchableSelectDropdown(selectEl, filterText = "") {
