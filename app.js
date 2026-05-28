@@ -1556,6 +1556,7 @@ function renderEditModalFieldRow(f, fieldIdx) {
   const minAttr = f.min != null ? ` min="${escapeAttr(String(f.min))}"` : "";
   const maxAttr = f.max != null ? ` max="${escapeAttr(String(f.max))}"` : "";
   const stepAttr = f.step != null ? ` step="${escapeAttr(String(f.step))}"` : "";
+  const langAttr = f.lang ? ` lang="${escapeAttr(String(f.lang))}"` : "";
   const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
   const labelWrap = f.labelHtml
     ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
@@ -1572,7 +1573,7 @@ function renderEditModalFieldRow(f, fieldIdx) {
     const raw = String(f.value ?? "").trim();
     inputValue = raw.length >= 5 ? raw.slice(0, 5) : raw;
   }
-  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(inputValue)}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
+  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(inputValue)}"${minAttr}${maxAttr}${stepAttr}${langAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
 }
 
 /**
@@ -16165,9 +16166,9 @@ function requestFormHtml() {
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Ventanas de servicio</legend>
       <div class="form-section-grid datetime-group">
-        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required data-antares-validate-blur="date-iso" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required data-antares-validate-blur="date-iso" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
       </div>
     </fieldset>
@@ -29537,9 +29538,9 @@ function bindDynamicEvents() {
           },
           { name: "destinationAddress", label: "Dirección destino", value: req.destinationAddress || "", full: true, required: true },
           { type: "section", id: "edit-req-window", title: "Ventanas de servicio", hint: "Fechas y horas estimadas de recogida y entrega.", gridClass: "datetime-group" },
-          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDateInit || "", required: true },
+          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDateInit || "", required: true, lang: "es-CO" },
           { name: "pickupTime", label: "Hora de recogida", type: "time", value: pickupTimeInit || "", required: true },
-          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDateInit || "", required: true },
+          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDateInit || "", required: true, lang: "es-CO" },
           { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTimeInit || "", required: true },
           { type: "section", id: "edit-req-cargo", title: "Carga y servicio", hint: "Características del envío." },
           {
@@ -30339,9 +30340,9 @@ function bindDynamicEvents() {
             hint: "Fechas y horas de recogida y entrega.",
             gridClass: "datetime-group"
           },
-          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDate, required: true },
+          { name: "pickupDate", label: "Fecha de recogida", type: "date", value: pickupDate, required: true, lang: "es-CO" },
           { name: "pickupTime", label: "Hora de recogida", type: "time", value: pickupTime, required: true },
-          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDate, required: true },
+          { name: "deliveryDate", label: "Fecha de entrega", type: "date", value: deliveryDate, required: true, lang: "es-CO" },
           { name: "deliveryTime", label: "Hora de entrega", type: "time", value: deliveryTime, required: true }
         ],
         onSubmit: async (form) => {

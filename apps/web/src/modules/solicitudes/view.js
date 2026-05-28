@@ -247,9 +247,9 @@
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Ventanas de servicio</legend>
       <div class="form-section-grid datetime-group">
-        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" required data-antares-validate-blur="date-iso" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" required data-antares-validate-blur="date-iso" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
       </div>
     </fieldset>
