@@ -29582,16 +29582,27 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      openConfirmModal({
+      openConfirmReasonModal({
         title: "Eliminar notificación",
-        message: "¿Quieres eliminar esta notificación de tu bandeja? Esta acción no se puede deshacer.",
+        message: "¿Quieres eliminar esta notificación de tu bandeja? Indica la justificación. Esta acción no se puede deshacer.",
         confirmText: "Eliminar",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
           if (!visibleIds.has(id)) return;
           const list = read(KEYS.notifications, []);
+          const removedNotification = list.find((n) => n.id === id) || null;
           write(KEYS.notifications, list.filter((n) => n.id !== id));
           await writeNotificationsAwaitServer();
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "notifications",
+            moduleLabel: "Notificaciones",
+            entityId: id,
+            entityLabel: String(removedNotification?.title || "Notificación").trim() || "Notificación",
+            summary: `Notificación eliminada de bandeja. Motivo: ${String(motivo || "").trim()}`,
+            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+          });
+          await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
           notify("Notificación eliminada.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -29603,17 +29614,29 @@ function bindDynamicEvents() {
   /** Eliminar todas las notificaciones ya leídas (mantiene las pendientes). */
   nodes.viewRoot.querySelectorAll("[data-action='notif-clear-read']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      openConfirmModal({
+      openConfirmReasonModal({
         title: "Eliminar leídas",
-        message: "¿Eliminar todas las notificaciones ya leídas de tu bandeja?",
+        message: "¿Eliminar todas las notificaciones ya leídas de tu bandeja? Indica la justificación.",
         confirmText: "Eliminar leídas",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           const user = currentUser();
           const list = read(KEYS.notifications, []);
           const remaining = list.filter((n) => !(n.readAt && notificationTargetsUser(n, user)));
           const removed = list.length - remaining.length;
           write(KEYS.notifications, remaining);
           await writeNotificationsAwaitServer();
+          if (removed > 0) {
+            appendModuleAuditLog({
+              action: "delete",
+              moduleId: "notifications",
+              moduleLabel: "Notificaciones",
+              entityId: "bulk-read",
+              entityLabel: "Notificaciones leídas",
+              summary: `${removed} notificaciones leídas eliminadas. Motivo: ${String(motivo || "").trim()}`,
+              actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+            });
+            await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
+          }
           notify(removed ? `${removed} notificaciones eliminadas.` : "No había notificaciones leídas.", "success");
           renderPortalView();
           updateNotificationBadge();
@@ -29625,17 +29648,29 @@ function bindDynamicEvents() {
   /** Vaciar bandeja completa del usuario (admins limpian todas; otros, las propias). */
   nodes.viewRoot.querySelectorAll("[data-action='notif-clear-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      openConfirmModal({
+      openConfirmReasonModal({
         title: "Vaciar bandeja",
-        message: "¿Eliminar todas las notificaciones (leídas y sin leer)? Esta acción no se puede deshacer.",
+        message: "¿Eliminar todas las notificaciones (leídas y sin leer)? Indica la justificación. Esta acción no se puede deshacer.",
         confirmText: "Vaciar bandeja",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           const user = currentUser();
           const list = read(KEYS.notifications, []);
           const remaining = list.filter((n) => !notificationTargetsUser(n, user));
           const removed = list.length - remaining.length;
           write(KEYS.notifications, remaining);
           await writeNotificationsAwaitServer();
+          if (removed > 0) {
+            appendModuleAuditLog({
+              action: "delete",
+              moduleId: "notifications",
+              moduleLabel: "Notificaciones",
+              entityId: "bulk-all",
+              entityLabel: "Bandeja de notificaciones",
+              summary: `${removed} notificaciones eliminadas al vaciar bandeja. Motivo: ${String(motivo || "").trim()}`,
+              actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+            });
+            await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
+          }
           notify(removed ? `${removed} notificaciones eliminadas.` : "Bandeja ya estaba vacía.", "success");
           renderPortalView();
           updateNotificationBadge();
