@@ -1277,6 +1277,8 @@ function bindHrFormWizard(form) {
               : "Último paso: revise y guarde.";
       }
     }
+    window.AntaresValidation?.upgradePortalDateFields?.(form);
+    window.AntaresValidation?.resyncPortalDateValuesInRoot?.(form);
   };
 
   prevBtn?.addEventListener("click", () => {
@@ -1518,7 +1520,7 @@ function renderEditModalFieldRow(f, fieldIdx) {
     const options = (f.options || [])
       .map((opt) => {
         const v = escapeAttr(String(opt.value ?? ""));
-        const sel = String(opt.value) === String(f.value ?? "") ? "selected" : "";
+        const sel = editModalSelectOptionSelected(opt, f.value) ? "selected" : "";
         const dis = opt.disabled ? "disabled" : "";
         return `<option value="${v}" ${sel} ${dis}>${escapeHtml(opt.label)}</option>`;
       })
@@ -1559,7 +1561,18 @@ function renderEditModalFieldRow(f, fieldIdx) {
     ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
     : `<span>${labelInner}</span>`;
   const hiddenAttr = f.hidden ? " hidden" : "";
-  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(String(f.value ?? ""))}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
+  let inputValue = String(f.value ?? "");
+  if (inputType === "date") {
+    inputValue = normalizePortalDateYmd(f.value) || inputValue;
+  } else if (inputType === "datetime-local") {
+    const raw = String(f.value ?? "").trim();
+    inputValue =
+      raw.length >= 16 && raw.includes("T") ? raw.slice(0, 16) : String(toInputDate(raw) || "").slice(0, 16) || inputValue;
+  } else if (inputType === "time") {
+    const raw = String(f.value ?? "").trim();
+    inputValue = raw.length >= 5 ? raw.slice(0, 5) : raw;
+  }
+  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(inputValue)}"${minAttr}${maxAttr}${stepAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
 }
 
 /**
@@ -1675,8 +1688,10 @@ function openEditModal({
       devWarn("openEditModal afterMount", err);
     }
   }
+  wireEditModalFieldValues(formEl, fields);
   enhanceTripAssignmentSelects(formEl);
   window.AntaresValidation?.decorateFormFields?.(formEl);
+  window.AntaresValidation?.resyncPortalDateValuesInRoot?.(formEl);
   scrollIntoViewSmoothBlockStart(formEl);
   scrollOpenCrudModalIntoView();
   wireFormSubmitGuard(
@@ -4657,10 +4672,71 @@ function setFormSelectValue(selectEl, value) {
   if (!selectEl || value == null) return;
   const v = String(value).trim();
   if (!v) return;
-  const match = [...selectEl.options].find(
-    (o) => String(o.value).trim() === v || String(o.textContent || "").trim() === v
-  );
+  const vLower = v.toLowerCase();
+  const match = [...selectEl.options].find((o) => {
+    const ov = String(o.value).trim();
+    const ot = String(o.textContent || "").trim();
+    return (
+      ov === v ||
+      ot === v ||
+      (ov && ov.toLowerCase() === vLower) ||
+      (ot && ot.toLowerCase() === vLower)
+    );
+  });
   if (match) selectEl.value = match.value;
+}
+
+/** ¿La opción del `<select>` corresponde al valor guardado? (exacto, etiqueta o sin distinguir mayúsculas). */
+function editModalSelectOptionSelected(opt, fieldValue) {
+  const fv = String(fieldValue ?? "").trim();
+  if (!fv) return false;
+  const ov = String(opt.value ?? "").trim();
+  const ol = String(opt.label ?? "").trim();
+  const fvLower = fv.toLowerCase();
+  return (
+    ov === fv ||
+    ol === fv ||
+    (ov && ov.toLowerCase() === fvLower) ||
+    (ol && ol.toLowerCase() === fvLower)
+  );
+}
+
+/**
+ * Tras montar un modal CRUD: reaplica valores en selects, fechas y horas
+ * (catálogos, BD en mayúsculas, ISO con hora, etc.).
+ */
+function wireEditModalFieldValues(formEl, fields) {
+  if (!formEl || !Array.isArray(fields)) return;
+  fields.forEach((f) => {
+    if (!f?.name) return;
+    if (f.type === "select") {
+      const sel = formEl.querySelector(`select[name="${f.name}"]`);
+      if (sel && f.value != null && String(f.value).trim() !== "") {
+        setFormSelectValue(sel, f.value);
+      }
+      return;
+    }
+    if (f.type === "date") {
+      const inp = formEl.querySelector(`input[type="date"][name="${f.name}"]`);
+      const norm = normalizePortalDateYmd(f.value);
+      if (inp && norm) inp.value = norm;
+      return;
+    }
+    if (f.type === "datetime-local") {
+      const inp = formEl.querySelector(`input[type="datetime-local"][name="${f.name}"]`);
+      if (!inp || f.value == null) return;
+      const raw = String(f.value).trim();
+      const local =
+        raw.length >= 16 && raw.includes("T") ? raw.slice(0, 16) : String(toInputDate(raw) || "").slice(0, 16);
+      if (local) inp.value = local;
+      return;
+    }
+    if (f.type === "time") {
+      const inp = formEl.querySelector(`input[type="time"][name="${f.name}"]`);
+      const raw = String(f.value ?? "").trim();
+      if (inp && raw) inp.value = raw.length >= 5 ? raw.slice(0, 5) : raw;
+    }
+  });
 }
 
 /**
@@ -4967,6 +5043,16 @@ function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Sel
   return [`<option value="">${placeholder}</option>`, ...options].join("");
 }
 
+/** Opciones `{ value, label }` para `openEditModal`: incluye valor guardado aunque no esté en el catálogo. */
+function editModalCatalogSelectOptions(catalog, selected, placeholder = "Seleccione...") {
+  const matched = matchCatalogOptionValue(catalog, selected);
+  const values = Array.isArray(catalog) ? [...catalog] : [];
+  if (matched && !values.some((v) => String(v).trim() === String(matched).trim())) {
+    values.push(matched);
+  }
+  return [{ value: "", label: placeholder }, ...values.map((item) => ({ value: item, label: item }))];
+}
+
 function validateCandidatePipelineTransition(candidate, nextStatus) {
   const currentStatus = String(candidate?.status || PIPELINE[0]);
   const targetStatus = String(nextStatus || currentStatus);
@@ -5085,12 +5171,17 @@ function applyCandidateToEmployeeForm(form, candidate) {
   setVal("input[name='name']", candidate.name);
   setVal("select[name='documentType']", candidate.documentType || "CC");
   setVal("input[name='idDoc']", candidate.idDoc);
-  setVal("input[name='birthDate']", String(candidate.birthDate || "").slice(0, 10));
+  const setDate = (name, iso) => {
+    const ymd = normalizePortalDateYmd(iso);
+    if (!ymd) return;
+    window.AntaresValidation?.setPortalFormDateByName?.(form, name, ymd);
+  };
+  setDate("birthDate", String(candidate.birthDate || "").slice(0, 10));
   setVal("select[name='educationLevel']", candidate.educationLevel);
   setVal("input[name='phone']", candidate.phone);
   setVal("input[name='personalEmail']", candidate.email);
   setVal("input[name='address']", candidate.address);
-  setVal("input[name='startDate']", colombiaTodayIsoDate());
+  setDate("startDate", colombiaTodayIsoDate());
   const deptSel = form.querySelector("select[name='department']");
   if (deptSel && candidate.department) {
     setFormSelectValue(deptSel, candidate.department);
@@ -7808,9 +7899,30 @@ function normalizePortalDateYmd(raw) {
   const s = String(raw).trim();
   const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
   if (m) return m[1];
+  const dmy = window.AntaresValidation?.parseDmyToIsoDate?.(s);
+  if (dmy) return dmy;
   const t = Date.parse(s);
   if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
   return "";
+}
+
+/** Monta DD/MM/AAAA y sincroniza valores ISO en un contenedor (vista, modal, filtros). */
+function portalUpgradeDates(root) {
+  const V = window.AntaresValidation;
+  const scope = root || nodes.viewRoot || document;
+  if (!V || !scope?.querySelectorAll) return;
+  V.prepareFormsInRoot?.(scope);
+}
+
+/** Asigna fecha ISO a un campo por `name` (visible DMY + hidden). */
+function setFormDateByName(form, fieldName, isoYmd) {
+  const ymd = normalizePortalDateYmd(isoYmd);
+  if (!form || !fieldName || !ymd) return;
+  window.AntaresValidation?.setPortalFormDateByName?.(form, fieldName, ymd);
+}
+
+function clearFormDateInput(el) {
+  window.AntaresValidation?.clearPortalDateInput?.(el);
 }
 
 /** Suma un año calendario a `YYYY-MM-DD` (local), para vigencias de examen. */
@@ -7900,6 +8012,27 @@ function normalizePayrollEmployeeRowDates(emp) {
       first(e.contractDuration, e.contractDurationText, e.duracion_contrato_texto) || ""
     ).trim();
   }
+  e.documentType =
+    matchCatalogOptionValue(CO_CATALOGS.documentTypes, e.documentType) || String(e.documentType || "CC").trim();
+  e.gender = matchCatalogOptionValue(CO_CATALOGS.genders, e.gender);
+  e.maritalStatus = matchCatalogOptionValue(CO_CATALOGS.maritalStatus, e.maritalStatus);
+  e.educationLevel = matchCatalogOptionValue(CO_CATALOGS.educationLevel, e.educationLevel);
+  e.bloodType = matchCatalogOptionValue(CO_CATALOGS.bloodTypes, e.bloodType);
+  e.contractType = matchCatalogOptionValue(CO_CATALOGS.contractTypes, e.contractType) || String(e.contractType || "").trim();
+  e.payFrequency =
+    matchCatalogOptionValue(CO_CATALOGS.payFrequency, e.payFrequency) || String(e.payFrequency || "Mensual").trim();
+  e.arlRiskLevel = matchCatalogOptionValue(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel);
+  e.workSchedule = matchCatalogOptionValue(CO_CATALOGS.workSchedule, e.workSchedule);
+  e.contributorType = matchCatalogOptionValue(CO_CATALOGS.contributorTypes, e.contributorType);
+  e.eps = matchCatalogOptionValue(CO_CATALOGS.eps, e.eps);
+  e.pensionFund = matchCatalogOptionValue(CO_CATALOGS.pensionFunds, e.pensionFund);
+  e.arl = matchCatalogOptionValue(CO_CATALOGS.arl, e.arl);
+  e.severanceFund = matchCatalogOptionValue(CO_CATALOGS.severanceFunds, e.severanceFund);
+  e.compensationFund = matchCatalogOptionValue(CO_CATALOGS.compensationFunds, e.compensationFund);
+  e.bankName = matchCatalogOptionValue(CO_CATALOGS.banks, e.bankName);
+  e.bankAccountType = matchCatalogOptionValue(CO_CATALOGS.accountTypes, e.bankAccountType || "Ahorros");
+  e.licenseCategory = matchCatalogOptionValue(CO_CATALOGS.licenseCategories, e.licenseCategory);
+  e.defensiveCourse = normalizeDefensiveCourseForPortal(e.defensiveCourse);
   return e;
 }
 
@@ -8597,7 +8730,7 @@ function wireTripRateChoiceSelect(formEl) {
   const renderMeta = (storageKey = "") => {
     if (!meta) return;
     if (!storageKey) {
-      meta.innerHTML = `<span class="muted">Modo manual: ingrese el precio del viaje (debe ser mayor a cero para poder asignar).</span>`;
+      meta.innerHTML = `<span class="trip-rate-meta-chip trip-rate-meta-chip--muted">Manual</span>`;
       return;
     }
     const rates = getTripRouteRatesNormalized();
@@ -8610,9 +8743,9 @@ function wireTripRateChoiceSelect(formEl) {
     const clientsLabel = ids.length
       ? ids.map((id) => getCompanyById(id)?.name || id).join(", ")
       : "Todos los clientes";
-    meta.innerHTML = `<span class="trip-rate-meta-chip"><strong>Ruta:</strong> ${escapeHtml(humanTripRateRouteLabelFromStorageKey(storageKey))}</span>
-      <span class="trip-rate-meta-chip"><strong>Alcance:</strong> ${escapeHtml(clientsLabel)}</span>
-      <span class="trip-rate-meta-chip"><strong>Valor:</strong> $${parseNum(entry.value).toLocaleString("es-CO")}</span>`;
+    meta.innerHTML = `<span class="trip-rate-meta-chip">${escapeHtml(humanTripRateRouteLabelFromStorageKey(storageKey))}</span>
+      <span class="trip-rate-meta-chip">${escapeHtml(clientsLabel)}</span>
+      <span class="trip-rate-meta-chip trip-rate-meta-chip--value">$${parseNum(entry.value).toLocaleString("es-CO")}</span>`;
   };
   const onRateChange = () => {
     const key = String(sel.value || "").trim();
@@ -8647,10 +8780,37 @@ function createTripSummaryTile(iconKey, label, valueHtml) {
 function createTripEmptyHint(iconKey, title, detail = "") {
   const inner = IC[String(iconKey || "inbox")]?.replace(/<svg[^>]*>|<\/svg>/g, "") || "";
   const detailHtml = detail ? `<p class="create-trip-empty-detail">${escapeHtml(detail)}</p>` : "";
-  return `<div class="create-trip-empty-hint" role="status">
+  return `<div class="create-trip-empty-hint assign-trip-empty" role="status">
     <span class="create-trip-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></span>
     <div class="create-trip-empty-copy"><p class="create-trip-empty-title">${escapeHtml(title)}</p>${detailHtml}</div>
   </div>`;
+}
+
+/** Resumen compacto de la solicitud (formulario asignar viaje). */
+function renderAssignTripRequestPreview(request) {
+  const needsTermoking = requestRequiresTermoking(request);
+  const assignableByDate = isRequestPickupSameDayOrFuture(request);
+  const tkBadge = needsTermoking
+    ? `<span class="create-trip-status-pill create-trip-status-pill--info" title="Refrigeración Termoking">TK</span>`
+    : `<span class="create-trip-status-pill create-trip-status-pill--neutral" title="Carga seca">Seco</span>`;
+  const dateBadge = assignableByDate
+    ? `<span class="create-trip-status-pill create-trip-status-pill--ok" title="Fecha de recogida asignable">OK</span>`
+    : `<span class="create-trip-status-pill create-trip-status-pill--bad" title="Fecha de recogida vencida">Vencida</span>`;
+  const cargo = String(request.cargoDescription || "—").trim();
+  const cargoShort = cargo.length > 88 ? `${escapeHtml(cargo.slice(0, 88))}…` : escapeHtml(cargo);
+  return `<div class="assign-trip-preview-active create-trip-summary-panel--active">
+      <div class="assign-trip-preview-head">
+        <p class="assign-trip-preview-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></p>
+        <div class="assign-trip-preview-badges">${tkBadge}${dateBadge}</div>
+      </div>
+      <dl class="assign-trip-preview-facts">
+        <div><dt>Cliente</dt><dd>${escapeHtml(String(request.clientName || "—"))}</dd></div>
+        <div><dt>Solicita</dt><dd>${escapeHtml(String(request.requestedByName || "—"))}</dd></div>
+        <div><dt>Camión</dt><dd>${requestTruckRequirementSummaryHtml(request)}</dd></div>
+        <div><dt>Recogida</dt><dd>${escapeHtml(fmtDate(request.pickupAt))}</dd></div>
+        <div class="assign-trip-preview-facts--wide"><dt>Carga</dt><dd>${cargoShort}</dd></div>
+      </dl>
+    </div>`;
 }
 
 /** Actualiza stepper y checklist de preparación del formulario asignar viaje. */
@@ -8683,16 +8843,16 @@ function updateCreateTripStepper(formEl) {
   const checklist = formEl.querySelector("[data-create-trip-readiness]");
   if (checklist) {
     const items = [
-      { done: !!requestId, label: "Solicitud" },
-      { done: assignable, label: "Fecha válida" },
-      { done: !!vehicleId, label: "Vehículo" },
-      { done: !!driverId, label: "Conductor" },
-      { done: tripValue > 0, label: "Precio" }
+      { done: !!requestId, label: "Solicitud", short: "Sol." },
+      { done: assignable, label: "Fecha válida", short: "Fecha" },
+      { done: !!vehicleId, label: "Vehículo", short: "Veh." },
+      { done: !!driverId, label: "Conductor", short: "Cond." },
+      { done: tripValue > 0, label: "Precio", short: "Precio" }
     ];
     checklist.innerHTML = items
       .map(
         (it) =>
-          `<li class="create-trip-readiness-item${it.done ? " is-done" : ""}"><span class="create-trip-readiness-mark" aria-hidden="true">${it.done ? IC.check : ""}</span><span>${escapeHtml(it.label)}</span></li>`
+          `<li class="create-trip-readiness-item assign-trip-check${it.done ? " is-done" : ""}" title="${escapeAttr(it.label)}"><span class="create-trip-readiness-mark" aria-hidden="true">${it.done ? IC.check : ""}</span><span class="assign-trip-check-label">${escapeHtml(it.short)}</span></li>`
       )
       .join("");
   }
@@ -8841,10 +9001,13 @@ function mountSearchableSelect(selectEl, opts = {}) {
   toggle.textContent = "▼";
   row.appendChild(toggle);
 
-  const hint = document.createElement("p");
-  hint.className = "searchable-select-hint";
-  hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
-  wrap.appendChild(hint);
+  const inAssignTripForm = Boolean(selectEl.closest("#form-create-trip"));
+  if (!inAssignTripForm) {
+    const hint = document.createElement("p");
+    hint.className = "searchable-select-hint";
+    hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
+    wrap.appendChild(hint);
+  }
 
   const list = document.createElement("ul");
   list.className = "searchable-select-dropdown hidden";
@@ -8971,7 +9134,7 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
   const needsTermoking = requestRequiresTermoking(request);
   const setHint = (name, html) => {
     const sel = formEl.querySelector(`select[name='${name}']`);
-    const field = sel?.closest(".create-trip-fleet-field");
+    const field = sel?.closest(".assign-trip-fleet-field, .create-trip-fleet-field");
     if (!field) return;
     let box = field.querySelector(".create-trip-resource-empty");
     if (!html) {
@@ -8980,7 +9143,9 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
       const hint = parts?.wrap?.querySelector(".searchable-select-hint");
       if (hint) {
         hint.classList.remove("searchable-select-hint--warn");
-        hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
+        if (!formEl.closest("#form-create-trip")) {
+          hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
+        }
       }
       return;
     }
@@ -9005,20 +9170,18 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
         ((needsTermoking && !vehicleHasTermokingEquipment(v)) ||
           (!needsTermoking && vehicleHasTermokingEquipment(v)))
     ).length;
-    let msg = needsTermoking
-      ? "No hay vehículos con Termoking listos para esta solicitud."
-      : "No hay vehículos secos (sin Termoking) listos para esta solicitud.";
-    if (blocked) msg += ` ${blocked} unidad(es) no coinciden con el tipo de camión pedido.`;
-    if (termokingBlock) msg += ` ${termokingBlock} unidad(es) no cumplen Termoking de la solicitud.`;
-    if (!vehicleCandidates.length) msg = "No hay vehículos registrados en flota.";
+    let msg = needsTermoking ? "Sin vehículos Termoking disponibles." : "Sin vehículos secos disponibles.";
+    if (blocked) msg += ` ${blocked} no coinciden con el tipo pedido.`;
+    if (termokingBlock) msg += ` ${termokingBlock} no cumplen Termoking.`;
+    if (!vehicleCandidates.length) msg = "Sin vehículos en flota.";
     setHint("vehicleId", escapeHtml(msg));
   } else {
     setHint("vehicleId", "");
   }
   if (!drivers.length) {
     let msg = driverCandidates.length
-      ? "Hay conductores en lista pero ninguno está disponible (ocupado, no disponible o licencia vencida)."
-      : "No hay conductores en flota. Sincronice desde Gestión humana (rol conductor).";
+      ? "Ningún conductor disponible (ocupado, no disponible o doc. vencida)."
+      : "Sin conductores en flota.";
     setHint("driverId", escapeHtml(msg));
   } else {
     setHint("driverId", "");
@@ -9151,10 +9314,10 @@ function buildTripRateInlineFieldsHtml(request, opts) {
   }
 
   const optRows = [
-    { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
+    { value: "", label: "Manual (sin catálogo)" },
     ...items.map((i) => ({
       value: i.storageKey,
-      label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}`
+      label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")}`
     }))
   ];
 
@@ -9166,21 +9329,16 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     })
     .join("");
 
-  const catalogMetaHint = items.length
-    ? `<span class="muted">Seleccione una tarifa para ver trayecto, alcance y valor sugerido.</span>`
-    : `<span class="muted">No hay tarifa en catálogo para esta ruta. Queda en modo manual con precio en cero hasta que lo indique (obligatorio mayor a cero para crear el viaje).</span>`;
-
-  return `<div class="create-trip-rate-inner">
-    <label class="full create-trip-rate-catalog">${fieldLabel(IC.layers, "Tarifa por trayecto (catálogo)")}
+  return `<div class="create-trip-rate-inner assign-trip-rate-inner">
+    <label class="full create-trip-rate-catalog assign-trip-field">${fieldLabel(IC.layers, "Tarifa catálogo")}
       <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
     </label>
-    <div class="trip-rate-meta full" data-trip-rate-meta">${catalogMetaHint}</div>
-    <label class="full create-trip-price-field create-trip-price-field--hero">${fieldLabel(IC.dollar, "Precio del viaje (COP)", { required: true })}
+    <div class="trip-rate-meta assign-trip-rate-meta" data-trip-rate-meta aria-live="polite"></div>
+    <label class="full create-trip-price-field create-trip-price-field--hero assign-trip-field">${fieldLabel(IC.dollar, "Precio (COP)", { required: true })}
       <div class="create-trip-price-wrap">
         <span class="create-trip-price-prefix" aria-hidden="true">$</span>
-        <input type="text" name="tripValue" id="create-trip-trip-value" inputmode="numeric" autocomplete="off" data-trip-money-input="1" placeholder="0" ${required ? "required" : ""} value="${escapeAttr(formatMoneyFieldValue(fallbackVal))}" />
+        <input type="text" name="tripValue" id="create-trip-trip-value" inputmode="numeric" autocomplete="off" data-trip-money-input="1" placeholder="Ej. 4.200.000" ${required ? "required" : ""} value="${escapeAttr(formatMoneyFieldValue(fallbackVal))}" />
       </div>
-      <span class="create-trip-price-hint muted">Valor acordado para facturación del viaje (obligatorio, mayor a cero)</span>
     </label>
   </div>`;
 }
@@ -9209,12 +9367,8 @@ function refreshCreateTripModuleForm(formEl) {
 
   if (!request) {
     if (preview) {
-      preview.innerHTML = createTripEmptyHint(
-        "inbox",
-        "Sin solicitud seleccionada",
-        "Elija una solicitud aprobada para ver el resumen del trayecto y habilitar flota y tarifa."
-      );
-      preview.classList.remove("create-trip-summary-panel--active");
+      preview.innerHTML = createTripEmptyHint("inbox", "Seleccione una solicitud");
+      preview.classList.remove("create-trip-summary-panel--active", "assign-trip-preview--filled");
     }
     if (fleetStats) fleetStats.innerHTML = "";
     if (vehSel) {
@@ -9226,7 +9380,7 @@ function refreshCreateTripModuleForm(formEl) {
       drvSel.disabled = true;
     }
     if (rateMount) {
-      rateMount.innerHTML = createTripEmptyHint("dollar", "Tarifa pendiente", "Al elegir la solicitud se cargarán las tarifas sugeridas para la ruta.");
+      rateMount.innerHTML = createTripEmptyHint("dollar", "Tarifa pendiente");
     }
     updateCreateTripStepper(formEl);
     return;
@@ -9243,34 +9397,15 @@ function refreshCreateTripModuleForm(formEl) {
   const drivers = driverCandidates.filter((d) => !d.isBusy && !d.isUnavailable && !d.hasExpiredDocs);
 
   if (preview) {
-    preview.classList.add("create-trip-summary-panel--active");
-    const tkBadge = needsTermoking
-      ? `<span class="create-trip-status-pill create-trip-status-pill--info">Termoking</span>`
-      : `<span class="create-trip-status-pill create-trip-status-pill--neutral">Carga seca</span>`;
-    const dateBadge = assignableByDate
-      ? `<span class="create-trip-status-pill create-trip-status-pill--ok">Asignable hoy</span>`
-      : `<span class="create-trip-status-pill create-trip-status-pill--bad">Fecha vencida</span>`;
-    const cargo = String(request.cargoDescription || "-").trim();
-    const cargoShort = cargo.length > 120 ? `${escapeHtml(cargo.slice(0, 120))}…` : escapeHtml(cargo);
-    preview.innerHTML = `
-      <div class="create-trip-summary-head">
-        <div class="create-trip-summary-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></div>
-        <div class="create-trip-summary-status">${tkBadge}${dateBadge}</div>
-      </div>
-      <div class="create-trip-summary-grid">
-        ${createTripSummaryTile("briefcase", "Cliente", escapeHtml(String(request.clientName || "-")))}
-        ${createTripSummaryTile("user", "Solicita", escapeHtml(String(request.requestedByName || "-")))}
-        ${createTripSummaryTile("truck", "Camión requerido", requestTruckRequirementSummaryHtml(request))}
-        ${createTripSummaryTile("calendar", "Recogida", escapeHtml(fmtDate(request.pickupAt)))}
-        ${createTripSummaryTile("package", "Carga", cargoShort)}
-      </div>`;
+    preview.classList.add("create-trip-summary-panel--active", "assign-trip-preview--filled");
+    preview.innerHTML = renderAssignTripRequestPreview(request);
   }
 
   if (fleetStats && assignableByDate) {
     fleetStats.innerHTML = `
-      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok"><strong>${vehicles.length}</strong> vehículo${vehicles.length === 1 ? "" : "s"} listo${vehicles.length === 1 ? "" : "s"}</span>
-      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok"><strong>${drivers.length}</strong> conductor${drivers.length === 1 ? "" : "es"} listo${drivers.length === 1 ? "" : "s"}</span>
-      <span class="create-trip-fleet-stat create-trip-fleet-stat--muted">${vehicleCandidates.length} veh. · ${driverCandidates.length} cond. en lista</span>`;
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok" title="Vehículos listos para asignar"><strong>${vehicles.length}</strong> veh.</span>
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok" title="Conductores listos para asignar"><strong>${drivers.length}</strong> cond.</span>
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--muted" title="Total en lista con banderas">${vehicleCandidates.length} / ${driverCandidates.length} en lista</span>`;
   } else if (fleetStats) {
     fleetStats.innerHTML = "";
   }
@@ -9285,7 +9420,7 @@ function refreshCreateTripModuleForm(formEl) {
       drvSel.disabled = true;
     }
     if (rateMount) {
-      rateMount.innerHTML = `<div class="create-trip-rate-guard"><span class="create-trip-rate-guard-pill">${IC.lock} Asignación bloqueada por fecha</span><p class="muted" style="margin:0.45rem 0 0">La solicitud tiene fecha de recogida anterior al día actual. Solo se permite asignar viajes para hoy o fechas futuras.</p></div>`;
+      rateMount.innerHTML = `<div class="create-trip-rate-guard assign-trip-rate-guard" role="alert"><span class="create-trip-rate-guard-pill">${IC.lock} Fecha vencida</span><p class="assign-trip-rate-guard-note">Solo se asignan viajes con recogida hoy o en fechas futuras.</p></div>`;
     }
     updateCreateTripStepper(formEl);
     return;
@@ -13924,7 +14059,7 @@ function portalVehicleAvailabilityStatusHtml(vehicle) {
 
 function openVehicleTechnicalSheetModal(vehicle) {
   if (!vehicle) return;
-  const v = vehicle;
+  const v = normalizeVehicleRowForEditor(vehicle) || vehicle;
   const plate = String(v.plate || "").trim().toUpperCase() || "—";
   const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
   const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
@@ -14252,7 +14387,7 @@ function openPortalDetailSheet(opts = {}) {
 
 function openDriverDetailSheetModal(driver) {
   if (!driver) return;
-  const d = driver;
+  const d = normalizeDriverRowForEditor(driver) || driver;
   const company = getCompanyById(d.companyId);
   const companyName = String(company?.name || "").trim();
   const avatarCss = employeeAvatarCssUrl(d.photoUrl);
@@ -16956,73 +17091,67 @@ function transportTripsHtml() {
     pendingForTrip.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Sin pendientes</span>`;
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored create-trip-form transport-trip-create-form" autocomplete="off">
-    <header class="create-trip-hero">
-      <div class="create-trip-hero-icon" aria-hidden="true">${IC.truck}</div>
-      <div class="create-trip-hero-copy">
-        <h3 class="create-trip-hero-title">Asignación de viaje</h3>
-        <p class="create-trip-hero-sub">Solicitud, recursos y tarifa organizados en un mismo flujo operativo.</p>
-      </div>
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored assign-trip-form create-trip-form transport-trip-create-form" autocomplete="off">
+    <div class="assign-trip-top">
+      <ol class="create-trip-stepper create-trip-stepper--track assign-trip-stepper" aria-label="Pasos para asignar viaje">
+        <li class="create-trip-step create-trip-step--current" data-step="1" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
+        <li class="create-trip-step create-trip-step--locked" data-step="2"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Recursos</span></li>
+        <li class="create-trip-step create-trip-step--locked" data-step="3"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
+      </ol>
       ${pendingBadge}
-    </header>
-    <ol class="create-trip-stepper create-trip-stepper--track" aria-label="Pasos para crear el viaje">
-      <li class="create-trip-step create-trip-step--current" data-step="1" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
-      <li class="create-trip-step create-trip-step--locked" data-step="2"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Recursos</span></li>
-      <li class="create-trip-step create-trip-step--locked" data-step="3"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
-    </ol>
-    <fieldset class="form-section full create-trip-fieldset create-trip-fieldset--step1 transport-trip-create-form__request">
-      <legend>${IC.compass} Solicitud</legend>
-      <div class="create-trip-request-stack">
-        <label class="create-trip-request-select-label">${fieldLabel(IC.inbox, "Solicitud pendiente", { required: true })}
+    </div>
+    <section class="assign-trip-block transport-trip-create-form__request" aria-labelledby="assign-trip-request-title">
+      <header class="assign-trip-block-head">
+        <h4 id="assign-trip-request-title" class="assign-trip-block-title">${IC.compass} Solicitud</h4>
+      </header>
+      <div class="assign-trip-block-body">
+        <label class="assign-trip-field assign-trip-field--request">
+          <span class="assign-trip-field-label">${IC.inbox} Pendiente <span class="create-trip-required" aria-hidden="true">*</span></span>
           <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
-            <option value="">${pendingForTrip.length ? "Seleccione la solicitud…" : pendingExpired.length ? "No hay solicitudes asignables hoy (hay vencidas)" : "No hay solicitudes pendientes"}</option>
+            <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : "Sin pendientes"}</option>
             ${pendingSelectOpts}
-            ${expiredPendingOpts ? `<optgroup label="No asignables hoy (fecha vencida)">${expiredPendingOpts}</optgroup>` : ""}
+            ${expiredPendingOpts ? `<optgroup label="Vencidas (no asignables)">${expiredPendingOpts}</optgroup>` : ""}
           </select>
         </label>
-        <div id="trip-request-preview" class="create-trip-summary-panel">
-          ${createTripEmptyHint("inbox", "Sin solicitud seleccionada", "Elija una solicitud aprobada para ver el resumen del trayecto.")}
+        <div id="trip-request-preview" class="assign-trip-preview create-trip-summary-panel">
+          ${createTripEmptyHint("inbox", "Seleccione una solicitud")}
         </div>
       </div>
-    </fieldset>
-    <fieldset class="form-section form-section-emerald create-trip-fieldset create-trip-fieldset--step2 transport-trip-create-form__resources">
-      <legend>${IC.truck} Vehículo y conductor</legend>
-      <div class="create-trip-surface create-trip-fleet-shell">
-        <div class="create-trip-fleet-head">
-          <div id="create-trip-fleet-stats" class="create-trip-fleet-stats" aria-live="polite"></div>
-          <div class="create-trip-flag-legend" role="list" aria-label="Significado de banderas">
-            <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
-            <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
-            <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
-          </div>
+    </section>
+    <section class="assign-trip-block assign-trip-block--fleet transport-trip-create-form__resources" aria-labelledby="assign-trip-fleet-title">
+      <header class="assign-trip-block-head">
+        <h4 id="assign-trip-fleet-title" class="assign-trip-block-title">${IC.truck} Vehículo y conductor</h4>
+        <div class="create-trip-flag-legend assign-trip-flags" role="list" aria-label="Banderas en listas">
+          <span class="create-trip-flag create-trip-flag--busy" role="listitem" title="Ocupado en otra ventana"><span class="create-trip-flag-dot"></span>Ocup.</span>
+          <span class="create-trip-flag create-trip-flag--offline" role="listitem" title="No disponible"><span class="create-trip-flag-dot"></span>No disp.</span>
+          <span class="create-trip-flag create-trip-flag--expired" role="listitem" title="Documentación vencida"><span class="create-trip-flag-dot"></span>Doc.</span>
         </div>
-        <div class="create-trip-fleet-grid">
-          <label class="create-trip-fleet-field create-trip-resource-card">
-            <span class="create-trip-resource-card-head">${IC.truck}<span>Vehículo</span><span class="create-trip-required">*</span></span>
-            <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por placa, tipo o capacidad…" disabled><option value="">— Elija solicitud primero —</option></select>
+      </header>
+      <div class="assign-trip-block-body">
+        <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
+        <div class="assign-trip-fleet-grid create-trip-fleet-grid">
+          <label class="assign-trip-fleet-field create-trip-fleet-field assign-trip-resource">
+            <span class="assign-trip-resource-label">${IC.truck} Vehículo <span class="create-trip-required" aria-hidden="true">*</span></span>
+            <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
           </label>
-          <label class="create-trip-fleet-field create-trip-resource-card">
-            <span class="create-trip-resource-card-head">${IC.user}<span>Conductor</span><span class="create-trip-required">*</span></span>
-            <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o teléfono…" disabled><option value="">— Elija solicitud primero —</option></select>
+          <label class="assign-trip-fleet-field create-trip-fleet-field assign-trip-resource">
+            <span class="assign-trip-resource-label">${IC.user} Conductor <span class="create-trip-required" aria-hidden="true">*</span></span>
+            <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
           </label>
         </div>
       </div>
-    </fieldset>
-    <fieldset class="form-section form-section-violet create-trip-fieldset create-trip-fieldset--step3 transport-trip-create-form__pricing">
-      <legend>${IC.dollar} Tarifa y precio</legend>
-      <div id="create-trip-rate-fields" class="create-trip-rate-surface create-trip-surface create-trip-surface--premium">
-        ${createTripEmptyHint("dollar", "Tarifa pendiente", "Al elegir la solicitud se cargarán las tarifas sugeridas para la ruta.")}
+    </section>
+    <section class="assign-trip-block assign-trip-block--rate transport-trip-create-form__pricing" aria-labelledby="assign-trip-rate-title">
+      <header class="assign-trip-block-head">
+        <h4 id="assign-trip-rate-title" class="assign-trip-block-title">${IC.dollar} Precio</h4>
+      </header>
+      <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface">
+        ${createTripEmptyHint("dollar", "Tarifa pendiente")}
       </div>
-    </fieldset>
-    <footer class="create-trip-submit-wrap">
-      <ul class="create-trip-readiness" data-create-trip-readiness aria-label="Estado de la asignación">
-        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Solicitud</span></li>
-        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Fecha válida</span></li>
-        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Vehículo</span></li>
-        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Conductor</span></li>
-        <li class="create-trip-readiness-item"><span class="create-trip-readiness-mark"></span><span>Precio</span></li>
-      </ul>
-      ${renderManagedCreateFormActions("create-trip", `<button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje y asignar</button>`, { className: "form-flow-actions create-trip-submit-actions" })}
+    </section>
+    <footer class="assign-trip-footer create-trip-submit-wrap">
+      <ul class="assign-trip-checklist create-trip-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
+      ${renderManagedCreateFormActions("create-trip", `<button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje</button>`, { className: "form-flow-actions create-trip-submit-actions assign-trip-submit-actions" })}
     </footer>
   </form>`;
 
@@ -17040,7 +17169,7 @@ function transportTripsHtml() {
     "create-trip",
     "truck",
     "Asignar viaje",
-    `${pendingForTrip.length} solicitud${pendingForTrip.length === 1 ? "" : "es"} pendiente${pendingForTrip.length === 1 ? "" : "s"} · flujo guiado en 3 pasos`,
+    `${pendingForTrip.length} pendiente${pendingForTrip.length === 1 ? "" : "s"} · 3 pasos`,
     createTripForm,
     "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip",
     "Abrir formulario"
@@ -22111,6 +22240,39 @@ function resolveDriverForEmployee(employee) {
   return drivers.find((d) => String(d.name || "").trim().toLowerCase() === name) || null;
 }
 
+const PORTAL_VEHICLE_TYPE_OPTIONS = ["Camion", "Turbo", "Tractomula", "Bus"];
+
+/** Fila de vehículo lista para modales de edición / ficha (catálogos y fechas YYYY-MM-DD). */
+function normalizeVehicleRowForEditor(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const v = { ...raw };
+  v.color = matchCatalogOptionValue(CO_CATALOGS.vehicleColors, v.color);
+  v.bodyType = matchCatalogOptionValue(CO_CATALOGS.bodyTypes, v.bodyType);
+  v.fuelType = matchCatalogOptionValue(CO_CATALOGS.fuelTypes, v.fuelType);
+  v.axleConfig = matchCatalogOptionValue(CO_CATALOGS.axleConfig, v.axleConfig);
+  const typeRaw = String(v.type || "").trim();
+  v.type =
+    PORTAL_VEHICLE_TYPE_OPTIONS.find((t) => t.toLowerCase() === typeRaw.toLowerCase()) || typeRaw;
+  v.soatExpeditionDate = normalizePortalDateYmd(v.soatExpeditionDate);
+  v.soatExpiryDate = normalizePortalDateYmd(v.soatExpiryDate);
+  v.techInspectionExpeditionDate = normalizePortalDateYmd(v.techInspectionExpeditionDate);
+  v.techInspectionExpiryDate = normalizePortalDateYmd(v.techInspectionExpiryDate);
+  v.rcPolicyExpiry = normalizePortalDateYmd(v.rcPolicyExpiry);
+  return v;
+}
+
+/** Estado del curso defensivo para selects del portal (`vigente` | `vencido` | `no_aplica`). */
+function normalizeDefensiveCourseForPortal(raw) {
+  const v = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (v === "vigente" || v === "vencido" || v === "no_aplica") return v;
+  if (/vencid/.test(v)) return "vencido";
+  if (/no\s*aplica/.test(v)) return "no_aplica";
+  if (/vigent/.test(v)) return "vigente";
+  return "";
+}
+
 /**
  * Fila de conductor lista para modales de edición: fechas en YYYY-MM-DD, alias API↔portal
  * y campos que solo viven en RRHH (tipo sangre, EPS, ARL) si el documento coincide.
@@ -22134,36 +22296,59 @@ function normalizeDriverRowForEditor(raw) {
   }
   d.psychoTestDate = d.occupationalExamDate;
   d.psychoTestExpiry = d.occupationalExamExpiry;
+  d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
+  d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
+
+  const emp = findPayrollEmployeeByIdDoc(d.idDoc);
+  if (emp && typeof emp === "object") {
+    const fill = (key) => {
+      const cur = d[key];
+      const empty = cur == null || (typeof cur === "string" && !String(cur).trim());
+      if (empty && emp[key] != null && String(emp[key]).trim() !== "") d[key] = emp[key];
+    };
+    fill("bloodType");
+    fill("eps");
+    fill("arl");
+    fill("comparendos");
+    fill("experienceYears");
+    fill("defensiveCourse");
+    fill("defensiveCourseExpiry");
+    fill("emergencyContact");
+    fill("emergencyPhone");
+    fill("license");
+    fill("licenseCategory");
+    fill("licenseExpiry");
+    fill("occupationalExamDate");
+    fill("occupationalExamExpiry");
+    fill("instruvialExamDate");
+    fill("instruvialExamExpiry");
+    if (!String(d.photoUrl || "").trim()) {
+      const av = String(emp.avatarUrl || emp.photoUrl || "").trim();
+      if (av) d.photoUrl = av;
+    }
+  }
+
   const defPick =
     d.defensiveCourse != null && String(d.defensiveCourse).trim() !== ""
       ? d.defensiveCourse
       : d.defensiveDrivingCourse;
-  d.defensiveCourse = String(defPick || "").trim();
+  d.defensiveCourse = normalizeDefensiveCourseForPortal(defPick);
+  d.bloodType = matchCatalogOptionValue(CO_CATALOGS.bloodTypes, d.bloodType);
+  d.licenseCategory = matchCatalogOptionValue(CO_CATALOGS.licenseCategories, d.licenseCategory);
+  d.eps = matchCatalogOptionValue(CO_CATALOGS.eps, d.eps);
+  d.arl = matchCatalogOptionValue(CO_CATALOGS.arl, d.arl);
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
   d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
-  const idDoc = String(d.idDoc || "").trim();
-  if (idDoc) {
-    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.idDoc || "").trim() === idDoc);
-    if (emp && typeof emp === "object") {
-      const fill = (key) => {
-        const cur = d[key];
-        const empty = cur == null || (typeof cur === "string" && !String(cur).trim());
-        if (empty && emp[key] != null && String(emp[key]).trim() !== "") d[key] = emp[key];
-      };
-      fill("bloodType");
-      fill("eps");
-      fill("arl");
-      fill("comparendos");
-      fill("experienceYears");
-      fill("defensiveCourseExpiry");
-      fill("emergencyContact");
-      fill("emergencyPhone");
-      fill("occupationalExamDate");
-      fill("occupationalExamExpiry");
-      fill("instruvialExamDate");
-      fill("instruvialExamExpiry");
-    }
+  d.occupationalExamDate = normalizePortalDateYmd(d.occupationalExamDate);
+  d.instruvialExamDate = normalizePortalDateYmd(d.instruvialExamDate);
+  if (d.occupationalExamDate && !d.occupationalExamExpiry) {
+    d.occupationalExamExpiry = addOneYearToYmd(d.occupationalExamDate);
   }
+  if (d.instruvialExamDate && !d.instruvialExamExpiry) {
+    d.instruvialExamExpiry = addOneYearToYmd(d.instruvialExamDate);
+  }
+  const phoneDisp = formatPortalPhoneForDisplay(d.phone);
+  if (phoneDisp) d.phone = phoneDisp;
   return d;
 }
 
@@ -30294,15 +30479,16 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const vid = String(btn.dataset.id || "").trim();
       const all = read(KEYS.vehicles, []);
-      const target = all.find((v) => String(v.id || "").trim() === vid);
+      const rawTarget = all.find((v) => String(v.id || "").trim() === vid);
+      const target = normalizeVehicleRowForEditor(rawTarget);
       if (!target) {
         notify("No se encontró el vehículo. Actualice la página.", "error");
         return;
       }
-      const colorOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.vehicleColors.map((c) => ({ value: c, label: c }))];
-      const bodyOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bodyTypes.map((b) => ({ value: b, label: b }))];
-      const fuelOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.fuelTypes.map((f) => ({ value: f, label: f }))];
-      const axleOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.axleConfig.map((a) => ({ value: a, label: a }))];
+      const colorOpts = editModalCatalogSelectOptions(CO_CATALOGS.vehicleColors, target.color);
+      const bodyOpts = editModalCatalogSelectOptions(CO_CATALOGS.bodyTypes, target.bodyType);
+      const fuelOpts = editModalCatalogSelectOptions(CO_CATALOGS.fuelTypes, target.fuelType);
+      const axleOpts = editModalCatalogSelectOptions(CO_CATALOGS.axleConfig, target.axleConfig);
       const vehicleTypeOpts = [
         { value: "", label: "Seleccione..." },
         { value: "Camion", label: "Camión / rígido" },
@@ -30310,6 +30496,9 @@ function bindDynamicEvents() {
         { value: "Tractomula", label: "Tractomula" },
         { value: "Bus", label: "Bus" }
       ];
+      if (target.type && !vehicleTypeOpts.some((o) => String(o.value) === String(target.type))) {
+        vehicleTypeOpts.push({ value: target.type, label: target.type });
+      }
       openEditModal({
         title: "Editar camión",
         subtitle: target.plate,
@@ -30349,22 +30538,22 @@ function bindDynamicEvents() {
             name: "soatExpeditionDate",
             label: "Expedición SOAT",
             type: "date",
-            value: normalizePortalDateYmd(target.soatExpeditionDate),
+            value: target.soatExpeditionDate || "",
             required: true
           },
-          { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: normalizePortalDateYmd(target.soatExpiryDate) },
+          { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: target.soatExpiryDate || "" },
           {
             name: "techInspectionExpeditionDate",
             label: "Expedición tecnomecánica",
             type: "date",
-            value: normalizePortalDateYmd(target.techInspectionExpeditionDate),
+            value: target.techInspectionExpeditionDate || "",
             required: true
           },
           {
             name: "techInspectionExpiryDate",
             label: "Vence tecnomecánica",
             type: "date",
-            value: normalizePortalDateYmd(target.techInspectionExpiryDate)
+            value: target.techInspectionExpiryDate || ""
           },
           { name: "rcPolicyContract", label: "Póliza RC contractual N°", value: target.rcPolicyContract || "" },
           { name: "rcPolicyExtra", label: "Póliza RC extracontractual N°", value: target.rcPolicyExtra || "" },
@@ -30481,10 +30670,13 @@ function bindDynamicEvents() {
             initials.slice(0, 1) || "C"
           )}</span>`;
 
-      const licenseCatOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.licenseCategories.map((item) => ({ value: item, label: item }))];
-      const bloodOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.bloodTypes.map((item) => ({ value: item, label: item }))];
-      const epsOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.eps.map((item) => ({ value: item, label: item }))];
-      const arlOpts = [{ value: "", label: "Seleccione..." }, ...CO_CATALOGS.arl.map((item) => ({ value: item, label: item }))];
+      const licenseCatOpts = editModalCatalogSelectOptions(
+        CO_CATALOGS.licenseCategories,
+        target.licenseCategory
+      );
+      const bloodOpts = editModalCatalogSelectOptions(CO_CATALOGS.bloodTypes, target.bloodType);
+      const epsOpts = editModalCatalogSelectOptions(CO_CATALOGS.eps, target.eps);
+      const arlOpts = editModalCatalogSelectOptions(CO_CATALOGS.arl, target.arl);
       const linkedEmployee = findPayrollEmployeeByIdDoc(target.idDoc);
       const hrLinkNotice = linkedEmployee
         ? `<p class="full muted modal-field-hint" style="margin:0 0 0.5rem">
@@ -30510,7 +30702,7 @@ function bindDynamicEvents() {
               <div class="driver-edit-photo-oval">${photoOvalInner}</div>
               <label class="full driver-edit-photo-hint">
                 <span>Foto del conductor</span>
-                <input type="file" name="driverPhotoFile" accept="image/*" />
+                <input type="file" name="driverPhotoFile" accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png" />
                 <input type="hidden" name="photoUrlExisting" value="${escapeAttr(existingPhoto)}" />
               </label>
               <p class="full muted modal-field-hint" style="text-align:center;font-size:0.8rem;margin:0">
@@ -30546,6 +30738,19 @@ function bindDynamicEvents() {
           { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
           { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 }
         ],
+        afterMount: (formEl) => {
+          if (!formEl) return;
+          [
+            ["bloodType", target.bloodType],
+            ["licenseCategory", target.licenseCategory],
+            ["eps", target.eps],
+            ["arl", target.arl],
+            ["defensiveCourse", target.defensiveCourse]
+          ].forEach(([name, val]) => {
+            const sel = formEl.querySelector(`select[name="${name}"]`);
+            if (sel && val) setFormSelectValue(sel, val);
+          });
+        },
         onSubmit: async (_form, formEl) => {
           const expiryValue = String(formEl?.querySelector?.("input[name='licenseExpiry']")?.value ?? "").trim();
           if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
@@ -30862,6 +31067,7 @@ function bindDynamicEvents() {
 
   const employeeForm = document.getElementById("form-employee");
   if (employeeForm) {
+    window.AntaresValidation?.decorateFormFields?.(employeeForm);
     wirePayrollEmployeeFormFieldSanitization(employeeForm);
     attachDepartmentCitySelects(employeeForm, {
       departmentSelector: "select[name='department']",
@@ -30958,12 +31164,22 @@ function bindDynamicEvents() {
       const prefillCandidate = read(KEYS.candidates, []).find((c) => String(c.id) === prefillCandidateId);
       if (prefillCandidate) {
         applyCandidateToEmployeeForm(employeeForm, prefillCandidate);
+        const birthIso = normalizePortalDateYmd(prefillCandidate.birthDate);
+        if (birthIso) {
+          window.AntaresValidation?.setPortalFormDateByName?.(employeeForm, "birthDate", birthIso);
+        }
+        window.AntaresValidation?.setPortalFormDateByName?.(
+          employeeForm,
+          "startDate",
+          colombiaTodayIsoDate()
+        );
         employeeCompRule.sync({ force: true });
         syncPlazoVisibility();
         syncFixedTermEnd();
         notify(`Formulario precargado desde candidato «${String(prefillCandidate.name || "").trim()}». Complete seguridad social y banco.`, "info");
       }
     }
+    syncFixedTermEnd();
     const employeeContractDraftLockButtons = [
       employeeForm.querySelector(".hr-form-wizard-submit"),
       employeeForm.querySelector("[data-hr-wizard-next]"),

@@ -331,6 +331,45 @@
     visibleEl.value = ymd ? formatIsoDateToDmy(ymd) : "";
   }
 
+  /** Asigna una fecha ISO (YYYY-MM-DD) por `name`, sincronizando visible DMY e input oculto. */
+  function setPortalFormDateByName(form, fieldName, isoYmd) {
+    if (!form || !fieldName) return;
+    const ymd = isValidIsoDate(isoYmd)
+      ? String(isoYmd).trim().slice(0, 10)
+      : parseDmyToIsoDate(isoYmd) || "";
+    if (!ymd) return;
+    const esc =
+      typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(String(fieldName))
+        : String(fieldName).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const hidden = form.querySelector(
+      `input[type="hidden"][name="${esc}"][data-portal-date-iso="1"]`
+    );
+    if (hidden) {
+      hidden.value = ymd;
+      const vis = hidden.previousElementSibling;
+      if (vis?.classList?.contains("portal-date-dmy")) {
+        portalDateInputSetIso(vis, ymd);
+        return;
+      }
+    }
+    let el =
+      form.querySelector(`input[name="${esc}"]`) ||
+      form.querySelector(`input[type="date"]#${esc}`);
+    if (!el) return;
+    if (el.classList.contains("portal-date-dmy")) {
+      portalDateInputSetIso(el, ymd);
+      return;
+    }
+    if (String(el.type || "").toLowerCase() === "date") {
+      el.value = ymd;
+      mountPortalDateDmyInput(el);
+      portalDateInputSetIso(el, ymd);
+      return;
+    }
+    el.value = ymd;
+  }
+
   function syncPortalDateHiddenFromVisible(visibleEl) {
     const iso = parseDmyToIsoDate(visibleEl?.value);
     const hidden = findPortalDateIsoHidden(visibleEl);
@@ -391,9 +430,187 @@
     return el;
   }
 
-  function upgradePortalDateInputs(root) {
+  function parseDatetimeLocalValue(raw) {
+    const s = String(raw ?? "").trim();
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return { dateIso: "", time: "" };
+    return { dateIso: m[1], time: `${m[2]}:${m[3]}` };
+  }
+
+  function composeDatetimeLocalIso(dateIso, timeHHmm) {
+    const d = isValidIsoDate(dateIso) ? String(dateIso).trim().slice(0, 10) : "";
+    const t = String(timeHHmm || "").trim();
+    if (!d || !/^\d{2}:\d{2}$/.test(t)) return "";
+    return `${d}T${t}`;
+  }
+
+  function findPortalDatetimeHidden(wrap) {
+    if (!wrap) return null;
+    return wrap.querySelector('input[type="hidden"][data-portal-datetime-iso="1"]');
+  }
+
+  function portalDatetimeInputValueIso(host) {
+    if (!host) return "";
+    if (String(host.type || "").toLowerCase() === "datetime-local") {
+      return String(host.value || "").trim();
+    }
+    const wrap = host.closest?.(".portal-datetime-dmy-row");
+    const hidden = findPortalDatetimeHidden(wrap);
+    return String(hidden?.value || "").trim();
+  }
+
+  function portalDatetimeInputSetIso(host, iso) {
+    if (!host) return;
+    const v = String(iso ?? "").trim();
+    if (String(host.type || "").toLowerCase() === "datetime-local") {
+      host.value = v;
+      return;
+    }
+    const wrap = host.closest?.(".portal-datetime-dmy-row");
+    if (!wrap) return;
+    const hidden = findPortalDatetimeHidden(wrap);
+    const { dateIso, time } = parseDatetimeLocalValue(v);
+    const dateVis = wrap.querySelector(".portal-date-dmy");
+    const timeEl = wrap.querySelector(".portal-datetime-dmy__time");
+    if (dateVis) portalDateInputSetIso(dateVis, dateIso);
+    if (timeEl) timeEl.value = time || "";
+    if (hidden) hidden.value = composeDatetimeLocalIso(dateIso, time || timeEl?.value) || "";
+  }
+
+  function wirePortalDatetimeRow(wrap) {
+    const sync = () => {
+      const hidden = findPortalDatetimeHidden(wrap);
+      if (!hidden) return;
+      const dateVis = wrap.querySelector(".portal-date-dmy");
+      const timeEl = wrap.querySelector(".portal-datetime-dmy__time");
+      const isoDate = portalDateInputValueIso(dateVis);
+      const time = String(timeEl?.value || "").trim().slice(0, 5);
+      hidden.value = composeDatetimeLocalIso(isoDate, time);
+    };
+    wrap.querySelector(".portal-date-dmy")?.addEventListener("input", sync);
+    wrap.querySelector(".portal-date-dmy")?.addEventListener("blur", sync);
+    wrap.querySelector(".portal-datetime-dmy__time")?.addEventListener("input", sync);
+    wrap.querySelector(".portal-datetime-dmy__time")?.addEventListener("change", sync);
+    sync();
+  }
+
+  function mountPortalDatetimeDmyInput(el) {
+    if (!el || el.dataset.portalDatetimeDmyMounted === "1") return el;
+    if (String(el.type || "").toLowerCase() !== "datetime-local") return el;
+    el.dataset.portalDatetimeDmyMounted = "1";
+
+    const fieldName = String(el.name || "").trim();
+    const seed = String(el.value || "").trim();
+    const { dateIso, time } = parseDatetimeLocalValue(seed);
+    const uid = `pdt-${++portalDateUidSeq}`;
+    const required = el.required;
+    const step = el.getAttribute("step") || "60";
+    const min = el.getAttribute("min") || "";
+    const max = el.getAttribute("max") || "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "portal-datetime-dmy-row";
+    wrap.dataset.portalDatetimeDmyMounted = "1";
+    wrap.dataset.portalDatetimeUid = uid;
+
+    const dateEl = document.createElement("input");
+    dateEl.type = "date";
+    dateEl.value = dateIso;
+    if (required) dateEl.required = true;
+    if (min) dateEl.min = min.slice(0, 10);
+    if (max) dateEl.max = max.slice(0, 10);
+
+    const timeEl = document.createElement("input");
+    timeEl.type = "time";
+    timeEl.className = "portal-datetime-dmy__time";
+    timeEl.step = step;
+    timeEl.value = time || "";
+    if (required) timeEl.required = true;
+
+    wrap.appendChild(dateEl);
+    wrap.appendChild(timeEl);
+    mountPortalDateDmyInput(dateEl);
+
+    if (fieldName) {
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = fieldName;
+      hidden.dataset.portalDatetimeIso = "1";
+      hidden.dataset.portalDatetimeFor = uid;
+      hidden.value = seed;
+      wrap.appendChild(hidden);
+    }
+
+    el.replaceWith(wrap);
+    wirePortalDatetimeRow(wrap);
+    return wrap;
+  }
+
+  function upgradePortalDateFields(root) {
     const scope = root && root.querySelectorAll ? root : document;
-    scope.querySelectorAll('input[type="date"]').forEach((el) => mountPortalDateDmyInput(el));
+    scope
+      .querySelectorAll('input[type="date"]:not([data-portal-date-dmy-mounted])')
+      .forEach((el) => mountPortalDateDmyInput(el));
+    scope
+      .querySelectorAll('input[type="datetime-local"]:not([data-portal-datetime-dmy-mounted])')
+      .forEach((el) => mountPortalDatetimeDmyInput(el));
+  }
+
+  /** Tras montar DMY, alinea el visible con el ISO del hidden (p. ej. value="YYYY-MM-DD" en HTML). */
+  function resyncPortalDateValuesInRoot(root) {
+    const scope = root && root.querySelectorAll ? root : document;
+    scope
+      .querySelectorAll('input[type="hidden"][data-portal-date-iso="1"]')
+      .forEach((hidden) => {
+        const iso = String(hidden.value || "").trim();
+        const vis = hidden.previousElementSibling;
+        if (!vis?.classList?.contains("portal-date-dmy")) return;
+        if (iso && isValidIsoDate(iso)) portalDateInputSetIso(vis, iso);
+      });
+    scope.querySelectorAll(".portal-datetime-dmy-row").forEach((wrap) => {
+      const hidden = findPortalDatetimeHidden(wrap);
+      if (!hidden?.value) return;
+      const dateVis = wrap.querySelector(".portal-date-dmy");
+      const timeEl = wrap.querySelector(".portal-datetime-dmy__time");
+      const { dateIso, time } = parseDatetimeLocalValue(hidden.value);
+      if (dateVis && dateIso) portalDateInputSetIso(dateVis, dateIso);
+      if (timeEl && time) timeEl.value = time;
+    });
+  }
+
+  function clearPortalDateInput(el) {
+    if (!el) return;
+    if (String(el.type || "").toLowerCase() === "hidden" && el.dataset.portalDateIso === "1") {
+      const vis = el.previousElementSibling;
+      el.value = "";
+      if (vis?.classList?.contains("portal-date-dmy")) portalDateInputSetIso(vis, "");
+      return;
+    }
+    portalDateInputSetIso(el, "");
+  }
+
+  const upgradePortalDateInputs = upgradePortalDateFields;
+
+  let portalDateObserverInstalled = false;
+  let portalDateUpgradeTimer = null;
+
+  function scheduleUpgradePortalDateFields(root) {
+    if (typeof window === "undefined") return;
+    clearTimeout(portalDateUpgradeTimer);
+    portalDateUpgradeTimer = setTimeout(() => {
+      const scope = root || document;
+      upgradePortalDateFields(scope);
+      resyncPortalDateValuesInRoot(scope);
+    }, 0);
+  }
+
+  function installPortalDateFieldObserver(rootEl) {
+    if (portalDateObserverInstalled || typeof MutationObserver === "undefined") return;
+    const target = rootEl === document ? document.body : rootEl;
+    if (!target) return;
+    portalDateObserverInstalled = true;
+    const obs = new MutationObserver(() => scheduleUpgradePortalDateFields(document));
+    obs.observe(target, { childList: true, subtree: true });
   }
 
   function parsePercent(raw) {
@@ -454,7 +671,7 @@
   }
 
   const FORM_GUARD_SELECTOR =
-    "form.p-form, form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, form.hr-form-flow, #b2b-form, form.calendar-filters-bar, form.history-filter-form, form.history-fleet-filter-form, form.payroll-data-toolbar-filters";
+    'form.p-form, form[id^="form-"], form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, form.hr-form-flow, #b2b-form, form.calendar-filters-bar, form.history-filter-form, form.history-fleet-filter-form, form.history-fleet-create-form, form.payroll-data-toolbar-filters, form.transport-route-form, form.assign-trip-form, form.create-trip-form, form.profile-form, form.payroll-legal-form';
 
   /** Nombres de campo → reglas Antares (solo si el input aún no tiene `data-antares-field`). */
   const FIELD_NAME_RULES = [
@@ -509,6 +726,9 @@
   function resolveFieldRules(name, el) {
     const n = String(name || "");
     const tagName = String(el?.tagName || "").toUpperCase();
+    if (el?.classList?.contains("portal-date-dmy")) {
+      return { field: "date-dmy", blur: "date-dmy", restrict: "date-dmy" };
+    }
     /** Clave de catálogo (`ruta@@empresas`), no un importe — no aplicar reglas numéricas. */
     if (n === "tripRateChoice" || n === "costCenter" || el?.getAttribute?.("data-antares-skip-validate") === "1") {
       if (n === "costCenter") return { field: "db-upper", blur: "db-upper" };
@@ -601,13 +821,25 @@
         el.setAttribute("data-antares-validate-blur", "required-select");
       }
     });
-    upgradePortalDateInputs(form);
+    upgradePortalDateFields(form);
     form.setAttribute("data-antares-decorated", "1");
   }
 
   function prepareFormsInRoot(root) {
     const scope = root && root.querySelectorAll ? root : document;
-    scope.querySelectorAll(FORM_GUARD_SELECTOR).forEach((form) => decorateFormFields(form));
+    upgradePortalDateFields(scope);
+    resyncPortalDateValuesInRoot(scope);
+    const decorated = new Set();
+    scope.querySelectorAll(FORM_GUARD_SELECTOR).forEach((form) => {
+      decorateFormFields(form);
+      decorated.add(form);
+    });
+    scope.querySelectorAll("form").forEach((form) => {
+      if (decorated.has(form)) return;
+      if (form.querySelector('input[type="date"], input[type="datetime-local"], .portal-date-dmy')) {
+        decorateFormFields(form);
+      }
+    });
   }
 
   let submitGuardInstalled = false;
@@ -1222,6 +1454,8 @@
 
   function installLiveValidation(root) {
     const rootEl = root && root.addEventListener ? root : document;
+    upgradePortalDateFields(rootEl);
+    if (rootEl === document) installPortalDateFieldObserver(document);
     if (liveRoots.has(rootEl)) return;
     liveRoots.add(rootEl);
     rootEl.addEventListener(
@@ -1273,8 +1507,16 @@
     parseDmyToIsoDate,
     portalDateInputValueIso,
     portalDateInputSetIso,
+    setPortalFormDateByName,
+    resyncPortalDateValuesInRoot,
+    clearPortalDateInput,
     mountPortalDateDmyInput,
+    mountPortalDatetimeDmyInput,
+    upgradePortalDateFields,
     upgradePortalDateInputs,
+    portalDatetimeInputValueIso,
+    portalDatetimeInputSetIso,
+    scheduleUpgradePortalDateFields,
     parsePercent,
     parseMoneyNumber,
     sanitizeOneLineText,
@@ -1294,4 +1536,14 @@
     installLiveValidation,
     applyRestrictToValue
   };
+
+  if (typeof document !== "undefined") {
+    const boot = () => {
+      upgradePortalDateFields(document);
+      resyncPortalDateValuesInRoot(document);
+      installPortalDateFieldObserver(document);
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+    else boot();
+  }
 })();
