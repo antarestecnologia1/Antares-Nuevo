@@ -544,6 +544,8 @@ const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "in
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
 const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
 const TRANSPORT_TRIPS_WORKSPACES = new Set(["trips", "routes"]);
+const TRANSPORT_TRIPS_LAYOUTS = new Set(["cards", "compact"]);
+const TRANSPORT_TRIPS_SORTS = new Set(["pickup_asc", "pickup_desc", "value_desc", "value_asc", "status"]);
 const ADMIN_USERS_SECTIONS = new Set(["actions", "pending", "users", "companies", "sessions"]);
 const HISTORY_WORKSPACES = new Set(["explore", "fleet", "audit"]);
 
@@ -575,6 +577,16 @@ function normalizeVehicleWorkspaceSection(value) {
 function normalizeTransportTripsWorkspace(value) {
   const v = String(value || "trips");
   return TRANSPORT_TRIPS_WORKSPACES.has(v) ? v : "trips";
+}
+
+function normalizeTransportTripsLayout(value) {
+  const v = String(value || "cards");
+  return TRANSPORT_TRIPS_LAYOUTS.has(v) ? v : "cards";
+}
+
+function normalizeTransportTripsSort(value) {
+  const v = String(value || "pickup_asc");
+  return TRANSPORT_TRIPS_SORTS.has(v) ? v : "pickup_asc";
 }
 
 function normalizeAdminUsersSection(value, hasPending = false) {
@@ -5322,7 +5334,10 @@ let state = {
     workspace: "fleet"
   },
   transportTripsUi: {
-    workspace: "trips"
+    workspace: "trips",
+    search: "",
+    sort: "pickup_asc",
+    layout: "cards"
   },
   requestsUi: {
     companyId: ""
@@ -17017,8 +17032,11 @@ function transportTripsHtml() {
   const todayIso = colombiaTodayIsoDate();
   const todaysTrips = trips.filter((r) => requestPickupIsoDate(r) === todayIso).length;
   const departmentsOpts = departmentOptions();
-  const transportTripsUi = state.transportTripsUi || { workspace: "trips" };
+  const transportTripsUi = state.transportTripsUi || {};
   const transportTripsWorkspace = normalizeTransportTripsWorkspace(transportTripsUi.workspace);
+  const tripsSearch = String(transportTripsUi.search || "").trim().toLowerCase();
+  const tripsSort = normalizeTransportTripsSort(transportTripsUi.sort);
+  const tripsLayout = normalizeTransportTripsLayout(transportTripsUi.layout);
 
   /**
    * Filtros rápidos del módulo: dejamos una sola vista (tarjetas) reemplazando
@@ -17032,10 +17050,32 @@ function transportTripsHtml() {
     if (filter === "standby") return trips.filter((r) => parseNum(r.standbyChargeTotal) > 0);
     if (filter === "all") return trips;
     return trips.filter((r) => tripRequestStatusIsOperational(r.status));
-  })();
-  const sortedFilteredTrips = filteredTrips
-    .slice()
-    .sort((a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime());
+  })()
+    .filter((r) => {
+      if (!tripsSearch) return true;
+      const hay = [
+        r.requestNumber,
+        r.trip?.tripNumber,
+        r.clientName,
+        r.originCity,
+        r.originDepartment,
+        r.destinationCity,
+        r.destinationDepartment,
+        r.trip?.vehiclePlate,
+        r.trip?.driverName,
+        r.status
+      ]
+        .map((v) => String(v || "").toLowerCase())
+        .join(" ");
+      return hay.includes(tripsSearch);
+    });
+  const sortedFilteredTrips = filteredTrips.slice().sort((a, b) => {
+    if (tripsSort === "pickup_desc") return new Date(rSafePickup(b)).getTime() - new Date(rSafePickup(a)).getTime();
+    if (tripsSort === "value_desc") return parseNum(b.tripValue || 0) - parseNum(a.tripValue || 0);
+    if (tripsSort === "value_asc") return parseNum(a.tripValue || 0) - parseNum(b.tripValue || 0);
+    if (tripsSort === "status") return String(a.status || "").localeCompare(String(b.status || ""), "es", { sensitivity: "base" });
+    return new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime();
+  });
 
   const buildTripOpsCard = (r) => {
     const standby = parseNum(r.standbyChargeTotal);
@@ -17057,7 +17097,7 @@ function transportTripsHtml() {
           </select>
         </label>`
       : "";
-    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
+    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}${tripsLayout === "compact" ? " trip-ops-card--compact" : ""}" data-trip-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
         <div class="trip-ops-card-head-info">
           <p class="trip-ops-card-kicker">Viaje ${escapeHtml(String(r.trip?.tripNumber || "-"))} · Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
@@ -17105,10 +17145,30 @@ function transportTripsHtml() {
     ${filterPill("closed", "Cerrados", completedTrips)}
     ${filterPill("all", "Todos", trips.length)}
   </div>`;
+  const opsToolbar = `<div class="transport-ops-toolbar">
+    <label class="transport-ops-search">
+      <span class="muted">${IC.search || IC.eye} Buscar</span>
+      <input type="search" data-action="transport-trips-search" value="${escapeAttr(String(transportTripsUi.search || ""))}" placeholder="Cliente, ruta, placa, conductor, estado..." />
+    </label>
+    <label class="transport-ops-sort">
+      <span class="muted">${IC.filter || IC.activity} Orden</span>
+      <select data-action="transport-trips-sort">
+        <option value="pickup_asc" ${tripsSort === "pickup_asc" ? "selected" : ""}>Recogida (próxima primero)</option>
+        <option value="pickup_desc" ${tripsSort === "pickup_desc" ? "selected" : ""}>Recogida (más reciente primero)</option>
+        <option value="value_desc" ${tripsSort === "value_desc" ? "selected" : ""}>Tarifa (mayor a menor)</option>
+        <option value="value_asc" ${tripsSort === "value_asc" ? "selected" : ""}>Tarifa (menor a mayor)</option>
+        <option value="status" ${tripsSort === "status" ? "selected" : ""}>Estado (A-Z)</option>
+      </select>
+    </label>
+    <div class="transport-ops-layout" role="group" aria-label="Vista de tarjetas">
+      <button type="button" class="btn btn-sm ${tripsLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="cards">Detallada</button>
+      <button type="button" class="btn btn-sm ${tripsLayout === "compact" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="compact">Compacta</button>
+    </div>
+  </div>`;
 
   const opsCards = sortedFilteredTrips.length
-    ? `${opsFiltersBar}<div class="trip-ops-cards">${sortedFilteredTrips.map(buildTripOpsCard).join("")}</div>`
-    : `${opsFiltersBar}${emptyState("No hay viajes para el filtro seleccionado.")}`;
+    ? `${opsFiltersBar}${opsToolbar}<div class="trip-ops-cards${tripsLayout === "compact" ? " trip-ops-cards--compact" : ""}">${sortedFilteredTrips.map(buildTripOpsCard).join("")}</div>`
+    : `${opsFiltersBar}${opsToolbar}${emptyState("No hay viajes para el filtro seleccionado o búsqueda aplicada.")}`;
 
   const formatRatePlaceLabel = (part) => {
     const s = String(part || "").trim();
@@ -17377,8 +17437,10 @@ function transportTripsHtml() {
           <h3>Viajes</h3>
           <p class="ops-block-lead muted">Administra la asignación operativa y consulta los viajes del día, activos, en standby o cerrados sin mezclar este flujo con el catálogo de trayectos.</p>
         </header>
-        ${tripsCreateCard}
-        ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}
+        <div class="transport-trips-grid">
+          <div class="transport-trips-grid__create">${tripsCreateCard}</div>
+          <div class="transport-trips-grid__ops">${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}</div>
+        </div>
       </section>
     </div>`;
   const routesPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "routes" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="routes"${transportTripsWorkspace === "routes" ? "" : " hidden"}>
@@ -17387,12 +17449,27 @@ function transportTripsHtml() {
           <h3>Trayectos</h3>
           <p class="ops-block-lead muted">Mantén aparte el catálogo de rutas y tarifas por cliente para que el equipo configure precios sugeridos sin interferir con la operación diaria de viajes.</p>
         </header>
-        ${routesCreateCard}
-        ${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}
+        <div class="transport-trips-grid">
+          <div class="transport-trips-grid__create">${routesCreateCard}</div>
+          <div class="transport-trips-grid__ops">${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}</div>
+        </div>
       </section>
     </div>`;
+  const transportTripsHero = `<section class="transport-trips-hero">
+    <div class="transport-trips-hero__main">
+      <p class="users-hero-kicker">Centro operativo de transporte</p>
+      <h2>Viajes, recursos y tarifas en un solo flujo</h2>
+      <p class="muted">Rediseño unificado para asignar viajes más rápido, auditar operación en tiempo real y mantener el catálogo de rutas sin ruido.</p>
+    </div>
+    <div class="transport-trips-hero__stats">
+      <div class="transport-trips-kpi"><span>Activos</span><strong>${activeOps}</strong></div>
+      <div class="transport-trips-kpi"><span>Hoy</span><strong>${todaysTrips}</strong></div>
+      <div class="transport-trips-kpi"><span>Standby</span><strong>${standbyTrips}</strong></div>
+      <div class="transport-trips-kpi"><span>Cerrados</span><strong>${completedTrips}</strong></div>
+    </div>
+  </section>`;
 
-  return `${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
+  return `${transportTripsHero}${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
 }
 
 function transportCalendarHtml() {
@@ -27498,6 +27575,37 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const filterKey = String(btn.dataset.filter || "active");
       state.tripsFilter = filterKey;
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='transport-trips-search']").forEach((input) => {
+    input.addEventListener("input", () => {
+      const next = String(input.value || "");
+      state.transportTripsUi = {
+        ...(state.transportTripsUi || {}),
+        search: next
+      };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='transport-trips-sort']").forEach((select) => {
+    select.addEventListener("change", () => {
+      state.transportTripsUi = {
+        ...(state.transportTripsUi || {}),
+        sort: normalizeTransportTripsSort(select.value)
+      };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='transport-trips-layout']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.transportTripsUi = {
+        ...(state.transportTripsUi || {}),
+        layout: normalizeTransportTripsLayout(btn.dataset.layout)
+      };
       renderPortalView();
     });
   });
