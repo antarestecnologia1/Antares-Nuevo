@@ -9122,15 +9122,6 @@ function renderSearchableSelectDropdown(selectEl, filterText = "") {
 function positionSearchableSelectDropdown(selectEl) {
   const parts = getSearchableSelectParts(selectEl);
   if (!parts?.list || !parts.input) return;
-  const useFixed = Boolean(selectEl.closest?.("#form-create-trip, .modal-body, .auth-modal"));
-  if (!useFixed) {
-    parts.list.classList.remove("searchable-select-dropdown--fixed");
-    parts.list.style.left = "";
-    parts.list.style.top = "";
-    parts.list.style.width = "";
-    parts.list.style.maxHeight = "";
-    return;
-  }
   const rect = parts.input.getBoundingClientRect();
   const viewportW = Math.max(document.documentElement?.clientWidth || 0, window.innerWidth || 0);
   const viewportH = Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
