@@ -17613,10 +17613,7 @@ function transportTripsHtml() {
   );
   const tripsPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "trips" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="trips"${transportTripsWorkspace === "trips" ? "" : " hidden"}>
       <section class="ops-block transport-workspace-stack">
-        <header class="payroll-panel-intro ops-block-head">
-          <h3>Viajes</h3>
-          <p class="ops-block-lead muted">Administra la asignación operativa y consulta los viajes del día, activos, en standby o cerrados sin mezclar este flujo con el catálogo de trayectos.</p>
-        </header>
+
         ${tripsCreateCard}
         ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}
       </section>
