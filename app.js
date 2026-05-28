@@ -32589,6 +32589,11 @@ function bindDynamicEvents() {
       const paidAtLabel = run?.paidAt ? fmtDate(run.paidAt) : "-";
       const logoSrc = payrollDocumentLogoUrl(company);
       const logoAlt = `Logo de ${String(company?.name || "Transportes Antares")}`;
+      const cleanSlipText = (value) =>
+        String(value ?? "")
+          .replace(/^\s*[A-Z]?\d{4,}\s*[-.:]\s*/i, "")
+          .replace(/^\s*\d{4,}\s+/i, "")
+          .trim();
       const causeLabels = {
         renuncia_voluntaria: "Renuncia voluntaria",
         despido_sin_justa: "Despido sin justa causa",
@@ -32659,7 +32664,7 @@ function bindDynamicEvents() {
           devRowsMes = linesFromRun
             .filter(showLine)
             .map((L) => {
-              let labelHtml = escapeHtml(String(L.label || L.code || "Concepto"));
+              let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Concepto")));
               if (L.code === "PRIMA_SERVICIOS") {
                 labelHtml = escapeHtml(
                   `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`
@@ -32764,7 +32769,7 @@ function bindDynamicEvents() {
               ${absenceDetailRows
                 .map(
                   (row) =>
-                    `<tr><td style="${cL}">${escapeHtml(String(row.typeLabel || "Ausentismo"))}</td><td style="${cL}">${escapeHtml(String(row.conceptLabel || ""))}</td><td style="${cR}">${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
+                    `<tr><td style="${cL}">${escapeHtml(cleanSlipText(String(row.typeLabel || "Ausentismo")))}</td><td style="${cL}">${escapeHtml(cleanSlipText(String(row.conceptLabel || "")))}</td><td style="${cR}">${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
                 )
                 .join("")}
             </tbody>
@@ -32814,6 +32819,30 @@ function bindDynamicEvents() {
           : disclaimerPieces.length
             ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(disclaimerPieces.join(" "))}</p>`
             : "";
+      const employeeMetaRows = [
+        { label: "Tipo de contrato", value: String(employee?.contractType || "-") },
+        { label: "Periodicidad de pago", value: String(employee?.payFrequency || "-") },
+        { label: "Centro de costos", value: String(resolvePayrollEmployeeCostCenter(employee) || "-") },
+        {
+          label: "Banco",
+          value:
+            employee?.bankName && employee?.bankAccount
+              ? `${String(employee.bankName)} · ${String(employee.bankAccountType || "Cuenta")} ${String(employee.bankAccount)}`
+              : "-"
+        },
+        {
+          label: "Salario básico",
+          value: employee?.baseSalary != null ? `$${parseNum(employee.baseSalary).toLocaleString("es-CO")}` : "-"
+        },
+        { label: "IBC (base de cotización)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
+      ]
+        .map(
+          (row) =>
+            `<tr><td style="padding:4px 0"><strong>${escapeHtml(row.label)}</strong></td><td>${escapeHtml(
+              cleanSlipText(String(row.value || "-"))
+            )}</td></tr>`
+        )
+        .join("");
       pop.document.write(`
         <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
         <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
@@ -32832,6 +32861,7 @@ function bindDynamicEvents() {
             <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${escapeHtml(String(employee?.idDoc || "-"))}</td></tr>
             <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${escapeHtml(String(employee?.position || "-"))}</td></tr>
             <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
+            ${employeeMetaRows}
             ${metaExtra}
             <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
             <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
