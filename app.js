@@ -3111,10 +3111,6 @@ const LOGISTICS_OPERATOR_PERMISSIONS = Object.freeze([
   PERMISSIONS.NOTIFICATIONS_VIEW
 ]);
 
-const PERMISSION_PRESETS = Object.freeze({
-  logistics: LOGISTICS_OPERATOR_PERMISSIONS
-});
-
 /** Orden en la grilla de permisos (Usuarios y permisos). */
 const PERMISSION_UI_GROUPS = [
   {
@@ -14964,7 +14960,15 @@ function installDriverCardActionsDelegation() {
   });
 }
 
-function approveRequest(requestId, actorName = "Sistema", auto = false, selectedVehicleId = "", selectedDriverId = "", selectedTripValue = null) {
+function approveRequest(
+  requestId,
+  actorName = "Sistema",
+  auto = false,
+  selectedVehicleId = "",
+  selectedDriverId = "",
+  selectedTripValue = null,
+  options = {}
+) {
   const requests = reqRead();
   const current = requests.find((r) => r.id === requestId);
   const canAssignTrip = current && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(current.status);
@@ -15015,6 +15019,22 @@ function approveRequest(requestId, actorName = "Sistema", auto = false, selected
       }
     })();
     return true;
+  }
+
+  const allowApproveAndAssign = Boolean(options.allowApproveAndAssign);
+  if (current.status === STATUS.PENDIENTE && !allowApproveAndAssign) {
+    notify(userMessage("requestMustBeApprovedBeforeAssign"), "error");
+    return false;
+  }
+  const actor = currentUser();
+  if (
+    actor &&
+    !allowApproveAndAssign &&
+    !canViewAllTransportRequests(actor) &&
+    !transportRequestBelongsToUserScope(current, actor)
+  ) {
+    notify(userMessage("requestAssignOutOfScope"), "error");
+    return false;
   }
 
   const compatibleVehicles = getCompatibleVehiclesForRequest(current, requestId);
@@ -15233,6 +15253,19 @@ function formatPortalRoleLabel(role) {
   return String(role || "usuario").toUpperCase();
 }
 
+/** Etiqueta breve para chips en tarjetas (cabecera estrecha); el nombre completo va en `title`. */
+function formatPortalRoleChipLabel(role) {
+  const r = String(role || "").toLowerCase();
+  if (r === ROLES.ADMIN) return "Admin";
+  if (r === ROLES.CLIENT) return "Cliente";
+  if (r === ROLES.RRHH) return "RRHH";
+  if (r === ROLES.ADMINISTRACION) return "Administración";
+  if (r === ROLES.AUXILIAR_ADMINISTRATIVO) return "Aux. adm.";
+  if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder adm.";
+  if (r === ROLES.LOGISTICA) return "Logística";
+  return formatPortalRoleLabel(role);
+}
+
 /** Segunda línea del bloque de sesión en el drawer: clientes ven el nombre de la empresa, no la etiqueta «Cliente». */
 function getPortalSidebarSessionSubtitle(user) {
   if (!user) return "";
@@ -15289,20 +15322,47 @@ function updatePortalSidebarSessionMeta() {
   }
 }
 
+/**
+ * Alcance de solicitudes de transporte.
+ * - Cliente: solo su empresa asignada (nunca otras); en vista individual solo sus propias solicitudes.
+ * - Interno sin permiso global: solicitante o misma empresa.
+ */
+function transportRequestBelongsToUserScope(request, user) {
+  if (!request || !user) return false;
+  const userId = String(user.id || "").trim();
+  const companyId = String(user.companyId || "").trim();
+  const reqUserId = String(request.clientUserId || "").trim();
+  const reqCompanyId = String(request.clientCompanyId || "").trim();
+
+  if (isPortalClientUser(user)) {
+    if (!companyId) return Boolean(userId && reqUserId === userId);
+    if (!reqCompanyId || reqCompanyId !== companyId) return false;
+    if (getClientDataScope() === CLIENT_DATA_SCOPE.INDIVIDUAL) {
+      return Boolean(userId && reqUserId === userId);
+    }
+    return true;
+  }
+
+  if (userId && reqUserId === userId) return true;
+  if (companyId && reqCompanyId === companyId) return true;
+  return false;
+}
+
 function getVisibleRequestsForUser(user) {
   const requests = reqRead();
   if (!user) return [];
   if (canViewAllTransportRequests(user)) return requests;
-  const companyId = String(user.companyId || "").trim();
-  const userId = String(user.id || "").trim();
-  let filtered = requests.filter((request) => {
-    if (companyId) return String(request.clientCompanyId || "").trim() === companyId;
-    return userId && String(request.clientUserId || "").trim() === userId;
+  return requests.filter((request) => transportRequestBelongsToUserScope(request, user));
+}
+
+/** Pendientes elegibles en Transporte · Viajes (asignación exige aprobación salvo flujo de aprobación). */
+function pendingRequestsForTripAssignment(user) {
+  return getVisibleRequestsForUser(user).filter((r) => {
+    if (r.trip) return false;
+    if (r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION) return true;
+    if (r.status === STATUS.PENDIENTE && canApproveTransportRequests(user)) return true;
+    return false;
   });
-  if (isPortalClientUser(user) && getClientDataScope() === CLIENT_DATA_SCOPE.INDIVIDUAL && userId) {
-    filtered = filtered.filter((request) => String(request.clientUserId || "").trim() === userId);
-  }
-  return filtered;
 }
 
 function hasPermission(user, permission) {
@@ -15373,7 +15433,8 @@ function canApproveInternalAuthorization(user, approvalType) {
 
 function canViewAllTransportRequests(user) {
   if (!user) return false;
-  if (user.role === ROLES.ADMIN) return true;
+  if (isPortalClientUser(user)) return false;
+  if (isAdminActor(user)) return true;
   const ops = [
     PERMISSIONS.TRANSPORT_TRIPS,
     PERMISSIONS.TRANSPORT_REQUESTS,
@@ -17225,17 +17286,17 @@ function buildDeletedTransportRequestsLogSection() {
 
 function transportTripsHtml() {
   const isAdmin = isAdminActor();
+  const tripUser = currentUser();
+  const visibleRequests = getVisibleRequestsForUser(tripUser);
   const rates = getTripRouteRatesNormalized();
   const companiesForRates = readArray(KEYS.companies);
   const rateEntries = Object.entries(rates)
     .map(([storageKey, entry]) => ({ storageKey, ...entry, value: parseNum(entry.value) }))
     .sort((a, b) => String(a.storageKey).localeCompare(String(b.storageKey)));
-  const pendingRaw = reqRead().filter(
-    (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
-  );
+  const pendingRaw = pendingRequestsForTripAssignment(tripUser);
   const pendingForTrip = pendingRaw.filter((r) => isRequestPickupSameDayOrFuture(r));
   const pendingExpired = pendingRaw.filter((r) => !isRequestPickupSameDayOrFuture(r));
-  const trips = reqRead().filter((r) => r.trip);
+  const trips = visibleRequests.filter((r) => r.trip);
   const activeOps = trips.filter((r) => tripRequestStatusIsOperational(r.status)).length;
   const completedTrips = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
   const standbyTrips = trips.filter((r) => parseNum(r.standbyChargeTotal) > 0).length;
@@ -17989,22 +18050,6 @@ function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
   return sections + restHtml;
 }
 
-function renderPermissionPresetToolbarHtml() {
-  return `<div class="perm-preset-bar" role="group" aria-label="Plantillas de permisos">
-    <span class="muted perm-preset-label">Plantilla rápida:</span>
-    <button type="button" class="btn btn-sm btn-action" data-action="apply-perm-preset" data-preset="logistics">${IC.truck} Perfil logística</button>
-  </div>`;
-}
-
-function applyPermissionPresetToForm(form, presetKey) {
-  const preset = PERMISSION_PRESETS[String(presetKey || "")];
-  if (!form || !preset) return false;
-  const grid = form.querySelector(".perm-grid");
-  if (!grid) return false;
-  grid.innerHTML = buildGranularPermissionsCheckboxesHtml([...preset]);
-  return true;
-}
-
 function adminUsersHtml(current) {
   const isAdmin = isAdminActor(current);
   const users = read(KEYS.users, []);
@@ -18072,7 +18117,10 @@ function adminUsersHtml(current) {
       logistica: "#0D9488",
       client: "#0E7490"
     };
-    return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${escapeHtml(formatPortalRoleLabel(r))}</span>`;
+    const chipLabel = formatPortalRoleChipLabel(r);
+    const fullLabel = formatPortalRoleLabel(r);
+    const titleAttr = chipLabel !== fullLabel ? ` title="${escapeAttr(fullLabel)}"` : "";
+    return `<span class="role-chip role-chip--card"${titleAttr} style="--role-color:${colors[r] || '#64748B'}">${escapeHtml(chipLabel)}</span>`;
   };
 
   const renderUserCard = (u, mode = "active") => {
@@ -18347,7 +18395,6 @@ function adminUsersHtml(current) {
 
     <fieldset class="full perm-fieldset">
       <legend>${IC.shield} Permisos del usuario</legend>
-      ${renderPermissionPresetToolbarHtml()}
       <div class="perm-grid">${permissionChecks(defaultPermissionsForRole(ROLES.ADMIN))}</div>
     </fieldset>
     ${renderManagedCreateFormActions("create-user", `<button class="btn btn-primary" type="submit">${IC.userPlus} Crear usuario</button>`, {
@@ -18500,7 +18547,6 @@ function adminUsersHtml(current) {
     </label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos a asignar</legend>
-      ${renderPermissionPresetToolbarHtml()}
       <div class="perm-grid">${permissionChecks([])}</div>
     </fieldset>
     ${renderManagedCreateFormActions("admin-permissions", `<button class="btn btn-primary" type="submit">${IC.save} Guardar permisos</button>`, {
@@ -18616,7 +18662,6 @@ function adminUsersHtml(current) {
     </fieldset>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
-      ${renderPermissionPresetToolbarHtml()}
       <div class="perm-grid">${permissionChecks(effectiveUserPermissions(editingUser))}</div>
     </fieldset>
     ${renderModulePanelEditActions(`<button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>`, { cancelAction: "close-edit-user", toggleAction: "toggle-admin-edit-user-panel" })}
@@ -27607,14 +27652,6 @@ function bindDynamicEvents() {
     }
   }
 
-  nodes.viewRoot.querySelectorAll("[data-action='apply-perm-preset']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const form = btn.closest("form");
-      if (!applyPermissionPresetToForm(form, btn.dataset.preset)) return;
-      notify("Plantilla de permisos aplicada. Revise las casillas y guarde.", "info");
-    });
-  });
-
   nodes.viewRoot.querySelectorAll("[data-action='toggle-password']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const targetForm = String(btn.dataset.target || "");
@@ -30369,7 +30406,9 @@ function bindDynamicEvents() {
             return false;
           }
           const ok = mode === "assign_now"
-            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue)
+            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
+                allowApproveAndAssign: true
+              })
             : approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
@@ -30456,9 +30495,24 @@ function bindDynamicEvents() {
         notify(userMessage("bulkSelectPending"), "error");
         return;
       }
+      const actor = currentUser();
       const request = reqRead().find((item) => item.id === requestId);
       if (!request) {
         notify(userMessage("bulkRequestMissing"), "error");
+        return;
+      }
+      if (!transportRequestBelongsToUserScope(request, actor) && !canViewAllTransportRequests(actor)) {
+        notify(userMessage("requestAssignOutOfScope"), "error");
+        return;
+      }
+      const allowApproveAndAssign =
+        request.status === STATUS.PENDIENTE && canApproveTransportRequests(actor);
+      if (request.status === STATUS.PENDIENTE && !allowApproveAndAssign) {
+        notify(userMessage("requestMustBeApprovedBeforeAssign"), "error");
+        return;
+      }
+      if (![STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(request.status)) {
+        notify(userMessage("requestNotReadyForTripAssign"), "error");
         return;
       }
       if (!isRequestPickupSameDayOrFuture(request)) {
@@ -30503,14 +30557,9 @@ function bindDynamicEvents() {
         notify(userMessage("assignPriceRequired"), "error");
         return;
       }
-      const ok = approveRequest(
-        requestId,
-        currentUser()?.name || "Administrador",
-        false,
-        vehicleId,
-        driverId,
-        tripValue
-      );
+      const ok = approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
+        allowApproveAndAssign
+      });
       if (!ok) return;
       suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
       notify(userMessage("tripCreatedAssigned"), "success");
@@ -34631,7 +34680,9 @@ function bindDynamicEvents() {
             }
 
             const ok = vehicleId && driverId
-              ? approveRequest(requestId, actor.name, false, vehicleId, driverId, tripValue)
+              ? approveRequest(requestId, actor.name, false, vehicleId, driverId, tripValue, {
+                  allowApproveAndAssign: true
+                })
               : approveRequest(requestId, actor.name, true);
 
             if (!ok) {

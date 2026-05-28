@@ -133,6 +133,12 @@
       "No puede asignar esos recursos: el vehículo o el conductor no están disponibles u aparecen ocupados en el horario de esta solicitud (se cruza la ventana recogida–entrega estimada con otro viaje activo).",
     assignPastRequestDate:
       "No se puede asignar el viaje: la solicitud tiene fecha de recogida vencida. Solo se permite para el mismo día o fechas futuras.",
+    requestMustBeApprovedBeforeAssign:
+      "La solicitud debe estar aprobada antes de asignar el viaje. Apruébela en Centro de autorizaciones o espere la aprobación automática.",
+    requestNotReadyForTripAssign:
+      "Esta solicitud no está lista para asignar viaje. Solo se pueden asignar solicitudes aprobadas pendientes de asignación.",
+    requestAssignOutOfScope:
+      "No puede asignar viajes de solicitudes que no creó ni pertenecen a su empresa.",
     assignBulkPartial: (ok, fail) =>
       `Asignación masiva: ${ok} correctas${fail ? `, ${fail} omitidas por conflicto o datos incompletos.` : "."}`,
     routeRateDeleted: "Tarifa de trayecto eliminada.",

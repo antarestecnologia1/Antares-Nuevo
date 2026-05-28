@@ -4284,23 +4284,6 @@ body[data-theme="dark"] .user-card--company-inactive {
   gap: 0.55rem;
 }
 
-.perm-preset-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin: 0 0 0.75rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 12px;
-  border: 1px dashed rgba(var(--primary-rgb), 0.22);
-  background: rgba(var(--primary-rgb), 0.04);
-}
-
-.perm-preset-label {
-  font-size: 0.82rem;
-  margin: 0;
-}
-
 .perm-group {
   grid-column: 1 / -1;
   margin-bottom: 0.35rem;
@@ -23730,6 +23713,29 @@ body[data-theme="dark"] .notif-card-unread {
 
 .directory-card__status-stack > * {
   max-width: 100%;
+}
+
+.directory-card--user .directory-card__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem 0.62rem;
+}
+
+.directory-card--user .directory-card__status-stack {
+  flex: none;
+  max-width: min(8.5rem, 38%);
+  justify-self: end;
+}
+
+.directory-card--user .directory-card__status-stack .role-chip {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 .directory-card__ops {

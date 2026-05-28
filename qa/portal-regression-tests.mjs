@@ -193,8 +193,6 @@ function run() {
       "canAccessAuthorizationSection",
       "canApproveTransportRequests",
       "canPerformPermissionGatedAction",
-      "renderPermissionPresetToolbarHtml",
-      'data-preset="logistics"',
       'LOGISTICA: "logistica"',
       "PORTAL_ASSIGNABLE_ROLES",
       'if (role === ROLES.LOGISTICA) return [...LOGISTICS_OPERATOR_PERMISSIONS]'

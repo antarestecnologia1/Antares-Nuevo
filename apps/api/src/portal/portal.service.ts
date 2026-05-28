@@ -1593,6 +1593,10 @@ export class PortalService implements OnModuleInit {
     return ["admin", "administracion", "auxiliar_administrativo", "lider_administrativo"].includes(r);
   }
 
+  private isPortalClientRole(role: JwtRole) {
+    return String(role || "").toLowerCase() === "client";
+  }
+
   private readonly authorizationTypePermissions: Record<string, string> = {
     create_user: "authorizations_portal_users",
     create_driver: "authorizations_fleet",
@@ -2199,7 +2203,7 @@ export class PortalService implements OnModuleInit {
 
     const dependentPromise = Promise.all([
       this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess),
-      this.loadRequests(admin, userId, empresaId, canTransportData),
+      this.loadRequests(admin, userId, empresaId, canTransportData, role),
       canPayroll ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId),
       admin ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
@@ -3574,7 +3578,13 @@ export class PortalService implements OnModuleInit {
     return out;
   }
 
-  private async loadRequests(admin: boolean, userId: string, empresaId: string | null, transport: boolean) {
+  private async loadRequests(
+    admin: boolean,
+    userId: string,
+    empresaId: string | null,
+    transport: boolean,
+    role: JwtRole
+  ) {
     const base = `
       SELECT s.id::text,
              s.numero_solicitud AS "requestNumber",
@@ -3636,13 +3646,28 @@ export class PortalService implements OnModuleInit {
       LEFT JOIN viajes_transporte v ON v.id_solicitud = s.id
       LEFT JOIN empresas ec ON ec.id = s.id_empresa_cliente`;
 
-    const r =
-      admin || transport
-        ? await this.pool.query(base + ` ORDER BY s.fecha_creacion DESC`)
-        : await this.pool.query(
-            base + ` WHERE s.id_usuario_solicitante = $1::uuid OR ($2::uuid IS NOT NULL AND s.id_empresa_cliente = $2::uuid) ORDER BY s.fecha_creacion DESC`,
-            [userId, empresaId]
-          );
+    let r;
+    if (admin || transport) {
+      r = await this.pool.query(base + ` ORDER BY s.fecha_creacion DESC`);
+    } else if (this.isPortalClientRole(role)) {
+      if (empresaId) {
+        r = await this.pool.query(
+          base + ` WHERE s.id_empresa_cliente = $1::uuid ORDER BY s.fecha_creacion DESC`,
+          [empresaId]
+        );
+      } else {
+        r = await this.pool.query(
+          base + ` WHERE s.id_usuario_solicitante = $1::uuid ORDER BY s.fecha_creacion DESC`,
+          [userId]
+        );
+      }
+    } else {
+      r = await this.pool.query(
+        base +
+          ` WHERE s.id_usuario_solicitante = $1::uuid OR ($2::uuid IS NOT NULL AND s.id_empresa_cliente = $2::uuid) ORDER BY s.fecha_creacion DESC`,
+        [userId, empresaId]
+      );
+    }
 
     return r.rows.map((row) => this.mapRequestRow(row));
   }
@@ -5797,6 +5822,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
     const transport = admin || this.isTransportOps(role) || this.hasTransportOpsPermission(permissionSet);
     const empresaId = await this.getUserCompany(userId);
+    const isClient = this.isPortalClientRole(role);
     for (const req of data) {
       if (!req?.id) continue;
       const idStr = String(req.id).trim();
@@ -5806,11 +5832,16 @@ export class PortalService implements OnModuleInit {
         );
         continue;
       }
-      const ownerOk =
+      let ownerOk =
         admin ||
         transport ||
         String(req.clientUserId) === userId ||
         (empresaId && String(req.clientCompanyId || "") === String(empresaId));
+      if (isClient) {
+        ownerOk =
+          String(req.clientUserId) === userId &&
+          (!empresaId || String(req.clientCompanyId || "") === String(empresaId));
+      }
       if (!ownerOk) throw new ForbiddenException();
 
       const contactName = nu(req.contactName ?? req.siteContactName);
