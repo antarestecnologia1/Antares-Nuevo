@@ -238,10 +238,10 @@
         ${companyField}
         <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
+        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
         <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
+        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-violet full">
@@ -257,7 +257,7 @@
       <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
-        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
+        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
         <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
         <label class="full">${fieldLabel(IC.truck, "Tipo de camion requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
         <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
@@ -271,7 +271,7 @@
         <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
       </div>
     </fieldset>
-    <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
+    <label class="full">Observaciones <textarea name="notes" rows="3" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
     return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");

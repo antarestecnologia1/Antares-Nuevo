@@ -104,7 +104,34 @@
     "educationlevel",
     "bloodtype",
     "licensecategory",
-    "platformreferencemode"
+    "platformreferencemode",
+    "platformreferenceyear",
+    "requiresthermoking",
+    "requiredtrucktype",
+    "companykind",
+    "hasillness",
+    "defensivecourse",
+    "pickuptime",
+    "deliverytime",
+    "pickupdate",
+    "deliverydate",
+    "documenttype",
+    "licensecategory",
+    "eps",
+    "arl",
+    "pensionfund",
+    "bankaccount",
+    "supportnumber"
+  ]);
+
+  /** Valores sí/no de selects: conservar minúsculas. */
+  const LOWERCASE_ENUM_VALUES_KEYS = new Set([
+    "requiresthermoking",
+    "refrigerated",
+    "hasgps",
+    "hasillness",
+    "twofactorenabled",
+    "acceptterms"
   ]);
 
   function stripNulTrimValue(value) {
@@ -129,7 +156,13 @@
       if (isPasswordPayloadKey(k)) continue;
       if (typeof v !== "string") continue;
       const keyLc = k.toLowerCase();
-      if (PRESERVE_CASE_PAYLOAD_KEYS.has(keyLc) || keyLc.endsWith("reason") || keyLc.endsWith("motivo")) {
+      if (
+        PRESERVE_CASE_PAYLOAD_KEYS.has(keyLc) ||
+        keyLc.endsWith("reason") ||
+        keyLc.endsWith("motivo") ||
+        keyLc.includes("justification") ||
+        keyLc.endsWith("justification")
+      ) {
         out[k] = sanitizeMultiline(v, 8000);
         continue;
       }
@@ -144,7 +177,7 @@
         keyLc.endsWith("token") ||
         keyLc.includes("password")
       ) {
-        out[k] = stripNulTrimValue(v);
+        out[k] = LOWERCASE_ENUM_VALUES_KEYS.has(keyLc) ? stripNulTrimValue(v).toLowerCase() : stripNulTrimValue(v);
         continue;
       }
       if (

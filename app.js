@@ -10189,6 +10189,9 @@ async function sanitizeApprovalPayloadForQueue(type, payload) {
       requestId: String(base.requestId || "").trim()
     };
   }
+  if (type === "create_driver") {
+    return normalizeDriverFormPayloadForStorage(base);
+  }
   return normalizePayloadTextFields(base);
 }
 
@@ -13242,7 +13245,19 @@ const REQUEST_REQUIRED_TRUCK_TYPES = ["Turbo", "Camión", "Tractomula"];
 function normalizeRequestRequiredTruckType(value) {
   const s = String(value || "").trim();
   if (REQUEST_REQUIRED_TRUCK_TYPES.includes(s)) return s;
+  const u = normalizeLatinUpperForDb(s);
+  if (u === "TURBO") return "Turbo";
+  if (u === "CAMION") return "Camión";
+  if (u === "TRACTOMULA") return "Tractomula";
   return "";
+}
+
+/** Flags de formulario (`true`/`false`, `yes`/`no`, `si`). */
+function coerceFormBooleanFlag(value) {
+  const s = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return s === "true" || s === "1" || s === "yes" || s === "si" || s === "sí";
 }
 
 function requestRequiredTruckTypeShowsFuelles(t) {
@@ -15545,10 +15560,10 @@ function requestFormHtml() {
         ${buildRequestCompanySelectHtml(user)}
         <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required /></label>
+        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
         <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required /></label>
+        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-violet full">
@@ -15564,7 +15579,7 @@ function requestFormHtml() {
       <legend>${IC.truck} Carga y servicio</legend>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
-        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required /></label>
+        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
         <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
         <label class="full">${fieldLabel(IC.truck, "Tipo de camion requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
         <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
@@ -15580,7 +15595,7 @@ function requestFormHtml() {
         <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
       </div>
     </fieldset>
-    <label class="full">Observaciones <textarea name="notes" rows="3"></textarea></label>
+    <label class="full">Observaciones <textarea name="notes" rows="3" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
     ${renderManagedCreateFormActions("create-request", `<button class="btn btn-primary" type="submit">${IC.send} Crear solicitud</button>`)}
   </form>`;
   return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
@@ -15596,11 +15611,11 @@ function requestListClientHtml(user) {
       const allowEdit = canPortalUserEditTransportRequest(r, user);
       const allowClientDeletePending = canClientEditOwnPendingTransportRequest(r, user);
       const trip = r.trip
-        ? `<strong>${r.trip.tripNumber}</strong><br><span class="muted">${r.trip.vehiclePlate} · ${r.trip.driverName}</span>`
+        ? `<strong>${escapeHtml(String(r.trip.tripNumber || ""))}</strong><br><span class="muted">${escapeHtml(String(r.trip.vehiclePlate || ""))} · ${escapeHtml(String(r.trip.driverName || ""))}</span>`
         : '<span class="muted">-</span>';
       return `<tr>
-        <td><strong>${r.requestNumber || r.id}</strong></td>
-        <td>${formatRoute(r)}<br><span class="muted">Creada por: ${r.requestedByName || r.clientName}</span></td>
+        <td><strong>${escapeHtml(String(r.requestNumber || r.id))}</strong></td>
+        <td>${escapeHtml(formatRoute(r))}<br><span class="muted">Creada por: ${escapeHtml(String(r.requestedByName || r.clientName || ""))}</span></td>
         <td>${prettyStatus(r.status, "request")}</td>
         <td>${trip}</td>
         <td>
@@ -17027,8 +17042,8 @@ function transportCalendarHtml() {
       </div>
     </div>
     <form id="calendar-filters" class="calendar-filters-bar">
-      <label>${fieldLabel(IC.user, "Conductor")}<select name="driver"><option value="">Todos</option>${driversList.map((d) => `<option value="${d.id}" ${filters.driver === d.id ? "selected" : ""}>${d.name}</option>`).join("")}</select></label>
-      <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicle"><option value="">Todos</option>${vehiclesList.map((v) => `<option value="${v.id}" ${filters.vehicle === v.id ? "selected" : ""}>${v.plate} · ${v.type}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.user, "Conductor")}<select name="driver"><option value="">Todos</option>${driversList.map((d) => `<option value="${escapeAttr(String(d.id || ""))}" ${filters.driver === d.id ? "selected" : ""}>${escapeHtml(String(d.name || ""))}</option>`).join("")}</select></label>
+      <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicle"><option value="">Todos</option>${vehiclesList.map((v) => `<option value="${escapeAttr(String(v.id || ""))}" ${filters.vehicle === v.id ? "selected" : ""}>${escapeHtml(String(v.plate || ""))} · ${escapeHtml(String(v.type || ""))}</option>`).join("")}</select></label>
       <label>${fieldLabel(IC.activity, "Estado")}<select name="status"><option value="">Todos</option>${statusList.map((s) => `<option value="${s}" ${filters.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></label>
       <label>${fieldLabel(IC.calendar, "Tipo")}<select name="kind"><option value="">Todos</option><option value="trip" ${filters.kind === "trip" ? "selected" : ""}>Viaje</option><option value="interview" ${filters.kind === "interview" ? "selected" : ""}>Entrevista</option><option value="absence" ${filters.kind === "absence" ? "selected" : ""}>Novedad</option></select></label>
       <button type="button" class="btn btn-sm btn-action" data-action="cal-clear-filters">${IC.x} Limpiar</button>
@@ -17478,7 +17493,7 @@ function adminUsersHtml(current) {
           <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
             Obligatorio · hasta 255 caracteres
           </span>
-          <input name="name" required maxlength="255" autocomplete="organization" placeholder="Ej. Flores del Valle S.A.S." />
+          <input name="name" required maxlength="255" autocomplete="organization" placeholder="Ej. Flores del Valle S.A.S." data-antares-field="db-upper" data-antares-validate-blur="db-upper" />
         </label>
         <label>
           ${fieldLabel(IC.badge, "NIT / RUT", { required: true })}
@@ -29937,8 +29952,8 @@ function bindDynamicEvents() {
       if (actor?.role !== ROLES.ADMIN) {
         await queueApproval({
           type: "create_driver",
-          title: `Creacion de conductor ${data.name}`,
-          payload: data,
+          title: `Creacion de conductor ${normalizeLatinUpperForDb(data.name)}`,
+          payload: normalizeDriverFormPayloadForStorage(data),
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
