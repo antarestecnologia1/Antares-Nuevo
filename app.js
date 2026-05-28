@@ -32721,8 +32721,7 @@ function bindDynamicEvents() {
             `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
         const workedDaysRows =
           workedDays > 0 || workedDaysPaymentCop > 0
-            ? `<tr><td style="${cL}">Días laborados pagados en el período</td><td style="${cR}">${workedDays.toLocaleString("es-CO")}</td></tr>` +
-              `<tr><td style="${cL}">Pago correspondiente a días laborados</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
+            ? `<tr><td style="${cL}">Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
             : `<tr><td style="${cL}" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
 
         payslipBodyBlocks = `
@@ -32736,7 +32735,7 @@ function bindDynamicEvents() {
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
           <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Días laborados liquidados</h2>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de días laborados</h2>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
           <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
             <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
@@ -32756,7 +32755,7 @@ function bindDynamicEvents() {
       const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
       const absenceDetailBlock = absenceDetailRows.length
         ? `
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. DETALLE AUSENTISMO</h2>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">IV. Detalle de ausentismo</h2>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">
             <thead>
               <tr style="background:#F5F7FA">
