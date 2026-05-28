@@ -161,7 +161,7 @@ export class PortalController {
   /** Solo admin: cambia estado de cuenta (ej: desactivar => rechazado). */
   @Post("admin-user-status")
   adminUserStatus(@Req() req: { user: ReqUser }, @Body() dto: AdminUserStatusDto) {
-    return this.portal.adminSetUserStatus(req.user.userId, req.user.role, dto.userId, dto.status);
+    return this.portal.adminSetUserStatus(req.user.userId, req.user.role, dto.userId, dto.status, dto.reason);
   }
 
   /** Solo admin: actualiza correo y/o contraseña de usuario. */
@@ -195,7 +195,7 @@ export class PortalController {
   /** Solo admin: elimina usuario si no tiene referencias operativas críticas. */
   @Post("admin-user-delete")
   adminUserDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminUserDeleteDto) {
-    return this.portal.adminDeleteUser(req.user.userId, req.user.role, dto.userId);
+    return this.portal.adminDeleteUser(req.user.userId, req.user.role, dto.userId, dto.motivo);
   }
 
   /** Solo admin: elimina empresa sin usuarios ni nómina vinculados. */

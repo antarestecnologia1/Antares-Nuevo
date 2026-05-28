@@ -82,11 +82,19 @@ export type SecurityPasswordChangedAlertParams = {
   changedByAdmin?: boolean;
 };
 
+export type AccountActionAuditInfo = {
+  actorName: string;
+  actorEmail?: string;
+  actionAtColombia: string;
+  reason?: string;
+};
+
 export type SecurityAccountStatusChangedAlertParams = {
   to: string;
   recipientName: string;
   status: "pendiente" | "aprobado" | "rechazado";
   portalUrl: string;
+  audit?: AccountActionAuditInfo;
 };
 
 export type AdminUserStatusChangedAlertParams = {
@@ -94,7 +102,32 @@ export type AdminUserStatusChangedAlertParams = {
   userName: string;
   status: "pendiente" | "aprobado" | "rechazado";
   portalUrl: string;
+  audit: AccountActionAuditInfo;
 };
+
+export type AdminUserDeletedAlertParams = {
+  userEmail: string;
+  userName: string;
+  portalUrl: string;
+  audit: AccountActionAuditInfo;
+};
+
+function renderAccountActionAuditBlock(audit: AccountActionAuditInfo): string {
+  const actorLine = audit.actorEmail
+    ? `${escapeHtml(audit.actorName)} (${escapeHtml(audit.actorEmail)})`
+    : escapeHtml(audit.actorName);
+  const reasonBlock = audit.reason
+    ? `<p style="margin:12px 0 0 0;font-size:14px;line-height:1.6;color:#344F69;"><strong style="color:#134067;">Motivo registrado:</strong><br/>${escapeHtml(audit.reason)}</p>`
+    : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0 0;border-radius:10px;background:#f4f8fc;border:1px solid #d7e6f5;">
+    <tr><td style="padding:14px 16px;">
+      <p style="margin:0 0 8px 0;font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:#134067;">Detalle de la acción</p>
+      <p style="margin:0 0 6px 0;font-size:14px;line-height:1.55;color:#344F69;"><strong>Realizado por:</strong> ${actorLine}</p>
+      <p style="margin:0;font-size:14px;line-height:1.55;color:#344F69;"><strong>Fecha y hora:</strong> ${escapeHtml(audit.actionAtColombia)}</p>
+      ${reasonBlock}
+    </td></tr>
+  </table>`;
+}
 
 @Injectable()
 export class MailService implements OnModuleInit {
@@ -440,15 +473,16 @@ export class MailService implements OnModuleInit {
           }
         : params.status === "rechazado"
           ? {
-              subject: "Antares Portal — Cuenta bloqueada",
-              title: "Cuenta bloqueada",
-              body: "Su cuenta fue bloqueada/desactivada por un administrador. Si requiere acceso, contacte soporte interno."
+              subject: "Antares Portal — Cuenta desactivada",
+              title: "Cuenta desactivada",
+              body: "Su cuenta fue desactivada por un administrador del portal. Si considera que se trata de un error, contacte al área de soporte de su organización."
             }
           : {
               subject: "Antares Portal — Cuenta en revisión",
               title: "Cuenta en revisión",
               body: "Su cuenta se dejó en estado pendiente de revisión administrativa."
             };
+    const auditBlock = params.audit ? renderAccountActionAuditBlock(params.audit) : "";
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
@@ -458,7 +492,10 @@ export class MailService implements OnModuleInit {
       <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">${escapeHtml(statusMeta.title)}</h2>
       <p style="margin:0 0 12px 0;font-size:14px;line-height:1.6;">Hola <strong>${safeName}</strong>.</p>
       <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;">${escapeHtml(statusMeta.body)}</p>
-      <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Ir al portal</a>
+      ${auditBlock}
+      <p style="margin:18px 0 0 0;">
+        <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Ir al portal</a>
+      </p>
     </td></tr>
   </table>
 </body>
@@ -483,6 +520,7 @@ export class MailService implements OnModuleInit {
       status === "rechazado"
         ? "Antares Portal — Usuario desactivado por administración"
         : "Antares Portal — Usuario movido a estado pendiente";
+    const auditBlock = renderAccountActionAuditBlock(params.audit);
     const html = `<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
@@ -492,8 +530,73 @@ export class MailService implements OnModuleInit {
       <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">Alerta administrativa</h2>
       <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;">Se cambió el estado de una cuenta a <strong>${escapeHtml(statusLabel)}</strong>.</p>
       <p style="margin:0 0 8px 0;font-size:14px;"><strong>Usuario:</strong> ${safeUserName}</p>
-      <p style="margin:0 0 18px 0;font-size:14px;"><strong>Correo:</strong> ${safeUserEmail}</p>
-      <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Revisar en portal</a>
+      <p style="margin:0 0 8px 0;font-size:14px;"><strong>Correo:</strong> ${safeUserEmail}</p>
+      ${auditBlock}
+      <p style="margin:18px 0 0 0;">
+        <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Revisar en portal</a>
+      </p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await Promise.allSettled(recipients.map((to) => this.send(to, subject, html)));
+  }
+
+  async sendSecurityUserDeletedAlert(params: {
+    to: string;
+    recipientName: string;
+    portalUrl: string;
+    audit: AccountActionAuditInfo;
+  }): Promise<void> {
+    const to = String(params.to || "").trim().toLowerCase();
+    if (!isPlausibleEmailAddress(to)) return;
+    const safeName = escapeHtml(String(params.recipientName || "").trim() || "Usuario");
+    const safePortalUrl = escapeHtml(String(params.portalUrl || "").trim().replace(/\/+$/, ""));
+    const auditBlock = renderAccountActionAuditBlock(params.audit);
+    const subject = "Antares Portal — Cuenta eliminada";
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px;background:#f6f9fc;font-family:Segoe UI,Arial,sans-serif;color:#0B1D33;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d7e6f5;border-radius:12px;">
+    <tr><td style="padding:22px 24px;">
+      <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">Cuenta eliminada</h2>
+      <p style="margin:0 0 12px 0;font-size:14px;line-height:1.6;">Hola <strong>${safeName}</strong>, su cuenta fue eliminada del portal empresarial por decisión administrativa.</p>
+      ${auditBlock}
+      <p style="margin:18px 0 0 0;font-size:13px;line-height:1.55;color:#4b6077;">Si no reconoce esta acción, contacte de inmediato al administrador de su organización.</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await this.send(to, subject, html);
+  }
+
+  async sendAdminUserDeletedAlert(params: AdminUserDeletedAlertParams): Promise<void> {
+    const recipients = this.resolveAdminAlertEmails();
+    if (!recipients.length) return;
+    const userEmail = String(params.userEmail || "").trim().toLowerCase();
+    if (!isPlausibleEmailAddress(userEmail)) return;
+    const userName = String(params.userName || "").trim() || "Usuario";
+    const portalUrl = String(params.portalUrl || "").trim().replace(/\/+$/, "");
+    const safeUserName = escapeHtml(userName);
+    const safeUserEmail = escapeHtml(userEmail);
+    const safePortalUrl = escapeHtml(portalUrl);
+    const auditBlock = renderAccountActionAuditBlock(params.audit);
+    const subject = "Antares Portal — Usuario eliminado por administración";
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px;background:#f6f9fc;font-family:Segoe UI,Arial,sans-serif;color:#0B1D33;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d7e6f5;border-radius:12px;">
+    <tr><td style="padding:22px 24px;">
+      <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">Alerta administrativa</h2>
+      <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;">Un usuario fue <strong>eliminado permanentemente</strong> del portal.</p>
+      <p style="margin:0 0 8px 0;font-size:14px;"><strong>Usuario:</strong> ${safeUserName}</p>
+      <p style="margin:0 0 8px 0;font-size:14px;"><strong>Correo:</strong> ${safeUserEmail}</p>
+      ${auditBlock}
+      <p style="margin:18px 0 0 0;">
+        <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Ir al portal</a>
+      </p>
     </td></tr>
   </table>
 </body>

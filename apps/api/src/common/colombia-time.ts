@@ -43,6 +43,21 @@ export function bogotaCalendarYmdFromDate(date: Date = new Date()): string {
   return `${g("year")}-${g("month")}-${g("day")}`;
 }
 
+/** Fecha y hora legibles en español (America/Bogota) para correos y mensajes al usuario. */
+export function formatColombiaDateTimeDisplay(date: Date = new Date()): string {
+  const formatted = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).format(date);
+  return `${formatted} (hora Colombia)`;
+}
+
 /** Días enteros desde hoy (Bogotá) hasta targetYmd (positivo = futuro). */
 export function bogotaDaysUntilYmd(targetYmd: string, reference: Date = new Date()): number {
   const n = String(targetYmd || "").trim().match(/^(\d{4}-\d{2}-\d{2})/);

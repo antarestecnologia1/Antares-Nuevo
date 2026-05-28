@@ -27636,7 +27636,11 @@ function bindDynamicEvents() {
           const api = window.AntaresApi;
           if (api?.isConfigured?.()) {
             try {
-              await api.postJson("/portal/admin-user-status", { userId: String(target.id), status: "rechazado" });
+              await api.postJson("/portal/admin-user-status", {
+                userId: String(target.id),
+                status: "rechazado",
+                reason
+              });
               portalPatchUsersCacheWithoutSyncKey(() => {
                 write(
                   KEYS.users,
@@ -27688,13 +27692,13 @@ function bindDynamicEvents() {
         notify(userMessage("userSelfDelete"), "error");
         return;
       }
-      openConfirmModal({
+      openConfirmReasonModal({
         title: "Eliminar usuario",
-        message: "Esta accion eliminara el usuario de forma permanente.",
+        message: "Esta acción eliminará el usuario de forma permanente. Indique el motivo; quedará registrado en los correos de notificación.",
         confirmText: "Eliminar",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/admin-user-delete", { userId });
+            await postPortalAuthorized("/portal/admin-user-delete", { userId, motivo });
           } catch (err) {
             notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
             return;
@@ -27735,38 +27739,57 @@ function bindDynamicEvents() {
         ? ACCOUNT_STATUS.APROBADO
         : ACCOUNT_STATUS.RECHAZADO;
       const nextLabel = nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivar" : "activar";
-      openConfirmModal({
-        title: `${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "Desactivar" : "Activar"} usuario`,
-        message: `Se va a ${nextLabel} la cuenta de ${target.name}.`,
-        confirmText: nextStatus === ACCOUNT_STATUS.RECHAZADO ? "Desactivar" : "Activar",
-        onConfirm: async () => {
-          const api = window.AntaresApi;
-          if (api?.isConfigured?.() && typeof api.postJson === "function") {
-            try {
-              await api.postJson("/portal/admin-user-status", {
-                userId,
-                status: nextStatus
-              });
-            } catch (err) {
-              notify(String(err?.message || "No fue posible actualizar el estado de la cuenta."), "error");
-              return;
-            }
-          }
-          portalPatchUsersCacheWithoutSyncKey(() => {
-            write(
-              KEYS.users,
-              read(KEYS.users, []).map((u) =>
-                String(u.id) === String(userId) ? stampUpdatedRecord({ ...u, accountStatus: nextStatus }) : u
-              )
-            );
-          });
+      const applyStatusChange = async (reason) => {
+        const api = window.AntaresApi;
+        if (api?.isConfigured?.() && typeof api.postJson === "function") {
           try {
-            await writeAwaitServer(KEYS.users, read(KEYS.users, []));
-          } catch (_e) {
+            const payload = { userId, status: nextStatus };
+            if (reason) payload.reason = reason;
+            await api.postJson("/portal/admin-user-status", payload);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible actualizar el estado de la cuenta."), "error");
             return;
           }
-          notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
-          renderPortalView();
+        }
+        portalPatchUsersCacheWithoutSyncKey(() => {
+          write(
+            KEYS.users,
+            read(KEYS.users, []).map((u) =>
+              String(u.id) === String(userId)
+                ? stampUpdatedRecord({
+                    ...u,
+                    accountStatus: nextStatus,
+                    ...(reason ? { rejectionReason: reason } : {})
+                  })
+                : u
+            )
+          );
+        });
+        try {
+          await writeAwaitServer(KEYS.users, read(KEYS.users, []));
+        } catch (_e) {
+          return;
+        }
+        notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
+        renderPortalView();
+      };
+      if (nextStatus === ACCOUNT_STATUS.RECHAZADO) {
+        openConfirmReasonModal({
+          title: "Desactivar usuario",
+          message: `Se va a desactivar la cuenta de ${target.name}. Indique el motivo; quedará en el correo al usuario y en la alerta administrativa.`,
+          confirmText: "Desactivar",
+          onConfirm: async (motivo) => {
+            await applyStatusChange(motivo);
+          }
+        });
+        return;
+      }
+      openConfirmModal({
+        title: "Activar usuario",
+        message: `Se va a activar la cuenta de ${target.name}.`,
+        confirmText: "Activar",
+        onConfirm: async () => {
+          await applyStatusChange();
         }
       });
     });
@@ -30676,11 +30699,15 @@ function bindDynamicEvents() {
         return;
       }
       const targetDoc = String(target.idDoc || "").trim();
+      const targetDocDigits = normalizeDocumentDigits(targetDoc);
       const employeeContracts = read(KEYS.contracts, [])
         .filter((c) => {
           const byEmployeeId = String(c.employeeId || "") === String(target.id || "");
-          const byDocument = targetDoc && String(c.idDocSnapshot || "").trim() === targetDoc;
-          return byEmployeeId || byDocument;
+          const contractDoc = String(c.idDocSnapshot || c.employeeIdDoc || "").trim();
+          const byDocumentExact = targetDoc && contractDoc && contractDoc === targetDoc;
+          const byDocumentDigits =
+            targetDocDigits && normalizeDocumentDigits(contractDoc) === targetDocDigits;
+          return byEmployeeId || byDocumentExact || byDocumentDigits;
         })
         .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
       const latestEmployeeContract = employeeContracts[0] || null;

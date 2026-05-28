@@ -33,7 +33,11 @@ import {
 import { buildDriverTripPaymentCompute } from "../payroll/driver-trip-payment";
 import { employeeIsConductorServiceProvider, employeeReceivesPayrollNomina } from "../payroll/payroll-employee-kind";
 import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
-import { timestamptzStringColombiaNow, timestamptzToColombiaIso } from "../common/colombia-time";
+import {
+  formatColombiaDateTimeDisplay,
+  timestamptzStringColombiaNow,
+  timestamptzToColombiaIso
+} from "../common/colombia-time";
 import {
   normalizeCatalogTextFromUnknown,
   normalizeDbTextUpperFromUnknown,
@@ -421,6 +425,28 @@ export class PortalService implements OnModuleInit {
     ).trim();
     if (!raw) return "https://www.transportesantares.co";
     return /^https?:\/\//i.test(raw) ? raw.replace(/\/+$/, "") : `https://${raw.replace(/\/+$/, "")}`;
+  }
+
+  private async resolvePortalActor(actorUserId: string): Promise<{ name: string; email: string }> {
+    const r = await this.pool.query<{ nombre_completo: string | null; correo_electronico: string | null }>(
+      `SELECT nombre_completo, correo_electronico FROM usuarios WHERE id = $1::uuid`,
+      [actorUserId]
+    );
+    const row = r.rows[0];
+    return {
+      name: String(row?.nombre_completo || "").trim() || "Administrador",
+      email: String(row?.correo_electronico || "").trim().toLowerCase()
+    };
+  }
+
+  private buildAccountActionAudit(actor: { name: string; email: string }, reason?: string) {
+    const trimmedReason = String(reason || "").trim();
+    return {
+      actorName: actor.name,
+      ...(actor.email ? { actorEmail: actor.email } : {}),
+      actionAtColombia: formatColombiaDateTimeDisplay(new Date()),
+      ...(trimmedReason ? { reason: trimmedReason } : {})
+    };
   }
 
   private async recordOutgoingEmailLog(params: {
@@ -2361,13 +2387,23 @@ export class PortalService implements OnModuleInit {
     };
   }
 
-  async adminSetUserStatus(actorUserId: string, actorRole: JwtRole, targetUserId: string, status: string) {
+  async adminSetUserStatus(
+    actorUserId: string,
+    actorRole: JwtRole,
+    targetUserId: string,
+    status: string,
+    reasonRaw?: string
+  ) {
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
     const tid = String(targetUserId || "").trim();
     const accountStatus = String(status || "").trim().toLowerCase();
+    const reason = String(reasonRaw || "").trim();
     if (!tid) throw new BadRequestException("Usuario objetivo obligatorio");
     if (!["pendiente", "aprobado", "rechazado"].includes(accountStatus)) {
       throw new BadRequestException("Estado de cuenta no permitido");
+    }
+    if (accountStatus === "rechazado" && reason.length < 3) {
+      throw new BadRequestException("Indique el motivo de desactivación (mínimo 3 caracteres).");
     }
     if (tid === actorUserId) throw new BadRequestException("No puedes cambiar tu propio estado de cuenta");
 
@@ -2412,22 +2448,32 @@ export class PortalService implements OnModuleInit {
       [tid, accountStatus]
     );
     if (target.correo_electronico && target.estado_cuenta !== accountStatus) {
+      const portalUrl = this.resolvePortalPublicUrl();
+      const actor = await this.resolvePortalActor(actorUserId);
+      const audit =
+        accountStatus === "rechazado" || accountStatus === "pendiente"
+          ? this.buildAccountActionAudit(actor, reason)
+          : undefined;
       void this.mail
         .sendSecurityAccountStatusChangedAlert({
           to: target.correo_electronico,
           recipientName: String(target.nombre_completo || "").trim() || "Usuario",
           status: accountStatus as "pendiente" | "aprobado" | "rechazado",
-          portalUrl: this.resolvePortalPublicUrl()
+          portalUrl,
+          audit
         })
         .catch(() => null);
-      void this.mail
-        .sendAdminUserStatusChangedAlert({
-          userEmail: target.correo_electronico,
-          userName: String(target.nombre_completo || "").trim() || "Usuario",
-          status: accountStatus as "pendiente" | "aprobado" | "rechazado",
-          portalUrl: this.resolvePortalPublicUrl()
-        })
-        .catch(() => null);
+      if (accountStatus === "rechazado" || accountStatus === "pendiente") {
+        void this.mail
+          .sendAdminUserStatusChangedAlert({
+            userEmail: target.correo_electronico,
+            userName: String(target.nombre_completo || "").trim() || "Usuario",
+            status: accountStatus as "pendiente" | "aprobado" | "rechazado",
+            portalUrl,
+            audit: audit ?? this.buildAccountActionAudit(actor, reason)
+          })
+          .catch(() => null);
+      }
     }
     return { ok: true, userId: tid, status: accountStatus };
   }
@@ -2558,14 +2604,22 @@ export class PortalService implements OnModuleInit {
     return { ok: true, userId: uid };
   }
 
-  async adminDeleteUser(actorUserId: string, actorRole: JwtRole, targetUserId: string) {
+  async adminDeleteUser(actorUserId: string, actorRole: JwtRole, targetUserId: string, motivoRaw: string) {
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
     const tid = String(targetUserId || "").trim();
+    const motivo = String(motivoRaw || "").trim();
     if (!tid) throw new BadRequestException("Usuario objetivo obligatorio");
+    if (motivo.length < 3) {
+      throw new BadRequestException("Indique el motivo de eliminación (mínimo 3 caracteres).");
+    }
     if (tid === actorUserId) throw new BadRequestException("No puedes eliminar tu propio usuario");
 
-    const targetRes = await this.pool.query<{ rol: string }>(
-      `SELECT rol::text AS rol FROM usuarios WHERE id = $1::uuid`,
+    const targetRes = await this.pool.query<{
+      rol: string;
+      correo_electronico: string | null;
+      nombre_completo: string | null;
+    }>(
+      `SELECT rol::text AS rol, correo_electronico, nombre_completo FROM usuarios WHERE id = $1::uuid`,
       [tid]
     );
     const target = targetRes.rows[0];
@@ -2595,6 +2649,30 @@ export class PortalService implements OnModuleInit {
       throw new BadRequestException(
         "No se puede eliminar este usuario porque tiene solicitudes asociadas. Desactivalo en su lugar."
       );
+    }
+
+    const portalUrl = this.resolvePortalPublicUrl();
+    const actor = await this.resolvePortalActor(actorUserId);
+    const audit = this.buildAccountActionAudit(actor, motivo);
+    const userEmail = String(target.correo_electronico || "").trim().toLowerCase();
+    const userName = String(target.nombre_completo || "").trim() || "Usuario";
+    if (userEmail) {
+      void this.mail
+        .sendSecurityUserDeletedAlert({
+          to: userEmail,
+          recipientName: userName,
+          portalUrl,
+          audit
+        })
+        .catch(() => null);
+      void this.mail
+        .sendAdminUserDeletedAlert({
+          userEmail,
+          userName,
+          portalUrl,
+          audit
+        })
+        .catch(() => null);
     }
 
     await this.pool.query(`DELETE FROM usuarios WHERE id = $1::uuid`, [tid]);
