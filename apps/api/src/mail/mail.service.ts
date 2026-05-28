@@ -89,6 +89,13 @@ export type SecurityAccountStatusChangedAlertParams = {
   portalUrl: string;
 };
 
+export type AdminUserStatusChangedAlertParams = {
+  userEmail: string;
+  userName: string;
+  status: "pendiente" | "aprobado" | "rechazado";
+  portalUrl: string;
+};
+
 @Injectable()
 export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
@@ -457,5 +464,40 @@ export class MailService implements OnModuleInit {
 </body>
 </html>`;
     await this.send(to, statusMeta.subject, html);
+  }
+
+  async sendAdminUserStatusChangedAlert(params: AdminUserStatusChangedAlertParams): Promise<void> {
+    const recipients = this.resolveAdminAlertEmails();
+    if (!recipients.length) return;
+    const status = params.status;
+    if (status !== "pendiente" && status !== "rechazado") return;
+    const userEmail = String(params.userEmail || "").trim().toLowerCase();
+    if (!isPlausibleEmailAddress(userEmail)) return;
+    const userName = String(params.userName || "").trim() || "Usuario";
+    const portalUrl = String(params.portalUrl || "").trim().replace(/\/+$/, "");
+    const safeUserName = escapeHtml(userName);
+    const safeUserEmail = escapeHtml(userEmail);
+    const safePortalUrl = escapeHtml(portalUrl);
+    const statusLabel = status === "rechazado" ? "desactivada/bloqueada" : "en revisión (pendiente)";
+    const subject =
+      status === "rechazado"
+        ? "Antares Portal — Usuario desactivado por administración"
+        : "Antares Portal — Usuario movido a estado pendiente";
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px;background:#f6f9fc;font-family:Segoe UI,Arial,sans-serif;color:#0B1D33;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d7e6f5;border-radius:12px;">
+    <tr><td style="padding:22px 24px;">
+      <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">Alerta administrativa</h2>
+      <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;">Se cambió el estado de una cuenta a <strong>${escapeHtml(statusLabel)}</strong>.</p>
+      <p style="margin:0 0 8px 0;font-size:14px;"><strong>Usuario:</strong> ${safeUserName}</p>
+      <p style="margin:0 0 18px 0;font-size:14px;"><strong>Correo:</strong> ${safeUserEmail}</p>
+      <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Revisar en portal</a>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await Promise.allSettled(recipients.map((to) => this.send(to, subject, html)));
   }
 }

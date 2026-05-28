@@ -2420,6 +2420,14 @@ export class PortalService implements OnModuleInit {
           portalUrl: this.resolvePortalPublicUrl()
         })
         .catch(() => null);
+      void this.mail
+        .sendAdminUserStatusChangedAlert({
+          userEmail: target.correo_electronico,
+          userName: String(target.nombre_completo || "").trim() || "Usuario",
+          status: accountStatus as "pendiente" | "aprobado" | "rechazado",
+          portalUrl: this.resolvePortalPublicUrl()
+        })
+        .catch(() => null);
     }
     return { ok: true, userId: tid, status: accountStatus };
   }
