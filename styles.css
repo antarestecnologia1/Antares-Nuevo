@@ -16110,6 +16110,61 @@ body[data-theme="dark"] .payroll-quick-pill.is-active {
   font-size: 0.9rem;
 }
 
+.payroll-filters-advanced {
+  margin: 0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.payroll-filters-advanced[open] {
+  border-color: rgba(var(--primary-rgb), 0.26);
+  box-shadow: 0 8px 18px rgba(var(--primary-rgb), 0.08);
+}
+
+.payroll-filters-advanced__summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  margin: 0.35rem;
+  border-radius: 10px;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.9rem;
+  user-select: none;
+}
+
+.payroll-filters-advanced__summary::-webkit-details-marker {
+  display: none;
+}
+
+.payroll-filters-advanced__summary:hover {
+  background: rgba(var(--primary-rgb), 0.08);
+  color: var(--primary-dark);
+}
+
+.payroll-filters-advanced > .payroll-data-toolbar-filters {
+  padding: 0.25rem 0.75rem 0.8rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.payroll-filters-advanced .payroll-filter-field {
+  gap: 0.32rem;
+}
+
+.payroll-filters-advanced .payroll-filter-field select {
+  min-height: 2.5rem;
+  border-radius: 9px;
+}
+
+.payroll-filters-advanced .btn[data-action="payroll-clear-filters"] {
+  height: 2.5rem;
+  align-self: end;
+}
+
 .payroll-data-nav {
   display: flex;
   flex-wrap: wrap;
@@ -16210,6 +16265,29 @@ body[data-theme="dark"] .payroll-filter-field select {
   border-color: rgba(148, 196, 255, 0.18);
   background: linear-gradient(180deg, rgba(18, 32, 52, 0.96), rgba(12, 24, 40, 0.94));
   color: #e2e8f0;
+}
+
+body[data-theme="dark"] .payroll-filters-advanced {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+body[data-theme="dark"] .payroll-filters-advanced[open] {
+  border-color: rgba(148, 197, 255, 0.36);
+  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.35);
+}
+
+body[data-theme="dark"] .payroll-filters-advanced__summary {
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .payroll-filters-advanced__summary:hover {
+  background: rgba(148, 197, 255, 0.12);
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .payroll-filters-advanced > .payroll-data-toolbar-filters {
+  border-top-color: #334155;
 }
 
 body[data-theme="dark"] .payroll-data-nav {
