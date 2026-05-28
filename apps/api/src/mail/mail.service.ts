@@ -69,6 +69,26 @@ export type PortalRegistrationWelcomeParams = {
   accountApproved: boolean;
 };
 
+export type AdminPendingRegistrationAlertParams = {
+  applicantEmail: string;
+  applicantName: string;
+  registrationKind?: string;
+  portalUrl: string;
+};
+
+export type SecurityPasswordChangedAlertParams = {
+  to: string;
+  recipientName: string;
+  changedByAdmin?: boolean;
+};
+
+export type SecurityAccountStatusChangedAlertParams = {
+  to: string;
+  recipientName: string;
+  status: "pendiente" | "aprobado" | "rechazado";
+  portalUrl: string;
+};
+
 @Injectable()
 export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
@@ -110,6 +130,25 @@ export class MailService implements OnModuleInit {
   /** Resend configurado (scripts de despliegue / Render). */
   hasResend(): boolean {
     return Boolean(this.resend);
+  }
+
+  private resolveAdminAlertEmails(): string[] {
+    const raw =
+      this.config.get<string>("ADMIN_ALERT_EMAILS") ||
+      this.config.get<string>("MAIL_ADMIN_ALERT_EMAILS") ||
+      process.env.ADMIN_ALERT_EMAILS ||
+      process.env.MAIL_ADMIN_ALERT_EMAILS ||
+      "";
+    if (!raw) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const token of raw.split(/[,\n;]+/g)) {
+      const email = token.trim().toLowerCase();
+      if (!email || !isPlausibleEmailAddress(email) || seen.has(email)) continue;
+      seen.add(email);
+      out.push(email);
+    }
+    return out;
   }
 
   private resolveMailFrom(): string {
@@ -320,5 +359,103 @@ export class MailService implements OnModuleInit {
 </html>`;
 
     await this.send(to, subject, html);
+  }
+
+  async sendAdminNewPendingRegistrationAlert(params: AdminPendingRegistrationAlertParams): Promise<void> {
+    const recipients = this.resolveAdminAlertEmails();
+    if (!recipients.length) return;
+    const applicantEmail = String(params.applicantEmail || "").trim().toLowerCase();
+    if (!isPlausibleEmailAddress(applicantEmail)) return;
+    const applicantName = String(params.applicantName || "").trim() || "Usuario";
+    const portalUrl = String(params.portalUrl || "").trim();
+    const registrationKind = String(params.registrationKind || "").trim() || "cliente";
+    const safeName = escapeHtml(applicantName);
+    const safeEmail = escapeHtml(applicantEmail);
+    const safeKind = escapeHtml(registrationKind);
+    const safePortalUrl = escapeHtml(portalUrl.replace(/\/+$/, ""));
+    const subject = "Antares Portal — Nuevo registro pendiente de aprobación";
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px;background:#f6f9fc;font-family:Segoe UI,Arial,sans-serif;color:#0B1D33;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d7e6f5;border-radius:12px;">
+    <tr><td style="padding:22px 24px;">
+      <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">Nuevo registro pendiente</h2>
+      <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;">Se registró una nueva cuenta en el portal y requiere revisión administrativa.</p>
+      <p style="margin:0 0 8px 0;font-size:14px;"><strong>Nombre:</strong> ${safeName}</p>
+      <p style="margin:0 0 8px 0;font-size:14px;"><strong>Correo:</strong> ${safeEmail}</p>
+      <p style="margin:0 0 18px 0;font-size:14px;"><strong>Tipo de vínculo:</strong> ${safeKind}</p>
+      <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Revisar en portal</a>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await Promise.allSettled(recipients.map((to) => this.send(to, subject, html)));
+  }
+
+  async sendSecurityPasswordChangedAlert(params: SecurityPasswordChangedAlertParams): Promise<void> {
+    const to = String(params.to || "").trim().toLowerCase();
+    if (!isPlausibleEmailAddress(to)) return;
+    const safeName = escapeHtml(String(params.recipientName || "").trim() || "Usuario");
+    const subject = "Antares Portal — Cambio de contraseña detectado";
+    const origin = params.changedByAdmin
+      ? "Este cambio fue realizado por un administrador del portal."
+      : "Este cambio se realizó con un proceso válido de actualización de credenciales.";
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px;background:#f6f9fc;font-family:Segoe UI,Arial,sans-serif;color:#0B1D33;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d7e6f5;border-radius:12px;">
+    <tr><td style="padding:22px 24px;">
+      <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">Alerta de seguridad</h2>
+      <p style="margin:0 0 12px 0;font-size:14px;line-height:1.6;">Hola <strong>${safeName}</strong>, detectamos un cambio de contraseña en su cuenta.</p>
+      <p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;">${escapeHtml(origin)}</p>
+      <p style="margin:0;font-size:13px;line-height:1.6;color:#4b6077;">Si no reconoce esta acción, contacte de inmediato al administrador de su organización y solicite cierre de sesiones.</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await this.send(to, subject, html);
+  }
+
+  async sendSecurityAccountStatusChangedAlert(params: SecurityAccountStatusChangedAlertParams): Promise<void> {
+    const to = String(params.to || "").trim().toLowerCase();
+    if (!isPlausibleEmailAddress(to)) return;
+    const safeName = escapeHtml(String(params.recipientName || "").trim() || "Usuario");
+    const normalizedPortal = String(params.portalUrl || "").trim().replace(/\/+$/, "");
+    const safePortalUrl = escapeHtml(normalizedPortal);
+    const statusMeta =
+      params.status === "aprobado"
+        ? {
+            subject: "Antares Portal — Cuenta habilitada",
+            title: "Cuenta habilitada",
+            body: "Su cuenta fue habilitada por un administrador. Ya puede iniciar sesión en el portal."
+          }
+        : params.status === "rechazado"
+          ? {
+              subject: "Antares Portal — Cuenta bloqueada",
+              title: "Cuenta bloqueada",
+              body: "Su cuenta fue bloqueada/desactivada por un administrador. Si requiere acceso, contacte soporte interno."
+            }
+          : {
+              subject: "Antares Portal — Cuenta en revisión",
+              title: "Cuenta en revisión",
+              body: "Su cuenta se dejó en estado pendiente de revisión administrativa."
+            };
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:24px;background:#f6f9fc;font-family:Segoe UI,Arial,sans-serif;color:#0B1D33;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #d7e6f5;border-radius:12px;">
+    <tr><td style="padding:22px 24px;">
+      <h2 style="margin:0 0 12px 0;font-size:20px;color:#134067;">${escapeHtml(statusMeta.title)}</h2>
+      <p style="margin:0 0 12px 0;font-size:14px;line-height:1.6;">Hola <strong>${safeName}</strong>.</p>
+      <p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;">${escapeHtml(statusMeta.body)}</p>
+      <a href="${safePortalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#377cc0;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;">Ir al portal</a>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+    await this.send(to, statusMeta.subject, html);
   }
 }

@@ -2371,8 +2371,18 @@ export class PortalService implements OnModuleInit {
     }
     if (tid === actorUserId) throw new BadRequestException("No puedes cambiar tu propio estado de cuenta");
 
-    const targetRes = await this.pool.query<{ rol: string }>(
-      `SELECT rol::text AS rol FROM usuarios WHERE id = $1::uuid`,
+    const targetRes = await this.pool.query<{
+      rol: string;
+      correo_electronico: string | null;
+      nombre_completo: string | null;
+      estado_cuenta: string;
+    }>(
+      `SELECT rol::text AS rol,
+              correo_electronico,
+              nombre_completo,
+              estado_cuenta::text AS estado_cuenta
+         FROM usuarios
+        WHERE id = $1::uuid`,
       [tid]
     );
     let target = targetRes.rows[0];
@@ -2380,7 +2390,7 @@ export class PortalService implements OnModuleInit {
       // Huérfano de Supabase Auth: aprovisionamos antes de aplicar el cambio de estado.
       const provisioned = await this.provisionUsuariosFromAuthOrphan(tid).catch(() => null);
       if (!provisioned) throw new BadRequestException("Usuario no encontrado");
-      target = { rol: "client" };
+      target = { rol: "client", correo_electronico: null, nombre_completo: null, estado_cuenta: "pendiente" };
     }
     if (target.rol === "admin" && accountStatus !== "aprobado") {
       const adminsActive = await this.pool.query<{ total: string }>(
@@ -2401,6 +2411,16 @@ export class PortalService implements OnModuleInit {
        WHERE id = $1::uuid`,
       [tid, accountStatus]
     );
+    if (target.correo_electronico && target.estado_cuenta !== accountStatus) {
+      void this.mail
+        .sendSecurityAccountStatusChangedAlert({
+          to: target.correo_electronico,
+          recipientName: String(target.nombre_completo || "").trim() || "Usuario",
+          status: accountStatus as "pendiente" | "aprobado" | "rechazado",
+          portalUrl: this.resolvePortalPublicUrl()
+        })
+        .catch(() => null);
+    }
     return { ok: true, userId: tid, status: accountStatus };
   }
 
@@ -2430,8 +2450,8 @@ export class PortalService implements OnModuleInit {
       if (!/[^A-Za-z0-9]/.test(password)) throw new BadRequestException("La contraseña debe incluir un símbolo.");
     }
 
-    const targetRes = await this.pool.query<{ id: string }>(
-      `SELECT id::text FROM usuarios WHERE id = $1::uuid`,
+    const targetRes = await this.pool.query<{ id: string; correo_electronico: string | null; nombre_completo: string | null }>(
+      `SELECT id::text, correo_electronico, nombre_completo FROM usuarios WHERE id = $1::uuid`,
       [tid]
     );
     if (!targetRes.rows[0]) throw new BadRequestException("Usuario no encontrado.");
@@ -2474,6 +2494,19 @@ export class PortalService implements OnModuleInit {
         this.logger.warn(
           `adminUpdateUserCredentials: Supabase Auth no actualizado para ${tid}: ${sanitizeLogText(authErr.message)}`
         );
+      }
+    }
+
+    if (password) {
+      const notifyEmail = email || String(targetRes.rows[0].correo_electronico || "").trim().toLowerCase();
+      if (notifyEmail) {
+        void this.mail
+          .sendSecurityPasswordChangedAlert({
+            to: notifyEmail,
+            recipientName: String(targetRes.rows[0].nombre_completo || "").trim() || notifyEmail,
+            changedByAdmin: true
+          })
+          .catch(() => null);
       }
     }
 

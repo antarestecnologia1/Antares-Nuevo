@@ -213,6 +213,14 @@ export class AuthService {
     const newId = inserted.rows[0]?.id;
     if (newId) {
       void this.sendRegistrationWelcomeEmail(email, dto.name.trim(), newId);
+      void this.mail
+        .sendAdminNewPendingRegistrationAlert({
+          applicantEmail: email,
+          applicantName: dto.name.trim() || email,
+          registrationKind: "cliente",
+          portalUrl: this.portalPublicBaseUrl()
+        })
+        .catch(() => null);
     }
 
     return {
@@ -492,6 +500,14 @@ export class AuthService {
 
       if (authUserId) {
         void this.sendRegistrationWelcomeEmail(email, fullName || dto.email, authUserId);
+        void this.mail
+          .sendAdminNewPendingRegistrationAlert({
+            applicantEmail: email,
+            applicantName: fullName || dto.email,
+            registrationKind: vinculoDb,
+            portalUrl: this.portalPublicBaseUrl()
+          })
+          .catch(() => null);
       }
 
       return {
@@ -734,6 +750,14 @@ export class AuthService {
         "La contraseña no pudo validarse después de guardarla. Espere unos segundos e intente recuperarla de nuevo, o contacte a soporte."
       );
     }
+
+    void this.mail
+      .sendSecurityPasswordChangedAlert({
+        to: email,
+        recipientName: user.user_metadata?.full_name || email,
+        changedByAdmin: false
+      })
+      .catch(() => null);
 
     return {
       message:
