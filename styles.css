@@ -4284,6 +4284,43 @@ body[data-theme="dark"] .user-card--company-inactive {
   gap: 0.55rem;
 }
 
+.perm-preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(var(--primary-rgb), 0.22);
+  background: rgba(var(--primary-rgb), 0.04);
+}
+
+.perm-preset-label {
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.perm-group {
+  grid-column: 1 / -1;
+  margin-bottom: 0.35rem;
+}
+
+.perm-group-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+}
+
+.perm-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 0.55rem;
+}
+
 .perm-check {
   position: relative;
   display: grid;

@@ -7,7 +7,8 @@ export const APPROVE_PENDING_ROLE_VALUES = [
   "rrhh",
   "administracion",
   "auxiliar_administrativo",
-  "lider_administrativo"
+  "lider_administrativo",
+  "logistica"
 ] as const;
 
 /** Admin aprueba cliente pendiente: empresa + rol operativo en tabla usuarios y permisos por defecto. */

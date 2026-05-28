@@ -7,7 +7,8 @@ CREATE TYPE rol_usuario AS ENUM (
   'rrhh',
   'administracion',
   'auxiliar_administrativo',
-  'lider_administrativo'
+  'lider_administrativo',
+  'logistica'
 );
 
 -- Declaración en el formulario de registro público: cliente externo vs personal interno Antares.

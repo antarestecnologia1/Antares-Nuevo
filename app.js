@@ -2948,8 +2948,37 @@ const ROLES = {
   RRHH: "rrhh",
   ADMINISTRACION: "administracion",
   AUXILIAR_ADMINISTRATIVO: "auxiliar_administrativo",
-  LIDER_ADMINISTRATIVO: "lider_administrativo"
+  LIDER_ADMINISTRATIVO: "lider_administrativo",
+  LOGISTICA: "logistica"
 };
+
+/** Roles asignables desde Usuarios y permisos / aprobación de altas (orden de la lista). */
+const PORTAL_ASSIGNABLE_ROLES = [
+  { value: ROLES.ADMIN, label: "Administrador" },
+  { value: ROLES.RRHH, label: "Recursos Humanos" },
+  { value: ROLES.ADMINISTRACION, label: "Administración" },
+  { value: ROLES.AUXILIAR_ADMINISTRATIVO, label: "Auxiliar administrativo" },
+  { value: ROLES.LIDER_ADMINISTRATIVO, label: "Líder administrativo" },
+  { value: ROLES.LOGISTICA, label: "Logística" },
+  { value: ROLES.CLIENT, label: "Cliente" }
+];
+
+function portalRoleSelectOptionsHtml(selectedRole = "") {
+  const sel = String(selectedRole || "").toLowerCase();
+  return PORTAL_ASSIGNABLE_ROLES.map(
+    (r) =>
+      `<option value="${escapeAttr(r.value)}"${sel === r.value ? " selected" : ""}>${escapeHtml(r.label)}</option>`
+  ).join("");
+}
+
+function portalRoleSelectOptionsForModal(selectedRole = "") {
+  const sel = String(selectedRole || "").toLowerCase();
+  return PORTAL_ASSIGNABLE_ROLES.map((r) => ({
+    value: r.value,
+    label: r.label,
+    selected: sel === r.value
+  }));
+}
 
 const PERMISSIONS = {
   DASHBOARD_VIEW: "dashboard_view",
@@ -2965,6 +2994,13 @@ const PERMISSIONS = {
   SST_COMPLIANCE: "sst_compliance",
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
+  AUTHORIZATIONS_TRANSPORT: "authorizations_transport",
+  AUTHORIZATIONS_PORTAL_REGISTRATIONS: "authorizations_portal_registrations",
+  AUTHORIZATIONS_PORTAL_USERS: "authorizations_portal_users",
+  AUTHORIZATIONS_FLEET: "authorizations_fleet",
+  AUTHORIZATIONS_WORKFORCE: "authorizations_workforce",
+  AUTHORIZATIONS_HR_ABSENCES: "authorizations_hr_absences",
+  AUTHORIZATIONS_PAYROLL_PAY: "authorizations_payroll_pay",
   PROFILE_VIEW: "profile_view",
   NOTIFICATIONS_VIEW: "notifications_view",
   CONTACT_B2B_VIEW: "contact_b2b_view"
@@ -3009,7 +3045,10 @@ const COLOMBIA_LOCATIONS = {
 const PERMISSION_META = {
   [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
   [PERMISSIONS.CLIENT_REQUESTS]: { title: "Solicitudes de cliente", desc: "Crear y consultar solicitudes propias." },
-  [PERMISSIONS.TRANSPORT_REQUESTS]: { title: "Operacion solicitudes (legacy)", desc: "Sin pantalla propia; use Autorizaciones y Mis solicitudes." },
+  [PERMISSIONS.TRANSPORT_REQUESTS]: {
+    title: "Operación de solicitudes",
+    desc: "Crear solicitudes para cualquier empresa y ver el listado operativo completo (perfil logística)."
+  },
   [PERMISSIONS.TRANSPORT_TRIPS]: {
     title: "Gestion de viajes",
     desc: "Asignar viajes, actualizar estados y modificar solicitudes que ya tienen viaje asignado (con justificación)."
@@ -3022,11 +3061,102 @@ const PERMISSION_META = {
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
   [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
-  [PERMISSIONS.AUTHORIZATIONS_MANAGE]: { title: "Autorizaciones", desc: "Aprobar solicitudes de operaciones y personal." },
+  [PERMISSIONS.AUTHORIZATIONS_MANAGE]: {
+    title: "Autorizaciones (todas las bandejas)",
+    desc: "Acceso completo al centro de aprobaciones: transporte, cuentas, RRHH y colas internas."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_TRANSPORT]: {
+    title: "Autorizar solicitudes de transporte",
+    desc: "Bandeja de solicitudes pendientes: aprobar, rechazar y editar antes de aprobar."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_PORTAL_REGISTRATIONS]: {
+    title: "Autorizar registros web",
+    desc: "Nuevas cuentas del portal pendientes de aprobación."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_PORTAL_USERS]: {
+    title: "Autorizar altas de usuario",
+    desc: "Cola interna cuando un operador crea usuarios sin ser administrador."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_FLEET]: {
+    title: "Autorizar altas de conductor",
+    desc: "Cola interna de conductores registrados por perfiles no administradores."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_WORKFORCE]: {
+    title: "Autorizar altas de colaborador",
+    desc: "Cola interna de empleados en gestión humana."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_HR_ABSENCES]: {
+    title: "Autorizar ausencias e incapacidades",
+    desc: "Cola de registros de ausencia cargados por RRHH o administrativos."
+  },
+  [PERMISSIONS.AUTHORIZATIONS_PAYROLL_PAY]: {
+    title: "Autorizar marcas de pago de nómina",
+    desc: "Cola de liquidaciones marcadas como pagadas por perfiles no administradores."
+  },
   [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
   [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." },
   [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Solicitudes contacto web", desc: "Ver y gestionar prospectos del formulario de contacto B2B." }
 };
+
+/** Perfil operativo logística: crear solicitudes, aprobarlas y asignar viajes (sin otras bandejas de autorización). */
+const LOGISTICS_OPERATOR_PERMISSIONS = Object.freeze([
+  PERMISSIONS.DASHBOARD_VIEW,
+  PERMISSIONS.TRANSPORT_REQUESTS,
+  PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
+  PERMISSIONS.TRANSPORT_TRIPS,
+  PERMISSIONS.TRANSPORT_CALENDAR,
+  PERMISSIONS.TRANSPORT_VEHICLES,
+  PERMISSIONS.TRANSPORT_DRIVERS,
+  PERMISSIONS.PROFILE_VIEW,
+  PERMISSIONS.NOTIFICATIONS_VIEW
+]);
+
+const PERMISSION_PRESETS = Object.freeze({
+  logistics: LOGISTICS_OPERATOR_PERMISSIONS
+});
+
+/** Orden en la grilla de permisos (Usuarios y permisos). */
+const PERMISSION_UI_GROUPS = [
+  {
+    title: "General",
+    permissions: [PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.PROFILE_VIEW, PERMISSIONS.NOTIFICATIONS_VIEW]
+  },
+  {
+    title: "Solicitudes y operación de transporte",
+    permissions: [
+      PERMISSIONS.CLIENT_REQUESTS,
+      PERMISSIONS.TRANSPORT_REQUESTS,
+      PERMISSIONS.TRANSPORT_TRIPS,
+      PERMISSIONS.TRANSPORT_VEHICLES,
+      PERMISSIONS.TRANSPORT_DRIVERS,
+      PERMISSIONS.TRANSPORT_CALENDAR,
+      PERMISSIONS.TRANSPORT_HISTORY
+    ]
+  },
+  {
+    title: "Centro de aprobaciones (por bandeja)",
+    permissions: [
+      PERMISSIONS.AUTHORIZATIONS_MANAGE,
+      PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
+      PERMISSIONS.AUTHORIZATIONS_PORTAL_REGISTRATIONS,
+      PERMISSIONS.AUTHORIZATIONS_PORTAL_USERS,
+      PERMISSIONS.AUTHORIZATIONS_FLEET,
+      PERMISSIONS.AUTHORIZATIONS_WORKFORCE,
+      PERMISSIONS.AUTHORIZATIONS_HR_ABSENCES,
+      PERMISSIONS.AUTHORIZATIONS_PAYROLL_PAY
+    ]
+  },
+  {
+    title: "Recursos humanos y administración",
+    permissions: [
+      PERMISSIONS.PAYROLL_MANAGE,
+      PERMISSIONS.HIRING_MANAGE,
+      PERMISSIONS.SST_COMPLIANCE,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.CONTACT_B2B_VIEW
+    ]
+  }
+];
 
 const VIEW_PERMISSIONS = {
   dashboard: PERMISSIONS.DASHBOARD_VIEW,
@@ -5712,7 +5842,9 @@ function mapJwtRoleToAppRole(roleRaw) {
     rrhh: ROLES.RRHH,
     administracion: ROLES.ADMINISTRACION,
     auxiliar_administrativo: ROLES.AUXILIAR_ADMINISTRATIVO,
-    lider_administrativo: ROLES.LIDER_ADMINISTRATIVO
+    lider_administrativo: ROLES.LIDER_ADMINISTRATIVO,
+    logistica: ROLES.LOGISTICA,
+    logistics: ROLES.LOGISTICA
   };
   return roleMap[r] || ROLES.CLIENT;
 }
@@ -6292,10 +6424,10 @@ function mergePendingUserRegistrationsIntoCache(rows) {
   write(KEYS.users, out);
 }
 
-/** Solo administrador: bandeja dedicada de altas pendientes (misma fuente que BD). */
+/** Bandeja de altas pendientes (requiere permiso de autorización de registros web). */
 async function applyPendingUserRegistrationsFromApi() {
   if (!portalCanRefreshFromApi()) return false;
-  if (currentUser()?.role !== ROLES.ADMIN) return false;
+  if (!canApprovePortalRegistration(currentUser())) return false;
   const api = window.AntaresApi;
   try {
     const rows = await api.getJson("/portal/pending-user-registrations");
@@ -10636,6 +10768,7 @@ function defaultPermissionsForRole(role) {
       PERMISSIONS.NOTIFICATIONS_VIEW
     ];
   }
+  if (role === ROLES.LOGISTICA) return [...LOGISTICS_OPERATOR_PERMISSIONS];
   return [
     PERMISSIONS.DASHBOARD_VIEW,
     PERMISSIONS.CLIENT_REQUESTS,
@@ -10949,6 +11082,7 @@ const AUTH_QUEUE_SHORT_TAB_LABELS = {
 function buildAuthorizationsTransportRequestsSection(pendingRequests) {
   const n = pendingRequests.length;
   const actor = currentUser();
+  const canApprove = canApproveTransportRequests(actor);
   const countBadge = `<span class="auth-section-count">${n} solicitud pendiente${n === 1 ? "" : "es"}</span>`;
   const cards = pendingRequests
     .map((r) => {
@@ -10956,6 +11090,10 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
       const allowEdit = canPortalUserEditTransportRequest(r, actor);
       const editBtn = allowEdit
         ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-request" data-id="${eid}">${IC.edit} Editar</button>`
+        : "";
+      const decisionBtns = canApprove
+        ? `<button type="button" class="btn btn-sm btn-approve" data-action="approve" data-id="${eid}">${IC.check} Aprobar</button>
+        <button type="button" class="btn btn-sm btn-reject" data-action="reject" data-id="${eid}">${IC.x} Rechazar</button>`
         : "";
       return `<article class="auth-request-card">
       <div class="auth-request-card-top">
@@ -10969,8 +11107,7 @@ function buildAuthorizationsTransportRequestsSection(pendingRequests) {
       <div class="toolbar auth-request-card-actions">
         <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${eid}">${IC.eye} Ver</button>
         ${editBtn}
-        <button type="button" class="btn btn-sm btn-approve" data-action="approve" data-id="${eid}">${IC.check} Aprobar</button>
-        <button type="button" class="btn btn-sm btn-reject" data-action="reject" data-id="${eid}">${IC.x} Rechazar</button>
+        ${decisionBtns}
       </div>
     </article>`;
     })
@@ -13155,14 +13292,22 @@ const REQUEST_EDIT_FINAL_STATUSES = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.C
 const REQUEST_EDIT_JUSTIFICATION_MIN_LEN = 10;
 
 /** Permisos que habilitan editar una solicitud que ya tiene viaje asignado. */
-const REQUEST_EDIT_WITH_TRIP_PERMISSIONS = [PERMISSIONS.TRANSPORT_TRIPS, PERMISSIONS.AUTHORIZATIONS_MANAGE];
+const REQUEST_EDIT_WITH_TRIP_PERMISSIONS = [
+  PERMISSIONS.TRANSPORT_TRIPS,
+  PERMISSIONS.AUTHORIZATIONS_MANAGE,
+  PERMISSIONS.AUTHORIZATIONS_TRANSPORT
+];
 
 /**
  * Administrador: puede editar/cancelar solicitud mientras no esté en estado final (sin viaje asignado).
  */
-function canAdminEditTransportRequestFields(request) {
+function canAdminEditTransportRequestFields(request, actor) {
   if (!request) return false;
-  if (currentUser()?.role !== ROLES.ADMIN) return false;
+  const user = actor || currentUser();
+  if (!user) return false;
+  const canOps =
+    user.role === ROLES.ADMIN || canApproveTransportRequests(user) || canManageTransportTrips(user);
+  if (!canOps) return false;
   if (request.trip) return false;
   return !REQUEST_EDIT_FINAL_STATUSES.includes(request.status);
 }
@@ -13308,9 +13453,10 @@ function canClientManageRequest(request) {
  * fechas estimadas, observaciones). Solo administradores y mientras el
  * viaje no haya sido cerrado/completado/cancelado.
  */
-function canAdminEditTrip(request) {
+function canAdminEditTrip(request, actor) {
   if (!request?.trip) return false;
-  if (currentUser()?.role !== ROLES.ADMIN) return false;
+  const user = actor || currentUser();
+  if (!canManageTransportTrips(user) && !isAdminActor(user)) return false;
   const finalStatuses = [STATUS.COMPLETADA, STATUS.CERRADA, STATUS.CANCELADA, STATUS.RECHAZADA];
   return !finalStatuses.includes(request.status);
 }
@@ -15083,6 +15229,7 @@ function formatPortalRoleLabel(role) {
   if (r === ROLES.ADMINISTRACION) return "Administración";
   if (r === ROLES.AUXILIAR_ADMINISTRATIVO) return "Auxiliar administrativo";
   if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder administrativo";
+  if (r === ROLES.LOGISTICA) return "Logística";
   return String(role || "usuario").toUpperCase();
 }
 
@@ -15145,7 +15292,7 @@ function updatePortalSidebarSessionMeta() {
 function getVisibleRequestsForUser(user) {
   const requests = reqRead();
   if (!user) return [];
-  if (user.role === ROLES.ADMIN) return requests;
+  if (canViewAllTransportRequests(user)) return requests;
   const companyId = String(user.companyId || "").trim();
   const userId = String(user.id || "").trim();
   let filtered = requests.filter((request) => {
@@ -15161,6 +15308,104 @@ function getVisibleRequestsForUser(user) {
 function hasPermission(user, permission) {
   if (!permission) return true;
   return effectiveUserPermissions(user).includes(permission);
+}
+
+/** Permisos que abren el módulo Centro de aprobaciones (al menos una bandeja). */
+const AUTHORIZATION_SECTION_PERMISSIONS = Object.freeze({
+  portal_registrations: PERMISSIONS.AUTHORIZATIONS_PORTAL_REGISTRATIONS,
+  transport_requests: PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
+  portal_access: PERMISSIONS.AUTHORIZATIONS_PORTAL_USERS,
+  transport_fleet: PERMISSIONS.AUTHORIZATIONS_FLEET,
+  workforce: PERMISSIONS.AUTHORIZATIONS_WORKFORCE,
+  hr_absences: PERMISSIONS.AUTHORIZATIONS_HR_ABSENCES,
+  payroll_pay: PERMISSIONS.AUTHORIZATIONS_PAYROLL_PAY
+});
+
+function hasAuthorizationManageAll(user) {
+  return hasPermission(user, PERMISSIONS.AUTHORIZATIONS_MANAGE);
+}
+
+function canAccessAuthorizationSection(user, sectionKey) {
+  if (!user) return false;
+  if (hasAuthorizationManageAll(user)) return true;
+  const perm = AUTHORIZATION_SECTION_PERMISSIONS[String(sectionKey || "")];
+  return perm ? hasPermission(user, perm) : false;
+}
+
+function canAccessAuthorizationsView(user) {
+  if (!user) return false;
+  if (hasAuthorizationManageAll(user)) return true;
+  return Object.values(AUTHORIZATION_SECTION_PERMISSIONS).some((perm) => hasPermission(user, perm));
+}
+
+function canApproveTransportRequests(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return (
+    isAdminActor(u) ||
+    hasAuthorizationManageAll(u) ||
+    hasPermission(u, PERMISSIONS.AUTHORIZATIONS_TRANSPORT)
+  );
+}
+
+function canApprovePortalRegistration(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return (
+    isAdminActor(u) ||
+    hasAuthorizationManageAll(u) ||
+    hasPermission(u, PERMISSIONS.AUTHORIZATIONS_PORTAL_REGISTRATIONS)
+  );
+}
+
+function approvalTypeToSectionKey(approvalType) {
+  return APPROVAL_TYPE_META[String(approvalType || "")]?.sectionKey || "misc";
+}
+
+function canApproveInternalAuthorization(user, approvalType) {
+  const u = user || currentUser();
+  if (!u) return false;
+  if (isAdminActor(u) || hasAuthorizationManageAll(u)) return true;
+  const sectionKey = approvalTypeToSectionKey(approvalType);
+  if (sectionKey === "misc") return false;
+  return canAccessAuthorizationSection(u, sectionKey);
+}
+
+function canViewAllTransportRequests(user) {
+  if (!user) return false;
+  if (user.role === ROLES.ADMIN) return true;
+  const ops = [
+    PERMISSIONS.TRANSPORT_TRIPS,
+    PERMISSIONS.TRANSPORT_REQUESTS,
+    PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
+    PERMISSIONS.AUTHORIZATIONS_MANAGE,
+    PERMISSIONS.TRANSPORT_HISTORY,
+    PERMISSIONS.TRANSPORT_CALENDAR,
+    PERMISSIONS.TRANSPORT_VEHICLES,
+    PERMISSIONS.TRANSPORT_DRIVERS
+  ];
+  return ops.some((p) => hasPermission(user, p));
+}
+
+function canManageTransportTrips(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasPermission(u, PERMISSIONS.TRANSPORT_TRIPS);
+}
+
+function canPerformPermissionGatedAction(user, action, trigger) {
+  if (!user || isAdminActor(user)) return true;
+  if (action === "approve" || action === "reject") return canApproveTransportRequests(user);
+  if (action === "approve-registration" || action === "reject-registration") {
+    return canApprovePortalRegistration(user);
+  }
+  if (action === "approval-approve" || action === "approval-reject") {
+    const id = String(trigger?.dataset?.id || "");
+    const approval = read(KEYS.approvals, []).find((a) => String(a.id) === id && a.status === "pendiente");
+    return approval ? canApproveInternalAuthorization(user, approval.type) : false;
+  }
+  if (action === "trip-status" || action === "edit-trip") return canManageTransportTrips(user);
+  return false;
 }
 
 /**
@@ -15199,7 +15444,15 @@ function abortUnlessAdminForFleetDriverEdit(reason = "driversManageForbidden") {
 }
 
 function canAccessView(user, view) {
-  return hasPermission(user, VIEW_PERMISSIONS[view]);
+  const v = String(view || "");
+  if (v === "authorizations") return canAccessAuthorizationsView(user);
+  if (v === "requests") {
+    return (
+      hasPermission(user, PERMISSIONS.CLIENT_REQUESTS) || hasPermission(user, PERMISSIONS.TRANSPORT_REQUESTS)
+    );
+  }
+  const perm = VIEW_PERMISSIONS[v];
+  return perm ? hasPermission(user, perm) : false;
 }
 
 function canAccessRRHH(role) {
@@ -16175,6 +16428,8 @@ function requestListClientHtml(user) {
     .map((r) => {
       const allowEdit = canPortalUserEditTransportRequest(r, user);
       const allowClientDeletePending = canClientEditOwnPendingTransportRequest(r, user);
+      const allowApprovePending =
+        r.status === STATUS.PENDIENTE && canApproveTransportRequests(user);
       const trip = r.trip
         ? `<strong>${escapeHtml(String(r.trip.tripNumber || ""))}</strong><br><span class="muted">${escapeHtml(String(r.trip.vehiclePlate || ""))} · ${escapeHtml(String(r.trip.driverName || ""))}</span>`
         : '<span class="muted">-</span>';
@@ -16188,6 +16443,8 @@ function requestListClientHtml(user) {
             <div class="toolbar trip-actions-toolbar request-actions-toolbar">
               <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}">${IC.eye} Ver</button>
               ${allowEdit ? `<button class="btn btn-sm btn-action" data-action="edit-request" data-id="${r.id}">${IC.edit} Editar</button>` : ""}
+              ${allowApprovePending ? `<button class="btn btn-sm btn-approve" data-action="approve" data-id="${r.id}">${IC.check} Aprobar</button>` : ""}
+              ${allowApprovePending ? `<button class="btn btn-sm btn-reject" data-action="reject" data-id="${r.id}">${IC.x} Rechazar</button>` : ""}
               ${allowEdit ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${r.id}">${IC.x} Cancelar</button>` : ""}
               ${allowClientDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${r.id}">${IC.trash} Eliminar</button>` : ""}
               ${
@@ -17694,6 +17951,16 @@ function transportCalendarHtml() {
  * Casillas de permisos granulares (admin). Centralizado para reutilizar en HTML y al
  * cambiar el usuario seleccionado en el formulario de permisos.
  */
+function permissionCheckboxHtml(permission, sel, readOnly) {
+  const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
+  const checked = sel.has(permission) ? "checked" : "";
+  const dis = readOnly ? " disabled" : "";
+  return `<label class="perm-check">
+      <input type="checkbox" name="permissions" value="${escapeAttr(permission)}" ${checked}${dis} />
+      <span><strong>${escapeHtml(String(meta.title || ""))}</strong><small>${escapeHtml(String(meta.desc || ""))}</small></span>
+    </label>`;
+}
+
 function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
   const readOnly = Boolean(opts.readOnlyAllChecked);
   const allowed = new Set(ALL_PERMISSIONS);
@@ -17702,15 +17969,40 @@ function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
       ? ALL_PERMISSIONS
       : (Array.isArray(selected) ? selected : []).filter((p) => allowed.has(p))
   );
-  return ALL_PERMISSIONS.map((permission) => {
-    const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
-    const checked = sel.has(permission) ? "checked" : "";
-    const dis = readOnly ? " disabled" : "";
-    return `<label class="perm-check">
-      <input type="checkbox" name="permissions" value="${escapeAttr(permission)}" ${checked}${dis} />
-      <span><strong>${escapeHtml(String(meta.title || ""))}</strong><small>${escapeHtml(String(meta.desc || ""))}</small></span>
-    </label>`;
+  const grouped = new Set();
+  const sections = PERMISSION_UI_GROUPS.map((group) => {
+    const items = group.permissions.filter((p) => allowed.has(p));
+    items.forEach((p) => grouped.add(p));
+    if (!items.length) return "";
+    return `<div class="perm-group">
+      <p class="perm-group-title">${escapeHtml(group.title)}</p>
+      <div class="perm-group-grid">${items.map((p) => permissionCheckboxHtml(p, sel, readOnly)).join("")}</div>
+    </div>`;
   }).join("");
+  const rest = ALL_PERMISSIONS.filter((p) => !grouped.has(p));
+  const restHtml = rest.length
+    ? `<div class="perm-group">
+      <p class="perm-group-title">Otros</p>
+      <div class="perm-group-grid">${rest.map((p) => permissionCheckboxHtml(p, sel, readOnly)).join("")}</div>
+    </div>`
+    : "";
+  return sections + restHtml;
+}
+
+function renderPermissionPresetToolbarHtml() {
+  return `<div class="perm-preset-bar" role="group" aria-label="Plantillas de permisos">
+    <span class="muted perm-preset-label">Plantilla rápida:</span>
+    <button type="button" class="btn btn-sm btn-action" data-action="apply-perm-preset" data-preset="logistics">${IC.truck} Perfil logística</button>
+  </div>`;
+}
+
+function applyPermissionPresetToForm(form, presetKey) {
+  const preset = PERMISSION_PRESETS[String(presetKey || "")];
+  if (!form || !preset) return false;
+  const grid = form.querySelector(".perm-grid");
+  if (!grid) return false;
+  grid.innerHTML = buildGranularPermissionsCheckboxesHtml([...preset]);
+  return true;
 }
 
 function adminUsersHtml(current) {
@@ -17777,9 +18069,10 @@ function adminUsersHtml(current) {
       administracion: "#1D4ED8",
       auxiliar_administrativo: "#0EA5E9",
       lider_administrativo: "#4F46E5",
+      logistica: "#0D9488",
       client: "#0E7490"
     };
-    return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${r}</span>`;
+    return `<span class="role-chip" style="--role-color:${colors[r] || '#64748B'}">${escapeHtml(formatPortalRoleLabel(r))}</span>`;
   };
 
   const renderUserCard = (u, mode = "active") => {
@@ -18020,14 +18313,7 @@ function adminUsersHtml(current) {
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.shield} Acceso y rol</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.shield, "Rol")}<select name="role" required>
-          <option value="${ROLES.ADMIN}">Administrador</option>
-          <option value="${ROLES.RRHH}">Recursos Humanos</option>
-          <option value="${ROLES.ADMINISTRACION}">Administración</option>
-          <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}">Auxiliar administrativo</option>
-          <option value="${ROLES.LIDER_ADMINISTRATIVO}">Líder administrativo</option>
-          <option value="${ROLES.CLIENT}">Cliente</option>
-        </select></label>
+        <label>${fieldLabel(IC.shield, "Rol")}<select name="role" required>${portalRoleSelectOptionsHtml()}</select></label>
         <label>${fieldLabel(IC.shield, "Tipo de vínculo")}<select name="registrationKind" required>
           <option value="cliente">Cliente externo</option>
           <option value="empleado_interno">Empleado interno</option>
@@ -18061,6 +18347,7 @@ function adminUsersHtml(current) {
 
     <fieldset class="full perm-fieldset">
       <legend>${IC.shield} Permisos del usuario</legend>
+      ${renderPermissionPresetToolbarHtml()}
       <div class="perm-grid">${permissionChecks(defaultPermissionsForRole(ROLES.ADMIN))}</div>
     </fieldset>
     ${renderManagedCreateFormActions("create-user", `<button class="btn btn-primary" type="submit">${IC.userPlus} Crear usuario</button>`, {
@@ -18213,6 +18500,7 @@ function adminUsersHtml(current) {
     </label>
     <fieldset class="full perm-fieldset">
       <legend>Permisos a asignar</legend>
+      ${renderPermissionPresetToolbarHtml()}
       <div class="perm-grid">${permissionChecks([])}</div>
     </fieldset>
     ${renderManagedCreateFormActions("admin-permissions", `<button class="btn btn-primary" type="submit">${IC.save} Guardar permisos</button>`, {
@@ -18291,14 +18579,7 @@ function adminUsersHtml(current) {
           </div>
         </label>
         <label>${fieldLabel(IC.shield, "Rol")}
-          <select name="role" required>
-            <option value="${ROLES.ADMIN}" ${editingUser.role === ROLES.ADMIN ? "selected" : ""}>Administrador</option>
-            <option value="${ROLES.RRHH}" ${editingUser.role === ROLES.RRHH ? "selected" : ""}>Recursos Humanos</option>
-            <option value="${ROLES.ADMINISTRACION}" ${editingUser.role === ROLES.ADMINISTRACION ? "selected" : ""}>Administración</option>
-            <option value="${ROLES.AUXILIAR_ADMINISTRATIVO}" ${editingUser.role === ROLES.AUXILIAR_ADMINISTRATIVO ? "selected" : ""}>Auxiliar administrativo</option>
-            <option value="${ROLES.LIDER_ADMINISTRATIVO}" ${editingUser.role === ROLES.LIDER_ADMINISTRATIVO ? "selected" : ""}>Líder administrativo</option>
-            <option value="${ROLES.CLIENT}" ${editingUser.role === ROLES.CLIENT ? "selected" : ""}>Cliente</option>
-          </select>
+          <select name="role" required>${portalRoleSelectOptionsHtml(editingUser.role)}</select>
         </label>
         <label class="full">${fieldLabel(IC.users, "Cliente o usuario interno")}
           <select name="registrationKind" id="admin-edit-registration-kind" required aria-label="Cliente externo o usuario interno Antares">
@@ -18335,6 +18616,7 @@ function adminUsersHtml(current) {
     </fieldset>
     <fieldset class="full perm-fieldset">
       <legend>Permisos granulares</legend>
+      ${renderPermissionPresetToolbarHtml()}
       <div class="perm-grid">${permissionChecks(effectiveUserPermissions(editingUser))}</div>
     </fieldset>
     ${renderModulePanelEditActions(`<button class="btn btn-primary" type="submit">${IC.save} Guardar cambios</button>`, { cancelAction: "close-edit-user", toggleAction: "toggle-admin-edit-user-panel" })}
@@ -25691,6 +25973,7 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
 }
 
 function authorizationsHtml() {
+  const actor = currentUser();
   const approvals = read(KEYS.approvals, []);
   const pending = approvals.filter((a) => a.status === "pendiente");
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
@@ -25700,7 +25983,14 @@ function authorizationsHtml() {
     reqRead().filter((r) => r.status === STATUS.PENDIENTE),
     (r) => r.createdAt
   );
-  const totalOpen = pending.length + pendingUsers.length + pendingTransportRequests.length;
+  let totalOpen = 0;
+  if (canAccessAuthorizationSection(actor, "portal_registrations")) totalOpen += pendingUsers.length;
+  if (canAccessAuthorizationSection(actor, "transport_requests")) totalOpen += pendingTransportRequests.length;
+  pending.forEach((a) => {
+    const sk = APPROVAL_TYPE_META[a.type]?.sectionKey || "misc";
+    if (sk === "misc" && !hasAuthorizationManageAll(actor)) return;
+    if (canAccessAuthorizationSection(actor, sk)) totalOpen += 1;
+  });
 
   const groups = new Map();
   APPROVAL_UI_BLOCKS.forEach((b) => {
@@ -25711,6 +26001,8 @@ function authorizationsHtml() {
   pending.forEach((a) => {
     const key = APPROVAL_TYPE_META[a.type]?.sectionKey;
     const safeKey = key && groups.has(key) ? key : "misc";
+    if (!canAccessAuthorizationSection(actor, safeKey === "misc" ? "misc" : safeKey)) return;
+    if (safeKey === "misc" && !hasAuthorizationManageAll(actor)) return;
     groups.get(safeKey).push(a);
   });
 
@@ -25721,12 +26013,36 @@ function authorizationsHtml() {
     }
   });
 
-  const authHero = moduleFleetHeroStrip([
-    { label: "Bandeja total", value: totalOpen, tone: totalOpen ? "warn" : undefined },
-    { label: "Nuevas cuentas web", value: pendingUsers.length, tone: pendingUsers.length ? "warn" : undefined },
-    { label: "Solicitudes pendientes", value: pendingTransportRequests.length, tone: pendingTransportRequests.length ? "warn" : undefined },
-    { label: "Cola interna (aprobaciones)", value: pending.length, tone: pending.length ? "warn" : undefined }
-  ]);
+  const heroItems = [{ label: "Bandeja total", value: totalOpen, tone: totalOpen ? "warn" : undefined }];
+  if (canAccessAuthorizationSection(actor, "portal_registrations")) {
+    heroItems.push({
+      label: "Nuevas cuentas web",
+      value: pendingUsers.length,
+      tone: pendingUsers.length ? "warn" : undefined
+    });
+  }
+  if (canAccessAuthorizationSection(actor, "transport_requests")) {
+    heroItems.push({
+      label: "Solicitudes pendientes",
+      value: pendingTransportRequests.length,
+      tone: pendingTransportRequests.length ? "warn" : undefined
+    });
+  }
+  if (
+    hasAuthorizationManageAll(actor) ||
+    APPROVAL_UI_BLOCKS.some((b) => b.kind === "queue" && canAccessAuthorizationSection(actor, b.key))
+  ) {
+    const internalCt = pending.filter((a) => {
+      const sk = APPROVAL_TYPE_META[a.type]?.sectionKey || "misc";
+      return sk !== "transport_requests" && sk !== "portal_registrations" && canAccessAuthorizationSection(actor, sk);
+    }).length;
+    heroItems.push({
+      label: "Cola interna (aprobaciones)",
+      value: internalCt,
+      tone: internalCt ? "warn" : undefined
+    });
+  }
+  const authHero = moduleFleetHeroStrip(heroItems);
 
   const transportSection = buildAuthorizationsTransportRequestsSection(pendingTransportRequests);
   const portalRegHtml = buildAuthorizationsPortalRegistrationsSection(pendingUsers);
@@ -25746,22 +26062,26 @@ function authorizationsHtml() {
     </section>`
       : "";
 
-  const tabDefs = [
-    {
+  const tabDefs = [];
+  if (canAccessAuthorizationSection(actor, "portal_registrations")) {
+    tabDefs.push({
       id: "portal_registrations",
       label: "Nuevas cuentas",
       count: pendingUsers.length,
       html: portalRegHtml
-    },
-    {
+    });
+  }
+  if (canAccessAuthorizationSection(actor, "transport_requests")) {
+    tabDefs.push({
       id: "transport_requests",
       label: "Solicitudes pendientes",
       count: pendingTransportRequests.length,
       html: transportSection
-    }
-  ];
+    });
+  }
   APPROVAL_UI_BLOCKS.forEach((section) => {
     if (section.kind !== "queue") return;
+    if (!canAccessAuthorizationSection(actor, section.key)) return;
     const rows = groups.get(section.key) || [];
     const countBadge = `<span class="auth-section-count">${rows.length} pendiente(s)</span>`;
     const tableOrEmpty = rows.length
@@ -25784,8 +26104,20 @@ function authorizationsHtml() {
       html
     });
   });
-  if (miscRows.length) {
+  if (miscRows.length && hasAuthorizationManageAll(actor)) {
     tabDefs.push({ id: "misc", label: "Otras colas", count: miscRows.length, html: miscSectionHtml });
+  }
+
+  if (!tabDefs.length) {
+    return (
+      authHero +
+      pcardWrap(
+        "shield",
+        "Centro de aprobaciones",
+        "Sin bandejas asignadas",
+        emptyState("Su usuario no tiene permisos de autorización configurados. Solicite al administrador los accesos necesarios.")
+      )
+    );
   }
 
   const tabBar = `<div class="auth-tabs-bar" data-auth-tabs-bar role="tablist">${tabDefs
@@ -26204,7 +26536,7 @@ function renderPortalViewImpl() {
           bootstrapOk = false;
         }
         let pendingOk = false;
-        if (currentUser()?.role === ROLES.ADMIN) {
+        if (canApprovePortalRegistration(currentUser())) {
           try {
             pendingOk = await applyPendingUserRegistrationsFromApi();
           } catch (_e2) {
@@ -26213,7 +26545,7 @@ function renderPortalViewImpl() {
         }
         if (bootstrapOk) {
           state.authorizationsSyncError = null;
-        } else if (currentUser()?.role === ROLES.ADMIN && pendingOk) {
+        } else if (canApprovePortalRegistration(currentUser()) && pendingOk) {
           state.authorizationsSyncError = {
             code: "PARCIAL",
             message:
@@ -27177,6 +27509,7 @@ function portalNonAdminRestrictedCaptureClick(event) {
   }
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
+  if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -27195,6 +27528,7 @@ function portalNonAdminRestrictedCaptureChange(event) {
   }
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
+  if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -27209,6 +27543,24 @@ function portalNonAdminRestrictedCaptureChange(event) {
  */
 function abortIfNotAdmin(reason = "adminOnlyModule") {
   if (isAdminActor()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanApproveTransport(reason = "adminOnlyModule") {
+  if (canApproveTransportRequests()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanApprovePortalRegistration(reason = "adminOnlyApprove") {
+  if (canApprovePortalRegistration()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanManageTransportTrips(reason = "adminOnlyModule") {
+  if (canManageTransportTrips()) return false;
   notify(userMessage(reason), "error");
   return true;
 }
@@ -27239,6 +27591,7 @@ function bindDynamicEvents() {
       const action = String(node.dataset.action || "");
       if (FLEET_DRIVER_EDIT_ACTIONS.has(action) && fleetDriverEditor) return;
       if (HIRING_RRHH_EDIT_ACTIONS.has(action) && hiringEditor) return;
+      if (canPerformPermissionGatedAction(actor, action, node)) return;
       if (!restrictedActions.has(action)) return;
       if (node.matches("button")) node.classList.add("hidden");
       if (node.matches("select")) {
@@ -27253,6 +27606,14 @@ function bindDynamicEvents() {
       nodes.viewRoot.addEventListener("change", portalNonAdminRestrictedCaptureChange, true);
     }
   }
+
+  nodes.viewRoot.querySelectorAll("[data-action='apply-perm-preset']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = btn.closest("form");
+      if (!applyPermissionPresetToForm(form, btn.dataset.preset)) return;
+      notify("Plantilla de permisos aplicada. Revise las casillas y guarde.", "info");
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-password']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -28368,10 +28729,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='approve-registration']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (currentUser()?.role !== ROLES.ADMIN) {
-        notify(userMessage("adminOnlyApprove"), "error");
-        return;
-      }
+      if (abortUnlessCanApprovePortalRegistration()) return;
       const userId = btn.dataset.id;
       if (!userId) return;
       const users = read(KEYS.users, []);
@@ -28460,14 +28818,10 @@ function bindDynamicEvents() {
             type: "select",
             required: true,
             value: initialRole,
-            options: [
-              { value: ROLES.CLIENT, label: "Cliente" },
-              { value: ROLES.RRHH, label: "Recursos Humanos" },
-              { value: ROLES.ADMINISTRACION, label: "Administración" },
-              { value: ROLES.AUXILIAR_ADMINISTRATIVO, label: "Auxiliar administrativo" },
-              { value: ROLES.LIDER_ADMINISTRATIVO, label: "Líder administrativo" },
-              { value: ROLES.ADMIN, label: "Administrador" }
-            ]
+            options: portalRoleSelectOptionsForModal(initialRole).map((r) => ({
+              value: r.value,
+              label: r.label
+            }))
           },
           {
             name: "__permissions_block",
@@ -28640,10 +28994,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='reject-registration']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (currentUser()?.role !== ROLES.ADMIN) {
-        notify(userMessage("adminOnlyApprove"), "error");
-        return;
-      }
+      if (abortUnlessCanApprovePortalRegistration()) return;
       const userId = btn.dataset.id;
       if (!userId) return;
       openEditModal({
@@ -29860,6 +30211,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='approve']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortUnlessCanApproveTransport()) return;
       const actor = currentUser();
       const requestId = String(btn.dataset.id || "");
       const request = reqRead().find((item) => item.id === requestId);
@@ -30334,6 +30686,10 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='trip-status']").forEach((select) => {
     select.addEventListener("change", async () => {
+      if (abortUnlessCanManageTransportTrips()) {
+        renderPortalView();
+        return;
+      }
       const actor = currentUser();
       const previousStatus = String(select.dataset.currentStatus || "");
       const selectedStatus = String(select.value || "");
@@ -30358,6 +30714,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='reject']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortUnlessCanApproveTransport()) return;
       openEditModal({
         title: "Rechazar solicitud",
         subtitle: "Indica motivo para trazabilidad",
@@ -34011,7 +34368,7 @@ function bindDynamicEvents() {
       const approvals = read(KEYS.approvals, []);
       const approval = approvals.find((a) => a.id === id && a.status === "pendiente");
       const actor = currentUser();
-      if (!approval || !actor || actor.role !== ROLES.ADMIN) return;
+      if (!approval || !actor || !canApproveInternalAuthorization(actor, approval.type)) return;
 
       if (approval.type === "create_user") {
         const p = approval.payload || {};
@@ -34326,6 +34683,8 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='approval-reject']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
+      const approval = read(KEYS.approvals, []).find((a) => String(a.id) === id && a.status === "pendiente");
+      if (!approval || !canApproveInternalAuthorization(currentUser(), approval.type)) return;
       openEditModal({
         title: "Rechazar autorización",
         subtitle: "Motivo obligatorio",
@@ -34969,6 +35328,7 @@ function bindExtendedViewEditHandlers() {
         administracion: "#1D4ED8",
         auxiliar_administrativo: "#0EA5E9",
         lider_administrativo: "#4F46E5",
+        logistica: "#0D9488",
         client: "#0E7490"
       };
       const roleChip = `<span class="role-chip" style="--role-color:${roleColors[roleKey] || "#64748B"}">${escapeHtml(

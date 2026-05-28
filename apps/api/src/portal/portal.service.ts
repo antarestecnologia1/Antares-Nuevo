@@ -206,6 +206,13 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "sst_compliance",
   "users_manage",
   "authorizations_manage",
+  "authorizations_transport",
+  "authorizations_portal_registrations",
+  "authorizations_portal_users",
+  "authorizations_fleet",
+  "authorizations_workforce",
+  "authorizations_hr_absences",
+  "authorizations_payroll_pay",
   "profile_view",
   "notifications_view",
   "contact_b2b_view"
@@ -227,6 +234,19 @@ function defaultPermissionsForApprovedRole(rol: string): string[] {
   if (r === "auxiliar_administrativo") {
     return ["dashboard_view", "payroll_manage", "profile_view", "notifications_view"];
   }
+  if (r === "logistica") {
+    return [
+      "dashboard_view",
+      "transport_requests",
+      "authorizations_transport",
+      "transport_trips",
+      "transport_calendar",
+      "transport_vehicles",
+      "transport_drivers",
+      "profile_view",
+      "notifications_view"
+    ];
+  }
   return ["dashboard_view", "client_requests", "profile_view", "notifications_view"];
 }
 
@@ -236,7 +256,8 @@ const APPROVE_VALID_ROLES = new Set([
   "rrhh",
   "administracion",
   "auxiliar_administrativo",
-  "lider_administrativo"
+  "lider_administrativo",
+  "logistica"
 ]);
 
 function redactEmailForLog(raw: string | undefined | null): string {
@@ -692,6 +713,19 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureUsuariosSchema: crear tipo tipo_vinculo_registro fallo (no fatal): ${sanitizeLogText(msg)}`);
+    }
+    try {
+      await this.pool.query(`
+        DO $migrateRolLogistica$
+        BEGIN
+          ALTER TYPE public.rol_usuario ADD VALUE 'logistica';
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END $migrateRolLogistica$
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureUsuariosSchema: valor logistica en rol_usuario (no fatal): ${sanitizeLogText(msg)}`);
     }
     /**
      * Cada ALTER va en su propio query: si uno falla por permisos/constraint colateral,
@@ -1559,6 +1593,48 @@ export class PortalService implements OnModuleInit {
     return ["admin", "administracion", "auxiliar_administrativo", "lider_administrativo"].includes(r);
   }
 
+  private readonly authorizationTypePermissions: Record<string, string> = {
+    create_user: "authorizations_portal_users",
+    create_driver: "authorizations_fleet",
+    create_employee: "authorizations_workforce",
+    register_hr_absence: "authorizations_hr_absences",
+    mark_payroll_paid: "authorizations_payroll_pay",
+    approve_trip_request: "authorizations_transport"
+  };
+
+  private canReviewApprovalType(permissionSet: Set<string>, approvalType: string): boolean {
+    if (permissionSet.has("authorizations_manage")) return true;
+    const perm = this.authorizationTypePermissions[String(approvalType || "").trim()];
+    return Boolean(perm && permissionSet.has(perm));
+  }
+
+  private canApprovePortalRegistration(permissionSet: Set<string>): boolean {
+    return (
+      permissionSet.has("authorizations_manage") ||
+      permissionSet.has("authorizations_portal_registrations")
+    );
+  }
+
+  private async assertCanApprovePortalRegistration(actorUserId: string, actorRole: JwtRole): Promise<void> {
+    if (this.isAdmin(actorRole)) return;
+    const perms = await this.loadPortalPermissionSet(actorUserId);
+    if (!this.canApprovePortalRegistration(perms)) throw new ForbiddenException();
+  }
+
+  private hasTransportOpsPermission(permissionSet: Set<string>): boolean {
+    if (permissionSet.has("authorizations_manage")) return true;
+    const keys = [
+      "transport_trips",
+      "transport_requests",
+      "authorizations_transport",
+      "transport_vehicles",
+      "transport_drivers",
+      "transport_calendar",
+      "transport_history"
+    ];
+    return keys.some((k) => permissionSet.has(k));
+  }
+
   private async findPayrollEmployeeIdByDocument(
     c: PoolClient | null,
     document: string
@@ -2069,7 +2145,14 @@ export class PortalService implements OnModuleInit {
     const canTransportCalendar = admin || this.hasPortalPermission(permissionSet, "transport_calendar");
     const canTransportHistory = admin || this.hasPortalPermission(permissionSet, "transport_history");
     const canTransportData =
-      canTransportTrips || canTransportVehicles || canTransportDrivers || canTransportCalendar || canTransportHistory;
+      canTransportTrips ||
+      canTransportVehicles ||
+      canTransportDrivers ||
+      canTransportCalendar ||
+      canTransportHistory ||
+      this.hasPortalPermission(permissionSet, "transport_requests") ||
+      this.hasPortalPermission(permissionSet, "authorizations_transport") ||
+      this.hasPortalPermission(permissionSet, "authorizations_manage");
     const canPayroll = admin || this.hasPortalPermission(permissionSet, "payroll_manage");
     const canHiring = admin || this.hasPortalPermission(permissionSet, "hiring_manage");
     const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
@@ -2290,7 +2373,7 @@ export class PortalService implements OnModuleInit {
     role: string,
     permissionsRequested?: string[]
   ) {
-    if (!this.isAdmin(actorRole)) throw new ForbiddenException();
+    await this.assertCanApprovePortalRegistration(actorUserId, actorRole);
 
     const cid = String(companyId || "").trim();
     const tid = String(targetUserId || "").trim();
@@ -3334,8 +3417,11 @@ export class PortalService implements OnModuleInit {
    * Permite hidratar la bandeja aunque falle o incompleto GET /portal/bootstrap.
    * Combina filas en `usuarios` con `estado_cuenta='pendiente'` y huérfanos de Supabase Auth.
    */
-  async getPendingUserRegistrations(_actorUserId: string, role: JwtRole) {
-    if (!this.isAdmin(role)) return [];
+  async getPendingUserRegistrations(actorUserId: string, role: JwtRole) {
+    if (!this.isAdmin(role)) {
+      const perms = await this.loadPortalPermissionSet(actorUserId);
+      if (!this.canApprovePortalRegistration(perms)) return [];
+    }
     const sql = `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
               u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
               COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
@@ -5708,7 +5794,8 @@ export class PortalService implements OnModuleInit {
   private async syncRequests(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
-    const transport = this.isTransportOps(role) || admin;
+    const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
+    const transport = admin || this.isTransportOps(role) || this.hasTransportOpsPermission(permissionSet);
     const empresaId = await this.getUserCompany(userId);
     for (const req of data) {
       if (!req?.id) continue;
@@ -8892,10 +8979,15 @@ export class PortalService implements OnModuleInit {
   private async syncApprovals(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
+    const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
     for (const a of data) {
       if (!a?.id) continue;
       if (this.skipUnlessPersistUuid("syncApprovals", a.id)) continue;
-      if (!admin && String(a.requestedByUserId) !== userId) throw new ForbiddenException();
+      if (!admin && String(a.requestedByUserId) !== userId) {
+        if (!this.canReviewApprovalType(permissionSet, String(a.type || ""))) {
+          throw new ForbiddenException();
+        }
+      }
       const reqBy = a.requestedByUserId || userId;
       if (this.skipUnlessPersistUuid("syncApprovals.requestedByUserId", reqBy)) continue;
       const payload = await this.normalizeApprovalPayloadForStorage(a.type, a.payload);

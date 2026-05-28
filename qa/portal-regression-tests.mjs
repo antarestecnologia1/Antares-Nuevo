@@ -120,7 +120,7 @@ function run() {
       '"admin-users":',
       'title: "Administración · Usuarios y permisos"',
       "authorizations:",
-      'title: "Autorizaciones"',
+      'title: "Centro de aprobaciones"',
       "profile:",
       'title: "Mi perfil"',
       "notifications:",
@@ -175,6 +175,42 @@ function run() {
       'referenceMode: forcedYear != null ? "manual" : "automatic"'
     ],
     "annual-legal-parameters-service"
+  );
+
+  // 7) Permisos granulares de autorizaciones y perfil logística
+  includesAll(
+    appJs,
+    [
+      "authorizations_transport",
+      "authorizations_portal_registrations",
+      "authorizations_portal_users",
+      "authorizations_fleet",
+      "authorizations_workforce",
+      "authorizations_hr_absences",
+      "authorizations_payroll_pay",
+      "LOGISTICS_OPERATOR_PERMISSIONS",
+      "canAccessAuthorizationsView",
+      "canAccessAuthorizationSection",
+      "canApproveTransportRequests",
+      "canPerformPermissionGatedAction",
+      "renderPermissionPresetToolbarHtml",
+      'data-preset="logistics"',
+      'LOGISTICA: "logistica"',
+      "PORTAL_ASSIGNABLE_ROLES",
+      'if (role === ROLES.LOGISTICA) return [...LOGISTICS_OPERATOR_PERMISSIONS]'
+    ],
+    "granular-authorizations"
+  );
+  includesAll(
+    portalServiceTs,
+    [
+      '"authorizations_transport"',
+      '"authorizations_portal_registrations"',
+      '"authorizations_payroll_pay"',
+      'r === "logistica"',
+      '"logistica"'
+    ],
+    "granular-authorizations-api"
   );
 
   console.log("OK portal-regression-tests");
