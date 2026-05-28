@@ -9192,49 +9192,46 @@ function snapshotNativeTripSelectOptions(selectEl) {
   return rows;
 }
 
-function applyNativeTripSelectFilter(selectEl, queryText = "") {
-  if (!selectEl) return;
-  const source = Array.isArray(selectEl.__nativeTripFilterOptions)
+function getNativeTripSelectLabelByValue(selectEl, value) {
+  const rows = Array.isArray(selectEl?.__nativeTripFilterOptions)
     ? selectEl.__nativeTripFilterOptions
     : snapshotNativeTripSelectOptions(selectEl);
-  const query = normalizeSearchNeedle(queryText);
-  const current = String(selectEl.value || "");
-  const placeholder = source.find((row) => !String(row.value || "").trim()) || null;
-  const candidates = source.filter((row) => String(row.value || "").trim());
-  const filtered = !query
-    ? candidates
-    : candidates.filter((row) => normalizeSearchNeedle(row.text).includes(query));
-  const noMatches = Boolean(query && !filtered.length);
-  const rows = [];
-  if (placeholder) rows.push({ ...placeholder, selected: false });
-  if (noMatches) {
-    rows.push({
-      value: "",
-      text: "Sin coincidencias para la búsqueda",
-      disabled: true,
-      selected: false
-    });
-  } else {
-    rows.push(...filtered);
-  }
-  selectEl.innerHTML = rows
-    .map(
-      (row) =>
-        `<option value="${escapeAttr(row.value)}"${row.disabled ? " disabled" : ""}>${escapeHtml(row.text)}</option>`
-    )
+  const val = String(value || "");
+  const hit = rows.find((row) => String(row.value) === val);
+  return hit ? String(hit.text || "") : "";
+}
+
+function renderNativeTripDatalist(selectEl) {
+  if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
+  const datalist = selectEl.__nativeTripFilterList;
+  if (!datalist) return;
+  const rows = Array.isArray(selectEl.__nativeTripFilterOptions)
+    ? selectEl.__nativeTripFilterOptions
+    : snapshotNativeTripSelectOptions(selectEl);
+  const options = rows.filter((row) => String(row.value || "").trim() && !row.disabled);
+  datalist.innerHTML = options
+    .map((row) => `<option value="${escapeAttr(String(row.text || "").trim())}"></option>`)
     .join("");
-  if (current && rows.some((row) => row.value === current && !row.disabled)) {
-    selectEl.value = current;
-  } else if (placeholder) {
-    selectEl.value = String(placeholder.value || "");
-  }
+}
+
+function findNativeTripValueByLabel(selectEl, label) {
+  const rows = Array.isArray(selectEl?.__nativeTripFilterOptions)
+    ? selectEl.__nativeTripFilterOptions
+    : snapshotNativeTripSelectOptions(selectEl);
+  const needle = normalizeSearchNeedle(label);
+  if (!needle) return "";
+  const exact = rows.find(
+    (row) => String(row.value || "").trim() && !row.disabled && normalizeSearchNeedle(row.text) === needle
+  );
+  return exact ? String(exact.value || "") : "";
 }
 
 function refreshNativeTripSelectFilter(selectEl) {
   if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
   snapshotNativeTripSelectOptions(selectEl);
+  renderNativeTripDatalist(selectEl);
   const input = selectEl.__nativeTripFilterInput;
-  applyNativeTripSelectFilter(selectEl, input ? input.value : "");
+  if (input) input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
 }
 
 function mountNativeTripSelectFilter(selectEl) {
@@ -9248,36 +9245,71 @@ function mountNativeTripSelectFilter(selectEl) {
   const input = document.createElement("input");
   input.type = "search";
   input.className = "native-trip-filter-input";
-  input.placeholder = "Escriba para filtrar la lista...";
+  input.placeholder =
+    String(selectEl.getAttribute("data-searchable-placeholder") || "").trim() || "Escriba para filtrar la lista...";
   input.autocomplete = "off";
   input.spellcheck = false;
+  const dataListId = `trip-native-list-${Math.random().toString(36).slice(2, 10)}`;
+  const datalist = document.createElement("datalist");
+  datalist.id = dataListId;
+  input.setAttribute("list", dataListId);
   input.addEventListener("input", () => {
-    applyNativeTripSelectFilter(selectEl, input.value);
+    const value = findNativeTripValueByLabel(selectEl, input.value);
+    if (!value) return;
+    if (String(selectEl.value || "") === value) return;
+    selectEl.value = value;
+    selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  input.addEventListener("blur", () => {
+    const value = findNativeTripValueByLabel(selectEl, input.value);
+    if (value) {
+      if (String(selectEl.value || "") !== value) {
+        selectEl.value = value;
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      input.value = getNativeTripSelectLabelByValue(selectEl, value);
+      return;
+    }
+    input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
   });
   selectEl.insertAdjacentElement("beforebegin", input);
+  input.insertAdjacentElement("afterend", datalist);
+  selectEl.classList.add("searchable-select-native");
   selectEl.dataset.nativeTripFilterMounted = "1";
   selectEl.__nativeTripFilterInput = input;
+  selectEl.__nativeTripFilterList = datalist;
   snapshotNativeTripSelectOptions(selectEl);
+  renderNativeTripDatalist(selectEl);
+  input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
+  selectEl.addEventListener("change", () => {
+    if (selectEl.dataset.nativeTripFilterMounted !== "1") return;
+    input.value = getNativeTripSelectLabelByValue(selectEl, selectEl.value);
+  });
 }
 
 function unmountNativeTripSelectFilter(selectEl) {
   if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
-  const rows = Array.isArray(selectEl.__nativeTripFilterOptions) ? selectEl.__nativeTripFilterOptions : null;
-  if (rows && rows.length) {
-    selectEl.innerHTML = rows
-      .map(
-        (row) =>
-          `<option value="${escapeAttr(row.value)}"${row.disabled ? " disabled" : ""}>${escapeHtml(row.text)}</option>`
-      )
-      .join("");
-    const selected = rows.find((row) => row.selected && !row.disabled);
-    if (selected) selectEl.value = selected.value;
-  }
   const input = selectEl.__nativeTripFilterInput;
+  const datalist = selectEl.__nativeTripFilterList;
   if (input && input.remove) input.remove();
+  if (datalist && datalist.remove) datalist.remove();
+  selectEl.classList.remove("searchable-select-native");
   delete selectEl.__nativeTripFilterInput;
+  delete selectEl.__nativeTripFilterList;
   delete selectEl.__nativeTripFilterOptions;
   delete selectEl.dataset.nativeTripFilterMounted;
+}
+
+function unmountSearchableSelect(selectEl) {
+  if (!selectEl || selectEl.dataset.searchableMounted !== "1") return;
+  const parts = getSearchableSelectParts(selectEl);
+  if (parts?.wrap?.parentNode) {
+    parts.wrap.parentNode.insertBefore(selectEl, parts.wrap);
+    parts.wrap.remove();
+  }
+  closeSearchableSelectDropdown(selectEl);
+  selectEl.classList.remove("searchable-select-native");
+  delete selectEl.dataset.searchableMounted;
 }
 
 function mountSearchableSelect(selectEl, opts = {}) {
@@ -9569,7 +9601,12 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
-    /** UX moderna: combobox escribible y filtrable en un solo control. */
+    /** Solución definitiva: datalist nativo en Viajes/Autorizaciones, sin dropdown custom flotante. */
+    if (sel.closest("#form-create-trip, .module-shell[data-module-view='authorizations']")) {
+      unmountSearchableSelect(sel);
+      mountNativeTripSelectFilter(sel);
+      return;
+    }
     unmountNativeTripSelectFilter(sel);
     mountSearchableSelect(sel, { force: true });
   });
@@ -9597,6 +9634,11 @@ function setTripAssignmentFieldsDisabled(formEl, disabled) {
         searchable.input.removeAttribute("aria-disabled");
         searchable.wrap?.querySelector(".searchable-select-toggle")?.removeAttribute("disabled");
       }
+    }
+    const nativeFilterInput = el.__nativeTripFilterInput;
+    if (nativeFilterInput) {
+      if (disabled) nativeFilterInput.setAttribute("disabled", "disabled");
+      else nativeFilterInput.removeAttribute("disabled");
     }
     if (disabled) {
       el.setAttribute("disabled", "disabled");
