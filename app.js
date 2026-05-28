@@ -9269,6 +9269,26 @@ function mountNativeTripSelectFilter(selectEl) {
   snapshotNativeTripSelectOptions(selectEl);
 }
 
+function unmountNativeTripSelectFilter(selectEl) {
+  if (!selectEl || selectEl.dataset.nativeTripFilterMounted !== "1") return;
+  const rows = Array.isArray(selectEl.__nativeTripFilterOptions) ? selectEl.__nativeTripFilterOptions : null;
+  if (rows && rows.length) {
+    selectEl.innerHTML = rows
+      .map(
+        (row) =>
+          `<option value="${escapeAttr(row.value)}"${row.disabled ? " disabled" : ""}>${escapeHtml(row.text)}</option>`
+      )
+      .join("");
+    const selected = rows.find((row) => row.selected && !row.disabled);
+    if (selected) selectEl.value = selected.value;
+  }
+  const input = selectEl.__nativeTripFilterInput;
+  if (input && input.remove) input.remove();
+  delete selectEl.__nativeTripFilterInput;
+  delete selectEl.__nativeTripFilterOptions;
+  delete selectEl.dataset.nativeTripFilterMounted;
+}
+
 function mountSearchableSelect(selectEl, opts = {}) {
   if (!selectEl || selectEl.tagName !== "SELECT") return;
   const force = !!(opts && opts.force);
@@ -9338,14 +9358,53 @@ function mountSearchableSelect(selectEl, opts = {}) {
     syncCreateTripCompactPickList(selectEl);
   };
 
-  const openDropdown = () => openSearchableSelectDropdown(selectEl, input.value);
+  const getEnabledListOptions = () =>
+    [...list.querySelectorAll(".searchable-select-option:not(.is-disabled)")];
 
-  input.addEventListener("focus", openDropdown);
-  input.addEventListener("click", openDropdown);
-  input.addEventListener("input", () => openSearchableSelectDropdown(selectEl, input.value));
+  const setActiveListOption = (idx) => {
+    const options = getEnabledListOptions();
+    if (!options.length) return null;
+    const safeIdx = Math.max(0, Math.min(idx, options.length - 1));
+    options.forEach((opt, i) => {
+      const active = i === safeIdx;
+      opt.classList.toggle("is-active", active);
+      if (active) opt.scrollIntoView({ block: "nearest" });
+    });
+    return options[safeIdx];
+  };
+
+  const setActiveFromCurrentValue = () => {
+    const options = getEnabledListOptions();
+    if (!options.length) return null;
+    const current = String(selectEl.value || "");
+    const idx = options.findIndex((opt) => String(opt.getAttribute("data-value") || "") === current);
+    return setActiveListOption(idx >= 0 ? idx : 0);
+  };
+
+  const moveActiveListOption = (delta) => {
+    const options = getEnabledListOptions();
+    if (!options.length) return null;
+    const currentIdx = options.findIndex((opt) => opt.classList.contains("is-active"));
+    const base = currentIdx >= 0 ? currentIdx : 0;
+    const next = (base + delta + options.length) % options.length;
+    return setActiveListOption(next);
+  };
+
+  const openDropdown = (filterText = input.value, { preserveActive = false } = {}) => {
+    openSearchableSelectDropdown(selectEl, filterText);
+    if (preserveActive) {
+      const hasActive = list.querySelector(".searchable-select-option.is-active");
+      if (hasActive) return;
+    }
+    setActiveFromCurrentValue();
+  };
+
+  input.addEventListener("focus", () => openDropdown(input.value));
+  input.addEventListener("click", () => openDropdown(input.value));
+  input.addEventListener("input", () => openDropdown(input.value));
   toggle.addEventListener("click", (ev) => {
     ev.preventDefault();
-    if (list.classList.contains("hidden")) openDropdown();
+    if (list.classList.contains("hidden")) openDropdown(input.value);
     else closeSearchableSelectDropdown(selectEl);
     input.focus();
   });
@@ -9355,10 +9414,25 @@ function mountSearchableSelect(selectEl, opts = {}) {
       syncSearchableSelectInputFromValue(selectEl);
       return;
     }
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      if (list.classList.contains("hidden")) openDropdown(input.value);
+      else moveActiveListOption(1);
+      return;
+    }
+    if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      if (list.classList.contains("hidden")) openDropdown(input.value);
+      else moveActiveListOption(-1);
+      return;
+    }
     if (ev.key === "Enter") {
       ev.preventDefault();
+      if (list.classList.contains("hidden")) openDropdown(input.value);
+      const active = list.querySelector(".searchable-select-option.is-active:not(.is-disabled)");
       const first = list.querySelector(".searchable-select-option:not(.is-disabled)");
-      if (first) pickValue(first.getAttribute("data-value"));
+      const target = active || first;
+      if (target) pickValue(target.getAttribute("data-value"));
     }
   });
   list.addEventListener("mousedown", (ev) => {
@@ -9366,6 +9440,13 @@ function mountSearchableSelect(selectEl, opts = {}) {
     if (!li) return;
     ev.preventDefault();
     pickValue(li.getAttribute("data-value"));
+  });
+  list.addEventListener("mousemove", (ev) => {
+    const li = ev.target.closest(".searchable-select-option:not(.is-disabled)");
+    if (!li) return;
+    const options = getEnabledListOptions();
+    const idx = options.indexOf(li);
+    if (idx >= 0) setActiveListOption(idx);
   });
   input.addEventListener("blur", () => {
     window.setTimeout(() => {
@@ -9497,11 +9578,8 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
-    /** En crear viaje y autorizaciones usamos select nativo para evitar glitches de popup. */
-    if (sel.closest("#form-create-trip, .module-shell[data-module-view='authorizations']")) {
-      mountNativeTripSelectFilter(sel);
-      return;
-    }
+    /** UX moderna: combobox escribible y filtrable en un solo control. */
+    unmountNativeTripSelectFilter(sel);
     mountSearchableSelect(sel, { force: true });
   });
 }

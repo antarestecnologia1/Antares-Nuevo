@@ -15,11 +15,13 @@ export function employeeIsConductorServiceProvider(row: {
   )
     .trim()
     .toLowerCase();
-  if (role === "conductor") return true;
   const ct = String(row.tipo_contrato ?? row.tipoContrato ?? row.contractType ?? "")
     .trim()
     .toLowerCase();
-  if (/prestaci[oó]n\s*de\s*servicios|prestacion.*servicio/i.test(ct)) return true;
+  const isConductor = role === "conductor";
+  const isServiceContract = /prestaci[oó]n\s*de\s*servicios|prestacion.*servicio/i.test(ct);
+  if (isConductor && isServiceContract) return true;
+  if (!isConductor && isServiceContract) return true;
   return false;
 }
 
