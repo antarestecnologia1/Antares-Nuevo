@@ -46,6 +46,17 @@
       .toLowerCase();
   }
 
+  /** Alineado con app.js / API: MAYÚSCULAS + sin tildes. No usar en contraseñas. */
+  function normalizeLatinUpperForDb(value) {
+    const t = String(value ?? "")
+      .trim()
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .replace(/ñ/g, "n")
+      .replace(/Ñ/g, "N");
+    return t ? t.toUpperCase() : "";
+  }
+
   function isValidEmail(raw) {
     const s = normalizeEmail(raw);
     if (!s || s.length > 320) return false;
@@ -449,6 +460,9 @@
   }
 
   function validateDataAntaresField(el, form) {
+    if (String(el.type || "").toLowerCase() === "password") {
+      return { ok: true, message: "", patchValue: undefined };
+    }
     const kind = String(el.getAttribute("data-antares-field") || "").trim().toLowerCase();
     if (!kind) return { ok: true, message: "", patchValue: undefined };
     const raw = String(el.value ?? "").trim();
@@ -461,7 +475,7 @@
     if (kind === "person-name") {
       const s = sanitizeOneLineText(raw, 200);
       if (!RE_PERSON_NAME.test(s)) return { ok: false, message: MSG.personName, patchValue: undefined };
-      return { ok: true, message: "", patchValue: s };
+      return { ok: true, message: "", patchValue: normalizeLatinUpperForDb(s) };
     }
     if (kind === "nit" || kind === "cc" || kind === "ce" || kind === "pas") {
       const r = validateColombianDocument(kind.toUpperCase(), raw);
@@ -513,6 +527,7 @@
 
   function inferHtmlValidation(el, form) {
     const type = String(el.type || "").toLowerCase();
+    if (type === "password") return { ok: true, message: "", patchValue: undefined };
     const raw = String(el.value ?? "").trim();
     const maxLenAttr = el.getAttribute("data-antares-max");
     if (maxLenAttr && raw) {
@@ -695,19 +710,19 @@
       ok: true,
       sanitized: {
         ...data,
-        name,
-        company,
-        position,
+        name: normalizeLatinUpperForDb(name),
+        company: normalizeLatinUpperForDb(company),
+        position: normalizeLatinUpperForDb(position),
         taxId: nitVal.normalized,
         email,
         phone: String(data.phone || "").trim(),
-        message
+        message: normalizeLatinUpperForDb(message)
       }
     };
   }
 
   function validateProfileForm(data) {
-    const name = sanitizeOneLineText(data.name, 200);
+    const name = normalizeLatinUpperForDb(sanitizeOneLineText(data.name, 200));
     if (name.length < 2) return { ok: false, message: "El nombre completo es obligatorio (mínimo 2 caracteres)." };
     if (!RE_PERSON_NAME.test(name)) return { ok: false, message: MSG.personName };
 

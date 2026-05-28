@@ -4716,23 +4716,25 @@ export class PortalService implements OnModuleInit {
     payload: unknown
   ): Promise<Record<string, unknown>> {
     const type = String(typeRaw || "").trim().toLowerCase();
-    const base =
+    const rawObj =
       payload && typeof payload === "object" && !Array.isArray(payload)
-        ? normalizeFreeTextPayloadRecord(payload as Record<string, unknown>)
+        ? ({ ...(payload as Record<string, unknown>) } as Record<string, unknown>)
         : {};
 
     if (type === "create_user") {
-      const next = { ...base };
-      const legacyPassword = typeof next.password === "string" ? next.password : "";
-      const passwordHash = typeof next.passwordHash === "string" ? next.passwordHash.trim() : "";
-      delete next.password;
-      if (!passwordHash && legacyPassword.trim()) {
+      const legacyPassword = typeof rawObj.password === "string" ? rawObj.password : "";
+      const passwordHash = typeof rawObj.passwordHash === "string" ? rawObj.passwordHash.trim() : "";
+      delete rawObj.password;
+      const next = normalizeFreeTextPayloadRecord(rawObj);
+      if (!passwordHash && legacyPassword) {
         next.passwordHash = await bcrypt.hash(legacyPassword, 10);
       } else if (passwordHash) {
         next.passwordHash = passwordHash;
       }
       return next;
     }
+
+    const base = normalizeFreeTextPayloadRecord(rawObj);
 
     if (type === "mark_payroll_paid") {
       return {
@@ -4993,7 +4995,7 @@ export class PortalService implements OnModuleInit {
           fechaNacimiento,
           nuN(rec.documentType),
           rec.taxId != null || rec.personalDoc != null
-            ? String(rec.taxId ?? rec.personalDoc ?? "").trim() || null
+            ? nuN(String(rec.taxId ?? rec.personalDoc ?? "")) || null
             : null,
           nuN(rec.company)
         ]

@@ -13,7 +13,12 @@ export const PASSWORD_FIELD_KEYS = new Set([
   "hash_contrasena",
   "hashContrasena",
   "satelliteProviderPassword",
-  "password_proveedor_satelite"
+  "password_proveedor_satelite",
+  "passwordConfirm",
+  "confirmPassword",
+  "newPassword",
+  "oldPassword",
+  "currentPassword"
 ]);
 
 export function isPasswordFieldKey(key: string): boolean {

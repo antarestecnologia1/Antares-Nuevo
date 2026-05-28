@@ -1,5 +1,6 @@
 import { Transform } from "class-transformer";
 import { IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, Matches, MaxLength, MinLength } from "class-validator";
+import { transformStripCatalog, transformStripEmail, transformStripUpper } from "../../common/normalize-db-text";
 import { TransformStripNulTrim } from "../../common/transformers/strip-nul-trim.transform";
 
 /** Cadenas vacías del JSON → undefined (class-validator trata "" como valor presente). */
@@ -14,19 +15,27 @@ function emptyToUndefined({ value }: { value: unknown }) {
 
 /** Registro cliente (#form-register) → tabla usuarios. */
 export class RegisterPortalDto {
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   firstName!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   lastName!: string;
 
-  @Transform(emptyToUndefined)
+  @Transform(({ value }) => {
+    const t = typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value;
+    if (t === "" || t == null) return undefined;
+    return transformStripUpper({ value: t });
+  })
   @IsOptional()
   secondLastName?: string;
 
-  @Transform(emptyToUndefined)
+  @Transform(({ value }) => {
+    const t = typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value;
+    if (t === "" || t == null) return undefined;
+    return transformStripUpper({ value: t });
+  })
   @IsOptional()
   middleName?: string;
 
@@ -34,19 +43,27 @@ export class RegisterPortalDto {
   @IsNotEmpty()
   personType!: string;
 
-  @TransformStripNulTrim()
+  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\u0000/g, "").trim().toUpperCase() : value))
   @IsNotEmpty()
   documentType!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   taxId!: string;
 
-  @Transform(emptyToUndefined)
+  @Transform(({ value }) => {
+    const t = typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value;
+    if (t === "" || t == null) return undefined;
+    return transformStripUpper({ value: t });
+  })
   @IsOptional()
   companyNit?: string;
 
-  @Transform(emptyToUndefined)
+  @Transform(({ value }) => {
+    const t = typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value;
+    if (t === "" || t == null) return undefined;
+    return transformStripUpper({ value: t });
+  })
   @IsOptional()
   personalTaxId?: string;
 
@@ -61,31 +78,31 @@ export class RegisterPortalDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "La fecha de nacimiento debe tener formato AAAA-MM-DD." })
   birthDate!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   gender!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   position!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   workArea!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   phone!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripCatalog)
   @IsNotEmpty()
   department!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripCatalog)
   @IsNotEmpty()
   city!: string;
 
-  @TransformStripNulTrim()
+  @Transform(transformStripUpper)
   @IsNotEmpty()
   address!: string;
 

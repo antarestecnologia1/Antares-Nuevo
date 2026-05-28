@@ -7537,8 +7537,15 @@ function isPasswordPayloadKey(key) {
   if (
     k === "password" ||
     k === "passwordHash" ||
+    k === "passwordConfirm" ||
+    k === "confirmPassword" ||
+    k === "newPassword" ||
+    k === "oldPassword" ||
+    k === "currentPassword" ||
     k === "satelliteProviderPassword" ||
-    k === "hash_contrasena"
+    k === "hash_contrasena" ||
+    k === "hashContrasena" ||
+    k === "password_proveedor_satelite"
   ) {
     return true;
   }
@@ -12078,7 +12085,7 @@ function normalizeFuelLogPortalRow(log) {
     plate,
     vehiclePlate: plate,
     driverId: log.driverId || log.id_conductor,
-    driverName: String(log.driverName || log.nombre_conductor || "").trim(),
+    driverName: normalizeLatinUpperForDb(log.driverName || log.nombre_conductor || ""),
     tripNumber: String(log.tripNumber || log.numero_viaje || "").trim(),
     liters,
     totalCost,
@@ -12096,7 +12103,7 @@ function normalizeFuelLogPortalRow(log) {
         : log.kilometraje_odometro != null
           ? parseNum(log.kilometraje_odometro)
           : null,
-    station: String(log.station || log.estacion || "").trim(),
+    station: normalizeLatinUpperForDb(log.station || log.estacion || ""),
     paidBy: String(log.paidBy || log.pagado_por || "empresa").toLowerCase() === "conductor" ? "conductor" : "empresa",
     createdAt: log.createdAt || log.fecha_registro || nowIso()
   };
@@ -12151,7 +12158,7 @@ function normalizeVehicleTechnicalLogPortalRow(log) {
     vehiclePlate: plate,
     interventionType: typeKey,
     type: typeKey,
-    description: String(log.description || log.descripcion || "").trim(),
+    description: normalizeLatinUpperForDb(log.description || log.descripcion || ""),
     cost: parseNum(log.cost ?? log.costo),
     downtimeHours: parseNum(log.downtimeHours ?? log.horas_inactividad ?? log.hoursOut),
     followUpStatus: status,
@@ -26801,7 +26808,7 @@ function bindDynamicEvents() {
       if (actor?.role !== ROLES.ADMIN) {
         await queueApproval({
           type: "create_user",
-          title: `Creacion de usuario ${data.name}`,
+          title: `Creacion de usuario ${normalizeLatinUpperForDb(data.name)}`,
           payload: { ...data, companyName: company.name, permissions },
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
@@ -30615,7 +30622,7 @@ function bindDynamicEvents() {
       const absencePayload = {
         id: newUuidV4(),
         employeeId: employee.id,
-        employeeName: employee.name,
+        employeeName: normalizeLatinUpperForDb(employee.name),
         absenceType,
         absenceSubtype: absenceSubtype || null,
         startDate: data.startDate,
@@ -30623,9 +30630,9 @@ function bindDynamicEvents() {
         days,
         recognizedDays,
         recognizedUnit: payrollAbsenceRecognizedUnit(absenceType, absenceSubtype),
-        supportNumber: String(data.supportNumber || "").trim(),
-        epsEntity: String(data.epsEntity || "").trim(),
-        notes: String(data.notes || "").trim(),
+        supportNumber: normalizeLatinUpperForDb(data.supportNumber || ""),
+        epsEntity: normalizeLatinUpperForDb(data.epsEntity || ""),
+        notes: normalizeLatinUpperForDb(data.notes || ""),
         createdAt: nowIso()
       };
       if (requiresAdminHrApproval(actor?.role || "")) {
