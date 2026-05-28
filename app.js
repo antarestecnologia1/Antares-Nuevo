@@ -29152,10 +29152,10 @@ function bindDynamicEvents() {
         .map((v) => String(v || "").trim())
         .filter(Boolean);
       const companyIds = scope === "specific" ? companyIdsRaw : [];
-      const od = String(data.originDepartment || "").trim();
-      const oc = String(data.originCity || "").trim();
-      const dd = String(data.destinationDepartment || "").trim();
-      const dc = String(data.destinationCity || "").trim();
+      const od = normalizeLatinForDb(String(data.originDepartment || "").trim());
+      const oc = normalizeLatinForDb(String(data.originCity || "").trim());
+      const dd = normalizeLatinForDb(String(data.destinationDepartment || "").trim());
+      const dc = normalizeLatinForDb(String(data.destinationCity || "").trim());
       const tripRateCop = parseNum(data.tripRateCop);
       if (!od || !oc || !dd || !dc) {
         notify(userMessage("routeRateSelectRoute"), "error");
@@ -29719,17 +29719,19 @@ function bindDynamicEvents() {
       if (!existsEmployee) {
         employees.push({
           id: newUuidV4(),
-          name: data.name,
+          name: driverPayload.name || normalizeLatinUpperForDb(data.name),
           idDoc: data.idDoc,
           documentType: data.documentType,
-          position: "Conductor",
-          contractType: data.contractType || "Indefinido",
+          position: "CONDUCTOR",
+          contractType: normalizeLatinUpperForDb(data.contractType || "Indefinido"),
           workerRole: "conductor",
-          city: data.city || "",
-          address: data.address || "",
-          phone: data.phone || "",
-          emergencyContact: data.emergencyContact || "",
-          emergencyPhone: data.emergencyPhone || "",
+          city: driverPayload.city || normalizeLatinForDb(data.city || ""),
+          address: driverPayload.address || normalizeLatinUpperForDb(data.address || ""),
+          phone: driverPayload.phone || normalizePortalPhoneForStorage(data.phone || ""),
+          emergencyContact:
+            driverPayload.emergencyContact || normalizeLatinUpperForDb(data.emergencyContact || ""),
+          emergencyPhone:
+            driverPayload.emergencyPhone || normalizePortalPhoneForStorage(data.emergencyPhone || ""),
           companyId: data.companyId || "",
           baseSalary: parseNum(data.baseSalary),
           startDate: data.startDate || nowIso().slice(0, 10)
@@ -30261,7 +30263,7 @@ function bindDynamicEvents() {
           totalCost,
           costPerLiter: liters > 0 ? Math.round(totalCost / liters) : 0,
           odometerKm: parseNum(data.odometerKm),
-          station: String(data.station || "").trim(),
+          station: normalizeLatinUpperForDb(data.station || ""),
           paidBy: String(data.paidBy || "empresa"),
           createdAt: nowIso()
         });
@@ -30300,7 +30302,7 @@ function bindDynamicEvents() {
           vehiclePlate: vehicle.plate,
           interventionType: String(data.type || "preventivo"),
           type: String(data.type || "preventivo"),
-          description: String(data.description || "").trim(),
+          description: normalizeLatinUpperForDb(data.description || ""),
           cost,
           downtimeHours: parseNum(data.downtimeHours),
           followUpStatus: String(data.status || "Pendiente"),
@@ -32726,15 +32728,17 @@ function bindDynamicEvents() {
           u.id === actor.id
             ? {
                 ...u,
-                name: String(data.name || u.name).trim(),
+                name: normalizeLatinUpperForDb(String(data.name || u.name || "").trim()),
                 phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
                 taxId: String(data.taxId || "").trim(),
-                documentType: String(data.documentType || u.documentType || "CC"),
+                documentType: String(data.documentType || u.documentType || "CC")
+                  .trim()
+                  .toUpperCase(),
                 birthDate: String(data.birthDate || "").trim(),
-                emergencyContact: String(data.emergencyContact || "").trim(),
-                emergencyPhone: String(data.emergencyPhone || "").trim(),
-                emergencyRelation: String(data.emergencyRelation || "").trim(),
-                emergencyRelationship: String(data.emergencyRelation || "").trim(),
+                emergencyContact: normalizeLatinUpperForDb(String(data.emergencyContact || "").trim()),
+                emergencyPhone: normalizePortalPhoneForStorage(String(data.emergencyPhone || "").trim()),
+                emergencyRelation: normalizeLatinUpperForDb(String(data.emergencyRelation || "").trim()),
+                emergencyRelationship: normalizeLatinUpperForDb(String(data.emergencyRelation || "").trim()),
                 // La fecha de ingreso al sistema es solo lectura: se deriva
                 // siempre de la fecha de creación del usuario en el registro
                 // (createdAt). Si no existiera todavía en cache, respaldamos

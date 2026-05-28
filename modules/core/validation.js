@@ -754,9 +754,9 @@
         name,
         taxId: taxRaw ? validateColombianDocument(docType, taxRaw).normalized : "",
         phone: String(data.phone || "").trim(),
-        emergencyContact: emName,
+        emergencyContact: emName ? normalizeLatinUpperForDb(emName) : "",
         emergencyPhone: String(data.emergencyPhone || "").trim(),
-        emergencyRelation: sanitizeOneLineText(data.emergencyRelation, 80)
+        emergencyRelation: normalizeLatinUpperForDb(sanitizeOneLineText(data.emergencyRelation, 80))
       }
     };
   }
