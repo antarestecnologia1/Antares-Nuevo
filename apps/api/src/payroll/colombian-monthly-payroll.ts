@@ -481,6 +481,11 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
       zonaHorariaCalendario: "America/Bogota"
     },
     diasServicioEnCorteCalendario: diasEnCorte,
+    colillaPagoDiasLaborados: {
+      diasLaborados: diasEnCorte,
+      pagoDiasLaboradosCop: salarioProp,
+      formula: "(salario mensual / 30) x dias laborados en el corte"
+    },
     proporcionFormula:
       "Salario: (mensual÷30)×días de contrato en el corte. Auxilio transporte proporcional igual criterio. Divisor orientativo uso frecuente en nómina colombiana (validar pacto/colectivos).",
     fechaIngresoConsiderada: hire.toISOString().slice(0, 10),

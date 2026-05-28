@@ -12,6 +12,8 @@ export class PayrollService {
       gross: dto.gross,
       deductions: dto.deductions,
       net,
+      workedDays: dto.workedDays ?? null,
+      workedDaysPaymentCop: dto.workedDaysPaymentCop ?? null,
       generatedAt: marcaTiempoColombiaIso()
     };
   }

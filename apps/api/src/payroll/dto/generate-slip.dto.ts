@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, Min } from "class-validator";
+import { IsNotEmpty, IsNumber, IsOptional, Min } from "class-validator";
 
 export class GenerateSlipDto {
   @IsNotEmpty()
@@ -11,4 +11,14 @@ export class GenerateSlipDto {
   @IsNumber()
   @Min(0)
   deductions!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  workedDays?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  workedDaysPaymentCop?: number;
 }

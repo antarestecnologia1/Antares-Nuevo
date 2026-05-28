@@ -4674,7 +4674,17 @@ export class PortalService implements OnModuleInit {
 
   private async loadPayrollRuns() {
     const r = await this.pool.query(`SELECT * FROM liquidaciones_nomina ORDER BY fecha_creacion DESC`);
-    return r.rows.map((row) => ({
+    return r.rows.map((row) => {
+      const novelties =
+        row.novedades_liquidacion_json &&
+        typeof row.novedades_liquidacion_json === "object"
+          ? (row.novedades_liquidacion_json as Record<string, unknown>)
+          : null;
+      const workedDaysBlock =
+        novelties && typeof novelties.colillaPagoDiasLaborados === "object"
+          ? (novelties.colillaPagoDiasLaborados as Record<string, unknown>)
+          : null;
+      return {
       id: row.id,
       employeeId: row.id_empleado,
       employeeName: row.nombre_empleado,
@@ -4722,12 +4732,15 @@ export class PortalService implements OnModuleInit {
         typeof row.origen_liquidacion === "string" && row.origen_liquidacion.trim()
           ? String(row.origen_liquidacion).trim()
           : "manual",
+      workedDays: Number(workedDaysBlock?.diasLaborados ?? novelties?.diasServicioEnCorteCalendario ?? 0),
+      workedDaysPaymentCop: Number(workedDaysBlock?.pagoDiasLaboradosCop ?? 0),
       noveltiesDetail:
         row.novedades_liquidacion_json &&
         typeof row.novedades_liquidacion_json === "object"
           ? row.novedades_liquidacion_json
           : null
-    }));
+      };
+    });
   }
 
   private async loadFuelLogs() {
@@ -7391,13 +7404,26 @@ export class PortalService implements OnModuleInit {
       numero_documento: string;
       rol_trabajador: string;
       tipo_contrato: string;
+      fecha_ingreso: string;
     }>(
-      `SELECT id::text, nombre_completo, numero_documento, rol_trabajador, tipo_contrato
+      `SELECT id::text, nombre_completo, numero_documento, rol_trabajador, tipo_contrato,
+              fecha_ingreso::text AS fecha_ingreso
        FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
       [employeeId]
     );
     const emp = empRes.rows[0];
     if (!emp) throw new NotFoundException("Empleado no encontrado");
+    const hireDate = parseSqlDate(emp.fecha_ingreso);
+    if (!hireDate) {
+      throw new BadRequestException(
+        `${String(emp.nombre_completo || "Empleado").trim()}: sin fecha de ingreso válida`
+      );
+    }
+    if (monthBounds.monthEnd < hireDate) {
+      throw new BadRequestException(
+        `${String(emp.nombre_completo || "Empleado").trim()}: no se puede liquidar ${periodYm} porque es anterior a la fecha de ingreso (${hireDate.toISOString().slice(0, 10)})`
+      );
+    }
     if (
       !employeeIsConductorServiceProvider({
         rol_trabajador: emp.rol_trabajador,
@@ -7584,6 +7610,34 @@ export class PortalService implements OnModuleInit {
     }
     if (endYmd && !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) {
       throw new BadRequestException("endDate debe ser YYYY-MM-DD");
+    }
+    if (startYmd && endYmd && startYmd > endYmd) {
+      throw new BadRequestException("startDate no puede ser mayor a endDate");
+    }
+    if (startYmd || endYmd) {
+      const empRangeRes = await this.pool.query<{
+        nombre_completo: string;
+        fecha_ingreso: string;
+      }>(
+        `SELECT nombre_completo, fecha_ingreso::text AS fecha_ingreso
+         FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
+        [eid]
+      );
+      const emp = empRangeRes.rows[0];
+      if (!emp) throw new NotFoundException("Empleado no encontrado");
+      const hireDate = parseSqlDate(emp.fecha_ingreso);
+      if (!hireDate) {
+        throw new BadRequestException(
+          `${String(emp.nombre_completo || "Empleado").trim()}: sin fecha de ingreso válida`
+        );
+      }
+      const hireYmd = hireDate.toISOString().slice(0, 10);
+      const rangeStart = startYmd || endYmd;
+      if (rangeStart && rangeStart < hireYmd) {
+        throw new BadRequestException(
+          `${String(emp.nombre_completo || "Empleado").trim()}: no se puede liquidar antes de la fecha de ingreso (${hireYmd})`
+        );
+      }
     }
 
     const client = await this.pool.connect();
