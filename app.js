@@ -10730,7 +10730,9 @@ function getActivePositions() {
 }
 
 function getPositionById(positionId) {
-  return readArray(KEYS.positions).find((item) => item.id === positionId) || null;
+  const needle = String(positionId || "").trim();
+  if (!needle) return null;
+  return readArray(KEYS.positions).find((item) => String(item.id || "").trim() === needle) || null;
 }
 
 function positionSelectOptions(selectedId = "") {

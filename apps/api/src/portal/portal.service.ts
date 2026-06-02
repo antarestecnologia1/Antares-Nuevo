@@ -3338,7 +3338,13 @@ export class PortalService implements OnModuleInit {
       case "payrollEmployees":
         if (!can("payroll_manage")) throw new ForbiddenException();
         await this.syncPayrollEmployees(c, data, deletedIds);
-        await this.refreshPayrollDraftsAfterEmployeesSync(c, data);
+        try {
+          await this.refreshPayrollDraftsAfterEmployeesSync(c, data);
+        } catch (e) {
+          this.logger.warn(
+            `Borradores de nómina tras sync empleados: ${e instanceof Error ? e.message : String(e)}`
+          );
+        }
         return;
       case "payrollRuns":
         if (!can("payroll_manage")) throw new ForbiddenException();
@@ -4517,7 +4523,7 @@ export class PortalService implements OnModuleInit {
   private async loadPositions() {
     const r = await this.pool.query(`SELECT * FROM cargos ORDER BY nombre`);
     return r.rows.map((p) => ({
-      id: p.id,
+      id: String(p.id ?? "").trim(),
       name: p.nombre,
       workerRole: p.rol_trabajador,
       baseSalary: Number(p.salario_base_mensual),
@@ -6854,21 +6860,6 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  /** Evita 500 por FK si el cargo aún no está en `cargos` (catálogo solo en navegador). */
-  private async resolvePayrollEmployeePositionIdForSync(
-    c: PoolClient,
-    rawPositionId: unknown
-  ): Promise<string | null> {
-    const id = String(rawPositionId ?? "").trim();
-    if (!id || !PG_UUID_V4_RE.test(id)) return null;
-    try {
-      const r = await c.query(`SELECT 1 FROM cargos WHERE id = $1::uuid LIMIT 1`, [id]);
-      return (r.rowCount ?? 0) > 0 ? id : null;
-    } catch {
-      return null;
-    }
-  }
-
   private mapPayrollEmployeeSyncDbError(err: unknown, idDoc: string): never {
     const code = (err as { code?: string } | null)?.code || "";
     const msg = err instanceof Error ? err.message : String(err);
@@ -6877,14 +6868,19 @@ export class PortalService implements OnModuleInit {
         `Ya existe un colaborador con el documento ${idDoc} en esta empresa. Revise la ficha o use otro número.`
       );
     }
+    if (code === "22007" || /invalid input syntax for type date/i.test(msg)) {
+      throw new BadRequestException(
+        "Alguna fecha del colaborador no es válida (ingreso, nacimiento o fin de contrato). Revise el formulario."
+      );
+    }
     if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
-      if (/id_cargo|cargos/i.test(msg)) {
-        throw new BadRequestException(
-          "El cargo seleccionado no está guardado en el servidor. Sincronice el catálogo de cargos (Reclutamiento) e intente de nuevo."
-        );
-      }
       if (/id_empresa|empresas/i.test(msg)) {
         throw new BadRequestException("La empresa seleccionada no existe en el servidor.");
+      }
+      if (/id_cargo|cargos/i.test(msg)) {
+        throw new BadRequestException(
+          "El cargo del formulario no coincide con un registro en la tabla de cargos. Recargue el portal e intente de nuevo."
+        );
       }
       throw new BadRequestException(
         "No se pudo guardar el colaborador: hay una referencia inválida en el servidor."
@@ -7098,7 +7094,12 @@ export class PortalService implements OnModuleInit {
       const contract =
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.contractTypes, p(e, "contractType")) ||
         "Termino indefinido";
-      const start = String(p(e, "startDate") ?? new Date().toISOString().slice(0, 10));
+      const start = portalDateOrNull(p(e, "startDate"));
+      if (!start) {
+        throw new BadRequestException(
+          `Fecha de ingreso inválida o vacía para ${name} (documento ${idDoc}).`
+        );
+      }
       const base = Number(p(e, "baseSalary")) || 0;
       const bank =
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.banks, p(e, "bankName", "bank")) ||
@@ -7133,12 +7134,7 @@ export class PortalService implements OnModuleInit {
       const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
       const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
 
-      const positionIdSql = await this.resolvePayrollEmployeePositionIdForSync(c, e.positionId);
-      if (e.positionId && !positionIdSql) {
-        this.logger.warn(
-          `syncPayrollEmployees: id_cargo ${String(e.positionId)} no existe; se guarda nombre_cargo_texto sin FK`
-        );
-      }
+      const positionIdSql = portalUuidOrNull(e.positionId);
 
       const base52: unknown[] = [
         e.id,
