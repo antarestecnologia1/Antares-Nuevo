@@ -6854,6 +6854,45 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /** Evita 500 por FK si el cargo aún no está en `cargos` (catálogo solo en navegador). */
+  private async resolvePayrollEmployeePositionIdForSync(
+    c: PoolClient,
+    rawPositionId: unknown
+  ): Promise<string | null> {
+    const id = String(rawPositionId ?? "").trim();
+    if (!id || !PG_UUID_V4_RE.test(id)) return null;
+    try {
+      const r = await c.query(`SELECT 1 FROM cargos WHERE id = $1::uuid LIMIT 1`, [id]);
+      return (r.rowCount ?? 0) > 0 ? id : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private mapPayrollEmployeeSyncDbError(err: unknown, idDoc: string): never {
+    const code = (err as { code?: string } | null)?.code || "";
+    const msg = err instanceof Error ? err.message : String(err);
+    if (code === "23505" && /numero_documento|documento|uq_empleado/i.test(msg)) {
+      throw new BadRequestException(
+        `Ya existe un colaborador con el documento ${idDoc} en esta empresa. Revise la ficha o use otro número.`
+      );
+    }
+    if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
+      if (/id_cargo|cargos/i.test(msg)) {
+        throw new BadRequestException(
+          "El cargo seleccionado no está guardado en el servidor. Sincronice el catálogo de cargos (Reclutamiento) e intente de nuevo."
+        );
+      }
+      if (/id_empresa|empresas/i.test(msg)) {
+        throw new BadRequestException("La empresa seleccionada no existe en el servidor.");
+      }
+      throw new BadRequestException(
+        "No se pudo guardar el colaborador: hay una referencia inválida en el servidor."
+      );
+    }
+    throw err instanceof Error ? err : new Error(msg);
+  }
+
   private async syncPayrollEmployees(
     c: PoolClient,
     data: unknown,
@@ -7094,10 +7133,17 @@ export class PortalService implements OnModuleInit {
       const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
       const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
 
+      const positionIdSql = await this.resolvePayrollEmployeePositionIdForSync(c, e.positionId);
+      if (e.positionId && !positionIdSql) {
+        this.logger.warn(
+          `syncPayrollEmployees: id_cargo ${String(e.positionId)} no existe; se guarda nombre_cargo_texto sin FK`
+        );
+      }
+
       const base52: unknown[] = [
         e.id,
         e.companyId,
-        e.positionId || null,
+        positionIdSql,
         name,
         docType,
         idDoc,
@@ -7168,17 +7214,21 @@ export class PortalService implements OnModuleInit {
       const updatedAtTs =
         portalEmpAuditTs(pickPortalField(e, "updatedAt", "fecha_actualizacion")) ?? createdAtTs;
 
-      if (tier === 0) await c.query(UPSERT_LEGACY, [...base52, createdAtTs, updatedAtTs]);
-      else
-        await c.query(UPSERT_M19, [
-          ...base52,
-          String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
-          String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
-            ? nuN(p(e, "illnessDescription"))
-            : null,
-          createdAtTs,
-          updatedAtTs
-        ]);
+      try {
+        if (tier === 0) await c.query(UPSERT_LEGACY, [...base52, createdAtTs, updatedAtTs]);
+        else
+          await c.query(UPSERT_M19, [
+            ...base52,
+            String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
+            String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
+              ? nuN(p(e, "illnessDescription"))
+              : null,
+            createdAtTs,
+            updatedAtTs
+          ]);
+      } catch (err) {
+        this.mapPayrollEmployeeSyncDbError(err, idDoc);
+      }
 
       if (role === "conductor") {
         try {

@@ -151,7 +151,21 @@
       lastErr && typeof lastErr === "object" && typeof lastErr.status === "number" ? lastErr.status : 0;
     /** 403 en segundo plano (p. ej. emails solo admin) no es fallo de red. */
     if (errStatus !== 403 && notifyOnFailure) {
-      notifySyncFailureDebounced();
+      const apiMsg =
+        lastErr && typeof lastErr === "object" && lastErr.message
+          ? String(lastErr.message).trim()
+          : "";
+      if (errStatus >= 400 && errStatus < 500 && apiMsg && !/^internal server error$/i.test(apiMsg)) {
+        try {
+          if (typeof window.notify === "function") {
+            window.notify(apiMsg, "error");
+          }
+        } catch (_e3) {
+          /* noop */
+        }
+      } else {
+        notifySyncFailureDebounced();
+      }
     }
     const msg =
       lastErr &&

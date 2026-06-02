@@ -55,17 +55,63 @@ export function daysUntilYmd(ymd: string): number {
   return bogotaDaysUntilYmd(n);
 }
 
+export function addCalendarMonthsYmd(ymd: string, months: number): string {
+  const n = normalizePortalYmd(ymd);
+  if (!n) return "";
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return "";
+  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
+  if (Number.isNaN(d.getTime())) return "";
+  d.setMonth(d.getMonth() + Math.trunc(months));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function parseContractDurationPlazo(raw: {
+  contractDuration?: unknown;
+  contractDurationText?: unknown;
+  duracion_contrato_texto?: unknown;
+}): { unit: "meses" | "anios"; amount: number } | null {
+  const text = String(
+    raw.contractDuration ?? raw.contractDurationText ?? raw.duracion_contrato_texto ?? ""
+  ).trim();
+  const mMes = text.match(/^(\d+)\s*mes(es)?\s*$/i);
+  if (mMes) {
+    const n = parseInt(mMes[1], 10);
+    if (Number.isFinite(n) && n >= 1) return { unit: "meses", amount: n };
+  }
+  const mAn = text.match(/^(\d+)\s*(años|anos|año|ano)\s*$/i);
+  if (mAn) {
+    const n = parseInt(mAn[1], 10);
+    if (Number.isFinite(n) && n >= 1) return { unit: "anios", amount: n };
+  }
+  return null;
+}
+
 export function resolveContractEndYmd(emp: {
   contractType?: unknown;
   startDate?: unknown;
   contractEndDate?: unknown;
+  contractDuration?: unknown;
+  contractDurationText?: unknown;
+  duracion_contrato_texto?: unknown;
 }): string {
   const ct = String(emp.contractType || "").trim();
   if (!isFixedTermContractType(ct)) return normalizePortalYmd(emp.contractEndDate);
-  const explicit = normalizePortalYmd(emp.contractEndDate);
-  if (explicit) return explicit;
   const start = normalizePortalYmd(emp.startDate);
-  return start ? addCalendarYearsYmd(start, 1) : "";
+  if (!start) return normalizePortalYmd(emp.contractEndDate);
+  const plazo = parseContractDurationPlazo(emp);
+  if (plazo?.unit === "meses") return addCalendarMonthsYmd(start, plazo.amount);
+  if (plazo?.unit === "anios") {
+    let cursor = start;
+    for (let i = 0; i < plazo.amount; i += 1) {
+      cursor = addCalendarYearsYmd(cursor, 1);
+      if (!cursor) return "";
+    }
+    return cursor;
+  }
+  const stored = normalizePortalYmd(emp.contractEndDate);
+  if (stored) return stored;
+  return addCalendarYearsYmd(start, 1);
 }
 
 export function computeEmployeeContractRenewalMeta(emp: {

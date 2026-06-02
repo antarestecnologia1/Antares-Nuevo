@@ -1009,15 +1009,42 @@ function addDaysToYmd(ymd, deltaDays) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Término fijo: fin = ingreso + 1 año calendario (salvo fecha fin explícita). */
+/** Suma meses calendario a `YYYY-MM-DD` (local). */
+function addMonthsToYmd(ymd, months) {
+  const n = normalizePortalDateYmd(ymd);
+  if (!n) return "";
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return "";
+  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
+  if (Number.isNaN(d.getTime())) return "";
+  d.setMonth(d.getMonth() + Math.trunc(Number(months) || 0));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Término fijo: fin = ingreso + plazo (meses/años); por defecto 1 año calendario. */
 function resolveEmployeeContractEndDateYmd(contractType, startDateYmd, raw = {}) {
   const start = normalizePortalDateYmd(startDateYmd);
   if (!isFixedTermContractType(contractType)) {
     return normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
   }
-  const explicit = normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
-  if (explicit) return explicit;
-  return start ? addOneYearToYmd(start) : "";
+  if (!start) return "";
+  const unit = String(raw.contractDurationUnit || "").trim().toLowerCase();
+  const parsedAmt = parseInt(String(raw.contractDurationAmount ?? "").trim(), 10);
+  const amount = Number.isFinite(parsedAmt) ? Math.max(1, Math.floor(parsedAmt)) : 0;
+  if (unit === "meses" && amount >= 1) return addMonthsToYmd(start, amount);
+  if (unit === "anios" && amount >= 1) {
+    let cursor = start;
+    for (let i = 0; i < amount; i += 1) {
+      cursor = addOneYearToYmd(cursor);
+      if (!cursor) return "";
+    }
+    return cursor;
+  }
+  if (raw.honorExplicitContractEndDate === true) {
+    const explicit = normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
+    if (explicit) return explicit;
+  }
+  return addOneYearToYmd(start);
 }
 
 function ensureEmployeeContractFields(emp) {
@@ -1028,8 +1055,13 @@ function ensureEmployeeContractFields(emp) {
     e.contractDuration = "1 año";
   }
   const start = normalizePortalDateYmd(e.startDate);
-  if (!normalizePortalDateYmd(e.contractEndDate) && start) {
-    e.contractEndDate = addOneYearToYmd(start);
+  if (isFixedTermContractType(ct) && start) {
+    const durText = String(e.contractDuration || e.contractDurationText || "1 año").trim();
+    const parsed = parseContractDurationText(durText || "1 año");
+    e.contractEndDate = resolveEmployeeContractEndDateYmd(ct, start, {
+      contractDurationUnit: parsed.unit === "otro" ? "anios" : parsed.unit,
+      contractDurationAmount: parsed.amount || "1"
+    });
   }
   return e;
 }
@@ -1117,7 +1149,8 @@ function bindFixedTermContractEndPreview(root, cfg) {
       window.AntaresValidation?.portalDateInputValueIso?.(startEl) || startEl.value
     );
     const endYmd = resolveEmployeeContractEndDateYmd("Termino fijo", start, {
-      contractEndDate: window.AntaresValidation?.portalDateInputValueIso?.(endEl) || endEl.value
+      contractDurationUnit: unitSel?.value,
+      contractDurationAmount: amtEl?.value
     });
     if (window.AntaresValidation?.portalDateInputSetIso) {
       window.AntaresValidation.portalDateInputSetIso(endEl, endYmd);
@@ -1134,6 +1167,15 @@ function bindFixedTermContractEndPreview(root, cfg) {
   contractSel.addEventListener("change", sync);
   startEl.addEventListener("change", sync);
   startEl.addEventListener("input", sync);
+  if (unitSel && unitSel.dataset.fixedTermEndWired !== "1") {
+    unitSel.dataset.fixedTermEndWired = "1";
+    unitSel.addEventListener("change", sync);
+  }
+  if (amtEl && amtEl.dataset.fixedTermEndWired !== "1") {
+    amtEl.dataset.fixedTermEndWired = "1";
+    amtEl.addEventListener("input", sync);
+    amtEl.addEventListener("change", sync);
+  }
   return sync;
 }
 
