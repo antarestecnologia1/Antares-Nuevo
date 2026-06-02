@@ -73,6 +73,8 @@
     adminOnlyModule: "Solo el administrador puede editar o eliminar en este módulo.",
     driversManageForbidden:
       "Solo el administrador puede editar conductores en este módulo. La baja se realiza en Gestión humana.",
+    vehiclesManageForbidden:
+      "No tiene permiso para esta acción en Camiones. Revise sus permisos en Usuarios y permisos.",
     driverDeleteUseHr:
       "La baja del conductor se realiza en Gestión humana (empleados con rol conductor). Este módulo no permite eliminar.",
     driverUpdatedHrSynced:

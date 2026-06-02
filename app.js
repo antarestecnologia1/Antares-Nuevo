@@ -2986,6 +2986,11 @@ const PERMISSIONS = {
   TRANSPORT_REQUESTS: "transport_requests",
   TRANSPORT_TRIPS: "transport_trips",
   TRANSPORT_VEHICLES: "transport_vehicles",
+  TRANSPORT_VEHICLES_VIEW: "transport_vehicles_view",
+  TRANSPORT_VEHICLES_CREATE: "transport_vehicles_create",
+  TRANSPORT_VEHICLES_EDIT: "transport_vehicles_edit",
+  TRANSPORT_VEHICLES_STATUS: "transport_vehicles_status",
+  TRANSPORT_VEHICLES_DELETE: "transport_vehicles_delete",
   TRANSPORT_DRIVERS: "transport_drivers",
   TRANSPORT_CALENDAR: "transport_calendar",
   TRANSPORT_HISTORY: "transport_history",
@@ -3053,7 +3058,30 @@ const PERMISSION_META = {
     title: "Gestion de viajes",
     desc: "Asignar viajes, actualizar estados y modificar solicitudes que ya tienen viaje asignado (con justificación)."
   },
-  [PERMISSIONS.TRANSPORT_VEHICLES]: { title: "Gestion de camiones", desc: "Registrar y modificar vehiculos." },
+  [PERMISSIONS.TRANSPORT_VEHICLES]: {
+    title: "Camiones (acceso completo)",
+    desc: "Consultar, registrar, editar, cambiar disponibilidad y eliminar vehículos."
+  },
+  [PERMISSIONS.TRANSPORT_VEHICLES_VIEW]: {
+    title: "Consultar camiones",
+    desc: "Ver el módulo de flota y las fichas técnicas de los vehículos."
+  },
+  [PERMISSIONS.TRANSPORT_VEHICLES_CREATE]: {
+    title: "Registrar camiones",
+    desc: "Dar de alta vehículos en el catálogo de flota."
+  },
+  [PERMISSIONS.TRANSPORT_VEHICLES_EDIT]: {
+    title: "Editar camiones",
+    desc: "Modificar datos, documentación y equipos de vehículos existentes."
+  },
+  [PERMISSIONS.TRANSPORT_VEHICLES_STATUS]: {
+    title: "Disponibilidad de camiones",
+    desc: "Marcar vehículos como disponibles u offline manualmente."
+  },
+  [PERMISSIONS.TRANSPORT_VEHICLES_DELETE]: {
+    title: "Eliminar camiones",
+    desc: "Quitar vehículos del catálogo (si no tienen viajes vinculados en base de datos)."
+  },
   [PERMISSIONS.TRANSPORT_DRIVERS]: { title: "Gestion de conductores", desc: "Registrar y administrar conductores." },
   [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Calendario operativo", desc: "Ver programacion de viajes." },
   [PERMISSIONS.TRANSPORT_HISTORY]: { title: "Historial y reportes", desc: "Consultar historicos y filtros." },
@@ -3123,10 +3151,20 @@ const PERMISSION_UI_GROUPS = [
       PERMISSIONS.CLIENT_REQUESTS,
       PERMISSIONS.TRANSPORT_REQUESTS,
       PERMISSIONS.TRANSPORT_TRIPS,
-      PERMISSIONS.TRANSPORT_VEHICLES,
       PERMISSIONS.TRANSPORT_DRIVERS,
       PERMISSIONS.TRANSPORT_CALENDAR,
       PERMISSIONS.TRANSPORT_HISTORY
+    ]
+  },
+  {
+    title: "Flota · camiones (por acción)",
+    permissions: [
+      PERMISSIONS.TRANSPORT_VEHICLES,
+      PERMISSIONS.TRANSPORT_VEHICLES_VIEW,
+      PERMISSIONS.TRANSPORT_VEHICLES_CREATE,
+      PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
+      PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
+      PERMISSIONS.TRANSPORT_VEHICLES_DELETE
     ]
   },
   {
@@ -3158,7 +3196,6 @@ const VIEW_PERMISSIONS = {
   dashboard: PERMISSIONS.DASHBOARD_VIEW,
   requests: PERMISSIONS.CLIENT_REQUESTS,
   "transport-trips": PERMISSIONS.TRANSPORT_TRIPS,
-  "transport-vehicles": PERMISSIONS.TRANSPORT_VEHICLES,
   "transport-drivers": PERMISSIONS.TRANSPORT_DRIVERS,
   "transport-calendar": PERMISSIONS.TRANSPORT_CALENDAR,
   history: PERMISSIONS.TRANSPORT_HISTORY,
@@ -14606,7 +14643,7 @@ function installVehicleCardActionsDelegation() {
       return;
     }
     if (action === "toggle-vehicle") {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanToggleVehicleStatus()) return;
       togglePortalVehicleManualAvailability(vid);
     }
   });
@@ -15590,6 +15627,49 @@ function hasAuthorizationManageAll(user) {
   return hasPermission(user, PERMISSIONS.AUTHORIZATIONS_MANAGE);
 }
 
+/** Permisos que abren el módulo Camiones (al menos una acción o consulta). */
+const VEHICLE_GRANULAR_PERMISSIONS = Object.freeze([
+  PERMISSIONS.TRANSPORT_VEHICLES_VIEW,
+  PERMISSIONS.TRANSPORT_VEHICLES_CREATE,
+  PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
+  PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
+  PERMISSIONS.TRANSPORT_VEHICLES_DELETE
+]);
+
+function hasVehicleManageAll(user) {
+  return hasPermission(user, PERMISSIONS.TRANSPORT_VEHICLES);
+}
+
+function canAccessVehiclesView(user) {
+  if (!user) return false;
+  if (hasVehicleManageAll(user)) return true;
+  return VEHICLE_GRANULAR_PERMISSIONS.some((perm) => hasPermission(user, perm));
+}
+
+function canCreateVehicle(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return hasVehicleManageAll(u) || hasPermission(u, PERMISSIONS.TRANSPORT_VEHICLES_CREATE);
+}
+
+function canEditVehicle(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return hasVehicleManageAll(u) || hasPermission(u, PERMISSIONS.TRANSPORT_VEHICLES_EDIT);
+}
+
+function canToggleVehicleStatus(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return hasVehicleManageAll(u) || hasPermission(u, PERMISSIONS.TRANSPORT_VEHICLES_STATUS);
+}
+
+function canDeleteVehicle(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasVehicleManageAll(u) || hasPermission(u, PERMISSIONS.TRANSPORT_VEHICLES_DELETE);
+}
+
 function canAccessAuthorizationSection(user, sectionKey) {
   if (!user) return false;
   if (hasAuthorizationManageAll(user)) return true;
@@ -15647,10 +15727,10 @@ function canViewAllTransportRequests(user) {
     PERMISSIONS.AUTHORIZATIONS_MANAGE,
     PERMISSIONS.TRANSPORT_HISTORY,
     PERMISSIONS.TRANSPORT_CALENDAR,
-    PERMISSIONS.TRANSPORT_VEHICLES,
-    PERMISSIONS.TRANSPORT_DRIVERS
+    PERMISSIONS.TRANSPORT_DRIVERS,
+    ...VEHICLE_GRANULAR_PERMISSIONS
   ];
-  return ops.some((p) => hasPermission(user, p));
+  return ops.some((p) => hasPermission(user, p)) || canAccessVehiclesView(user);
 }
 
 function canManageTransportTrips(user) {
@@ -15671,6 +15751,9 @@ function canPerformPermissionGatedAction(user, action, trigger) {
     return approval ? canApproveInternalAuthorization(user, approval.type) : false;
   }
   if (action === "trip-status" || action === "edit-trip") return canManageTransportTrips(user);
+  if (action === "edit-vehicle") return canEditVehicle(user);
+  if (action === "toggle-vehicle") return canToggleVehicleStatus(user);
+  if (action === "delete-vehicle") return canDeleteVehicle(user);
   return false;
 }
 
@@ -15709,9 +15792,34 @@ function abortUnlessAdminForFleetDriverEdit(reason = "driversManageForbidden") {
   return true;
 }
 
+function abortUnlessCanCreateVehicle(reason = "vehiclesManageForbidden") {
+  if (canCreateVehicle()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanEditVehicle(reason = "vehiclesManageForbidden") {
+  if (canEditVehicle()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanToggleVehicleStatus(reason = "vehiclesManageForbidden") {
+  if (canToggleVehicleStatus()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanDeleteVehicle(reason = "vehiclesManageForbidden") {
+  if (canDeleteVehicle()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
 function canAccessView(user, view) {
   const v = String(view || "");
   if (v === "authorizations") return canAccessAuthorizationsView(user);
+  if (v === "transport-vehicles") return canAccessVehiclesView(user);
   if (v === "requests") {
     return (
       hasPermission(user, PERMISSIONS.CLIENT_REQUESTS) || hasPermission(user, PERMISSIONS.TRANSPORT_REQUESTS)
@@ -16954,9 +17062,17 @@ function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
   const vehiclesUi = state.vehiclesUi || { workspace: "fleet" };
-  const vehicleWorkspace = normalizeVehicleWorkspaceSection(vehiclesUi.workspace);
+  const canEditVeh = canEditVehicle();
+  const canToggleVeh = canToggleVehicleStatus();
+  const canDeleteVeh = canDeleteVehicle();
+  const canCreateVeh = canCreateVehicle();
+  const canFuelLogs = hasPermission(currentUser(), PERMISSIONS.TRANSPORT_HISTORY);
+  const canTechnicalLogs = canFuelLogs;
+  let vehicleWorkspace = normalizeVehicleWorkspaceSection(vehiclesUi.workspace);
+  if (vehicleWorkspace === "create" && !canCreateVeh) vehicleWorkspace = "fleet";
+  if (vehicleWorkspace === "fuel" && !canFuelLogs) vehicleWorkspace = "fleet";
+  if (vehicleWorkspace === "technical" && !canTechnicalLogs) vehicleWorkspace = "fleet";
   state.vehiclesUi = { ...vehiclesUi, workspace: vehicleWorkspace };
-  const isAdmin = isAdminActor();
   const activeTrips = getActiveTrips();
   const activeTripsByVehicleId = new Map();
   activeTrips.forEach((r) => {
@@ -17086,9 +17202,9 @@ function vehiclesHtml() {
         </dl>
         <footer class="directory-card__actions">
           <button type="button" class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>
-          ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+          ${canEditVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar</button>` : ""}
+          ${canToggleVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>` : ""}
+          ${canDeleteVeh ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Eliminar del catálogo">${IC.trash} Eliminar</button>` : ""}
         </footer>
       </article>`;
     })
@@ -17170,22 +17286,27 @@ function vehiclesHtml() {
     { label: "Termoking", value: thermokingCount },
     { label: "Docs riesgo", value: documentRiskCount, tone: documentRiskCount ? "alert" : undefined }
   ]);
+  const vehicleWorkspaceTabs = [{ id: "fleet", label: "Flota", count: vehicles.length }];
+  if (canCreateVeh) vehicleWorkspaceTabs.push({ id: "create", label: "Registrar", count: totalCount });
+  if (canFuelLogs) vehicleWorkspaceTabs.push({ id: "fuel", label: "Combustible", count: fuelLogsCount });
+  if (canTechnicalLogs) vehicleWorkspaceTabs.push({ id: "technical", label: "Taller", count: technicalLogsCount });
   const workspaceNav = renderModuleWindowTabs({
     ariaLabel: "Opciones del módulo Camiones",
     activeId: vehicleWorkspace,
     action: "vehicles-workspace",
     valueAttr: "workspace",
-    tabs: [
-      { id: "fleet", label: "Flota", count: vehicles.length },
-      { id: "create", label: "Registrar", count: totalCount },
-      { id: "fuel", label: "Combustible", count: fuelLogsCount },
-      { id: "technical", label: "Taller", count: technicalLogsCount }
-    ]
+    tabs: vehicleWorkspaceTabs
   });
   const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody)}</div>`;
-  const createPanel = `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card", "Abrir formulario")}</div>`;
-  const fuelPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
-  const technicalPanel = `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`;
+  const createPanel = canCreateVeh
+    ? `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card", "Abrir formulario")}</div>`
+    : "";
+  const fuelPanel = canFuelLogs
+    ? `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`
+    : "";
+  const technicalPanel = canTechnicalLogs
+    ? `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card", "Abrir formulario")}</div>`
+    : "";
   return `${heroStrip}${workspaceNav}<div class="auth-tab-panels">${fleetPanel}${createPanel}${fuelPanel}${technicalPanel}</div>`;
 }
 
@@ -31294,7 +31415,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-vehicle']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanDeleteVehicle()) return;
       const vehicleId = String(btn.dataset.id || "");
       if (!vehicleId) return;
       openConfirmModal({
@@ -31359,6 +31480,7 @@ function bindDynamicEvents() {
   if (vehicleForm) {
     bindVehicleDocExpiryAutoFill(vehicleForm);
     wireFormSubmitGuard(vehicleForm, async (event) => {
+      if (abortUnlessCanCreateVehicle()) return;
       const data = readFormEntriesNormalized(vehicleForm);
       const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
@@ -31512,6 +31634,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-vehicle']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortUnlessCanEditVehicle()) return;
       const vid = String(btn.dataset.id || "").trim();
       const all = read(KEYS.vehicles, []);
       const rawTarget = all.find((v) => String(v.id || "").trim() === vid);

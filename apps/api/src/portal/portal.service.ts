@@ -198,6 +198,11 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "transport_requests",
   "transport_trips",
   "transport_vehicles",
+  "transport_vehicles_view",
+  "transport_vehicles_create",
+  "transport_vehicles_edit",
+  "transport_vehicles_status",
+  "transport_vehicles_delete",
   "transport_drivers",
   "transport_calendar",
   "transport_history",
@@ -1625,6 +1630,36 @@ export class PortalService implements OnModuleInit {
     if (!this.canApprovePortalRegistration(perms)) throw new ForbiddenException();
   }
 
+  private readonly vehicleGranularPermissions = [
+    "transport_vehicles_view",
+    "transport_vehicles_create",
+    "transport_vehicles_edit",
+    "transport_vehicles_status",
+    "transport_vehicles_delete"
+  ] as const;
+
+  private hasVehicleManageAll(permissionSet: ReadonlySet<string>): boolean {
+    return permissionSet.has("transport_vehicles");
+  }
+
+  private canAccessVehiclesModule(permissionSet: ReadonlySet<string>): boolean {
+    if (this.hasVehicleManageAll(permissionSet)) return true;
+    return this.vehicleGranularPermissions.some((p) => permissionSet.has(p));
+  }
+
+  private canSyncVehicles(permissionSet: ReadonlySet<string>): boolean {
+    if (this.hasVehicleManageAll(permissionSet)) return true;
+    return (
+      permissionSet.has("transport_vehicles_create") ||
+      permissionSet.has("transport_vehicles_edit") ||
+      permissionSet.has("transport_vehicles_status")
+    );
+  }
+
+  private canDeleteVehicleByPermission(permissionSet: ReadonlySet<string>): boolean {
+    return this.hasVehicleManageAll(permissionSet) || permissionSet.has("transport_vehicles_delete");
+  }
+
   private hasTransportOpsPermission(permissionSet: Set<string>): boolean {
     if (permissionSet.has("authorizations_manage")) return true;
     const keys = [
@@ -1632,6 +1667,7 @@ export class PortalService implements OnModuleInit {
       "transport_requests",
       "authorizations_transport",
       "transport_vehicles",
+      ...this.vehicleGranularPermissions,
       "transport_drivers",
       "transport_calendar",
       "transport_history"
@@ -1721,7 +1757,7 @@ export class PortalService implements OnModuleInit {
       genero: string | null;
     }
   ): T {
-    const out = { ...user } as T & Record<string, unknown>;
+    const out: Record<string, unknown> = { ...user };
     const fill = (key: string, val: unknown) => {
       if (val == null || String(val).trim() === "") return;
       if (!String(out[key] ?? "").trim()) out[key] = String(val).trim();
@@ -2247,7 +2283,7 @@ export class PortalService implements OnModuleInit {
     const canUsersManage = admin || this.hasPortalPermission(permissionSet, "users_manage");
     const canViewContactB2b = admin || this.hasPortalPermission(permissionSet, "contact_b2b_view");
     const canTransportTrips = admin || this.hasPortalPermission(permissionSet, "transport_trips");
-    const canTransportVehicles = admin || this.hasPortalPermission(permissionSet, "transport_vehicles");
+    const canTransportVehicles = admin || this.canAccessVehiclesModule(permissionSet);
     const canTransportDrivers = admin || this.hasPortalPermission(permissionSet, "transport_drivers");
     const canTransportCalendar = admin || this.hasPortalPermission(permissionSet, "transport_calendar");
     const canTransportHistory = admin || this.hasPortalPermission(permissionSet, "transport_history");
@@ -3067,8 +3103,10 @@ export class PortalService implements OnModuleInit {
   }
 
   async adminDeleteVehicle(actorUserId: string, actorRole: JwtRole, vehicleId: string) {
-    void actorUserId;
-    if (!this.isTransportOps(actorRole)) throw new ForbiddenException();
+    if (!this.isAdmin(actorRole)) {
+      const perms = await this.loadPortalPermissionSet(actorUserId);
+      if (!this.canDeleteVehicleByPermission(perms)) throw new ForbiddenException();
+    }
     const vid = String(vehicleId || "").trim();
     if (!vid || !PG_UUID_V4_RE.test(vid)) throw new BadRequestException("ID de vehiculo invalido");
     try {
@@ -3283,7 +3321,7 @@ export class PortalService implements OnModuleInit {
         await this.syncRequests(c, data, userId, role);
         return;
       case "vehicles":
-        if (!can("transport_vehicles")) throw new ForbiddenException();
+        if (!admin && !this.canSyncVehicles(permissionSet)) throw new ForbiddenException();
         await this.syncVehicles(c, data);
         return;
       case "drivers":

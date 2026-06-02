@@ -211,6 +211,38 @@ function run() {
     "granular-authorizations-api"
   );
 
+  // 8) Permisos granulares de camiones
+  includesAll(
+    appJs,
+    [
+      "transport_vehicles_view",
+      "transport_vehicles_create",
+      "transport_vehicles_edit",
+      "transport_vehicles_status",
+      "transport_vehicles_delete",
+      "VEHICLE_GRANULAR_PERMISSIONS",
+      "canAccessVehiclesView",
+      "canCreateVehicle",
+      "canEditVehicle",
+      "canToggleVehicleStatus",
+      "canDeleteVehicle",
+      "Flota · camiones (por acción)"
+    ],
+    "granular-vehicles"
+  );
+  includesAll(
+    portalServiceTs,
+    [
+      '"transport_vehicles_view"',
+      '"transport_vehicles_create"',
+      '"transport_vehicles_edit"',
+      "canAccessVehiclesModule",
+      "canSyncVehicles",
+      "canDeleteVehicleByPermission"
+    ],
+    "granular-vehicles-api"
+  );
+
   console.log("OK portal-regression-tests");
 }
 
