@@ -3291,7 +3291,7 @@ export class PortalService implements OnModuleInit {
         await this.syncDrivers(c, data);
         return;
       case "notifications":
-        await this.syncNotifications(c, data, userId, role);
+        await this.syncNotifications(c, data, userId, role, deletedIds);
         return;
       case "emails":
         if (!this.isAdmin(role)) throw new ForbiddenException();
@@ -6685,12 +6685,33 @@ export class PortalService implements OnModuleInit {
   /**
    * Sincroniza notificaciones: UPSERT más **poda** — las filas que ya no llegan desde el navegador
    * para cada destinatario se eliminan, para que al recargar no reaparezcan.
+   * `deletedIds` cubre bandeja vacía o último ítem (payload sin filas que podar).
    */
-  private async syncNotifications(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
+  private async syncNotifications(
+    c: PoolClient,
+    data: unknown,
+    userId: string,
+    role: JwtRole,
+    deletedIds?: string[]
+  ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
     type NotifRow = { id?: unknown; userId?: unknown; title?: unknown; body?: unknown; readAt?: unknown };
     const rows = data as NotifRow[];
+
+    const explicitDeleteIds = (Array.isArray(deletedIds) ? deletedIds : [])
+      .map((raw) => String(raw ?? "").trim())
+      .filter((id) => PG_UUID_V4_RE.test(id));
+    if (explicitDeleteIds.length > 0) {
+      if (admin) {
+        await c.query(`DELETE FROM notificaciones WHERE id = ANY($1::uuid[])`, [explicitDeleteIds]);
+      } else {
+        await c.query(`DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND id = ANY($2::uuid[])`, [
+          userId,
+          explicitDeleteIds
+        ]);
+      }
+    }
 
     for (const n of rows) {
       if (!n?.id) continue;

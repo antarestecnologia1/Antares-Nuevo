@@ -10302,6 +10302,14 @@ function notificationTargetsUser(n, user) {
   return getNotificationRecipientId(n) === uid;
 }
 
+/** Destinatario real de la fila (borrados masivos / vaciar bandeja; distinto de «puede verla»). */
+function notificationBelongsToUser(n, user) {
+  if (!user) return false;
+  const uid = String(user.id ?? "").trim();
+  if (!uid) return false;
+  return getNotificationRecipientId(n) === uid;
+}
+
 function filterNotificationsForUser(user, list) {
   const rows = Array.isArray(list) ? list : [];
   if (!user) return [];
@@ -10396,12 +10404,21 @@ function scheduleContractRenewalNotificationCheck() {
   void refreshContractRenewalNotificationsFromServer();
 }
 
-async function writeNotificationsAwaitServer() {
+async function writeNotificationsAwaitServer(deletedIds) {
   const user = currentUser();
   const all = read(KEYS.notifications, []);
   const payload =
     user && !canViewAllNotifications(user) ? filterNotificationsForUser(user, all) : all;
-  await writeAwaitServer(KEYS.notifications, payload);
+  const normalizedDeleted = [
+    ...new Set(
+      (Array.isArray(deletedIds) ? deletedIds : [deletedIds])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    )
+  ];
+  await writeAwaitServer(KEYS.notifications, payload, {
+    deletedIds: normalizedDeleted.length ? normalizedDeleted : undefined
+  });
 }
 
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
@@ -29967,7 +29984,7 @@ function bindDynamicEvents() {
           const list = read(KEYS.notifications, []);
           const removedNotification = list.find((n) => n.id === id) || null;
           write(KEYS.notifications, list.filter((n) => n.id !== id));
-          await writeNotificationsAwaitServer();
+          await writeNotificationsAwaitServer([id]);
           appendModuleAuditLog({
             action: "delete",
             moduleId: "notifications",
@@ -29996,10 +30013,12 @@ function bindDynamicEvents() {
         onConfirm: async (motivo) => {
           const user = currentUser();
           const list = read(KEYS.notifications, []);
-          const remaining = list.filter((n) => !(n.readAt && notificationTargetsUser(n, user)));
-          const removed = list.length - remaining.length;
+          const removedRows = list.filter((n) => n.readAt && notificationBelongsToUser(n, user));
+          const removedIds = removedRows.map((n) => n.id);
+          const remaining = list.filter((n) => !removedIds.includes(n.id));
+          const removed = removedIds.length;
           write(KEYS.notifications, remaining);
-          await writeNotificationsAwaitServer();
+          await writeNotificationsAwaitServer(removedIds);
           if (removed > 0) {
             appendModuleAuditLog({
               action: "delete",
@@ -30030,10 +30049,12 @@ function bindDynamicEvents() {
         onConfirm: async (motivo) => {
           const user = currentUser();
           const list = read(KEYS.notifications, []);
-          const remaining = list.filter((n) => !notificationTargetsUser(n, user));
-          const removed = list.length - remaining.length;
+          const removedRows = list.filter((n) => notificationBelongsToUser(n, user));
+          const removedIds = removedRows.map((n) => n.id);
+          const remaining = list.filter((n) => !removedIds.includes(n.id));
+          const removed = removedIds.length;
           write(KEYS.notifications, remaining);
-          await writeNotificationsAwaitServer();
+          await writeNotificationsAwaitServer(removedIds);
           if (removed > 0) {
             appendModuleAuditLog({
               action: "delete",
