@@ -2378,7 +2378,14 @@ export class PortalService implements OnModuleInit {
     const dependentPromise = Promise.all([
       this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess),
       this.loadRequests(admin, userId, empresaId, canTransportData, role),
-      canPayroll ? this.loadPayrollEmployees(empresaId, admin, canSeeAllCompanies) : Promise.resolve([]),
+      canPayroll
+        ? this.loadPayrollEmployees(
+            empresaId,
+            admin,
+            canSeeAllCompanies,
+            this.hasPortalPermission(permissionSet, "payroll_manage")
+          )
+        : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId),
       admin ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
       admin ? this.loadDeletedTransportRequestLogs() : Promise.resolve([])
@@ -5029,15 +5036,23 @@ export class PortalService implements OnModuleInit {
   /**
    * Colaboradores `empleados_nomina` para el portal.
    * - Admin: todos.
-   * - Con `id_empresa` válido en el usuario: solo esa empresa.
+   * - Usuario con permiso `payroll_manage` (RRHH, administración, etc.): todos — Gestión humana
+   *   opera sobre el directorio global; filtrar solo por `usuarios.id_empresa` dejaba lista vacía
+   *   cuando los colaboradores estaban en otra empresa o `id_empresa` del usuario no coincidía.
+   * - Sin permiso de nómina: con `id_empresa` válido en el usuario, solo esa empresa.
    * - Sin empresa en la fila de usuario pero con alcance de directorio amplio (mismo criterio que
    *   `loadCompanies(null)` vía `canSeeAllCompanies` en bootstrap): todos — evita lista vacía en
    *   Gestión humana cuando el usuario ve varias empresas pero `usuarios.id_empresa` es NULL.
    */
-  private async loadPayrollEmployees(empresaId: string | null, admin: boolean, broadCompanyDirectory = false) {
+  private async loadPayrollEmployees(
+    empresaId: string | null,
+    admin: boolean,
+    broadCompanyDirectory = false,
+    payrollManage = false
+  ) {
     const companyScope =
       empresaId && PG_UUID_V4_RE.test(String(empresaId).trim()) ? String(empresaId).trim() : null;
-    if (admin || (broadCompanyDirectory && !companyScope)) {
+    if (admin || payrollManage || (broadCompanyDirectory && !companyScope)) {
       const r = await this.pool.query(`SELECT * FROM empleados_nomina ORDER BY nombre_completo`);
       return r.rows.map((e) => this.mapEmployeeRow(e));
     }
