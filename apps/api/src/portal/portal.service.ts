@@ -2314,7 +2314,10 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  async bootstrap(userId: string, role: JwtRole) {
+  /**
+   * Permisos y alcance de empresa del actor (una sola fuente para bootstrap y endpoints livianos).
+   */
+  private async resolveBootstrapActorContext(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
     const [empresaId, permissionSet] = await Promise.all([
       this.getUserCompany(userId),
@@ -2343,6 +2346,62 @@ export class PortalService implements OnModuleInit {
     const fullUserDirectoryAccess = admin || canUsersManage;
     const canSeeAllCompanies =
       admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canViewContactB2b;
+    return {
+      admin,
+      empresaId,
+      permissionSet,
+      canUsersManage,
+      canViewContactB2b,
+      canTransportTrips,
+      canTransportVehicles,
+      canTransportDrivers,
+      canTransportCalendar,
+      canTransportHistory,
+      canTransportData,
+      canPayroll,
+      canHiring,
+      canLoadPositionsCatalog,
+      canSst,
+      fullUserDirectoryAccess,
+      canSeeAllCompanies
+    };
+  }
+
+  /**
+   * Lista de colaboradores para Gestión humana (misma lógica SQL que el bootstrap).
+   * El cliente puede llamarlo al entrar al módulo para corregir caché vacía o desalineada.
+   */
+  async listPayrollEmployeesForPortal(userId: string, role: JwtRole) {
+    const ctx = await this.resolveBootstrapActorContext(userId, role);
+    if (!ctx.canPayroll) throw new ForbiddenException();
+    return this.loadPayrollEmployees(
+      ctx.empresaId,
+      ctx.admin,
+      ctx.canSeeAllCompanies,
+      this.hasPortalPermission(ctx.permissionSet, "payroll_manage")
+    );
+  }
+
+  async bootstrap(userId: string, role: JwtRole) {
+    const {
+      admin,
+      empresaId,
+      permissionSet,
+      canUsersManage,
+      canViewContactB2b,
+      canTransportTrips,
+      canTransportVehicles,
+      canTransportDrivers,
+      canTransportCalendar,
+      canTransportHistory,
+      canTransportData,
+      canPayroll,
+      canHiring,
+      canLoadPositionsCatalog,
+      canSst,
+      fullUserDirectoryAccess,
+      canSeeAllCompanies
+    } = await this.resolveBootstrapActorContext(userId, role);
     const laborSystemRulesPromise = this.loadLaborSystemRules();
     const laborSystemHistoryPromise =
       canPayroll || canHiring ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
@@ -5050,6 +5109,9 @@ export class PortalService implements OnModuleInit {
     broadCompanyDirectory = false,
     payrollManage = false
   ) {
+    if (!(await this.tableExists("empleados_nomina"))) {
+      return [];
+    }
     const companyScope =
       empresaId && PG_UUID_V4_RE.test(String(empresaId).trim()) ? String(empresaId).trim() : null;
     if (admin || payrollManage || (broadCompanyDirectory && !companyScope)) {

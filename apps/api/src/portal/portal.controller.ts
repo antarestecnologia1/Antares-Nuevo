@@ -77,6 +77,12 @@ export class PortalController {
     });
   }
 
+  /** Colaboradores nómina (Gestión humana); alinea caché del cliente con PostgreSQL sin volcar todo el bootstrap. */
+  @Get("payroll-employees")
+  listPayrollEmployees(@Req() req: { user: ReqUser }) {
+    return this.portal.listPayrollEmployeesForPortal(req.user.userId, req.user.role);
+  }
+
   /** Hoja de vida del candidato (R2 prefirmado / público o base64 inline). Rol RRHH. */
   @Get("candidates/:id/cv-download")
   candidateCvDownload(@Req() req: { user: ReqUser }, @Param("id") candidateId: string) {

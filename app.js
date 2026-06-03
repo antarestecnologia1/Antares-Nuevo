@@ -7235,6 +7235,31 @@ function adminUsersHydratingShellHtml({ pendingUsers, activeUsers, companies, ui
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 window.portalCanRefreshFromApi = portalCanRefreshFromApi;
 
+/**
+ * Rehidrata solo `payrollEmployees` desde GET /portal/payroll-employees (misma consulta que bootstrap).
+ * Usado al entrar a Gestión humana si la caché quedó vacía o desfasada respecto a PostgreSQL.
+ * @returns {Promise<boolean>} true si se aplicó un payload válido
+ */
+async function refreshPayrollEmployeesListFromApi() {
+  if (!portalCanRefreshFromApi()) return false;
+  const api = window.AntaresApi;
+  if (!api?.getJson) return false;
+  try {
+    const rows = await api.getJson("/portal/payroll-employees", { timeoutMs: 28000 });
+    if (!Array.isArray(rows)) return false;
+    applyPortalBootstrapPayload({ payrollEmployees: rows });
+    try {
+      savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.payrollEmployees] });
+    } catch (_snap) {
+      /* QuotaExceeded u otro: no bloquear */
+    }
+    return true;
+  } catch (err) {
+    devWarn("Portal: GET /portal/payroll-employees fallo.", err?.message || err);
+    return false;
+  }
+}
+
 async function startPortalBootstrapForInteractiveSession() {
   if (!portalCanRefreshFromApi()) return;
   const p = window.PortalDataLayer?.refreshCacheFromApi
@@ -28215,6 +28240,20 @@ function renderPortalViewImpl() {
   }
   if ((view === "hiring" || view === "payroll") && prevPortalView !== view && portalCanRefreshFromApi()) {
     void refreshPositionsCatalogFromApi();
+  }
+  if (view === "payroll" && hasPermission(user, PERMISSIONS.PAYROLL_MANAGE) && portalCanRefreshFromApi()) {
+    const enteringPayroll = prevPortalView !== "payroll";
+    const noEmployeesCached = readArray(KEYS.payrollEmployees).length === 0;
+    if ((enteringPayroll || noEmployeesCached) && !state.__payrollEmployeesListHydrating) {
+      state.__payrollEmployeesListHydrating = true;
+      void refreshPayrollEmployeesListFromApi()
+        .then((ok) => {
+          if (ok) scheduleRenderPortalView();
+        })
+        .finally(() => {
+          state.__payrollEmployeesListHydrating = false;
+        });
+    }
   }
   if (view === "profile") {
     const cur = currentUser();
