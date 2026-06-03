@@ -2946,6 +2946,14 @@ function getPersonalRegistrationKey(user) {
 }
 
 function applyModuleMicroAnimations() {
+  if (state.__skipModuleAnimationsOnce) {
+    state.__skipModuleAnimationsOnce = false;
+    return;
+  }
+  /** Repintados de la bandeja (poll / marcar leída) no deben re-disparar el fade de la tarjeta. */
+  if (state.currentView === "notifications" && state.__notificationsViewStickyRender) {
+    return;
+  }
   const targets = [...nodes.viewRoot.querySelectorAll(".p-card, .table-wrap, .user-card, .users-hero-item")];
   targets.forEach((node, idx) => {
     node.classList.remove("module-appear");
@@ -6824,22 +6832,57 @@ function restorePortalSnapshotIfAvailable() {
   return true;
 }
 
-function savePortalSnapshotAfterBootstrap() {
+function savePortalSnapshotAfterBootstrap(opts = {}) {
   const session = getSession();
   const uid = session?.userId;
   const cache = window.PortalBootstrapCache;
-  if (!uid || !cache?.save) return;
+  if (!uid || !cache) return;
   try {
-    cache.save(String(uid), portalSnapshotExtras());
+    const id = String(uid);
+    const extras = portalSnapshotExtras();
+    if (opts.immediate && typeof cache.save === "function") {
+      cache.save(id, extras);
+      return;
+    }
+    if (opts.dirtyKeys?.length && typeof cache.scheduleSave === "function") {
+      cache.scheduleSave(id, extras, { dirtyKeys: opts.dirtyKeys });
+      return;
+    }
+    if (opts.full && typeof cache.scheduleSave === "function") {
+      cache.scheduleSave(id, extras, { full: true });
+      return;
+    }
+    if (typeof cache.scheduleSave === "function") {
+      cache.scheduleSave(id, extras, { full: true });
+      return;
+    }
+    cache.save?.(id, extras);
   } catch (_e) {
     /* QuotaExceeded u otro: no bloquear el flujo */
   }
 }
 
+/** Snapshot reciente: el bootstrap en red puede ir en segundo plano sin banner bloqueante. */
+const PORTAL_SNAPSHOT_FRESH_MS = 4 * 60 * 1000;
+
+function portalSnapshotIsFresh() {
+  const session = getSession();
+  const uid = session?.userId;
+  const cache = window.PortalBootstrapCache;
+  if (!uid || !state.portalSnapshotRestored || typeof cache?.snapshotAgeMs !== "function") {
+    return false;
+  }
+  const age = cache.snapshotAgeMs(String(uid));
+  return age > 0 && age < PORTAL_SNAPSHOT_FRESH_MS;
+}
+
+window.portalSnapshotIsFresh = portalSnapshotIsFresh;
+
 async function applyPortalBootstrapFromApi(opts = {}) {
   if (!portalCanRefreshFromApi()) return false;
 
   const wantsSecondary = opts.skipSecondaryHydration !== true;
+  const snapshotFresh = portalSnapshotIsFresh();
   let entry = window.__portalBootstrapApplyEntry;
 
   if (entry && entry.promise) {
@@ -6863,7 +6906,7 @@ async function applyPortalBootstrapFromApi(opts = {}) {
           const p = await api.getJson("/portal/bootstrap", { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
           applyPortalBootstrapPayload(p);
           syncSessionProfileSnapshotFromCache();
-          savePortalSnapshotAfterBootstrap();
+          savePortalSnapshotAfterBootstrap({ full: true });
           if (p && p.positions !== undefined) {
             window.__portalBootstrapPositionsFresh = true;
           }
@@ -6888,7 +6931,7 @@ async function applyPortalBootstrapFromApi(opts = {}) {
     };
     const tryHydrateOwnProfileFallback = () => hydrateOwnProfileFromApi();
     try {
-      setPortalDataHydrating(true);
+      if (!snapshotFresh) setPortalDataHydrating(true);
       await runBootstrap();
       await runSecondaryHydration();
       state.portalDataHydrated = true;
@@ -10999,6 +11042,8 @@ async function writeNotificationsAwaitServer(deletedIds) {
   await writeAwaitServer(KEYS.notifications, payload, {
     deletedIds: normalizedDeleted.length ? normalizedDeleted : undefined
   });
+  /** Parche solo notificaciones (idle): evita serializar todo el portal en cada lectura/borrado. */
+  savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
 }
 
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
@@ -11044,12 +11089,116 @@ function mergeNotificationsListPreserveReadAt(prevList, serverList) {
     const prMs = __notificationReadAtEpochMs(pr);
     const srMs = __notificationReadAtEpochMs(sr);
     if (prMs <= 0 && srMs <= 0) return n;
-    if (prMs > srMs) return { ...n, readAt: pr || null };
-    if (srMs > prMs) return n;
-    /** Misma marca temporal: conservar valor no vacío (p. ej. formato ISO distinto). */
+    if (prMs >= srMs && prMs > 0) return { ...n, readAt: pr || sr || null };
     if (srMs > 0) return n;
     return pr ? { ...n, readAt: pr } : n;
   });
+}
+
+/**
+ * Persiste lecturas en PostgreSQL (endpoint dedicado) y alinea la caché local + snapshot de F5.
+ * @returns {Promise<boolean>}
+ */
+async function persistNotificationsReadState(ids) {
+  const normalized = [
+    ...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || "").trim()).filter(Boolean))
+  ];
+  if (!normalized.length) return true;
+  const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
+  const targetIds = normalized.filter((id) => visibleIds.has(id));
+  if (!targetIds.length) return true;
+
+  const ts = nowIso();
+  const list = read(KEYS.notifications, []);
+  write(
+    KEYS.notifications,
+    list.map((n) => (targetIds.includes(n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n)),
+    { skipSyncSchedule: true }
+  );
+
+  const api = window.AntaresApi;
+  if (api?.postJson && portalCanRefreshFromApi()) {
+    try {
+      const res = await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
+      const readAt = String(res?.readAt || ts).trim() || ts;
+      const merged = read(KEYS.notifications, []);
+      write(
+        KEYS.notifications,
+        merged.map((n) => (targetIds.includes(n.id) ? { ...n, readAt: n.readAt || readAt } : n)),
+        { skipSyncSchedule: true }
+      );
+      savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+      syncNotificationsInboxRenderSignature();
+      return true;
+    } catch (_apiErr) {
+      try {
+        await writeNotificationsAwaitServer();
+        savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+        syncNotificationsInboxRenderSignature();
+        return true;
+      } catch (err) {
+        if (typeof notify === "function") {
+          notify(
+            String(err?.message || "No fue posible guardar las notificaciones leídas en el servidor."),
+            "error"
+          );
+        }
+        return false;
+      }
+    }
+  }
+
+  try {
+    await writeNotificationsAwaitServer();
+    savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+    syncNotificationsInboxRenderSignature();
+    return true;
+  } catch (err) {
+    if (typeof notify === "function") {
+      notify(
+        String(err?.message || "No fue posible guardar las notificaciones leídas en el servidor."),
+        "error"
+      );
+    }
+    return false;
+  }
+}
+
+function refreshNotificationsUiAfterReadMutation() {
+  updateNotificationBadge();
+  if (state.currentView !== "notifications") return;
+  state.__skipModuleAnimationsOnce = true;
+  scheduleRenderPortalView();
+}
+
+/** Evita repintar la bandeja (y re-disparar micro-animaciones) si el poll no cambió el inbox. */
+let __lastNotificationsInboxRenderSig = "";
+
+function notificationsInboxRenderSignature(list) {
+  const rows = Array.isArray(list) ? list : [];
+  return rows
+    .map((n) => {
+      const id = String(n?.id || "").trim();
+      if (!id) return "";
+      const readMs = __notificationReadAtEpochMs(n?.readAt ?? n?.read_at);
+      return `${id}:${readMs > 0 ? readMs : 0}`;
+    })
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
+function syncNotificationsInboxRenderSignature() {
+  __lastNotificationsInboxRenderSig = notificationsInboxRenderSignature(getCurrentNotifications());
+}
+
+function scheduleNotificationsViewRenderIfChanged() {
+  if (state.currentView !== "notifications") return;
+  const sig = notificationsInboxRenderSignature(getCurrentNotifications());
+  if (sig === __lastNotificationsInboxRenderSig) return;
+  __lastNotificationsInboxRenderSig = sig;
+  state.__skipModuleAnimationsOnce = true;
+  scheduleRenderPortalView();
 }
 
 function sendEmail({ to, subject, body }) {
@@ -16903,7 +17052,7 @@ const NOTIF_LIGHT_REFRESH_MIN_MS = 7000;
  * lo que volvía lenta la plataforma. Ahora la campana usa un endpoint liviano y el bootstrap
  * completo corre con mucha menor frecuencia.
  */
-const NOTIF_SILENT_BOOTSTRAP_MIN_MS = 60000;
+const NOTIF_SILENT_BOOTSTRAP_MIN_MS = 180000;
 let __lastNotificationsLightRefreshWallMs = 0;
 
 /** Refresca solo la bandeja de notificaciones con un endpoint liviano (sin re-descargar todo). */
@@ -16927,7 +17076,7 @@ async function __refreshNotificationsBellIfStale() {
     if (!getSession()) return;
     reconcileNotificationsCacheForSession();
     updateNotificationBadge();
-    if (state.currentView === "notifications") scheduleRenderPortalView();
+    scheduleNotificationsViewRenderIfChanged();
   } catch (_e) {
     /* noop: la campana se reintenta en el próximo tick */
   }
@@ -16937,6 +17086,8 @@ async function __refreshNotificationsBellIfStale() {
 function __silentFullBootstrapIfStale() {
   if (!portalCanRefreshFromApi()) return;
   if (typeof document !== "undefined" && document.hidden) return;
+  /** Con snapshot reciente el poll no debe re-descargar todo el portal cada minuto. */
+  if (portalSnapshotIsFresh()) return;
   const now = Date.now();
   if (now - __lastNotificationsSilentBootstrapWallMs < NOTIF_SILENT_BOOTSTRAP_MIN_MS) return;
   __lastNotificationsSilentBootstrapWallMs = now;
@@ -16946,7 +17097,7 @@ function __silentFullBootstrapIfStale() {
       syncSessionProfileSnapshotFromCache();
       reconcileNotificationsCacheForSession();
       updateNotificationBadge();
-      if (state.currentView === "notifications") scheduleRenderPortalView();
+      if (state.currentView === "notifications") scheduleNotificationsViewRenderIfChanged();
     } catch (_e) {
       /* noop */
     }
@@ -17003,7 +17154,7 @@ function __tickNotificationsPoll() {
     __lastSeenNotificationIds = new Set(current.map((n) => n.id));
     updateNotificationBadge();
     if (state.currentView === "notifications") {
-      scheduleRenderPortalView();
+      scheduleNotificationsViewRenderIfChanged();
     }
   } else {
     updateNotificationBadge();
@@ -27985,6 +28136,8 @@ function renderPortalViewImpl() {
   const user = currentUser();
   const view = state.currentView;
   const prevPortalView = state.__portalPrevViewForSync;
+  state.__notificationsViewStickyRender =
+    view === "notifications" && prevPortalView === "notifications";
   state.__portalPrevViewForSync = view;
 
   if (view === "authorizations") {
@@ -31169,18 +31322,9 @@ function bindDynamicEvents() {
         const id = String(btn.dataset.id || "");
         const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
         if (!visibleIds.has(id)) return;
-        const list = read(KEYS.notifications, []);
-        write(
-          KEYS.notifications,
-          list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
-        );
-        try {
-          await writeNotificationsAwaitServer();
-        } catch (_e) {
-          return;
-        }
-        renderPortalView();
-        updateNotificationBadge();
+        const ok = await persistNotificationsReadState([id]);
+        if (!ok) return;
+        refreshNotificationsUiAfterReadMutation();
       });
     });
   });
@@ -31204,20 +31348,13 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
       void runWithBusyButton(btn, async () => {
-        const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
-        const ts = nowIso();
-        const list = read(KEYS.notifications, []);
-        write(
-          KEYS.notifications,
-          list.map((n) => (visibleIds.has(n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n))
-        );
-        try {
-          await writeNotificationsAwaitServer();
-        } catch (_e) {
-          return;
-        }
-        renderPortalView();
-        updateNotificationBadge();
+        const unreadIds = getCurrentNotifications()
+          .filter((n) => !notificationIsRead(n))
+          .map((n) => n.id);
+        if (!unreadIds.length) return;
+        const ok = await persistNotificationsReadState(unreadIds);
+        if (!ok) return;
+        refreshNotificationsUiAfterReadMutation();
       });
     });
   });
@@ -38993,7 +39130,11 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
       /* noop */
     }
     if (!hasUnsavedPortalFormData()) {
-      scheduleRenderPortalView();
+      if (state.currentView === "notifications") {
+        scheduleNotificationsViewRenderIfChanged();
+      } else {
+        scheduleRenderPortalView();
+      }
     }
     updateNotificationBadge();
   });

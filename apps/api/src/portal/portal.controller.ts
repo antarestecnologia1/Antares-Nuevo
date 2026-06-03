@@ -15,6 +15,7 @@ import { AdminUserCredentialsDto } from "./dto/admin-user-credentials.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
+import { MarkNotificationsReadDto } from "./dto/mark-notifications-read.dto";
 import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
@@ -42,6 +43,12 @@ export class PortalController {
   @Get("notifications")
   notifications(@Req() req: { user: ReqUser }) {
     return this.portal.getNotificationsForUser(req.user.userId, req.user.role);
+  }
+
+  /** Marca notificaciones como leídas en PostgreSQL (payload liviano; evita sync-key masivo). */
+  @Post("notifications/mark-read")
+  markNotificationsRead(@Req() req: { user: ReqUser }, @Body() dto: MarkNotificationsReadDto) {
+    return this.portal.markNotificationsRead(req.user.userId, req.user.role, dto.ids);
   }
 
   /** Catálogo de cargos (Contratación / nómina). Lectura directa en PostgreSQL. */

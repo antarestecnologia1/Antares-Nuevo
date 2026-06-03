@@ -4462,6 +4462,38 @@ export class PortalService implements OnModuleInit {
     return { notifications };
   }
 
+  /**
+   * Persiste `fecha_lectura` sin depender de sync-key con cientos de filas (más fiable tras F5).
+   */
+  async markNotificationsRead(userId: string, role: JwtRole, ids: string[]) {
+    const validIds = (Array.isArray(ids) ? ids : [])
+      .map((raw) => String(raw ?? "").trim())
+      .filter((id) => PG_UUID_V4_RE.test(id));
+    if (!validIds.length) {
+      return { ok: true, updated: 0, readAt: null as string | null };
+    }
+    const admin = this.isAdmin(role);
+    const now = new Date();
+    const r = admin
+      ? await this.pool.query(
+          `UPDATE notificaciones
+           SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz)
+           WHERE id = ANY($1::uuid[])
+             AND fecha_lectura IS NULL`,
+          [validIds, now]
+        )
+      : await this.pool.query(
+          `UPDATE notificaciones
+           SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz)
+           WHERE id_usuario = $3::uuid
+             AND id = ANY($1::uuid[])
+             AND fecha_lectura IS NULL`,
+          [validIds, now, userId]
+        );
+    const updated = Number(r.rowCount) || 0;
+    return { ok: true, updated, readAt: now.toISOString() };
+  }
+
   private async loadNotifications(userId: string, admin: boolean) {
     const r = admin
       ? await this.pool.query(
