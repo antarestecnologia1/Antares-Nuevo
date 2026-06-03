@@ -433,7 +433,7 @@ export class PortalService implements OnModuleInit {
   /** Escaneo una vez por proceso: columnas opcionales en liquidaciones_nomina (migr. 20/21). */
   private payrollLiquSchemaTier: 0 | 1 | 2 | undefined;
   /** Escaneo una vez: condición médica en empleados_nomina (migr. 19). */
-  private payrollEmployeeSchemaTier: 0 | 1 | undefined;
+  private payrollEmployeeSchemaTier: 0 | 1 | 2 | undefined;
   /** Columnas origen_liquidacion / novedades_liquidacion_json (migr. 22). */
   private payrollLiquNovedadesCols: boolean | undefined;
 
@@ -4281,7 +4281,10 @@ export class PortalService implements OnModuleInit {
       const meta = computeEmployeeContractRenewalMeta({
         contractType: emp.contractType,
         startDate: emp.startDate,
-        contractEndDate: emp.contractEndDate
+        contractVigenteStartDate: emp.contractVigenteStartDate,
+        contractEndDate: emp.contractEndDate,
+        contractDuration: emp.contractDuration,
+        contractDurationText: emp.contractDurationText
       });
       if (!meta.applies) continue;
       if (meta.statusSlug !== "notice_window" && meta.statusSlug !== "expired") continue;
@@ -4900,6 +4903,7 @@ export class PortalService implements OnModuleInit {
           : "",
       contractDurationText: e.duracion_contrato_texto,
       startDate: this.sqlEmployeeDateToPortalYmd(e.fecha_ingreso),
+      contractVigenteStartDate: this.sqlEmployeeDateToPortalYmd(e.fecha_inicio_contrato_vigente),
       baseSalary: Number(e.salario_base),
       transportAllowance: e.auxilio_transporte != null ? Number(e.auxilio_transporte) : null,
       payFrequency: e.periodicidad_pago,
@@ -6830,23 +6834,32 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  /** Detecta columnas `tiene_condicion_medica` / `descripcion_condicion_medica` (migración 19). */
-  private async resolvePayrollEmployeeSchemaTier(c: PoolClient): Promise<0 | 1> {
+  /** Detecta columnas migr. 19 (condición médica) y 45 (inicio contrato vigente). */
+  private async resolvePayrollEmployeeSchemaTier(c: PoolClient): Promise<0 | 1 | 2> {
     if (this.payrollEmployeeSchemaTier !== undefined) return this.payrollEmployeeSchemaTier;
     try {
-      const { rows } = await c.query<{ n19: string }>(
-        `SELECT COUNT(*) FILTER (WHERE column_name = 'tiene_condicion_medica')::text AS n19
+      const { rows } = await c.query<{ n19: string; n45: string }>(
+        `SELECT COUNT(*) FILTER (WHERE column_name = 'tiene_condicion_medica')::text AS n19,
+                COUNT(*) FILTER (WHERE column_name = 'fecha_inicio_contrato_vigente')::text AS n45
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'empleados_nomina'`
       );
       const has19 = Number(rows[0]?.n19 ?? 0) > 0;
-      const t: 0 | 1 = has19 ? 1 : 0;
+      const has45 = Number(rows[0]?.n45 ?? 0) > 0;
+      const t: 0 | 1 | 2 = has45 ? 2 : has19 ? 1 : 0;
       this.payrollEmployeeSchemaTier = t;
-      if (t === 0) {
+      if (!has19) {
         this.logger.warn(
           "empleados_nomina: sin columnas de condición médica (migr. 19). " +
             "Ejecute npm run db:init o BD/postgres/migrations/19_empleados_condicion_medica.sql. " +
             "Hasta entonces ese dato solo quedará persistido en el navegador."
+        );
+      }
+      if (!has45) {
+        this.logger.warn(
+          "empleados_nomina: sin fecha_inicio_contrato_vigente (migr. 45). " +
+            "Ejecute BD/postgres/migrations/45_empleados_fecha_inicio_contrato_vigente.sql. " +
+            "El inicio del contrato vigente no se persistirá en servidor hasta aplicar la migración."
         );
       }
       return t;
@@ -6870,7 +6883,7 @@ export class PortalService implements OnModuleInit {
     }
     if (code === "22007" || /invalid input syntax for type date/i.test(msg)) {
       throw new BadRequestException(
-        "Alguna fecha del colaborador no es válida (ingreso, nacimiento o fin de contrato). Revise el formulario."
+        "Alguna fecha del colaborador no es válida (ingreso, inicio contrato vigente, nacimiento o fin de contrato). Revise el formulario."
       );
     }
     if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
@@ -7072,6 +7085,96 @@ export class PortalService implements OnModuleInit {
           url_avatar = EXCLUDED.url_avatar,
           fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
 
+    const UPSERT_M45 = `INSERT INTO empleados_nomina (
+          id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
+          fecha_nacimiento, genero, estado_civil, tipo_sangre, nivel_educativo,
+          departamento, ciudad, direccion, telefono, correo_personal,
+          contacto_emergencia, telefono_emergencia, parentesco_emergencia,
+          nombre_cargo_texto, tipo_contrato, duracion_contrato_texto,
+          fecha_ingreso, fecha_inicio_contrato_vigente, salario_base, auxilio_transporte,
+          periodicidad_pago, centro_costos, tipo_cotizante, nivel_riesgo_arl, tipo_plantilla_contrato,
+          eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
+          banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
+          numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
+          fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva,
+          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
+          tiene_condicion_medica, descripcion_condicion_medica,
+          fecha_creacion, fecha_actualizacion
+        ) VALUES (
+          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
+          $7::date, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16,
+          $17, $18, $19,
+          $20, $21, $22,
+          $23::date, $24::date, $25, $26,
+          $27, $28, $29, $30, $31,
+          $32, $33, $34, $35, $36,
+          $37, $38, $39, $40,
+          $41, $42, $43,
+          $44::date, $45::date, $46::date, $47::date, $48,
+          $49, $50, $51, $52, $53,
+          $54::boolean, $55,
+          COALESCE($56::timestamptz, now()), COALESCE($57::timestamptz, now())
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          nombre_completo = EXCLUDED.nombre_completo,
+          tipo_documento = EXCLUDED.tipo_documento,
+          numero_documento = EXCLUDED.numero_documento,
+          fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+          genero = EXCLUDED.genero,
+          estado_civil = EXCLUDED.estado_civil,
+          tipo_sangre = EXCLUDED.tipo_sangre,
+          nivel_educativo = EXCLUDED.nivel_educativo,
+          departamento = EXCLUDED.departamento,
+          ciudad = EXCLUDED.ciudad,
+          direccion = EXCLUDED.direccion,
+          telefono = EXCLUDED.telefono,
+          correo_personal = EXCLUDED.correo_personal,
+          contacto_emergencia = EXCLUDED.contacto_emergencia,
+          telefono_emergencia = EXCLUDED.telefono_emergencia,
+          parentesco_emergencia = EXCLUDED.parentesco_emergencia,
+          nombre_cargo_texto = EXCLUDED.nombre_cargo_texto,
+          tipo_contrato = EXCLUDED.tipo_contrato,
+          duracion_contrato_texto = EXCLUDED.duracion_contrato_texto,
+          fecha_ingreso = EXCLUDED.fecha_ingreso,
+          fecha_inicio_contrato_vigente = EXCLUDED.fecha_inicio_contrato_vigente,
+          salario_base = EXCLUDED.salario_base,
+          auxilio_transporte = EXCLUDED.auxilio_transporte,
+          periodicidad_pago = EXCLUDED.periodicidad_pago,
+          centro_costos = EXCLUDED.centro_costos,
+          tipo_cotizante = EXCLUDED.tipo_cotizante,
+          nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
+          tipo_plantilla_contrato = EXCLUDED.tipo_plantilla_contrato,
+          eps = EXCLUDED.eps,
+          fondo_pension = EXCLUDED.fondo_pension,
+          arl = EXCLUDED.arl,
+          fondo_cesantias = EXCLUDED.fondo_cesantias,
+          caja_compensacion = EXCLUDED.caja_compensacion,
+          banco = EXCLUDED.banco,
+          tipo_cuenta_bancaria = EXCLUDED.tipo_cuenta_bancaria,
+          numero_cuenta_bancaria = EXCLUDED.numero_cuenta_bancaria,
+          rol_trabajador = EXCLUDED.rol_trabajador,
+          numero_licencia = EXCLUDED.numero_licencia,
+          categoria_licencia = EXCLUDED.categoria_licencia,
+          fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
+          fecha_examen_ocupacional = EXCLUDED.fecha_examen_ocupacional,
+          fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
+          fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          id_empresa = EXCLUDED.id_empresa,
+          id_cargo = EXCLUDED.id_cargo,
+          meses_prueba = EXCLUDED.meses_prueba,
+          fecha_fin_contrato = EXCLUDED.fecha_fin_contrato,
+          jornada_laboral = EXCLUDED.jornada_laboral,
+          correo_corporativo = EXCLUDED.correo_corporativo,
+          tiene_condicion_medica = EXCLUDED.tiene_condicion_medica,
+          descripcion_condicion_medica = EXCLUDED.descripcion_condicion_medica,
+          url_avatar = EXCLUDED.url_avatar,
+          fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
+
     for (const raw of data) {
       const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
@@ -7100,6 +7203,11 @@ export class PortalService implements OnModuleInit {
           `Fecha de ingreso inválida o vacía para ${name} (documento ${idDoc}).`
         );
       }
+      const isFixedTerm = String(contract || "").trim() === "Termino fijo";
+      const vigenteRaw = portalDateOrNull(
+        p(e, "contractVigenteStartDate", "fecha_inicio_contrato_vigente")
+      );
+      const vigenteStart = isFixedTerm ? vigenteRaw ?? start : null;
       const base = Number(p(e, "baseSalary")) || 0;
       const bank =
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.banks, p(e, "bankName", "bank")) ||
@@ -7210,18 +7318,23 @@ export class PortalService implements OnModuleInit {
       const updatedAtTs =
         portalEmpAuditTs(pickPortalField(e, "updatedAt", "fecha_actualizacion")) ?? createdAtTs;
 
+      const illnessFlag = String(p(e, "hasIllness") ?? "").toLowerCase() === "si";
+      const illnessDesc = illnessFlag ? nuN(p(e, "illnessDescription")) : null;
+      const baseWithVigente = [...base52.slice(0, 23), vigenteStart, ...base52.slice(23)];
+
       try {
         if (tier === 0) await c.query(UPSERT_LEGACY, [...base52, createdAtTs, updatedAtTs]);
-        else
-          await c.query(UPSERT_M19, [
-            ...base52,
-            String(p(e, "hasIllness") ?? "").toLowerCase() === "si",
-            String(p(e, "hasIllness") ?? "").toLowerCase() === "si"
-              ? nuN(p(e, "illnessDescription"))
-              : null,
+        else if (tier === 1) {
+          await c.query(UPSERT_M19, [...base52, illnessFlag, illnessDesc, createdAtTs, updatedAtTs]);
+        } else {
+          await c.query(UPSERT_M45, [
+            ...baseWithVigente,
+            illnessFlag,
+            illnessDesc,
             createdAtTs,
             updatedAtTs
           ]);
+        }
       } catch (err) {
         this.mapPayrollEmployeeSyncDbError(err, idDoc);
       }

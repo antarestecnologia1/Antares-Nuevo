@@ -1021,9 +1021,19 @@ function addMonthsToYmd(ymd, months) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Término fijo: fin = ingreso + plazo (meses/años); por defecto 1 año calendario. */
-function resolveEmployeeContractEndDateYmd(contractType, startDateYmd, raw = {}) {
-  const start = normalizePortalDateYmd(startDateYmd);
+/** Inicio del plazo del contrato vigente (renovación); si falta, usa fecha de ingreso. */
+function resolveEmployeeContractPlazoStartYmd(emp) {
+  const e = emp && typeof emp === "object" ? emp : {};
+  const vigente = normalizePortalDateYmd(
+    e.contractVigenteStartDate ?? e.fecha_inicio_contrato_vigente ?? ""
+  );
+  const hire = normalizePortalDateYmd(e.startDate ?? e.fecha_ingreso ?? "");
+  return vigente || hire;
+}
+
+/** Término fijo: fin = inicio contrato vigente + plazo (meses/años); por defecto 1 año calendario. */
+function resolveEmployeeContractEndDateYmd(contractType, plazoStartYmd, raw = {}) {
+  const start = normalizePortalDateYmd(plazoStartYmd);
   if (!isFixedTermContractType(contractType)) {
     return normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
   }
@@ -1054,11 +1064,11 @@ function ensureEmployeeContractFields(emp) {
   if (!String(e.contractDuration || e.contractDurationText || "").trim()) {
     e.contractDuration = "1 año";
   }
-  const start = normalizePortalDateYmd(e.startDate);
-  if (isFixedTermContractType(ct) && start) {
+  const plazoStart = resolveEmployeeContractPlazoStartYmd(e);
+  if (isFixedTermContractType(ct) && plazoStart) {
     const durText = String(e.contractDuration || e.contractDurationText || "1 año").trim();
     const parsed = parseContractDurationText(durText || "1 año");
-    e.contractEndDate = resolveEmployeeContractEndDateYmd(ct, start, {
+    e.contractEndDate = resolveEmployeeContractEndDateYmd(ct, plazoStart, {
       contractDurationUnit: parsed.unit === "otro" ? "anios" : parsed.unit,
       contractDurationAmount: parsed.amount || "1"
     });
@@ -1084,7 +1094,7 @@ function computeEmployeeContractRenewalMeta(emp) {
       noticeDeadlineYmd: "",
       daysToEnd: null,
       headline: "Término fijo sin fecha fin",
-      detail: "Complete la fecha de ingreso para calcular el plazo de un año.",
+      detail: "Indique la fecha de inicio del contrato vigente (o la de ingreso) para calcular el plazo.",
       pillLabel: "Sin fecha fin",
       pillTone: "warn"
     };
@@ -1122,51 +1132,122 @@ function computeEmployeeContractRenewalMeta(emp) {
   };
 }
 
-/** Vista previa de fin de contrato (término fijo = 1 año desde ingreso). */
+/** Vista previa de fin de contrato (término fijo = plazo desde inicio contrato vigente). */
 function bindFixedTermContractEndPreview(root, cfg) {
   const contractSel = root.querySelector(cfg.contractSelect);
   const startEl = root.querySelector(cfg.startDate);
+  const vigenteEl = cfg.contractVigenteStartDate
+    ? root.querySelector(cfg.contractVigenteStartDate)
+    : null;
+  const vigenteWrap = cfg.vigenteWrap ? root.querySelector(cfg.vigenteWrap) : null;
   const endEl = root.querySelector(cfg.contractEndDate);
   const wrap = root.querySelector(cfg.endWrap);
   const hintEl = cfg.hint ? root.querySelector(cfg.hint) : null;
   const unitSel = cfg.unit ? root.querySelector(cfg.unit) : null;
   const amtEl = cfg.amount ? root.querySelector(cfg.amount) : null;
   if (!contractSel || !startEl || !endEl || !wrap) return () => {};
+  const startFieldName =
+    String(startEl.getAttribute("name") || "").trim() ||
+    String(cfg.startDate || "").replace(/^#/, "").trim() ||
+    "startDate";
+  const readStartYmd = () => {
+    const byName = readFormDateIso(root, startFieldName);
+    if (byName) return normalizePortalDateYmd(byName);
+    const vis =
+      queryPortalDateField(root, cfg.startDate) ||
+      queryPortalDateField(root, startFieldName) ||
+      startEl;
+    const iso =
+      window.AntaresValidation?.portalDateInputValueIso?.(vis) || String(vis?.value || "").trim();
+    return normalizePortalDateYmd(iso);
+  };
+  const vigenteFieldName =
+    vigenteEl && String(vigenteEl.getAttribute("name") || "").trim()
+      ? String(vigenteEl.getAttribute("name") || "").trim()
+      : "contractVigenteStartDate";
+  const readPlazoStartYmd = () => {
+    if (vigenteEl) {
+      const byName = readFormDateIso(root, vigenteFieldName);
+      if (byName) return normalizePortalDateYmd(byName);
+      const vis =
+        queryPortalDateField(root, cfg.contractVigenteStartDate) ||
+        queryPortalDateField(root, vigenteFieldName) ||
+        vigenteEl;
+      const iso =
+        window.AntaresValidation?.portalDateInputValueIso?.(vis) ||
+        String(vis?.value || "").trim();
+      const vigente = normalizePortalDateYmd(iso);
+      if (vigente) return vigente;
+    }
+    return readStartYmd();
+  };
+  const writeEndYmd = (endYmd) => {
+    const ymd = normalizePortalDateYmd(endYmd);
+    if (!ymd) {
+      clearFormDateInput(endEl);
+      return;
+    }
+    setFormDateByName(root, "contractEndDate", ymd);
+    const endVis = queryPortalDateField(root, "contractEndDate") || endEl;
+    window.AntaresValidation?.portalDateInputSetIso?.(endVis, ymd);
+  };
   const sync = () => {
-    const fixed = isFixedTermContractType(contractSel.value);
+    const contractType = String(contractSel.value || "").trim();
+    const fixed = isFixedTermContractType(contractType);
     setContractDurationBranchVisible(wrap, fixed);
+    if (vigenteWrap) setContractDurationBranchVisible(vigenteWrap, fixed);
     if (!fixed) {
+      if (vigenteEl) clearFormDateInput(vigenteEl);
       clearFormDateInput(endEl);
       if (hintEl) hintEl.textContent = "";
       return;
     }
-    if (unitSel) {
+    if (amtEl && !String(amtEl.value || "").trim()) amtEl.value = "1";
+    if (unitSel && String(unitSel.value || "").trim().toLowerCase() !== "anios") {
       unitSel.value = "anios";
       unitSel.dispatchEvent(new Event("change", { bubbles: true }));
     }
-    if (amtEl && !String(amtEl.value || "").trim()) amtEl.value = "1";
-    const start = normalizePortalDateYmd(
-      window.AntaresValidation?.portalDateInputValueIso?.(startEl) || startEl.value
-    );
-    const endYmd = resolveEmployeeContractEndDateYmd("Termino fijo", start, {
+    const start = readPlazoStartYmd();
+    const endYmd = resolveEmployeeContractEndDateYmd(contractType, start, {
       contractDurationUnit: unitSel?.value,
-      contractDurationAmount: amtEl?.value
+      contractDurationAmount: amtEl?.value,
+      honorExplicitContractEndDate: false
     });
-    if (window.AntaresValidation?.portalDateInputSetIso) {
-      window.AntaresValidation.portalDateInputSetIso(endEl, endYmd);
-    } else {
-      setFormDateByName(root, "contractEndDate", endYmd);
-    }
+    writeEndYmd(endYmd);
     if (hintEl) {
       const notice = endYmd ? addDaysToYmd(endYmd, -30) : "";
       hintEl.textContent = endYmd
         ? `Plazo legal sugerido: 1 año (hasta ${fmtDateOr(endYmd)}). Si no renovará, avise al trabajador antes del ${fmtDateOr(notice)}.`
-        : "Indique la fecha de ingreso para calcular la fecha fin.";
+        : "Indique la fecha de inicio del contrato vigente (o de ingreso) para calcular la fecha fin.";
     }
   };
+  const scheduleSync = () => {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(sync);
+    else sync();
+  };
   contractSel.addEventListener("change", sync);
-  startEl.addEventListener("change", sync);
-  startEl.addEventListener("input", sync);
+  startEl.addEventListener("change", scheduleSync);
+  startEl.addEventListener("input", scheduleSync);
+  startEl.addEventListener("blur", scheduleSync);
+  const hiddenStart = root.querySelector(
+    'input[type="hidden"][name="startDate"][data-portal-date-iso="1"]'
+  );
+  if (hiddenStart) {
+    hiddenStart.addEventListener("change", scheduleSync);
+    hiddenStart.addEventListener("input", scheduleSync);
+  }
+  if (vigenteEl) {
+    vigenteEl.addEventListener("change", scheduleSync);
+    vigenteEl.addEventListener("input", scheduleSync);
+    vigenteEl.addEventListener("blur", scheduleSync);
+    const hiddenVigente = root.querySelector(
+      `input[type="hidden"][name="${vigenteFieldName}"][data-portal-date-iso="1"]`
+    );
+    if (hiddenVigente) {
+      hiddenVigente.addEventListener("change", scheduleSync);
+      hiddenVigente.addEventListener("input", scheduleSync);
+    }
+  }
   if (unitSel && unitSel.dataset.fixedTermEndWired !== "1") {
     unitSel.dataset.fixedTermEndWired = "1";
     unitSel.addEventListener("change", sync);
@@ -8382,6 +8463,9 @@ function normalizePayrollEmployeeRowDates(emp) {
   e.birthDate = normalizePortalDateYmd(first(e.birthDate, e.fecha_nacimiento));
   e.licenseExpiry = normalizePortalDateYmd(first(e.licenseExpiry, e.fecha_vencimiento_licencia));
   e.startDate = normalizePortalDateYmd(first(e.startDate, e.fecha_ingreso));
+  e.contractVigenteStartDate = normalizePortalDateYmd(
+    first(e.contractVigenteStartDate, e.fecha_inicio_contrato_vigente)
+  );
   e.occupationalExamDate = normalizePortalDateYmd(
     first(
       e.occupationalExamDate,
@@ -24525,7 +24609,11 @@ function payrollHtml() {
             </div>
           </div>
         </div>
-        <label>${fieldLabel(IC.calendar, "Fecha ingreso")}<input type="date" name="startDate" id="emp-start-date" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha ingreso a la empresa")}<input type="date" name="startDate" id="emp-start-date" required /></label>
+        <div id="emp-contract-vigente-start-wrap" class="emp-contract-vigente-start full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
+          <label>${fieldLabel(IC.calendar, "Fecha inicio contrato vigente")}<input type="date" name="contractVigenteStartDate" id="emp-contract-vigente-start-date" /></label>
+          <p class="muted" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Inicio del contrato a término fijo o de la renovación actual. La antigüedad laboral sigue en «Fecha ingreso a la empresa».</p>
+        </div>
         <div id="emp-contract-end-wrap" class="emp-contract-end-preview full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
           <label>${fieldLabel(IC.calendar, "Fecha fin del contrato")}<input type="date" name="contractEndDate" id="emp-contract-end-date" readonly tabindex="-1" aria-readonly="true" /></label>
           <p class="muted emp-contract-renewal-hint" id="emp-contract-renewal-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45"></p>
@@ -27288,7 +27376,15 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
     composedDur = "1 año";
   }
   const startDateYmd = normalizePortalDateYmd(raw.startDate);
-  const contractEndDate = resolveEmployeeContractEndDateYmd(effectiveContractType, startDateYmd, raw);
+  const contractVigenteStartDateYmd = normalizePortalDateYmd(raw.contractVigenteStartDate);
+  const plazoStartYmd = isFixedTermContractType(effectiveContractType)
+    ? contractVigenteStartDateYmd || startDateYmd
+    : "";
+  const contractEndDate = resolveEmployeeContractEndDateYmd(
+    effectiveContractType,
+    plazoStartYmd,
+    raw
+  );
   if (needsDurationPlazo && !String(composedDur || "").trim()) {
     const unitDur = String(raw.contractDurationUnit || "").trim().toLowerCase();
     const msg =
@@ -27334,6 +27430,9 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       contractDuration: composedDur,
       contractEndDate,
       startDate: startDateYmd,
+      contractVigenteStartDate: isFixedTermContractType(effectiveContractType)
+        ? contractVigenteStartDateYmd || startDateYmd
+        : "",
       license: String(raw.license || "").trim(),
       licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
       occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),
@@ -27364,6 +27463,9 @@ function validateEmployeeContractDocFields(emp) {
   }
   if (!String(emp.contractType || "").trim()) miss.push("tipo de contrato");
   if (!String(emp.startDate || "").trim()) miss.push("fecha de ingreso");
+  if (isFixedTermContractType(emp.contractType) && !resolveEmployeeContractPlazoStartYmd(emp)) {
+    miss.push("fecha inicio contrato vigente");
+  }
   if (!String(emp.eps || "").trim()) miss.push("EPS");
   if (!String(emp.pensionFund || "").trim()) miss.push("fondo de pension");
   if (!String(emp.arl || "").trim()) miss.push("ARL");
@@ -27466,6 +27568,14 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Empresa", companyName)}
       ${employeeProfileKvRow("Centro costos", resolvePayrollEmployeeCostCenter(e))}
       ${employeeProfileKvRow("Fecha ingreso", e.startDate)}
+      ${
+        isFixedTermContractType(e.contractType)
+          ? employeeProfileKvRow(
+              "Inicio contrato vigente",
+              e.contractVigenteStartDate || e.startDate || "—"
+            )
+          : ""
+      }
       ${employeeProfileKvRow("Fecha fin contrato", e.contractEndDate)}
       ${
         contractRenewal.applies
@@ -27624,7 +27734,11 @@ function buildPayrollEmployeeEditModalFields(emp) {
 </div>
 </div>
 </div>
-<label><span>${escapeHtml("Fecha ingreso")}</span><input type="date" name="startDate" id="employee-modal-start-date" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
+<label><span>${escapeHtml("Fecha ingreso a la empresa")}</span><input type="date" name="startDate" id="employee-modal-start-date" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
+<div id="emp-edit-contract-vigente-start-wrap" class="emp-contract-vigente-start full${showFixedEndInit ? "" : " hidden"}" style="grid-column:1/-1"${showFixedEndInit ? "" : " hidden"}>
+<label><span>${escapeHtml("Fecha inicio contrato vigente")}</span><input type="date" name="contractVigenteStartDate" id="employee-modal-contract-vigente-start-date" value="${escapeAttr(normalizePortalDateYmd(e.contractVigenteStartDate))}" /></label>
+<p class="muted modal-field-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Plazo del contrato fijo o renovación vigente. Si queda vacío al guardar, se usará la fecha de ingreso.</p>
+</div>
 <div id="emp-edit-contract-end-wrap" class="emp-contract-end-preview full${showFixedEndInit ? "" : " hidden"}" style="grid-column:1/-1"${showFixedEndInit ? "" : " hidden"}>
 <label><span>${escapeHtml("Fecha fin del contrato")}</span><input type="date" name="contractEndDate" id="emp-edit-contract-end-date" readonly tabindex="-1" value="${escapeAttr(normalizePortalDateYmd(e.contractEndDate))}" /></label>
 <p class="muted emp-contract-renewal-hint" id="emp-edit-contract-renewal-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45"></p>
@@ -27831,7 +27945,7 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
       String(emp.contractDuration || emp.contractDurationText || "").trim() ||
       describeContractDurationForDocx({
         contractType: ct,
-        startDate: signDate,
+        startDate: resolveEmployeeContractPlazoStartYmd(emp) || signDate,
         endDate: emp.contractEndDate || emp.endDate || ""
       }),
     cargo_empleado: positionName,
@@ -32298,6 +32412,8 @@ function bindDynamicEvents() {
     const syncFixedTermEnd = bindFixedTermContractEndPreview(employeeForm, {
       contractSelect: "#emp-contract-type",
       startDate: "#emp-start-date",
+      contractVigenteStartDate: "#emp-contract-vigente-start-date",
+      vigenteWrap: "#emp-contract-vigente-start-wrap",
       contractEndDate: "#emp-contract-end-date",
       endWrap: "#emp-contract-end-wrap",
       hint: "#emp-contract-renewal-hint",
@@ -32721,6 +32837,8 @@ function bindDynamicEvents() {
           const syncFixedTermEdit = bindFixedTermContractEndPreview(formEl, {
             contractSelect: "#employee-modal-contract-type",
             startDate: "#employee-modal-start-date",
+            contractVigenteStartDate: "#employee-modal-contract-vigente-start-date",
+            vigenteWrap: "#emp-edit-contract-vigente-start-wrap",
             contractEndDate: "#emp-edit-contract-end-date",
             endWrap: "#emp-edit-contract-end-wrap",
             hint: "#emp-edit-contract-renewal-hint",

@@ -25,6 +25,7 @@ CREATE TABLE empleados_nomina (
   tipo_contrato               VARCHAR(120) NOT NULL,
   duracion_contrato_texto     VARCHAR(120),
   fecha_ingreso               DATE NOT NULL,
+  fecha_inicio_contrato_vigente DATE,
   salario_base                NUMERIC(14,2) NOT NULL CHECK (salario_base >= 0),
   auxilio_transporte          NUMERIC(14,2),
   periodicidad_pago           VARCHAR(64),
@@ -72,6 +73,9 @@ COMMENT ON COLUMN empleados_nomina.tiene_condicion_medica IS
   'true si el colaborador declaró enfermedad o condición médica al contratar.';
 COMMENT ON COLUMN empleados_nomina.descripcion_condicion_medica IS
   'Descripción cuando tiene_condicion_medica = true. Dato sensible (SST/RH).';
+
+COMMENT ON COLUMN empleados_nomina.fecha_inicio_contrato_vigente IS
+  'Inicio del contrato fijo o renovación vigente; fecha fin = esta fecha + plazo. Antigüedad en fecha_ingreso.';
 
 CREATE TABLE liquidaciones_nomina (
   id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

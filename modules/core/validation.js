@@ -311,11 +311,13 @@
     if (String(visibleEl.type || "").toLowerCase() === "date") {
       return String(visibleEl.value || "").trim().slice(0, 10);
     }
+    const fromVisible = parseDmyToIsoDate(visibleEl.value);
+    if (fromVisible) return fromVisible;
     const hidden = findPortalDateIsoHidden(visibleEl);
     if (hidden?.value && isValidIsoDate(hidden.value)) return String(hidden.value).trim().slice(0, 10);
     const attr = visibleEl.getAttribute("data-portal-date-iso-value");
     if (attr && isValidIsoDate(attr)) return String(attr).trim().slice(0, 10);
-    return parseDmyToIsoDate(visibleEl.value) || "";
+    return "";
   }
 
   function portalDateInputSetIso(visibleEl, iso) {
@@ -751,7 +753,7 @@
       attrs: { blur: "decimal", restrict: "decimal" }
     },
     { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
-    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|endDate|deadline|when|soat|techInspection|rcPolicyExpiry)/i, attrs: { blur: "date-iso" } },
+    { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|contractVigenteStartDate|endDate|deadline|when|soat|techInspection|rcPolicyExpiry)/i, attrs: { blur: "date-iso" } },
     { re: /^q$/i, attrs: { max: 200 } },
     { re: /^(notes|message|requirements|description)$/i, attrs: { field: "db-upper-multiline", blur: "db-upper-multiline" } },
     { re: /^(reason|motivo)$/i, attrs: { field: "preserve-text", blur: "preserve-text", max: 4000 } },

@@ -87,9 +87,23 @@ function parseContractDurationPlazo(raw: {
   return null;
 }
 
+export function resolveContractPlazoStartYmd(emp: {
+  contractVigenteStartDate?: unknown;
+  fecha_inicio_contrato_vigente?: unknown;
+  startDate?: unknown;
+}): string {
+  const vigente = normalizePortalYmd(
+    emp.contractVigenteStartDate ?? emp.fecha_inicio_contrato_vigente
+  );
+  const hire = normalizePortalYmd(emp.startDate);
+  return vigente || hire;
+}
+
 export function resolveContractEndYmd(emp: {
   contractType?: unknown;
   startDate?: unknown;
+  contractVigenteStartDate?: unknown;
+  fecha_inicio_contrato_vigente?: unknown;
   contractEndDate?: unknown;
   contractDuration?: unknown;
   contractDurationText?: unknown;
@@ -97,7 +111,7 @@ export function resolveContractEndYmd(emp: {
 }): string {
   const ct = String(emp.contractType || "").trim();
   if (!isFixedTermContractType(ct)) return normalizePortalYmd(emp.contractEndDate);
-  const start = normalizePortalYmd(emp.startDate);
+  const start = resolveContractPlazoStartYmd(emp);
   if (!start) return normalizePortalYmd(emp.contractEndDate);
   const plazo = parseContractDurationPlazo(emp);
   if (plazo?.unit === "meses") return addCalendarMonthsYmd(start, plazo.amount);
@@ -117,7 +131,12 @@ export function resolveContractEndYmd(emp: {
 export function computeEmployeeContractRenewalMeta(emp: {
   contractType?: unknown;
   startDate?: unknown;
+  contractVigenteStartDate?: unknown;
+  fecha_inicio_contrato_vigente?: unknown;
   contractEndDate?: unknown;
+  contractDuration?: unknown;
+  contractDurationText?: unknown;
+  duracion_contrato_texto?: unknown;
 }): ContractRenewalMeta {
   if (!isFixedTermContractType(emp.contractType)) {
     return {
@@ -140,7 +159,7 @@ export function computeEmployeeContractRenewalMeta(emp: {
       noticeDeadlineYmd: "",
       daysToEnd: null,
       headline: "Término fijo sin fecha fin",
-      detail: "Complete la fecha de ingreso para calcular el plazo de un año.",
+      detail: "Indique la fecha de inicio del contrato vigente (o la de ingreso) para calcular el plazo.",
       pillLabel: "Sin fecha fin"
     };
   }
