@@ -6575,7 +6575,9 @@ function __applyPortalBootstrapPayloadInner(p) {
       const actor = currentUser();
       const filtered =
         actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
-      write(KEYS.notifications, filtered);
+      const prev = read(KEYS.notifications, []);
+      const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
+      write(KEYS.notifications, merged);
       continue;
     }
     if (prop === "payrollEmployees") {
@@ -10847,6 +10849,40 @@ function reconcileNotificationsCacheForSession() {
   if (!user || canViewAllNotifications(user)) return;
   const filtered = filterNotificationsForUser(user, read(KEYS.notifications, []));
   write(KEYS.notifications, filtered);
+}
+
+function __notificationReadAtEpochMs(v) {
+  if (v == null || v === "") return 0;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/**
+ * GET /portal/notifications y el bootstrap pueden llegar antes de que sync-key persista `readAt`.
+ * Fusionar evita que la caché (y un flush posterior) reviertan «leída» en UI y en PostgreSQL.
+ */
+function mergeNotificationsListPreserveReadAt(prevList, serverList) {
+  const prev = Array.isArray(prevList) ? prevList : [];
+  const server = Array.isArray(serverList) ? serverList : [];
+  const prevById = new Map(
+    prev.map((n) => [String(n?.id || "").trim(), n]).filter(([id]) => Boolean(id))
+  );
+  return server.map((n) => {
+    const id = String(n?.id || "").trim();
+    if (!id || !n || typeof n !== "object") return n;
+    const p = prevById.get(id);
+    if (!p) return n;
+    const pr = p.readAt ?? p.read_at;
+    const sr = n.readAt ?? n.read_at;
+    const prMs = __notificationReadAtEpochMs(pr);
+    const srMs = __notificationReadAtEpochMs(sr);
+    if (prMs <= 0 && srMs <= 0) return n;
+    if (prMs > srMs) return { ...n, readAt: pr || null };
+    if (srMs > prMs) return n;
+    /** Misma marca temporal: conservar valor no vacío (p. ej. formato ISO distinto). */
+    if (srMs > 0) return n;
+    return pr ? { ...n, readAt: pr } : n;
+  });
 }
 
 function sendEmail({ to, subject, body }) {
@@ -16731,7 +16767,9 @@ async function __refreshNotificationsBellIfStale() {
     const actor = currentUser();
     const filtered =
       actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
-    write(KEYS.notifications, filtered, { skipSyncSchedule: true });
+    const prev = read(KEYS.notifications, []);
+    const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
+    write(KEYS.notifications, merged, { skipSyncSchedule: true });
     if (!getSession()) return;
     reconcileNotificationsCacheForSession();
     updateNotificationBadge();
@@ -24356,6 +24394,14 @@ function normalizeDocumentDigits(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
+/** Comparación de unicidad de documento en nómina (dígitos vs pasaporte/PEP alfanumérico). */
+function payrollEmployeeDocumentDedupKey(documentType, value) {
+  const dt = String(documentType || "CC").toUpperCase();
+  const raw = String(value || "").trim();
+  if (dt === "PAS" || dt === "PEP") return raw.replace(/[.\s]/g, "").toUpperCase();
+  return normalizeDocumentDigits(raw);
+}
+
 /**
  * Reglas de persistencia empleado (portal ↔ PostgreSQL empleados_nomina):
  * — MAYÚSCULAS sin tildes: nombre, dirección, contacto emergencia, cargo texto, centro costos, etc.
@@ -24454,7 +24500,6 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
   const docTypeSel = formEl.querySelector("select[name='documentType']");
   const companySel = useCompanyScope ? formEl.querySelector("select[name='companyId']") : null;
   const excludeId = String(opts.excludeId || "").trim();
-  const compact = (raw) => String(raw || "").replace(/[.\s]/g, "").trim().toUpperCase();
   let dupNotifyTimer = null;
   let lastDupToastSig = "";
   const clearBlock = () => {
@@ -24483,12 +24528,15 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       : { ok: true, normalized: rawDoc };
     // Si el formato aún no es válido, lo gestiona la validación de formato (no marcamos duplicado).
     if (!docVal.ok) return true;
-    const needle = compact(docVal.normalized);
+    const needle = payrollEmployeeDocumentDedupKey(docType, docVal.normalized);
     const companyId = String(companySel?.value || "").trim();
     const records = read(storageKey, []);
-    const matches = records.filter(
-      (r) => String(r.id || "") !== excludeId && compact(r.idDoc) === needle
-    );
+    const matches = records.filter((r) => {
+      if (String(r.id || "") === excludeId) return false;
+      const rdt = String(r.documentType || "CC").toUpperCase();
+      if (rdt !== docType) return false;
+      return payrollEmployeeDocumentDedupKey(rdt, r.idDoc) === needle;
+    });
     if (!matches.length) {
       clearBlock();
       return true;
@@ -26962,6 +27010,7 @@ function notificationsHtml() {
           ${soundOn ? "Silenciar timbre" : "Activar timbre"}
         </button>
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
+        <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete-all" title="Eliminar todas las notificaciones visibles">${IC.trash} Eliminar todas</button>
       </div>
       <div class="notif-list">${items}</div>`
     : `${prefBanner}${emptyState("No tienes notificaciones.")}`;
@@ -30924,6 +30973,47 @@ function bindDynamicEvents() {
     });
   });
 
+  /** Eliminar todas las notificaciones visibles en la bandeja (mismo contrato que eliminar una). */
+  nodes.viewRoot.querySelectorAll("[data-action='notif-delete-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const visible = getCurrentNotifications();
+      if (!visible.length) return;
+      openConfirmReasonModal({
+        title: "Eliminar todas las notificaciones",
+        message: `¿Eliminar ${visible.length} notificación${visible.length === 1 ? "" : "es"} de tu bandeja? Indica la justificación. Esta acción no se puede deshacer.`,
+        confirmText: "Eliminar todas",
+        onConfirm: async (motivo) => {
+          const visibleIds = new Set(visible.map((n) => n.id));
+          const list = read(KEYS.notifications, []);
+          const nextList = list.filter((n) => !visibleIds.has(n.id));
+          write(KEYS.notifications, nextList);
+          try {
+            await writeNotificationsAwaitServer([...visibleIds]);
+          } catch (err) {
+            write(KEYS.notifications, list);
+            notify(String(err?.message || "No fue posible eliminar las notificaciones en el servidor."), "error");
+            renderPortalView();
+            updateNotificationBadge();
+            return;
+          }
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "notifications",
+            moduleLabel: "Notificaciones",
+            entityId: "bulk",
+            entityLabel: "Bandeja (eliminar todas)",
+            summary: `${visible.length} notificación(es) eliminadas. Motivo: ${String(motivo || "").trim()}`,
+            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+          });
+          await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
+          notify("Notificaciones eliminadas.", "success");
+          renderPortalView();
+          updateNotificationBadge();
+        }
+      });
+    });
+  });
+
   /** Eliminar una notificación de la bandeja (local + `deletedIds` en sync para PostgreSQL). */
   nodes.viewRoot.querySelectorAll("[data-action='notif-delete']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -33277,7 +33367,11 @@ function bindDynamicEvents() {
         });
         if (!propagate.ok) {
           notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
-          state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+          state.payrollUi = {
+            ...(state.payrollUi || { runSort: "recent" }),
+            workspace: "data",
+            dataSection: "employees"
+          };
           persistHrWorkspace("payroll", "data");
           collapseCreatePanel("create-employee");
           renderPortalView();
@@ -33288,7 +33382,11 @@ function bindDynamicEvents() {
             await applyPortalBootstrapFromApi();
           } catch (_e) {}
         }
-        state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+        state.payrollUi = {
+          ...(state.payrollUi || { runSort: "recent" }),
+          workspace: "data",
+          dataSection: "employees"
+        };
         persistHrWorkspace("payroll", "data");
         collapseCreatePanel("create-employee");
         notify(

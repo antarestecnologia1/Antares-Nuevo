@@ -2378,7 +2378,7 @@ export class PortalService implements OnModuleInit {
     const dependentPromise = Promise.all([
       this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess),
       this.loadRequests(admin, userId, empresaId, canTransportData, role),
-      canPayroll ? this.loadPayrollEmployees(empresaId, admin) : Promise.resolve([]),
+      canPayroll ? this.loadPayrollEmployees(empresaId, admin, canSeeAllCompanies) : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId),
       admin ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
       admin ? this.loadDeletedTransportRequestLogs() : Promise.resolve([])
@@ -4994,11 +4994,28 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
-  private async loadPayrollEmployees(empresaId: string | null, admin: boolean) {
-    const q = admin
-      ? `SELECT * FROM empleados_nomina ORDER BY nombre_completo`
-      : `SELECT * FROM empleados_nomina WHERE id_empresa = $1::uuid ORDER BY nombre_completo`;
-    const r = admin ? await this.pool.query(q) : await this.pool.query(q, [empresaId]);
+  /**
+   * Colaboradores `empleados_nomina` para el portal.
+   * - Admin: todos.
+   * - Con `id_empresa` válido en el usuario: solo esa empresa.
+   * - Sin empresa en la fila de usuario pero con alcance de directorio amplio (mismo criterio que
+   *   `loadCompanies(null)` vía `canSeeAllCompanies` en bootstrap): todos — evita lista vacía en
+   *   Gestión humana cuando el usuario ve varias empresas pero `usuarios.id_empresa` es NULL.
+   */
+  private async loadPayrollEmployees(empresaId: string | null, admin: boolean, broadCompanyDirectory = false) {
+    const companyScope =
+      empresaId && PG_UUID_V4_RE.test(String(empresaId).trim()) ? String(empresaId).trim() : null;
+    if (admin || (broadCompanyDirectory && !companyScope)) {
+      const r = await this.pool.query(`SELECT * FROM empleados_nomina ORDER BY nombre_completo`);
+      return r.rows.map((e) => this.mapEmployeeRow(e));
+    }
+    if (!companyScope) {
+      return [];
+    }
+    const r = await this.pool.query(
+      `SELECT * FROM empleados_nomina WHERE id_empresa = $1::uuid ORDER BY nombre_completo`,
+      [companyScope]
+    );
     return r.rows.map((e) => this.mapEmployeeRow(e));
   }
 
@@ -7009,7 +7026,8 @@ export class PortalService implements OnModuleInit {
       await c.query(
         `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz)
-         ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo, fecha_lectura = EXCLUDED.fecha_lectura`,
+         ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo,
+           fecha_lectura = COALESCE(EXCLUDED.fecha_lectura, notificaciones.fecha_lectura)`,
         [n.id, n.userId, nuN(n.title), nuN(n.body), (n.readAt ?? null) as string | Date | null]
       );
     }
