@@ -1490,9 +1490,8 @@ function bindHrFormWizard(form) {
   });
 
   nextBtn?.addEventListener("click", () => {
-    const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
-    if (wizKind === "employee" && typeof form.__antaresPayrollDupDocCheck === "function") {
-      form.__antaresPayrollDupDocCheck({ silent: false });
+    if (typeof form.__antaresDupDocCheck === "function") {
+      form.__antaresDupDocCheck({ silent: false });
     }
     const stepRes = hrWizardStepValid(steps[idx]);
     if (!stepRes.ok) {
@@ -1515,8 +1514,8 @@ function bindHrFormWizard(form) {
       if (!Number.isFinite(targetIdx) || targetIdx < 0 || targetIdx >= steps.length) return;
       if (targetIdx === idx) return;
       if (targetIdx > idx) {
-        if (String(wizard.getAttribute("data-hr-wizard") || "") === "employee" && typeof form.__antaresPayrollDupDocCheck === "function") {
-          form.__antaresPayrollDupDocCheck({ silent: false });
+        if (typeof form.__antaresDupDocCheck === "function") {
+          form.__antaresDupDocCheck({ silent: false });
         }
         for (let i = idx; i < targetIdx; i++) {
           const hopRes = hrWizardStepValid(steps[i]);
@@ -1539,8 +1538,8 @@ function bindHrFormWizard(form) {
   form.addEventListener(
     "submit",
     (ev) => {
-      if (String(wizard.getAttribute("data-hr-wizard") || "") === "employee" && typeof form.__antaresPayrollDupDocCheck === "function") {
-        form.__antaresPayrollDupDocCheck({ silent: false });
+      if (typeof form.__antaresDupDocCheck === "function") {
+        form.__antaresDupDocCheck({ silent: false });
       }
       for (let i = 0; i < steps.length; i++) {
         const subRes = hrWizardStepValid(steps[i]);
@@ -11125,7 +11124,7 @@ function refreshPositionSelectsInDocument() {
     const keep = prev && getPositionById(prev)?.active !== false ? prev : "";
     const isEmp = sel.id === "emp-position-select" || sel.closest("#form-employee");
     const head = isEmp
-      ? `<option value="">${hasActive ? "Seleccione un cargo creado en Contratación" : "No hay cargos creados todavía"}</option>`
+      ? `<option value="">${hasActive ? "Seleccione un cargo de Contratación" : "No hay cargos creados todavía"}</option>`
       : `<option value="">Seleccione</option>`;
     sel.innerHTML = `${head}${positionSelectOptions(keep)}`;
     if (keep) sel.value = keep;
@@ -11807,8 +11806,9 @@ function initPortalClientStorage() {
  *  - F5 / recarga: la sesión persiste en `localStorage` (`antares_session_v2`) y se rehidrata
  *    siempre que no se exceda el idle máximo. Nunca se cierra solo porque la API esté lenta o
  *    el bootstrap falle: usamos el `profileSnapshot` capturado al login.
- *  - Inactividad (sin mover mouse / teclado / scroll / toques): 30 minutos. Tras ese tiempo el
- *    timer global o el chequeo de `renderPortal` ejecutan `clearSession()` y avisan al usuario.
+ *  - Inactividad (sin uso activo con la pestaña visible): 30 minutos. El tiempo con la pestaña en
+ *    segundo plano no cuenta: al volver se compensa y no se fuerza cierre solo por haber estado
+ *    ausente. Tras superar el límite en visible, `clearSession()` y un aviso fijo en la página pública.
  *  - Cierre manual: botón "Cerrar sesión" (logout) hace `clearSession()` independientemente del idle.
  */
 const SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -11825,6 +11825,9 @@ let __lastSessionActivityPersistAt = 0;
 let __sessionIdleCheckTimer = null;
 let __sessionApiRefreshTimer = null;
 let __sessionActivityHandler = null;
+/** Pestaña oculta: el reloj de inactividad no avanza hasta `creditSessionIdleForBackgroundTime`. */
+let __sessionTabHiddenAt = null;
+const SESSION_IDLE_PUBLIC_NOTICE_KEY = "antares_session_idle_notice_v1";
 
 function getSession() {
   return read(KEYS.session, null);
@@ -11894,6 +11897,7 @@ function throttledBumpSessionActivity() {
 }
 
 function checkSessionIdleAndLogout() {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
   const s = getSession();
   if (!s) return;
   const last = getEffectiveLastActivityAt();
@@ -11902,7 +11906,7 @@ function checkSessionIdleAndLogout() {
   clearSession();
   state.currentView = "dashboard";
   history.replaceState(null, "", window.location.pathname + window.location.search);
-  notify(userMessage("sessionIdle"), "info");
+  announceSessionClosedByIdle();
   renderPortal();
 }
 
@@ -11978,12 +11982,119 @@ async function scheduledSessionTokenMaintenance() {
   refreshClientSessionTokenIfDue();
 }
 
+function creditSessionIdleForBackgroundTime() {
+  if (__sessionTabHiddenAt == null) return;
+  const hiddenMs = Math.max(0, Date.now() - __sessionTabHiddenAt);
+  __sessionTabHiddenAt = null;
+  if (!hiddenMs) return;
+  const s = getSession();
+  if (!s) return;
+  const eff = getEffectiveLastActivityAt();
+  const adjusted = Math.min(Date.now(), eff + hiddenMs);
+  __sessionActivityMemoryAt = Math.max(__sessionActivityMemoryAt, adjusted);
+  if (state.session) state.session = { ...state.session, lastActivityAt: adjusted };
+  const cur = getSession();
+  if (cur) setSession({ ...cur, lastActivityAt: adjusted });
+}
+
+function queueSessionIdlePublicNotice() {
+  try {
+    sessionStorage.setItem(SESSION_IDLE_PUBLIC_NOTICE_KEY, "1");
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+function dismissSessionIdlePublicNotice() {
+  try {
+    sessionStorage.removeItem(SESSION_IDLE_PUBLIC_NOTICE_KEY);
+  } catch (_e) {
+    /* noop */
+  }
+  document.getElementById("session-idle-banner")?.remove();
+}
+
+function mountSessionIdlePublicNoticeIfNeeded() {
+  if (typeof document === "undefined") return;
+  let pending = false;
+  try {
+    pending = sessionStorage.getItem(SESSION_IDLE_PUBLIC_NOTICE_KEY) === "1";
+  } catch (_e) {
+    return;
+  }
+  if (!pending) return;
+  if (document.getElementById("session-idle-banner")) return;
+  const aside = document.createElement("aside");
+  aside.id = "session-idle-banner";
+  aside.className = "session-idle-banner";
+  aside.setAttribute("role", "status");
+
+  const inner = document.createElement("div");
+  inner.className = "session-idle-banner-inner";
+
+  const text = document.createElement("div");
+  text.className = "session-idle-banner-text";
+
+  const title = document.createElement("p");
+  title.className = "session-idle-banner-title";
+  title.textContent = userMessage("sessionIdle");
+
+  const hint = document.createElement("p");
+  hint.className = "session-idle-banner-hint muted";
+  const hintMsg = userMessage("sessionIdleBannerHint");
+  hint.textContent = typeof hintMsg === "string" && hintMsg !== "sessionIdleBannerHint" ? hintMsg : "";
+
+  text.appendChild(title);
+  if (hint.textContent) text.appendChild(hint);
+
+  const actions = document.createElement("div");
+  actions.className = "session-idle-banner-actions";
+
+  const btnIn = document.createElement("button");
+  btnIn.type = "button";
+  btnIn.className = "btn btn-primary btn-sm session-idle-banner-login";
+  btnIn.textContent = "Ingresar al portal";
+  btnIn.addEventListener("click", () => {
+    dismissSessionIdlePublicNotice();
+    (document.getElementById("open-auth-hero") || document.getElementById("open-auth"))?.click();
+  });
+
+  const btnOk = document.createElement("button");
+  btnOk.type = "button";
+  btnOk.className = "btn btn-ghost btn-sm session-idle-banner-dismiss";
+  btnOk.textContent = "Entendido";
+  btnOk.addEventListener("click", () => dismissSessionIdlePublicNotice());
+
+  actions.appendChild(btnIn);
+  actions.appendChild(btnOk);
+
+  inner.appendChild(text);
+  inner.appendChild(actions);
+  aside.appendChild(inner);
+
+  const host =
+    document.getElementById("public-app") ||
+    document.getElementById("hero") ||
+    document.body;
+  host.insertBefore(aside, host.firstChild);
+}
+
+function announceSessionClosedByIdle() {
+  queueSessionIdlePublicNotice();
+  mountSessionIdlePublicNoticeIfNeeded();
+}
+
 function ensureSessionLifecycleHooks() {
   if (typeof window === "undefined" || window.__antaresSessionLifecycleOk) return;
   window.__antaresSessionLifecycleOk = true;
   window.addEventListener("pagehide", () => flushSessionActivityToStorage(), { capture: true });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") flushSessionActivityToStorage();
+    if (document.visibilityState === "hidden") {
+      flushSessionActivityToStorage();
+      if (__sessionTabHiddenAt == null) __sessionTabHiddenAt = Date.now();
+    } else {
+      creditSessionIdleForBackgroundTime();
+    }
   });
 }
 
@@ -16421,6 +16532,7 @@ function renderPortal() {
     document.documentElement.classList.remove("antares-booting-portal");
     nodes.publicApp.classList.remove("hidden");
     nodes.portalApp.classList.add("hidden");
+    mountSessionIdlePublicNoticeIfNeeded();
     return;
   }
   const ts = Date.now();
@@ -16437,12 +16549,17 @@ function renderPortal() {
     };
     setSession(session);
   } else if (ts - getEffectiveLastActivityAt() > SESSION_IDLE_MS) {
-    /** Solo aquí cerramos sesión: > 30 min sin interacción real (regla de inactividad). */
-    clearSession();
-    notify(userMessage("sessionIdle"), "info");
-    renderPortal();
-    return;
+    /** Solo aquí cerramos sesión: > 30 min sin uso activo con la pestaña visible. */
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      /* En segundo plano no forzamos cierre; el tiempo oculto se compensa al volver a la pestaña. */
+    } else {
+      clearSession();
+      announceSessionClosedByIdle();
+      renderPortal();
+      return;
+    }
   }
+  dismissSessionIdlePublicNotice();
   state.session = session;
   closePublicNavDrawer();
   document.body.classList.add("portal-mode");
@@ -18003,7 +18120,7 @@ function driversHtml() {
   );
 }
 
-/** Tabla de auditoría: viajes quitados (colapsable; detalle desde snapshot JSON en bootstrap). */
+/** Tabla de auditoría: viajes quitados (colapsable; resumen liviano en bootstrap, copia JSON al abrir detalle). */
 function buildDeletedTransportTripsLogSection() {
   const rows = read(KEYS.deletedTransportTripLogs, []);
   const minimized = Boolean(state.deletedTransportTripsLogMinimized);
@@ -18036,7 +18153,7 @@ function buildDeletedTransportTripsLogSection() {
   return pcardWrap("trash", "Viajes eliminados o desasignados", subtitle, cardBody, expanded ? "p-card--expanded" : "p-card--collapsed");
 }
 
-/** Tabla de auditoría: solicitudes borradas físicamente (colapsable; detalle desde snapshot JSON). */
+/** Tabla de auditoría: solicitudes borradas físicamente (colapsable; resumen liviano en bootstrap, copia JSON al abrir detalle). */
 function buildDeletedTransportRequestsLogSection() {
   const rows = read(KEYS.deletedTransportRequestLogs, []);
   const minimized = Boolean(state.deletedTransportRequestsLogMinimized);
@@ -29070,10 +29187,11 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='deleted-request-snapshot-detail']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       if (abortIfNotAdmin()) return;
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
+      await ensureDeletedTransportRequestAuditSnapshotLoaded(id);
       const rows = read(KEYS.deletedTransportRequestLogs, []);
       const row = rows.find((r) => String(r.id) === id);
       if (!row) {
@@ -29093,10 +29211,11 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='deleted-trip-snapshot-detail']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       if (abortIfNotAdmin()) return;
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
+      await ensureDeletedTransportTripAuditSnapshotLoaded(id);
       const rows = read(KEYS.deletedTransportTripLogs, []);
       const row = rows.find((r) => String(r.id) === id);
       if (!row) {
@@ -31763,6 +31882,17 @@ function bindDynamicEvents() {
         notify(userMessage("reportNoPermission"), "error");
         return;
       }
+      if (reportId === "payroll_summary" && portalCanRefreshFromApi()) {
+        const pf = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
+        const payrollRunsPre = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), pf.period, (run) =>
+          run.paidAt || run.createdAt || `${run.month || ""}-01`
+        );
+        for (const run of payrollRunsPre) {
+          if (run.payrollRunHeavyOmitted === true) {
+            await ensurePayrollRunHeavyJsonLoaded(String(run.id || ""));
+          }
+        }
+      }
       const report = buildReportDataset(reportId, actor, exportFilters);
       try {
         if (format === "preview") {
@@ -32900,7 +33030,7 @@ function bindDynamicEvents() {
     window.AntaresValidation?.decorateFormFields?.(employeeForm);
     wirePayrollEmployeeFormFieldSanitization(employeeForm);
     const employeeDuplicateDocCheck = wireEmployeePayrollDuplicateDocCheck(employeeForm);
-    employeeForm.__antaresPayrollDupDocCheck = employeeDuplicateDocCheck;
+    employeeForm.__antaresDupDocCheck = employeeDuplicateDocCheck;
     attachDepartmentCitySelects(employeeForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
@@ -34508,11 +34638,22 @@ function bindDynamicEvents() {
 
   const exportPayroll = document.getElementById("export-payroll");
   if (exportPayroll) {
-    exportPayroll.addEventListener("click", () => {
-      const rows = sortPayrollRunsByUiState(
+    exportPayroll.addEventListener("click", async () => {
+      let rows = sortPayrollRunsByUiState(
         filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || defaultPayrollFilters()),
         String(state.payrollUi?.runSort || "recent")
       );
+      if (portalCanRefreshFromApi()) {
+        for (const r of rows) {
+          if (r.payrollRunHeavyOmitted === true) {
+            await ensurePayrollRunHeavyJsonLoaded(String(r.id || ""));
+          }
+        }
+        rows = sortPayrollRunsByUiState(
+          filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || defaultPayrollFilters()),
+          String(state.payrollUi?.runSort || "recent")
+        );
+      }
       const hrAbsences = read(KEYS.hrAbsences, []);
       const csv = [
         "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,AusentismosResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
@@ -34922,6 +35063,7 @@ function bindDynamicEvents() {
       useCompanyScope: false,
       entityLabel: "candidato"
     });
+    candidateForm.__antaresDupDocCheck = candidateDuplicateDocCheck;
     wireFormSubmitGuard(candidateForm, async (event) => {
       const data = readFormEntriesNormalized(candidateForm);
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
@@ -34930,8 +35072,10 @@ function bindDynamicEvents() {
         return;
       }
       if (!candidateDuplicateDocCheck()) {
+        const dupDetail = readInlineOrNativeFieldError(candidateForm.querySelector("input[name='idDoc']"));
         notify(
-          `Ya existe un candidato con el documento ${docValidation.normalized}. Revise el listado de candidatos.`,
+          dupDetail ||
+            `Ya existe un candidato con el documento ${docValidation.normalized}. Revise el listado de candidatos.`,
           "error"
         );
         return;
@@ -36802,7 +36946,7 @@ function bindExtendedViewEditHandlers() {
       const all = read(KEYS.vacancies, []);
       const target = normalizeVacancyRowForEditor(all.find((v) => String(v.id) === String(btn.dataset.id || "")));
       if (!target) return;
-      const positions = read(KEYS.positions, []).filter((p) => p.active !== false);
+      const positions = getActivePositions();
       const positionOpts = [
         { value: "", label: "Seleccione cargo..." },
         ...positions.map((p) => ({ value: p.id, label: String(p.name || "") }))

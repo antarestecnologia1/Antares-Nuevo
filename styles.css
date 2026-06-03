@@ -8365,6 +8365,52 @@ body[data-theme="dark"] .modal-card--discard .modal-edit-actions .modal-btn--saf
 .toast-info { border-left: 4px solid #38bdf8; }
 .toast-warn { border-left: 4px solid #f59e0b; }
 
+/* Aviso tras cierre por inactividad (sustituye toast en sitio público) */
+.session-idle-banner {
+  position: sticky;
+  top: 0;
+  z-index: 120;
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow: var(--shadow-card);
+}
+
+body[data-theme="dark"] .session-idle-banner {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.22) 0%, rgba(15, 28, 46, 0.96) 100%);
+}
+
+.session-idle-banner-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.session-idle-banner-title {
+  margin: 0 0 0.25rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.session-idle-banner-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
+.session-idle-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .auth-form {
   gap: 0.8rem;
 }
@@ -25136,6 +25182,29 @@ body[data-theme="dark"] .field-label .field-required-mark {
 #form-employee .hr-employee-avatar-caption {
   text-align: center;
   font-size: 0.78rem;
+}
+
+/* Catálogo de cargo (solo filas creadas en Contratación): bloque visual claro */
+#form-employee .hr-emp-position-block {
+  grid-column: 1 / -1;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--primary) 28%, transparent);
+}
+#form-employee .hr-emp-position-block > label {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+#form-employee .hr-emp-position-block .muted,
+#form-employee .hr-emp-position-block .emp-position-empty-hint {
+  margin-top: 0.45rem !important;
+}
+body[data-theme="dark"] #form-employee .hr-emp-position-block {
+  background: color-mix(in srgb, var(--primary) 10%, #0e1a2c);
+  border-color: color-mix(in srgb, var(--primary) 35%, #2b3e58);
 }
 
 /* Tema oscuro: tarjetas oscuras (no blancas) conservando el acento */

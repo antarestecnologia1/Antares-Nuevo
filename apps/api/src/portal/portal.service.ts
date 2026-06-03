@@ -5144,9 +5144,11 @@ export class PortalService implements OnModuleInit {
       deductions: Number(row.total_deducciones),
       net: Number(row.neto_a_pagar),
       paid: row.liquidacion_pagada,
-      paidAt: row.fecha_pago ? new Date(row.fecha_pago).toISOString() : null,
+      paidAt: row.fecha_pago ? new Date(row.fecha_pago as string | number | Date).toISOString() : null,
       approvedBy: row.pago_aprobado_por,
-      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      createdAt: row.fecha_creacion
+        ? new Date(row.fecha_creacion as string | number | Date).toISOString()
+        : new Date().toISOString(),
       payrollKind:
         typeof row.tipo_registro === "string" && String(row.tipo_registro).trim()
           ? String(row.tipo_registro).trim()
