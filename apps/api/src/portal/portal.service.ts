@@ -7305,14 +7305,14 @@ export class PortalService implements OnModuleInit {
       if (!has19) {
         this.logger.warn(
           "empleados_nomina: sin columnas de condición médica (migr. 19). " +
-            "Ejecute npm run db:init o BD/postgres/migrations/19_empleados_condicion_medica.sql. " +
+            "Ejecute npm run db:init o alinee con BD/postgres/tablas/13_empleados_nomina.sql. " +
             "Hasta entonces ese dato solo quedará persistido en el navegador."
         );
       }
       if (!has45) {
         this.logger.warn(
           "empleados_nomina: sin fecha_inicio_contrato_vigente (migr. 45). " +
-            "Ejecute BD/postgres/migrations/45_empleados_fecha_inicio_contrato_vigente.sql. " +
+            "Ejecute npm run db:init o BD/postgres/tablas/13_empleados_nomina.sql (columna fecha_inicio_contrato_vigente). " +
             "El inicio del contrato vigente no se persistirá en servidor hasta aplicar la migración."
         );
       }
@@ -7943,8 +7943,8 @@ export class PortalService implements OnModuleInit {
         this.logger.warn(
           `liquidaciones_nomina: esquema nivel ${t}. ` +
             (t === 0
-              ? "Ejecute npm run db:init o migrations/20_liquidaciones_nomina_prima_terminacion.sql y 21_liquidaciones_intereses_cesantias.sql."
-              : "Falta migrations/21_liquidaciones_intereses_cesantias.sql o npm run db:init.") +
+              ? "Ejecute npm run db:init o alinee liquidaciones_nomina con BD/postgres/tablas/19_liquidaciones_nomina.sql (prima terminación e intereses/cesantías)."
+              : "Falta columna en liquidaciones_nomina (ver tablas/19) o ejecute npm run db:init.") +
             " Hasta entonces algunos rubros solo quedarán persistidos en el navegador."
         );
       }
@@ -7980,7 +7980,7 @@ export class PortalService implements OnModuleInit {
       this.payrollLiquNovedadesCols = ok;
       if (!ok) {
         this.logger.warn(
-          "liquidaciones_nomina: ejecute npm run db:init o migrations/22_liquidaciones_nomina_automatica.sql para origen y novedades JSON."
+          "liquidaciones_nomina: ejecute npm run db:init o alinee con BD/postgres/tablas/19_liquidaciones_nomina.sql (origen_liquidacion y novedades JSON)."
         );
       }
       return ok;

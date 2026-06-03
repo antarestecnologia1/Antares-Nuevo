@@ -52,4 +52,4 @@ Automático: `npm run db:init` o `npm run db:init:supabase` (usa `apps/api/scrip
 
 ## Mantenimiento
 
-Editar directamente el `.sql` de la tabla en esta carpeta. El despliegue (`npm run db:init`) lee `orden_ejecucion.txt`.
+Editar directamente el `.sql` de la tabla en esta carpeta. El despliegue (`npm run db:init`) lee `orden_ejecucion.txt`. No duplicar cambios en `../migrations/` (esa carpeta ya no contiene `.sql`; el esquema canónico es solo aquí + autocura en la API).

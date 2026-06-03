@@ -2,14 +2,13 @@
 
 Scripts SQL para PostgreSQL 15+ alineados con los módulos del portal. **Tablas y columnas en español** (sin tildes en identificadores SQL para compatibilidad).
 
-## Dos capas de scripts
+## Esquema SQL (una sola capa)
 
-| Capa | Ubicación | Uso |
-|------|-----------|-----|
-| **Creación (esquema completo)** | `postgres/01`, `02`, **`postgres/tablas/`** (30 tablas), `08`–`10` | Instalación nueva o base vacía |
-| **Migraciones legacy (ALTER)** | `postgres/migrations/` | Solo bases ya desplegadas sin el esquema unificado |
+| Qué | Ubicación | Uso |
+|-----|-----------|-----|
+| **Esquema completo** | `postgres/01_extensions.sql`, `02_enums.sql`, **`postgres/tablas/`** (un `.sql` por tabla), `08`–`10` | Instalación nueva o base vacía |
 
-No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas quedan con todos los campos actuales.
+La carpeta `postgres/migrations/` ya **no** contiene `.sql`: el esquema canónico está solo en `tablas/` (y la API aplica `ALTER` idempotentes al arrancar sobre bases antiguas).
 
 ## Orden de ejecución — instalación nueva
 
@@ -26,14 +25,14 @@ No mezcles ambas capas en una instalación nueva: con `01`–`10` las tablas que
 |---------|--------|
 | `npm run db:init` | Postgres vacío (Docker local, Render sin RLS) → `01`–`08` |
 | `npm run db:init:supabase` | **Producción Supabase** (BD vacía) → `01`–`10` |
-| `npm run db:migrate` | BD existente: solo `postgres/migrations/` |
+| `npm run db:migrate` | Compatibilidad: no hay `.sql` en `migrations/`; solo verifica tablas (usar autocura API o alinear a mano con `tablas/`) |
 | `node apps/api/scripts/apply-schema.mjs --supabase --skip-storage` | RLS tablas sin Storage (buckets pendientes) |
 
 La API (`PortalService.onModuleInit`) aplica ALTER idempotentes al arrancar si faltan columnas en un deploy sobre BD vieja.
 
 ## Bases ya existentes
 
-Ver `postgres/migrations/README.md` y ejecutar solo los scripts que falten (idempotentes).
+Ver `postgres/migrations/README.md` (histórico / política).
 
 **Manual de despliegue (Word):** `python BD/docs/generar_manual_antares.py` → `BD/docs/Manual_Despliegue_Supabase_Cloudflare.docx`
 

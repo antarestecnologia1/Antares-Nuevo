@@ -103,7 +103,7 @@ def main():
             "postgres/09_rls_tablas.sql — Row Level Security en tablas públicas",
             "postgres/10_rls_storage_supabase.sql — políticas de Storage (tras crear buckets)",
             "",
-            "Bases ya desplegadas: postgres/migrations/ (ALTER idempotentes; ver migrations/README.md).",
+            "Bases ya desplegadas: autocura al arrancar la API o alinear manualmente con postgres/tablas/.",
         ],
     )
 

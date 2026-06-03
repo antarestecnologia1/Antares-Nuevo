@@ -4,7 +4,7 @@
  * Uso (desde la raíz del repo, con DATABASE_URL en apps/api/.env o entorno):
  *   node apps/api/scripts/apply-schema.mjs              → CREATE (01, 02, 30 tablas, 08)
  *   node apps/api/scripts/apply-schema.mjs --supabase     → + 09 RLS tablas, 10 RLS storage
- *   node apps/api/scripts/apply-schema.mjs --migrations   → solo migrations/ (BD existente)
+ *   node apps/api/scripts/apply-schema.mjs --migrations   → ejecuta *.sql en migrations/ (vacío: solo verifica tablas)
  *
  * --skip-storage  Omite 10_rls_storage_supabase.sql (ejecutar tras crear buckets).
  * --force         Ejecuta CREATE aunque ya exista empresas (solo BD vacía de prueba).
@@ -144,8 +144,15 @@ async function main() {
     }
 
     if (runMigrations) {
-      for (const name of listMigrationFiles()) {
-        await runSqlFile(pool, path.join(MIGRATIONS_DIR, name), `migrations/${name}`);
+      const migFiles = listMigrationFiles();
+      if (!migFiles.length) {
+        console.warn(
+          "[apply-schema] migrations/ sin archivos .sql — esquema canónico en tablas/; autocura en API al arrancar."
+        );
+      } else {
+        for (const name of migFiles) {
+          await runSqlFile(pool, path.join(MIGRATIONS_DIR, name), `migrations/${name}`);
+        }
       }
     }
 

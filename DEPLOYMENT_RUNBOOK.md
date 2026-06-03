@@ -193,7 +193,7 @@ En la raíz del repo:
 | `npm run verify` | Setup + build API + build Next.js + ESLint (`apps/web`) + tests estáticos del portal (`qa/portal-regression-tests.mjs`). **No requiere Docker.** |
 | `npm run verify:stack` | Si **Docker Compose** está en PATH: borra volumen, levanta Postgres, `npm run db:init` (`01`–`08`), ejecuta `verify` y smoke API. Si Docker no está instalado, ejecuta solo `verify`. |
 | `npm run db:init:supabase` | Esquema completo `01`–`10` contra `DATABASE_URL` (producción Supabase o Render + RLS opcional). |
-| `npm run db:migrate` | Solo `BD/postgres/migrations/` (actualizar BD existente). |
+| `npm run db:migrate` | Verifica tablas; `migrations/` ya no contiene `.sql` (esquema en `tablas/` + autocura API). |
 
 ### Postgres local (Docker)
 

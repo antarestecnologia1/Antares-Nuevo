@@ -50,7 +50,6 @@ function run() {
   const apiTs = read("apps/api/src/portal/portal.service.ts");
   const dtoTs = read("apps/api/src/portal/dto/approve-pending-user.dto.ts");
   const enumsSql = read("BD/postgres/02_enums.sql");
-  const migrationSql = read("BD/postgres/migrations/44_rol_usuario_logistica.sql");
 
   includesAll(
     appJs,
@@ -65,8 +64,7 @@ function run() {
   );
 
   includesAll(dtoTs, ['"logistica"'], "dto-logistica");
-  includesAll(enumsSql, ["'logistica'"], "enum-fresh-install");
-  includesAll(migrationSql, ["ADD VALUE 'logistica'"], "migration-44");
+  includesAll(enumsSql, ["'logistica'"], "enum-rol_usuario-incluye-logistica");
 
   const appPerms = extractLogisticsPermissionsFromAppJs(appJs);
   const apiPerms = extractLogisticsBlockFromApi(apiTs);

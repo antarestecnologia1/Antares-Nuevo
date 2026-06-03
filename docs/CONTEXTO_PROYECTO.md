@@ -133,7 +133,7 @@ Antares Nuevo/
 ## 6. Base de datos
 
 - **Motor:** PostgreSQL 15+.
-- **Scripts:** `BD/postgres/` — capa creación (`01`–`10`, `tablas/`) y `migrations/` para BD existentes.
+- **Scripts:** `BD/postgres/` — `01`–`10`, `tablas/` (un SQL por tabla). La carpeta `migrations/` documenta política; sin `.sql` incrementales.
 - **Comandos:**
 
   | Comando | Uso |
@@ -274,7 +274,7 @@ Con Docker + smoke API: `npm run verify:stack`.
 
 Registro en `modules/domain-bootstrap.js`: `auth`, `users`, `companies`, `vehicles`, `drivers`, `trips`, `requests`, `notifications`, `payroll`, `recruitment`, `files`.
 
-Vistas Next en `apps/web/src/modules/` (dashboard, rrhh, solicitudes, etc.) — alineadas conceptualmente con el portal estático.
+Vistas del portal estático en `modules/portal/views/` (registran `AppModules`); Next.js en `apps/web/app/`.
 
 ---
 
