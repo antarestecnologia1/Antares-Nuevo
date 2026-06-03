@@ -104,6 +104,27 @@ export class PortalController {
     return this.portal.getUserSessions(req.user.userId, req.user.role);
   }
 
+  /**
+   * Detalle completo de una liquidación (incluye JSONB pesados). El bootstrap envía lista
+   * resumida para reducir payload; el portal pide este recurso al abrir colilla o exportar.
+   */
+  @Get("payroll-runs/:id")
+  payrollRunDetail(@Req() req: { user: ReqUser }, @Param("id") runId: string) {
+    return this.portal.getPayrollRunHeavyPayload(req.user.userId, req.user.role, runId);
+  }
+
+  /** Admin: snapshot JSON completo de auditoría de viaje desasignado (no va en bootstrap). */
+  @Get("deleted-transport-trip-audit/:id")
+  deletedTransportTripAudit(@Req() req: { user: ReqUser }, @Param("id") logId: string) {
+    return this.portal.getDeletedTransportTripAuditSnapshot(req.user.userId, req.user.role, logId);
+  }
+
+  /** Admin: snapshot JSON completo de solicitud eliminada (no va en bootstrap). */
+  @Get("deleted-transport-request-audit/:id")
+  deletedTransportRequestAudit(@Req() req: { user: ReqUser }, @Param("id") logId: string) {
+    return this.portal.getDeletedTransportRequestAuditSnapshot(req.user.userId, req.user.role, logId);
+  }
+
   @Post("notification-preferences")
   notificationPreferences(@Req() req: { user: ReqUser }, @Body() dto: NotificationPreferencesDto) {
     return this.portal.updateNotificationPreferences(req.user.userId, dto);

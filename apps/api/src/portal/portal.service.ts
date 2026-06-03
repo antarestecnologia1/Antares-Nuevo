@@ -2368,7 +2368,7 @@ export class PortalService implements OnModuleInit {
       canHiring ? this.loadCandidates() : Promise.resolve([]),
       canHiring ? this.loadInterviews() : Promise.resolve([]),
       canHiring ? this.loadContracts() : Promise.resolve([]),
-      canPayroll ? this.loadPayrollRuns() : Promise.resolve([]),
+      canPayroll ? this.loadPayrollRunsForBootstrap() : Promise.resolve([]),
       canTransportHistory ? this.loadFuelLogs() : Promise.resolve([]),
       canTransportHistory ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
       canPayroll ? this.loadHrAbsences() : Promise.resolve([]),
@@ -3980,23 +3980,42 @@ export class PortalService implements OnModuleInit {
               l.motivo AS "reason",
               l.eliminado_en AS "deletedAt",
               u.correo_electronico AS "deletedByEmail",
-              l.datos_json AS "snapshot"
+              COALESCE(l.datos_json->>'numero_viaje', l.datos_json->>'tripNumber', '') AS "_sum_trip",
+              COALESCE(l.datos_json->>'placa_vehiculo', l.datos_json->>'vehiclePlate', '') AS "_sum_plate",
+              COALESCE(l.datos_json->>'nombre_conductor', l.datos_json->>'driverName', '') AS "_sum_driver",
+              COALESCE(l.datos_json->>'descripcion_ruta', l.datos_json->>'routeDescription', '') AS "_sum_route"
        FROM auditoria_viajes_eliminados l
        LEFT JOIN usuarios u ON u.id = l.eliminado_por
        ORDER BY l.eliminado_en DESC
        LIMIT $1`,
       [PORTAL_DELETION_AUDIT_BOOTSTRAP_LIMIT]
     );
-    return r.rows.map((row) => ({
-      id: row.id,
-      requestId: row.requestId,
-      requestNumber: row.requestNumber,
-      tripNumber: row.tripNumber,
-      reason: row.reason,
-      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
-      deletedByEmail: maskPortalEmail(row.deletedByEmail),
-      snapshot: row.snapshot || null
-    }));
+    return r.rows.map((row) => {
+      const trip = String(row._sum_trip || "").trim();
+      const plate = String(row._sum_plate || "").trim();
+      const driver = String(row._sum_driver || "").trim();
+      const route = String(row._sum_route || "").trim();
+      return {
+        id: row.id,
+        requestId: row.requestId,
+        requestNumber: row.requestNumber,
+        tripNumber: row.tripNumber,
+        reason: row.reason,
+        deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
+        deletedByEmail: maskPortalEmail(row.deletedByEmail),
+        snapshot: null,
+        snapshotSummary: {
+          tripNumber: trip || null,
+          vehiclePlate: plate || null,
+          driverName: driver || null,
+          routeDescription: route || null,
+          numero_viaje: trip || null,
+          placa_vehiculo: plate || null,
+          nombre_conductor: driver || null,
+          descripcion_ruta: route || null
+        }
+      };
+    });
   }
 
   private async loadDeletedTransportRequestLogs(): Promise<Record<string, unknown>[]> {
@@ -4008,22 +4027,45 @@ export class PortalService implements OnModuleInit {
               l.motivo AS "reason",
               l.eliminado_en AS "deletedAt",
               u.correo_electronico AS "deletedByEmail",
-              l.datos_json AS "snapshot"
+              COALESCE(l.datos_json->>'departamento_origen', l.datos_json->>'originDepartment', '') AS "_sum_od",
+              COALESCE(l.datos_json->>'ciudad_origen', l.datos_json->>'originCity', '') AS "_sum_oc",
+              COALESCE(l.datos_json->>'departamento_destino', l.datos_json->>'destinationDepartment', '') AS "_sum_dd",
+              COALESCE(l.datos_json->>'ciudad_destino', l.datos_json->>'destinationCity', '') AS "_sum_dc",
+              COALESCE(l.datos_json->>'descripcion_carga', l.datos_json->>'cargoDescription', '') AS "_sum_cargo"
        FROM auditoria_solicitudes_eliminadas l
        LEFT JOIN usuarios u ON u.id = l.eliminado_por
        ORDER BY l.eliminado_en DESC
        LIMIT $1`,
       [PORTAL_DELETION_AUDIT_BOOTSTRAP_LIMIT]
     );
-    return r.rows.map((row) => ({
-      id: row.id,
-      requestId: row.requestId,
-      requestNumber: row.requestNumber,
-      reason: row.reason,
-      deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
-      deletedByEmail: maskPortalEmail(row.deletedByEmail),
-      snapshot: row.snapshot || null
-    }));
+    return r.rows.map((row) => {
+      const od = String(row._sum_od || "").trim();
+      const oc = String(row._sum_oc || "").trim();
+      const dd = String(row._sum_dd || "").trim();
+      const dc = String(row._sum_dc || "").trim();
+      const cargo = String(row._sum_cargo || "").trim();
+      return {
+        id: row.id,
+        requestId: row.requestId,
+        requestNumber: row.requestNumber,
+        reason: row.reason,
+        deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
+        deletedByEmail: maskPortalEmail(row.deletedByEmail),
+        snapshot: null,
+        snapshotSummary: {
+          departamento_origen: od || null,
+          originDepartment: od || null,
+          ciudad_origen: oc || null,
+          originCity: oc || null,
+          departamento_destino: dd || null,
+          destinationDepartment: dd || null,
+          ciudad_destino: dc || null,
+          destinationCity: dc || null,
+          descripcion_carga: cargo || null,
+          cargoDescription: cargo || null
+        }
+      };
+    });
   }
 
   /** Fecha columna PostgreSQL DATE/TIMESTAMP → `YYYY-MM-DD` para inputs del portal. */
@@ -5038,19 +5080,47 @@ export class PortalService implements OnModuleInit {
     };
   }
 
-  private async loadPayrollRuns() {
-    const r = await this.pool.query(`SELECT * FROM liquidaciones_nomina ORDER BY fecha_creacion DESC`);
-    return r.rows.map((row) => {
-      const novelties =
-        row.novedades_liquidacion_json &&
-        typeof row.novedades_liquidacion_json === "object"
-          ? (row.novedades_liquidacion_json as Record<string, unknown>)
-          : null;
-      const workedDaysBlock =
-        novelties && typeof novelties.colillaPagoDiasLaborados === "object"
-          ? (novelties.colillaPagoDiasLaborados as Record<string, unknown>)
-          : null;
-      return {
+  /**
+   * Mapea fila `liquidaciones_nomina` al objeto `payrollRuns` del portal.
+   * @param includeHeavyJson Si false (bootstrap), no serializa JSONB grandes; extrae solo
+   *  escalares mínimos para listados (días laborados / pago días) vía rutas JSONB en SQL.
+   */
+  private mapLiquidacionNominaRowToPortalPayrollRun(row: Record<string, unknown>, includeHeavyJson: boolean) {
+    const novelties =
+      includeHeavyJson &&
+      row.novedades_liquidacion_json &&
+      typeof row.novedades_liquidacion_json === "object"
+        ? (row.novedades_liquidacion_json as Record<string, unknown>)
+        : null;
+    const workedDaysBlock =
+      novelties && typeof novelties.colillaPagoDiasLaborados === "object"
+        ? (novelties.colillaPagoDiasLaborados as Record<string, unknown>)
+        : null;
+    const slimWdLab = row.__bootstrap_nv_wd_lab;
+    const slimWdPay = row.__bootstrap_nv_wd_pay;
+    const slimSvcCal = row.__bootstrap_nv_svc_cal;
+    const parseSlimNum = (raw: unknown): number | null => {
+      if (raw == null) return null;
+      const s = String(raw).trim();
+      if (!s) return null;
+      const n = Number(s);
+      return Number.isFinite(n) ? n : null;
+    };
+    const wdFromNovelties = Number(workedDaysBlock?.diasLaborados ?? novelties?.diasServicioEnCorteCalendario ?? 0);
+    const wdPayFromNovelties = Number(workedDaysBlock?.pagoDiasLaboradosCop ?? 0);
+    const wdLabSlim = parseSlimNum(slimWdLab);
+    const wdCalSlim = parseSlimNum(slimSvcCal);
+    const wdPaySlim = parseSlimNum(slimWdPay) ?? 0;
+    const workedDays = includeHeavyJson
+      ? wdFromNovelties
+      : wdLabSlim != null
+        ? wdLabSlim
+        : wdCalSlim != null
+          ? wdCalSlim
+          : 0;
+    const workedDaysPaymentCop = includeHeavyJson ? wdPayFromNovelties : wdPaySlim;
+
+    return {
       id: row.id,
       employeeId: row.id_empleado,
       employeeName: row.nombre_empleado,
@@ -5085,6 +5155,7 @@ export class PortalService implements OnModuleInit {
       primaServiciosCop: Number(row.prima_servicios_cop ?? 0),
       primaServiciosDays: row.prima_dias_semestre != null ? Number(row.prima_dias_semestre) : null,
       settlementDetail:
+        includeHeavyJson &&
         row.liquidacion_terminacion_json &&
         typeof row.liquidacion_terminacion_json === "object"
           ? row.liquidacion_terminacion_json
@@ -5098,15 +5169,117 @@ export class PortalService implements OnModuleInit {
         typeof row.origen_liquidacion === "string" && row.origen_liquidacion.trim()
           ? String(row.origen_liquidacion).trim()
           : "manual",
-      workedDays: Number(workedDaysBlock?.diasLaborados ?? novelties?.diasServicioEnCorteCalendario ?? 0),
-      workedDaysPaymentCop: Number(workedDaysBlock?.pagoDiasLaboradosCop ?? 0),
+      workedDays,
+      workedDaysPaymentCop,
       noveltiesDetail:
+        includeHeavyJson &&
         row.novedades_liquidacion_json &&
         typeof row.novedades_liquidacion_json === "object"
           ? row.novedades_liquidacion_json
-          : null
-      };
-    });
+          : null,
+      ...(includeHeavyJson ? {} : { payrollRunHeavyOmitted: true as const })
+    };
+  }
+
+  /** Bootstrap: todas las liquidaciones sin volcar JSONB pesados al cliente. */
+  private async loadPayrollRunsForBootstrap() {
+    const r = await this.pool.query(`
+      SELECT ln.id,
+             ln.id_empleado,
+             ln.nombre_empleado,
+             ln.periodo_mes,
+             ln.devengado_total,
+             ln.base_cotizacion_ibc,
+             ln.viaticos_periodo,
+             ln.reembolso_combustible,
+             ln.viaticos_automaticos,
+             ln.reembolso_combustible_automatico,
+             ln.viaticos_manuales,
+             ln.reembolso_combustible_manual,
+             ln.horas_extras_cop,
+             ln.auxilios_nomina_formulario,
+             ln.bonificaciones_cop,
+             ln.cantidad_viajes_conductor,
+             ln.viajes_interdepartamentales,
+             ln.deduccion_salud,
+             ln.deduccion_pension,
+             ln.fondo_solidaridad_pensional,
+             ln.total_deducciones,
+             ln.neto_a_pagar,
+             ln.liquidacion_pagada,
+             ln.fecha_pago,
+             ln.pago_aprobado_por,
+             ln.fecha_creacion,
+             ln.tipo_registro,
+             ln.incluye_prima_servicios,
+             ln.prima_servicios_cop,
+             ln.prima_dias_semestre,
+             ln.incluye_intereses_cesantias,
+             ln.intereses_cesantias_cop,
+             ln.base_cesantias_interes_cop,
+             ln.dias_interes_cesantias,
+             ln.origen_liquidacion,
+             (ln.novedades_liquidacion_json #>> '{colillaPagoDiasLaborados,diasLaborados}') AS "__bootstrap_nv_wd_lab",
+             (ln.novedades_liquidacion_json #>> '{colillaPagoDiasLaborados,pagoDiasLaboradosCop}') AS "__bootstrap_nv_wd_pay",
+             (ln.novedades_liquidacion_json ->> 'diasServicioEnCorteCalendario') AS "__bootstrap_nv_svc_cal"
+        FROM liquidaciones_nomina ln
+       ORDER BY ln.fecha_creacion DESC`);
+    return r.rows.map((row) => this.mapLiquidacionNominaRowToPortalPayrollRun(row as Record<string, unknown>, false));
+  }
+
+  async getPayrollRunHeavyPayload(actorUserId: string, role: JwtRole, runId: string) {
+    const admin = this.isAdmin(role);
+    const [empresaId, permissionSet] = await Promise.all([
+      this.getUserCompany(actorUserId),
+      this.resolveEffectivePermissionSet(actorUserId, role)
+    ]);
+    const canPayroll = admin || this.hasPortalPermission(permissionSet, "payroll_manage");
+    if (!canPayroll) throw new ForbiddenException("Sin permiso para consultar liquidaciones.");
+    const id = String(runId || "").trim();
+    if (!PG_UUID_V4_RE.test(id)) throw new BadRequestException("Identificador de liquidación inválido.");
+    const r = admin
+      ? await this.pool.query(`SELECT * FROM liquidaciones_nomina WHERE id = $1::uuid LIMIT 1`, [id])
+      : await this.pool.query(
+          `SELECT ln.*
+             FROM liquidaciones_nomina ln
+             INNER JOIN empleados_nomina e ON e.id = ln.id_empleado
+            WHERE ln.id = $1::uuid
+              AND ($2::uuid IS NULL OR e.id_empresa = $2::uuid)
+            LIMIT 1`,
+          [id, empresaId]
+        );
+    const row = r.rows[0] as Record<string, unknown> | undefined;
+    if (!row) throw new NotFoundException("Liquidación no encontrada.");
+    return this.mapLiquidacionNominaRowToPortalPayrollRun(row, true);
+  }
+
+  async getDeletedTransportTripAuditSnapshot(actorUserId: string, role: JwtRole, logId: string) {
+    if (!this.isAdmin(role)) throw new ForbiddenException();
+    const id = String(logId || "").trim();
+    if (!PG_UUID_V4_RE.test(id)) throw new BadRequestException("Identificador inválido.");
+    if (!(await this.tableExists("auditoria_viajes_eliminados"))) {
+      throw new NotFoundException("Auditoría no disponible.");
+    }
+    const r = await this.pool.query(`SELECT datos_json AS snapshot FROM auditoria_viajes_eliminados WHERE id = $1::uuid LIMIT 1`, [id]);
+    if (!r.rows.length) throw new NotFoundException("Registro no encontrado.");
+    const snap = r.rows[0]?.snapshot ?? null;
+    return { snapshot: snap || null };
+  }
+
+  async getDeletedTransportRequestAuditSnapshot(actorUserId: string, role: JwtRole, logId: string) {
+    if (!this.isAdmin(role)) throw new ForbiddenException();
+    const id = String(logId || "").trim();
+    if (!PG_UUID_V4_RE.test(id)) throw new BadRequestException("Identificador inválido.");
+    if (!(await this.tableExists("auditoria_solicitudes_eliminadas"))) {
+      throw new NotFoundException("Auditoría no disponible.");
+    }
+    const r = await this.pool.query(
+      `SELECT datos_json AS snapshot FROM auditoria_solicitudes_eliminadas WHERE id = $1::uuid LIMIT 1`,
+      [id]
+    );
+    if (r.rows.length === 0) throw new NotFoundException("Registro no encontrado.");
+    const snap = r.rows[0]?.snapshot ?? null;
+    return { snapshot: snap || null };
   }
 
   private async loadFuelLogs() {
@@ -8114,7 +8287,7 @@ export class PortalService implements OnModuleInit {
     updated: number;
     skipped: number;
     messages: string[];
-    payrollRuns: Awaited<ReturnType<PortalService["loadPayrollRuns"]>>;
+    payrollRuns: Awaited<ReturnType<PortalService["loadPayrollRunsForEmployee"]>>;
   }> {
     const eid = String(employeeId || "").trim();
     if (!PG_UUID_V4_RE.test(eid)) {
@@ -8178,8 +8351,11 @@ export class PortalService implements OnModuleInit {
   }
 
   private async loadPayrollRunsForEmployee(employeeId: string) {
-    const all = await this.loadPayrollRuns();
-    return all.filter((r) => String(r.employeeId) === String(employeeId));
+    const r = await this.pool.query(
+      `SELECT * FROM liquidaciones_nomina WHERE id_empleado = $1::uuid ORDER BY fecha_creacion DESC`,
+      [employeeId]
+    );
+    return r.rows.map((row) => this.mapLiquidacionNominaRowToPortalPayrollRun(row as Record<string, unknown>, true));
   }
 
   private mergeAbsenceRefreshTargets(

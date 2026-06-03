@@ -72,9 +72,11 @@
     scheduleGeneration[storageKey] = gen;
     timers[storageKey] = setTimeout(() => {
       if (scheduleGeneration[storageKey] !== gen) return;
-      const data = pending[storageKey];
+      const stalePending = pending[storageKey];
       delete pending[storageKey];
       delete timers[storageKey];
+      const data = resolveSyncPayloadForStorageKey(storageKey, stalePending);
+      if (data === undefined || data === null) return;
       void flush(entity, data, { notifyOnFailure: true }).catch((err) => {
         logPortalSyncFailure(entity, err);
       });
@@ -83,6 +85,22 @@
 
   var syncFailureNotifyTimer = null;
   var lastSyncFailureWallMs = 0;
+
+  /**
+   * Claves respaldadas por PostgreSQL: la fuente de verdad tras `AntaresPersistence.write`
+   * es la memoria (`serverBackedMemory`). `pending` solo refleja el último `schedule()` y
+   * puede quedar obsoleto si hubo un `write(..., { skipSyncSchedule: true })` (p. ej. borrar
+   * notificación + `flushStorageKeyNow`): enviar `pending` viejo rehace UPSERT y revive filas.
+   */
+  function resolveSyncPayloadForStorageKey(storageKey, stalePending) {
+    const P = window.AntaresPersistence;
+    if (P && typeof P.read === "function" && P.SERVER_BACKED_STORAGE_KEYS && P.SERVER_BACKED_STORAGE_KEYS.has(storageKey)) {
+      return P.read(storageKey, stalePending !== undefined ? stalePending : null);
+    }
+    if (stalePending !== undefined) return stalePending;
+    if (P && typeof P.read === "function") return P.read(storageKey, null);
+    return undefined;
+  }
 
   function notifySyncFailureDebounced() {
     try {
@@ -192,13 +210,10 @@
     delete timers[storageKey];
     scheduleGeneration[storageKey] = (scheduleGeneration[storageKey] || 0) + 1;
 
-    var data = pending[storageKey];
+    var stalePending = pending[storageKey];
     delete pending[storageKey];
 
-    const P = window.AntaresPersistence;
-    if (data === undefined && P && typeof P.read === "function") {
-      data = P.read(storageKey, null);
-    }
+    var data = resolveSyncPayloadForStorageKey(storageKey, stalePending);
     if (data === undefined || data === null) return;
 
     await flush(entity, data, opts);

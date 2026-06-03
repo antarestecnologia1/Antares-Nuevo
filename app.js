@@ -2357,6 +2357,109 @@ function parsePortalJsonSnapshot(raw) {
   return null;
 }
 
+/** Copia JSON de auditoría de viaje: bootstrap puede traer solo `snapshotSummary`. */
+function deletedTripSnapshotForTableRow(row) {
+  const direct = parsePortalJsonSnapshot(row.snapshot);
+  if (direct) return direct;
+  const s = row.snapshotSummary;
+  return s && typeof s === "object" ? s : null;
+}
+
+/** Copia JSON de auditoría de solicitud: bootstrap puede traer solo `snapshotSummary`. */
+function deletedRequestSnapshotForTableRow(row) {
+  const direct = parsePortalJsonSnapshot(row.snapshot);
+  if (direct) return direct;
+  const s = row.snapshotSummary;
+  return s && typeof s === "object" ? s : null;
+}
+
+/**
+ * Hidrata `noveltiesDetail` / `settlementDetail` desde el API si el bootstrap solo trajo la fila resumida.
+ * @returns {object|null} fila fusionada o null si no hay sesión API
+ */
+async function ensurePayrollRunHeavyJsonLoaded(runId) {
+  const id = String(runId || "").trim();
+  if (!id || !portalCanRefreshFromApi()) return null;
+  const runs = read(KEYS.payrollRuns, []);
+  const idx = runs.findIndex((r) => String(r.id) === id);
+  if (idx < 0) return null;
+  const cur = runs[idx];
+  if (cur.payrollRunHeavyOmitted !== true) return cur;
+  const api = window.AntaresApi;
+  if (!api || typeof api.getJson !== "function") return cur;
+  try {
+    const detail = await api.getJson(`/portal/payroll-runs/${encodeURIComponent(id)}`);
+    if (!detail || typeof detail !== "object") return cur;
+    const merged = {
+      ...cur,
+      settlementDetail: detail.settlementDetail ?? cur.settlementDetail ?? null,
+      noveltiesDetail: detail.noveltiesDetail ?? cur.noveltiesDetail ?? null,
+      workedDays: detail.workedDays != null ? detail.workedDays : cur.workedDays,
+      workedDaysPaymentCop:
+        detail.workedDaysPaymentCop != null ? detail.workedDaysPaymentCop : cur.workedDaysPaymentCop,
+      payrollRunHeavyOmitted: false
+    };
+    const next = [...runs];
+    next[idx] = merged;
+    write(KEYS.payrollRuns, next);
+    return merged;
+  } catch (err) {
+    devWarn("Portal: detalle de liquidación no disponible.", err?.message || err);
+    notify(String(err?.message || "No fue posible cargar el detalle de la liquidación."), "warn");
+    return cur;
+  }
+}
+
+async function ensureDeletedTransportTripAuditSnapshotLoaded(logId) {
+  const id = String(logId || "").trim();
+  if (!id || !portalCanRefreshFromApi()) return false;
+  const rows = read(KEYS.deletedTransportTripLogs, []);
+  const row = rows.find((r) => String(r.id) === id);
+  if (!row) return false;
+  if (parsePortalJsonSnapshot(row.snapshot)) return true;
+  const api = window.AntaresApi;
+  if (!api || typeof api.getJson !== "function") return false;
+  try {
+    const res = await api.getJson(`/portal/deleted-transport-trip-audit/${encodeURIComponent(id)}`);
+    const snap = res && typeof res === "object" ? res.snapshot : null;
+    const idx = rows.findIndex((r) => String(r.id) === id);
+    if (idx < 0) return false;
+    const next = [...rows];
+    next[idx] = { ...next[idx], snapshot: snap };
+    write(KEYS.deletedTransportTripLogs, next);
+    return true;
+  } catch (err) {
+    devWarn("Portal: snapshot de auditoría (viaje) no disponible.", err?.message || err);
+    notify(String(err?.message || "No fue posible cargar la copia del viaje."), "warn");
+    return false;
+  }
+}
+
+async function ensureDeletedTransportRequestAuditSnapshotLoaded(logId) {
+  const id = String(logId || "").trim();
+  if (!id || !portalCanRefreshFromApi()) return false;
+  const rows = read(KEYS.deletedTransportRequestLogs, []);
+  const row = rows.find((r) => String(r.id) === id);
+  if (!row) return false;
+  if (parsePortalJsonSnapshot(row.snapshot)) return true;
+  const api = window.AntaresApi;
+  if (!api || typeof api.getJson !== "function") return false;
+  try {
+    const res = await api.getJson(`/portal/deleted-transport-request-audit/${encodeURIComponent(id)}`);
+    const snap = res && typeof res === "object" ? res.snapshot : null;
+    const idx = rows.findIndex((r) => String(r.id) === id);
+    if (idx < 0) return false;
+    const next = [...rows];
+    next[idx] = { ...next[idx], snapshot: snap };
+    write(KEYS.deletedTransportRequestLogs, next);
+    return true;
+  } catch (err) {
+    devWarn("Portal: snapshot de auditoría (solicitud) no disponible.", err?.message || err);
+    notify(String(err?.message || "No fue posible cargar la copia de la solicitud."), "warn");
+    return false;
+  }
+}
+
 function snapPick(obj, ...keys) {
   if (!obj) return "";
   for (const k of keys) {
@@ -8332,7 +8435,8 @@ function prepareCreationFormForSubmit(formEl) {
   const domVal = V.validateDomForm(formEl);
   if (!domVal.ok) {
     domVal.firstInvalid?.focus?.();
-    notify(userMessage("validationStep"), "error");
+    const detail = readInlineOrNativeFieldError(domVal.firstInvalid);
+    notify(detail || userMessage("validationStep"), "error");
     return false;
   }
   V.applyDomFormPatch?.(formEl, domVal.patch);
@@ -10964,7 +11068,7 @@ function companySelectOptions(selectedId = "") {
 }
 
 function getActivePositions() {
-  return readArray(KEYS.positions).filter((p) => p.active !== false);
+  return readArray(KEYS.positions).filter((p) => p.active !== false && String(p.name || "").trim());
 }
 
 function getPositionById(positionId) {
@@ -17915,7 +18019,7 @@ function buildDeletedTransportTripsLogSection() {
       const when = fmtDate(row.deletedAt || "");
       const reqN = escapeHtml(String(row.requestNumber || row.requestId || "-"));
       const tripN = escapeHtml(String(row.tripNumber || "-"));
-      const snap = parsePortalJsonSnapshot(row.snapshot);
+      const snap = deletedTripSnapshotForTableRow(row);
       const summary = escapeHtml(formatDeletedTripSnapshotTableSummary(snap));
       const reason = escapeHtml(String(row.reason || "").slice(0, 500));
       const who = escapeHtml(String(row.deletedByEmail || "—"));
@@ -17947,7 +18051,7 @@ function buildDeletedTransportRequestsLogSection() {
     .map((row) => {
       const when = fmtDate(row.deletedAt || "");
       const reqN = escapeHtml(String(row.requestNumber || row.requestId || "-"));
-      const snap = parsePortalJsonSnapshot(row.snapshot);
+      const snap = deletedRequestSnapshotForTableRow(row);
       const summary = escapeHtml(formatDeletedRequestSnapshotTableSummary(snap));
       const reason = escapeHtml(String(row.reason || "").slice(0, 500));
       const who = escapeHtml(String(row.deletedByEmail || "—"));
@@ -20227,7 +20331,7 @@ function buildHistoryAuditEntries() {
   });
 
   read(KEYS.deletedTransportRequestLogs, []).forEach((row) => {
-    const snap = parsePortalJsonSnapshot(row.snapshot);
+    const snap = deletedRequestSnapshotForTableRow(row);
     pushEntry({
       id: `audit-deleted-request-${row.id}`,
       ts: String(row.deletedAt || ""),
@@ -24234,7 +24338,15 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
   const companySel = useCompanyScope ? formEl.querySelector("select[name='companyId']") : null;
   const excludeId = String(opts.excludeId || "").trim();
   const compact = (raw) => String(raw || "").replace(/[.\s]/g, "").trim().toUpperCase();
+  let dupNotifyTimer = null;
+  let lastDupToastSig = "";
   const clearBlock = () => {
+    if (dupNotifyTimer) {
+      clearTimeout(dupNotifyTimer);
+      dupNotifyTimer = null;
+    }
+    lastDupToastSig = "";
+    docInput.dataset.dupLastToastMsg = "";
     if (String(docInput.dataset.dupError || "") === "1") {
       docInput.dataset.dupError = "";
       V?.clearFieldError?.(docInput);
@@ -24278,6 +24390,30 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       const dupMsg = `Ya existe un ${entityLabel} con el documento ${needle}${who}${scopeTail}. No puede repetirse.`;
       V?.setFieldError?.(docInput, dupMsg);
       docInput.setCustomValidity?.(dupMsg);
+      const toastKey = `dup:${needle}:${companyId || "none"}:${excludeId || "new"}`;
+      const fireDupToast = () => {
+        try {
+          if (typeof notify === "function") notify(dupMsg, "error", 4200);
+        } catch (_e) {
+          /* noop */
+        }
+      };
+      if (!silent) {
+        if (docInput.dataset.dupLastToastMsg !== dupMsg) {
+          docInput.dataset.dupLastToastMsg = dupMsg;
+          fireDupToast();
+        }
+      } else if (lastDupToastSig !== toastKey) {
+        lastDupToastSig = toastKey;
+        if (dupNotifyTimer) clearTimeout(dupNotifyTimer);
+        dupNotifyTimer = setTimeout(() => {
+          dupNotifyTimer = null;
+          if (String(docInput.dataset.dupError || "") === "1" && docInput.value.trim()) {
+            docInput.dataset.dupLastToastMsg = dupMsg;
+            fireDupToast();
+          }
+        }, 380);
+      }
       if (!silent) {
         try {
           docInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
@@ -32764,6 +32900,7 @@ function bindDynamicEvents() {
     window.AntaresValidation?.decorateFormFields?.(employeeForm);
     wirePayrollEmployeeFormFieldSanitization(employeeForm);
     const employeeDuplicateDocCheck = wireEmployeePayrollDuplicateDocCheck(employeeForm);
+    employeeForm.__antaresPayrollDupDocCheck = employeeDuplicateDocCheck;
     attachDepartmentCitySelects(employeeForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
@@ -33922,9 +34059,13 @@ function bindDynamicEvents() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='payslip']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const run = read(KEYS.payrollRuns, []).find((r) => r.id === btn.dataset.id);
+    btn.addEventListener("click", async () => {
+      let run = read(KEYS.payrollRuns, []).find((r) => r.id === btn.dataset.id);
       if (!run) return;
+      if (portalCanRefreshFromApi()) {
+        const hydrated = await ensurePayrollRunHeavyJsonLoaded(String(btn.dataset.id || ""));
+        if (hydrated) run = hydrated;
+      }
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
       const company = employee ? getCompanyById(employee.companyId) : null;
       const pop = window.open("", "_blank", "width=720,height=900");
