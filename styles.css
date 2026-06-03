@@ -22583,6 +22583,23 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   margin: -0.2rem 0 0;
 }
 
+.portal-data-hydrating-banner {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--text, #1e293b);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+body[data-theme="dark"] .portal-data-hydrating-banner {
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text, #e2e8f0);
+}
+
 body[data-theme="dark"] .admin-users-hero-panel {
   border-color: rgba(191, 219, 254, 0.2);
   background: linear-gradient(180deg, rgba(8, 20, 36, 0.32), rgba(8, 20, 36, 0.16));

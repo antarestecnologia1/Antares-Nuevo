@@ -1513,14 +1513,14 @@ function bindHrFormWizard(form) {
   });
 
   dots.forEach((dot) => {
-    dot.addEventListener("click", () => {
+    dot.addEventListener("click", async () => {
       const raw = dot.dataset.hrWizardDot;
       const targetIdx = Number.parseInt(String(raw ?? ""), 10);
       if (!Number.isFinite(targetIdx) || targetIdx < 0 || targetIdx >= steps.length) return;
       if (targetIdx === idx) return;
       if (targetIdx > idx) {
         if (typeof form.__antaresDupDocCheck === "function") {
-          form.__antaresDupDocCheck({ silent: false });
+          await form.__antaresDupDocCheck({ silent: false, forceServer: true });
         }
         for (let i = idx; i < targetIdx; i++) {
           const hopRes = hrWizardStepValid(steps[i]);
@@ -1542,9 +1542,15 @@ function bindHrFormWizard(form) {
 
   form.addEventListener(
     "submit",
-    (ev) => {
+    async (ev) => {
       if (typeof form.__antaresDupDocCheck === "function") {
-        form.__antaresDupDocCheck({ silent: false });
+        const dupOk = await form.__antaresDupDocCheck({ silent: false, forceServer: true });
+        if (!dupOk) {
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+          notify("Ya existe un colaborador con ese documento. Revise el número o la ficha existente.", "error");
+          return;
+        }
       }
       for (let i = 0; i < steps.length; i++) {
         const subRes = hrWizardStepValid(steps[i]);
@@ -5815,6 +5821,8 @@ let state = {
   portalDataHydrating: false,
   /** True tras al menos un bootstrap exitoso en esta visita al portal. */
   portalDataHydrated: false,
+  /** True si la RAM se repuso desde sessionStorage antes del bootstrap en red. */
+  portalSnapshotRestored: false,
   /** Administración · Usuarios: tarjeta «Sesiones» colapsada para ganar espacio vertical. */
   adminSessionsLogMinimized: true,
   /** Solicitudes · Admin: historial de solicitudes eliminadas (inicia colapsado). */
@@ -6775,56 +6783,194 @@ function payrollDraftLinkSuccessMessage(result, fallback = userMessage("absenceR
   return fallback;
 }
 
-async function applyPortalBootstrapFromApi(opts = {}) {
-  if (!portalCanRefreshFromApi()) return false;
-  const api = window.AntaresApi;
-  /**
-   * En refrescos en segundo plano (p. ej. el poll cada 60s) se omiten las llamadas
-   * secundarias /portal/positions y /portal/me: rara vez cambian y duplican tráfico.
-   * La carga interactiva inicial y los refrescos tras mutaciones las mantienen.
-   */
-  const skipSecondary = opts.skipSecondaryHydration === true;
-  const runBootstrap = async () => {
-    const p = await api.getJson("/portal/bootstrap");
-    applyPortalBootstrapPayload(p);
-    syncSessionProfileSnapshotFromCache();
+/** Campos fuera de AntaresPersistence que van en el snapshot de sessionStorage. */
+function portalSnapshotExtras() {
+  return {
+    notificationPreferences: state.notificationPreferences,
+    systemParametersHistory: state.systemParametersHistory,
+    portalContacts: state.portalContacts
   };
-  /**
-   * Si bootstrap falla por completo (p. ej. error 500 en otra tabla), al menos
-   * intentamos hidratar el perfil propio para que Mi perfil no quede vacío.
-   * Endpoint dedicado: /portal/me (lectura ligera, no depende de tarifas/viajes/etc.).
-   */
-  const tryHydrateOwnProfileFallback = () => hydrateOwnProfileFromApi();
-  try {
-    await runBootstrap();
-    if (!skipSecondary) {
-      await refreshPositionsCatalogFromApi({ rerender: false });
-      await hydrateOwnProfileFromApi();
-    }
-    return true;
-  } catch (err) {
-    const st = err && typeof err.status === "number" ? err.status : 0;
-    if (st === 401) {
-      await tryApiRefreshBridge();
-      portalEnsureApiTokensAligned();
-      if (!portalCanRefreshFromApi()) return false;
-      try {
-        await runBootstrap();
-        await refreshPositionsCatalogFromApi({ rerender: false });
-        return true;
-      } catch (e2) {
-        devWarn("Portal: /portal/bootstrap fallo tras renovar token.", e2?.message || e2);
-        await refreshPositionsCatalogFromApi({ rerender: false });
-        await tryHydrateOwnProfileFallback();
-        return false;
-      }
-    }
-    devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
-    await refreshPositionsCatalogFromApi({ rerender: false });
-    await tryHydrateOwnProfileFallback();
-    return false;
+}
+
+function applyPortalSnapshotExtras(extras) {
+  if (!extras || typeof extras !== "object") return;
+  if (extras.notificationPreferences !== undefined) {
+    applyNotificationPreferencesFromBootstrapPayload(extras.notificationPreferences);
+  }
+  if (Array.isArray(extras.systemParametersHistory)) {
+    state.systemParametersHistory = extras.systemParametersHistory;
+  }
+  if (Array.isArray(extras.portalContacts)) {
+    state.portalContacts = extras.portalContacts;
   }
 }
+
+/** Repone datos de la última sesión en RAM (instantáneo tras F5). */
+function restorePortalSnapshotIfAvailable() {
+  const session = getSession();
+  const uid = session?.userId;
+  const cache = window.PortalBootstrapCache;
+  if (!uid || !cache?.tryRestore) return false;
+  if (!cache.tryRestore(String(uid))) return false;
+  applyPortalSnapshotExtras(cache.consumeRestoredExtras?.());
+  state.portalSnapshotRestored = true;
+  state.portalDataHydrated = true;
+  try {
+    ensureUsersPermissions();
+    syncSessionProfileSnapshotFromCache();
+  } catch (_e) {
+    /* noop */
+  }
+  return true;
+}
+
+function savePortalSnapshotAfterBootstrap() {
+  const session = getSession();
+  const uid = session?.userId;
+  const cache = window.PortalBootstrapCache;
+  if (!uid || !cache?.save) return;
+  try {
+    cache.save(String(uid), portalSnapshotExtras());
+  } catch (_e) {
+    /* QuotaExceeded u otro: no bloquear el flujo */
+  }
+}
+
+async function applyPortalBootstrapFromApi(opts = {}) {
+  if (!portalCanRefreshFromApi()) return false;
+
+  const wantsSecondary = opts.skipSecondaryHydration !== true;
+  let entry = window.__portalBootstrapApplyEntry;
+
+  if (entry && entry.promise) {
+    if (wantsSecondary) entry.needsSecondary = true;
+    return entry.promise;
+  }
+
+  entry = { needsSecondary: wantsSecondary, promise: null };
+  window.__portalBootstrapApplyEntry = entry;
+
+  const tracked = (async () => {
+    const api = window.AntaresApi;
+    const BOOTSTRAP_TIMEOUT_MS = 28000;
+    const runBootstrap = async () => {
+      let lastErr = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 900));
+        }
+        try {
+          const p = await api.getJson("/portal/bootstrap", { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
+          applyPortalBootstrapPayload(p);
+          syncSessionProfileSnapshotFromCache();
+          savePortalSnapshotAfterBootstrap();
+          if (p && p.positions !== undefined) {
+            window.__portalBootstrapPositionsFresh = true;
+          }
+          return true;
+        } catch (err) {
+          lastErr = err;
+          const st = err && typeof err.status === "number" ? err.status : 0;
+          if (st === 401) throw err;
+          if (attempt === 0 && (st === 408 || st === 0 || st >= 500)) continue;
+          throw err;
+        }
+      }
+      throw lastErr || new Error("No se pudo cargar datos del portal");
+    };
+    const runSecondaryHydration = async () => {
+      if (!entry.needsSecondary) return;
+      await Promise.all([
+        refreshPositionsCatalogFromApi({ rerender: false }),
+        hydrateOwnProfileFromApi()
+      ]);
+      window.__portalBootstrapPositionsFresh = true;
+    };
+    const tryHydrateOwnProfileFallback = () => hydrateOwnProfileFromApi();
+    try {
+      setPortalDataHydrating(true);
+      await runBootstrap();
+      await runSecondaryHydration();
+      state.portalDataHydrated = true;
+      return true;
+    } catch (err) {
+      const st = err && typeof err.status === "number" ? err.status : 0;
+      if (st === 401) {
+        await tryApiRefreshBridge();
+        portalEnsureApiTokensAligned();
+        if (!portalCanRefreshFromApi()) return false;
+        try {
+          await runBootstrap();
+          await runSecondaryHydration();
+          state.portalDataHydrated = true;
+          return true;
+        } catch (e2) {
+          devWarn("Portal: /portal/bootstrap fallo tras renovar token.", e2?.message || e2);
+          await refreshPositionsCatalogFromApi({ rerender: false });
+          await tryHydrateOwnProfileFallback();
+          return false;
+        }
+      }
+      devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+      await refreshPositionsCatalogFromApi({ rerender: false });
+      await tryHydrateOwnProfileFallback();
+      return false;
+    } finally {
+      setPortalDataHydrating(false);
+    }
+  })();
+
+  entry.promise = tracked;
+  window.__portalBootstrapInFlight = tracked.finally(() => {
+    if (window.__portalBootstrapApplyEntry === entry) {
+      window.__portalBootstrapApplyEntry = null;
+    }
+    if (window.__portalBootstrapInFlight === tracked) {
+      window.__portalBootstrapInFlight = null;
+    }
+  });
+  return tracked;
+}
+
+/** Indica / oculta el aviso global de carga de datos del servidor. */
+function setPortalDataHydrating(on) {
+  const next = Boolean(on);
+  if (state.portalDataHydrating === next) {
+    updatePortalDataHydratingBanner();
+    return;
+  }
+  state.portalDataHydrating = next;
+  updatePortalDataHydratingBanner();
+}
+
+function updatePortalDataHydratingBanner() {
+  const root = document.getElementById("view-root");
+  if (!root) return;
+  const id = "portal-data-hydrating-banner";
+  let el = document.getElementById(id);
+  const show = Boolean(state.portalDataHydrating && getSession());
+  if (!show) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = id;
+    el.className = "portal-data-hydrating-banner";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    root.prepend(el);
+  }
+  el.textContent =
+    state.portalDataHydrated || state.portalSnapshotRestored
+      ? "Actualizando datos del servidor…"
+      : "Cargando datos del servidor…";
+}
+
+window.setPortalDataHydrating = setPortalDataHydrating;
+window.isPortalDataHydrating = function isPortalDataHydrating() {
+  return Boolean(state.portalDataHydrating);
+};
 
 window.refreshPositionsCatalogFromApi = refreshPositionsCatalogFromApi;
 
@@ -6858,7 +7004,7 @@ function mergePendingUserRegistrationsIntoCache(rows) {
     }
     out.push(u);
   }
-  write(KEYS.users, out);
+  write(KEYS.users, out, { skipSyncSchedule: true });
 }
 
 /** Bandeja de altas pendientes (requiere permiso de autorización de registros web). */
@@ -12148,6 +12294,7 @@ function clearSession() {
   stopNotificationsPolling();
   __sessionActivityMemoryAt = 0;
   __lastSessionActivityPersistAt = 0;
+  const snapUid = getSession()?.userId || state.session?.userId;
   localStorage.removeItem(KEYS.session);
   state.session = null;
   state.portalContacts = [];
@@ -12156,6 +12303,14 @@ function clearSession() {
   state.adminUserSessionsError = null;
   state.adminUserSessionsHydrated = false;
   state.adminUsersEntryHydrating = false;
+  state.portalDataHydrating = false;
+  state.portalDataHydrated = false;
+  state.portalSnapshotRestored = false;
+  try {
+    window.PortalBootstrapCache?.clear?.(snapUid);
+  } catch (_snapClear) {
+    /* noop */
+  }
   state.adminSessionsLogMinimized = true;
   state.deletedTransportRequestsLogMinimized = true;
   state.deletedTransportTripsLogMinimized = true;
@@ -16666,6 +16821,7 @@ function renderPortal() {
     }
   }
   renderPortalView();
+  updatePortalDataHydratingBanner();
   updateNotificationBadge();
   startNotificationsPolling();
   startSessionSecurityWatch();
@@ -27956,6 +28112,7 @@ function renderPortalViewImpl() {
       )
   });
   nodes.viewRoot.innerHTML = renderModuleShell(view, viewTitle, content);
+  updatePortalDataHydratingBanner();
 
   applyManualModuleLayout();
   mountUniversalModuleFilters();
@@ -29041,6 +29198,11 @@ function bindDynamicEvents() {
         if (!HR_VALID_PAYROLL_WS.has(ws)) return;
         state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
         persistHrWorkspace("payroll", ws);
+        if (ws === "data" && portalCanRefreshFromApi()) {
+          void applyPortalBootstrapFromApi().then((ok) => {
+            if (ok) scheduleRenderPortalView();
+          });
+        }
       } else if (moduleId === "hiring") {
         const ws = normalizeHrWorkspace("hiring", tab);
         if (!HR_VALID_HIRING_WS.has(ws)) return;
@@ -33384,7 +33546,7 @@ function bindDynamicEvents() {
         notify(docValidation.message, "error");
         return;
       }
-      if (!employeeDuplicateDocCheck()) {
+      if (!await employeeDuplicateDocCheck({ forceServer: true })) {
         notify(
           `Ya existe un colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
           "error"
@@ -33603,7 +33765,7 @@ function bindDynamicEvents() {
         notify(userMessage("employeeDeleteNotFound"), "error");
         return;
       }
-      if (!resolvePayrollEmployeeCostCenter(target) && portalCanRefreshFromApi() && btn.dataset.busy !== "1") {
+      if (portalCanRefreshFromApi() && btn.dataset.busy !== "1") {
         btn.dataset.busy = "1";
         btn.disabled = true;
         btn.setAttribute("aria-busy", "true");
@@ -33751,7 +33913,7 @@ function bindDynamicEvents() {
             return false;
           }
           const dupCheck = wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
-          if (!dupCheck()) {
+          if (!(await dupCheck({ forceServer: true }))) {
             notify(
               `Ya existe otro colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
               "error"
@@ -35257,7 +35419,7 @@ function bindDynamicEvents() {
         notify(docValidation.message, "error");
         return;
       }
-      if (!candidateDuplicateDocCheck()) {
+      if (!(await candidateDuplicateDocCheck({ forceServer: false }))) {
         const dupDetail = readInlineOrNativeFieldError(candidateForm.querySelector("input[name='idDoc']"));
         notify(
           dupDetail ||
@@ -38820,7 +38982,11 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
   } catch (_e) {
     /* noop */
   }
-  void refreshPositionsCatalogFromApi({ rerender: false }).finally(() => {
+  void (window.__portalBootstrapPositionsFresh
+    ? Promise.resolve()
+    : refreshPositionsCatalogFromApi({ rerender: false })
+  ).finally(() => {
+    window.__portalBootstrapPositionsFresh = false;
     try {
       dispatchPositionsCatalogUpdated();
     } catch (_pos) {
@@ -38834,6 +39000,7 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
 };
 
 initPortalClientStorage();
+restorePortalSnapshotIfAvailable();
 initGlobalEvents();
 initPublicEffects();
 
