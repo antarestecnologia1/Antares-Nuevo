@@ -810,6 +810,8 @@
       if (node.id === "register-doc-persona" && node.classList.contains("hidden")) return true;
       if (node.id === "register-doc-empresa" && node.classList.contains("hidden")) return true;
       if (node.id === "emp-illness-detail-label" && node.classList.contains("hidden")) return true;
+      /* Pasos del asistente RRHH: solo tienen clase `hidden` (no siempre el atributo HTML `hidden`). */
+      if (node.classList?.contains("hr-form-step") && node.classList?.contains("hidden")) return true;
       if (
         (node.id === "emp-contract-duration-block" || node.id === "emp-edit-contract-duration-block") &&
         (node.hidden || node.classList.contains("hidden"))
@@ -1308,6 +1310,13 @@
     const fields = [...form.querySelectorAll(selector)];
     for (const el of fields) {
       if (!shouldValidateField(el, form)) continue;
+
+      /* Duplicidad de documento u otras reglas con `setCustomValidity`: no borrar el mensaje al validar el resto del formulario. */
+      if (el.validity && el.validity.customError && String(el.validationMessage || "").trim()) {
+        setFieldError(el, String(el.validationMessage || "").trim());
+        if (!firstInvalid) firstInvalid = el;
+        continue;
+      }
 
       clearFieldError(el);
 

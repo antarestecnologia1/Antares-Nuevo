@@ -23309,7 +23309,7 @@ body[data-theme="dark"] .admin-users-command-card__meta span {
 
 /**
  * Variante "peligro suave" para acciones destructivas no críticas
- * (eliminar una notificación, vaciar bandeja). Mantiene la altura
+ * (p. ej. eliminar una notificación de la bandeja). Mantiene la altura
  * y forma del .btn-action pero con tinte rojo discreto, no chillón.
  */
 .btn.btn-action.btn-danger-soft {

@@ -975,13 +975,24 @@ function hrWizardValidityTargets(stepEl) {
   });
 }
 
+/** Texto de error visible (`.field-error`) o mensaje nativo del campo (p. ej. `setCustomValidity`). */
+function readInlineOrNativeFieldError(fieldEl) {
+  if (!fieldEl) return "";
+  const label = fieldEl.closest("label");
+  const hint = label?.querySelector(".field-error");
+  const inline = String(hint?.textContent || "").trim();
+  if (inline) return inline;
+  return String(fieldEl.validationMessage || "").trim();
+}
+
 /**
- * Marca el paso como inválido: enfoca/desplaza al primer campo con error y devuelve false.
+ * Marca el paso como inválido: enfoca/desplaza al primer campo con error.
  * Prioriza la validación inline de AntaresValidation (mensajes claros y `.field-error`) y
  * usa la validación nativa del navegador solo como respaldo (p. ej. patrones HTML).
+ * @returns {{ ok: true } | { ok: false, detail: string, firstInvalid: Element }} `detail` para toasts / avisos.
  */
 function hrWizardStepValid(stepEl) {
-  if (!stepEl) return true;
+  if (!stepEl) return { ok: true };
   const V = window.AntaresValidation;
   let firstInvalid = null;
   let hasInlineError = false;
@@ -1007,7 +1018,8 @@ function hrWizardStepValid(stepEl) {
       }
     }
   }
-  if (!firstInvalid) return true;
+  if (!firstInvalid) return { ok: true };
+  const detail = readInlineOrNativeFieldError(firstInvalid);
   try {
     firstInvalid.scrollIntoView?.({ behavior: "smooth", block: "center" });
   } catch (_e) {
@@ -1022,7 +1034,7 @@ function hrWizardStepValid(stepEl) {
   if (!hasInlineError && typeof firstInvalid.reportValidity === "function") {
     firstInvalid.reportValidity();
   }
-  return false;
+  return { ok: false, detail, firstInvalid };
 }
 
 /** Etiqueta corta del paso (texto del dot) para mensajes de error específicos. */
@@ -1478,9 +1490,16 @@ function bindHrFormWizard(form) {
   });
 
   nextBtn?.addEventListener("click", () => {
-    if (!hrWizardStepValid(steps[idx])) {
+    const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
+    if (wizKind === "employee" && typeof form.__antaresPayrollDupDocCheck === "function") {
+      form.__antaresPayrollDupDocCheck({ silent: false });
+    }
+    const stepRes = hrWizardStepValid(steps[idx]);
+    if (!stepRes.ok) {
       flashHrWizardDotError(wizard, idx);
-      notify(`Complete los campos obligatorios de «${hrWizardStepLabel(wizard, idx)}» para continuar.`, "error");
+      const stepName = hrWizardStepLabel(wizard, idx);
+      const tail = stepRes.detail ? ` ${stepRes.detail}` : "";
+      notify(`Revise «${stepName}».${tail ? ` ${tail}` : " Hay campos obligatorios o datos incorrectos."}`, "error");
       return;
     }
     if (idx < steps.length - 1) {
@@ -1496,12 +1515,18 @@ function bindHrFormWizard(form) {
       if (!Number.isFinite(targetIdx) || targetIdx < 0 || targetIdx >= steps.length) return;
       if (targetIdx === idx) return;
       if (targetIdx > idx) {
+        if (String(wizard.getAttribute("data-hr-wizard") || "") === "employee" && typeof form.__antaresPayrollDupDocCheck === "function") {
+          form.__antaresPayrollDupDocCheck({ silent: false });
+        }
         for (let i = idx; i < targetIdx; i++) {
-          if (!hrWizardStepValid(steps[i])) {
+          const hopRes = hrWizardStepValid(steps[i]);
+          if (!hopRes.ok) {
             idx = i;
             sync();
             flashHrWizardDotError(wizard, i);
-            notify(`Complete «${hrWizardStepLabel(wizard, i)}» antes de avanzar.`, "error");
+            const nm = hrWizardStepLabel(wizard, i);
+            const tail = hopRes.detail ? ` ${hopRes.detail}` : "";
+            notify(`Complete «${nm}» antes de avanzar.${tail ? ` ${tail}` : ""}`, "error");
             return;
           }
         }
@@ -1514,14 +1539,20 @@ function bindHrFormWizard(form) {
   form.addEventListener(
     "submit",
     (ev) => {
+      if (String(wizard.getAttribute("data-hr-wizard") || "") === "employee" && typeof form.__antaresPayrollDupDocCheck === "function") {
+        form.__antaresPayrollDupDocCheck({ silent: false });
+      }
       for (let i = 0; i < steps.length; i++) {
-        if (!hrWizardStepValid(steps[i])) {
+        const subRes = hrWizardStepValid(steps[i]);
+        if (!subRes.ok) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
           idx = i;
           sync();
           flashHrWizardDotError(wizard, i);
-          notify(`Revise «${hrWizardStepLabel(wizard, i)}»: hay campos por completar o corregir.`, "error");
+          const nm = hrWizardStepLabel(wizard, i);
+          const tail = subRes.detail ? ` ${subRes.detail}` : "";
+          notify(`Revise «${nm}».${tail ? ` ${tail}` : " Hay campos por completar o corregir."}`, "error");
           return;
         }
       }
@@ -26678,8 +26709,6 @@ function notificationsHtml() {
           ${soundOn ? "Silenciar timbre" : "Activar timbre"}
         </button>
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
-        ${readCount ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-clear-read">${IC.trash} Eliminar leídas</button>` : ""}
-        <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-clear-all">${IC.trash} Vaciar bandeja</button>
       </div>
       <div class="notif-list">${items}</div>`
     : `${prefBanner}${emptyState("No tienes notificaciones.")}`;
@@ -30640,7 +30669,7 @@ function bindDynamicEvents() {
     });
   });
 
-  /** Eliminar una notificación puntual (solo borrado local, no sale de la bandeja a otros usuarios). */
+  /** Eliminar una notificación de la bandeja (local + `deletedIds` en sync para PostgreSQL). */
   nodes.viewRoot.querySelectorAll("[data-action='notif-delete']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
@@ -30654,8 +30683,17 @@ function bindDynamicEvents() {
           if (!visibleIds.has(id)) return;
           const list = read(KEYS.notifications, []);
           const removedNotification = list.find((n) => n.id === id) || null;
-          write(KEYS.notifications, list.filter((n) => n.id !== id));
-          await writeNotificationsAwaitServer([id]);
+          const nextList = list.filter((n) => n.id !== id);
+          write(KEYS.notifications, nextList);
+          try {
+            await writeNotificationsAwaitServer([id]);
+          } catch (err) {
+            write(KEYS.notifications, list);
+            notify(String(err?.message || "No fue posible eliminar la notificación en el servidor."), "error");
+            renderPortalView();
+            updateNotificationBadge();
+            return;
+          }
           appendModuleAuditLog({
             action: "delete",
             moduleId: "notifications",
@@ -30667,78 +30705,6 @@ function bindDynamicEvents() {
           });
           await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
           notify("Notificación eliminada.", "success");
-          renderPortalView();
-          updateNotificationBadge();
-        }
-      });
-    });
-  });
-
-  /** Eliminar todas las notificaciones ya leídas (mantiene las pendientes). */
-  nodes.viewRoot.querySelectorAll("[data-action='notif-clear-read']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      openConfirmReasonModal({
-        title: "Eliminar leídas",
-        message: "¿Eliminar todas las notificaciones ya leídas de tu bandeja? Indica la justificación.",
-        confirmText: "Eliminar leídas",
-        onConfirm: async (motivo) => {
-          const user = currentUser();
-          const list = read(KEYS.notifications, []);
-          const removedRows = list.filter((n) => n.readAt && notificationBelongsToUser(n, user));
-          const removedIds = removedRows.map((n) => n.id);
-          const remaining = list.filter((n) => !removedIds.includes(n.id));
-          const removed = removedIds.length;
-          write(KEYS.notifications, remaining);
-          await writeNotificationsAwaitServer(removedIds);
-          if (removed > 0) {
-            appendModuleAuditLog({
-              action: "delete",
-              moduleId: "notifications",
-              moduleLabel: "Notificaciones",
-              entityId: "bulk-read",
-              entityLabel: "Notificaciones leídas",
-              summary: `${removed} notificaciones leídas eliminadas. Motivo: ${String(motivo || "").trim()}`,
-              actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
-            });
-            await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
-          }
-          notify(removed ? `${removed} notificaciones eliminadas.` : "No había notificaciones leídas.", "success");
-          renderPortalView();
-          updateNotificationBadge();
-        }
-      });
-    });
-  });
-
-  /** Vaciar bandeja completa del usuario (admins limpian todas; otros, las propias). */
-  nodes.viewRoot.querySelectorAll("[data-action='notif-clear-all']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      openConfirmReasonModal({
-        title: "Vaciar bandeja",
-        message: "¿Eliminar todas las notificaciones (leídas y sin leer)? Indica la justificación. Esta acción no se puede deshacer.",
-        confirmText: "Vaciar bandeja",
-        onConfirm: async (motivo) => {
-          const user = currentUser();
-          const list = read(KEYS.notifications, []);
-          const removedRows = list.filter((n) => notificationBelongsToUser(n, user));
-          const removedIds = removedRows.map((n) => n.id);
-          const remaining = list.filter((n) => !removedIds.includes(n.id));
-          const removed = removedIds.length;
-          write(KEYS.notifications, remaining);
-          await writeNotificationsAwaitServer(removedIds);
-          if (removed > 0) {
-            appendModuleAuditLog({
-              action: "delete",
-              moduleId: "notifications",
-              moduleLabel: "Notificaciones",
-              entityId: "bulk-all",
-              entityLabel: "Bandeja de notificaciones",
-              summary: `${removed} notificaciones eliminadas al vaciar bandeja. Motivo: ${String(motivo || "").trim()}`,
-              actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
-            });
-            await writeAwaitServer(KEYS.moduleAuditLogs, readModuleAuditLogs());
-          }
-          notify(removed ? `${removed} notificaciones eliminadas.` : "Bandeja ya estaba vacía.", "success");
           renderPortalView();
           updateNotificationBadge();
         }
