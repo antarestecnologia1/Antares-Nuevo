@@ -1469,13 +1469,18 @@ function bindHrFormWizard(form) {
       const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
       if (wizKind === "contract") {
         hintEl.textContent = "Puede generar el contrato desde el paso que prefiera.";
+      } else if (wizKind === "candidate" && idx === 0 && idx < steps.length - 1) {
+        hintEl.textContent =
+          "Si el documento ya existe en candidatos, verá el aviso al escribir y no podrá avanzar hasta corregirlo.";
       } else {
         hintEl.textContent =
           idx < steps.length - 1
             ? "Avance hasta el último paso para habilitar guardar."
             : wizKind === "employee"
               ? "Último paso: puede generar el contrato Word antes de guardar la ficha."
-              : "Último paso: revise y guarde.";
+              : wizKind === "candidate"
+                ? "Último paso: adjunte CV y confirme; el documento ya se validó en el paso 1."
+                : "Último paso: revise y guarde.";
       }
     }
     window.AntaresValidation?.upgradePortalDateFields?.(form);
@@ -10857,6 +10862,15 @@ function __notificationReadAtEpochMs(v) {
   return Number.isFinite(t) ? t : 0;
 }
 
+/** True si la fila tiene `fecha_lectura` fiable (API camelCase o snake legacy). */
+function notificationIsRead(n) {
+  if (!n || typeof n !== "object") return false;
+  const raw = n.readAt ?? n.read_at;
+  if (raw == null || raw === "") return false;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms);
+}
+
 /**
  * GET /portal/notifications y el bootstrap pueden llegar antes de que sync-key persista `readAt`.
  * Fusionar evita que la caché (y un flush posterior) reviertan «leída» en UI y en PostgreSQL.
@@ -11842,9 +11856,9 @@ function initPortalClientStorage() {
  *  - F5 / recarga: la sesión persiste en `localStorage` (`antares_session_v2`) y se rehidrata
  *    siempre que no se exceda el idle máximo. Nunca se cierra solo porque la API esté lenta o
  *    el bootstrap falle: usamos el `profileSnapshot` capturado al login.
- *  - Inactividad (sin uso activo con la pestaña visible): 30 minutos. El tiempo con la pestaña en
- *    segundo plano no cuenta: al volver se compensa y no se fuerza cierre solo por haber estado
- *    ausente. Tras superar el límite en visible, `clearSession()` y un aviso fijo en la página pública.
+ *  - Inactividad (sin interacción real): 30 minutos de reloj, con la pestaña visible u oculta, para
+ *    reducir riesgo en equipos compartidos. Tras superar el límite, `clearSession()` y aviso fijo
+ *    en la página pública (no toast).
  *  - Cierre manual: botón "Cerrar sesión" (logout) hace `clearSession()` independientemente del idle.
  */
 const SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -11861,8 +11875,6 @@ let __lastSessionActivityPersistAt = 0;
 let __sessionIdleCheckTimer = null;
 let __sessionApiRefreshTimer = null;
 let __sessionActivityHandler = null;
-/** Pestaña oculta: el reloj de inactividad no avanza hasta `creditSessionIdleForBackgroundTime`. */
-let __sessionTabHiddenAt = null;
 const SESSION_IDLE_PUBLIC_NOTICE_KEY = "antares_session_idle_notice_v1";
 
 function getSession() {
@@ -11933,7 +11945,6 @@ function throttledBumpSessionActivity() {
 }
 
 function checkSessionIdleAndLogout() {
-  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
   const s = getSession();
   if (!s) return;
   const last = getEffectiveLastActivityAt();
@@ -12016,21 +12027,6 @@ async function scheduledSessionTokenMaintenance() {
   if (Date.now() - lastAct > SESSION_IDLE_MS) return;
   await tryApiRefreshBridge();
   refreshClientSessionTokenIfDue();
-}
-
-function creditSessionIdleForBackgroundTime() {
-  if (__sessionTabHiddenAt == null) return;
-  const hiddenMs = Math.max(0, Date.now() - __sessionTabHiddenAt);
-  __sessionTabHiddenAt = null;
-  if (!hiddenMs) return;
-  const s = getSession();
-  if (!s) return;
-  const eff = getEffectiveLastActivityAt();
-  const adjusted = Math.min(Date.now(), eff + hiddenMs);
-  __sessionActivityMemoryAt = Math.max(__sessionActivityMemoryAt, adjusted);
-  if (state.session) state.session = { ...state.session, lastActivityAt: adjusted };
-  const cur = getSession();
-  if (cur) setSession({ ...cur, lastActivityAt: adjusted });
 }
 
 function queueSessionIdlePublicNotice() {
@@ -12125,12 +12121,7 @@ function ensureSessionLifecycleHooks() {
   window.__antaresSessionLifecycleOk = true;
   window.addEventListener("pagehide", () => flushSessionActivityToStorage(), { capture: true });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      flushSessionActivityToStorage();
-      if (__sessionTabHiddenAt == null) __sessionTabHiddenAt = Date.now();
-    } else {
-      creditSessionIdleForBackgroundTime();
-    }
+    if (document.visibilityState === "hidden") flushSessionActivityToStorage();
   });
 }
 
@@ -16866,7 +16857,7 @@ function updateNotificationBadge() {
   const link = document.querySelector('.side-link[data-view="notifications"]');
   if (!link) return;
   const list = getCurrentNotifications();
-  const unread = list.filter((n) => !n.readAt).length;
+  const unread = list.filter((n) => !notificationIsRead(n)).length;
   let badge = link.querySelector(".side-link-badge");
   if (unread > 0) {
     if (!badge) {
@@ -26975,17 +26966,18 @@ function notificationsHtml() {
           <span class="muted">Use «Avisos» / «Timbre» junto a la campana del menú lateral.</span>
         </div>`
       : "";
-  const unread = list.filter((n) => !n.readAt).length;
+  const unread = list.filter((n) => !notificationIsRead(n)).length;
   const items = list
     .map((n) => {
+      const read = notificationIsRead(n);
       const tag = String(n.title || "").toLowerCase().includes("solicitud")
         ? '<span class="notif-tag notif-tag-blue">Solicitud</span>'
         : String(n.title || "").toLowerCase().includes("autoriza")
           ? '<span class="notif-tag notif-tag-violet">Autorización</span>'
           : '<span class="notif-tag notif-tag-slate">Sistema</span>';
-      const dot = n.readAt ? "" : '<span class="notif-dot"></span>';
+      const dot = read ? "" : '<span class="notif-dot"></span>';
       const safeId = escapeAttr(n.id);
-      return `<article class="notif-card ${n.readAt ? "" : "notif-card-unread"}">
+      return `<article class="notif-card ${read ? "" : "notif-card-unread"}">
         <div class="notif-leading">${dot}<span class="notif-icon">${IC.bell}</span></div>
         <div class="notif-content">
           <div class="notif-head">${tag}<span class="muted notif-time">${fmtDate(n.createdAt)}</span></div>
@@ -26993,7 +26985,7 @@ function notificationsHtml() {
           <p>${n.body || ""}</p>
         </div>
         <div class="notif-actions">
-          ${n.readAt ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${safeId}">${IC.check} Marcar leída</button>`}
+          ${read ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${safeId}">${IC.check} Marcar leída</button>`}
           <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete" data-id="${safeId}" title="Eliminar notificación" aria-label="Eliminar notificación">${IC.trash} Eliminar</button>
         </div>
       </article>`;
@@ -30960,7 +30952,7 @@ function bindDynamicEvents() {
         const list = read(KEYS.notifications, []);
         write(
           KEYS.notifications,
-          list.map((n) => (visibleIds.has(n.id) && !n.readAt ? { ...n, readAt: ts } : n))
+          list.map((n) => (visibleIds.has(n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n))
         );
         try {
           await writeNotificationsAwaitServer();
@@ -35150,11 +35142,11 @@ function bindDynamicEvents() {
 
   const candidateForm = document.getElementById("form-candidate");
   if (candidateForm) {
+    window.AntaresValidation?.decorateFormFields?.(candidateForm);
     attachDepartmentCitySelects(candidateForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
-    bindHrFormWizard(candidateForm);
     applyDocumentFieldConstraints(candidateForm);
     const candidateDuplicateDocCheck = wireFormDocDuplicateCheck(candidateForm, {
       storageKey: KEYS.candidates,
@@ -35162,6 +35154,7 @@ function bindDynamicEvents() {
       entityLabel: "candidato"
     });
     candidateForm.__antaresDupDocCheck = candidateDuplicateDocCheck;
+    bindHrFormWizard(candidateForm);
     wireFormSubmitGuard(candidateForm, async (event) => {
       const data = readFormEntriesNormalized(candidateForm);
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);

@@ -7001,7 +7001,14 @@ export class PortalService implements OnModuleInit {
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
-    type NotifRow = { id?: unknown; userId?: unknown; title?: unknown; body?: unknown; readAt?: unknown };
+    type NotifRow = {
+      id?: unknown;
+      userId?: unknown;
+      title?: unknown;
+      body?: unknown;
+      readAt?: unknown;
+      read_at?: unknown;
+    };
     const rows = data as NotifRow[];
 
     const explicitDeleteIds = (Array.isArray(deletedIds) ? deletedIds : [])
@@ -7023,12 +7030,23 @@ export class PortalService implements OnModuleInit {
       if (this.skipUnlessPersistUuid("syncNotifications", String(n.id))) continue;
       if (!admin && String(n.userId) !== userId) throw new ForbiddenException();
       if (this.skipUnlessPersistUuid("syncNotifications.targetUserId", String(n.userId))) continue;
+      const readAtRaw = n.readAt ?? n.read_at;
+      const readAtParam =
+        readAtRaw == null || readAtRaw === ""
+          ? null
+          : String(readAtRaw).trim()
+            ? (readAtRaw as string | Date)
+            : null;
       await c.query(
         `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura)
          VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz)
          ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo,
-           fecha_lectura = COALESCE(EXCLUDED.fecha_lectura, notificaciones.fecha_lectura)`,
-        [n.id, n.userId, nuN(n.title), nuN(n.body), (n.readAt ?? null) as string | Date | null]
+           fecha_lectura = CASE
+             WHEN EXCLUDED.fecha_lectura IS NULL THEN notificaciones.fecha_lectura
+             WHEN notificaciones.fecha_lectura IS NULL THEN EXCLUDED.fecha_lectura
+             ELSE GREATEST(notificaciones.fecha_lectura, EXCLUDED.fecha_lectura)
+           END`,
+        [n.id, n.userId, nuN(n.title), nuN(n.body), readAtParam]
       );
     }
 
