@@ -4524,23 +4524,30 @@ export class PortalService implements OnModuleInit {
   }
 
   private async loadPositions() {
-    const r = await this.pool.query(`SELECT * FROM cargos ORDER BY nombre`);
-    return r.rows.map((p) => ({
-      id: String(p.id ?? "").trim(),
-      name: p.nombre,
-      workerRole: p.rol_trabajador,
-      baseSalary: Number(p.salario_base_mensual),
-      transportAllowance: p.auxilio_transporte != null ? Number(p.auxilio_transporte) : null,
-      contractTypeDefault: p.tipo_contrato_sugerido,
-      legalBasis: p.fundamento_legal,
-      active: p.activo,
-      createdAt: p.fecha_creacion ? new Date(p.fecha_creacion).toISOString() : new Date().toISOString(),
-      updatedAt: p.fecha_actualizacion ? new Date(p.fecha_actualizacion).toISOString() : null,
-      schedule: p.jornada_referencia,
-      workSchedule: p.jornada_referencia,
-      arlRiskLevel: p.nivel_riesgo_arl,
-      integralSalary: p.salario_integral
-    }));
+    try {
+      const r = await this.pool.query(`SELECT * FROM cargos ORDER BY nombre`);
+      return r.rows.map((p) => ({
+        id: String(p.id ?? "").trim(),
+        name: p.nombre,
+        workerRole: p.rol_trabajador,
+        baseSalary: Number(p.salario_base_mensual),
+        transportAllowance: p.auxilio_transporte != null ? Number(p.auxilio_transporte) : null,
+        contractTypeDefault: p.tipo_contrato_sugerido,
+        legalBasis: p.fundamento_legal,
+        active: p.activo !== false,
+        createdAt: p.fecha_creacion ? new Date(p.fecha_creacion).toISOString() : new Date().toISOString(),
+        updatedAt: p.fecha_actualizacion ? new Date(p.fecha_actualizacion).toISOString() : null,
+        schedule: p.jornada_referencia,
+        workSchedule: p.jornada_referencia,
+        arlRiskLevel: p.nivel_riesgo_arl,
+        integralSalary: p.salario_integral
+      }));
+    } catch (e) {
+      this.logger.error(
+        `loadPositions (cargos): ${e instanceof Error ? e.message : String(e)}`
+      );
+      return [];
+    }
   }
 
   /** Normaliza adjuntos_json (JSONB) a array para el portal. */

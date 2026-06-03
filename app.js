@@ -6401,6 +6401,12 @@ function __applyPortalBootstrapPayloadInner(p) {
       );
       continue;
     }
+    if (prop === "positions") {
+      const raw = Array.isArray(p.positions) ? p.positions : [];
+      write(key, raw);
+      dispatchPositionsCatalogUpdated();
+      continue;
+    }
     write(key, p[prop]);
   }
 }
@@ -10851,6 +10857,7 @@ function ensurePositionsCatalogLiveSelects() {
   if (window.__antaresPositionsSelectLiveWired) return;
   window.__antaresPositionsSelectLiveWired = true;
   document.addEventListener("antares-positions-catalog-updated", () => refreshPositionSelectsInDocument());
+  refreshPositionSelectsInDocument();
 }
 
 /**
@@ -27133,6 +27140,22 @@ function renderPortalViewImpl() {
       }
     }
   }
+  if (
+    (view === "hiring" || view === "payroll") &&
+    prevPortalView !== view &&
+    portalCanRefreshFromApi() &&
+    !readArray(KEYS.positions).length
+  ) {
+    void applyPortalBootstrapFromApi().then((ok) => {
+      if (!ok) return;
+      try {
+        dispatchPositionsCatalogUpdated();
+      } catch (_e) {
+        /* noop */
+      }
+      if (!hasUnsavedPortalFormData()) scheduleRenderPortalView();
+    });
+  }
   if (view === "profile") {
     const cur = currentUser();
     const fromPayroll = enrichPortalUserFromPayrollCache(cur);
@@ -37899,6 +37922,11 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
       enforcePortalViewFromUrl(u);
     }
   } catch (_e) {
+    /* noop */
+  }
+  try {
+    dispatchPositionsCatalogUpdated();
+  } catch (_pos) {
     /* noop */
   }
   if (!hasUnsavedPortalFormData()) {
