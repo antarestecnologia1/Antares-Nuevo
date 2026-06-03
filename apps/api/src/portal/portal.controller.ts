@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
@@ -48,6 +48,26 @@ export class PortalController {
   @Get("positions")
   positionsCatalog(@Req() req: { user: ReqUser }) {
     return this.portal.getPositionsCatalog(req.user.userId, req.user.role);
+  }
+
+  /**
+   * Verificación inmediata de documento duplicado al alta/edición de colaborador (PostgreSQL).
+   * El formulario del portal consulta esto en vivo; no depende solo de la caché del bootstrap.
+   */
+  @Get("payroll-employees/check-document")
+  checkPayrollEmployeeDocument(
+    @Req() req: { user: ReqUser },
+    @Query("documentType") documentType?: string,
+    @Query("idDoc") idDoc?: string,
+    @Query("companyId") companyId?: string,
+    @Query("excludeId") excludeId?: string
+  ) {
+    return this.portal.checkPayrollEmployeeDocumentDuplicate(req.user.userId, req.user.role, {
+      documentType,
+      idDoc,
+      companyId,
+      excludeId
+    });
   }
 
   /** Hoja de vida del candidato (R2 prefirmado / público o base64 inline). Rol RRHH. */

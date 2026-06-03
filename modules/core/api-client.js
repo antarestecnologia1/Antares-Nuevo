@@ -66,7 +66,8 @@
     throw err instanceof Error ? err : new Error(raw || "Error de red");
   }
 
-  async function request(method, path, body) {
+  async function request(method, path, body, reqOpts) {
+    reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
     const auth = getAccessToken();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
@@ -80,11 +81,32 @@
       headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
+    const timeoutMs = typeof reqOpts.timeoutMs === "number" && reqOpts.timeoutMs > 0 ? reqOpts.timeoutMs : 0;
+    let timeoutId = null;
+    let controller = null;
+    if (timeoutMs > 0 && typeof AbortController !== "undefined") {
+      controller = new AbortController();
+      opts.signal = controller.signal;
+      timeoutId = setTimeout(function () {
+        try {
+          controller.abort();
+        } catch (_abort) {
+          /* noop */
+        }
+      }, timeoutMs);
+    }
     let res;
     try {
       res = await fetch(url, opts);
     } catch (err) {
+      if (controller && err && err.name === "AbortError") {
+        const timeoutErr = new Error("La solicitud al servidor tardó demasiado. Intente de nuevo.");
+        timeoutErr.status = 408;
+        throw timeoutErr;
+      }
       throwIfFetchNetworkError(err);
+    } finally {
+      if (timeoutId != null) clearTimeout(timeoutId);
     }
     const text = await res.text();
     let data = null;
@@ -110,8 +132,8 @@
     return data;
   }
 
-  function getJson(path) {
-    return request("GET", path);
+  function getJson(path, reqOpts) {
+    return request("GET", path, undefined, reqOpts);
   }
 
   /** GET binario autenticado (plantillas DOCX, etc.). */

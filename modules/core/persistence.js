@@ -57,7 +57,20 @@
       var sync = window.AntaresPortalSync;
       if (!api || typeof api.isConfigured !== "function" || !api.isConfigured()) return;
       if (!sync || typeof sync.flushStorageKeyNow !== "function") return;
-      void sync.flushStorageKeyNow(key, { notifyOnFailure: false });
+      var flushLifted = function () {
+        try {
+          void sync.flushStorageKeyNow(key, { notifyOnFailure: false });
+        } catch (_flush) {
+          /* noop */
+        }
+      };
+      /** Evita empujar JSON legacy al servidor mientras el bootstrap inicial está en curso. */
+      var boot = window.__portalBootstrapInFlight;
+      if (boot && typeof boot.then === "function") {
+        void boot.finally(flushLifted);
+        return;
+      }
+      flushLifted();
     } catch (_liftSync) {
       /* noop */
     }

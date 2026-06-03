@@ -5019,6 +5019,110 @@ export class PortalService implements OnModuleInit {
     return r.rows.map((e) => this.mapEmployeeRow(e));
   }
 
+  /** Normaliza documento para comparar con `payrollEmployeeDocumentDedupKey` del portal. */
+  private normalizePayrollEmployeeDocumentForLookup(documentType: string, rawValue: string): string {
+    const dt = String(documentType || "CC").trim().toUpperCase();
+    const raw = String(rawValue || "").trim();
+    if (!raw) return "";
+    if (dt === "PAS" || dt === "PEP") return raw.replace(/[.\s]/g, "").toUpperCase();
+    return raw.replace(/\D/g, "");
+  }
+
+  /**
+   * Comprueba en PostgreSQL si el documento ya pertenece a un colaborador.
+   * `blocking` = true cuando la duplicidad aplica a la empresa seleccionada (unicidad por empresa).
+   */
+  async checkPayrollEmployeeDocumentDuplicate(
+    userId: string,
+    role: JwtRole,
+    params: {
+      documentType?: string;
+      idDoc?: string;
+      companyId?: string;
+      excludeId?: string;
+    }
+  ): Promise<{
+    found: boolean;
+    blocking: boolean;
+    name?: string;
+    employeeId?: string;
+    companyId?: string;
+  }> {
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
+      throw new ForbiddenException();
+    }
+    if (!(await this.tableExists("empleados_nomina"))) {
+      return { found: false, blocking: false };
+    }
+
+    const docType = String(params.documentType || "CC").trim().toUpperCase();
+    const needle = this.normalizePayrollEmployeeDocumentForLookup(docType, String(params.idDoc || ""));
+    if (!needle) return { found: false, blocking: false };
+
+    const excludeId = String(params.excludeId || "").trim();
+    const requestedCompanyId = String(params.companyId || "").trim();
+    const companyFilter =
+      requestedCompanyId && PG_UUID_V4_RE.test(requestedCompanyId) ? requestedCompanyId : null;
+
+    const admin = this.isAdmin(role);
+    const actorCompanyId = await this.getUserCompany(userId);
+    const actorCompanyScope =
+      actorCompanyId && PG_UUID_V4_RE.test(String(actorCompanyId).trim())
+        ? String(actorCompanyId).trim()
+        : null;
+    const broadCompanyDirectory =
+      admin ||
+      this.hasPortalPermission(permissionSet, "payroll_manage") ||
+      this.hasPortalPermission(permissionSet, "users_manage") ||
+      this.hasPortalPermission(permissionSet, "hiring_manage");
+
+    const docMatchSql =
+      docType === "PAS" || docType === "PEP"
+        ? `upper(regexp_replace(trim(coalesce(e.numero_documento, '')), '[.\\s]', '', 'g')) = $2`
+        : `regexp_replace(trim(coalesce(e.numero_documento, '')), '[^0-9]', '', 'g') = $2`;
+
+    const queryParams: unknown[] = [docType, needle];
+    let sql = `SELECT e.id::text AS id, e.nombre_completo, e.id_empresa::text AS company_id
+      FROM empleados_nomina e
+      WHERE upper(trim(coalesce(e.tipo_documento, 'CC'))) = $1
+        AND ${docMatchSql}`;
+
+    if (excludeId && PG_UUID_V4_RE.test(excludeId)) {
+      queryParams.push(excludeId);
+      sql += ` AND e.id <> $${queryParams.length}::uuid`;
+    }
+
+    if (companyFilter) {
+      queryParams.push(companyFilter);
+      sql += ` AND e.id_empresa = $${queryParams.length}::uuid`;
+    } else if (!admin && actorCompanyScope && !broadCompanyDirectory) {
+      queryParams.push(actorCompanyScope);
+      sql += ` AND e.id_empresa = $${queryParams.length}::uuid`;
+    }
+
+    sql += ` ORDER BY e.nombre_completo LIMIT 1`;
+
+    const r = await this.pool.query<{
+      id: string;
+      nombre_completo: string | null;
+      company_id: string | null;
+    }>(sql, queryParams);
+    const row = r.rows[0];
+    if (!row) return { found: false, blocking: false };
+
+    const matchCompanyId = String(row.company_id || "").trim();
+    const blocking = companyFilter ? matchCompanyId === companyFilter : false;
+
+    return {
+      found: true,
+      blocking,
+      name: String(row.nombre_completo || "").trim() || undefined,
+      employeeId: String(row.id || "").trim() || undefined,
+      companyId: matchCompanyId || undefined
+    };
+  }
+
   private mapEmployeeRow(e: Record<string, unknown>) {
     /** Alineado con `app.js` (formulario y perfil de nómina): mismas claves que `buildPayrollEmployeePayloadFromWizard`. */
     return {

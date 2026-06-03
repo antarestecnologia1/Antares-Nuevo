@@ -1494,9 +1494,9 @@ function bindHrFormWizard(form) {
     }
   });
 
-  nextBtn?.addEventListener("click", () => {
+  nextBtn?.addEventListener("click", async () => {
     if (typeof form.__antaresDupDocCheck === "function") {
-      form.__antaresDupDocCheck({ silent: false });
+      await form.__antaresDupDocCheck({ silent: false, forceServer: true });
     }
     const stepRes = hrWizardStepValid(steps[idx]);
     if (!stepRes.ok) {
@@ -5811,6 +5811,10 @@ let state = {
   adminUserSessionsHydrated: false,
   /** Sincronización única al entrar en Usuarios (pendientes + bootstrap en curso). */
   adminUsersEntryHydrating: false,
+  /** True mientras GET /portal/bootstrap está en curso (primera carga o reintento). */
+  portalDataHydrating: false,
+  /** True tras al menos un bootstrap exitoso en esta visita al portal. */
+  portalDataHydrated: false,
   /** Administración · Usuarios: tarjeta «Sesiones» colapsada para ganar espacio vertical. */
   adminSessionsLogMinimized: true,
   /** Solicitudes · Admin: historial de solicitudes eliminadas (inicia colapsado). */
@@ -6271,7 +6275,7 @@ function upsertPortalUserStubFromJwtPayload(payload) {
     taxId: "",
     phone: ""
   };
-  write(KEYS.users, [stub, ...users.filter((u) => String(u.id) !== uid)]);
+  write(KEYS.users, [stub, ...users.filter((u) => String(u.id) !== uid)], { skipSyncSchedule: true });
   return stub;
 }
 
@@ -6289,7 +6293,7 @@ function upsertPortalUserRowIntoCache(row) {
   const prev = users.find((u) => String(u.id) === uid);
   const others = users.filter((u) => String(u.id) !== uid);
   const merged = { ...prev, ...normalized };
-  write(KEYS.users, [merged, ...others]);
+  write(KEYS.users, [merged, ...others], { skipSyncSchedule: true });
   return merged;
 }
 
@@ -6414,7 +6418,7 @@ function materializePortalUserFromSession(session) {
       city: String(prev?.city || "").trim(),
       department: String(prev?.department || "").trim()
     };
-    write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))]);
+    write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))], { skipSyncSchedule: true });
     user = currentUser();
     if (user && String(user.id) === String(session.userId)) return user;
   }
@@ -6433,7 +6437,8 @@ function materializePortalUserFromSession(session) {
           KEYS.users,
           users.map((u) =>
             String(u.id) === String(session.userId) ? { ...u, permissions: snap.permissions } : u
-          )
+          ),
+          { skipSyncSchedule: true }
         );
         user = currentUser();
       }
@@ -6468,7 +6473,9 @@ function materializePortalUserFromSession(session) {
     documentType: String(prevFinal?.documentType || "").trim(),
     createdAt: prevFinal?.createdAt || prevFinal?.registeredAt || ""
   };
-  write(KEYS.users, [stubRow, ...usersFinal.filter((u) => String(u.id) !== String(stubRow.id))]);
+  write(KEYS.users, [stubRow, ...usersFinal.filter((u) => String(u.id) !== String(stubRow.id))], {
+    skipSyncSchedule: true
+  });
   user = currentUser();
   if (user && String(user.id) === String(session.userId)) return user;
 
@@ -24393,6 +24400,31 @@ function payrollEmployeeDocumentDedupKey(documentType, value) {
   return normalizeDocumentDigits(raw);
 }
 
+/** Consulta PostgreSQL para duplicidad de documento de colaborador (validación inmediata en formularios). */
+async function queryPayrollEmployeeDocumentDuplicateFromApi({
+  documentType,
+  idDoc,
+  companyId,
+  excludeId
+} = {}) {
+  if (!portalCanRefreshFromApi()) return null;
+  const api = window.AntaresApi;
+  if (!api?.getJson) return null;
+  const params = new URLSearchParams({
+    documentType: String(documentType || "CC"),
+    idDoc: String(idDoc || "").trim()
+  });
+  const cid = String(companyId || "").trim();
+  const xid = String(excludeId || "").trim();
+  if (cid) params.set("companyId", cid);
+  if (xid) params.set("excludeId", xid);
+  try {
+    return await api.getJson(`/portal/payroll-employees/check-document?${params.toString()}`);
+  } catch (_e) {
+    return null;
+  }
+}
+
 /**
  * Reglas de persistencia empleado (portal ↔ PostgreSQL empleados_nomina):
  * — MAYÚSCULAS sin tildes: nombre, dirección, contacto emergencia, cargo texto, centro costos, etc.
@@ -24478,21 +24510,25 @@ function wirePayrollEmployeeFormFieldSanitization(formEl) {
  * el servidor rechace el guardado.
  *
  * @param {HTMLFormElement} formEl
- * @param {{ storageKey?: string, useCompanyScope?: boolean, excludeId?: string, entityLabel?: string }} [opts]
- * @returns {() => boolean} `check`: true si NO hay duplicado bloqueante.
+ * @param {{ storageKey?: string, useCompanyScope?: boolean, excludeId?: string, entityLabel?: string, serverCheck?: boolean }} [opts]
+ * @returns {(opts?: { silent?: boolean }) => Promise<boolean>} `check`: true si NO hay duplicado bloqueante.
  */
 function wireFormDocDuplicateCheck(formEl, opts = {}) {
   const V = window.AntaresValidation;
   const docInput = formEl?.querySelector("input[name='idDoc']");
-  if (!docInput) return () => true;
+  if (!docInput) return async () => true;
   const storageKey = opts.storageKey || KEYS.payrollEmployees;
   const useCompanyScope = opts.useCompanyScope !== false;
   const entityLabel = opts.entityLabel || "colaborador";
+  const serverCheck = opts.serverCheck === true;
   const docTypeSel = formEl.querySelector("select[name='documentType']");
   const companySel = useCompanyScope ? formEl.querySelector("select[name='companyId']") : null;
   const excludeId = String(opts.excludeId || "").trim();
   let dupNotifyTimer = null;
   let lastDupToastSig = "";
+  let serverCheckTimer = null;
+  let serverCheckSeq = 0;
+
   const clearBlock = () => {
     if (dupNotifyTimer) {
       clearTimeout(dupNotifyTimer);
@@ -24500,6 +24536,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     }
     lastDupToastSig = "";
     docInput.dataset.dupLastToastMsg = "";
+    docInput.dataset.serverDupError = "";
     if (String(docInput.dataset.dupError || "") === "1") {
       docInput.dataset.dupError = "";
       V?.clearFieldError?.(docInput);
@@ -24507,17 +24544,98 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     docInput.setCustomValidity?.("");
   };
 
-  const check = ({ silent = false } = {}) => {
+  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking }) => {
+    if (blocking) {
+      docInput.dataset.dupError = "1";
+      docInput.dataset.serverDupError = "1";
+      V?.setFieldError?.(docInput, dupMsg);
+      docInput.setCustomValidity?.(dupMsg);
+    } else {
+      docInput.dataset.dupError = "";
+      docInput.dataset.serverDupError = "";
+      docInput.setCustomValidity?.("");
+      V?.setFieldError?.(docInput, dupMsg);
+    }
+    const fireDupToast = () => {
+      try {
+        if (typeof notify === "function") notify(dupMsg, blocking ? "error" : "info", 4200);
+      } catch (_e) {
+        /* noop */
+      }
+    };
+    if (!silent) {
+      if (docInput.dataset.dupLastToastMsg !== dupMsg) {
+        docInput.dataset.dupLastToastMsg = dupMsg;
+        fireDupToast();
+      }
+    } else if (lastDupToastSig !== toastKey) {
+      lastDupToastSig = toastKey;
+      if (dupNotifyTimer) clearTimeout(dupNotifyTimer);
+      dupNotifyTimer = setTimeout(() => {
+        dupNotifyTimer = null;
+        const stillBlocked =
+          String(docInput.dataset.dupError || "") === "1" ||
+          String(docInput.dataset.serverDupError || "") === "1";
+        if ((stillBlocked || !blocking) && docInput.value.trim()) {
+          docInput.dataset.dupLastToastMsg = dupMsg;
+          fireDupToast();
+        }
+      }, 380);
+    }
+    if (!silent && blocking) {
+      try {
+        docInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      } catch (_e) {
+        /* noop */
+      }
+    }
+  };
+
+  const runServerDuplicateCheck = async ({ silent, docType, docVal, companyId, force = false }) => {
+    if (!serverCheck || !portalCanRefreshFromApi()) return null;
+    const seq = ++serverCheckSeq;
+    if (!force) {
+      await new Promise((resolve) => {
+        clearTimeout(serverCheckTimer);
+        serverCheckTimer = setTimeout(resolve, force ? 0 : 320);
+      });
+      if (seq !== serverCheckSeq) return null;
+    }
+    const remote = await queryPayrollEmployeeDocumentDuplicateFromApi({
+      documentType: docType,
+      idDoc: docVal.normalized,
+      companyId,
+      excludeId
+    });
+    if (seq !== serverCheckSeq || !remote) return remote;
+    if (remote.found) {
+      const who = String(remote.name || "").trim() ? ` (${String(remote.name).trim()})` : "";
+      const scopeTail = useCompanyScope && companyId ? " en esta empresa" : "";
+      const toastKey = `srv:${docVal.normalized}:${companyId || "none"}:${excludeId || "new"}`;
+      if (remote.blocking) {
+        const dupMsg = `Ya existe un ${entityLabel} con el documento ${docVal.normalized}${who}${scopeTail}. No puede repetirse.`;
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true });
+      } else if (useCompanyScope && !companyId) {
+        const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false });
+      } else {
+        clearBlock();
+      }
+    } else if (String(docInput.dataset.dupError || "") !== "1") {
+      clearBlock();
+    }
+    return remote;
+  };
+
+  const check = async ({ silent = false, forceServer = false } = {}) => {
     const rawDoc = String(docInput.value || "").trim();
     if (!rawDoc) {
       clearBlock();
+      serverCheckSeq += 1;
       return true;
     }
     const docType = String(docTypeSel?.value || "CC").toUpperCase();
-    const docVal = V?.validateColombianDocument
-      ? V.validateColombianDocument(docType, rawDoc)
-      : { ok: true, normalized: rawDoc };
-    // Si el formato aún no es válido, lo gestiona la validación de formato (no marcamos duplicado).
+    const docVal = validateColombianDocument(docType, rawDoc);
     if (!docVal.ok) return true;
     const needle = payrollEmployeeDocumentDedupKey(docType, docVal.normalized);
     const companyId = String(companySel?.value || "").trim();
@@ -24529,93 +24647,70 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       return payrollEmployeeDocumentDedupKey(rdt, r.idDoc) === needle;
     });
     if (!matches.length) {
-      clearBlock();
-      return true;
-    }
-    const blocking = useCompanyScope
-      ? companyId
-        ? matches.find((r) => String(r.companyId || "") === companyId)
-        : null
-      : matches[0];
-    if (blocking) {
-      // Duplicado real: bloqueo duro. setCustomValidity lo integra con la validez nativa,
-      // de modo que también impide avanzar de paso y guardar.
-      docInput.dataset.dupError = "1";
-      const who = String(blocking.name || "").trim() ? ` (${String(blocking.name).trim()})` : "";
-      const scopeTail = useCompanyScope ? " en esta empresa" : "";
-      const dupMsg = `Ya existe un ${entityLabel} con el documento ${needle}${who}${scopeTail}. No puede repetirse.`;
-      V?.setFieldError?.(docInput, dupMsg);
-      docInput.setCustomValidity?.(dupMsg);
-      const toastKey = `dup:${needle}:${companyId || "none"}:${excludeId || "new"}`;
-      const fireDupToast = () => {
-        try {
-          if (typeof notify === "function") notify(dupMsg, "error", 4200);
-        } catch (_e) {
-          /* noop */
-        }
-      };
-      if (!silent) {
-        if (docInput.dataset.dupLastToastMsg !== dupMsg) {
-          docInput.dataset.dupLastToastMsg = dupMsg;
-          fireDupToast();
-        }
-      } else if (lastDupToastSig !== toastKey) {
-        lastDupToastSig = toastKey;
-        if (dupNotifyTimer) clearTimeout(dupNotifyTimer);
-        dupNotifyTimer = setTimeout(() => {
-          dupNotifyTimer = null;
-          if (String(docInput.dataset.dupError || "") === "1" && docInput.value.trim()) {
-            docInput.dataset.dupLastToastMsg = dupMsg;
-            fireDupToast();
-          }
-        }, 380);
+      if (String(docInput.dataset.dupError || "") !== "1") {
+        docInput.dataset.dupError = "";
+        if (String(docInput.dataset.serverDupError || "") !== "1") clearBlock();
       }
-      if (!silent) {
-        try {
-          docInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
-        } catch (_e) {
-          /* noop */
-        }
+    } else {
+      const blocking = useCompanyScope
+        ? companyId
+          ? matches.find((r) => String(r.companyId || "") === companyId)
+          : null
+        : matches[0];
+      if (blocking) {
+        const who = String(blocking.name || "").trim() ? ` (${String(blocking.name).trim()})` : "";
+        const scopeTail = useCompanyScope ? " en esta empresa" : "";
+        const dupMsg = `Ya existe un ${entityLabel} con el documento ${needle}${who}${scopeTail}. No puede repetirse.`;
+        const toastKey = `dup:${needle}:${companyId || "none"}:${excludeId || "new"}`;
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true });
+      } else if (useCompanyScope && !companyId) {
+        const ref = String(matches[0]?.name || "").trim();
+        const who = ref ? ` (${ref})` : "";
+        const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
+        const toastKey = `warn:${needle}:${excludeId || "new"}`;
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false });
+      } else {
+        clearBlock();
       }
-      return false;
     }
-    if (useCompanyScope && !companyId) {
-      // Aún no se eligió empresa: el mismo documento puede pertenecer a otra empresa
-      // (la unicidad es por empresa). Avisamos sin bloquear; se revalida al elegir empresa.
-      const ref = String(matches[0]?.name || "").trim();
-      const who = ref ? ` (${ref})` : "";
-      docInput.dataset.dupError = "";
-      docInput.setCustomValidity?.("");
-      V?.setFieldError?.(
-        docInput,
-        `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`
-      );
-      return true;
+    if (serverCheck) {
+      await runServerDuplicateCheck({ silent, docType, docVal, companyId, force: forceServer });
     }
-    // Documento existe pero en otra empresa: permitido por la regla de unicidad.
-    clearBlock();
-    return true;
+    const blocked =
+      String(docInput.dataset.dupError || "") === "1" ||
+      String(docInput.dataset.serverDupError || "") === "1";
+    return !blocked;
   };
 
   if (docInput.dataset.dupCheckWired !== "1") {
     docInput.dataset.dupCheckWired = "1";
-    // `input` con silent: avisa apenas el número queda completo, sin desplazar el scroll al escribir.
-    docInput.addEventListener("input", () => check({ silent: true }));
-    docInput.addEventListener("blur", () => check());
-    docInput.addEventListener("change", () => check());
-    docTypeSel?.addEventListener("change", () => check());
-    companySel?.addEventListener("change", () => check());
+    docInput.addEventListener("input", () => {
+      void check({ silent: true });
+    });
+    docInput.addEventListener("blur", () => {
+      void check({ silent: false, forceServer: true });
+    });
+    docInput.addEventListener("change", () => {
+      void check({ silent: false, forceServer: true });
+    });
+    docTypeSel?.addEventListener("change", () => {
+      void check({ silent: false, forceServer: true });
+    });
+    companySel?.addEventListener("change", () => {
+      void check({ silent: false, forceServer: true });
+    });
   }
   return check;
 }
 
-/** Alta de empleado (unicidad por empresa, documento). */
+/** Alta de empleado (unicidad por empresa, documento + verificación en servidor). */
 function wireEmployeePayrollDuplicateDocCheck(formEl, opts = {}) {
   return wireFormDocDuplicateCheck(formEl, {
     storageKey: KEYS.payrollEmployees,
     useCompanyScope: true,
     entityLabel: "colaborador",
-    excludeId: opts.excludeId
+    excludeId: opts.excludeId,
+    serverCheck: true
   });
 }
 
