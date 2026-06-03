@@ -17919,6 +17919,42 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   transform: translateY(-1px);
 }
 
+/* Paso con campos por completar: realce rojo breve para guiar entre pantallas del wizard. */
+.hr-form-wizard-dot.is-error {
+  border-color: #d64545;
+  background: linear-gradient(180deg, #fff2f2 0%, #ffe3e3 100%);
+  color: #be2f2f;
+  box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.16);
+  animation: hrWizardDotShake 0.45s ease;
+}
+
+.hr-form-wizard-dot.is-error.is-active {
+  background: linear-gradient(180deg, #e26a6a 0%, #d64545 60%, #b62f2f 100%);
+  color: #ffffff;
+}
+
+@keyframes hrWizardDotShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hr-form-wizard-dot.is-error { animation: none; }
+}
+
+/* Aviso cuando no hay cargos creados en el catálogo (selector de cargo deshabilitado). */
+.emp-position-empty-hint {
+  color: #b06a00;
+  font-weight: 600;
+  background: linear-gradient(180deg, #fff8ec 0%, #fff1d6 100%);
+  border: 1px solid #f1d28a;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+}
+
 .hr-dot-num {
   font-size: 0.82rem;
   font-weight: 800;
@@ -24986,6 +25022,131 @@ body[data-theme="dark"] .field-label svg {
 }
 body[data-theme="dark"] .field-label .field-required-mark {
   color: #f87171;
+}
+
+/* ============================================================
+   Crear empleado — interfaz más limpia y profesional.
+   Alcance acotado a #form-employee: NO altera otros formularios
+   ni cambia nombres de campos (las columnas que esperan las tablas
+   se conservan intactas; solo cambia la presentación).
+   ============================================================ */
+#form-employee {
+  --emp-accent: var(--primary);
+  --emp-accent-rgb: var(--primary-rgb);
+}
+
+/* Cabecera del asistente: kicker + lead más sobrios */
+#form-employee .hr-form-wizard-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin: 0;
+}
+#form-employee .hr-form-wizard-lead {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+  margin: 0.15rem 0 0;
+}
+
+/* Sección: tarjeta blanca y limpia con un acento lateral por paso */
+#form-employee .form-section {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-left: 4px solid var(--emp-accent);
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+  padding: 1.1rem 1.25rem 1.05rem;
+}
+#form-employee .form-section-blue { --emp-accent: var(--primary); }
+#form-employee .form-section-cyan { --emp-accent: var(--brand-blue-mid); }
+#form-employee .form-section-violet { --emp-accent: var(--primary-dark); }
+#form-employee .form-section-emerald { --emp-accent: #10b981; }
+#form-employee .form-section-amber { --emp-accent: #f59e0b; }
+#form-employee .form-section-rose { --emp-accent: #f43f5e; }
+
+/* Leyenda como encabezado sobrio (sin pastilla pesada), con línea de acento */
+#form-employee .form-section legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: transparent !important;
+  color: var(--emp-accent) !important;
+  box-shadow: none !important;
+  border-radius: 0;
+  padding: 0 0 0.5rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.1px;
+  text-transform: none;
+  border-bottom: 2px solid color-mix(in srgb, var(--emp-accent) 28%, transparent);
+}
+#form-employee .form-section legend svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Campos: tarjetas planas, homogéneas y con foco en el color del paso */
+#form-employee .form-section-grid {
+  gap: 0.72rem 0.85rem;
+}
+#form-employee .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
+  background: #fbfdff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  box-shadow: none;
+  padding: 0.6rem 0.72rem;
+}
+#form-employee .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text):focus-within {
+  border-color: var(--emp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--emp-accent) 16%, transparent);
+}
+#form-employee .form-section-grid input,
+#form-employee .form-section-grid select,
+#form-employee .form-section-grid textarea {
+  min-height: 2.6rem;
+  border-radius: 8px;
+}
+#form-employee .form-section-grid input:focus,
+#form-employee .form-section-grid select:focus,
+#form-employee .form-section-grid textarea:focus {
+  border-color: var(--emp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--emp-accent) 14%, transparent);
+}
+#form-employee .field-label svg {
+  background: color-mix(in srgb, var(--emp-accent) 16%, transparent);
+  color: var(--emp-accent);
+}
+
+/* Foto: fila centrada y aireada */
+#form-employee .hr-employee-avatar-row {
+  display: flex;
+  justify-content: center;
+}
+#form-employee .hr-employee-avatar-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+#form-employee .hr-employee-avatar-caption {
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+/* Tema oscuro: tarjetas oscuras (no blancas) conservando el acento */
+body[data-theme="dark"] #form-employee .form-section {
+  background: linear-gradient(180deg, #122036, #0e1a2c);
+  border-color: #2b3e58;
+  border-left-color: var(--emp-accent);
+}
+body[data-theme="dark"] #form-employee .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
+  background: #0f1c30;
+  border-color: #2b3e58;
 }
 
 .btn-primary {

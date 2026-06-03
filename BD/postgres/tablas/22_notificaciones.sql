@@ -16,3 +16,8 @@ COMMENT ON TABLE notificaciones IS 'KEYS.notifications. In-app.';
 
 CREATE INDEX idx_notificaciones_usuario_no_leida ON notificaciones (id_usuario, fecha_lectura) WHERE fecha_lectura IS NULL;
 
+-- Lectura ordenada por fecha (bootstrap admin global y endpoint liviano por usuario).
+CREATE INDEX idx_notificaciones_usuario_fecha ON notificaciones (id_usuario, fecha_creacion DESC);
+
+CREATE INDEX idx_notificaciones_fecha ON notificaciones (fecha_creacion DESC);
+

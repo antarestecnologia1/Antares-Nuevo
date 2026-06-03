@@ -6941,6 +6941,31 @@ export class PortalService implements OnModuleInit {
     const tier = await this.resolvePayrollEmployeeSchemaTier(c);
     await this.syncListWithPruning(c, "empleados_nomina", data, deletedIds);
 
+    /**
+     * id_cargo es FK a cargos (nullable, ON DELETE SET NULL). Si el cargo aún no
+     * llegó a la BD (sync de cargos en segundo plano, otra sesión/dispositivo o dato
+     * legado), un id_cargo inexistente lanzaba 23503 y abortaba TODO el lote: el
+     * empleado nuevo no quedaba guardado. Resolvemos contra los cargos existentes y
+     * caemos a NULL si no está, conservando nombre_cargo_texto, para que el alta del
+     * colaborador nunca se pierda por desincronía del catálogo.
+     */
+    const existingCargoIds = new Set<string>();
+    try {
+      const { rows: cargoRows } = await c.query<{ id: string }>(
+        `SELECT id::text AS id FROM cargos`
+      );
+      for (const row of cargoRows) {
+        const id = String(row.id || "").trim();
+        if (id) existingCargoIds.add(id);
+      }
+    } catch (e) {
+      this.logger.warn(
+        `syncPayrollEmployees: no se pudo leer catálogo de cargos para validar id_cargo (${
+          e instanceof Error ? e.message : String(e)
+        }); se omitirá el vínculo de cargo en este lote.`
+      );
+    }
+
     const UPSERT_LEGACY = `INSERT INTO empleados_nomina (
           id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
           fecha_nacimiento, genero, estado_civil, tipo_sangre, nivel_educativo,
@@ -7272,7 +7297,14 @@ export class PortalService implements OnModuleInit {
       const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
       const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
 
-      const positionIdSql = portalUuidOrNull(e.positionId);
+      const rawPositionId = portalUuidOrNull(e.positionId);
+      const positionIdSql =
+        rawPositionId && existingCargoIds.has(rawPositionId) ? rawPositionId : null;
+      if (rawPositionId && !positionIdSql) {
+        this.logger.warn(
+          `syncPayrollEmployees: cargo ${rawPositionId} no existe en la BD; se guarda el colaborador ${idDoc} con id_cargo NULL (texto de cargo preservado).`
+        );
+      }
 
       const base52: unknown[] = [
         e.id,

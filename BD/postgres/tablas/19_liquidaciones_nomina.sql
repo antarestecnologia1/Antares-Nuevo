@@ -77,3 +77,9 @@ CREATE INDEX idx_liquidaciones_periodo ON liquidaciones_nomina (periodo_mes);
 
 CREATE INDEX idx_liquidaciones_pendiente_pago ON liquidaciones_nomina (liquidacion_pagada) WHERE liquidacion_pagada = false;
 
+-- FK sin índice: acelera borrado en cascada y consultas por empleado.
+CREATE INDEX idx_liquidaciones_empleado ON liquidaciones_nomina (id_empleado);
+
+-- Bootstrap ordena por fecha_creacion DESC.
+CREATE INDEX idx_liquidaciones_fecha ON liquidaciones_nomina (fecha_creacion DESC);
+

@@ -975,14 +975,69 @@ function hrWizardValidityTargets(stepEl) {
   });
 }
 
+/**
+ * Marca el paso como inválido: enfoca/desplaza al primer campo con error y devuelve false.
+ * Prioriza la validación inline de AntaresValidation (mensajes claros y `.field-error`) y
+ * usa la validación nativa del navegador solo como respaldo (p. ej. patrones HTML).
+ */
 function hrWizardStepValid(stepEl) {
-  for (const el of hrWizardValidityTargets(stepEl)) {
-    if (typeof el.checkValidity === "function" && !el.checkValidity()) {
-      el.reportValidity();
-      return false;
+  if (!stepEl) return true;
+  const V = window.AntaresValidation;
+  let firstInvalid = null;
+  let hasInlineError = false;
+  if (V && typeof V.validateDomForm === "function") {
+    const res = V.validateDomForm(stepEl);
+    if (!res.ok) {
+      firstInvalid = res.firstInvalid || null;
+      hasInlineError = true;
     }
   }
-  return true;
+  if (!firstInvalid) {
+    for (const el of hrWizardValidityTargets(stepEl)) {
+      if (typeof el.checkValidity === "function" && !el.checkValidity()) {
+        firstInvalid = el;
+        // Puente: mensajes nativos (incl. setCustomValidity, p. ej. documento duplicado) se
+        // muestran con el mismo estilo inline `.field-error` del resto del formulario.
+        const nativeMsg = String(el.validationMessage || "").trim();
+        if (nativeMsg && V && typeof V.setFieldError === "function") {
+          V.setFieldError(el, nativeMsg);
+          hasInlineError = true;
+        }
+        break;
+      }
+    }
+  }
+  if (!firstInvalid) return true;
+  try {
+    firstInvalid.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  } catch (_e) {
+    /* noop */
+  }
+  try {
+    firstInvalid.focus?.({ preventScroll: true });
+  } catch (_e) {
+    firstInvalid.focus?.();
+  }
+  // Si no hay error inline visible (campo nativo sin regla Antares), mostramos la burbuja nativa.
+  if (!hasInlineError && typeof firstInvalid.reportValidity === "function") {
+    firstInvalid.reportValidity();
+  }
+  return false;
+}
+
+/** Etiqueta corta del paso (texto del dot) para mensajes de error específicos. */
+function hrWizardStepLabel(wizard, stepIndex) {
+  const dot = wizard?.querySelector?.(`[data-hr-wizard-dot="${stepIndex}"] small`);
+  const txt = String(dot?.textContent || "").trim();
+  return txt || `Paso ${Number(stepIndex) + 1}`;
+}
+
+/** Resalta brevemente el dot del paso con error para guiar al usuario entre pantallas. */
+function flashHrWizardDotError(wizard, stepIndex) {
+  const dot = wizard?.querySelector?.(`[data-hr-wizard-dot="${stepIndex}"]`);
+  if (!dot) return;
+  dot.classList.add("is-error");
+  window.setTimeout(() => dot.classList.remove("is-error"), 1600);
 }
 
 /**
@@ -1423,7 +1478,11 @@ function bindHrFormWizard(form) {
   });
 
   nextBtn?.addEventListener("click", () => {
-    if (!hrWizardStepValid(steps[idx])) return;
+    if (!hrWizardStepValid(steps[idx])) {
+      flashHrWizardDotError(wizard, idx);
+      notify(`Complete los campos obligatorios de «${hrWizardStepLabel(wizard, idx)}» para continuar.`, "error");
+      return;
+    }
     if (idx < steps.length - 1) {
       idx += 1;
       sync();
@@ -1438,7 +1497,13 @@ function bindHrFormWizard(form) {
       if (targetIdx === idx) return;
       if (targetIdx > idx) {
         for (let i = idx; i < targetIdx; i++) {
-          if (!hrWizardStepValid(steps[i])) return;
+          if (!hrWizardStepValid(steps[i])) {
+            idx = i;
+            sync();
+            flashHrWizardDotError(wizard, i);
+            notify(`Complete «${hrWizardStepLabel(wizard, i)}» antes de avanzar.`, "error");
+            return;
+          }
         }
       }
       idx = targetIdx;
@@ -1455,7 +1520,8 @@ function bindHrFormWizard(form) {
           ev.stopImmediatePropagation();
           idx = i;
           sync();
-          notify("Revise el paso indicado antes de guardar.", "error");
+          flashHrWizardDotError(wizard, i);
+          notify(`Revise «${hrWizardStepLabel(wizard, i)}»: hay campos por completar o corregir.`, "error");
           return;
         }
       }
@@ -6562,9 +6628,15 @@ function payrollDraftLinkSuccessMessage(result, fallback = userMessage("absenceR
   return fallback;
 }
 
-async function applyPortalBootstrapFromApi() {
+async function applyPortalBootstrapFromApi(opts = {}) {
   if (!portalCanRefreshFromApi()) return false;
   const api = window.AntaresApi;
+  /**
+   * En refrescos en segundo plano (p. ej. el poll cada 60s) se omiten las llamadas
+   * secundarias /portal/positions y /portal/me: rara vez cambian y duplican tráfico.
+   * La carga interactiva inicial y los refrescos tras mutaciones las mantienen.
+   */
+  const skipSecondary = opts.skipSecondaryHydration === true;
   const runBootstrap = async () => {
     const p = await api.getJson("/portal/bootstrap");
     applyPortalBootstrapPayload(p);
@@ -6578,8 +6650,10 @@ async function applyPortalBootstrapFromApi() {
   const tryHydrateOwnProfileFallback = () => hydrateOwnProfileFromApi();
   try {
     await runBootstrap();
-    await refreshPositionsCatalogFromApi({ rerender: false });
-    await hydrateOwnProfileFromApi();
+    if (!skipSecondary) {
+      await refreshPositionsCatalogFromApi({ rerender: false });
+      await hydrateOwnProfileFromApi();
+    }
     return true;
   } catch (err) {
     const st = err && typeof err.status === "number" ? err.status : 0;
@@ -10910,16 +10984,24 @@ async function refreshPositionsCatalogFromApi(opts = {}) {
 }
 
 function refreshPositionSelectsInDocument() {
-  const placeholder = "Seleccione un cargo creado en Contratación";
+  const hasActive = getActivePositions().length > 0;
   document.querySelectorAll("select[name='positionId'], #emp-position-select").forEach((sel) => {
     const prev = String(sel.value || "").trim();
     const keep = prev && getPositionById(prev)?.active !== false ? prev : "";
     const isEmp = sel.id === "emp-position-select" || sel.closest("#form-employee");
     const head = isEmp
-      ? `<option value="">${placeholder}</option>`
+      ? `<option value="">${hasActive ? "Seleccione un cargo creado en Contratación" : "No hay cargos creados todavía"}</option>`
       : `<option value="">Seleccione</option>`;
     sel.innerHTML = `${head}${positionSelectOptions(keep)}`;
     if (keep) sel.value = keep;
+    // El selector de cargo del alta de empleado se deshabilita si aún no hay cargos creados.
+    if (isEmp) {
+      sel.disabled = !hasActive;
+      sel.setAttribute("aria-disabled", hasActive ? "false" : "true");
+      const hint = sel.closest("#form-employee")?.querySelector("#emp-position-catalog-hint");
+      if (hint) hint.classList.toggle("emp-position-empty-hint", !hasActive);
+      if (hint) hint.classList.toggle("muted", hasActive);
+    }
   });
 }
 
@@ -16414,7 +16496,7 @@ function __silentFullBootstrapIfStale() {
   const now = Date.now();
   if (now - __lastNotificationsSilentBootstrapWallMs < NOTIF_SILENT_BOOTSTRAP_MIN_MS) return;
   __lastNotificationsSilentBootstrapWallMs = now;
-  void applyPortalBootstrapFromApi().then((ok) => {
+  void applyPortalBootstrapFromApi({ skipSecondaryHydration: true }).then((ok) => {
     if (!ok || !getSession()) return;
     try {
       syncSessionProfileSnapshotFromCache();
@@ -17851,6 +17933,25 @@ function buildDeletedTransportRequestsLogSection() {
   return pcardWrap("file", "Solicitudes eliminadas", subtitle, cardBody, expanded ? "p-card--expanded" : "p-card--collapsed");
 }
 
+/**
+ * Ventana de render para listas grandes: evita construir miles de tarjetas/filas de una
+ * sola vez (lo que hacía lento "mostrar los datos"). NO oculta datos del servidor ni filtra
+ * nada: solo difiere el render del resto tras un botón "Ver más". El límite vive en `state`
+ * por módulo y se reinicia al cambiar filtros/búsqueda.
+ */
+const RENDER_WINDOW_SIZE = 30;
+function renderWindowSlice(list, limit) {
+  const arr = Array.isArray(list) ? list : [];
+  const max = Number.isFinite(limit) && limit > 0 ? limit : RENDER_WINDOW_SIZE;
+  return arr.slice(0, max);
+}
+function renderWindowMoreBar(total, shown, action) {
+  if (total <= shown) return "";
+  return `<div class="render-window-more"><button type="button" class="btn btn-outline btn-sm" data-action="${escapeAttr(
+    action
+  )}">${IC.chevronDown || ""} Ver más · mostrando ${shown} de ${total}</button></div>`;
+}
+
 function transportTripsHtml() {
   const isAdmin = isAdminActor();
   const tripUser = currentUser();
@@ -18004,8 +18105,11 @@ function transportTripsHtml() {
     </div>
   </div>`;
 
+  const tripsRenderLimit = Number(state.tripsRenderLimit) || RENDER_WINDOW_SIZE;
+  const tripsToRender = renderWindowSlice(sortedFilteredTrips, tripsRenderLimit);
+  const tripsMoreBar = renderWindowMoreBar(sortedFilteredTrips.length, tripsToRender.length, "trips-render-more");
   const opsCards = sortedFilteredTrips.length
-    ? `${opsFiltersBar}${opsToolbar}<div class="trip-ops-cards${tripsLayout === "compact" ? " trip-ops-cards--compact" : ""}">${sortedFilteredTrips.map(buildTripOpsCard).join("")}</div>`
+    ? `${opsFiltersBar}${opsToolbar}<div class="trip-ops-cards${tripsLayout === "compact" ? " trip-ops-cards--compact" : ""}">${tripsToRender.map(buildTripOpsCard).join("")}</div>${tripsMoreBar}`
     : `${opsFiltersBar}${opsToolbar}${emptyState("No hay viajes para el filtro seleccionado o búsqueda aplicada.")}`;
 
   const formatRatePlaceLabel = (part) => {
@@ -24078,6 +24182,120 @@ function wirePayrollEmployeeFormFieldSanitization(formEl) {
   window.AntaresValidation?.decorateFormFields?.(formEl);
 }
 
+/**
+ * Verificación inmediata de documento duplicado en formularios de personas: en cuanto el
+ * usuario sale del campo «N° documento» (o cambia tipo de documento/empresa) se avisa si ya
+ * existe un registro con ese documento, sin esperar a diligenciar todo el formulario ni a que
+ * el servidor rechace el guardado.
+ *
+ * @param {HTMLFormElement} formEl
+ * @param {{ storageKey?: string, useCompanyScope?: boolean, excludeId?: string, entityLabel?: string }} [opts]
+ * @returns {() => boolean} `check`: true si NO hay duplicado bloqueante.
+ */
+function wireFormDocDuplicateCheck(formEl, opts = {}) {
+  const V = window.AntaresValidation;
+  const docInput = formEl?.querySelector("input[name='idDoc']");
+  if (!docInput) return () => true;
+  const storageKey = opts.storageKey || KEYS.payrollEmployees;
+  const useCompanyScope = opts.useCompanyScope !== false;
+  const entityLabel = opts.entityLabel || "colaborador";
+  const docTypeSel = formEl.querySelector("select[name='documentType']");
+  const companySel = useCompanyScope ? formEl.querySelector("select[name='companyId']") : null;
+  const excludeId = String(opts.excludeId || "").trim();
+  const compact = (raw) => String(raw || "").replace(/[.\s]/g, "").trim().toUpperCase();
+  const clearBlock = () => {
+    if (String(docInput.dataset.dupError || "") === "1") {
+      docInput.dataset.dupError = "";
+      V?.clearFieldError?.(docInput);
+    }
+    docInput.setCustomValidity?.("");
+  };
+
+  const check = ({ silent = false } = {}) => {
+    const rawDoc = String(docInput.value || "").trim();
+    if (!rawDoc) {
+      clearBlock();
+      return true;
+    }
+    const docType = String(docTypeSel?.value || "CC").toUpperCase();
+    const docVal = V?.validateColombianDocument
+      ? V.validateColombianDocument(docType, rawDoc)
+      : { ok: true, normalized: rawDoc };
+    // Si el formato aún no es válido, lo gestiona la validación de formato (no marcamos duplicado).
+    if (!docVal.ok) return true;
+    const needle = compact(docVal.normalized);
+    const companyId = String(companySel?.value || "").trim();
+    const records = read(storageKey, []);
+    const matches = records.filter(
+      (r) => String(r.id || "") !== excludeId && compact(r.idDoc) === needle
+    );
+    if (!matches.length) {
+      clearBlock();
+      return true;
+    }
+    const blocking = useCompanyScope
+      ? companyId
+        ? matches.find((r) => String(r.companyId || "") === companyId)
+        : null
+      : matches[0];
+    if (blocking) {
+      // Duplicado real: bloqueo duro. setCustomValidity lo integra con la validez nativa,
+      // de modo que también impide avanzar de paso y guardar.
+      docInput.dataset.dupError = "1";
+      const who = String(blocking.name || "").trim() ? ` (${String(blocking.name).trim()})` : "";
+      const scopeTail = useCompanyScope ? " en esta empresa" : "";
+      const dupMsg = `Ya existe un ${entityLabel} con el documento ${needle}${who}${scopeTail}. No puede repetirse.`;
+      V?.setFieldError?.(docInput, dupMsg);
+      docInput.setCustomValidity?.(dupMsg);
+      if (!silent) {
+        try {
+          docInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        } catch (_e) {
+          /* noop */
+        }
+      }
+      return false;
+    }
+    if (useCompanyScope && !companyId) {
+      // Aún no se eligió empresa: el mismo documento puede pertenecer a otra empresa
+      // (la unicidad es por empresa). Avisamos sin bloquear; se revalida al elegir empresa.
+      const ref = String(matches[0]?.name || "").trim();
+      const who = ref ? ` (${ref})` : "";
+      docInput.dataset.dupError = "";
+      docInput.setCustomValidity?.("");
+      V?.setFieldError?.(
+        docInput,
+        `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`
+      );
+      return true;
+    }
+    // Documento existe pero en otra empresa: permitido por la regla de unicidad.
+    clearBlock();
+    return true;
+  };
+
+  if (docInput.dataset.dupCheckWired !== "1") {
+    docInput.dataset.dupCheckWired = "1";
+    // `input` con silent: avisa apenas el número queda completo, sin desplazar el scroll al escribir.
+    docInput.addEventListener("input", () => check({ silent: true }));
+    docInput.addEventListener("blur", () => check());
+    docInput.addEventListener("change", () => check());
+    docTypeSel?.addEventListener("change", () => check());
+    companySel?.addEventListener("change", () => check());
+  }
+  return check;
+}
+
+/** Alta de empleado (unicidad por empresa, documento). */
+function wireEmployeePayrollDuplicateDocCheck(formEl, opts = {}) {
+  return wireFormDocDuplicateCheck(formEl, {
+    storageKey: KEYS.payrollEmployees,
+    useCompanyScope: true,
+    entityLabel: "colaborador",
+    excludeId: opts.excludeId
+  });
+}
+
 /** Coincide valor guardado (p. ej. mayúsculas en BD) con opción del catálogo del formulario. */
 function matchCatalogOptionValue(catalog, stored) {
   const s = String(stored || "").trim();
@@ -24515,7 +24733,13 @@ function payrollHtml() {
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
   const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "—");
   const positions = getActivePositions();
-  const positionOpts = positions.map((p) => `<option value="${p.id}">${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`).join("");
+  const hasActivePositions = positions.length > 0;
+  const positionOpts = positions
+    .map(
+      (p) =>
+        `<option value="${escapeAttr(String(p.id))}">${escapeHtml(String(p.name || ""))} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`
+    )
+    .join("");
   const companyOptions = companies
     .filter((c) => isCompanyRecordActive(c))
     .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`)
@@ -24539,6 +24763,9 @@ function payrollHtml() {
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const runs = filterPayrollRunsByUiState(nominaRunsAll, filters, "nomina");
   const sortedRuns = sortPayrollRunsByUiState(runs, runSort);
+  const payrollRunsRenderLimit = Number(state.payrollRunsRenderLimit) || RENDER_WINDOW_SIZE;
+  const runsToRender = renderWindowSlice(sortedRuns, payrollRunsRenderLimit);
+  const payrollRunsMoreBar = renderWindowMoreBar(sortedRuns.length, runsToRender.length, "payroll-runs-render-more");
   const sortedDriverRuns = sortPayrollRunsByUiState(
     filterPayrollRunsByUiState(driverPaymentRunsAll, filters, "driver"),
     runSort
@@ -24572,7 +24799,7 @@ function payrollHtml() {
   const employeeCards = employeeSummaries
     .map((item) => renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact: true }))
     .join("");
-  const runRows = sortedRuns
+  const runRows = runsToRender
     .map((r) => {
       const state = r.paid ? "paid" : "pending";
       const monthLabel = formatPayrollPeriodLabel(r.month);
@@ -24699,8 +24926,12 @@ function payrollHtml() {
       <legend>${IC.briefcase} Datos laborales</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required><option value="">Seleccione un cargo creado en Contratación</option>${positionOpts}</select></label>
-        <p class="full muted" id="emp-position-catalog-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Seleccione un cargo del catálogo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.</p>
+        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required${hasActivePositions ? "" : " disabled aria-disabled=\"true\""}><option value="">${hasActivePositions ? "Seleccione un cargo creado en Contratación" : "No hay cargos creados todavía"}</option>${positionOpts}</select></label>
+        <p class="full ${hasActivePositions ? "muted" : "emp-position-empty-hint"}" id="emp-position-catalog-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${
+          hasActivePositions
+            ? "Solo aparecen los cargos creados y activos en Contratación. Al elegir uno se cargan salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte."
+            : "Primero cree el cargo en Contratación › Cargos. Aquí solo se listan los cargos del catálogo, no se escriben a mano."
+        }</p>
         <input type="hidden" name="workSchedule" id="emp-work-schedule" value="" />
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
         <div id="emp-contract-duration-block" class="emp-contract-duration-panel full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
@@ -25022,10 +25253,10 @@ function payrollHtml() {
     ? `${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
     : emptyState("No hay empleados registrados.");
   const runCardsGrid = sortedRuns.length
-    ? `<div class="payroll-run-cards-grid">${sortedRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
+    ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`
     : emptyState("Sin liquidaciones que coincidan con los filtros.");
   const runTableLegacy = runRows
-    ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div></details>`
+    ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}</details>`
     : "";
   const runsPaneBody = `${runCardsGrid}${runTableLegacy}`;
   const employeeOpts = employees
@@ -25585,7 +25816,12 @@ function installCandidateCvDownloadDelegation() {
   document.body.addEventListener("click", async (event) => {
     const btn = event.target instanceof Element ? event.target.closest("[data-action='download-candidate-cv']") : null;
     if (!btn) return;
-    if (btn.hasAttribute("disabled") || btn.getAttribute("aria-disabled") === "true") return;
+    if (
+      btn.hasAttribute("disabled") ||
+      btn.getAttribute("aria-disabled") === "true" ||
+      btn.getAttribute("aria-busy") === "true"
+    )
+      return;
     const id = String(btn.dataset.id || "").trim();
     if (!id) return;
     event.preventDefault();
@@ -25595,13 +25831,18 @@ function installCandidateCvDownloadDelegation() {
       return;
     }
     btn.setAttribute("aria-busy", "true");
-    const dl = await resolveCandidateCvDownload(cand);
-    btn.removeAttribute("aria-busy");
-    if (!dl?.href) {
-      notify("No hay CV descargable para este candidato.", "info");
-      return;
+    btn.disabled = true;
+    try {
+      const dl = await resolveCandidateCvDownload(cand);
+      if (!dl?.href) {
+        notify("No hay CV descargable para este candidato.", "info");
+        return;
+      }
+      await triggerCandidateCvDownload(dl.href, dl.fileName, id);
+    } finally {
+      btn.removeAttribute("aria-busy");
+      btn.disabled = false;
     }
-    await triggerCandidateCvDownload(dl.href, dl.fileName, id);
   });
 }
 
@@ -28540,6 +28781,7 @@ function bindDynamicEvents() {
       const nextId = isToggleOff ? "" : companyId;
       state.requestsUi = { ...(state.requestsUi || {}), companyId: nextId };
       if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = nextId;
+      state.requestsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     };
     btn.addEventListener("click", apply);
@@ -28559,6 +28801,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.requestsUi = { ...(state.requestsUi || {}), companyId: "" };
       if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = "";
+      state.requestsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     });
   });
@@ -28568,10 +28811,18 @@ function bindDynamicEvents() {
    * elegida en `state.tripsFilter` para que sobreviva al re-render local
    * (cambio de estado, edición, etc.).
    */
+  nodes.viewRoot.querySelectorAll("[data-action='trips-render-more']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.tripsRenderLimit = (Number(state.tripsRenderLimit) || RENDER_WINDOW_SIZE) + RENDER_WINDOW_SIZE;
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='trips-filter']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const filterKey = String(btn.dataset.filter || "active");
       state.tripsFilter = filterKey;
+      state.tripsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     });
   });
@@ -28583,6 +28834,7 @@ function bindDynamicEvents() {
         ...(state.transportTripsUi || {}),
         search: next
       };
+      state.tripsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     });
   });
@@ -28593,6 +28845,7 @@ function bindDynamicEvents() {
         ...(state.transportTripsUi || {}),
         sort: normalizeTransportTripsSort(select.value)
       };
+      state.tripsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     });
   });
@@ -28610,10 +28863,18 @@ function bindDynamicEvents() {
   /**
    * Filtros rápidos del panel operativo de solicitudes. Mismo patrón que viajes.
    */
+  nodes.viewRoot.querySelectorAll("[data-action='requests-render-more']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.requestsRenderLimit = (Number(state.requestsRenderLimit) || RENDER_WINDOW_SIZE) + RENDER_WINDOW_SIZE;
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='requests-filter']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const filterKey = String(btn.dataset.filter || "active");
       state.requestsFilter = filterKey;
+      state.requestsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     });
   });
@@ -30102,6 +30363,13 @@ function bindDynamicEvents() {
     );
   }
 
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-runs-render-more']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollRunsRenderLimit = (Number(state.payrollRunsRenderLimit) || RENDER_WINDOW_SIZE) + RENDER_WINDOW_SIZE;
+      renderPortalView();
+    });
+  });
+
   const payrollFiltersForm = document.getElementById("payroll-filters");
   if (payrollFiltersForm) {
     payrollFiltersForm.querySelectorAll("select").forEach((select) => {
@@ -30110,6 +30378,7 @@ function bindDynamicEvents() {
         const key = String(select.name || "");
         if (!key) return;
         state.payrollFilters[key] = String(select.value || "");
+        state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
         renderPortalView();
       });
     });
@@ -30118,6 +30387,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-clear-filters']").forEach((btn) => {
     btn.addEventListener("click", () => {
       state.payrollFilters = defaultPayrollFilters();
+      state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
     });
   });
@@ -30126,6 +30396,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.payrollFilters = { ...(state.payrollFilters || {}), status: "pending" };
       state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "runs" };
+      state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
       persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
@@ -30135,6 +30406,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       state.payrollFilters = { ...(state.payrollFilters || defaultPayrollFilters()), status: "all", period: "all", frequency: "all" };
       state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "runs" };
+      state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
       persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
@@ -30143,6 +30415,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-quick-filter']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const quick = String(btn.dataset.quick || "all");
+      state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
       state.payrollFilters = state.payrollFilters || defaultPayrollFilters();
       if (quick === "pending") {
         state.payrollFilters.status = "pending";
@@ -30309,22 +30582,24 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = String(btn.dataset.id || "");
-      const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
-      if (!visibleIds.has(id)) return;
-      const list = read(KEYS.notifications, []);
-      write(
-        KEYS.notifications,
-        list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
-      );
-      try {
-        await writeNotificationsAwaitServer();
-      } catch (_e) {
-        return;
-      }
-      renderPortalView();
-      updateNotificationBadge();
+    btn.addEventListener("click", () => {
+      void runWithBusyButton(btn, async () => {
+        const id = String(btn.dataset.id || "");
+        const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
+        if (!visibleIds.has(id)) return;
+        const list = read(KEYS.notifications, []);
+        write(
+          KEYS.notifications,
+          list.map((n) => (n.id === id ? { ...n, readAt: nowIso() } : n))
+        );
+        try {
+          await writeNotificationsAwaitServer();
+        } catch (_e) {
+          return;
+        }
+        renderPortalView();
+        updateNotificationBadge();
+      });
     });
   });
 
@@ -30345,21 +30620,23 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
-      const ts = nowIso();
-      const list = read(KEYS.notifications, []);
-      write(
-        KEYS.notifications,
-        list.map((n) => (visibleIds.has(n.id) && !n.readAt ? { ...n, readAt: ts } : n))
-      );
-      try {
-        await writeNotificationsAwaitServer();
-      } catch (_e) {
-        return;
-      }
-      renderPortalView();
-      updateNotificationBadge();
+    btn.addEventListener("click", () => {
+      void runWithBusyButton(btn, async () => {
+        const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
+        const ts = nowIso();
+        const list = read(KEYS.notifications, []);
+        write(
+          KEYS.notifications,
+          list.map((n) => (visibleIds.has(n.id) && !n.readAt ? { ...n, readAt: ts } : n))
+        );
+        try {
+          await writeNotificationsAwaitServer();
+        } catch (_e) {
+          return;
+        }
+        renderPortalView();
+        updateNotificationBadge();
+      });
     });
   });
 
@@ -30872,33 +31149,35 @@ function bindDynamicEvents() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='cancel-request']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const requests = reqRead();
-      const req = requests.find((r) => r.id === btn.dataset.id);
-      if (!req) return;
-      const actor = currentUser();
-      if (!actor || req.trip || !canPortalUserEditTransportRequest(req, actor)) {
-        notify("No puede cancelar esta solicitud en el estado actual o ya tiene viaje asignado.", "error");
-        return;
-      }
-      const updated = requests.map((r) =>
-        r.id === req.id
-          ? {
-              ...r,
-              status: STATUS.CANCELADA,
-              updatedAt: nowIso(),
-              updatedBy: actor?.name || (actor.role === ROLES.CLIENT ? "Cliente" : "Usuario")
-            }
-          : r
-      );
-      try {
-        await reqWriteAwait(updated);
-      } catch (err) {
-        notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
-        return;
-      }
-      notify("Solicitud cancelada.", "success");
-      renderPortalView();
+    btn.addEventListener("click", () => {
+      void runWithBusyButton(btn, async () => {
+        const requests = reqRead();
+        const req = requests.find((r) => r.id === btn.dataset.id);
+        if (!req) return;
+        const actor = currentUser();
+        if (!actor || req.trip || !canPortalUserEditTransportRequest(req, actor)) {
+          notify("No puede cancelar esta solicitud en el estado actual o ya tiene viaje asignado.", "error");
+          return;
+        }
+        const updated = requests.map((r) =>
+          r.id === req.id
+            ? {
+                ...r,
+                status: STATUS.CANCELADA,
+                updatedAt: nowIso(),
+                updatedBy: actor?.name || (actor.role === ROLES.CLIENT ? "Cliente" : "Usuario")
+              }
+            : r
+        );
+        try {
+          await reqWriteAwait(updated);
+        } catch (err) {
+          notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
+          return;
+        }
+        notify("Solicitud cancelada.", "success");
+        renderPortalView();
+      });
     });
   });
 
@@ -32084,9 +32363,18 @@ function bindDynamicEvents() {
       if (abortUnlessAdminForFleetDriverEdit()) return;
       const did = String(btn.dataset.id || "").trim();
       if (!did) return;
+      if (btn.dataset.busy === "1") return;
+      btn.dataset.busy = "1";
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
       try {
         if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-      } catch (_e) {}
+      } catch (_e) {
+      } finally {
+        btn.dataset.busy = "0";
+        btn.disabled = false;
+        btn.removeAttribute("aria-busy");
+      }
       const all = read(KEYS.drivers, []);
       const rawTarget = all.find((v) => String(v.id ?? "").trim() === did);
       const target = normalizeDriverRowForEditor(rawTarget);
@@ -32509,6 +32797,7 @@ function bindDynamicEvents() {
   if (employeeForm) {
     window.AntaresValidation?.decorateFormFields?.(employeeForm);
     wirePayrollEmployeeFormFieldSanitization(employeeForm);
+    const employeeDuplicateDocCheck = wireEmployeePayrollDuplicateDocCheck(employeeForm);
     attachDepartmentCitySelects(employeeForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
@@ -32683,6 +32972,13 @@ function bindDynamicEvents() {
       const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
+        return;
+      }
+      if (!employeeDuplicateDocCheck()) {
+        notify(
+          `Ya existe un colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
+          "error"
+        );
         return;
       }
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
@@ -32889,12 +33185,19 @@ function bindDynamicEvents() {
         notify(userMessage("employeeDeleteNotFound"), "error");
         return;
       }
-      if (!resolvePayrollEmployeeCostCenter(target) && portalCanRefreshFromApi()) {
+      if (!resolvePayrollEmployeeCostCenter(target) && portalCanRefreshFromApi() && btn.dataset.busy !== "1") {
+        btn.dataset.busy = "1";
+        btn.disabled = true;
+        btn.setAttribute("aria-busy", "true");
         try {
           await applyPortalBootstrapFromApi();
           target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId) || target;
         } catch (_e) {
           /* usar caché local */
+        } finally {
+          btn.dataset.busy = "0";
+          btn.disabled = false;
+          btn.removeAttribute("aria-busy");
         }
       }
       target = normalizePayrollEmployeeRowDates(target);
@@ -33021,11 +33324,20 @@ function bindDynamicEvents() {
           syncEditAvatarInitial();
           syncEmployeeEditCatalogSelects(formEl, target);
           wirePayrollEmployeeFormFieldSanitization(formEl);
+          wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
         },
         onSubmit: async (payload, formEl) => {
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
           if (!docValidation.ok) {
             notify(docValidation.message, "error");
+            return false;
+          }
+          const dupCheck = wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
+          if (!dupCheck()) {
+            notify(
+              `Ya existe otro colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
+              "error"
+            );
             return false;
           }
           let nextAvatar = String(payload.avatarUrlExisting || "").trim();
@@ -33961,15 +34273,26 @@ function bindDynamicEvents() {
       const run = all.find((r) => r.id === id);
       if (!run || run.paid) return;
       if (requiresAdminHrApproval(actor?.role || "")) {
-        await queueApproval({
-          type: "mark_payroll_paid",
-          title: `Aprobar pago de nomina ${run.employeeName} (${run.month})`,
-          payload: { payrollRunId: run.id, employeeName: run.employeeName, month: run.month },
-          requestedByUserId: actor?.id || "",
-          requestedByName: actor?.name || "Usuario"
-        });
-        notify(userMessage("payrollMarkPaidApprovalAdmin"), "info");
-        renderPortalView();
+        if (btn.dataset.busy === "1") return;
+        btn.dataset.busy = "1";
+        btn.disabled = true;
+        btn.setAttribute("aria-busy", "true");
+        try {
+          await queueApproval({
+            type: "mark_payroll_paid",
+            title: `Aprobar pago de nomina ${run.employeeName} (${run.month})`,
+            payload: { payrollRunId: run.id, employeeName: run.employeeName, month: run.month },
+            requestedByUserId: actor?.id || "",
+            requestedByName: actor?.name || "Usuario"
+          });
+          notify(userMessage("payrollMarkPaidApprovalAdmin"), "info");
+          renderPortalView();
+        } catch (err) {
+          btn.dataset.busy = "0";
+          btn.disabled = false;
+          btn.removeAttribute("aria-busy");
+          notify(String(err?.message || "No fue posible enviar la solicitud de aprobación."), "error");
+        }
         return;
       }
       openConfirmModal({
@@ -34277,7 +34600,11 @@ function bindDynamicEvents() {
         legalBasis: normalizeLatinUpperForDb(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
         active: true
       }));
-      const ok = await persistPositionsCatalog(all, { optimistic: true });
+      // optimistic:false → esperamos confirmación del servidor antes de cerrar el panel.
+      // Así el cargo queda realmente en la BD (tabla cargos) antes de que cualquier alta de
+      // empleado lo referencie por id_cargo, evitando que el colaborador no se guarde por una
+      // carrera entre el sync de cargos y el de empleados.
+      const ok = await persistPositionsCatalog(all, { optimistic: false });
       if (!ok) return;
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "data";
@@ -34289,34 +34616,38 @@ function bindDynamicEvents() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-position']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const all = read(KEYS.positions, []);
-      const target = all.find((p) => p.id === btn.dataset.id);
-      if (!target) return;
-      const nextPositions = all.map((p) =>
-        p.id === target.id ? { ...p, active: target.active === false, updatedAt: nowIso() } : p
-      );
-      const ok = await persistPositionsCatalog(nextPositions, { optimistic: true });
-      if (!ok) return;
-      notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
-      renderPortalView();
+    btn.addEventListener("click", () => {
+      void runWithBusyButton(btn, async () => {
+        const all = read(KEYS.positions, []);
+        const target = all.find((p) => p.id === btn.dataset.id);
+        if (!target) return;
+        const nextPositions = all.map((p) =>
+          p.id === target.id ? { ...p, active: target.active === false, updatedAt: nowIso() } : p
+        );
+        const ok = await persistPositionsCatalog(nextPositions, { optimistic: true });
+        if (!ok) return;
+        notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
+        renderPortalView();
+      });
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-vacancy']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const all = read(KEYS.vacancies, []);
-      const nextVacancies = all.map((v) =>
-        v.id === btn.dataset.id ? { ...v, status: "Cerrada", updatedAt: nowIso() } : v
-      );
-      try {
-        await writeAwaitServer(KEYS.vacancies, nextVacancies);
-      } catch (err) {
-        notify(String(err?.message || "No fue posible cerrar la vacante en el servidor."), "error");
-        return;
-      }
-      notify(userMessage("vacancyClosed"), "success");
-      renderPortalView();
+    btn.addEventListener("click", () => {
+      void runWithBusyButton(btn, async () => {
+        const all = read(KEYS.vacancies, []);
+        const nextVacancies = all.map((v) =>
+          v.id === btn.dataset.id ? { ...v, status: "Cerrada", updatedAt: nowIso() } : v
+        );
+        try {
+          await writeAwaitServer(KEYS.vacancies, nextVacancies);
+        } catch (err) {
+          notify(String(err?.message || "No fue posible cerrar la vacante en el servidor."), "error");
+          return;
+        }
+        notify(userMessage("vacancyClosed"), "success");
+        renderPortalView();
+      });
     });
   });
 
@@ -34479,11 +34810,23 @@ function bindDynamicEvents() {
     });
     bindHrFormWizard(candidateForm);
     applyDocumentFieldConstraints(candidateForm);
+    const candidateDuplicateDocCheck = wireFormDocDuplicateCheck(candidateForm, {
+      storageKey: KEYS.candidates,
+      useCompanyScope: false,
+      entityLabel: "candidato"
+    });
     wireFormSubmitGuard(candidateForm, async (event) => {
       const data = readFormEntriesNormalized(candidateForm);
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
       if (!docValidation.ok) {
         notify(docValidation.message, "error");
+        return;
+      }
+      if (!candidateDuplicateDocCheck()) {
+        notify(
+          `Ya existe un candidato con el documento ${docValidation.normalized}. Revise el listado de candidatos.`,
+          "error"
+        );
         return;
       }
       data.idDoc = docValidation.normalized;
@@ -35083,6 +35426,11 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='approval-approve']").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (btn.dataset.busy === "1") return;
+      btn.dataset.busy = "1";
+      btn.disabled = true;
+      btn.setAttribute("aria-busy", "true");
+      try {
       const id = String(btn.dataset.id || "");
       const approvals = read(KEYS.approvals, []);
       const approval = approvals.find((a) => a.id === id && a.status === "pendiente");
@@ -35398,6 +35746,11 @@ function bindDynamicEvents() {
       }
       notify(userMessage("authApprovalOk"), "success");
       renderPortalView();
+      } finally {
+        btn.dataset.busy = "0";
+        btn.disabled = false;
+        btn.removeAttribute("aria-busy");
+      }
     });
   });
 
@@ -35808,6 +36161,13 @@ function initGlobalEvents() {
      * dejar al usuario atrapado en el portal. El timeout corto evita que el botón
      * "Cerrar sesión" se sienta colgado cuando el API está caído.
      */
+    const logoutBtn = nodes.logout;
+    if (logoutBtn?.dataset.busy === "1") return;
+    if (logoutBtn) {
+      logoutBtn.dataset.busy = "1";
+      logoutBtn.disabled = true;
+      logoutBtn.setAttribute("aria-busy", "true");
+    }
     try {
       const api = window.AntaresApi;
       if (api?.getBase?.() && portalCanRefreshFromApi()) {

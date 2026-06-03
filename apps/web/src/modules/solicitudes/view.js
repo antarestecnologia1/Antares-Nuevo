@@ -112,7 +112,26 @@
         const tb = new Date(b?.trip?.etaPickup || b?.pickupAt || b?.pickupDate || b?.createdAt || 0).getTime();
         return tb - ta; // Más recientes/próximas primero
       });
-    return `<div class="trip-ops-cards request-ops-cards">${sorted.map((r) => buildRequestOpsCard(r, user)).join("")}</div>`;
+    /**
+     * Ventana de render: no construimos cientos de tarjetas de una sola vez (lo que
+     * hacía lento "mostrar los datos"). No se oculta ningún dato del servidor; el resto
+     * se muestra con "Ver más". El límite vive en `state.requestsRenderLimit` y se
+     * reinicia al cambiar filtro (manejadores en app.js).
+     */
+    const WIN = 30;
+    let limit = WIN;
+    try {
+      limit = Number(typeof state !== "undefined" && state?.requestsRenderLimit) || WIN;
+    } catch (_) {
+      /* noop */
+    }
+    if (!(limit > 0)) limit = WIN;
+    const shown = sorted.slice(0, limit);
+    const moreBar =
+      typeof renderWindowMoreBar === "function"
+        ? renderWindowMoreBar(sorted.length, shown.length, "requests-render-more")
+        : "";
+    return `<div class="trip-ops-cards request-ops-cards">${shown.map((r) => buildRequestOpsCard(r, user)).join("")}</div>${moreBar}`;
   }
 
   /**
