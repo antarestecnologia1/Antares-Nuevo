@@ -1809,6 +1809,38 @@ export class PortalService implements OnModuleInit {
     return new Set(r.rows.map((row) => String(row.permiso || "").trim()).filter(Boolean));
   }
 
+  /** Misma política que permisos por defecto del rol en app.js cuando `permisos_usuario` está vacío. */
+  private async resolveEffectivePermissionSet(userId: string, role: JwtRole): Promise<Set<string>> {
+    if (this.isAdmin(role)) return new Set(ALL_PORTAL_PERMISSIONS);
+    const fromDb = await this.loadPortalPermissionSet(userId);
+    if (fromDb.size > 0) return fromDb;
+    return new Set(defaultPermissionsForApprovedRole(String(role || "").toLowerCase()));
+  }
+
+  private canViewPositionsCatalog(role: JwtRole, permissionSet: ReadonlySet<string>): boolean {
+    return (
+      this.isAdmin(role) ||
+      this.isRrhh(role) ||
+      this.hasPortalPermission(permissionSet, "payroll_manage") ||
+      this.hasPortalPermission(permissionSet, "hiring_manage")
+    );
+  }
+
+  private async assertCanViewPositionsCatalog(userId: string, role: JwtRole): Promise<void> {
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (!this.canViewPositionsCatalog(role, permissionSet)) {
+      throw new ForbiddenException();
+    }
+  }
+
+  /** Catálogo de cargos (lectura directa en PostgreSQL; no depende del volcado completo de bootstrap). */
+  async getPositionsCatalog(userId: string, role: JwtRole) {
+    await this.assertCanViewPositionsCatalog(userId, role);
+    const rows = await this.loadPositions();
+    this.logger.log(`getPositionsCatalog: ${rows.length} fila(s) para usuario ${userId}`);
+    return rows;
+  }
+
   private hasPortalPermission(permissionSet: ReadonlySet<string>, permission: string): boolean {
     return permissionSet.has(String(permission || "").trim());
   }
@@ -2278,7 +2310,7 @@ export class PortalService implements OnModuleInit {
     const admin = this.isAdmin(role);
     const [empresaId, permissionSet] = await Promise.all([
       this.getUserCompany(userId),
-      admin ? Promise.resolve(new Set<string>(ALL_PORTAL_PERMISSIONS)) : this.loadPortalPermissionSet(userId)
+      this.resolveEffectivePermissionSet(userId, role)
     ]);
     const canUsersManage = admin || this.hasPortalPermission(permissionSet, "users_manage");
     const canViewContactB2b = admin || this.hasPortalPermission(permissionSet, "contact_b2b_view");
@@ -2298,6 +2330,7 @@ export class PortalService implements OnModuleInit {
       this.hasPortalPermission(permissionSet, "authorizations_manage");
     const canPayroll = admin || this.hasPortalPermission(permissionSet, "payroll_manage");
     const canHiring = admin || this.hasPortalPermission(permissionSet, "hiring_manage");
+    const canLoadPositionsCatalog = this.canViewPositionsCatalog(role, permissionSet);
     const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
     const fullUserDirectoryAccess = admin || canUsersManage;
     const canSeeAllCompanies =
@@ -2328,7 +2361,7 @@ export class PortalService implements OnModuleInit {
       this.loadNotifications(userId, admin),
       this.loadEmails(admin),
       this.loadContacts(canViewContactB2b),
-      canPayroll || canHiring ? this.loadPositions() : Promise.resolve([]),
+      canLoadPositionsCatalog ? this.loadPositions() : Promise.resolve([]),
       canHiring ? this.loadVacancies() : Promise.resolve([]),
       canHiring ? this.loadCandidates() : Promise.resolve([]),
       canHiring ? this.loadInterviews() : Promise.resolve([]),
@@ -4525,15 +4558,25 @@ export class PortalService implements OnModuleInit {
 
   private async loadPositions() {
     try {
-      const r = await this.pool.query(`SELECT * FROM cargos ORDER BY nombre`);
-      return r.rows.map((p) => ({
+      if (!(await this.tableExists("public.cargos"))) {
+        this.logger.warn("loadPositions: tabla public.cargos no existe en esta base");
+        return [];
+      }
+      const r = await this.pool.query(
+        `SELECT id, nombre, rol_trabajador, salario_base_mensual, tipo_contrato_sugerido,
+                fundamento_legal, activo, jornada_referencia, nivel_riesgo_arl, salario_integral,
+                auxilio_transporte, fecha_creacion, fecha_actualizacion
+           FROM public.cargos
+          ORDER BY nombre`
+      );
+      const rows = r.rows.map((p) => ({
         id: String(p.id ?? "").trim(),
-        name: p.nombre,
-        workerRole: p.rol_trabajador,
-        baseSalary: Number(p.salario_base_mensual),
+        name: String(p.nombre ?? "").trim(),
+        workerRole: String(p.rol_trabajador || "empleado").toLowerCase(),
+        baseSalary: Number(p.salario_base_mensual) || 0,
         transportAllowance: p.auxilio_transporte != null ? Number(p.auxilio_transporte) : null,
-        contractTypeDefault: p.tipo_contrato_sugerido,
-        legalBasis: p.fundamento_legal,
+        contractTypeDefault: String(p.tipo_contrato_sugerido ?? "").trim() || "Termino indefinido",
+        legalBasis: String(p.fundamento_legal ?? "").trim(),
         active: p.activo !== false,
         createdAt: p.fecha_creacion ? new Date(p.fecha_creacion).toISOString() : new Date().toISOString(),
         updatedAt: p.fecha_actualizacion ? new Date(p.fecha_actualizacion).toISOString() : null,
@@ -4542,6 +4585,8 @@ export class PortalService implements OnModuleInit {
         arlRiskLevel: p.nivel_riesgo_arl,
         integralSalary: p.salario_integral
       }));
+      this.logger.log(`loadPositions: ${rows.length} cargo(s) desde public.cargos`);
+      return rows;
     } catch (e) {
       this.logger.error(
         `loadPositions (cargos): ${e instanceof Error ? e.message : String(e)}`
@@ -8851,13 +8896,15 @@ export class PortalService implements OnModuleInit {
     deletedIds?: string[]
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    if (key === "positions") {
+      /** No podar cargos por lista parcial del navegador: solo borrado explícito + upsert. */
+      await this.deleteRowsByExplicitIds(c, "cargos", deletedIds);
+      await this.upsertPositionsBatch(c, data);
+      return;
+    }
     const hrTable = this.syncPruneTableForKey(key);
     if (hrTable) {
       await this.syncListWithPruning(c, hrTable, data, deletedIds);
-    }
-    if (key === "positions") {
-      await this.upsertPositionsBatch(c, data);
-      return;
     }
     if (key === "vacancies") {
       for (const raw of data) {

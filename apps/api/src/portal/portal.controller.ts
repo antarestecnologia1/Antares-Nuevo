@@ -35,6 +35,12 @@ export class PortalController {
     return this.portal.bootstrap(req.user.userId, req.user.role);
   }
 
+  /** Catálogo de cargos (Contratación / nómina). Lectura directa en PostgreSQL. */
+  @Get("positions")
+  positionsCatalog(@Req() req: { user: ReqUser }) {
+    return this.portal.getPositionsCatalog(req.user.userId, req.user.role);
+  }
+
   /** Hoja de vida del candidato (R2 prefirmado / público o base64 inline). Rol RRHH. */
   @Get("candidates/:id/cv-download")
   candidateCvDownload(@Req() req: { user: ReqUser }, @Param("id") candidateId: string) {

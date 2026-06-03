@@ -3448,6 +3448,42 @@ function companyProfileLogoUrl(company) {
   return String(normalizePortalBootstrapCompanyRow(company).logoUrl || "").trim();
 }
 
+/** Fila de cargo desde GET /portal/positions o bootstrap (aliases ES/EN). */
+function normalizePortalBootstrapPositionRow(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw;
+  const id = String(r.id ?? r.id_cargo ?? "").trim();
+  if (!id) return null;
+  const activeRaw = r.active ?? r.activo;
+  const active =
+    activeRaw === false ||
+    String(activeRaw ?? "").toLowerCase() === "false"
+      ? false
+      : true;
+  return {
+    ...r,
+    id,
+    name: String(r.name ?? r.nombre ?? "").trim(),
+    workerRole: String(r.workerRole ?? r.rol_trabajador ?? "empleado").toLowerCase(),
+    baseSalary: Number(r.baseSalary ?? r.salario_base_mensual ?? 0) || 0,
+    transportAllowance:
+      r.transportAllowance != null
+        ? Number(r.transportAllowance)
+        : r.auxilio_transporte != null
+          ? Number(r.auxilio_transporte)
+          : null,
+    contractTypeDefault: String(
+      r.contractTypeDefault ?? r.tipo_contrato_sugerido ?? "Termino indefinido"
+    ).trim(),
+    legalBasis: String(r.legalBasis ?? r.fundamento_legal ?? "").trim(),
+    active,
+    workSchedule: String(r.workSchedule ?? r.schedule ?? r.jornada_referencia ?? "").trim(),
+    schedule: String(r.schedule ?? r.workSchedule ?? r.jornada_referencia ?? "").trim(),
+    arlRiskLevel: r.arlRiskLevel ?? r.nivel_riesgo_arl ?? null,
+    integralSalary: r.integralSalary ?? r.salario_integral ?? null
+  };
+}
+
 function payrollDocumentLogoUrl(company) {
   return companyProfileLogoUrl(company) || reportBrandLogoSrc();
 }
@@ -6403,7 +6439,8 @@ function __applyPortalBootstrapPayloadInner(p) {
     }
     if (prop === "positions") {
       const raw = Array.isArray(p.positions) ? p.positions : [];
-      write(key, raw);
+      const list = raw.map(normalizePortalBootstrapPositionRow).filter(Boolean);
+      write(key, list);
       dispatchPositionsCatalogUpdated();
       continue;
     }
@@ -6541,6 +6578,7 @@ async function applyPortalBootstrapFromApi() {
   const tryHydrateOwnProfileFallback = () => hydrateOwnProfileFromApi();
   try {
     await runBootstrap();
+    await refreshPositionsCatalogFromApi({ rerender: false });
     await hydrateOwnProfileFromApi();
     return true;
   } catch (err) {
@@ -6551,18 +6589,23 @@ async function applyPortalBootstrapFromApi() {
       if (!portalCanRefreshFromApi()) return false;
       try {
         await runBootstrap();
+        await refreshPositionsCatalogFromApi({ rerender: false });
         return true;
       } catch (e2) {
         devWarn("Portal: /portal/bootstrap fallo tras renovar token.", e2?.message || e2);
+        await refreshPositionsCatalogFromApi({ rerender: false });
         await tryHydrateOwnProfileFallback();
         return false;
       }
     }
     devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+    await refreshPositionsCatalogFromApi({ rerender: false });
     await tryHydrateOwnProfileFallback();
     return false;
   }
 }
+
+window.refreshPositionsCatalogFromApi = refreshPositionsCatalogFromApi;
 
 /** Fusiona filas de GET /portal/pending-user-registrations sin borrar el resto de usuarios en caché. */
 function mergePendingUserRegistrationsIntoCache(rows) {
@@ -10836,6 +10879,33 @@ function dispatchPositionsCatalogUpdated() {
     window.dispatchEvent(new CustomEvent("antares-positions-catalog-updated"));
   } catch (_e) {
     /* noop */
+  }
+}
+
+/**
+ * Hidrata el catálogo de cargos desde GET /portal/positions (no depende del bootstrap masivo).
+ * @returns {Promise<boolean>} true si se guardó al menos un cargo en memoria.
+ */
+async function refreshPositionsCatalogFromApi(opts = {}) {
+  const api = window.AntaresApi;
+  if (!api?.getJson || !portalCanRefreshFromApi()) return false;
+  try {
+    const payload = await api.getJson("/portal/positions");
+    const raw = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.positions)
+        ? payload.positions
+        : [];
+    const list = raw.map(normalizePortalBootstrapPositionRow).filter(Boolean);
+    write(KEYS.positions, list, { skipSyncSchedule: true });
+    dispatchPositionsCatalogUpdated();
+    if (opts.rerender !== false && !hasUnsavedPortalFormData()) {
+      scheduleRenderPortalView();
+    }
+    return list.length > 0;
+  } catch (err) {
+    devWarn("Portal: no se pudo cargar GET /portal/positions.", err?.message || err);
+    return false;
   }
 }
 
@@ -27140,21 +27210,8 @@ function renderPortalViewImpl() {
       }
     }
   }
-  if (
-    (view === "hiring" || view === "payroll") &&
-    prevPortalView !== view &&
-    portalCanRefreshFromApi() &&
-    !readArray(KEYS.positions).length
-  ) {
-    void applyPortalBootstrapFromApi().then((ok) => {
-      if (!ok) return;
-      try {
-        dispatchPositionsCatalogUpdated();
-      } catch (_e) {
-        /* noop */
-      }
-      if (!hasUnsavedPortalFormData()) scheduleRenderPortalView();
-    });
+  if ((view === "hiring" || view === "payroll") && prevPortalView !== view && portalCanRefreshFromApi()) {
+    void refreshPositionsCatalogFromApi();
   }
   if (view === "profile") {
     const cur = currentUser();
@@ -37924,15 +37981,17 @@ window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi
   } catch (_e) {
     /* noop */
   }
-  try {
-    dispatchPositionsCatalogUpdated();
-  } catch (_pos) {
-    /* noop */
-  }
-  if (!hasUnsavedPortalFormData()) {
-    scheduleRenderPortalView();
-  }
-  updateNotificationBadge();
+  void refreshPositionsCatalogFromApi({ rerender: false }).finally(() => {
+    try {
+      dispatchPositionsCatalogUpdated();
+    } catch (_pos) {
+      /* noop */
+    }
+    if (!hasUnsavedPortalFormData()) {
+      scheduleRenderPortalView();
+    }
+    updateNotificationBadge();
+  });
 };
 
 initPortalClientStorage();
