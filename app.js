@@ -16371,10 +16371,44 @@ function runAsSilentSystemNotifications(callback) {
   return result;
 }
 
-/** Mínimo entre GET /portal/bootstrap lanzados solo para refrescar la bandeja en caliente (sin F5). */
-const NOTIF_SILENT_BOOTSTRAP_MIN_MS = 12000;
+/** Mínimo entre refrescos LIGEROS de la campana (GET /portal/notifications, sin re-descargar todo). */
+const NOTIF_LIGHT_REFRESH_MIN_MS = 7000;
+/**
+ * Mínimo entre bootstraps COMPLETOS lanzados en segundo plano para refrescar datos operativos.
+ * Antes la campana arrastraba un bootstrap completo cada ~12s (re-descargaba TODO el dataset),
+ * lo que volvía lenta la plataforma. Ahora la campana usa un endpoint liviano y el bootstrap
+ * completo corre con mucha menor frecuencia.
+ */
+const NOTIF_SILENT_BOOTSTRAP_MIN_MS = 60000;
+let __lastNotificationsLightRefreshWallMs = 0;
 
-function __silentPullNotificationsViaBootstrapIfStale() {
+/** Refresca solo la bandeja de notificaciones con un endpoint liviano (sin re-descargar todo). */
+async function __refreshNotificationsBellIfStale() {
+  if (!portalCanRefreshFromApi()) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  const now = Date.now();
+  if (now - __lastNotificationsLightRefreshWallMs < NOTIF_LIGHT_REFRESH_MIN_MS) return;
+  __lastNotificationsLightRefreshWallMs = now;
+  const api = window.AntaresApi;
+  if (!api || typeof api.getJson !== "function") return;
+  try {
+    const res = await api.getJson("/portal/notifications");
+    const raw = Array.isArray(res?.notifications) ? res.notifications : [];
+    const actor = currentUser();
+    const filtered =
+      actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
+    write(KEYS.notifications, filtered, { skipSyncSchedule: true });
+    if (!getSession()) return;
+    reconcileNotificationsCacheForSession();
+    updateNotificationBadge();
+    if (state.currentView === "notifications") scheduleRenderPortalView();
+  } catch (_e) {
+    /* noop: la campana se reintenta en el próximo tick */
+  }
+}
+
+/** Bootstrap completo en segundo plano (datos operativos) con baja frecuencia. */
+function __silentFullBootstrapIfStale() {
   if (!portalCanRefreshFromApi()) return;
   if (typeof document !== "undefined" && document.hidden) return;
   const now = Date.now();
@@ -16396,7 +16430,8 @@ function __silentPullNotificationsViaBootstrapIfStale() {
 function __tickNotificationsPoll() {
   const user = currentUser();
   if (!user) return;
-  __silentPullNotificationsViaBootstrapIfStale();
+  void __refreshNotificationsBellIfStale();
+  __silentFullBootstrapIfStale();
   const current = getCurrentNotifications();
   const seen = __lastSeenNotificationIds || new Set();
   /**
@@ -31058,9 +31093,16 @@ function bindDynamicEvents() {
         confirmText: "Quitar tarifa",
         onConfirm: async () => {
           const rates = { ...getTripRouteRatesNormalized() };
+          const removed = rates[key];
+          const removedId =
+            removed && typeof removed === "object" ? String(removed.id || "").trim() : "";
           delete rates[key];
           try {
-            await writeAwaitServer(KEYS.tripRouteRates, rates);
+            await writeAwaitServer(
+              KEYS.tripRouteRates,
+              rates,
+              removedId ? { deletedIds: [removedId] } : {}
+            );
           } catch (err) {
             notify(String(err?.message || "No se pudo actualizar las tarifas en el servidor."), "error");
             return;

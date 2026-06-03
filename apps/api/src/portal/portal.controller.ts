@@ -35,6 +35,15 @@ export class PortalController {
     return this.portal.bootstrap(req.user.userId, req.user.role);
   }
 
+  /**
+   * Bandeja de notificaciones (payload liviano para refrescar la campana sin traer todo el
+   * bootstrap). El polling de notificaciones usa esto para no re-descargar todo el dataset.
+   */
+  @Get("notifications")
+  notifications(@Req() req: { user: ReqUser }) {
+    return this.portal.getNotificationsForUser(req.user.userId, req.user.role);
+  }
+
   /** Catálogo de cargos (Contratación / nómina). Lectura directa en PostgreSQL. */
   @Get("positions")
   positionsCatalog(@Req() req: { user: ReqUser }) {

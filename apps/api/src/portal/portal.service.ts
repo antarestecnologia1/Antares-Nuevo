@@ -436,6 +436,14 @@ export class PortalService implements OnModuleInit {
   private payrollEmployeeSchemaTier: 0 | 1 | 2 | undefined;
   /** Columnas origen_liquidacion / novedades_liquidacion_json (migr. 22). */
   private payrollLiquNovedadesCols: boolean | undefined;
+  /**
+   * Throttle del job de avisos de contrato a término fijo: hace un escaneo completo de
+   * empleados_nomina y NO debe correr en cada bootstrap (el bootstrap se llama muy seguido,
+   * p. ej. por el polling de notificaciones). Marca de tiempo del último arranque por proceso.
+   */
+  private lastFixedTermRenewalRunMs = 0;
+  /** Evita lanzar el job en paralelo si ya hay uno en vuelo. */
+  private fixedTermRenewalInFlight = false;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -2340,13 +2348,7 @@ export class PortalService implements OnModuleInit {
       canPayroll || canHiring ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
 
     if (canPayroll) {
-      try {
-        await this.runFixedTermContractRenewalNotifications();
-      } catch (e) {
-        this.logger.warn(
-          `Avisos contrato término fijo: ${e instanceof Error ? e.message : String(e)}`
-        );
-      }
+      this.maybeRunFixedTermContractRenewalNotifications();
     }
 
     const independentPromise = Promise.all([
@@ -3414,7 +3416,7 @@ export class PortalService implements OnModuleInit {
         return;
       case "tripRouteRates":
         if (!can("transport_trips")) throw new ForbiddenException();
-        await this.syncTripRouteRates(c, data);
+        await this.syncTripRouteRates(c, data, deletedIds);
         return;
       case "approvals":
         await this.syncApprovals(c, data, userId, role);
@@ -4351,6 +4353,30 @@ export class PortalService implements OnModuleInit {
     return { ok: true, notices };
   }
 
+  /**
+   * Lanza el job de avisos de contrato en segundo plano (sin bloquear el bootstrap) y solo
+   * si no corrió hace poco. Antes se hacía `await` dentro de `bootstrap()`, lo que sumaba un
+   * escaneo completo de empleados_nomina + lecturas N+1 al tiempo de "mostrar los datos" en
+   * cada carga con rol de nómina. Ahora el bootstrap responde de inmediato.
+   */
+  private maybeRunFixedTermContractRenewalNotifications(): void {
+    const THROTTLE_MS = 30 * 60 * 1000;
+    const now = Date.now();
+    if (this.fixedTermRenewalInFlight) return;
+    if (now - this.lastFixedTermRenewalRunMs < THROTTLE_MS) return;
+    this.lastFixedTermRenewalRunMs = now;
+    this.fixedTermRenewalInFlight = true;
+    void this.runFixedTermContractRenewalNotifications()
+      .catch((e) => {
+        this.logger.warn(
+          `Avisos contrato término fijo: ${e instanceof Error ? e.message : String(e)}`
+        );
+      })
+      .finally(() => {
+        this.fixedTermRenewalInFlight = false;
+      });
+  }
+
   private roleMayRunContractRenewalNotices(role: JwtRole): boolean {
     const r = String(role || "").toLowerCase();
     return (
@@ -4382,6 +4408,16 @@ export class PortalService implements OnModuleInit {
       [normalized]
     );
     return r.rows.map((row) => String(row.id)).filter((id) => PG_UUID_V4_RE.test(id));
+  }
+
+  /**
+   * Endpoint liviano para el polling de la campana: solo notificaciones, sin el resto del
+   * bootstrap. Reduce el tráfico/carga de "mostrar datos" al evitar re-descargar todo el
+   * dataset cada pocos segundos.
+   */
+  async getNotificationsForUser(userId: string, role: JwtRole) {
+    const notifications = await this.loadNotifications(userId, this.isAdmin(role));
+    return { notifications };
   }
 
   private async loadNotifications(userId: string, admin: boolean) {
@@ -5323,36 +5359,6 @@ export class PortalService implements OnModuleInit {
     return true;
   }
 
-  /**
-   * Sincroniza eliminaciones para entidades cuyo contrato es "el cliente envía toda la lista
-   * y el servidor refleja ese conjunto autoritativo". Borra del repositorio las filas cuyo
-   * id ya no aparece en el arreglo entrante: cierra el flujo de "borré X en el portal y al
-   * refrescar volvió a aparecer" porque el sync solo era UPSERT.
-   *
-   * Importante: solo se llama cuando `data` es un Array válido (los handlers ya validaron).
-   * Si el cliente envía lista vacía o solo ids inválidos, **no** se borra la tabla (evita wipe accidental).
-   * La poda solo aplica cuando hay al menos un UUID válido en el payload.
-   *
-   * Filtra ids inválidos antes de comparar para evitar que un id corrupto en el cliente
-   * provoque un wipe accidental.
-   */
-  private async deleteRowsNotInIncomingList(
-    c: PoolClient,
-    table: string,
-    incoming: unknown[],
-    idAccessor: (row: unknown) => unknown = (row) =>
-      row && typeof row === "object" ? (row as { id?: unknown }).id : null
-  ): Promise<void> {
-    const ids = incoming
-      .map(idAccessor)
-      .map((raw) => String(raw ?? "").trim())
-      .filter((s) => PG_UUID_V4_RE.test(s));
-    if (ids.length === 0) {
-      return;
-    }
-    await c.query(`DELETE FROM ${table} WHERE id::text <> ALL($1::text[])`, [ids]);
-  }
-
   /** Borrado explícito por UUID (p. ej. último ítem cuando el payload llega vacío). */
   private async deleteRowsByExplicitIds(
     c: PoolClient,
@@ -5383,14 +5389,21 @@ export class PortalService implements OnModuleInit {
     return map[key] ?? null;
   }
 
+  /**
+   * Política de borrado vía sync: el sync NO debe borrar la BD por "poda de lista".
+   * Solo se permite el borrado EXPLÍCITO por `deletedIds` (equivalente a un delete del
+   * usuario). La eliminación masiva de registros debe hacerse exclusivamente por los
+   * endpoints/funciones de borrado (admin-*-delete), nunca por reflejar una lista parcial
+   * del navegador, para evitar wipes accidentales de la base de datos.
+   */
   private async syncListWithPruning(
     c: PoolClient,
     table: string,
     data: unknown[],
     deletedIds?: string[]
   ): Promise<void> {
+    void data;
     await this.deleteRowsByExplicitIds(c, table, deletedIds);
-    await this.deleteRowsNotInIncomingList(c, table, data);
   }
 
   private async syncUsers(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
@@ -6826,46 +6839,11 @@ export class PortalService implements OnModuleInit {
       );
     }
 
-    if (!admin) {
-      const ids = rows
-        .map((n) => String(n?.id ?? "").trim())
-        .filter((id) => PG_UUID_V4_RE.test(id));
-      if (ids.length > 0) {
-        await c.query(
-          `DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND NOT (id::text = ANY($2::text[]))`,
-          [userId, ids]
-        );
-      }
-      return;
-    }
-
-    if (rows.length === 0) {
-      return;
-    }
-
-    const byUid = new Map<string, string[]>();
-    for (const n of rows) {
-      const nid = String(n?.id ?? "").trim();
-      const uid = String(n?.userId ?? "").trim();
-      if (!PG_UUID_V4_RE.test(nid) || !PG_UUID_V4_RE.test(uid)) continue;
-      let arr = byUid.get(uid);
-      if (!arr) {
-        arr = [];
-        byUid.set(uid, arr);
-      }
-      if (!arr.includes(nid)) arr.push(nid);
-    }
-
-    for (const [targetUid, keepIds] of byUid.entries()) {
-      if (!keepIds.length) {
-        await c.query(`DELETE FROM notificaciones WHERE id_usuario = $1::uuid`, [targetUid]);
-      } else {
-        await c.query(
-          `DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND NOT (id::text = ANY($2::text[]))`,
-          [targetUid, keepIds]
-        );
-      }
-    }
+    /**
+     * El sync NO poda notificaciones por "lista que no llegó en el payload" para evitar
+     * borrar de la BD de forma accidental. El borrado de notificaciones solo ocurre por
+     * `deletedIds` (acción explícita del usuario), manejado arriba.
+     */
   }
 
   private async syncEmails(c: PoolClient, data: unknown) {
@@ -9272,8 +9250,9 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async syncTripRouteRates(c: PoolClient, data: unknown) {
+  private async syncTripRouteRates(c: PoolClient, data: unknown, deletedIds?: string[]) {
     if (!data || typeof data !== "object") throw new ForbiddenException();
+    await this.deleteRowsByExplicitIds(c, "tarifas_trayecto", deletedIds);
     const SEP = "@@";
     const existingRows = await c.query<{
       id: string;
@@ -9391,11 +9370,13 @@ export class PortalService implements OnModuleInit {
         ]
       );
     }
-    if (keepIds.size) {
-      await c.query(`DELETE FROM tarifas_trayecto WHERE NOT (id = ANY($1::uuid[]))`, [[...keepIds]]);
-    } else {
-      await c.query(`DELETE FROM tarifas_trayecto`);
-    }
+    /**
+     * El sync de tarifas NO poda por lista (antes reconciliaba contra `keepIds` y hasta hacía
+     * `DELETE FROM tarifas_trayecto` cuando el payload llegaba sin ids, lo que podía vaciar la
+     * tabla). El borrado de tarifas solo ocurre por `deletedIds` (acción explícita "Quitar
+     * tarifa"), aplicado al inicio de este método. El resto es UPSERT.
+     */
+    void keepIds;
   }
 
   private async syncApprovals(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
