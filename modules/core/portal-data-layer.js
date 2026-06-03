@@ -52,22 +52,8 @@
       if (!isServerBacked()) return;
       var now = Date.now();
       if (now - lastVisibilityPull < VIS_DEBOUNCE_MS) return;
-      var cache = window.PortalBootstrapCache;
-      if (
-        typeof window.portalSnapshotIsFresh === "function" &&
-        window.portalSnapshotIsFresh() &&
-        cache &&
-        typeof cache.snapshotAgeMs === "function"
-      ) {
-        var session = null;
-        try {
-          session =
-            typeof window.getSession === "function" ? window.getSession() : null;
-        } catch (_s) {
-          session = null;
-        }
-        var uid = session && session.userId ? String(session.userId) : "";
-        if (uid && cache.snapshotAgeMs(uid) < 90000) return;
+      if (typeof window.portalSnapshotIsFresh === "function" && window.portalSnapshotIsFresh()) {
+        return;
       }
       lastVisibilityPull = now;
       void refreshCacheFromApi().then(function (ok) {

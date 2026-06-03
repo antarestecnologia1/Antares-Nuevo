@@ -6819,7 +6819,7 @@ function restorePortalSnapshotIfAvailable() {
   const uid = session?.userId;
   const cache = window.PortalBootstrapCache;
   if (!uid || !cache?.tryRestore) return false;
-  if (!cache.tryRestore(String(uid))) return false;
+  if (!cache.tryRestore(String(uid), { deferNonEssential: true })) return false;
   applyPortalSnapshotExtras(cache.consumeRestoredExtras?.());
   state.portalSnapshotRestored = true;
   state.portalDataHydrated = true;
@@ -39217,7 +39217,14 @@ void (async function bootApplicationFromDatabaseThenUi() {
     return;
   }
   try {
-    await startPortalBootstrapForInteractiveSession();
+    if (portalSnapshotIsFresh()) {
+      const deferBootstrapMs = 12000;
+      setTimeout(() => {
+        void startPortalBootstrapForInteractiveSession();
+      }, deferBootstrapMs);
+    } else {
+      await startPortalBootstrapForInteractiveSession();
+    }
   } catch (_e) {
     /* startPortalBootstrapForInteractiveSession ya tolera fallos */
   }
