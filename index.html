@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://antares-nuevo.onrender.com https://challenges.cloudflare.com https://esm.sh https://*.supabase.co http://localhost:* http://127.0.0.1:* http://[::1]:* ws://localhost:* ws://127.0.0.1:* ws://[::1]:*; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://antares-nuevo.onrender.com https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://esm.sh https://*.supabase.co http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:"
     />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
@@ -1189,15 +1189,16 @@
     <script defer src="./modules/core/api-client.js?v=20260515-fetch-errors"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js"></script>
-    <script defer src="./apps/web/src/modules/dashboard/view.js"></script>
-    <script defer src="./apps/web/src/modules/solicitudes/view.js"></script>
-    <script defer src="./apps/web/src/modules/transporte/view.js"></script>
-    <script defer src="./apps/web/src/modules/rrhh/view.js"></script>
-    <script defer src="./apps/web/src/modules/usuarios/view.js"></script>
-    <script defer src="./apps/web/src/modules/autorizaciones/view.js"></script>
-    <script defer src="./apps/web/src/modules/perfil/view.js"></script>
-    <script defer src="./apps/web/src/modules/notificaciones/view.js"></script>
-    <script defer src="./apps/web/src/modules/contacto-b2b/view.js"></script>
+    <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
+    <script defer src="./modules/portal/views/dashboard.js"></script>
+    <script defer src="./modules/portal/views/solicitudes.js"></script>
+    <script defer src="./modules/portal/views/transporte.js"></script>
+    <script defer src="./modules/portal/views/rrhh.js"></script>
+    <script defer src="./modules/portal/views/usuarios.js"></script>
+    <script defer src="./modules/portal/views/autorizaciones.js"></script>
+    <script defer src="./modules/portal/views/perfil.js"></script>
+    <script defer src="./modules/portal/views/notificaciones.js"></script>
+    <script defer src="./modules/portal/views/contacto-b2b.js"></script>
     <script defer src="./modules/auth/index.js"></script>
     <script defer src="./modules/users/index.js"></script>
     <script defer src="./modules/companies/index.js"></script>
