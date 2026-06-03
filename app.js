@@ -7235,31 +7235,6 @@ function adminUsersHydratingShellHtml({ pendingUsers, activeUsers, companies, ui
 window.applyPortalBootstrapFromApi = applyPortalBootstrapFromApi;
 window.portalCanRefreshFromApi = portalCanRefreshFromApi;
 
-/**
- * Rehidrata solo `payrollEmployees` desde GET /portal/payroll-employees (misma consulta que bootstrap).
- * Usado al entrar a Gestión humana si la caché quedó vacía o desfasada respecto a PostgreSQL.
- * @returns {Promise<boolean>} true si se aplicó un payload válido
- */
-async function refreshPayrollEmployeesListFromApi() {
-  if (!portalCanRefreshFromApi()) return false;
-  const api = window.AntaresApi;
-  if (!api?.getJson) return false;
-  try {
-    const rows = await api.getJson("/portal/payroll-employees", { timeoutMs: 28000 });
-    if (!Array.isArray(rows)) return false;
-    applyPortalBootstrapPayload({ payrollEmployees: rows });
-    try {
-      savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.payrollEmployees] });
-    } catch (_snap) {
-      /* QuotaExceeded u otro: no bloquear */
-    }
-    return true;
-  } catch (err) {
-    devWarn("Portal: GET /portal/payroll-employees fallo.", err?.message || err);
-    return false;
-  }
-}
-
 async function startPortalBootstrapForInteractiveSession() {
   if (!portalCanRefreshFromApi()) return;
   const p = window.PortalDataLayer?.refreshCacheFromApi
@@ -28246,7 +28221,7 @@ function renderPortalViewImpl() {
     const noEmployeesCached = readArray(KEYS.payrollEmployees).length === 0;
     if ((enteringPayroll || noEmployeesCached) && !state.__payrollEmployeesListHydrating) {
       state.__payrollEmployeesListHydrating = true;
-      void refreshPayrollEmployeesListFromApi()
+      void (window.PayrollEmployeeListSync?.refreshFromApi?.() || Promise.resolve(false))
         .then((ok) => {
           if (ok) scheduleRenderPortalView();
         })
@@ -39109,31 +39084,59 @@ function initPublicEffects() {
 
 }
 
-window.AppLegacyViews = {
-  viewDashboard,
-  requestFormHtml,
-  requestListClientHtml,
-  clientDataScopeBarHtml,
-  clientRequestsScopePrimaryLabel,
-  isPortalClientUser,
-  getClientDataScope,
-  transportTripsHtml,
-  vehiclesHtml,
-  driversHtml,
-  transportCalendarHtml,
-  historyHtml,
-  reportsHtml,
-  payrollHtml,
-  hiringHtml,
-  laborComplianceHtml,
-  adminUsersHtml,
-  authorizationsHtml,
-  profileHtml,
-  notificationsHtml,
-  contactLeadsHtml,
-  deletedTransportTripsLogSection: buildDeletedTransportTripsLogSection,
-  deletedTransportRequestsLogSection: buildDeletedTransportRequestsLogSection
-};
+if (typeof window.registerLegacyPortalViews === "function") {
+  window.registerLegacyPortalViews({
+    viewDashboard,
+    requestFormHtml,
+    requestListClientHtml,
+    clientDataScopeBarHtml,
+    clientRequestsScopePrimaryLabel,
+    isPortalClientUser,
+    getClientDataScope,
+    transportTripsHtml,
+    vehiclesHtml,
+    driversHtml,
+    transportCalendarHtml,
+    historyHtml,
+    reportsHtml,
+    payrollHtml,
+    hiringHtml,
+    laborComplianceHtml,
+    adminUsersHtml,
+    authorizationsHtml,
+    profileHtml,
+    notificationsHtml,
+    contactLeadsHtml,
+    deletedTransportTripsLogSection: buildDeletedTransportTripsLogSection,
+    deletedTransportRequestsLogSection: buildDeletedTransportRequestsLogSection
+  });
+} else {
+  window.AppLegacyViews = {
+    viewDashboard,
+    requestFormHtml,
+    requestListClientHtml,
+    clientDataScopeBarHtml,
+    clientRequestsScopePrimaryLabel,
+    isPortalClientUser,
+    getClientDataScope,
+    transportTripsHtml,
+    vehiclesHtml,
+    driversHtml,
+    transportCalendarHtml,
+    historyHtml,
+    reportsHtml,
+    payrollHtml,
+    hiringHtml,
+    laborComplianceHtml,
+    adminUsersHtml,
+    authorizationsHtml,
+    profileHtml,
+    notificationsHtml,
+    contactLeadsHtml,
+    deletedTransportTripsLogSection: buildDeletedTransportTripsLogSection,
+    deletedTransportRequestsLogSection: buildDeletedTransportRequestsLogSection
+  };
+}
 
 /** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */
 window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi() {

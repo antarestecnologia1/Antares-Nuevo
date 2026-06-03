@@ -4,6 +4,7 @@
  * - Vistas: AppModules (feature) + AppLegacyViews (transición)
  * - Dominio: DomainRegistry + DomainModules (lógica por contexto acotado)
  * - Persistencia: AntaresPersistence (caché); PortalDataLayer (política BD ↔ caché); datos en PostgreSQL vía API
+ * - Legacy: `registerLegacyPortalViews` (modules/portal/legacy-views-bridge.js) — ver docs/MODULARIZACION_PORTAL.md
  */
 (function registerApplicationFacade() {
   window.AntaresApp = {
