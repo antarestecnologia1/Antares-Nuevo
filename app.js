@@ -20799,96 +20799,6 @@ function wireReportsCharts(snapshot, layout) {
   });
 }
 
-function bindReportsWorkspaceControls() {
-  if (String(state.currentView || "") !== "reports" || !nodes.viewRoot) return;
-  const root = nodes.viewRoot.querySelector(".reports-workspace");
-  if (!root) return;
-
-  root.querySelectorAll("[data-action='reports-set-tab']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = String(btn.dataset.tab || "export").trim();
-      if (!["export", "bi"].includes(tab)) return;
-      state.reportsUi = { ...state.reportsUi, tab };
-      destroyReportsCharts();
-      renderPortalView();
-    });
-  });
-
-  const applyExportPeriod = (period) => {
-    const filters = normalizeReportsExportFilters({ ...(state.reportsUi?.exportFilters || {}), period });
-    state.reportsUi = { ...state.reportsUi, exportFilters: filters };
-    renderPortalView();
-  };
-
-  root.querySelectorAll("[data-action='reports-export-period-chip']").forEach((btn) => {
-    btn.addEventListener("click", () => applyExportPeriod(btn.dataset.period));
-  });
-
-  const applyBiPeriod = (period) => {
-    const p = String(period || "90d").trim();
-    if (!["30d", "90d", "month", "ytd", "all"].includes(p)) return;
-    state.reportsUi = { ...state.reportsUi, period: p, tab: "bi" };
-    destroyReportsCharts();
-    renderPortalView();
-  };
-
-  root.querySelectorAll("[data-action='reports-bi-period-chip']").forEach((btn) => {
-    btn.addEventListener("click", () => applyBiPeriod(btn.dataset.period));
-  });
-
-  root.querySelector("[data-action='reports-bi-refresh']")?.addEventListener("click", () => {
-    destroyReportsCharts();
-    renderPortalView();
-  });
-
-  const applyBiLayout = (layout, notifyUser = true) => {
-    persistReportsBiLayout(layout);
-    destroyReportsCharts();
-    renderPortalView();
-    if (notifyUser) notify(userMessage("reportBiLayoutSaved"), "success");
-  };
-
-  root.querySelector("[data-action='reports-bi-layout-apply']")?.addEventListener("click", () => {
-    applyBiLayout(reportsBiLayoutFromPanel(root));
-  });
-
-  root.querySelectorAll("[data-action='reports-bi-layout-preset']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const preset = String(btn.dataset.preset || "all");
-      applyBiLayout(reportsBiLayoutPreset(preset));
-    });
-  });
-
-  root.querySelector("[data-action='reports-bi-export-excel']")?.addEventListener("click", async () => {
-    const user = currentUser();
-    if (!user || !isViewAllowedForUser(user, "reports")) {
-      notify(userMessage("reportNoPermission"), "error");
-      return;
-    }
-    const biRoot = root.querySelector(".reports-bi");
-    const layout = loadReportsBiLayout();
-    const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
-    try {
-      await exportReportsBiToExcel(snapshot, biRoot, layout);
-      notify(userMessage("reportBiExcelExported"), "success");
-    } catch (_e) {
-      notify(userMessage("reportBiExcelError"), "error");
-    }
-  });
-
-  if (String(state.reportsUi?.tab || "export") !== "bi") return;
-
-  const user = currentUser();
-  const layout = loadReportsBiLayout();
-  const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
-  loadChartJsLib()
-    .then(() => wireReportsCharts(snapshot, layout))
-    .catch(() => {
-      const foot = root.querySelector(".reports-bi-foot");
-      if (foot) foot.textContent = "No se pudieron cargar las gráficas. Verifique su conexión o recargue la página.";
-    });
-}
-
 function reportsExportFiltersHtml() {
   const filters = normalizeReportsExportFilters(state.reportsUi?.exportFilters);
   return `<section class="reports-export-filters" aria-label="Corte temporal de reportes">
@@ -22920,7 +22830,7 @@ function scheduleRenderPortalView() {
   });
 }
 
-/** Los módulos del portal registran `window.__portalModuleAfterRender[viewId]` (p. ej. `dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`). */
+/** Los módulos del portal registran `window.__portalModuleAfterRender[viewId]` (p. ej. `dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`, `historial.js`, `reporteria.js`). */
 function invokePortalViewAfterRenderHook(view) {
   try {
     const fn = window.__portalModuleAfterRender?.[String(view || "")];
@@ -23097,8 +23007,7 @@ function renderPortalViewImpl() {
   mountUniversalModuleFilters();
   bindDynamicEvents();
   invokePortalViewAfterRenderHook(view);
-  if (String(view || "") === "reports") bindReportsWorkspaceControls();
-  else destroyReportsCharts();
+  if (String(view || "") !== "reports") destroyReportsCharts();
   /** Debe ir tras cada render: innerHTML descarta los listeners de Ver/Editar en tablas (candidatos, vehículos, etc.). */
   bindExtendedViewEditHandlers();
   installVehicleCardActionsDelegation();
@@ -26625,121 +26534,7 @@ function bindDynamicEvents() {
 
   /* Conductores: delete-driver, form-driver, edit-driver → `modules/app/conductores.js` (__portalModuleAfterRender["transport-drivers"]). */
 
-  nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = normalizeHistoryWorkspace(btn.dataset.workspace);
-      state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel" }), workspace: next };
-      renderPortalView();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='history-fleet-tab']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = String(btn.dataset.fleetTab || "fuel");
-      if (!["fuel", "technical"].includes(next)) return;
-      state.historyUi = { ...(state.historyUi || { workspace: "fleet", quickFilter: "all" }), workspace: "fleet", fleetTab: next };
-      renderPortalView();
-    });
-  });
-
-  const bindHistoryFleetFilters = (formId, applyFn) => {
-    const form = document.getElementById(formId);
-    if (!form) return;
-    portalUpgradeDates(form);
-    const refresh = () => applyFn(readFormEntriesNormalized(form));
-    form.addEventListener("change", refresh);
-    form.addEventListener("input", (event) => {
-      if (event.target?.matches?.("input[type='search']")) refresh();
-    });
-    form.addEventListener("reset", () => {
-      setTimeout(refresh, 0);
-    });
-    refresh();
-  };
-
-  bindHistoryFleetFilters("history-fuel-filter", (data) => {
-    const items = applyHistoryFleetFuelFilters(readFuelLogs(), data);
-    const mount = document.getElementById("history-fuel-results");
-    const countEl = document.getElementById("history-fuel-result-count");
-    if (countEl) countEl.textContent = String(items.length);
-    if (mount) mount.innerHTML = renderHistoryFuelLogsList(items);
-    const kpis = historyFleetFuelKpis(items);
-    refreshHistoryFleetKpiStrip('[data-fleet-panel="fuel"] .history-fleet-kpis', [
-      { label: "Cargas registradas", value: kpis.count },
-      { label: "Litros", value: `${kpis.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
-      { label: "Costo total", value: `$${kpis.cost.toLocaleString("es-CO")}` },
-      {
-        label: "Promedio $/L",
-        value: kpis.avgPerLiter > 0 ? `$${kpis.avgPerLiter.toLocaleString("es-CO")}` : "—"
-      },
-      {
-        label: "Reembolso conductor",
-        value: `$${kpis.reimburse.toLocaleString("es-CO")}`,
-        tone: kpis.reimburse > 0 ? "warn" : undefined
-      }
-    ]);
-  });
-
-  bindHistoryFleetFilters("history-technical-filter", (data) => {
-    const items = applyHistoryFleetTechnicalFilters(readVehicleTechnicalLogs(), data);
-    const mount = document.getElementById("history-technical-results");
-    const countEl = document.getElementById("history-technical-result-count");
-    if (countEl) countEl.textContent = String(items.length);
-    if (mount) mount.innerHTML = renderHistoryTechnicalLogsList(items);
-    const kpis = historyFleetTechnicalKpis(items);
-    refreshHistoryFleetKpiStrip('[data-fleet-panel="technical"] .history-fleet-kpis', [
-      { label: "Novedades", value: kpis.count },
-      { label: "Costo taller", value: `$${kpis.cost.toLocaleString("es-CO")}` },
-      { label: "Horas fuera de servicio", value: `${kpis.downtime.toLocaleString("es-CO")} h` },
-      { label: "Abiertas", value: kpis.open, tone: kpis.open > 0 ? "warn" : "ok" }
-    ]);
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='history-quick-filter']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = String(btn.dataset.filter || "all");
-      state.historyUi = { ...(state.historyUi || { workspace: "explore" }), quickFilter: next };
-      document.querySelectorAll("[data-action='history-quick-filter']").forEach((pill) => {
-        pill.classList.toggle("is-active", String(pill.dataset.filter || "") === next);
-      });
-      const historyFilter = document.getElementById("history-filter");
-      if (typeof window.__historyApplyFilters === "function") window.__historyApplyFilters();
-      else if (historyFilter) historyFilter.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-  });
-
-  const historyFilter = document.getElementById("history-filter");
-  if (historyFilter) {
-    portalUpgradeDates(historyFilter);
-    const refreshHistoryResults = () => {
-      const histUi = state.historyUi || { quickFilter: "all" };
-      const data = readFormEntriesNormalized(historyFilter);
-      const items = applyHistoryFilters(reqRead(), {
-        quickFilter: histUi.quickFilter,
-        formData: data
-      });
-      const mount = document.getElementById("history-results");
-      const countEl = document.getElementById("history-result-count");
-      if (countEl) countEl.textContent = String(items.length);
-      if (mount) mount.innerHTML = renderHistoryResultsList(items);
-    };
-    window.__historyApplyFilters = refreshHistoryResults;
-    historyFilter.addEventListener("submit", (event) => {
-      event.preventDefault();
-      refreshHistoryResults();
-    });
-    historyFilter.addEventListener("change", () => refreshHistoryResults());
-    historyFilter.querySelectorAll("select, input.portal-date-dmy, input[type='date']").forEach((field) => {
-      field.addEventListener("change", () => refreshHistoryResults());
-    });
-    const liveSearch = historyFilter.querySelector("input[name='q']");
-    if (liveSearch) {
-      liveSearch.addEventListener("input", () => refreshHistoryResults());
-    }
-    historyFilter.addEventListener("reset", () => {
-      window.requestAnimationFrame(() => refreshHistoryResults());
-    });
-  }
+  /* Historial: workspace, flota, filtros → `modules/app/historial.js` (__portalModuleAfterRender.history). */
 
   const employeeForm = document.getElementById("form-employee");
   if (employeeForm) {

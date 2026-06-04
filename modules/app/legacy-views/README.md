@@ -12,8 +12,8 @@ Orden (según producto):
 | 4 | Camiones (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../camiones.js` |
 | 5 | Conductores (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../conductores.js` |
 | 6 | Calendario (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../calendario.js` |
-| 7 | Historial | `07-historial-html.js` |
-| 8 | Reportería | `08-reporteria-html.js` |
+| 7 | Historial (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../historial.js` |
+| 8 | Reportería (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../reporteria.js` |
 | 9 | Gestión humana | `09-gestion-humana-html.js` |
 | 10 | Contratación | `10-contratacion-html.js` |
 | 11 | Cumplimiento laboral y SST | `11-cumplimiento-laboral-sst-html.js` |
@@ -25,4 +25,4 @@ Orden (según producto):
 
 Los puntos 16–18 comparten una sola vista de bandeja (`notificationsHtml`); los toggles de avisos y timbre están en esa pantalla.
 
-**Regenerar** los archivos legacy numerados (historial en adelante) a partir de `app.js` (solo si se vuelve a un monolito con los mismos rangos): `python tools/extract_legacy_views.py`
+**Regenerar** los archivos legacy numerados (gestión humana en adelante) a partir de `app.js` (solo si se vuelve a un monolito con los mismos rangos): `python tools/extract_legacy_views.py`

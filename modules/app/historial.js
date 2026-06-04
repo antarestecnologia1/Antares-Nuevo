@@ -1,6 +1,6 @@
 /**
- * Historial operativo y auditoría.
- * Extraído desde app.js — carga con defer después de app.js.
+ * Transporte · Historial (`history`): HTML y listeners del módulo.
+ * Carga con `defer` después de `app.js`.
  */
 function historyHtml() {
   const allRequests = reqRead();
@@ -224,5 +224,132 @@ function historyHtml() {
 
 (function registerLegacyViewChunk() {
   if (typeof window.registerLegacyPortalViews !== "function") return;
-  window.registerLegacyPortalViews({historyHtml});
+  window.registerLegacyPortalViews({ historyHtml });
+})();
+
+(function registerHistoryPortalBinds() {
+  "use strict";
+
+  function bindHistoryPortalControls() {
+    if (String(state.currentView || "") !== "history" || !nodes.viewRoot) return;
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = normalizeHistoryWorkspace(btn.dataset.workspace);
+        state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel" }), workspace: next };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-fleet-tab']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = String(btn.dataset.fleetTab || "fuel");
+        if (!["fuel", "technical"].includes(next)) return;
+        state.historyUi = { ...(state.historyUi || { workspace: "fleet", quickFilter: "all" }), workspace: "fleet", fleetTab: next };
+        renderPortalView();
+      });
+    });
+
+    const bindHistoryFleetFilters = (formId, applyFn) => {
+      const form = document.getElementById(formId);
+      if (!form) return;
+      portalUpgradeDates(form);
+      const refresh = () => applyFn(readFormEntriesNormalized(form));
+      form.addEventListener("change", refresh);
+      form.addEventListener("input", (event) => {
+        if (event.target?.matches?.("input[type='search']")) refresh();
+      });
+      form.addEventListener("reset", () => {
+        setTimeout(refresh, 0);
+      });
+      refresh();
+    };
+
+    bindHistoryFleetFilters("history-fuel-filter", (data) => {
+      const items = applyHistoryFleetFuelFilters(readFuelLogs(), data);
+      const mount = document.getElementById("history-fuel-results");
+      const countEl = document.getElementById("history-fuel-result-count");
+      if (countEl) countEl.textContent = String(items.length);
+      if (mount) mount.innerHTML = renderHistoryFuelLogsList(items);
+      const kpis = historyFleetFuelKpis(items);
+      refreshHistoryFleetKpiStrip('[data-fleet-panel="fuel"] .history-fleet-kpis', [
+        { label: "Cargas registradas", value: kpis.count },
+        { label: "Litros", value: `${kpis.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
+        { label: "Costo total", value: `$${kpis.cost.toLocaleString("es-CO")}` },
+        {
+          label: "Promedio $/L",
+          value: kpis.avgPerLiter > 0 ? `$${kpis.avgPerLiter.toLocaleString("es-CO")}` : "—"
+        },
+        {
+          label: "Reembolso conductor",
+          value: `$${kpis.reimburse.toLocaleString("es-CO")}`,
+          tone: kpis.reimburse > 0 ? "warn" : undefined
+        }
+      ]);
+    });
+
+    bindHistoryFleetFilters("history-technical-filter", (data) => {
+      const items = applyHistoryFleetTechnicalFilters(readVehicleTechnicalLogs(), data);
+      const mount = document.getElementById("history-technical-results");
+      const countEl = document.getElementById("history-technical-result-count");
+      if (countEl) countEl.textContent = String(items.length);
+      if (mount) mount.innerHTML = renderHistoryTechnicalLogsList(items);
+      const kpis = historyFleetTechnicalKpis(items);
+      refreshHistoryFleetKpiStrip('[data-fleet-panel="technical"] .history-fleet-kpis', [
+        { label: "Novedades", value: kpis.count },
+        { label: "Costo taller", value: `$${kpis.cost.toLocaleString("es-CO")}` },
+        { label: "Horas fuera de servicio", value: `${kpis.downtime.toLocaleString("es-CO")} h` },
+        { label: "Abiertas", value: kpis.open, tone: kpis.open > 0 ? "warn" : "ok" }
+      ]);
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-quick-filter']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = String(btn.dataset.filter || "all");
+        state.historyUi = { ...(state.historyUi || { workspace: "explore" }), quickFilter: next };
+        document.querySelectorAll("[data-action='history-quick-filter']").forEach((pill) => {
+          pill.classList.toggle("is-active", String(pill.dataset.filter || "") === next);
+        });
+        const historyFilter = document.getElementById("history-filter");
+        if (typeof window.__historyApplyFilters === "function") window.__historyApplyFilters();
+        else if (historyFilter) historyFilter.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+
+    const historyFilter = document.getElementById("history-filter");
+    if (historyFilter) {
+      portalUpgradeDates(historyFilter);
+      const refreshHistoryResults = () => {
+        const histUi = state.historyUi || { quickFilter: "all" };
+        const data = readFormEntriesNormalized(historyFilter);
+        const items = applyHistoryFilters(reqRead(), {
+          quickFilter: histUi.quickFilter,
+          formData: data
+        });
+        const mount = document.getElementById("history-results");
+        const countEl = document.getElementById("history-result-count");
+        if (countEl) countEl.textContent = String(items.length);
+        if (mount) mount.innerHTML = renderHistoryResultsList(items);
+      };
+      window.__historyApplyFilters = refreshHistoryResults;
+      historyFilter.addEventListener("submit", (event) => {
+        event.preventDefault();
+        refreshHistoryResults();
+      });
+      historyFilter.addEventListener("change", () => refreshHistoryResults());
+      historyFilter.querySelectorAll("select, input.portal-date-dmy, input[type='date']").forEach((field) => {
+        field.addEventListener("change", () => refreshHistoryResults());
+      });
+      const liveSearch = historyFilter.querySelector("input[name='q']");
+      if (liveSearch) {
+        liveSearch.addEventListener("input", () => refreshHistoryResults());
+      }
+      historyFilter.addEventListener("reset", () => {
+        window.requestAnimationFrame(() => refreshHistoryResults());
+      });
+    }
+  }
+
+  window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
+  window.__portalModuleAfterRender.history = bindHistoryPortalControls;
 })();

@@ -14,20 +14,8 @@ APP = ROOT / "app.js"
 OUT_DIR = ROOT / "modules" / "app" / "legacy-views"
 
 # Rangos inclusivos 1-based (app.js actual). Orden de eliminación: el script ordena por start descendente.
-# Dashboard (1): `modules/app/dashboard.js`. Viajes (3): `modules/app/viajes.js`. Mis solicitudes (2): `modules/app/mis-solicitudes.js`. Camiones (4): `modules/app/camiones.js`. Conductores (5): `modules/app/conductores.js`. Calendario (6): `modules/app/calendario.js` — no extraer con este script.
+# Dashboard (1): `modules/app/dashboard.js`. Viajes (3): `modules/app/viajes.js`. Mis solicitudes (2): `modules/app/mis-solicitudes.js`. Camiones (4): `modules/app/camiones.js`. Conductores (5): `modules/app/conductores.js`. Calendario (6): `modules/app/calendario.js`. Historial (7): `modules/app/historial.js`. Reportería (8): `modules/app/reporteria.js` — no extraer con este script.
 BUNDLES: list[tuple[str, str, list[tuple[int, int]], list[str]]] = [
-    (
-        "07-historial-html.js",
-        "Historial operativo y auditoría.",
-        [(20783, 21001)],
-        ["historyHtml"],
-    ),
-    (
-        "08-reporteria-html.js",
-        "Reportería — exportación y BI.",
-        [(23889, 23942)],
-        ["reportsHtml"],
-    ),
     (
         "09-gestion-humana-html.js",
         "Gestión humana (nómina).",

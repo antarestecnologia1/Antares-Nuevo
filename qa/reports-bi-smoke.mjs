@@ -1,5 +1,5 @@
 /**
- * Smoke tests estáticos del módulo Reportería / BI (app.js).
+ * Smoke tests estáticos del módulo Reportería / BI (`app.js` + `modules/app/reporteria.js`).
  * Ejecutar: node qa/reports-bi-smoke.mjs
  */
 import { readFileSync } from "node:fs";
@@ -7,21 +7,26 @@ import path from "node:path";
 
 const ROOT = process.cwd();
 const appJs = readFileSync(path.join(ROOT, "app.js"), "utf8");
+const reporteriaJs = readFileSync(path.join(ROOT, "modules", "app", "reporteria.js"), "utf8");
+const feedbackJs = readFileSync(path.join(ROOT, "modules", "core", "feedback-messages.js"), "utf8");
 
 function ok(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-function includesAll(needles, area) {
-  const missing = needles.filter((n) => !appJs.includes(n));
+function includesAll(needles, haystack, area) {
+  const missing = needles.filter((n) => !haystack.includes(n));
   ok(missing.length === 0, `[${area}] Faltan: ${missing.join(", ")}`);
 }
 
-// 1) Funciones y wiring del módulo
+// 1) HTML y binds en reporteria.js; lógica pesada en app.js
+includesAll(
+  ["function reportsHtml(", "function bindReportsWorkspaceControls(", "__portalModuleAfterRender.reports"],
+  reporteriaJs,
+  "reporteria-module"
+);
 includesAll(
   [
-    "function reportsHtml(",
-    "function bindReportsWorkspaceControls(",
     "function buildReportsAnalyticsSnapshot(",
     "function reportsAnalyticsPanelHtml(",
     "function wireReportsCharts(",
@@ -29,10 +34,11 @@ includesAll(
     "function normalizeReportsBiLayout(",
     "function persistReportsBiLayout(",
     "function reportsBiLayoutFromPanel(",
-    'if (String(view || "") === "reports") bindReportsWorkspaceControls()',
-    "else destroyReportsCharts()"
+    'invokePortalViewAfterRenderHook(view)',
+    'if (String(view || "") !== "reports") destroyReportsCharts()'
   ],
-  "reports-functions"
+  appJs,
+  "reports-functions-app"
 );
 
 // 2) KPIs con slaOk/slaTotal/activeOps (evita undefined en UI)
@@ -40,27 +46,25 @@ ok(appJs.includes("slaOk,") && appJs.includes("slaTotal: trips.length"), "kpis-s
 ok(appJs.includes("activeOps: requests.filter"), "kpis-activeOps");
 ok(appJs.includes("reportsBiDisplayVal("), "display-val-helper");
 
-// 3) Personalizador y acciones
+// 3) Personalizador y acciones (plantillas en app.js; permiso de export en reporteria.js)
 includesAll(
   [
     "reports-bi-customizer",
-    "data-action=\"reports-bi-layout-apply\"",
-    "data-action=\"reports-bi-layout-preset\"",
-    "data-action=\"reports-bi-export-excel\"",
-    "data-action=\"reports-bi-period-chip\"",
-    "readChecked(",
-    "isViewAllowedForUser(user, \"reports\")"
+    'data-action="reports-bi-layout-apply"',
+    'data-action="reports-bi-layout-preset"',
+    'data-action="reports-bi-export-excel"',
+    'data-action="reports-bi-period-chip"',
+    "readChecked("
   ],
+  appJs,
   "reports-bi-customizer"
 );
+ok(reporteriaJs.includes('isViewAllowedForUser(user, "reports")'), "reports-export-permission-check");
 
-// 4) Mensajes de feedback
+// 4) Mensajes de feedback (definiciones en feedback-messages.js; uso en app/reporteria)
 includesAll(
-  [
-    "reportBiLayoutSaved",
-    "reportBiExcelExported",
-    "reportBiExcelChartsPending"
-  ],
+  ["reportBiLayoutSaved", "reportBiExcelExported", "reportBiExcelChartsPending"],
+  feedbackJs + appJs + reporteriaJs,
   "feedback-keys"
 );
 
@@ -71,7 +75,7 @@ ok(
 );
 
 // 6) HTML balance básico en panel BI (aperturas/cierres section)
-const panelStart = appJs.indexOf('function reportsAnalyticsPanelHtml(snapshot, layout)');
+const panelStart = appJs.indexOf("function reportsAnalyticsPanelHtml(snapshot, layout)");
 ok(panelStart > 0, "reportsAnalyticsPanelHtml exists");
 const panelChunk = appJs.slice(panelStart, panelStart + 12000);
 const opens = (panelChunk.match(/<section class="reports-bi"/g) || []).length;

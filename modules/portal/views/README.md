@@ -9,6 +9,8 @@ Cada archivo es un IIFE que registra entradas en `window.AppModules` usadas por 
 | `../../app/camiones.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `vehiclesHtml`) |
 | `../../app/conductores.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `driversHtml`) |
 | `../../app/calendario.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `transportCalendarHtml`) |
+| `../../app/historial.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `historyHtml`) |
+| `../../app/reporteria.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `reportsHtml`) |
 | `../../app/mis-solicitudes.js` (carga tras `app.js`) | (vía `solicitudes` + hooks) |
 | `transporte.js` | `transporte` |
 | `rrhh.js` | `rrhh` |

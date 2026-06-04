@@ -13,7 +13,7 @@ Fragmentos de `app.js` sin dependencia de `state` al parsear, cargados **antes**
 
 Convención: scripts globales encadenados con `defer` en el mismo orden que hoy; no usar `type="module"` en la raíz sin revisar CSP y dependencias.
 
-Las **vistas HTML del portal** (orden 1–18): parte en `modules/app/*.js` post-`app.js` (`dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`, …) y el resto en `modules/app/legacy-views/*.js`; ver `modules/app/legacy-views/README.md` y `tools/extract_legacy_views.py`.
+Las **vistas HTML del portal** (orden 1–18): parte en `modules/app/*.js` post-`app.js` (`dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`, `historial.js`, `reporteria.js`, …) y el resto en `modules/app/legacy-views/*.js`; ver `modules/app/legacy-views/README.md` y `tools/extract_legacy_views.py`.
 
 Detalle y cola de trabajo: `modules/app/README.md`.
 

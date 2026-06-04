@@ -1,6 +1,6 @@
 # `modules/app` — trozos del monolito `app.js`
 
-Scripts **clásicos** (sin bundler) que comparten el mismo entorno global que `app.js`. El orden de carga está en `index.html`: utilidades (`portal-icons.js`, …) **antes** de `app.js`; módulos de vista del portal (`dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`, `legacy-views/*`) **después** de `app.js`.
+Scripts **clásicos** (sin bundler) que comparten el mismo entorno global que `app.js`. El orden de carga está en `index.html`: utilidades (`portal-icons.js`, …) **antes** de `app.js`; módulos de vista del portal (`dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`, `historial.js`, `reporteria.js`, `legacy-views/*`) **después** de `app.js`.
 
 | Archivo | Contenido |
 |---------|-----------|
@@ -12,8 +12,10 @@ Scripts **clásicos** (sin bundler) que comparten el mismo entorno global que `a
 | `camiones.js` | Vista `vehiclesHtml` (combustible/taller vía helpers en `app.js`); `__portalModuleAfterRender["transport-vehicles"]`. |
 | `conductores.js` | Vista `driversHtml`; `__portalModuleAfterRender["transport-drivers"]` (alta `form-driver` si existe en DOM). |
 | `calendario.js` | Vista `transportCalendarHtml`; `__portalModuleAfterRender["transport-calendar"]`. |
+| `historial.js` | Vista `historyHtml`; `__portalModuleAfterRender.history`. |
+| `reporteria.js` | Vista `reportsHtml`; `bindReportsWorkspaceControls` vía `__portalModuleAfterRender.reports`. |
 
-Las vistas grandes del portal restantes están en **`legacy-views/`** (cadena tras `app.js`; ver `legacy-views/README.md`). El orden empieza en **07 (historial)**.
+Las vistas grandes del portal restantes están en **`legacy-views/`** (cadena tras `app.js`; ver `legacy-views/README.md`). El orden empieza en **09 (gestión humana)**.
 
 ## Próximas extracciones (prioridad sugerida)
 
