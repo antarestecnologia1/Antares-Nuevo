@@ -116,7 +116,7 @@
      * Ventana de render: no construimos cientos de tarjetas de una sola vez (lo que
      * hacía lento "mostrar los datos"). No se oculta ningún dato del servidor; el resto
      * se muestra con "Ver más". El límite vive en `state.requestsRenderLimit` y se
-     * reinicia al cambiar filtro (manejadores en app.js).
+     * reinicia al cambiar filtro (manejadores en `modules/app/mis-solicitudes.js`).
      */
     const WIN = 30;
     let limit = WIN;

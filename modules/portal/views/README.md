@@ -4,8 +4,12 @@ Cada archivo es un IIFE que registra entradas en `window.AppModules` usadas por 
 
 | Archivo | `AppModules` |
 |---------|----------------|
-| `dashboard.js` | `dashboard` |
-| `solicitudes.js` | `solicitudes` |
+| `../../app/dashboard.js` (carga tras `app.js`) | `dashboard` |
+| `../../app/viajes.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `transportTripsHtml`) |
+| `../../app/camiones.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `vehiclesHtml`) |
+| `../../app/conductores.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `driversHtml`) |
+| `../../app/calendario.js` (carga tras `app.js`; HTML en `AppLegacyViews`) | (vía `transporte` → `transportCalendarHtml`) |
+| `../../app/mis-solicitudes.js` (carga tras `app.js`) | (vía `solicitudes` + hooks) |
 | `transporte.js` | `transporte` |
 | `rrhh.js` | `rrhh` |
 | `usuarios.js` | `usuarios` |

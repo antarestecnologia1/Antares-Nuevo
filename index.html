@@ -1190,7 +1190,6 @@
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js"></script>
     <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
-    <script defer src="./modules/portal/views/dashboard.js"></script>
     <script defer src="./modules/portal/views/solicitudes.js"></script>
     <script defer src="./modules/portal/views/transporte.js"></script>
     <script defer src="./modules/portal/views/rrhh.js"></script>
@@ -1217,9 +1216,29 @@
     <script defer src="./modules/domain-bootstrap.js"></script>
     <script defer src="./modules/core/feedback-messages.js?v=20260506-perfil-vacantes"></script>
     <script defer src="./modules/portal/application.js"></script>
+    <script defer src="./modules/app/portal-icons.js"></script>
+    <script defer src="./modules/app/portal-html-utils.js"></script>
     <script defer src="./modules/portal/legacy-views-bridge.js"></script>
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
     <script defer src="./modules/recruitment/contracts-docx.js?v=20260505-contract-merge"></script>
     <script defer src="./app.js?v=20260507-sync-deletes"></script>
+    <!-- Módulos del portal (post-app.js); `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE` -->
+    <script defer src="./modules/app/dashboard.js"></script>
+    <script defer src="./modules/app/viajes.js"></script>
+    <script defer src="./modules/app/mis-solicitudes.js"></script>
+    <script defer src="./modules/app/camiones.js"></script>
+    <script defer src="./modules/app/conductores.js"></script>
+    <script defer src="./modules/app/calendario.js"></script>
+    <!-- Vistas legacy extraídas de app.js (orden funcional 7–18) -->
+    <script defer src="./modules/app/legacy-views/07-historial-html.js"></script>
+    <script defer src="./modules/app/legacy-views/08-reporteria-html.js"></script>
+    <script defer src="./modules/app/legacy-views/09-gestion-humana-html.js"></script>
+    <script defer src="./modules/app/legacy-views/10-contratacion-html.js"></script>
+    <script defer src="./modules/app/legacy-views/11-cumplimiento-laboral-sst-html.js"></script>
+    <script defer src="./modules/app/legacy-views/12-contacto-b2b-html.js"></script>
+    <script defer src="./modules/app/legacy-views/13-usuarios-permisos-html.js"></script>
+    <script defer src="./modules/app/legacy-views/14-autorizaciones-html.js"></script>
+    <script defer src="./modules/app/legacy-views/15-mi-perfil-html.js"></script>
+    <script defer src="./modules/app/legacy-views/16-18-notificaciones-timbre-avisos-html.js"></script>
   </body>
 </html>
