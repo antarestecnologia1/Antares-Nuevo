@@ -1232,6 +1232,7 @@
       import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
       import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
       import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
+      import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
       import * as AntaresViajesDomain from "./modules/domain/viajes.domain.js";
       import * as AntaresRouter from "./modules/core/router.js";
       Object.assign(window, AntaresConfig, AntaresUtils, AntaresStore, AntaresAuth, AntaresBootstrap);
@@ -1246,6 +1247,8 @@
       Object.assign(window, AntaresPayrollCatalogSanitize);
       window.AntaresSolicitudesDomain = AntaresSolicitudesDomain;
       Object.assign(window, AntaresSolicitudesDomain);
+      window.AntaresNotificacionesDomain = AntaresNotificacionesDomain;
+      Object.assign(window, AntaresNotificacionesDomain);
       window.AntaresViajesDomain = AntaresViajesDomain;
       Object.assign(window, AntaresViajesDomain);
       Object.assign(window, AntaresRouter);
@@ -1254,6 +1257,12 @@
       } catch (_e) {
         /* IE / entornos estrictos: ignorar */
       }
+    </script>
+    <script type="module">
+      import * as AntaresUIComponents from "./modules/ui/components.js";
+      import * as AntaresUIModals from "./modules/ui/modals.js";
+      import * as AntaresI18n from "./modules/core/i18n.js";
+      Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n);
     </script>
     <script defer src="./modules/core/portal-runtime.js?v=20260605-payroll-catalog-sanitize-domain"></script>
     <script type="module" src="./app.js?v=20260605-fase9-entry"></script>

@@ -5,9 +5,11 @@
 import { state, nodes, persistClientDataScope } from "./store.js";
 import { isPortalClientUser } from "./client-data-scope-ui.js";
 import { currentUser, hasPermission } from "./auth.js";
-import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE, ROLES } from "./config.js";
+import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE, ROLES, UI_PREFS } from "./config.js";
 import { read, write, writeAwaitServer } from "./data-io.js";
 import { registerBindEventsCallback, scheduleRenderPortalView, setView, renderPortalView } from "./router.js";
+import { isCreatePanelExpanded } from "../ui/components.js";
+import { applyPublicLanguage, applyTheme } from "./i18n.js";
 function applyModuleMicroAnimations() {
   if (state.__skipModuleAnimationsOnce) {
     state.__skipModuleAnimationsOnce = false;
@@ -537,7 +539,7 @@ function bindDynamicEvents() {
       const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
       const payrollSet = new Set(PAYROLL_CREATE_IDS);
       const hiringSet = new Set(HIRING_CREATE_IDS);
-      const wasOpen = isCreatePanelExpanded(panelId);
+      const wasOpen = isCreatePanelExpanded(panelId, false, state.createPanels || {});
       const nextOpen = !wasOpen;
       state.createPanels = { ...(state.createPanels || {}) };
 
@@ -3323,10 +3325,8 @@ function initRequiredFieldIndicators() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-/** Carreras públicas: combina GET /api/public/vacancies con vacantes publicadas en este navegador. */
-let publicCareersVacanciesSource = "local";
-let publicCareersVacanciesFromApi = null;
-
+/** Carreras públicas: combina GET /api/public/vacancies con vacantes publicadas en este navegador.
+ *  Estado en `window.*` porque `initPublicCareers` vive en `portal-runtime.js` (script clásico). */
 function normalizeVacancyForCareersPublic(v) {
   if (!v) return null;
   return {
@@ -3410,9 +3410,11 @@ function mergeApiVacanciesWithLocalPublished(apiList, localRawList) {
 }
 
 function getPublicPublishedVacancies() {
+  const source = window.publicCareersVacanciesSource ?? "local";
+  const fromApi = window.publicCareersVacanciesFromApi;
   const rows =
-    publicCareersVacanciesSource === "api" && publicCareersVacanciesFromApi !== null && Array.isArray(publicCareersVacanciesFromApi)
-      ? publicCareersVacanciesFromApi
+    source === "api" && fromApi !== null && Array.isArray(fromApi)
+      ? fromApi
       : (read(KEYS.vacancies, []) || []).map((v) => normalizeVacancyForCareersPublic(v)).filter(Boolean);
   return rows.filter(
     (v) =>
@@ -3618,7 +3620,11 @@ Object.assign(window, {
   enforceColombianFormStandards,
   bindExtendedViewEditHandlers,
   /** `app.js` lo toma de `window`; en módulo ES las funciones no son globales automáticamente. */
-  initGlobalEvents
+  initGlobalEvents,
+  /** Carreras sitio público: usados desde `portal-runtime.js` (script clásico). */
+  getPublicPublishedVacancies,
+  mergeApiVacanciesWithLocalPublished,
+  openPublicVacancyApplyModal
 });
 
 registerBindEventsCallback(bindDynamicEvents);

@@ -5,7 +5,7 @@
 
 import "./modules/core/config.js";
 import { state } from "./modules/core/store.js";
-import { getSession } from "./modules/core/auth.js";
+import { getSession, setAuthSuccessCallback } from "./modules/core/auth.js";
 import { scheduleRenderPortalView } from "./modules/core/router.js";
 import { portalRefreshAfterBootstrap } from "./modules/core/bootstrap.js";
 import "./modules/core/events.js";
@@ -28,6 +28,10 @@ const {
   hasUnsavedPortalFormData,
   clearSession
 } = window;
+
+setAuthSuccessCallback(() => {
+  if (typeof window.renderPortal === "function") window.renderPortal();
+});
 
 /**
  * Pintamos el portal de forma SÍNCRONA usando la sesión persistida en `localStorage` y el

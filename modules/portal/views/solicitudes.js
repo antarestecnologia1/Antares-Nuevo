@@ -293,7 +293,7 @@
     <label class="full">Observaciones <textarea name="notes" rows="3" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-    return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud");
+    return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud", { createPanels: state.createPanels });
   }
 
   function requestListClientHtml(user) {

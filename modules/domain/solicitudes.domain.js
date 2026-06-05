@@ -185,3 +185,31 @@ export function transportRequestEligibleForViajesAssignment(request, user, canAp
   }
   return false;
 }
+
+function readCounters() {
+  return read(KEYS.counters, {});
+}
+
+export function nextCounter(prefix) {
+  const counters = readCounters();
+  const current = Number(counters[prefix] || 0) + 1;
+  counters[prefix] = current;
+  write(KEYS.counters, counters);
+  return current;
+}
+
+export function makeRequestNumber(existingNumbers = new Set()) {
+  let code = `SOL-${String(nextCounter("request")).padStart(6, "0")}`;
+  while (existingNumbers.has(code)) {
+    code = `SOL-${String(nextCounter("request")).padStart(6, "0")}`;
+  }
+  return code;
+}
+
+export function makeTripNumber(existingNumbers = new Set()) {
+  let code = `VIA-${String(nextCounter("trip")).padStart(6, "0")}`;
+  while (existingNumbers.has(code)) {
+    code = `VIA-${String(nextCounter("trip")).padStart(6, "0")}`;
+  }
+  return code;
+}

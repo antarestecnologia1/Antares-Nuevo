@@ -11,12 +11,12 @@ export function normalizePublicKey(value) {
     .toLowerCase();
 }
 
-function escapePublicRegexFragment(s) {
+export function escapePublicRegexFragment(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Find [start,end) in haystack such that normalizePublicKey(slice) === normalizePublicKey(needle). */
-function findNormalizedSpan(haystack, needle) {
+export function findNormalizedSpan(haystack, needle) {
   const nNorm = normalizePublicKey(needle);
   if (!nNorm) return null;
   for (let i = 0; i < haystack.length; i++) {
@@ -30,7 +30,7 @@ function findNormalizedSpan(haystack, needle) {
   return null;
 }
 
-function replaceAllNormalizedSpans(haystack, needle, replacement) {
+export function replaceAllNormalizedSpans(haystack, needle, replacement) {
   let result = haystack;
   for (let guard = 0; guard < 500; guard++) {
     const span = findNormalizedSpan(result, needle);

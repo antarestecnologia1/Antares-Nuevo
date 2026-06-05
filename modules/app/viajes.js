@@ -524,7 +524,8 @@ function transportTripsHtml() {
     `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"} · 3 pasos`,
     createTripForm,
     "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip",
-    "Abrir formulario"
+    "Abrir formulario",
+    { createPanels: state.createPanels }
   );
   const routesCreateCard = createCollapsibleProCard(
     "create-route-rate",
@@ -533,7 +534,8 @@ function transportTripsHtml() {
     `${rateEntries.length} ${rateEntries.length === 1 ? "ruta catalogada" : "rutas catalogadas"} para autocompletado`,
     routeRateForm,
     "hr-form-card hr-form-card--xl transport-form-card transport-form-card--route",
-    "Abrir formulario"
+    "Abrir formulario",
+    { createPanels: state.createPanels }
   );
   const tripsPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "trips" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="trips"${transportTripsWorkspace === "trips" ? "" : " hidden"}>
       <section class="ops-block transport-workspace-stack">

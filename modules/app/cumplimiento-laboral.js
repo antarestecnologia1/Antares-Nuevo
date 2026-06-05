@@ -167,7 +167,7 @@ const G = globalThis;
     return (
       laborHero +
       pcardWrap("activity", "Alertas", null, alertsBody) +
-      createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar") +
+      createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar", { createPanels: state.createPanels }) +
       pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable)
     );
   }

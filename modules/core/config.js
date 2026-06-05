@@ -512,6 +512,15 @@ export const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
 export const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
 export const SESSION_IDLE_PUBLIC_NOTICE_KEY = "antares_session_idle_notice_v1";
 
+/** Mínimo entre refrescos LIGEROS de la campana (GET /portal/notifications, sin re-descargar todo el portal). */
+export const NOTIF_LIGHT_REFRESH_MIN_MS = 7000;
+
+/**
+ * Mínimo entre bootstraps completos lanzados en segundo plano para refrescar datos operativos
+ * (poll de notificaciones; evita re-descargar todo el dataset cada pocos segundos).
+ */
+export const NOTIF_SILENT_BOOTSTRAP_MIN_MS = 180000;
+
 export const TRANSPORT_MODOS_SERVICIO = new Set(["Transporte nacional", "Transporte entre sedes del cliente"]);
 
 export const TRIP_ASSIGNMENT_FLEET_TYPE_KEYS = new Set(["camion", "turbo", "tractomula"]);

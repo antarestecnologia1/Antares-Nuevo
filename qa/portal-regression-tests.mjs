@@ -28,6 +28,7 @@ function run() {
   const portalArchitectureJs = read("modules/portal/architecture.js");
   const portalRuntimeJs = read("modules/core/portal-runtime.js");
   const publicSiteI18nJs = read("modules/domain/public-site.i18n.js");
+  const portalI18nJs = read("modules/core/i18n.js");
   const portalAuthJs = read("modules/core/auth.js");
   const portalConfigJs = read("modules/core/config.js");
   const contratacionJs = read("modules/app/contratacion.js");
@@ -41,6 +42,7 @@ function run() {
     appJs,
     portalRuntimeJs,
     publicSiteI18nJs,
+    portalI18nJs,
     portalAuthJs,
     portalConfigJs,
     contratacionJs,
@@ -71,7 +73,7 @@ function run() {
   // 2) Public translation engine presence
   includesAll(
     portalModuleBundle,
-    ["const PUBLIC_ES_EN_DICT", "function translatePublicText", "normalizePublicKey", "applyPublicLanguage"],
+    ["export const PUBLIC_ES_EN_DICT", "function translatePublicText", "normalizePublicKey", "export function applyPublicLanguage"],
     "translation-core"
   );
   includesAll(
