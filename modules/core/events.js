@@ -3633,3 +3633,6 @@ Object.assign(window, {
 });
 
 registerBindEventsCallback(bindDynamicEvents);
+
+/** Punto de entrada modular (`app.js`); sigue registrándose también en `window`. */
+export { initGlobalEvents };

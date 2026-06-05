@@ -5,32 +5,54 @@
 
 import "./modules/core/config.js";
 import { state } from "./modules/core/store.js";
-import { getSession, setAuthSuccessCallback } from "./modules/core/auth.js";
-import { scheduleRenderPortalView } from "./modules/core/router.js";
-import { portalRefreshAfterBootstrap } from "./modules/core/bootstrap.js";
-import "./modules/core/events.js";
+import {
+  getSession,
+  setAuthSuccessCallback,
+  tryApiRefreshBridge,
+  clearSession
+} from "./modules/core/auth.js";
+import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
+import {
+  portalRefreshAfterBootstrap,
+  portalSnapshotIsFresh,
+  startPortalBootstrapForInteractiveSession,
+  syncSessionProfileSnapshotFromCache
+} from "./modules/core/bootstrap.js";
+import { devWarn } from "./modules/core/utils.js";
+import { notify } from "./modules/ui/modals.js";
+import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
+import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
+import { initGlobalEvents } from "./modules/core/events.js";
 
+/**
+ * Definidas en `portal-runtime.js` (script clásico); se exponen en `window` al evaluar ese archivo.
+ * Deben cargarse antes que este módulo en `index.html`.
+ */
 const {
   initPortalClientStorage,
   restorePortalSnapshotIfAvailable,
-  initGlobalEvents,
   initPublicEffects,
-  renderPortal,
-  devWarn,
-  tryApiRefreshBridge,
-  notify,
-  portalSnapshotIsFresh,
-  startPortalBootstrapForInteractiveSession,
   ensureUsersPasswordHashing,
-  syncSessionProfileSnapshotFromCache,
-  runAsSilentSystemNotifications,
-  updateAutoApprove,
-  hasUnsavedPortalFormData,
-  clearSession
+  updateAutoApprove
 } = window;
 
+function assertPortalRuntime(fnName, fn) {
+  if (typeof fn === "function") return;
+  const err = new Error(
+    `[Antares] Falta ${fnName} en window: asegure que modules/core/portal-runtime.js se cargue antes que app.js.`
+  );
+  console.error(err);
+  throw err;
+}
+
+assertPortalRuntime("initPortalClientStorage", initPortalClientStorage);
+assertPortalRuntime("restorePortalSnapshotIfAvailable", restorePortalSnapshotIfAvailable);
+assertPortalRuntime("initPublicEffects", initPublicEffects);
+assertPortalRuntime("ensureUsersPasswordHashing", ensureUsersPasswordHashing);
+assertPortalRuntime("updateAutoApprove", updateAutoApprove);
+
 setAuthSuccessCallback(() => {
-  if (typeof window.renderPortal === "function") window.renderPortal();
+  renderPortal();
 });
 
 /**

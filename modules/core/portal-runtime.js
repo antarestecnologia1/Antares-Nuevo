@@ -4826,7 +4826,12 @@ function hideAuth() {
 
 window.showAuth = showAuth;
 window.hideAuth = hideAuth;
-
+/** Expuestas para `app.js` (módulo ES); el runtime clásico no re-exporta por defecto. */
+window.initPortalClientStorage = initPortalClientStorage;
+window.restorePortalSnapshotIfAvailable = restorePortalSnapshotIfAvailable;
+window.initPublicEffects = initPublicEffects;
+window.ensureUsersPasswordHashing = ensureUsersPasswordHashing;
+window.updateAutoApprove = updateAutoApprove;
 
 function parseNum(v) {
   const n = Number(v);
