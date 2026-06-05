@@ -3616,7 +3616,9 @@ Object.assign(window, {
   installDriverCardActionsDelegation,
   mountUniversalModuleFilters,
   enforceColombianFormStandards,
-  bindExtendedViewEditHandlers
+  bindExtendedViewEditHandlers,
+  /** `app.js` lo toma de `window`; en módulo ES las funciones no son globales automáticamente. */
+  initGlobalEvents
 });
 
 registerBindEventsCallback(bindDynamicEvents);
