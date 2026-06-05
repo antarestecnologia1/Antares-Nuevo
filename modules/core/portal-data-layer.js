@@ -33,7 +33,7 @@
   }
 
   function notifyUiIfPossible() {
-    var cb = window.__portalRefreshAfterBootstrap;
+    var cb = window.portalRefreshAfterBootstrap;
     if (typeof cb === "function") {
       try {
         cb();

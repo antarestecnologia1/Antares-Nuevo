@@ -1,23 +1,29 @@
 /**
  * Notificaciones del portal (bandeja, avisos emergentes y timbre).
- * HTML y listeners; carga con defer después de app.js.
+ * HTML y listeners; carga como módulo ES tras `portal-runtime.js`.
  */
+import { state, nodes } from "../core/store.js";
+import { read, write } from "../core/data-io.js";
+import { KEYS } from "../core/config.js";
+import { escapeAttr } from "../core/utils.js";
+import { currentUser } from "../core/auth.js";
+
+const G = globalThis;
+
 (function installNotificacionesHtml() {
   function notificationsHtml() {
-    const rt = window.AntaresPortalRuntime;
-    if (!rt) return "";
-    const {
-      getCurrentNotifications,
-      isInAppNotificationAlertsEnabled,
-      isSonidoNotificacionesHabilitado,
-      notificationIsRead,
-      escapeAttr,
-      fmtDate,
-      emptyState,
-      moduleFleetHeroStrip,
-      pcardWrap,
-      IC
-    } = rt;
+    const getCurrentNotifications = G.getCurrentNotifications;
+    const isInAppNotificationAlertsEnabled = G.isInAppNotificationAlertsEnabled;
+    const isSonidoNotificacionesHabilitado = G.isSonidoNotificacionesHabilitado;
+    const notificationIsRead = G.notificationIsRead;
+    const emptyState = G.emptyState;
+    const moduleFleetHeroStrip = G.moduleFleetHeroStrip;
+    const pcardWrap = G.pcardWrap;
+    const IC = G.IC || {};
+    /** @type {(d: unknown) => string} TODO FASE 2: importar fmtDate desde módulo dedicado (hoy en portal-runtime.js) */
+    const fmtDate = G.fmtDate;
+
+    if (typeof getCurrentNotifications !== "function") return "";
 
     const list = getCurrentNotifications().sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -101,45 +107,48 @@
 function bindNotificationsPortalControls() {
   if (String(state.currentView || "") !== "notifications" || !nodes.viewRoot) return;
 
+  const getCurrentNotifications = G.getCurrentNotifications;
+  const notificationIsRead = G.notificationIsRead;
+
   nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      void runWithBusyButton(btn, async () => {
+      void G.runWithBusyButton(btn, async () => {
         const id = String(btn.dataset.id || "");
         const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
         if (!visibleIds.has(id)) return;
-        const ok = await persistNotificationsReadState([id]);
+        const ok = await G.persistNotificationsReadState([id]);
         if (!ok) return;
-        refreshNotificationsUiAfterReadMutation();
+        G.refreshNotificationsUiAfterReadMutation();
       });
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-toggle-alerts']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      toggleNotificationAlertsEnabled();
-      renderPortalView();
-      updateNotificationBadge();
+      G.toggleNotificationAlertsEnabled();
+      G.renderPortalView();
+      G.updateNotificationBadge();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-toggle-sound']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      toggleNotificationSoundMuted();
-      renderPortalView();
-      updateNotificationBadge();
+      G.toggleNotificationSoundMuted();
+      G.renderPortalView();
+      G.updateNotificationBadge();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      void runWithBusyButton(btn, async () => {
+      void G.runWithBusyButton(btn, async () => {
         const unreadIds = getCurrentNotifications()
           .filter((n) => !notificationIsRead(n))
           .map((n) => n.id);
         if (!unreadIds.length) return;
-        const ok = await persistNotificationsReadState(unreadIds);
+        const ok = await G.persistNotificationsReadState(unreadIds);
         if (!ok) return;
-        refreshNotificationsUiAfterReadMutation();
+        G.refreshNotificationsUiAfterReadMutation();
       });
     });
   });
@@ -149,7 +158,7 @@ function bindNotificationsPortalControls() {
     btn.addEventListener("click", () => {
       const visible = getCurrentNotifications();
       if (!visible.length) return;
-      openConfirmReasonModal({
+      G.openConfirmReasonModal({
         title: "Eliminar todas las notificaciones",
         message: `¿Eliminar ${visible.length} notificación${visible.length === 1 ? "" : "es"} de tu bandeja? Indica la justificación. Esta acción no se puede deshacer.`,
         confirmText: "Eliminar todas",
@@ -159,15 +168,15 @@ function bindNotificationsPortalControls() {
           const nextList = list.filter((n) => !visibleIds.has(n.id));
           write(KEYS.notifications, nextList);
           try {
-            await writeNotificationsAwaitServer([...visibleIds]);
+            await G.writeNotificationsAwaitServer([...visibleIds]);
           } catch (err) {
             write(KEYS.notifications, list);
-            notify(String(err?.message || "No fue posible eliminar las notificaciones en el servidor."), "error");
-            renderPortalView();
-            updateNotificationBadge();
+            G.notify(String(err?.message || "No fue posible eliminar las notificaciones en el servidor."), "error");
+            G.renderPortalView();
+            G.updateNotificationBadge();
             return;
           }
-          appendModuleAuditLog({
+          G.appendModuleAuditLog({
             action: "delete",
             moduleId: "notifications",
             moduleLabel: "Notificaciones",
@@ -176,9 +185,9 @@ function bindNotificationsPortalControls() {
             summary: `${visible.length} notificación(es) eliminadas. Motivo: ${String(motivo || "").trim()}`,
             actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
           });
-          notify("Notificaciones eliminadas.", "success");
-          renderPortalView();
-          updateNotificationBadge();
+          G.notify("Notificaciones eliminadas.", "success");
+          G.renderPortalView();
+          G.updateNotificationBadge();
         }
       });
     });
@@ -189,7 +198,7 @@ function bindNotificationsPortalControls() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      openConfirmReasonModal({
+      G.openConfirmReasonModal({
         title: "Eliminar notificación",
         message: "¿Quieres eliminar esta notificación de tu bandeja? Indica la justificación. Esta acción no se puede deshacer.",
         confirmText: "Eliminar",
@@ -201,15 +210,15 @@ function bindNotificationsPortalControls() {
           const nextList = list.filter((n) => n.id !== id);
           write(KEYS.notifications, nextList);
           try {
-            await writeNotificationsAwaitServer([id]);
+            await G.writeNotificationsAwaitServer([id]);
           } catch (err) {
             write(KEYS.notifications, list);
-            notify(String(err?.message || "No fue posible eliminar la notificación en el servidor."), "error");
-            renderPortalView();
-            updateNotificationBadge();
+            G.notify(String(err?.message || "No fue posible eliminar la notificación en el servidor."), "error");
+            G.renderPortalView();
+            G.updateNotificationBadge();
             return;
           }
-          appendModuleAuditLog({
+          G.appendModuleAuditLog({
             action: "delete",
             moduleId: "notifications",
             moduleLabel: "Notificaciones",
@@ -218,9 +227,9 @@ function bindNotificationsPortalControls() {
             summary: `Notificación eliminada de bandeja. Motivo: ${String(motivo || "").trim()}`,
             actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
           });
-          notify("Notificación eliminada.", "success");
-          renderPortalView();
-          updateNotificationBadge();
+          G.notify("Notificación eliminada.", "success");
+          G.renderPortalView();
+          G.updateNotificationBadge();
         }
       });
     });
@@ -228,7 +237,6 @@ function bindNotificationsPortalControls() {
 }
 
 (function registerNotificationsPortalBinds() {
-  "use strict";
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
   window.__portalModuleAfterRender.notifications = bindNotificationsPortalControls;
 })();

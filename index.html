@@ -1217,7 +1217,7 @@
     <script defer src="./modules/core/feedback-messages.js?v=20260506-perfil-vacantes"></script>
     <script defer src="./modules/portal/application.js"></script>
     <script defer src="./modules/app/portal-icons.js"></script>
-    <script defer src="./modules/portal/legacy-views-bridge.js"></script>
+    <script type="module" src="./modules/portal/legacy-views-bridge.js"></script>
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
     <script defer src="./modules/recruitment/contracts-docx.js?v=20260505-contract-merge"></script>
     <script type="module">
@@ -1228,6 +1228,9 @@
       import * as AntaresBootstrap from "./modules/core/bootstrap.js";
       import { writeAwaitServer } from "./modules/core/data-io.js";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
+      import * as AntaresContractsDomain from "./modules/domain/contracts.domain.js";
+      import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
+      import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
       import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
       import * as AntaresViajesDomain from "./modules/domain/viajes.domain.js";
       import * as AntaresRouter from "./modules/core/router.js";
@@ -1235,6 +1238,12 @@
       window.writeAwaitServer = writeAwaitServer;
       window.AntaresPublicI18n = AntaresPublicI18n;
       Object.assign(window, AntaresPublicI18n);
+      window.AntaresContractsDomain = AntaresContractsDomain;
+      Object.assign(window, AntaresContractsDomain);
+      window.AntaresPayrollIdentifiers = AntaresPayrollIdentifiers;
+      Object.assign(window, AntaresPayrollIdentifiers);
+      window.AntaresPayrollCatalogSanitize = AntaresPayrollCatalogSanitize;
+      Object.assign(window, AntaresPayrollCatalogSanitize);
       window.AntaresSolicitudesDomain = AntaresSolicitudesDomain;
       Object.assign(window, AntaresSolicitudesDomain);
       window.AntaresViajesDomain = AntaresViajesDomain;
@@ -1246,7 +1255,7 @@
         /* IE / entornos estrictos: ignorar */
       }
     </script>
-    <script defer src="./modules/core/portal-runtime.js?v=20260605-public-i18n-domain"></script>
+    <script defer src="./modules/core/portal-runtime.js?v=20260605-payroll-catalog-sanitize-domain"></script>
     <script type="module" src="./app.js?v=20260605-fase9-entry"></script>
     <!-- Módulos del portal (post-app.js); `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE` -->
     <script defer src="./modules/app/dashboard.js"></script>
@@ -1260,11 +1269,11 @@
     <script defer src="./modules/app/gestion-humana.js"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js"></script>
     <script defer src="./modules/app/contratacion.js"></script>
-    <script defer src="./modules/app/cumplimiento-laboral.js"></script>
+    <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>
     <script defer src="./modules/app/usuarios-permisos.js"></script>
     <script defer src="./modules/app/autorizaciones.js"></script>
     <script defer src="./modules/app/mi-perfil.js"></script>
-    <script defer src="./modules/app/notificaciones.js"></script>
+    <script type="module" src="./modules/app/notificaciones.js"></script>
   </body>
 </html>

@@ -13,7 +13,7 @@ Código cargado por `index.html` en el **sitio portal estático** (raíz del rep
 
 ## Vistas por módulo UI
 
-Los scripts en `portal/views/*.js` registran `window.AppModules.<id>` y delegan en `window.AppLegacyViews` (definido en `app.js`) donde aplica.
+Los scripts en `portal/views/*.js` registran `window.AppModules.<id>` y delegan en `window.AppLegacyViews` (puente `legacy-views-bridge.js`) donde aplica.
 
 ## App Next (`apps/web`)
 

@@ -289,3 +289,279 @@ export const CLIENT_DATA_SCOPE = {
 };
 export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
 export const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
+
+/** Zona horaria por defecto para fechas del portal (Colombia). */
+export const CO_TIMEZONE = "America/Bogota";
+
+export const REGISTER_TERMS_URL = "./terminos-condiciones.html";
+export const REGISTER_PRIVACY_URL = "./politica-privacidad.html";
+
+/** Orden en la grilla de permisos (Usuarios y permisos). */
+export const PERMISSION_UI_GROUPS = [
+  {
+    title: "General",
+    permissions: [PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.PROFILE_VIEW, PERMISSIONS.NOTIFICATIONS_VIEW]
+  },
+  {
+    title: "Solicitudes y operación de transporte",
+    permissions: [
+      PERMISSIONS.CLIENT_REQUESTS,
+      PERMISSIONS.TRANSPORT_REQUESTS,
+      PERMISSIONS.TRANSPORT_TRIPS,
+      PERMISSIONS.TRANSPORT_DRIVERS,
+      PERMISSIONS.TRANSPORT_CALENDAR,
+      PERMISSIONS.TRANSPORT_HISTORY
+    ]
+  },
+  {
+    title: "Flota · camiones (por acción)",
+    permissions: [
+      PERMISSIONS.TRANSPORT_VEHICLES,
+      PERMISSIONS.TRANSPORT_VEHICLES_VIEW,
+      PERMISSIONS.TRANSPORT_VEHICLES_CREATE,
+      PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
+      PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
+      PERMISSIONS.TRANSPORT_VEHICLES_DELETE
+    ]
+  },
+  {
+    title: "Centro de aprobaciones (por bandeja)",
+    permissions: [
+      PERMISSIONS.AUTHORIZATIONS_MANAGE,
+      PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
+      PERMISSIONS.AUTHORIZATIONS_PORTAL_REGISTRATIONS,
+      PERMISSIONS.AUTHORIZATIONS_PORTAL_USERS,
+      PERMISSIONS.AUTHORIZATIONS_FLEET,
+      PERMISSIONS.AUTHORIZATIONS_WORKFORCE,
+      PERMISSIONS.AUTHORIZATIONS_HR_ABSENCES,
+      PERMISSIONS.AUTHORIZATIONS_PAYROLL_PAY
+    ]
+  },
+  {
+    title: "Recursos humanos y administración",
+    permissions: [
+      PERMISSIONS.PAYROLL_MANAGE,
+      PERMISSIONS.HIRING_MANAGE,
+      PERMISSIONS.SST_COMPLIANCE,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.CONTACT_B2B_VIEW
+    ]
+  }
+];
+
+export const STATUS = {
+  PENDIENTE: "Pendiente",
+  APROBADA_PENDIENTE_ASIGNACION: "Aprobada pendiente asignacion",
+  VIAJE_ASIGNADO: "Viaje asignado",
+  EN_TRANSITO: "En transito",
+  ESPERA_STANDBY: "Espera standby",
+  COMPLETADA: "Completada",
+  CERRADA: "Cerrada",
+  CANCELADA: "Cancelada",
+  RECHAZADA: "Rechazada"
+};
+
+export const STATUS_TRANSITIONS = {
+  [STATUS.PENDIENTE]: [STATUS.APROBADA_PENDIENTE_ASIGNACION, STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA, STATUS.RECHAZADA],
+  [STATUS.APROBADA_PENDIENTE_ASIGNACION]: [STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA],
+  [STATUS.VIAJE_ASIGNADO]: [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.CANCELADA],
+  [STATUS.EN_TRANSITO]: [STATUS.ESPERA_STANDBY, STATUS.COMPLETADA, STATUS.CANCELADA],
+  [STATUS.ESPERA_STANDBY]: [STATUS.EN_TRANSITO, STATUS.COMPLETADA, STATUS.CANCELADA],
+  [STATUS.COMPLETADA]: [STATUS.CERRADA],
+  [STATUS.CERRADA]: [],
+  [STATUS.CANCELADA]: [],
+  [STATUS.RECHAZADA]: []
+};
+
+export const PIPELINE = ["Recibido", "Preseleccionado", "Entrevistado", "Oferta enviada", "Contratado", "Descartado"];
+
+export const PIPELINE_TRANSITIONS = {
+  Recibido: ["Preseleccionado", "Descartado"],
+  Preseleccionado: ["Entrevistado", "Descartado"],
+  Entrevistado: ["Oferta enviada", "Descartado"],
+  "Oferta enviada": ["Contratado", "Descartado"],
+  Contratado: [],
+  Descartado: []
+};
+
+export const AUTO_APPROVE_MINUTES = 10;
+
+/** Ley 52/1975: interés legal anual sobre cesantías (referencia normativa vigente). */
+export const CO_CESANTIAS_INTERES_ANUAL_PCT = 12;
+
+export const PAYROLL_ABSENCE_LEGAL_LIMITS = {
+  maternidadOrdinariaDays: 126,
+  maternidadMultipleDays: 140,
+  maternidadPrematuroMaxDays: 140,
+  maternidadExtensionMedicaMaxDays: 182,
+  paternidadDays: 14,
+  paternidadParentalCompartidaDays: 7,
+  lutoMaxBusinessDays: 5
+};
+
+export const LABOR_SYSTEM_PARAMETERS_MIN_YEAR = 2020;
+export const LABOR_SYSTEM_PARAMETERS_MAX_YEAR = 2035;
+
+/** Catálogos CO para nómina/RRHH (coincidencia de valores guardados y formularios). */
+export const CO_CATALOGS = {
+  licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
+  eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
+  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa", "Equidad", "Mapfre"],
+  bloodTypes: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
+  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"],
+  severanceFunds: ["Porvenir", "Proteccion", "Colfondos", "Skandia", "FNA"],
+  compensationFunds: ["Colsubsidio", "Cafam", "Compensar", "Comfama", "Comfandi", "Cafaba", "Comfenalco Antioquia", "Comfenalco Valle", "Cajacopi"],
+  arlRiskLevels: ["I", "II", "III", "IV", "V"],
+  bodyTypes: ["Furgon seco", "Furgon refrigerado (Termoking)", "Estacas", "Plancha", "Cisterna", "Granelero", "Volqueta"],
+  fuelTypes: ["Diesel ACPM", "Gas Natural Vehicular (GNV)", "Gasolina corriente", "Hibrido"],
+  axleConfig: ["2 ejes (4 llantas)", "3 ejes (6 llantas)", "4 ejes (8 llantas)", "5 ejes (10 llantas)", "6 ejes (12 llantas)"],
+  documentTypes: ["CC", "CE", "PAS", "PEP", "TI"],
+  contractTypes: ["Termino indefinido", "Termino fijo", "Obra o labor", "Prestacion de servicios", "Aprendizaje SENA"],
+  /** Tipos con plantilla Word en documentacion/ (solo formulario de cargo). */
+  positionContractTypes: ["Termino indefinido", "Termino fijo", "Prestacion de servicios"],
+  workSchedule: ["Diurna", "Nocturna", "Mixta"],
+  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"],
+  contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
+  banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
+  accountTypes: ["Ahorros", "Corriente"],
+  educationLevel: ["Primaria", "Bachiller", "Tecnico", "Tecnologo", "Profesional", "Posgrado"],
+  maritalStatus: ["Soltero(a)", "Casado(a)", "Union libre", "Separado(a)", "Divorciado(a)", "Viudo(a)"],
+  genders: ["Masculino", "Femenino", "Otro", "Prefiero no decirlo"],
+  vehicleColors: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo", "Verde", "Amarillo", "Naranja"],
+  contractTerminationCauses: ["Vencimiento de termino", "Mutuo acuerdo", "Justa causa", "Sin justa causa", "Renuncia voluntaria", "Termino de obra", "Pension"],
+  uniformIssuance: ["Enero/Mayo/Septiembre", "Abril/Agosto/Diciembre", "No aplica"]
+};
+
+export const HIRING_RRHH_EDIT_ACTIONS = new Set([
+  "edit-vacancy",
+  "edit-position",
+  "edit-candidate",
+  "edit-interview",
+  "candidate-status",
+  "toggle-position"
+]);
+
+export const TRIP_RATE_SCOPE_SEP = "@@";
+
+export const SEARCHABLE_SELECT_MIN_OPTIONS = 8;
+
+/** Metadatos UI: cola de autorizaciones agrupada por ambito operativo (ver también queueApproval). */
+export const APPROVAL_TYPE_META = {
+  create_user: { sectionKey: "portal_access", label: "Alta de usuario del portal" },
+  create_driver: { sectionKey: "transport_fleet", label: "Alta de conductor" },
+  create_employee: { sectionKey: "workforce", label: "Alta de colaborador (gestión humana)" },
+  register_hr_absence: { sectionKey: "hr_absences", label: "Registro de ausencia o incapacidad" },
+  mark_payroll_paid: { sectionKey: "payroll_pay", label: "Confirmar pago de liquidación" },
+  approve_trip_request: { sectionKey: "misc", label: "Solicitud de transporte pendiente (historico en cola)" }
+};
+
+export const APPROVAL_UI_BLOCKS = [
+  {
+    key: "portal_access",
+    kind: "queue",
+    title: "Acceso y usuarios del portal",
+    description:
+      "Creación de cuentas que un operador sin rol administrador registra en el módulo de usuarios. Al aprobar, el sistema materializa el usuario, permisos y empresa asociada.",
+    origin: "Usuarios y permisos → nuevo usuario (no administrador)"
+  },
+  {
+    key: "transport_fleet",
+    kind: "queue",
+    title: "Conductores y flota operativa",
+    description:
+      "Alta de conductor solicitada por un perfil que no es administrador. Al aprobar, se crea el conductor disponible para asignación y, si aplica, el registro vinculado en gestión humana.",
+    origin: "Conductores → nuevo registro (no administrador)"
+  },
+  {
+    key: "workforce",
+    kind: "queue",
+    title: "Talento, contratación y gestión humana",
+    description:
+      "Ingreso de colaborador al expediente de personal cuando quien registra no es administrador. Incluye datos contractuales, seguridad social y desempeño del flujo de aprobación previo a la ficha activa.",
+    origin: "Gestión humana → nuevo empleado (no administrador)"
+  },
+  {
+    key: "hr_absences",
+    kind: "queue",
+    title: "Ausencias, incapacidades y SST",
+    description:
+      "Registro formal de ausencia cuando quien carga el dato tiene rol de Recursos Humanos, Administración, Auxiliar administrativo o Líder administrativo. El administrador valida antes de dejar constancia.",
+    origin: "Cumplimiento laboral y SST → registro de ausencia (roles RRHH / administrativos)"
+  },
+  {
+    key: "payroll_pay",
+    kind: "queue",
+    title: "Liquidación y marcas de pago",
+    description:
+      "Marcar liquidación de nómina como pagada cuando la acción la inicia un perfil RRHH o administrativo (no administrador de sistema). Evita cierres contables sin doble validación.",
+    origin: "Gestión humana → marcar liquidación pagada (roles RRHH / administrativos)"
+  }
+];
+
+export const AUTH_QUEUE_SHORT_TAB_LABELS = {
+  portal_access: "Alta usuarios",
+  transport_fleet: "Conductores",
+  workforce: "Empleados",
+  hr_absences: "Ausencias",
+  payroll_pay: "Liquidaciones"
+};
+
+export const REQUEST_EDIT_JUSTIFICATION_MIN_LEN = 10;
+
+export const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
+export const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
+export const SESSION_IDLE_PUBLIC_NOTICE_KEY = "antares_session_idle_notice_v1";
+
+export const TRANSPORT_MODOS_SERVICIO = new Set(["Transporte nacional", "Transporte entre sedes del cliente"]);
+
+export const TRIP_ASSIGNMENT_FLEET_TYPE_KEYS = new Set(["camion", "turbo", "tractomula"]);
+
+export const FLEET_DRIVER_EDIT_ACTIONS = new Set(["edit-driver", "toggle-driver"]);
+
+export const HISTORY_FLEET_TECH_LABELS = {
+  preventivo: "Preventivo",
+  correctivo: "Correctivo",
+  falla: "Falla técnica"
+};
+
+export const REPORT_RULES = {
+  executive_control_tower: { permission: PERMISSIONS.DASHBOARD_VIEW, rrhhAllowed: true },
+  service_levels: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  fleet_summary: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  fuel_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  maintenance_fleet: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  revenue_by_route: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  request_funnel: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  document_compliance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
+  hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
+  labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
+  users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },
+  authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE, adminOnly: true }
+};
+
+export const REPORT_EXPORT_BRAND = Object.freeze({
+  primary: "#377cc0",
+  primaryDeep: "#2a6399",
+  primaryDeeper: "#1e4a73",
+  soft: "#cce5f8",
+  text: "#0b2138",
+  muted: "#64748b",
+  line: "#b8d4eb"
+});
+
+export const REPORT_BRAND_LOGO_PATH = "./imagenes%20empresa/Logo.png";
+
+export const SST_COMPLIANCE_RECORD_TYPES = [
+  "Afiliacion EPS",
+  "Afiliacion pension",
+  "Afiliacion ARL",
+  "Examen medico ocupacional",
+  "Capacitacion SST",
+  "Inspeccion documental"
+];
+
+export const SST_COMPLIANCE_STATUSES = ["Pendiente", "En gestion", "Cumplido"];

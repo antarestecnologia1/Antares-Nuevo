@@ -1,30 +1,29 @@
 ﻿/**
  * Cumplimiento laboral / SST (labor-compliance): vista HTML (runtime) y listeners del portal.
+ * Helpers de plantilla viven en `portal-runtime.js` hasta completar la extracción (vía `globalThis`).
  */
+import { state, nodes } from "../core/store.js";
+import { read, writeAwaitServer } from "../core/data-io.js";
+import { KEYS } from "../core/config.js";
+import { escapeHtml, escapeAttr } from "../core/utils.js";
+import { currentUser } from "../core/auth.js";
 
-/**
- * Vista "Cumplimiento laboral" (RRHH / SST) — migrada desde app.js.
- * Requiere `window.AntaresPortalRuntime` (poblado desde `portal-runtime.js` antes de los `registerLegacyPortalViews` de los módulos en `modules/app/`).
- */
+const G = globalThis;
+
 (function installLaborComplianceHtml() {
   function laborComplianceHtml() {
-    const rt = window.AntaresPortalRuntime;
-    if (!rt) return "";
-    const {
-      read,
-      KEYS,
-      IC,
-      escapeHtml,
-      escapeAttr,
-      fieldLabel,
-      renderHrAlertCards,
-      emptyState,
-      renderManagedCreateFormActions,
-      createCollapsibleCard,
-      moduleFleetHeroStrip,
-      pcardWrap,
-      isAdminActor
-    } = rt;
+    const IC = G.IC || {};
+    /** TODO: mover fieldLabel a módulo propio (hoy en portal-runtime.js) */
+    const fieldLabel = G.fieldLabel;
+    const renderHrAlertCards = G.renderHrAlertCards;
+    const emptyState = G.emptyState;
+    const renderManagedCreateFormActions = G.renderManagedCreateFormActions;
+    const createCollapsibleCard = G.createCollapsibleCard;
+    const moduleFleetHeroStrip = G.moduleFleetHeroStrip;
+    const pcardWrap = G.pcardWrap;
+    const isAdminActor = G.isAdminActor;
+
+    if (typeof fieldLabel !== "function" || typeof isAdminActor !== "function") return "";
 
     const employees = read(KEYS.payrollEmployees, []);
     const contracts = read(KEYS.contracts, []);
@@ -183,21 +182,21 @@ function bindLaborCompliancePortalControls() {
 
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
-    wireFormSubmitGuard(sstComplianceForm, async (event) => {
-      const data = readFormEntriesNormalized(sstComplianceForm);
+    G.wireFormSubmitGuard(sstComplianceForm, async (event) => {
+      const data = G.readFormEntriesNormalized(sstComplianceForm);
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
-        notify(userMessage("sstPickEmployee"), "error");
+        G.notify(G.userMessage("sstPickEmployee"), "error");
         return;
       }
       const dueDate = String(data.dueDate || "");
       if (!dueDate) {
-        notify(userMessage("sstDueDateRequired"), "error");
+        G.notify(G.userMessage("sstDueDateRequired"), "error");
         return;
       }
       const list = read(KEYS.sstCompliance, []);
       list.unshift({
-        id: newUuidV4(),
+        id: G.newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
         recordType: String(data.recordType || "").trim(),
@@ -206,25 +205,25 @@ function bindLaborCompliancePortalControls() {
         status: String(data.status || "Pendiente"),
         documentCode: String(data.documentCode || "").trim().toUpperCase(),
         notes: String(data.notes || "").trim(),
-        createdAt: nowIso(),
+        createdAt: G.nowIso(),
         createdBy: currentUser()?.name || "Sistema"
       });
       try {
         await writeAwaitServer(KEYS.sstCompliance, list);
       } catch (err) {
-        notify(String(err?.message || "No fue posible guardar el registro SST en el servidor."), "error");
+        G.notify(String(err?.message || "No fue posible guardar el registro SST en el servidor."), "error");
         return;
       }
-      notify(userMessage("sstRecorded"), "success");
-      collapseCreatePanel("create-sst-control");
-      renderPortalView();
+      G.notify(G.userMessage("sstRecorded"), "success");
+      G.collapseCreatePanel("create-sst-control");
+      G.renderPortalView();
     });
   }
 
-  const renderDetailRows = portalDetailRenderRows;
-  const buildDetailGrid = portalDetailBuildGrid;
+  const renderDetailRows = G.portalDetailRenderRows;
+  const buildDetailGrid = G.portalDetailBuildGrid;
   const fmtDateOr = (val, fallback = "—") => {
-    const y = normalizePortalDateYmd(val);
+    const y = G.normalizePortalDateYmd(val);
     return y ? escapeHtml(y) : fallback;
   };
 
@@ -233,7 +232,7 @@ function bindLaborCompliancePortalControls() {
     btn.addEventListener("click", () => {
       const r = read(KEYS.sstCompliance, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
       if (!r) {
-        notify(userMessage("genericError"), "error");
+        G.notify(G.userMessage("genericError"), "error");
         return;
       }
       const sections = [
@@ -259,7 +258,7 @@ function bindLaborCompliancePortalControls() {
             : `<span class="muted">Sin observaciones.</span>`
         }
       ];
-      openInfoModal({
+      G.openInfoModal({
         title: `Control SST · ${String(r.recordType || "")}`,
         subtitle: String(r.employeeName || ""),
         bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
@@ -270,18 +269,13 @@ function bindLaborCompliancePortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-sst-record']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (G.abortIfNotAdmin()) return;
       const all = read(KEYS.sstCompliance, []);
-      const target = normalizeSstComplianceRow(
-        all.find((x) => String(x.id) === String(btn.dataset.id || ""))
-      );
+      const target = G.normalizeSstComplianceRow(all.find((x) => String(x.id) === String(btn.dataset.id || "")));
       if (!target) return;
-      const recordTypeOpts = editModalCatalogSelectOptions(
-        SST_COMPLIANCE_RECORD_TYPES,
-        target.recordType
-      );
-      const sstStatusOpts = editModalCatalogSelectOptions(SST_COMPLIANCE_STATUSES, target.status || "Pendiente");
-      openEditModal({
+      const recordTypeOpts = G.editModalCatalogSelectOptions(G.SST_COMPLIANCE_RECORD_TYPES, target.recordType);
+      const sstStatusOpts = G.editModalCatalogSelectOptions(G.SST_COMPLIANCE_STATUSES, target.status || "Pendiente");
+      G.openEditModal({
         title: "Editar control SST",
         subtitle: String(target.recordType || ""),
         submitText: "Guardar cambios",
@@ -308,30 +302,30 @@ function bindLaborCompliancePortalControls() {
         ],
         onSubmit: async (form) => {
           if (!form.dueDate) {
-            notify(userMessage("sstDueDateRequired"), "error");
+            G.notify(G.userMessage("sstDueDateRequired"), "error");
             return false;
           }
           const nextList = all.map((r) =>
-              String(r.id) !== String(target.id)
-                ? r
-                : {
-                    ...r,
-                    recordType: String(form.recordType || r.recordType || "").trim(),
-                    provider: String(form.provider || "").trim(),
-                    dueDate: form.dueDate,
-                    status: String(form.status || "Pendiente"),
-                    documentCode: String(form.documentCode || "").trim().toUpperCase(),
-                    notes: String(form.notes || "").trim()
-                  }
-            );
+            String(r.id) !== String(target.id)
+              ? r
+              : {
+                  ...r,
+                  recordType: String(form.recordType || r.recordType || "").trim(),
+                  provider: String(form.provider || "").trim(),
+                  dueDate: form.dueDate,
+                  status: String(form.status || "Pendiente"),
+                  documentCode: String(form.documentCode || "").trim().toUpperCase(),
+                  notes: String(form.notes || "").trim()
+                }
+          );
           try {
             await writeAwaitServer(KEYS.sstCompliance, nextList);
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar el control SST en el servidor."), "error");
+            G.notify(String(err?.message || "No fue posible guardar el control SST en el servidor."), "error");
             return false;
           }
-          notify("Control SST actualizado.", "success");
-          renderPortalView();
+          G.notify("Control SST actualizado.", "success");
+          G.renderPortalView();
           return true;
         }
       });
@@ -340,19 +334,19 @@ function bindLaborCompliancePortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-sst-record']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (G.abortIfNotAdmin()) return;
       const id = String(btn.dataset.id || "");
       const target = read(KEYS.sstCompliance, []).find((r) => String(r.id) === id);
       if (!target) return;
-      openConfirmModal({
+      G.openConfirmModal({
         title: "Eliminar control SST",
         message: `Se eliminará el control "${String(target.recordType || "")}" del expediente.`,
         confirmText: "Eliminar control",
         onConfirm: async () => {
-          const ok = await removeFromPortalListAwaitServer(KEYS.sstCompliance, id);
+          const ok = await G.removeFromPortalListAwaitServer(KEYS.sstCompliance, id);
           if (!ok) return;
-          notify("Control SST eliminado.", "success");
-          renderPortalView();
+          G.notify("Control SST eliminado.", "success");
+          G.renderPortalView();
         }
       });
     });
@@ -360,7 +354,6 @@ function bindLaborCompliancePortalControls() {
 }
 
 (function registerLaborCompliancePortalBinds() {
-  "use strict";
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
   window.__portalModuleAfterRender["labor-compliance"] = bindLaborCompliancePortalControls;
 })();

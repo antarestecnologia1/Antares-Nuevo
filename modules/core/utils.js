@@ -2,7 +2,8 @@
  * Utilidades puras (sin `state`, `nodes`, persistencia ni DOM).
  * Se exponen en `window` desde `index.html` junto con `config.js` para scripts clásicos.
  */
-import { HR_VALID_HIRING_WS, HR_VALID_PAYROLL_WS } from "./config.js";
+import { CO_TIMEZONE, HR_VALID_HIRING_WS, HR_VALID_PAYROLL_WS } from "./config.js";
+import { normalizeLatinForDb, normalizePortalPhoneForStorage } from "../domain/payroll-catalog-sanitize.domain.js";
 
 /** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
 export function escapeHtml(value) {
@@ -208,4 +209,255 @@ export function formatGenericNationalDisplay(value, maxLen) {
     parts.push(d.slice(i, i + 3));
   }
   return parts.join(" ");
+}
+
+/** Para inputs `type="date"` y datos desde API/pg (DATE, ISO con hora). Opcional DMY vía `AntaresValidation` en globalThis. */
+export function normalizePortalDateYmd(raw) {
+  if (raw == null || raw === "") return "";
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const V = typeof globalThis !== "undefined" ? globalThis.AntaresValidation : undefined;
+  const dmy = V?.parseDmyToIsoDate?.(s);
+  if (dmy) return dmy;
+  const t = Date.parse(s);
+  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+  return "";
+}
+
+export function fmtDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("es-CO", { timeZone: CO_TIMEZONE });
+}
+
+export function fmtDateOr(value, fallback = "—") {
+  const ymd = normalizePortalDateYmd(value);
+  if (!ymd) return fallback;
+  const V = typeof globalThis !== "undefined" ? globalThis.AntaresValidation : undefined;
+  const dmy = V?.formatIsoDateToDmy?.(ymd);
+  return dmy || ymd;
+}
+
+export function formatColombiaLongDate(dateValue = new Date()) {
+  try {
+    const raw = new Date(dateValue).toLocaleDateString("es-CO", {
+      timeZone: CO_TIMEZONE,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  } catch (_e) {
+    return "";
+  }
+}
+
+export function fmtTimeOnly(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleTimeString("es-CO", {
+      timeZone: CO_TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  } catch (_e) {
+    return "—";
+  }
+}
+
+export function fmtFleetLogDate(value) {
+  const s = String(value || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(value);
+  const [y, m, d] = s.split("-").map((x) => parseInt(x, 10));
+  return new Date(y, m - 1, d).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+}
+
+export function getColombiaDateParts(dateValue = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: CO_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+  const parts = formatter.formatToParts(dateValue);
+  const pick = (type) => parts.find((part) => part.type === type)?.value || "00";
+  return {
+    year: pick("year"),
+    month: pick("month"),
+    day: pick("day"),
+    hour: pick("hour"),
+    minute: pick("minute"),
+    second: pick("second")
+  };
+}
+
+export function colombiaNowIso() {
+  const p = getColombiaDateParts(new Date());
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}-05:00`;
+}
+
+export function colombiaTodayIsoDate() {
+  const p = getColombiaDateParts(new Date());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** Año calendario después de una fecha `YYYY-MM-DD` (p. ej. vencimiento SOAT un año tras expedición). */
+export function addCalendarYearsIsoDate(isoDateStr, years = 1) {
+  const raw = String(isoDateStr || "").trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return "";
+  const dt = new Date(y, mo - 1, d);
+  if (Number.isNaN(dt.getTime())) return "";
+  const n = Number(years);
+  const deltaYears = Number.isFinite(n) && n !== 0 ? n : 1;
+  dt.setFullYear(dt.getFullYear() + deltaYears);
+  const oy = dt.getFullYear();
+  const om = String(dt.getMonth() + 1).padStart(2, "0");
+  const od = String(dt.getDate()).padStart(2, "0");
+  return `${oy}-${om}-${od}`;
+}
+
+/** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */
+export function colombiaDatetimeLocalString(dateValue = new Date()) {
+  const p = getColombiaDateParts(dateValue);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+export function nowLocalIso() {
+  return colombiaNowIso().slice(0, 19);
+}
+
+export function nowIso() {
+  return colombiaNowIso();
+}
+
+export function stampCreatedRecord(record, ts = nowIso()) {
+  return {
+    ...record,
+    createdAt: record?.createdAt || ts,
+    updatedAt: record?.updatedAt || ts
+  };
+}
+
+export function stampUpdatedRecord(record, ts = nowIso()) {
+  return {
+    ...record,
+    updatedAt: ts
+  };
+}
+
+/** IDs cortos locales (no usar para filas que sincronizan a PostgreSQL con `::uuid`; usar `newUuidV4`). */
+export function uid() {
+  return Math.random().toString(36).slice(2, 11);
+}
+
+/** UUID v4 para entidades que persisten en PostgreSQL (empresas, etc.). */
+export function newUuidV4() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+const UUID_V4_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isUuidString(value) {
+  return typeof value === "string" && UUID_V4_RE.test(value.trim());
+}
+
+export function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+export function normalizeLatinUpperForDb(value) {
+  return normalizeLatinForDb(value).toUpperCase();
+}
+
+export function formatPortalPhoneForDisplay(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const normalized = normalizePortalPhoneForStorage(s);
+  return normalized && /\d/.test(normalized) ? normalized : s;
+}
+
+/** tipo_persona siempre "Natural" | "Juridica": una sola forma al persistir; las consultas usan = sin LOWER(). */
+export function normalizePersonTypeForDb(value) {
+  const k = normalizeLatinForDb(value).toLowerCase();
+  if (k === "juridica") return "Juridica";
+  return "Natural";
+}
+
+/** tipo_vinculo_registro / registrationKind: siempre "cliente" | "empleado_interno". */
+export function normalizeRegistrationKindForDb(value) {
+  const k = String(value || "")
+    .trim()
+    .toLowerCase();
+  return k === "empleado_interno" ? "empleado_interno" : "cliente";
+}
+
+/** empresas.tipo_relacion_empresa / companyKind: cliente | tercero | propia */
+export function normalizeCompanyKindForDb(value) {
+  const k = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (k === "tercero") return "tercero";
+  if (k === "propia") return "propia";
+  return "cliente";
+}
+
+export function companyKindLabel(kind) {
+  const k = normalizeCompanyKindForDb(kind);
+  if (k === "propia") return "Empresa propia (Antares)";
+  if (k === "tercero") return "Tercero";
+  return "Cliente";
+}
+
+/** Normaliza strings en objetos de formulario/autorización (delegado en AntaresValidation cuando existe). */
+export function normalizePayloadTextFields(payload) {
+  const fn = globalThis.AntaresValidation?.normalizePayloadTextFields;
+  if (typeof fn === "function") return fn(payload);
+  return payload;
+}
+
+export function emptyState(text) {
+  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${escapeHtml(text)}</p></div>`;
+}
+
+export function fieldLabel(icon, text, opts) {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const mark = o.required
+    ? '<span class="field-required-mark" aria-hidden="true" title="Obligatorio">*</span>'
+    : "";
+  return `<span class="field-label">${icon}<span>${text}</span>${mark}</span>`;
+}
+
+export function snapPick(obj, ...keys) {
+  if (!obj) return "";
+  for (const k of keys) {
+    const v = obj[k];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+}
+
+export function pickFirstNonEmpty(...vals) {
+  for (const v of vals) {
+    if (v != null && String(v).trim() !== "") return v;
+  }
+  return "";
 }

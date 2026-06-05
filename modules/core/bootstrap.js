@@ -11,6 +11,7 @@ import {
   setSession
 } from "./auth.js";
 import { state } from "./store.js";
+import { scheduleRenderPortalView } from "./router.js";
 
 /** @type {Record<string, unknown>} */
 let __callbacks = {
@@ -843,4 +844,61 @@ export async function startPortalBootstrapForInteractiveSession() {
       /* noop */
     }
   }
+}
+
+/**
+ * Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge.
+ * La mayoría de hooks siguen en `portal-runtime.js` hasta completar la modularización.
+ */
+export function portalRefreshAfterBootstrap() {
+  const G = typeof globalThis !== "undefined" ? globalThis : window;
+  if (!getSession()) return;
+  try {
+    syncSessionProfileSnapshotFromCache();
+    if (typeof G.reconcileNotificationsCacheForSession === "function") {
+      G.reconcileNotificationsCacheForSession();
+    }
+    if (typeof G.updatePortalSidebarSessionMeta === "function") {
+      G.updatePortalSidebarSessionMeta();
+    }
+  } catch (_e) {
+    /* noop */
+  }
+  try {
+    const u = currentUser();
+    if (u && typeof G.enforcePortalViewFromUrl === "function") {
+      G.enforcePortalViewFromUrl(u);
+    }
+  } catch (_e) {
+    /* noop */
+  }
+  const positionsPromise = G.__portalBootstrapPositionsFresh
+    ? Promise.resolve()
+    : typeof G.refreshPositionsCatalogFromApi === "function"
+      ? G.refreshPositionsCatalogFromApi({ rerender: false })
+      : Promise.resolve();
+  void positionsPromise.finally(() => {
+    G.__portalBootstrapPositionsFresh = false;
+    try {
+      if (typeof G.dispatchPositionsCatalogUpdated === "function") {
+        G.dispatchPositionsCatalogUpdated();
+      }
+    } catch (_pos) {
+      /* noop */
+    }
+    const unsaved =
+      typeof G.hasUnsavedPortalFormData === "function" ? Boolean(G.hasUnsavedPortalFormData()) : false;
+    if (!unsaved) {
+      if (state.currentView === "notifications") {
+        if (typeof G.scheduleNotificationsViewRenderIfChanged === "function") {
+          G.scheduleNotificationsViewRenderIfChanged();
+        }
+      } else {
+        scheduleRenderPortalView();
+      }
+    }
+    if (typeof G.updateNotificationBadge === "function") {
+      G.updateNotificationBadge();
+    }
+  });
 }

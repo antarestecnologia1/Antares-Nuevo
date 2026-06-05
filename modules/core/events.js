@@ -2,9 +2,10 @@
  * Antares Portal — delegación global de eventos y hooks post-render del `viewRoot`.
  * Las funciones usan helpers del runtime clásico (`portal-runtime.js`) vía `window`.
  */
-import { state, nodes } from "./store.js";
+import { state, nodes, persistClientDataScope } from "./store.js";
+import { isPortalClientUser } from "./client-data-scope-ui.js";
 import { currentUser, hasPermission, ROLES } from "./auth.js";
-import { KEYS, PERMISSIONS } from "./config.js";
+import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE } from "./config.js";
 import { read, write, writeAwaitServer } from "./data-io.js";
 import { registerBindEventsCallback, scheduleRenderPortalView, setView, renderPortalView } from "./router.js";
 function applyModuleMicroAnimations() {

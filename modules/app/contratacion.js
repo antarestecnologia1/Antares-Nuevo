@@ -1490,7 +1490,8 @@ function bindHiringPortalControls() {
           });
           notify(userMessage("contractWordSaved"), "success");
         }
-        const deduped = dedupContracts(all);
+        const deduped =
+          typeof window.dedupContracts === "function" ? window.dedupContracts(all) : all;
         try {
           await writeAwaitServer(KEYS.contracts, deduped);
           if (linkedCandidate) {

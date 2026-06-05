@@ -3,7 +3,7 @@
  * `modules/core/store.js` y se exponen en `window` desde `index.html` (junto con config y utils).
  */
 try {
-  purgeDuplicateContracts();
+  if (typeof window.purgeDuplicateContracts === "function") window.purgeDuplicateContracts();
 } catch (_) {
   /* no-op: purge is best-effort */
 }
@@ -296,10 +296,6 @@ function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, expandL
     </header>
     ${cardBody}
   </article>`;
-}
-
-function emptyState(text) {
-  return `<div class="empty-state"><svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><p>${escapeHtml(text)}</p></div>`;
 }
 
 function moduleFleetHeroStrip(metrics, hrVariant = "") {
@@ -2248,15 +2244,6 @@ async function ensureDeletedTransportRequestAuditSnapshotLoaded(logId) {
   }
 }
 
-function snapPick(obj, ...keys) {
-  if (!obj) return "";
-  for (const k of keys) {
-    const v = obj[k];
-    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
-  }
-  return "";
-}
-
 function formatDeletedRequestSnapshotRouteLine(snap) {
   if (!snap) return "Sin datos de ruta.";
   const od = snapPick(snap, "departamento_origen", "originDepartment");
@@ -2964,87 +2951,6 @@ function primeInboxNotificationAudioFromUserGesture() {
   } catch (_e) {}
 }
 
-const CO_TIMEZONE = "America/Bogota";
-const REGISTER_TERMS_URL = "./terminos-condiciones.html";
-const REGISTER_PRIVACY_URL = "./politica-privacidad.html";
-
-/** Orden en la grilla de permisos (Usuarios y permisos). */
-const PERMISSION_UI_GROUPS = [
-  {
-    title: "General",
-    permissions: [PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.PROFILE_VIEW, PERMISSIONS.NOTIFICATIONS_VIEW]
-  },
-  {
-    title: "Solicitudes y operación de transporte",
-    permissions: [
-      PERMISSIONS.CLIENT_REQUESTS,
-      PERMISSIONS.TRANSPORT_REQUESTS,
-      PERMISSIONS.TRANSPORT_TRIPS,
-      PERMISSIONS.TRANSPORT_DRIVERS,
-      PERMISSIONS.TRANSPORT_CALENDAR,
-      PERMISSIONS.TRANSPORT_HISTORY
-    ]
-  },
-  {
-    title: "Flota · camiones (por acción)",
-    permissions: [
-      PERMISSIONS.TRANSPORT_VEHICLES,
-      PERMISSIONS.TRANSPORT_VEHICLES_VIEW,
-      PERMISSIONS.TRANSPORT_VEHICLES_CREATE,
-      PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
-      PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
-      PERMISSIONS.TRANSPORT_VEHICLES_DELETE
-    ]
-  },
-  {
-    title: "Centro de aprobaciones (por bandeja)",
-    permissions: [
-      PERMISSIONS.AUTHORIZATIONS_MANAGE,
-      PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
-      PERMISSIONS.AUTHORIZATIONS_PORTAL_REGISTRATIONS,
-      PERMISSIONS.AUTHORIZATIONS_PORTAL_USERS,
-      PERMISSIONS.AUTHORIZATIONS_FLEET,
-      PERMISSIONS.AUTHORIZATIONS_WORKFORCE,
-      PERMISSIONS.AUTHORIZATIONS_HR_ABSENCES,
-      PERMISSIONS.AUTHORIZATIONS_PAYROLL_PAY
-    ]
-  },
-  {
-    title: "Recursos humanos y administración",
-    permissions: [
-      PERMISSIONS.PAYROLL_MANAGE,
-      PERMISSIONS.HIRING_MANAGE,
-      PERMISSIONS.SST_COMPLIANCE,
-      PERMISSIONS.USERS_MANAGE,
-      PERMISSIONS.CONTACT_B2B_VIEW
-    ]
-  }
-];
-
-const STATUS = {
-  PENDIENTE: "Pendiente",
-  APROBADA_PENDIENTE_ASIGNACION: "Aprobada pendiente asignacion",
-  VIAJE_ASIGNADO: "Viaje asignado",
-  EN_TRANSITO: "En transito",
-  ESPERA_STANDBY: "Espera standby",
-  COMPLETADA: "Completada",
-  CERRADA: "Cerrada",
-  CANCELADA: "Cancelada",
-  RECHAZADA: "Rechazada"
-};
-
-const STATUS_TRANSITIONS = {
-  [STATUS.PENDIENTE]: [STATUS.APROBADA_PENDIENTE_ASIGNACION, STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA, STATUS.RECHAZADA],
-  [STATUS.APROBADA_PENDIENTE_ASIGNACION]: [STATUS.VIAJE_ASIGNADO, STATUS.CANCELADA],
-  [STATUS.VIAJE_ASIGNADO]: [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.CANCELADA],
-  [STATUS.EN_TRANSITO]: [STATUS.ESPERA_STANDBY, STATUS.COMPLETADA, STATUS.CANCELADA],
-  [STATUS.ESPERA_STANDBY]: [STATUS.EN_TRANSITO, STATUS.COMPLETADA, STATUS.CANCELADA],
-  [STATUS.COMPLETADA]: [STATUS.CERRADA],
-  [STATUS.CERRADA]: [],
-  [STATUS.CANCELADA]: [],
-  [STATUS.RECHAZADA]: []
-};
-
 function statusIconEmoji(status) {
   switch (String(status || "").trim()) {
     case STATUS.PENDIENTE:
@@ -3128,16 +3034,6 @@ function isPortalUserPendingApproval(user) {
   return s === ACCOUNT_STATUS.PENDIENTE || s === "pending";
 }
 
-const PIPELINE = ["Recibido", "Preseleccionado", "Entrevistado", "Oferta enviada", "Contratado", "Descartado"];
-const PIPELINE_TRANSITIONS = {
-  Recibido: ["Preseleccionado", "Descartado"],
-  Preseleccionado: ["Entrevistado", "Descartado"],
-  Entrevistado: ["Oferta enviada", "Descartado"],
-  "Oferta enviada": ["Contratado", "Descartado"],
-  Contratado: [],
-  Descartado: []
-};
-const AUTO_APPROVE_MINUTES = 10;
 const CO_PAYROLL = {
   healthEmployeeRate: 0.04,
   pensionEmployeeRate: 0.04,
@@ -3147,10 +3043,6 @@ const CO_PAYROLL = {
   smmlv: 1750905
 };
 
-/** Ley 52/1975: interés legal anual sobre cesantías (referencia normativa vigente). */
-const CO_CESANTIAS_INTERES_ANUAL_PCT = 12;
-
-/** Junio (06) o diciembre (12): periodo habitual semestral de prima de servicios. */
 function payrollMonthIsPrimaSemester(ym) {
   return /^(\d{4})-(06|12)(-|$)/.test(String(ym || "").trim());
 }
@@ -3366,16 +3258,6 @@ function payrollNormalizeAbsenceTypeKey(absenceType) {
   if (t === "calamidad") return "calamidad_domestica";
   return t;
 }
-
-const PAYROLL_ABSENCE_LEGAL_LIMITS = {
-  maternidadOrdinariaDays: 126,
-  maternidadMultipleDays: 140,
-  maternidadPrematuroMaxDays: 140,
-  maternidadExtensionMedicaMaxDays: 182,
-  paternidadDays: 14,
-  paternidadParentalCompartidaDays: 7,
-  lutoMaxBusinessDays: 5
-};
 
 function payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype) {
   const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
@@ -4771,9 +4653,6 @@ function bindPositionCompensationFields(form, config = {}) {
   };
 }
 
-const LABOR_SYSTEM_PARAMETERS_MIN_YEAR = 2020;
-const LABOR_SYSTEM_PARAMETERS_MAX_YEAR = 2035;
-
 function clampLaborSystemParameterYear(yearLike) {
   const y = Math.trunc(Number(yearLike) || new Date().getFullYear());
   return Math.min(LABOR_SYSTEM_PARAMETERS_MAX_YEAR, Math.max(LABOR_SYSTEM_PARAMETERS_MIN_YEAR, y));
@@ -4917,34 +4796,6 @@ function renderPayrollLegalHistoryCard(row, allRuns = [], { canDelete = false } 
   </article>`;
 }
 
-const CO_CATALOGS = {
-  licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
-  eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
-  arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa", "Equidad", "Mapfre"],
-  bloodTypes: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
-  pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"],
-  severanceFunds: ["Porvenir", "Proteccion", "Colfondos", "Skandia", "FNA"],
-  compensationFunds: ["Colsubsidio", "Cafam", "Compensar", "Comfama", "Comfandi", "Cafaba", "Comfenalco Antioquia", "Comfenalco Valle", "Cajacopi"],
-  arlRiskLevels: ["I", "II", "III", "IV", "V"],
-  bodyTypes: ["Furgon seco", "Furgon refrigerado (Termoking)", "Estacas", "Plancha", "Cisterna", "Granelero", "Volqueta"],
-  fuelTypes: ["Diesel ACPM", "Gas Natural Vehicular (GNV)", "Gasolina corriente", "Hibrido"],
-  axleConfig: ["2 ejes (4 llantas)", "3 ejes (6 llantas)", "4 ejes (8 llantas)", "5 ejes (10 llantas)", "6 ejes (12 llantas)"],
-  documentTypes: ["CC", "CE", "PAS", "PEP", "TI"],
-  contractTypes: ["Termino indefinido", "Termino fijo", "Obra o labor", "Prestacion de servicios", "Aprendizaje SENA"],
-  /** Tipos con plantilla Word en documentacion/ (solo formulario de cargo). */
-  positionContractTypes: ["Termino indefinido", "Termino fijo", "Prestacion de servicios"],
-  workSchedule: ["Diurna", "Nocturna", "Mixta"],
-  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"], // mismo canon que apps/api/src/payroll/payroll-frequency.ts → periodicidad_pago
-  contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
-  banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
-  accountTypes: ["Ahorros", "Corriente"],
-  educationLevel: ["Primaria", "Bachiller", "Tecnico", "Tecnologo", "Profesional", "Posgrado"],
-  maritalStatus: ["Soltero(a)", "Casado(a)", "Union libre", "Separado(a)", "Divorciado(a)", "Viudo(a)"],
-  genders: ["Masculino", "Femenino", "Otro", "Prefiero no decirlo"],
-  vehicleColors: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo", "Verde", "Amarillo", "Naranja"],
-  contractTerminationCauses: ["Vencimiento de termino", "Mutuo acuerdo", "Justa causa", "Sin justa causa", "Renuncia voluntaria", "Termino de obra", "Pension"],
-  uniformIssuance: ["Enero/Mayo/Septiembre", "Abril/Agosto/Diciembre", "No aplica"]
-};
 
 function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Seleccione...") {
   const matched = matchCatalogOptionValue(values, selected);
@@ -5012,15 +4863,6 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
   }
   return { ok: true };
 }
-
-const HIRING_RRHH_EDIT_ACTIONS = new Set([
-  "edit-vacancy",
-  "edit-position",
-  "edit-candidate",
-  "edit-interview",
-  "candidate-status",
-  "toggle-position"
-]);
 
 function canPerformHiringEditAction(action) {
   return HIRING_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageHiringModule();
@@ -5153,35 +4995,6 @@ function openHiringContractFromCandidate(candidateId) {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => scrollToCreatePanelForm("create-contract"));
   });
-}
-
-function getClientDataScope() {
-  const s = String(state.clientDataScope || CLIENT_DATA_SCOPE.COMPANY);
-  return s === CLIENT_DATA_SCOPE.INDIVIDUAL ? CLIENT_DATA_SCOPE.INDIVIDUAL : CLIENT_DATA_SCOPE.COMPANY;
-}
-
-function isPortalClientUser(user) {
-  return user?.role === ROLES.CLIENT;
-}
-
-function clientRequestsScopePrimaryLabel() {
-  return getClientDataScope() === CLIENT_DATA_SCOPE.INDIVIDUAL
-    ? "Mis solicitudes"
-    : "Solicitudes de mi empresa";
-}
-
-function clientDataScopeBarHtml(activeScope) {
-  const active =
-    String(activeScope || "") === CLIENT_DATA_SCOPE.INDIVIDUAL
-      ? CLIENT_DATA_SCOPE.INDIVIDUAL
-      : CLIENT_DATA_SCOPE.COMPANY;
-  const pill = (key, label) =>
-    `<button type="button" class="ops-filter-pill${active === key ? " is-active" : ""}" data-action="client-data-scope" data-scope="${escapeAttr(key)}"><span>${escapeHtml(label)}</span></button>`;
-  return `<div class="client-data-scope-bar ops-filters-bar" role="group" aria-label="Alcance de datos">
-    <span class="muted client-data-scope-label">${IC.briefcase} Ver:</span>
-    ${pill(CLIENT_DATA_SCOPE.COMPANY, "Toda mi empresa")}
-    ${pill(CLIENT_DATA_SCOPE.INDIVIDUAL, "Solo mis solicitudes")}
-  </div>`;
 }
 
 /** Misma política que modules/core/persistence.js cuando no hay AntaresPersistence. */
@@ -5938,30 +5751,6 @@ function applyTheme(theme = "light") {
   });
 }
 
-/** IDs cortos locales (no usar para filas que sincronizan a PostgreSQL con `::uuid`; usar `newUuidV4`). */
-function uid() {
-  return Math.random().toString(36).slice(2, 11);
-}
-
-/** UUID v4 para entidades que persisten en PostgreSQL (empresas, etc.). */
-function newUuidV4() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-const UUID_V4_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isUuidString(value) {
-  return typeof value === "string" && UUID_V4_RE.test(value.trim());
-}
-
 /**
  * Registro teléfono: países principales (Colombia siempre primero = opción por defecto).
  * `flag`: sufijo CSS `.register-lang-flag--*` (gradientes locales, sin red).
@@ -6268,25 +6057,6 @@ function initB2BFormExperience() {
   });
 }
 
-function nowIso() {
-  return colombiaNowIso();
-}
-
-function stampCreatedRecord(record, ts = nowIso()) {
-  return {
-    ...record,
-    createdAt: record?.createdAt || ts,
-    updatedAt: record?.updatedAt || ts
-  };
-}
-
-function stampUpdatedRecord(record, ts = nowIso()) {
-  return {
-    ...record,
-    updatedAt: ts
-  };
-}
-
 function readModuleAuditLogs() {
   const rows = read(KEYS.moduleAuditLogs, []);
   return Array.isArray(rows) ? rows : [];
@@ -6326,63 +6096,6 @@ function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIs
   };
 }
 
-function nowLocalIso() {
-  return colombiaNowIso().slice(0, 19);
-}
-
-function getColombiaDateParts(dateValue = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: CO_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  });
-  const parts = formatter.formatToParts(dateValue);
-  const pick = (type) => parts.find((part) => part.type === type)?.value || "00";
-  return {
-    year: pick("year"),
-    month: pick("month"),
-    day: pick("day"),
-    hour: pick("hour"),
-    minute: pick("minute"),
-    second: pick("second")
-  };
-}
-
-function colombiaNowIso() {
-  const p = getColombiaDateParts(new Date());
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}-05:00`;
-}
-
-function colombiaTodayIsoDate() {
-  const p = getColombiaDateParts(new Date());
-  return `${p.year}-${p.month}-${p.day}`;
-}
-
-/** Año calendario después de una fecha `YYYY-MM-DD` (p. ej. vencimiento SOAT un año tras expedición). */
-function addCalendarYearsIsoDate(isoDateStr, years = 1) {
-  const raw = String(isoDateStr || "").trim();
-  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return "";
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return "";
-  const dt = new Date(y, mo - 1, d);
-  if (Number.isNaN(dt.getTime())) return "";
-  const n = Number(years);
-  const deltaYears = Number.isFinite(n) && n !== 0 ? n : 1;
-  dt.setFullYear(dt.getFullYear() + deltaYears);
-  const oy = dt.getFullYear();
-  const om = String(dt.getMonth() + 1).padStart(2, "0");
-  const od = String(dt.getDate()).padStart(2, "0");
-  return `${oy}-${om}-${od}`;
-}
-
 /** SOAT y tecnomecánica: al cambiar fecha de expedición, sugerir vencimiento un año después. */
 function bindVehicleDocExpiryAutoFill(formEl) {
   if (!formEl || typeof formEl.querySelector !== "function") return;
@@ -6410,12 +6123,6 @@ function bindVehicleDocExpiryAutoFill(formEl) {
   }
 }
 
-/** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */
-function colombiaDatetimeLocalString(dateValue = new Date()) {
-  const p = getColombiaDateParts(dateValue);
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
-}
-
 /** Texto legible para valores guardados desde `datetime-local` (YYYY-MM-DDTHH:mm). */
 function formatInterviewWhenDisplay(whenRaw) {
   const s = String(whenRaw || "").trim();
@@ -6434,9 +6141,6 @@ function formatInterviewWhenDisplay(whenRaw) {
   }
 }
 
-function normalizeEmail(email) {
-  return String(email || "").trim().toLowerCase();
-}
 
 function isDataUrl(value) {
   return /^data:/i.test(String(value || "").trim());
@@ -6450,95 +6154,6 @@ function normalizeCompaniesForSync(companies) {
     if (!isDataUrl(logoUrl)) return company;
     return { ...company, logoUrl: "" };
   });
-}
-
-/** Para persistencia en BD/sincronización: sin tildes; ñ → n (ASCII estable). */
-function normalizeLatinForDb(value) {
-  if (value == null) return "";
-  return String(value)
-    .trim()
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .replace(/ñ/g, "n")
-    .replace(/Ñ/g, "N");
-}
-
-/**
- * Teléfono en admin edición / alta usuario / perfil: acepta +57, espacios y separadores.
- * Quita el patrón HTML solo-dígitos que bloqueaba "+57 …".
- * — Colombia: 10 dígitos nacionales o prefijo 57 + 10 → guarda "+57 XXX XXX XX XX".
- * — Otros: si solo dígitos y longitud internacional típica → "+…".
- */
-function normalizePortalPhoneForStorage(raw) {
-  const trimmed = String(raw ?? "").trim();
-  if (!trimmed) return "";
-  const d = trimmed.replace(/\D/g, "");
-  if (!d) return trimmed.replace(/\s+/g, " ").trim();
-
-  let national = d;
-  if (d.startsWith("57") && d.length >= 11) {
-    national = d.slice(2);
-  }
-
-  if (/^\d{10}$/.test(national)) {
-    const n = national;
-    return `+57 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6, 8)} ${n.slice(8)}`;
-  }
-
-  if (d.startsWith("57")) {
-    return `+${d}`;
-  }
-
-  if (/^\d{11,15}$/.test(d)) {
-    return `+${d}`;
-  }
-
-  return trimmed.replace(/\s+/g, " ").trim();
-}
-
-/** Listados y tarjetas: mismo criterio que al guardar cuando solo hay dígitos (p. ej. fijo medellín → +57 …). */
-function formatPortalPhoneForDisplay(raw) {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  const normalized = normalizePortalPhoneForStorage(s);
-  return normalized && /\d/.test(normalized) ? normalized : s;
-}
-
-/** Nombres, cargo, dirección, etc.: mayúsculas + sin tildes (uniforme en BD y listados). No usar en correo/contraseña ni en valores de catálogo (departamento/ciudad). */
-function normalizeLatinUpperForDb(value) {
-  return normalizeLatinForDb(value).toUpperCase();
-}
-
-/** tipo_persona siempre "Natural" | "Juridica": una sola forma al persistir; las consultas usan = sin LOWER(). */
-function normalizePersonTypeForDb(value) {
-  const k = normalizeLatinForDb(value).toLowerCase();
-  if (k === "juridica") return "Juridica";
-  return "Natural";
-}
-
-/** tipo_vinculo_registro / registrationKind: siempre "cliente" | "empleado_interno". */
-function normalizeRegistrationKindForDb(value) {
-  const k = String(value || "")
-    .trim()
-    .toLowerCase();
-  return k === "empleado_interno" ? "empleado_interno" : "cliente";
-}
-
-/** empresas.tipo_relacion_empresa / companyKind: cliente | tercero | propia */
-function normalizeCompanyKindForDb(value) {
-  const k = String(value || "")
-    .trim()
-    .toLowerCase();
-  if (k === "tercero") return "tercero";
-  if (k === "propia") return "propia";
-  return "cliente";
-}
-
-function companyKindLabel(kind) {
-  const k = normalizeCompanyKindForDb(kind);
-  if (k === "propia") return "Empresa propia (Antares)";
-  if (k === "tercero") return "Tercero";
-  return "Cliente";
 }
 
 /** Claves de payload que no deben normalizarse (contraseñas, hashes, credenciales satelital). */
@@ -6562,13 +6177,6 @@ function isPasswordPayloadKey(key) {
   }
   const lower = k.toLowerCase();
   return lower.includes("password") || lower.includes("contrasena");
-}
-
-/** Normaliza strings en objetos de formulario/autorización (delegado en AntaresValidation). */
-function normalizePayloadTextFields(payload) {
-  const fn = window.AntaresValidation?.normalizePayloadTextFields;
-  if (typeof fn === "function") return fn(payload);
-  return payload;
 }
 
 /** Valida, aplica mayúsculas en campos de texto y devuelve false si el formulario no es válido. */
@@ -6750,18 +6358,6 @@ function makeRequestNumber(existingNumbers = new Set()) {
   return code;
 }
 
-function fmtDate(value) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString("es-CO", { timeZone: CO_TIMEZONE });
-}
-
-function fmtDateOr(value, fallback = "—") {
-  const ymd = normalizePortalDateYmd(value);
-  if (!ymd) return fallback;
-  const dmy = window.AntaresValidation?.formatIsoDateToDmy?.(ymd);
-  return dmy || ymd;
-}
-
 function addYears(dateValue, years) {
   const d = new Date(dateValue);
   d.setFullYear(d.getFullYear() + years);
@@ -6772,20 +6368,6 @@ function daysUntil(dateValue) {
   const target = new Date(dateValue).setHours(0, 0, 0, 0);
   const now = new Date().setHours(0, 0, 0, 0);
   return Math.floor((target - now) / 86400000);
-}
-
-/** Para inputs `type="date"` y datos desde API/pg (DATE, ISO con hora). */
-function normalizePortalDateYmd(raw) {
-  if (raw == null || raw === "") return "";
-  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
-  const s = String(raw).trim();
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (m) return m[1];
-  const dmy = window.AntaresValidation?.parseDmyToIsoDate?.(s);
-  if (dmy) return dmy;
-  const t = Date.parse(s);
-  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
-  return "";
 }
 
 /** Monta DD/MM/AAAA y sincroniza valores ISO en un contenedor (vista, modal, filtros). */
@@ -7022,9 +6604,6 @@ function buildTripRouteRateKey(originDepartment, originCity, destinationDepartme
   const destination = `${String(destinationDepartment || "").trim()}|${String(destinationCity || "").trim()}`.toLowerCase();
   return `${origin}->${destination}`;
 }
-
-/** Separador entre clave de ruta y ámbito de empresas en almacenamiento local / sync */
-const TRIP_RATE_SCOPE_SEP = "@@";
 
 function tripRateStorageKey(routeKey, companyIds) {
   const ids = Array.isArray(companyIds) ? companyIds.map(String).filter(Boolean).sort() : [];
@@ -7724,8 +7303,6 @@ function updateCreateTripStepper(formEl) {
 }
 
 /** Select con búsqueda por texto (listas largas de flota / conductores). */
-const SEARCHABLE_SELECT_MIN_OPTIONS = 8;
-
 function getSearchableSelectParts(selectEl) {
   const wrap = selectEl?.closest?.(".searchable-select");
   if (!wrap) return null;
@@ -8353,14 +7930,6 @@ function prettyStatus(status, scope = "general") {
   const movingScopes = scope === "request" || scope === "trip";
   const road = movingScopes && (key === "viaje_asignado" || key === "en_transito");
   return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${status}</span></span>`;
-}
-
-function fieldLabel(icon, text, opts) {
-  const o = opts && typeof opts === "object" ? opts : {};
-  const mark = o.required
-    ? '<span class="field-required-mark" aria-hidden="true" title="Obligatorio">*</span>'
-    : "";
-  return `<span class="field-label">${icon}<span>${text}</span>${mark}</span>`;
 }
 
 function departmentOptions(selected = "") {
@@ -9567,59 +9136,6 @@ async function sanitizeLegacyApprovalPayloads() {
 
 void sanitizeLegacyApprovalPayloads();
 
-/** Metadatos UI: cola de autorizaciones agrupada por ambito operativo (ver también queueApproval). */
-const APPROVAL_TYPE_META = {
-  create_user: { sectionKey: "portal_access", label: "Alta de usuario del portal" },
-  create_driver: { sectionKey: "transport_fleet", label: "Alta de conductor" },
-  create_employee: { sectionKey: "workforce", label: "Alta de colaborador (gestión humana)" },
-  register_hr_absence: { sectionKey: "hr_absences", label: "Registro de ausencia o incapacidad" },
-  mark_payroll_paid: { sectionKey: "payroll_pay", label: "Confirmar pago de liquidación" },
-  approve_trip_request: { sectionKey: "misc", label: "Solicitud de transporte pendiente (historico en cola)" }
-};
-
-const APPROVAL_UI_BLOCKS = [
-  {
-    key: "portal_access",
-    kind: "queue",
-    title: "Acceso y usuarios del portal",
-    description:
-      "Creación de cuentas que un operador sin rol administrador registra en el módulo de usuarios. Al aprobar, el sistema materializa el usuario, permisos y empresa asociada.",
-    origin: "Usuarios y permisos → nuevo usuario (no administrador)"
-  },
-  {
-    key: "transport_fleet",
-    kind: "queue",
-    title: "Conductores y flota operativa",
-    description:
-      "Alta de conductor solicitada por un perfil que no es administrador. Al aprobar, se crea el conductor disponible para asignación y, si aplica, el registro vinculado en gestión humana.",
-    origin: "Conductores → nuevo registro (no administrador)"
-  },
-  {
-    key: "workforce",
-    kind: "queue",
-    title: "Talento, contratación y gestión humana",
-    description:
-      "Ingreso de colaborador al expediente de personal cuando quien registra no es administrador. Incluye datos contractuales, seguridad social y desempeño del flujo de aprobación previo a la ficha activa.",
-    origin: "Gestión humana → nuevo empleado (no administrador)"
-  },
-  {
-    key: "hr_absences",
-    kind: "queue",
-    title: "Ausencias, incapacidades y SST",
-    description:
-      "Registro formal de ausencia cuando quien carga el dato tiene rol de Recursos Humanos, Administración, Auxiliar administrativo o Líder administrativo. El administrador valida antes de dejar constancia.",
-    origin: "Cumplimiento laboral y SST → registro de ausencia (roles RRHH / administrativos)"
-  },
-  {
-    key: "payroll_pay",
-    kind: "queue",
-    title: "Liquidación y marcas de pago",
-    description:
-      "Marcar liquidación de nómina como pagada cuando la acción la inicia un perfil RRHH o administrativo (no administrador de sistema). Evita cierres contables sin doble validación.",
-    origin: "Gestión humana → marcar liquidación pagada (roles RRHH / administrativos)"
-  }
-];
-
 function approvalTypeLabel(type) {
   return APPROVAL_TYPE_META[type]?.label || type;
 }
@@ -9708,14 +9224,6 @@ function sortAuthQueueByDateDesc(items, getIso) {
     return tb - ta;
   });
 }
-
-const AUTH_QUEUE_SHORT_TAB_LABELS = {
-  portal_access: "Alta usuarios",
-  transport_fleet: "Conductores",
-  workforce: "Empleados",
-  hr_absences: "Ausencias",
-  payroll_pay: "Liquidaciones"
-};
 
 function buildAuthorizationsTransportRequestsSection(pendingRequests) {
   const n = pendingRequests.length;
@@ -9934,13 +9442,9 @@ function initPortalClientStorage() {
  * (`getSession`, `setSession`, `SESSION_IDLE_MS`, `throttledBumpSessionActivity`, etc.).
  * Aquí solo quedan temporizadores del portal y el aviso en página pública por idle.
  */
-const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
-const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
-
 let __sessionIdleCheckTimer = null;
 let __sessionApiRefreshTimer = null;
 let __sessionActivityHandler = null;
-const SESSION_IDLE_PUBLIC_NOTICE_KEY = "antares_session_idle_notice_v1";
 
 function stopSessionSecurityWatch() {
   if (__sessionActivityHandler) {
@@ -11767,8 +11271,6 @@ function canTransitionStatus(currentStatus, nextStatus) {
   return allowed.includes(nextStatus);
 }
 
-const REQUEST_EDIT_JUSTIFICATION_MIN_LEN = 10;
-
 /**
  * Administrador: puede editar/cancelar solicitud mientras no esté en estado final (sin viaje asignado).
  */
@@ -12283,8 +11785,6 @@ function serviceTypeRequiresRefrigeration(serviceType) {
   );
 }
 
-const TRANSPORT_MODOS_SERVICIO = new Set(["Transporte nacional", "Transporte entre sedes del cliente"]);
-
 function normalizeRequestTransportMode(serviceType) {
   const raw = String(serviceType || "").trim();
   if (TRANSPORT_MODOS_SERVICIO.has(raw)) return raw;
@@ -12462,9 +11962,6 @@ function historyVehicleColumn(request) {
   if (assigned) return `${tk} · ${assigned}`;
   return tk;
 }
-
-/** Categoría de flota elegible para asignación operativa: Camión / Turbo / Tractomula. La solicitud restringe el tipo cuando `vehicleType` está informado; Termoking vía `refrigeracionTermoking` o legacy en `serviceType`. */
-const TRIP_ASSIGNMENT_FLEET_TYPE_KEYS = new Set(["camion", "turbo", "tractomula"]);
 
 function normalizeFleetTypeForTripAssignment(type) {
   return String(type || "")
@@ -13721,8 +13218,6 @@ function canViewAllTransportRequests(user) {
   return ops.some((p) => hasPermission(user, p)) || canAccessVehiclesView(user);
 }
 
-const FLEET_DRIVER_EDIT_ACTIONS = new Set(["edit-driver", "toggle-driver"]);
-
 function findPayrollEmployeeByIdDoc(idDoc) {
   const digits = normalizeDocumentDigits(idDoc);
   if (!digits) return null;
@@ -13921,7 +13416,7 @@ function renderPortal() {
   /**
    * Si tras F5 caímos en stub (cache de usuarios todavía no rehidratado y permisos vacíos para no-admin),
    * no reescribimos la URL todavía: respetamos el hash original (`#portal/...`) y dejamos que
-   * `__portalRefreshAfterBootstrap` re-evalúe permisos cuando la API responda. Así el usuario no
+   * `portalRefreshAfterBootstrap` re-evalúe permisos cuando la API responda. Así el usuario no
    * pierde su vista actual aunque el bootstrap esté lento o falle temporalmente.
    */
   const userPermsArr = Array.isArray(user.permissions) ? user.permissions : [];
@@ -14186,35 +13681,6 @@ function renderKpis() {
     </article>
   `).join("");
 }
-
-function formatColombiaLongDate(dateValue = new Date()) {
-  try {
-    const raw = new Date(dateValue).toLocaleDateString("es-CO", {
-      timeZone: CO_TIMEZONE,
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric"
-    });
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  } catch (_e) {
-    return "";
-  }
-}
-
-function fmtTimeOnly(value) {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleTimeString("es-CO", {
-      timeZone: CO_TIMEZONE,
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  } catch (_e) {
-    return "—";
-  }
-}
-
 
 /** Selector de empresa en nueva solicitud: obligatorio; cliente solo su empresa; admin elige de la lista. */
 
@@ -14575,19 +14041,6 @@ function renderHistoryResultsList(items) {
     return `<div class="history-empty-state"><p class="muted">No hay registros con los filtros actuales. Prueba otro periodo, cliente o quita el filtro rápido.</p></div>`;
   }
   return `<div class="history-cards-grid" id="history-results-grid">${items.map(renderHistoryCard).join("")}</div>`;
-}
-
-const HISTORY_FLEET_TECH_LABELS = {
-  preventivo: "Preventivo",
-  correctivo: "Correctivo",
-  falla: "Falla técnica"
-};
-
-function fmtFleetLogDate(value) {
-  const s = String(value || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return fmtDate(value);
-  const [y, m, d] = s.split("-").map((x) => parseInt(x, 10));
-  return new Date(y, m - 1, d).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function sortFleetLogsByDate(logs) {
@@ -15161,25 +14614,6 @@ function toCsv(rows = [], columns = []) {
   return `${header}\n${body}`;
 }
 
-const REPORT_RULES = {
-  executive_control_tower: { permission: PERMISSIONS.DASHBOARD_VIEW, rrhhAllowed: true },
-  service_levels: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  fleet_summary: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  fuel_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  maintenance_fleet: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  revenue_by_route: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  request_funnel: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  document_compliance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
-  hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
-  labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
-  users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },
-  authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE, adminOnly: true }
-};
-
 function canAccessReport(user, reportId) {
   if (!user) return false;
   if (user.role === ROLES.CLIENT) return false;
@@ -15191,17 +14625,6 @@ function canAccessReport(user, reportId) {
   return true;
 }
 
-const REPORT_EXPORT_BRAND = Object.freeze({
-  primary: "#377cc0",
-  primaryDeep: "#2a6399",
-  primaryDeeper: "#1e4a73",
-  soft: "#cce5f8",
-  text: "#0b2138",
-  muted: "#64748b",
-  line: "#b8d4eb"
-});
-
-const REPORT_BRAND_LOGO_PATH = "./imagenes%20empresa/Logo.png";
 let reportBrandLogoDataUrlPromise = null;
 
 function reportPreviewValueIsEmpty(value) {
@@ -18091,13 +17514,6 @@ function normalizeDriverFormPayloadForStorage(data) {
 }
 
 /** GH → Conductores: todos los campos del empleado que existen en la ficha de flota (sin pisar disponible/ocupado). */
-function pickFirstNonEmpty(...vals) {
-  for (const v of vals) {
-    if (v != null && String(v).trim() !== "") return v;
-  }
-  return "";
-}
-
 function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
   const doc = String(employee?.idDoc || "").trim();
   const occ = normalizePortalDateYmd(
@@ -18242,17 +17658,6 @@ async function syncDriverFromEmployee(employee, extraDriverData = {}) {
     };
   }
 }
-
-const SST_COMPLIANCE_RECORD_TYPES = [
-  "Afiliacion EPS",
-  "Afiliacion pension",
-  "Afiliacion ARL",
-  "Examen medico ocupacional",
-  "Capacitacion SST",
-  "Inspeccion documental"
-];
-
-const SST_COMPLIANCE_STATUSES = ["Pendiente", "En gestion", "Cumplido"];
 
 function normalizeSstComplianceRow(row) {
   if (!row || typeof row !== "object") return row;
@@ -18539,63 +17944,6 @@ async function syncEmployeeFromDriver(employee, driverPatch) {
   }
 }
 
-function contractDedupKey(row) {
-  if (!row) return "";
-  const empKey =
-    String(row.employeeId || "").trim().toLowerCase() ||
-    String(row.idDocSnapshot || "").trim().toLowerCase() ||
-    String(row.candidateId || "").trim().toLowerCase();
-  const tpl = String(row.contractTemplateKind || row.templateKind || "").trim().toLowerCase();
-  const start = String(row.startDate || "").trim();
-  if (!empKey) return "";
-  return `${empKey}::${tpl}::${start}`;
-}
-
-function dedupContracts(list) {
-  if (!Array.isArray(list)) return [];
-  const seen = new Map();
-  const result = [];
-  for (const row of list) {
-    if (!row) continue;
-    const key = contractDedupKey(row);
-    if (!key) {
-      result.push(row);
-      continue;
-    }
-    if (!seen.has(key)) {
-      seen.set(key, result.length);
-      result.push(row);
-      continue;
-    }
-    const idx = seen.get(key);
-    const prev = result[idx];
-    const prevTs = new Date(prev?.updatedAt || prev?.createdAt || 0).getTime() || 0;
-    const curTs = new Date(row.updatedAt || row.createdAt || 0).getTime() || 0;
-    result[idx] = curTs > prevTs ? { ...prev, ...row, id: prev.id || row.id } : { ...row, ...prev, id: prev.id || row.id };
-  }
-  return result;
-}
-
-function purgeDuplicateContracts() {
-  const before = read(KEYS.contracts, []);
-  const after = dedupContracts(before);
-  if (after.length !== before.length) {
-    write(KEYS.contracts, after);
-  }
-}
-
-function normalizeDocumentDigits(value) {
-  return String(value || "").replace(/\D/g, "");
-}
-
-/** Comparación de unicidad de documento en nómina (dígitos vs pasaporte/PEP alfanumérico). */
-function payrollEmployeeDocumentDedupKey(documentType, value) {
-  const dt = String(documentType || "CC").toUpperCase();
-  const raw = String(value || "").trim();
-  if (dt === "PAS" || dt === "PEP") return raw.replace(/[.\s]/g, "").toUpperCase();
-  return normalizeDocumentDigits(raw);
-}
-
 /** Consulta PostgreSQL para duplicidad de documento de colaborador (validación inmediata en formularios). */
 async function queryPayrollEmployeeDocumentDuplicateFromApi({
   documentType,
@@ -18621,60 +17969,6 @@ async function queryPayrollEmployeeDocumentDuplicateFromApi({
   }
 }
 
-/**
- * Reglas de persistencia empleado (portal ↔ PostgreSQL empleados_nomina):
- * — MAYÚSCULAS sin tildes: nombre, dirección, contacto emergencia, cargo texto, centro costos, etc.
- * — Catálogo (texto exacto): EPS, banco, tipo contrato, género, plantilla Word (oficina|fijo|prestacion).
- * — Sin mayúsculas forzadas: departamento/ciudad, correo, teléfono, selects de catálogo.
- */
-function sanitizePayrollEmployeeFieldsForPersist(fields) {
-  const f = fields && typeof fields === "object" ? { ...fields } : {};
-  const wr =
-    String(f.workerRole || "").trim() ||
-    (String(f.position || "").toLowerCase().includes("conductor") ? "conductor" : "empleado");
-  const contractType =
-    matchCatalogOptionValue(CO_CATALOGS.contractTypes, f.contractType) ||
-    String(f.contractType || "Termino indefinido").trim();
-  return {
-    ...f,
-    name: normalizeLatinUpperForDb(String(f.name || "").trim()),
-    documentType: matchCatalogOptionValue(CO_CATALOGS.documentTypes, f.documentType) || String(f.documentType || "CC").trim(),
-    gender: matchCatalogOptionValue(CO_CATALOGS.genders, f.gender),
-    maritalStatus: matchCatalogOptionValue(CO_CATALOGS.maritalStatus, f.maritalStatus),
-    educationLevel: matchCatalogOptionValue(CO_CATALOGS.educationLevel, f.educationLevel),
-    bloodType: matchCatalogOptionValue(CO_CATALOGS.bloodTypes, f.bloodType),
-    department: normalizeLatinForDb(String(f.department || "").trim()),
-    city: normalizeLatinForDb(String(f.city || "").trim()),
-    address: normalizeLatinUpperForDb(String(f.address || "").trim()),
-    phone: normalizePortalPhoneForStorage(String(f.phone || "").trim()),
-    personalEmail: normalizeEmail(String(f.personalEmail || "")),
-    emergencyContact: normalizeLatinUpperForDb(String(f.emergencyContact || "").trim()),
-    emergencyPhone: normalizePortalPhoneForStorage(String(f.emergencyPhone || "").trim()),
-    emergencyRelation: normalizeLatinUpperForDb(String(f.emergencyRelation || "").trim()),
-    position: normalizeLatinUpperForDb(String(f.position || "").trim()),
-    workerRole: wr,
-    contractType,
-    costCenter: normalizeLatinUpperForDb(String(f.costCenter || "").trim()),
-    payFrequency: matchCatalogOptionValue(CO_CATALOGS.payFrequency, f.payFrequency) || String(f.payFrequency || "Mensual").trim(),
-    arlRiskLevel: matchCatalogOptionValue(CO_CATALOGS.arlRiskLevels, f.arlRiskLevel),
-    workSchedule: matchCatalogOptionValue(CO_CATALOGS.workSchedule, f.workSchedule),
-    contributorType: matchCatalogOptionValue(CO_CATALOGS.contributorTypes, f.contributorType),
-    eps: matchCatalogOptionValue(CO_CATALOGS.eps, f.eps),
-    pensionFund: matchCatalogOptionValue(CO_CATALOGS.pensionFunds, f.pensionFund),
-    arl: matchCatalogOptionValue(CO_CATALOGS.arl, f.arl),
-    severanceFund: matchCatalogOptionValue(CO_CATALOGS.severanceFunds, f.severanceFund),
-    compensationFund: matchCatalogOptionValue(CO_CATALOGS.compensationFunds, f.compensationFund),
-    bankName: matchCatalogOptionValue(CO_CATALOGS.banks, f.bankName),
-    bankAccountType: matchCatalogOptionValue(CO_CATALOGS.accountTypes, f.bankAccountType || "Ahorros"),
-    bankAccount: String(f.bankAccount || "").trim(),
-    licenseCategory: matchCatalogOptionValue(CO_CATALOGS.licenseCategories, f.licenseCategory),
-    contractTemplateKind: normalizeContractTemplateKind(f.contractTemplateKind, contractType, wr),
-    illnessDescription:
-      String(f.hasIllness || "").toLowerCase() === "si"
-        ? normalizeLatinUpperForDb(String(f.illnessDescription || "").trim())
-        : ""
-  };
-}
 
 if (typeof window.setBootstrapCallbacks === "function") {
   window.setBootstrapCallbacks({
@@ -18682,9 +17976,9 @@ if (typeof window.setBootstrapCallbacks === "function") {
     onNotificationPreferencesApplied: syncNotificationPrefsSidebarUi,
     setPortalDataHydrating,
     onPostInteractiveBootstrap: () => {
-      if (typeof window.__portalRefreshAfterBootstrap === "function") {
+      if (typeof window.portalRefreshAfterBootstrap === "function") {
         try {
-          window.__portalRefreshAfterBootstrap();
+          window.portalRefreshAfterBootstrap();
         } catch (_e) {}
       }
     },
@@ -18948,43 +18242,6 @@ function wireEmployeePayrollDuplicateDocCheck(formEl, opts = {}) {
 }
 
 /** Coincide valor guardado (p. ej. mayúsculas en BD) con opción del catálogo del formulario. */
-function matchCatalogOptionValue(catalog, stored) {
-  const s = String(stored || "").trim();
-  if (!s) return "";
-  const list = Array.isArray(catalog) ? catalog : [];
-  const exact = list.find((v) => String(v).trim() === s);
-  if (exact) return exact;
-  const lower = s.toLowerCase();
-  const ci = list.find((v) => String(v).trim().toLowerCase() === lower);
-  return ci || s;
-}
-
-function normalizeContractTemplateKind(raw, contractType, workerRole) {
-  const s = String(raw || "")
-    .trim()
-    .toLowerCase()
-    .replace(/^documentacion\//, "");
-  const byFile = {
-    "contrato_administrativo_oficina.docx": "oficina",
-    contrato_administrativo_oficina: "oficina",
-    "contrato_termino_fijo.docx": "fijo",
-    contrato_termino_fijo: "fijo",
-    "contrato_prestacion_de_servicios.docx": "prestacion",
-    contrato_prestacion_de_servicios: "prestacion"
-  };
-  if (byFile[s]) return byFile[s];
-  if (["oficina", "fijo", "prestacion"].includes(s)) return s;
-  if (s.includes("termino_fijo") || s.includes("término_fijo")) return "fijo";
-  if (s.includes("prestacion")) return "prestacion";
-  if (s.includes("oficina") || s.includes("administrativo")) return "oficina";
-  if (window.RecruitmentDomain?.inferTemplateKind) {
-    return window.RecruitmentDomain.inferTemplateKind(
-      String(contractType || "Termino indefinido"),
-      String(workerRole || "empleado")
-    );
-  }
-  return "oficina";
-}
 
 function prepareEmployeeForContractDocx(employee) {
   const e = ensureEmployeeContractFields(normalizePayrollEmployeeRowDates({ ...(employee || {}) }));
@@ -20848,85 +20105,3 @@ function initPublicEffects() {
 
 }
 
-/** Dependencias compartidas para vistas RRHH extraídas a `modules/payroll/*-html.js` (carga posterior a app.js). */
-window.AntaresPortalRuntime = window.AntaresPortalRuntime || {};
-Object.assign(window.AntaresPortalRuntime, {
-  read,
-  KEYS,
-  IC,
-  escapeHtml,
-  escapeAttr,
-  fieldLabel,
-  renderHrAlertCards,
-  emptyState,
-  renderManagedCreateFormActions,
-  createCollapsibleCard,
-  moduleFleetHeroStrip,
-  pcardWrap,
-  isAdminActor,
-  getCurrentNotifications,
-  isInAppNotificationAlertsEnabled,
-  isSonidoNotificacionesHabilitado,
-  notificationIsRead,
-  fmtDate
-});
-
-if (typeof window.registerLegacyPortalViews === "function") {
-  window.registerLegacyPortalViews({
-    clientDataScopeBarHtml,
-    clientRequestsScopePrimaryLabel,
-    isPortalClientUser,
-    getClientDataScope
-  });
-} else {
-  window.AppLegacyViews = {
-    clientDataScopeBarHtml,
-    clientRequestsScopePrimaryLabel,
-    isPortalClientUser,
-    getClientDataScope
-  };
-}
-
-/** Tras bootstrap remoto (p. ej. al volver a la pestaña): repinta vista y badge sin duplicar lógica en cada módulo. */
-window.__portalRefreshAfterBootstrap = function __portalRefreshAfterCacheFromApi() {
-  if (!getSession()) return;
-  try {
-    syncSessionProfileSnapshotFromCache();
-    reconcileNotificationsCacheForSession();
-    updatePortalSidebarSessionMeta();
-  } catch (_e) {
-    /* noop */
-  }
-  /**
-   * Tras la rehidratación, el usuario ya tiene permisos reales. Re-evaluamos la vista de la URL
-   * para que, si en F5 caímos a `dashboard` por permisos en blanco, podamos volver a la vista
-   * previa (#portal/...) sin que el usuario tenga que renavegar.
-   */
-  try {
-    const u = currentUser();
-    if (u) {
-      enforcePortalViewFromUrl(u);
-    }
-  } catch (_e) {
-    /* noop */
-  }
-  void (window.__portalBootstrapPositionsFresh
-    ? Promise.resolve()
-    : refreshPositionsCatalogFromApi({ rerender: false })
-  ).finally(() => {
-    window.__portalBootstrapPositionsFresh = false;
-    try {
-      dispatchPositionsCatalogUpdated();
-    } catch (_pos) {
-      /* noop */
-    }
-    if (!hasUnsavedPortalFormData()) {
-      if (state.currentView === "notifications") {
-        scheduleNotificationsViewRenderIfChanged();
-      } else {
-        scheduleRenderPortalView();
-      }
-    }
-    updateNotificationBadge();
-  });
-};

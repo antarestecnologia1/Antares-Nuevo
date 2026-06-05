@@ -7,6 +7,7 @@ import "./modules/core/config.js";
 import { state } from "./modules/core/store.js";
 import { getSession } from "./modules/core/auth.js";
 import { scheduleRenderPortalView } from "./modules/core/router.js";
+import { portalRefreshAfterBootstrap } from "./modules/core/bootstrap.js";
 import "./modules/core/events.js";
 
 const {
@@ -31,7 +32,7 @@ const {
 /**
  * Pintamos el portal de forma SÍNCRONA usando la sesión persistida en `localStorage` y el
  * `profileSnapshot` capturado al login. Tras F5, el usuario ve su portal en milisegundos.
- * Luego refrescamos token y bootstrap en segundo plano (`__portalRefreshAfterBootstrap`).
+ * Luego refrescamos token y bootstrap en segundo plano (`portalRefreshAfterBootstrap` en `bootstrap.js`).
  */
 initPortalClientStorage();
 restorePortalSnapshotIfAvailable();
@@ -105,7 +106,7 @@ void (async function bootApplicationFromDatabaseThenUi() {
   }
   if (getSession()) {
     try {
-      window.__portalRefreshAfterBootstrap?.();
+      portalRefreshAfterBootstrap();
     } catch (_e) {
       /* noop */
     }
