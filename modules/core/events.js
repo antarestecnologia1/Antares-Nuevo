@@ -4,8 +4,8 @@
  */
 import { state, nodes, persistClientDataScope } from "./store.js";
 import { isPortalClientUser } from "./client-data-scope-ui.js";
-import { currentUser, hasPermission, ROLES } from "./auth.js";
-import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE } from "./config.js";
+import { currentUser, hasPermission } from "./auth.js";
+import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE, ROLES } from "./config.js";
 import { read, write, writeAwaitServer } from "./data-io.js";
 import { registerBindEventsCallback, scheduleRenderPortalView, setView, renderPortalView } from "./router.js";
 function applyModuleMicroAnimations() {
