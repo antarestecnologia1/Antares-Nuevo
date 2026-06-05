@@ -28,8 +28,9 @@ import {
   isAdminActor
 } from "../core/auth.js";
 import { colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd } from "../core/utils.js";
-import { notify, userMessage, ensureEmployeeContractFields, resolveEmployeeContractPlazoStartYmd } from "../ui/modals.js";
-import { matchCatalogOptionValue, normalizeContractTemplateKind } from "../domain/payroll-catalog-sanitize.domain.js";
+import { notify, userMessage, ensureEmployeeContractFields, resolveEmployeeContractPlazoStartYmd, isFixedTermContractType, contractTypeRequiresDurationPlazo } from "../ui/modals.js";
+import { matchCatalogOptionValue, normalizeContractTemplateKind } from "./payroll-catalog-sanitize.domain.js";
+import { normalizeDocumentDigits } from "./payroll-identifiers.domain.js";
 
 function parseNum(v) {
   const n = Number(v);
@@ -39,10 +40,6 @@ function parseNum(v) {
 /** Iconos del portal (`portal-icons.js` → `window.IC`). */
 const IC = typeof globalThis !== "undefined" && globalThis.IC ? globalThis.IC : /** @type {Record<string, string>} */ ({});
 
-
-const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = 2;
-/** Salario integral (CST / práctica): referencia mínima habitual 13 SMMLV. */
-const CO_INTEGRAL_SALARY_MIN_SMMLV = 13;
 const CO_SYSTEM_PARAMS_DEFAULTS = {
   smmlvCop: CO_PAYROLL.smmlv,
   minMonthlySalaryCop: CO_HR_RULES.minMonthlySalary,
@@ -138,6 +135,43 @@ export function validateColombiaPositionCompensation(raw = {}) {
     baseSalary: minCheck.amount,
     transportAllowance: resolveEmployeeTransportAllowanceCop(raw.transportAllowance, minCheck.amount)
   };
+}
+
+export function findPayrollEmployeeByIdDoc(idDoc) {
+  const digits = normalizeDocumentDigits(idDoc);
+  if (!digits) return null;
+  return (
+    read(KEYS.payrollEmployees, []).find((employee) => normalizeDocumentDigits(employee?.idDoc) === digits) || null
+  );
+}
+
+export function validateEmployeeContractDocFields(emp) {
+  const miss = [];
+  if (!String(emp.name || "").trim()) miss.push("nombre completo");
+  if (!String(emp.idDoc || "").trim()) miss.push("numero de documento");
+  if (!String(emp.city || "").trim()) miss.push("ciudad de residencia");
+  if (!String(emp.bankName || "").trim()) miss.push("banco");
+  if (!String(emp.bankAccount || "").trim()) miss.push("numero de cuenta");
+  if (!validateColombiaMonthlySalaryCop(emp.baseSalary).ok) miss.push("salario base (minimo legal)");
+  const pos = getPositionById(String(emp.positionId || ""));
+  const integralFlag = pos?.integralSalary === true || String(pos?.integralSalary) === "true";
+  if (integralFlag && !validateColombiaIntegralSalary(emp.baseSalary, true).ok) {
+    miss.push("salario integral (minimo 13 SMMLV)");
+  }
+  if (contractTypeRequiresDurationPlazo(emp.contractType) && !String(emp.contractDuration || "").trim()) {
+    miss.push("duracion del contrato");
+  }
+  if (!String(emp.contractType || "").trim()) miss.push("tipo de contrato");
+  if (!String(emp.startDate || "").trim()) miss.push("fecha de ingreso");
+  if (isFixedTermContractType(emp.contractType) && !resolveEmployeeContractPlazoStartYmd(emp)) {
+    miss.push("fecha inicio contrato vigente");
+  }
+  if (!String(emp.eps || "").trim()) miss.push("EPS");
+  if (!String(emp.pensionFund || "").trim()) miss.push("fondo de pension");
+  if (!String(emp.arl || "").trim()) miss.push("ARL");
+  if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
+  if (!String(emp.companyId || "").trim()) miss.push("empresa");
+  return miss;
 }
 
 export function isVacancyAcceptingApplications(vacancy) {
@@ -442,6 +476,23 @@ export function applyLaborSystemParametersApiResponse(saved) {
   if (saved?.systemParametersHistory !== undefined) {
     state.systemParametersHistory = Array.isArray(saved.systemParametersHistory) ? saved.systemParametersHistory : [];
   }
+}
+
+/** Sincroniza `CO_PAYROLL` / `CO_HR_RULES` en memoria con el payload normalizado del sistema. */
+export function applySystemParametersToClientRules(raw) {
+  const normalize =
+    typeof window.normalizeSystemParametersPayload === "function"
+      ? window.normalizeSystemParametersPayload
+      : () => null;
+  const normalized = normalize(raw);
+  if (!normalized) return null;
+  CO_PAYROLL.smmlv = normalized.smmlvCop;
+  CO_PAYROLL.healthEmployeeRate = normalized.healthEmployeeRate;
+  CO_PAYROLL.pensionEmployeeRate = normalized.pensionEmployeeRate;
+  CO_HR_RULES.minMonthlySalary = normalized.minMonthlySalaryCop;
+  CO_HR_RULES.transportAllowance = normalized.transportAllowanceCop;
+  CO_HR_RULES.legalWeeklyHours = normalized.legalWeeklyHours;
+  return normalized;
 }
 
 export function laborSystemParametersHistoryRows() {
@@ -1223,8 +1274,7 @@ export function abortUnlessCanManageHiring(reason = "adminOnlyModule") {
   if (canManageHiringModule()) return false;
   notify(userMessage(reason), "error");
   return true;
-
-
+}
 
 export {
   getClientDataScope,

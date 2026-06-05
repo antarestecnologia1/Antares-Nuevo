@@ -409,6 +409,12 @@ export const CO_HR_RULES = {
   transportAllowance: 249095
 };
 
+/** Tope salarial (en SMMLV) para auxilio de transporte legal (práctica habitual Colombia). */
+export const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = 2;
+
+/** Salario integral (CST / práctica): referencia mínima habitual 13 SMMLV. */
+export const CO_INTEGRAL_SALARY_MIN_SMMLV = 13;
+
 export const PAYROLL_ABSENCE_LEGAL_LIMITS = {
   maternidadOrdinariaDays: 126,
   maternidadMultipleDays: 140,

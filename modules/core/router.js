@@ -2,13 +2,51 @@
  * Enrutamiento del portal (hash, vista actual) y orquestación del render central.
  * Los bindings DOM pesados viven en `modules/core/events.js` (registrado vía `registerBindEventsCallback`).
  */
-import { PERMISSIONS, KEYS } from "./config.js";
+import { PERMISSIONS, KEYS, ROLES } from "./config.js";
 import { readArray } from "./data-io.js";
-import { currentUser, hasPermission, isViewAllowedForUser, canApprovePortalRegistration } from "./auth.js";
+import {
+  currentUser,
+  hasPermission,
+  isViewAllowedForUser,
+  canApprovePortalRegistration,
+  getSession,
+  setSession,
+  clearSession,
+  getEffectiveLastActivityAt,
+  SESSION_IDLE_MS,
+  getPortalUserDisplayName,
+  getCompanyById,
+  canAccessRRHH,
+  mountSessionIdlePublicNoticeIfNeeded,
+  dismissSessionIdlePublicNotice,
+  announceSessionClosedByIdle
+} from "./auth.js";
 import { state, nodes } from "./store.js";
-import { devError } from "./utils.js";
+import { devError, devWarn } from "./utils.js";
+import { notify, userMessage } from "../ui/modals.js";
 
 const W = /** @type {Record<string, unknown>} */ (typeof window !== "undefined" ? window : {});
+
+/** Callbacks para el ciclo de vida del portal (evita acoplar `renderPortal` a decenas de módulos). */
+const _portalEventHooks = /** @type {Record<string, (() => void) | undefined>} */ ({});
+
+/**
+ * Registra un manejador para eventos disparados desde `renderPortal` / post-render.
+ * @param {string} event
+ * @param {() => void} fn
+ */
+export function onPortalEvent(event, fn) {
+  if (!event || typeof fn !== "function") return;
+  _portalEventHooks[String(event)] = fn;
+}
+
+function invokePortalEvent(event) {
+  try {
+    _portalEventHooks[String(event)]?.();
+  } catch (_e) {
+    /* noop */
+  }
+}
 
 function callApp(name, ...args) {
   const fn = W[name];
@@ -109,6 +147,259 @@ const PortalRendererCore =
   };
 
 let _bindEventsCallback = () => {};
+
+function employeeAvatarCssUrlForSidebar(av) {
+  const u = String(av || "").trim();
+  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return u.replace(/'/g, "\\'");
+  return "";
+}
+
+function formatPortalRoleLabelForSidebar(role) {
+  const r = String(role || "").toLowerCase();
+  if (r === ROLES.ADMIN) return "Administrador";
+  if (r === ROLES.CLIENT) return "Cliente";
+  if (r === ROLES.RRHH) return "Recursos humanos";
+  if (r === ROLES.ADMINISTRACION) return "Administración";
+  if (r === ROLES.AUXILIAR_ADMINISTRATIVO) return "Auxiliar administrativo";
+  if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder administrativo";
+  if (r === ROLES.LOGISTICA) return "Logística";
+  return String(role || "usuario").toUpperCase();
+}
+
+/** Segunda línea del bloque de sesión en el drawer: clientes ven el nombre de la empresa, no la etiqueta «Cliente». */
+function getPortalSidebarSessionSubtitle(user) {
+  if (!user) return "";
+  if (user.role === ROLES.CLIENT) {
+    const cid = String(user.companyId || "").trim();
+    const fromCatalog = cid ? getCompanyById(cid)?.name : "";
+    const fromUser = String(user.company || "").trim();
+    const companyName = String(fromCatalog || fromUser).trim();
+    return companyName || formatPortalRoleLabelForSidebar(user.role);
+  }
+  return formatPortalRoleLabelForSidebar(user.role);
+}
+
+export function updatePortalSidebarSessionMeta() {
+  const user = currentUser();
+  const meta = nodes.sessionMeta;
+  const nameEl = document.getElementById("sidebar-session-display-name");
+  const avatarWrap = document.getElementById("sidebar-session-avatar-wrap");
+  const avatarImg = document.getElementById("sidebar-session-avatar-img");
+  const avatarInitial = document.getElementById("sidebar-session-avatar-initial");
+  if (!user) {
+    if (meta) meta.textContent = "";
+    if (nameEl) nameEl.textContent = "Transportes Antares";
+    if (avatarWrap) avatarWrap.classList.remove("has-photo");
+    if (avatarImg) {
+      avatarImg.removeAttribute("src");
+      avatarImg.setAttribute("hidden", "");
+    }
+    if (avatarInitial) {
+      avatarInitial.textContent = "A";
+      avatarInitial.removeAttribute("hidden");
+    }
+    return;
+  }
+  const displayName = getPortalUserDisplayName(user);
+  const roleLabel = getPortalSidebarSessionSubtitle(user);
+  if (nameEl) nameEl.textContent = displayName;
+  if (meta) meta.textContent = roleLabel;
+  const avatarUrlRaw = String(user.avatarUrl || "").trim();
+  const avatarCss = employeeAvatarCssUrlForSidebar(user.avatarUrl);
+  if (avatarWrap && avatarImg && avatarInitial) {
+    if (avatarCss && avatarUrlRaw) {
+      avatarImg.src = avatarUrlRaw;
+      avatarImg.removeAttribute("hidden");
+      avatarInitial.setAttribute("hidden", "");
+      avatarWrap.classList.add("has-photo");
+    } else {
+      avatarImg.removeAttribute("src");
+      avatarImg.setAttribute("hidden", "");
+      avatarInitial.textContent = (displayName.charAt(0) || "U").toUpperCase();
+      avatarInitial.removeAttribute("hidden");
+      avatarWrap.classList.remove("has-photo");
+    }
+  }
+}
+
+export function enforcePortalViewFromUrl(user) {
+  PortalRouterCore.enforceViewFromUrl({
+    state,
+    user,
+    getViewFromHashFn: viewFromPortalHash,
+    syncHashFn: syncPortalHash,
+    isViewAllowed: isViewAllowedForUser,
+    fallbackView: "dashboard",
+    onUnauthorized: () => alert("Ruta no autorizada. Se redirigio al dashboard.")
+  });
+}
+
+function isBrowserReloadNavigation() {
+  if (typeof performance === "undefined") return false;
+  try {
+    const entry = performance.getEntriesByType("navigation")[0];
+    if (entry && entry.type === "reload") return true;
+  } catch (_e) {}
+  try {
+    if (performance.navigation && performance.navigation.type === 1) return true;
+  } catch (_e2) {}
+  return false;
+}
+
+function isAntaresProductionSiteHost(hostname) {
+  const h = String(hostname || "").toLowerCase();
+  return h === "www.transportesantares.co" || h === "transportesantares.co";
+}
+
+/**
+ * Tras F5 en un módulo del portal (#portal/...), siempre abrimos el dashboard.
+ * @returns {boolean} true si se disparó `location.replace` y debe cortarse `renderPortal`.
+ */
+function applyPortalDashboardOnFullReload() {
+  if (!isBrowserReloadNavigation()) return false;
+  const raw = String(window.location.hash || "").split("?")[0];
+  if (!raw.startsWith("#portal")) return false;
+  state.currentView = "dashboard";
+  const canonicalOrigin = "https://www.transportesantares.co";
+  try {
+    const u = new URL(window.location.href);
+    if (isAntaresProductionSiteHost(u.hostname)) {
+      if (u.protocol === "https:" && u.hostname === "www.transportesantares.co") {
+        history.replaceState(null, "", `${u.pathname}${u.search}#portal/dashboard`);
+        return false;
+      }
+      window.location.replace(`${canonicalOrigin}/#portal/dashboard`);
+      return true;
+    }
+  } catch (_e) {}
+  history.replaceState(null, "", "#portal/dashboard");
+  return false;
+}
+
+export function renderPortal() {
+  let session = getSession();
+  if (!session) {
+    invokePortalEvent("stopSessionWatch");
+    invokePortalEvent("stopNotifications");
+    setPortalDrawerOpen(false);
+    closePublicNavDrawer();
+    document.body.classList.remove("portal-mode");
+    document.documentElement.classList.remove("antares-booting-portal");
+    nodes.publicApp.classList.remove("hidden");
+    nodes.portalApp.classList.add("hidden");
+    mountSessionIdlePublicNoticeIfNeeded();
+    return;
+  }
+  const ts = Date.now();
+  if (typeof session.lastActivityAt !== "number") {
+    session = {
+      ...session,
+      lastActivityAt: ts,
+      tokenIssuedAt: typeof session.tokenIssuedAt === "number" ? session.tokenIssuedAt : ts
+    };
+    setSession(session);
+  } else if (ts - getEffectiveLastActivityAt() > SESSION_IDLE_MS) {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      /* En segundo plano no forzamos cierre */
+    } else {
+      clearSession();
+      announceSessionClosedByIdle();
+      renderPortal();
+      return;
+    }
+  }
+  dismissSessionIdlePublicNotice();
+  state.session = session;
+  closePublicNavDrawer();
+  document.body.classList.add("portal-mode");
+  setPortalDrawerOpen(false);
+  nodes.publicApp.classList.add("hidden");
+  nodes.portalApp.classList.remove("hidden");
+  document.documentElement.classList.remove("antares-booting-portal");
+  if (applyPortalDashboardOnFullReload()) return;
+
+  const materialize =
+    typeof W.materializePortalUserFromSession === "function" ? W.materializePortalUserFromSession : () => null;
+  const user = materialize(session);
+  if (!user) {
+    devWarn("Portal: no se pudo materializar usuario tras F5; se mantiene la sesión.");
+    notify(userMessage("authProfileLoadFailed") || "Cargando perfil…", "info");
+    return;
+  }
+
+  updatePortalSidebarSessionMeta();
+  document.querySelectorAll(".admin-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.ADMIN));
+  document.querySelectorAll(".client-only").forEach((n) => n.classList.toggle("hidden", user.role !== ROLES.CLIENT));
+  document.querySelectorAll(".rrhh-only").forEach((n) => n.classList.toggle("hidden", !canAccessRRHH(user.role)));
+  nodes.sideLinks.forEach((link) => {
+    const isRoleHidden =
+      (link.classList.contains("admin-only") && user.role !== ROLES.ADMIN) ||
+      (link.classList.contains("client-only") && user.role !== ROLES.CLIENT) ||
+      (link.classList.contains("rrhh-only") && !canAccessRRHH(user.role));
+    const view = link.dataset.view;
+    const allowedByPermission = isViewAllowedForUser(user, view);
+    link.classList.toggle("hidden", isRoleHidden || !allowedByPermission);
+  });
+  document.querySelectorAll(".sidebar-section-label").forEach((label) => {
+    let sibling = label.nextElementSibling;
+    let hasVisibleLinks = false;
+    while (sibling && !sibling.classList.contains("sidebar-section-label")) {
+      if (sibling.matches?.(".side-link[data-view]") && !sibling.classList.contains("hidden")) {
+        hasVisibleLinks = true;
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+    label.classList.toggle("hidden", !hasVisibleLinks);
+  });
+  renderKpis();
+  const userPermsArr = Array.isArray(user.permissions) ? user.permissions : [];
+  const hydratingStub = userPermsArr.length === 0;
+  if (hydratingStub) {
+    const urlView = viewFromPortalHash();
+    if (urlView && PortalArch.isKnownView(urlView)) {
+      state.currentView = urlView;
+    }
+  } else {
+    enforcePortalViewFromUrl(user);
+    if (!isViewAllowedForUser(user, state.currentView)) {
+      state.currentView = "dashboard";
+      syncPortalHash("dashboard");
+    }
+  }
+  renderPortalView();
+  invokePortalEvent("updatePortalDataHydratingBanner");
+  invokePortalEvent("updateNotificationBadge");
+  invokePortalEvent("startNotifications");
+  invokePortalEvent("startSessionWatch");
+}
+
+export function buildHeaderKpiCardsForView(view, user) {
+  void view;
+  void user;
+  return [];
+}
+
+export function renderKpis() {
+  if (!nodes.kpiCards) return;
+  const user = currentUser();
+  if (!user) {
+    nodes.kpiCards.innerHTML = "";
+    return;
+  }
+  const view = String(state.currentView || "dashboard");
+  const cards = buildHeaderKpiCardsForView(view, user);
+  nodes.kpiCards.innerHTML = cards
+    .map(
+      (c) => `
+    <article class="kpi">
+      <div class="kpi-icon ${c.color}">${c.icon}</div>
+      <div class="kpi-data"><span>${c.label}</span><b class="kpi-value">${c.value}</b></div>
+    </article>
+  `
+    )
+    .join("");
+}
 
 export function registerBindEventsCallback(fn) {
   _bindEventsCallback = typeof fn === "function" ? fn : () => {};
@@ -248,7 +539,7 @@ export function renderPortalViewImpl() {
     callApp("closeCompletedTripsAndGenerateInvoices");
     callApp("recalculateResourceAvailability");
   });
-  callApp("renderKpis");
+  renderKpis();
 
   const user = currentUser();
   const view = state.currentView;
@@ -401,7 +692,7 @@ export function renderPortalViewImpl() {
     }
   });
   nodes.viewRoot.innerHTML = renderModuleShell(view, viewTitle, content);
-  callApp("updatePortalDataHydratingBanner");
+  invokePortalEvent("updatePortalDataHydratingBanner");
 
   callApp("applyManualModuleLayout");
   callApp("mountUniversalModuleFilters");

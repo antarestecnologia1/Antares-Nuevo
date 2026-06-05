@@ -1234,7 +1234,11 @@
       import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
       import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
       import * as AntaresViajesDomain from "./modules/domain/viajes.domain.js";
+      import * as AntaresHistorialDomain from "./modules/domain/historial.domain.js";
+      import * as AntaresReporteriaDomain from "./modules/domain/reporteria.domain.js";
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
+      import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
+      import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
       import * as AntaresRouter from "./modules/core/router.js";
       Object.assign(window, AntaresConfig, AntaresUtils, AntaresStore, AntaresAuth, AntaresBootstrap);
       window.writeAwaitServer = writeAwaitServer;
@@ -1252,9 +1256,26 @@
       Object.assign(window, AntaresNotificacionesDomain);
       window.AntaresViajesDomain = AntaresViajesDomain;
       Object.assign(window, AntaresViajesDomain);
+      window.AntaresHistorialDomain = AntaresHistorialDomain;
+      Object.assign(window, AntaresHistorialDomain);
+      window.AntaresReporteriaDomain = AntaresReporteriaDomain;
+      Object.assign(window, AntaresReporteriaDomain);
       window.AntaresNominaDomain = AntaresNominaDomain;
       Object.assign(window, AntaresNominaDomain);
+      window.AntaresSstDomain = AntaresSstDomain;
+      Object.assign(window, AntaresSstDomain);
+      window.AntaresContratacionDomain = AntaresContratacionDomain;
+      Object.assign(window, AntaresContratacionDomain);
       Object.assign(window, AntaresRouter);
+      AntaresRouter.onPortalEvent("stopSessionWatch", () => AntaresAuth.stopSessionSecurityWatch());
+      AntaresRouter.onPortalEvent("startSessionWatch", () => AntaresAuth.startSessionSecurityWatch());
+      AntaresRouter.onPortalEvent("stopNotifications", () => AntaresNotificacionesDomain.stopNotificationsPolling());
+      AntaresRouter.onPortalEvent("startNotifications", () => AntaresNotificacionesDomain.startNotificationsPolling());
+      AntaresRouter.onPortalEvent("updateNotificationBadge", () => AntaresNotificacionesDomain.updateNotificationBadge());
+      AntaresRouter.onPortalEvent("syncNotificationPrefsSidebarUi", () =>
+        AntaresNotificacionesDomain.syncNotificationPrefsSidebarUi()
+      );
+      AntaresRouter.onPortalEvent("scheduleRenderPortalView", () => AntaresRouter.scheduleRenderPortalView());
       try {
         delete window.runPendingTransportAutoApprove;
       } catch (_e) {
@@ -1267,7 +1288,7 @@
       import * as AntaresI18n from "./modules/core/i18n.js";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n);
     </script>
-    <script defer src="./modules/core/portal-runtime.js?v=20260605-nomina-domain-fase9"></script>
+    <script defer src="./modules/core/portal-runtime.js?v=20260605-router-renderportal-fase14"></script>
     <script type="module" src="./app.js?v=20260605-fase9-entry"></script>
     <!-- Módulos del portal (post-app.js); `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE` -->
     <script defer src="./modules/app/dashboard.js"></script>

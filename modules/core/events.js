@@ -12,6 +12,8 @@ import {
   scheduleRenderPortalView,
   setView,
   renderPortalView,
+  renderPortal,
+  updatePortalSidebarSessionMeta,
   syncPublicNavDrawer,
   closePublicNavDrawer,
   setPortalDrawerOpen,

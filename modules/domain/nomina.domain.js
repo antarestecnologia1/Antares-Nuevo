@@ -9,7 +9,6 @@
 import {
   KEYS,
   CO_PAYROLL,
-  CO_HR_RULES,
   CO_CESANTIAS_INTERES_ANUAL_PCT,
   PAYROLL_ABSENCE_LEGAL_LIMITS
 } from "../core/config.js";
@@ -1208,20 +1207,4 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
   }
 
   return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
-}
-
-export function applySystemParametersToClientRules(raw) {
-  const normalize =
-    typeof window.normalizeSystemParametersPayload === "function"
-      ? window.normalizeSystemParametersPayload
-      : () => null;
-  const normalized = normalize(raw);
-  if (!normalized) return null;
-  CO_PAYROLL.smmlv = normalized.smmlvCop;
-  CO_PAYROLL.healthEmployeeRate = normalized.healthEmployeeRate;
-  CO_PAYROLL.pensionEmployeeRate = normalized.pensionEmployeeRate;
-  CO_HR_RULES.minMonthlySalary = normalized.minMonthlySalaryCop;
-  CO_HR_RULES.transportAllowance = normalized.transportAllowanceCop;
-  CO_HR_RULES.legalWeeklyHours = normalized.legalWeeklyHours;
-  return normalized;
 }
