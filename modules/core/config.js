@@ -389,6 +389,26 @@ export const AUTO_APPROVE_MINUTES = 10;
 /** Ley 52/1975: interés legal anual sobre cesantías (referencia normativa vigente). */
 export const CO_CESANTIAS_INTERES_ANUAL_PCT = 12;
 
+/**
+ * Parámetros de nómina Colombia (tasas y SMMLV orientativo).
+ * `applySystemParametersToClientRules` los sincroniza desde parámetros del sistema (API).
+ */
+export const CO_PAYROLL = {
+  healthEmployeeRate: 0.04,
+  pensionEmployeeRate: 0.04,
+  solidarityRate: 0.01,
+  solidarityThresholdSmmlv: 4,
+  // SMMLV 2026 orientativo (~ $1.750.905 COP — verificar decreto del año fiscal).
+  smmlv: 1750905
+};
+
+/** Referencias RRHH (jornada, salario mínimo, auxilio transporte) alineadas a práctica colombiana. */
+export const CO_HR_RULES = {
+  legalWeeklyHours: 46,
+  minMonthlySalary: 1750905,
+  transportAllowance: 249095
+};
+
 export const PAYROLL_ABSENCE_LEGAL_LIMITS = {
   maternidadOrdinariaDays: 126,
   maternidadMultipleDays: 140,

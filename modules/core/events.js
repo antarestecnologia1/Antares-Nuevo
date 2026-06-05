@@ -4,10 +4,20 @@
  */
 import { state, nodes, persistClientDataScope } from "./store.js";
 import { isPortalClientUser } from "./client-data-scope-ui.js";
-import { currentUser, hasPermission } from "./auth.js";
+import { currentUser, hasPermission, renderAuthTab, wireSupabasePasswordRecoveryUi } from "./auth.js";
 import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE, ROLES, UI_PREFS } from "./config.js";
 import { read, write, writeAwaitServer } from "./data-io.js";
-import { registerBindEventsCallback, scheduleRenderPortalView, setView, renderPortalView } from "./router.js";
+import {
+  registerBindEventsCallback,
+  scheduleRenderPortalView,
+  setView,
+  renderPortalView,
+  syncPublicNavDrawer,
+  closePublicNavDrawer,
+  setPortalDrawerOpen,
+  viewFromPortalHash,
+  syncPortalHash
+} from "./router.js";
 import { isCreatePanelExpanded } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
 function applyModuleMicroAnimations() {
@@ -2717,7 +2727,7 @@ function initGlobalEvents() {
     const opener = target.closest("#open-auth, #open-auth-hero");
     if (!opener) return;
     event.preventDefault();
-    showAuth();
+    if (typeof window.showAuth === "function") window.showAuth();
   });
 
   const savedTheme = String(localStorage.getItem(UI_PREFS.theme) || "light");
@@ -2726,7 +2736,9 @@ function initGlobalEvents() {
   state.publicLang = savedLang === "en" ? "en" : "es";
   applyPublicLanguage(state.publicLang);
 
-  nodes.closeAuth?.addEventListener("click", hideAuth);
+  nodes.closeAuth?.addEventListener("click", () => {
+    if (typeof window.hideAuth === "function") window.hideAuth();
+  });
 
   const hamburgerBtn = document.getElementById("hamburger-btn");
   const mainNav = document.getElementById("main-nav");
@@ -2788,18 +2800,9 @@ function initGlobalEvents() {
         state.publicLang = String(btn.dataset.langOption || "es") === "en" ? "en" : "es";
         localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
         applyPublicLanguage(state.publicLang);
-        initCoverageCorridors();
-        initPublicCareers();
+        window.initCoverageCorridors?.();
+        window.initPublicCareers?.();
       });
-    });
-  }
-  if (nodes.langTogglePublic) {
-    nodes.langTogglePublic.addEventListener("change", () => {
-      state.publicLang = String(nodes.langTogglePublic.value || "es") === "en" ? "en" : "es";
-      localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
-      applyPublicLanguage(state.publicLang);
-      initCoverageCorridors();
-      initPublicCareers();
     });
   }
   nodes.authTabs.forEach((tabBtn) =>
