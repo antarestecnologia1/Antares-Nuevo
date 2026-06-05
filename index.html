@@ -65,7 +65,7 @@
        * Debe ir lo antes posible dentro de `<body>` (antes del header público) para:
        *   - Alinear `data-theme` con `localStorage` y evitar destello claro en modo oscuro.
        *   - Activar `html.antares-booting-portal` cuando hay sesión persistida (misma heurística
-       *     que `SESSION_IDLE_MS` en app.js: 30 min).
+       *     que `SESSION_IDLE_MS` en modules/core/auth.js: 30 min).
        */
       (function antaresBootGuardEarlyBody() {
         try {
@@ -1217,11 +1217,37 @@
     <script defer src="./modules/core/feedback-messages.js?v=20260506-perfil-vacantes"></script>
     <script defer src="./modules/portal/application.js"></script>
     <script defer src="./modules/app/portal-icons.js"></script>
-    <script defer src="./modules/app/portal-html-utils.js"></script>
     <script defer src="./modules/portal/legacy-views-bridge.js"></script>
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
     <script defer src="./modules/recruitment/contracts-docx.js?v=20260505-contract-merge"></script>
-    <script defer src="./app.js?v=20260507-sync-deletes"></script>
+    <script type="module">
+      import * as AntaresConfig from "./modules/core/config.js";
+      import * as AntaresUtils from "./modules/core/utils.js";
+      import * as AntaresStore from "./modules/core/store.js";
+      import * as AntaresAuth from "./modules/core/auth.js";
+      import * as AntaresBootstrap from "./modules/core/bootstrap.js";
+      import { writeAwaitServer } from "./modules/core/data-io.js";
+      import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
+      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
+      import * as AntaresViajesDomain from "./modules/domain/viajes.domain.js";
+      import * as AntaresRouter from "./modules/core/router.js";
+      Object.assign(window, AntaresConfig, AntaresUtils, AntaresStore, AntaresAuth, AntaresBootstrap);
+      window.writeAwaitServer = writeAwaitServer;
+      window.AntaresPublicI18n = AntaresPublicI18n;
+      Object.assign(window, AntaresPublicI18n);
+      window.AntaresSolicitudesDomain = AntaresSolicitudesDomain;
+      Object.assign(window, AntaresSolicitudesDomain);
+      window.AntaresViajesDomain = AntaresViajesDomain;
+      Object.assign(window, AntaresViajesDomain);
+      Object.assign(window, AntaresRouter);
+      try {
+        delete window.runPendingTransportAutoApprove;
+      } catch (_e) {
+        /* IE / entornos estrictos: ignorar */
+      }
+    </script>
+    <script defer src="./modules/core/portal-runtime.js?v=20260605-public-i18n-domain"></script>
+    <script type="module" src="./app.js?v=20260605-fase9-entry"></script>
     <!-- Módulos del portal (post-app.js); `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE` -->
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>
@@ -1231,14 +1257,14 @@
     <script defer src="./modules/app/calendario.js"></script>
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
-    <!-- Vistas legacy extraídas de app.js (orden funcional 9–18) -->
-    <script defer src="./modules/app/legacy-views/09-gestion-humana-html.js"></script>
-    <script defer src="./modules/app/legacy-views/10-contratacion-html.js"></script>
-    <script defer src="./modules/app/legacy-views/11-cumplimiento-laboral-sst-html.js"></script>
-    <script defer src="./modules/app/legacy-views/12-contacto-b2b-html.js"></script>
-    <script defer src="./modules/app/legacy-views/13-usuarios-permisos-html.js"></script>
-    <script defer src="./modules/app/legacy-views/14-autorizaciones-html.js"></script>
-    <script defer src="./modules/app/legacy-views/15-mi-perfil-html.js"></script>
-    <script defer src="./modules/app/legacy-views/16-18-notificaciones-timbre-avisos-html.js"></script>
+    <script defer src="./modules/app/gestion-humana.js"></script>
+    <script defer src="./modules/app/rrhh-candidate-attachments.js"></script>
+    <script defer src="./modules/app/contratacion.js"></script>
+    <script defer src="./modules/app/cumplimiento-laboral.js"></script>
+    <script defer src="./modules/app/contacto-b2b.js"></script>
+    <script defer src="./modules/app/usuarios-permisos.js"></script>
+    <script defer src="./modules/app/autorizaciones.js"></script>
+    <script defer src="./modules/app/mi-perfil.js"></script>
+    <script defer src="./modules/app/notificaciones.js"></script>
   </body>
 </html>

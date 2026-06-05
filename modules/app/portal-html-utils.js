@@ -1,22 +1,5 @@
 /**
- * escapeHtml / escapeAttr — mitigacion XSS en interpolacion de strings a HTML.
- * Cargar antes de app.js.
+ * @deprecated Las funciones `escapeHtml` / `escapeAttr` viven en `modules/core/utils.js`
+ * e instalan globals vía `index.html` (`Object.assign(window, AntaresUtils)`).
+ * Este archivo se conserva solo como referencia histórica; ya no se carga en `index.html`.
  */
-/** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/** Valores en atributos HTML entre comillas dobles. */
-function escapeAttr(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;");
-}

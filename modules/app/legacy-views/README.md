@@ -1,6 +1,6 @@
 # Vistas legacy del portal (`legacy-views/`)
 
-HTML y helpers que vivían en `app.js` y se cargan **después** de `app.js` con `defer`, en el mismo orden global. Cada archivo termina con `registerLegacyPortalViews({ ... })` para fusionar en `AppLegacyViews`.
+HTML y helpers que vivieron en `app.js`. La carga en producción usa los módulos en `modules/app/*.js` (ver tabla). Esta carpeta puede quedar **vacía** en el repo: solo contiene este README salvo que ejecutes `python tools/extract_legacy_views.py`, que vuelve a escribir aquí copias numeradas (`11-*.js` … `16-18-*.js`) si el monolito `app.js` sigue teniendo los rangos configurados en el script.
 
 Orden (según producto):
 
@@ -14,15 +14,15 @@ Orden (según producto):
 | 6 | Calendario (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../calendario.js` |
 | 7 | Historial (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../historial.js` |
 | 8 | Reportería (HTML + listeners; stub en `modules/portal/views/transporte.js`) | `../reporteria.js` |
-| 9 | Gestión humana | `09-gestion-humana-html.js` |
-| 10 | Contratación | `10-contratacion-html.js` |
-| 11 | Cumplimiento laboral y SST | `11-cumplimiento-laboral-sst-html.js` |
-| 12 | Contacto web (B2B) | `12-contacto-b2b-html.js` |
-| 13 | Usuarios y permisos | `13-usuarios-permisos-html.js` |
-| 14 | Autorizaciones | `14-autorizaciones-html.js` |
-| 15 | Mi perfil | `15-mi-perfil-html.js` |
-| 16–18 | Notificaciones, avisos emergentes y timbre | `16-18-notificaciones-timbre-avisos-html.js` |
+| 9 | Gestión humana / nómina | `../gestion-humana.js` + `../rrhh-candidate-attachments.js` |
+| 10 | Contratación | `../contratacion.js` |
+| 11 | Cumplimiento laboral y SST | `../cumplimiento-laboral.js` |
+| 12 | Contacto web (B2B) | `../contacto-b2b.js` |
+| 13 | Usuarios y permisos | `../usuarios-permisos.js` |
+| 14 | Autorizaciones | `../autorizaciones.js` |
+| 15 | Mi perfil | `../mi-perfil.js` |
+| 16–18 | Notificaciones, avisos emergentes y timbre | `../notificaciones.js` |
 
 Los puntos 16–18 comparten una sola vista de bandeja (`notificationsHtml`); los toggles de avisos y timbre están en esa pantalla.
 
-**Regenerar** los archivos legacy numerados (gestión humana en adelante) a partir de `app.js` (solo si se vuelve a un monolito con los mismos rangos): `python tools/extract_legacy_views.py`
+**Regenerar** copias en esta carpeta a partir de `app.js` (rangos en `tools/extract_legacy_views.py`; solo si el monolito vuelve a contener esos bloques): `python tools/extract_legacy_views.py`

@@ -1,7 +1,7 @@
-/**
- * Mi perfil.
- * Extraído desde app.js — carga con defer después de app.js.
+﻿/**
+ * Mi perfil (profile): vista HTML y formulario en el portal.
  */
+
 function profileSystemJoinDateValue(user) {
   if (!user || typeof user !== "object") return "";
   const candidates = [user.createdAt, user.registeredAt, user.portalSince, user.systemJoinDate];
@@ -151,7 +151,105 @@ function profileHtml(user) {
   return profileHero + pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
 }
 
-(function registerLegacyViewChunk() {
+function bindProfilePortalControls() {
+  if (String(state.currentView || "") !== "profile" || !nodes.viewRoot) return;
+
+  const profileForm = document.getElementById("form-profile");
+  if (profileForm) {
+    const profileAvatarInput = document.getElementById("profile-avatar-input");
+    const profileAvatarLabel = document.querySelector('label[for="profile-avatar-input"]');
+    bindEmployeeAvatarFilePreview(profileAvatarInput, profileAvatarLabel);
+    wireFormSubmitGuard(profileForm, async (event) => {
+      const actor = currentUser();
+      if (!actor) return;
+      const data = readFormEntriesNormalized(profileForm);
+      const Vprof = window.AntaresValidation;
+      if (Vprof && typeof Vprof.validateProfileForm === "function") {
+        const pv = Vprof.validateProfileForm(data);
+        if (!pv.ok) {
+          notify(pv.message, "error");
+          return;
+        }
+        Object.assign(data, pv.sanitized);
+      }
+      const fileInput = profileForm.querySelector("input[name='avatarFile']");
+      const file = fileInput?.files?.[0];
+      const persistProfile = async (avatarUrlValue = "") => {
+        const users = read(KEYS.users, []);
+        const company = getCompanyById(String(data.companyId || ""));
+        const nextUsers = users.map((u) =>
+          u.id === actor.id
+            ? {
+                ...u,
+                name: normalizeLatinUpperForDb(String(data.name || u.name || "").trim()),
+                phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
+                taxId: String(data.taxId || "").trim(),
+                documentType: String(data.documentType || u.documentType || "CC")
+                  .trim()
+                  .toUpperCase(),
+                birthDate: String(data.birthDate || "").trim(),
+                emergencyContact: normalizeLatinUpperForDb(String(data.emergencyContact || "").trim()),
+                emergencyPhone: normalizePortalPhoneForStorage(String(data.emergencyPhone || "").trim()),
+                emergencyRelation: normalizeLatinUpperForDb(String(data.emergencyRelation || "").trim()),
+                emergencyRelationship: normalizeLatinUpperForDb(String(data.emergencyRelation || "").trim()),
+                // La fecha de ingreso al sistema es solo lectura: se deriva
+                // siempre de la fecha de creación del usuario en el registro
+                // (createdAt). Si no existiera todavía en cache, respaldamos
+                // con valores previos. Nunca se sobreescribe desde Mi perfil.
+                systemJoinDate: profileSystemJoinDateValue(u),
+                portalSince: profileSystemJoinDateValue(u),
+                companyId: company?.id || u.companyId,
+                company: company?.name || u.company,
+                avatarUrl: avatarUrlValue || u.avatarUrl || ""
+              }
+            : u
+        );
+        try {
+          await writeAwaitServer(KEYS.users, nextUsers);
+        } catch (err) {
+          notify(String(err?.message || "No fue posible guardar el perfil en el servidor."), "error");
+          return;
+        }
+        notify(userMessage("profileUpdatedOk"), "success");
+        syncSessionProfileSnapshotFromCache();
+        updatePortalSidebarSessionMeta();
+        renderPortal();
+      };
+      try {
+        if (file) {
+          let nextAvatar = "";
+          try {
+            nextAvatar = await resolveEmployeeAvatarUrl(file, String(actor.avatarUrl || "").trim());
+          } catch (presignErr) {
+            devWarn?.("profile-avatar-resolve", presignErr);
+            notify(String(presignErr?.message || "No fue posible subir la foto. Intente de nuevo."), "error");
+            return;
+          }
+          const trimmed = String(nextAvatar || "").trim();
+          if (!trimmed) {
+            notify("No se obtuvo una imagen válida para el perfil.", "error");
+            return;
+          }
+          await persistProfile(trimmed);
+        } else {
+          await persistProfile("");
+        }
+      } catch (err) {
+        if (err && String(err.message || err).trim()) {
+          notify(String(err.message || err), "error");
+        }
+      }
+    });
+  }
+}
+
+(function registerProfilePortalBinds() {
+  "use strict";
+  window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
+  window.__portalModuleAfterRender.profile = bindProfilePortalControls;
+})();
+
+(function registerProfileLegacyViews() {
   if (typeof window.registerLegacyPortalViews !== "function") return;
-  window.registerLegacyPortalViews({profileHtml, profileSystemJoinDateValue});
+  window.registerLegacyPortalViews({ profileHtml, profileSystemJoinDateValue });
 })();

@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Extrae vistas legacy de app.js a modules/app/legacy-views/ y recorta el registro central.
+
+Las vistas 11–18 del portal ya están integradas en modules/app/*.js (index.html).
+Este script solo sirve si app.js vuelve a contener los rangos listados en BUNDLES
+y se desea regenerar copias en legacy-views/.
+
 Ejecutar desde la raíz del repo: python tools/extract_legacy_views.py
 """
 from __future__ import annotations
@@ -14,20 +19,8 @@ APP = ROOT / "app.js"
 OUT_DIR = ROOT / "modules" / "app" / "legacy-views"
 
 # Rangos inclusivos 1-based (app.js actual). Orden de eliminación: el script ordena por start descendente.
-# Dashboard (1): `modules/app/dashboard.js`. Viajes (3): `modules/app/viajes.js`. Mis solicitudes (2): `modules/app/mis-solicitudes.js`. Camiones (4): `modules/app/camiones.js`. Conductores (5): `modules/app/conductores.js`. Calendario (6): `modules/app/calendario.js`. Historial (7): `modules/app/historial.js`. Reportería (8): `modules/app/reporteria.js` — no extraer con este script.
+# Dashboard (1): `modules/app/dashboard.js`. Viajes (3): `modules/app/viajes.js`. Mis solicitudes (2): `modules/app/mis-solicitudes.js`. Camiones (4): `modules/app/camiones.js`. Conductores (5): `modules/app/conductores.js`. Calendario (6): `modules/app/calendario.js`. Historial (7): `modules/app/historial.js`. Reportería (8): `modules/app/reporteria.js`. Nómina (9): `gestion-humana.js` + `rrhh-candidate-attachments.js`. Contratación (10): `contratacion.js` — no extraer con este script.
 BUNDLES: list[tuple[str, str, list[tuple[int, int]], list[str]]] = [
-    (
-        "09-gestion-humana-html.js",
-        "Gestión humana (nómina).",
-        [(25377, 26254)],
-        ["payrollHtml"],
-    ),
-    (
-        "10-contratacion-html.js",
-        "Contratación.",
-        [(26539, 27120)],
-        ["hiringHtml"],
-    ),
     (
         "12-contacto-b2b-html.js",
         "Contacto web B2B — prospectos.",
@@ -92,6 +85,7 @@ def main() -> None:
     labor_src = ROOT / "modules" / "payroll" / "labor-compliance-html.js"
     if labor_src.exists():
         shutil.copy(labor_src, labor_dst)
+    # Notificaciones: el HTML canónico vive en `modules/app/notificaciones.js` (ya no hay notificaciones-html.js).
     notif_src = ROOT / "modules" / "portal" / "views" / "notificaciones-html.js"
     notif_dst = OUT_DIR / "16-18-notificaciones-timbre-avisos-html.js"
     if notif_src.exists():
@@ -99,7 +93,7 @@ def main() -> None:
         banner = (
             "/**\n"
             " * Notificaciones, avisos emergentes y timbre (preferencias en esta vista).\n"
-            " * Archivo canónico en legacy-views (antes modules/portal/views/notificaciones-html.js).\n"
+            " * Copia de salida del extractor (fuente legacy opcional).\n"
             " */\n"
         )
         notif_dst.write_text(banner + text, encoding="utf-8")

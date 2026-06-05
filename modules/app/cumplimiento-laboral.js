@@ -1,6 +1,10 @@
+﻿/**
+ * Cumplimiento laboral / SST (labor-compliance): vista HTML (runtime) y listeners del portal.
+ */
+
 /**
  * Vista "Cumplimiento laboral" (RRHH / SST) — migrada desde app.js.
- * Requiere `window.AntaresPortalRuntime` (poblado en app.js antes del primer `registerLegacyPortalViews`).
+ * Requiere `window.AntaresPortalRuntime` (poblado desde `portal-runtime.js` antes de los `registerLegacyPortalViews` de los módulos en `modules/app/`).
  */
 (function installLaborComplianceHtml() {
   function laborComplianceHtml() {
@@ -172,4 +176,191 @@
   if (typeof window.registerLegacyPortalViews === "function") {
     window.registerLegacyPortalViews({ laborComplianceHtml });
   }
+})();
+
+function bindLaborCompliancePortalControls() {
+  if (String(state.currentView || "") !== "labor-compliance" || !nodes.viewRoot) return;
+
+  const sstComplianceForm = document.getElementById("form-sst-compliance");
+  if (sstComplianceForm) {
+    wireFormSubmitGuard(sstComplianceForm, async (event) => {
+      const data = readFormEntriesNormalized(sstComplianceForm);
+      const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
+      if (!employee) {
+        notify(userMessage("sstPickEmployee"), "error");
+        return;
+      }
+      const dueDate = String(data.dueDate || "");
+      if (!dueDate) {
+        notify(userMessage("sstDueDateRequired"), "error");
+        return;
+      }
+      const list = read(KEYS.sstCompliance, []);
+      list.unshift({
+        id: newUuidV4(),
+        employeeId: employee.id,
+        employeeName: employee.name,
+        recordType: String(data.recordType || "").trim(),
+        provider: String(data.provider || "").trim(),
+        dueDate,
+        status: String(data.status || "Pendiente"),
+        documentCode: String(data.documentCode || "").trim().toUpperCase(),
+        notes: String(data.notes || "").trim(),
+        createdAt: nowIso(),
+        createdBy: currentUser()?.name || "Sistema"
+      });
+      try {
+        await writeAwaitServer(KEYS.sstCompliance, list);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar el registro SST en el servidor."), "error");
+        return;
+      }
+      notify(userMessage("sstRecorded"), "success");
+      collapseCreatePanel("create-sst-control");
+      renderPortalView();
+    });
+  }
+
+  const renderDetailRows = portalDetailRenderRows;
+  const buildDetailGrid = portalDetailBuildGrid;
+  const fmtDateOr = (val, fallback = "—") => {
+    const y = normalizePortalDateYmd(val);
+    return y ? escapeHtml(y) : fallback;
+  };
+
+  /* ============= SST / CUMPLIMIENTO: VER / EDITAR / ELIMINAR ============= */
+  nodes.viewRoot.querySelectorAll("[data-action='view-sst-record']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const r = read(KEYS.sstCompliance, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
+      if (!r) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const sections = [
+        {
+          icon: "shield",
+          title: "Control",
+          rows: renderDetailRows([
+            ["Tipo", `<strong>${escapeHtml(String(r.recordType || "-"))}</strong>`],
+            ["Código documental", escapeHtml(String(r.documentCode || "-"))],
+            ["Empleado", escapeHtml(String(r.employeeName || "-"))],
+            ["Entidad / proveedor", escapeHtml(String(r.provider || "-"))],
+            ["Vencimiento", fmtDateOr(r.dueDate)],
+            ["Estado", escapeHtml(String(r.status || "-"))],
+            ["Registrado", fmtDateOr(r.createdAt)],
+            ["Responsable", escapeHtml(String(r.createdBy || "-"))]
+          ])
+        },
+        {
+          icon: "file",
+          title: "Evidencia / observaciones",
+          rows: r.notes
+            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(r.notes))}</p>`
+            : `<span class="muted">Sin observaciones.</span>`
+        }
+      ];
+      openInfoModal({
+        title: `Control SST · ${String(r.recordType || "")}`,
+        subtitle: String(r.employeeName || ""),
+        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
+        wide: true
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='edit-sst-record']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const all = read(KEYS.sstCompliance, []);
+      const target = normalizeSstComplianceRow(
+        all.find((x) => String(x.id) === String(btn.dataset.id || ""))
+      );
+      if (!target) return;
+      const recordTypeOpts = editModalCatalogSelectOptions(
+        SST_COMPLIANCE_RECORD_TYPES,
+        target.recordType
+      );
+      const sstStatusOpts = editModalCatalogSelectOptions(SST_COMPLIANCE_STATUSES, target.status || "Pendiente");
+      openEditModal({
+        title: "Editar control SST",
+        subtitle: String(target.recordType || ""),
+        submitText: "Guardar cambios",
+        fields: [
+          {
+            name: "recordType",
+            label: "Tipo de control",
+            type: "select",
+            value: target.recordType || "",
+            options: recordTypeOpts,
+            required: true
+          },
+          { name: "provider", label: "Entidad / proveedor", value: target.provider || "", required: true },
+          { name: "dueDate", label: "Vencimiento", type: "date", value: target.dueDate || "", required: true },
+          {
+            name: "status",
+            label: "Estado",
+            type: "select",
+            value: target.status || "Pendiente",
+            options: sstStatusOpts
+          },
+          { name: "documentCode", label: "Código documental", value: target.documentCode || "" },
+          { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
+        ],
+        onSubmit: async (form) => {
+          if (!form.dueDate) {
+            notify(userMessage("sstDueDateRequired"), "error");
+            return false;
+          }
+          const nextList = all.map((r) =>
+              String(r.id) !== String(target.id)
+                ? r
+                : {
+                    ...r,
+                    recordType: String(form.recordType || r.recordType || "").trim(),
+                    provider: String(form.provider || "").trim(),
+                    dueDate: form.dueDate,
+                    status: String(form.status || "Pendiente"),
+                    documentCode: String(form.documentCode || "").trim().toUpperCase(),
+                    notes: String(form.notes || "").trim()
+                  }
+            );
+          try {
+            await writeAwaitServer(KEYS.sstCompliance, nextList);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar el control SST en el servidor."), "error");
+            return false;
+          }
+          notify("Control SST actualizado.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='delete-sst-record']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const id = String(btn.dataset.id || "");
+      const target = read(KEYS.sstCompliance, []).find((r) => String(r.id) === id);
+      if (!target) return;
+      openConfirmModal({
+        title: "Eliminar control SST",
+        message: `Se eliminará el control "${String(target.recordType || "")}" del expediente.`,
+        confirmText: "Eliminar control",
+        onConfirm: async () => {
+          const ok = await removeFromPortalListAwaitServer(KEYS.sstCompliance, id);
+          if (!ok) return;
+          notify("Control SST eliminado.", "success");
+          renderPortalView();
+        }
+      });
+    });
+  });
+}
+
+(function registerLaborCompliancePortalBinds() {
+  "use strict";
+  window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
+  window.__portalModuleAfterRender["labor-compliance"] = bindLaborCompliancePortalControls;
 })();

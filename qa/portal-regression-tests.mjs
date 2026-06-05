@@ -26,10 +26,26 @@ function run() {
   const indexHtml = read("index.html");
   const appJs = read("app.js");
   const portalArchitectureJs = read("modules/portal/architecture.js");
+  const portalRuntimeJs = read("modules/core/portal-runtime.js");
+  const publicSiteI18nJs = read("modules/domain/public-site.i18n.js");
+  const portalAuthJs = read("modules/core/auth.js");
+  const portalConfigJs = read("modules/core/config.js");
+  const contratacionJs = read("modules/app/contratacion.js");
+  const gestionHumanaJs = read("modules/app/gestion-humana.js");
   const stylesCss = read("styles.css");
   const portalControllerTs = read("apps/api/src/portal/portal.controller.ts");
   const portalServiceTs = read("apps/api/src/portal/portal.service.ts");
   const portalSource = `${appJs}\n${portalArchitectureJs}`;
+  /** Código del portal repartido en módulos (antes concentrado en app.js). */
+  const portalModuleBundle = [
+    appJs,
+    portalRuntimeJs,
+    publicSiteI18nJs,
+    portalAuthJs,
+    portalConfigJs,
+    contratacionJs,
+    gestionHumanaJs
+  ].join("\n\n");
 
   // 1) Index integrity
   includesAll(
@@ -54,12 +70,12 @@ function run() {
 
   // 2) Public translation engine presence
   includesAll(
-    appJs,
+    portalModuleBundle,
     ["const PUBLIC_ES_EN_DICT", "function translatePublicText", "normalizePublicKey", "applyPublicLanguage"],
     "translation-core"
   );
   includesAll(
-    appJs,
+    portalModuleBundle,
     [
       "Companies that trust us",
       "New automated Word contracts",
@@ -131,7 +147,7 @@ function run() {
 
   // 5) Contratación Word (RRHH): formulario de contrato enlazado a empleados en nómina
   includesAll(
-    appJs,
+    portalModuleBundle,
     [
       'id="form-contract"',
       'name="contractTemplateKind"',
@@ -142,12 +158,12 @@ function run() {
     "contract-word-flow"
   );
 
-  // 6) Parametros legales anuales: UI + endpoint + bootstrap historico
+  // 6) Parámetros legales anuales: UI + endpoint + bootstrap historico
   includesAll(
-    appJs,
+    portalModuleBundle,
     [
       '"legal"',
-      "Parametros legales anuales",
+      "Parámetros legales anuales",
       'id="form-payroll-legal-params"',
       'data-action="payroll-legal-set-year"',
       'postPortalAuthorized("/portal/labor-system-parameters", body)',
@@ -179,7 +195,7 @@ function run() {
 
   // 7) Permisos granulares de autorizaciones y perfil logística
   includesAll(
-    appJs,
+    portalModuleBundle,
     [
       "authorizations_transport",
       "authorizations_portal_registrations",
@@ -213,7 +229,7 @@ function run() {
 
   // 8) Permisos granulares de camiones
   includesAll(
-    appJs,
+    portalModuleBundle,
     [
       "transport_vehicles_view",
       "transport_vehicles_create",

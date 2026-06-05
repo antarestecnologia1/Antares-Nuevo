@@ -190,7 +190,10 @@ window.PortalArchitecture = (() => {
         return user.role === ROLES.ADMIN;
       case "admin-or-contact-b2b":
         if (user.role === ROLES.ADMIN) return true;
-        return Array.isArray(user.permissions) && user.permissions.includes("contact_b2b_view");
+        {
+          const b2b = typeof window !== "undefined" && window.PERMISSIONS ? window.PERMISSIONS.CONTACT_B2B_VIEW : "contact_b2b_view";
+          return Array.isArray(user.permissions) && user.permissions.includes(b2b);
+        }
       case "rrhh":
         return canAccessRRHH(user.role);
       case "admin-or-rrhh":

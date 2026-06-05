@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Usuarios y permisos — permisos granulares y administración.
  * Extraído desde app.js — carga con defer después de app.js.
  */
@@ -879,8 +879,6 @@ function adminUsersHtml(current) {
   const sessionsPane = `<div class="auth-tab-panel${adminUsersSection === "sessions" ? "" : " hidden"}" data-admin-users-panel="sessions"${adminUsersSection === "sessions" ? "" : " hidden"}>${sessionsPaneHtml}</div>`;
   return `${hero}${workspaceNav}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div>`;
 }
-
-/** Texto buscable para filas del módulo Historial. */
 
 (function registerLegacyViewChunk() {
   if (typeof window.registerLegacyPortalViews !== "function") return;

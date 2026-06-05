@@ -13,7 +13,7 @@ Fragmentos de `app.js` sin dependencia de `state` al parsear, cargados **antes**
 
 Convención: scripts globales encadenados con `defer` en el mismo orden que hoy; no usar `type="module"` en la raíz sin revisar CSP y dependencias.
 
-Las **vistas HTML del portal** (orden 1–18): parte en `modules/app/*.js` post-`app.js` (`dashboard.js`, `viajes.js`, `mis-solicitudes.js`, `camiones.js`, `conductores.js`, `calendario.js`, `historial.js`, `reporteria.js`, …) y el resto en `modules/app/legacy-views/*.js`; ver `modules/app/legacy-views/README.md` y `tools/extract_legacy_views.py`.
+Las **vistas HTML del portal** (orden 1–18): en `modules/app/*.js` post-`app.js` (`dashboard.js` … `notificaciones.js`). `modules/app/legacy-views/` puede usarse solo como salida de `tools/extract_legacy_views.py`; ver `modules/app/legacy-views/README.md`.
 
 Detalle y cola de trabajo: `modules/app/README.md`.
 
@@ -22,7 +22,7 @@ Detalle y cola de trabajo: `modules/app/README.md`.
 1. **Core**: persistencia, API, validación, caché bootstrap, sync.
 2. **Portal**: `modules/portal/architecture.js`, `access`, `router`, `renderer`, `application.js`.
 3. **Vistas por carpeta**: `modules/portal/views/*.js` registran **`window.AppModules.<dominio>`**.
-4. **Transición legacy**: `app.js` registra implementaciones en **`window.AppLegacyViews`** vía **`registerLegacyPortalViews`** (`modules/portal/legacy-views-bridge.js`). Las vistas del paso 3 reenvían a legacy hasta que el HTML se mueva al módulo.
+4. **Transición legacy**: las vistas en `modules/app/*.js` fusionan HTML en **`window.AppLegacyViews`** vía **`registerLegacyPortalViews`** (`modules/portal/legacy-views-bridge.js`). `portal-runtime.js` registra un primer lote (barra de alcance cliente). Las fachadas `AppModules.*` reenvían a legacy.
 
 ## Patrón de migración (por módulo)
 
@@ -40,11 +40,11 @@ Detalle y cola de trabajo: `modules/app/README.md`.
 
 ## Runtime para vistas extraídas (`window.AntaresPortalRuntime`)
 
-Para mover HTML generado fuera de `app.js` sin bundler, `app.js` asigna (justo antes del primer `registerLegacyPortalViews`) un objeto con las dependencias que la vista necesita (`read`, `KEYS`, `IC`, helpers de formulario, etc.). Los scripts en `modules/payroll/*-html.js` cargados **después** de `app.js` implementan la vista y llaman a `registerLegacyPortalViews({ ... })` para fusionar en `AppLegacyViews`.
+Para mover HTML generado fuera del monolito sin bundler, `modules/core/portal-runtime.js` asigna `window.AntaresPortalRuntime` (cerca del final del script, antes del primer `registerLegacyPortalViews` desde ese archivo) con las dependencias que las vistas extraídas necesitan (`read`, `KEYS`, `IC`, helpers de formulario, etc.). Los scripts en `modules/app/*.js` cargados **después** de `app.js` implementan la vista y llaman a `registerLegacyPortalViews({ ... })` para fusionar en `AppLegacyViews`.
 
-**Hecho:** `modules/app/legacy-views/11-cumplimiento-laboral-sst-html.js` — vista «Cumplimiento laboral» (SST).
+**Hecho:** `modules/app/cumplimiento-laboral.js` — vista «Cumplimiento laboral» (SST). `modules/app/gestion-humana.js` — vista `payrollHtml` y listeners (`__portalModuleAfterRender.payroll`); adjuntos de candidatos en `modules/app/rrhh-candidate-attachments.js`. Contacto B2B, usuarios/permisos, autorizaciones, perfil y notificaciones viven en `contacto-b2b.js`, `usuarios-permisos.js`, `autorizaciones.js`, `mi-perfil.js`, `notificaciones.js`.
 
-**Pendiente (mismo patrón):** `hiringHtml`, `payrollHtml` (mayor acoplamiento; ampliar `AntaresPortalRuntime` según uso).
+**Pendiente (mismo patrón):** reducir acoplamiento residual en `hiringHtml` / contratación si aún depende de helpers solo en `app.js`.
 
 ## Mapa sugerido (fases)
 
@@ -53,15 +53,49 @@ Para mover HTML generado fuera de `app.js` sin bundler, `app.js` asigna (justo a
 | 0 | Puente legacy + docs | `legacy-views-bridge.js`, este documento |
 | 0b | Iconos + escape HTML (desde `app.js`) | `modules/app/portal-icons.js`, `modules/app/portal-html-utils.js` |
 | 1 | Nómina — sync empleados | `modules/payroll/portal-employee-list-sync.js` |
-| 2 | Nómina — HTML y formularios | `modules/payroll/` o `modules/portal/views/rrhh-impl.js` |
-| 2b | RRHH — cumplimiento laboral (SST) | `modules/app/legacy-views/11-cumplimiento-laboral-sst-html.js` + `AntaresPortalRuntime` |
+| 2 | Nómina — HTML y formularios | `modules/app/gestion-humana.js` + `rrhh-candidate-attachments.js` (listeners `__portalModuleAfterRender.payroll`) |
+| 2b | RRHH — cumplimiento laboral (SST) | `modules/app/cumplimiento-laboral.js` + `AntaresPortalRuntime` |
 | 3 | Transporte | `modules/portal/views/transporte-impl.js` (paralelo a `transporte.js`) |
 | 4 | Solicitudes | ampliar `modules/portal/views/solicitudes.js` |
 | 5 | Estado global mínimo | `window.AntaresPortalState` inyectado desde un solo módulo (opcional, largo plazo) |
+| 7 | Dominio viajes / transporte | `modules/domain/viajes.domain.js` (carga en `index.html` antes de `portal-runtime.js`) |
+| 8 | Dominio solicitudes | `modules/domain/solicitudes.domain.js` (antes de `viajes.domain.js` en el módulo de `index.html`) |
+| 9 | Eventos + `app.js` mínimo | `modules/core/events.js`, `app.js`, orden con `portal-runtime.js` |
+| 10 | i18n sitio público | `modules/domain/public-site.i18n.js` (diccionario ES→EN + `translatePublicText`; mismo bloque ES que dominios; **antes** de `portal-runtime.js`) |
+
+## FASE 7 — Dominio viajes (`modules/domain/viajes.domain.js`)
+
+- **Carga:** módulo ES en `index.html` **antes** de `modules/core/portal-runtime.js`; se asigna `window.AntaresViajesDomain` y se reexportan los símbolos en `window` para scripts clásicos y vistas (`getActiveTrips`, conflictos de agenda, etc.).
+- **Responsabilidad:** estados persistidos (`VIAJES_STATUS`), ventanas horarias y solapes (`parseTripWindowRange`, `findActiveTripScheduleConflict`, …), ocupación de flota (`recalculateResourceAvailability`), cierre y factura (`buildTripInvoice`, `closeCompletedTripsAndGenerateInvoices`), permisos de edición con viaje (`canEditTransportRequestWithAssignedTrip`), caché de ocupación para la API `transport-schedule-busy`, autoaprobación delegada (`runPendingTransportAutoApprove`).
+- **Fuente única:** constantes `REQUEST_EDIT_FINAL_STATUSES` / `REQUEST_EDIT_WITH_TRIP_PERMISSIONS` y helpers de fecha/ISO (`buildColombiaOffsetDateTime`, `requestPickupIsoForEdit`, `requestDeliveryIsoForEdit`, `requestSchedulingPickupIso`, `requestSchedulingDeliveryIso`) viven aquí; `portal-runtime.js` no los duplica.
+
+## FASE 8 — Dominio solicitudes (`modules/domain/solicitudes.domain.js`)
+
+- **Carga:** mismo bloque ES en `index.html` que el dominio viajes; **`solicitudes.domain.js` se importa antes que `viajes.domain.js`** (este último importa lectura/escritura de solicitudes desde aquí).
+- **Responsabilidad:** normalización de filas portal (`normalizePortalTransportRequestRow`), tipo de camión requerido (`normalizeRequestRequiredTruckType`, `requestRequiredTruckTypeShowsFuelles`), lectura/escritura unificada (`reqRead`, `reqWrite`, `reqWriteAwait`, `readPortalTransportRequests`), búsqueda por id (`findTransportRequestById`), **alcance y filtros** (`transportRequestBelongsToUserScope`, `filterVisibleTransportRequests`, `filterPendingRequestsForTripAssignment`, `transportRequestEligibleForViajesAssignment`) con inyección de permisos globales desde el runtime.
+- **Integración:** `modules/domain/viajes.domain.js` reutiliza `readPortalTransportRequests` / `reqWrite` / `reqWriteAwait`; `portal-runtime.js` delega alcance y filtros de asignación en `AntaresSolicitudesDomain` inyectando `getClientDataScope`, `canViewAllTransportRequests` y `canApproveTransportRequests`, y ya no duplica normalización de filas ni helpers de tipo de camión.
+
+## FASE 9 — Eventos del portal y `app.js` mínimo
+
+- **`modules/core/portal-runtime.js`**: script clásico `defer` con el cuerpo principal que antes vivía en la raíz `app.js` (helpers, vistas, dominio embebido, `window.*`).
+- **`modules/core/events.js`**: módulo ES con `bindDynamicEvents` y los hooks post-render (`mountUniversalModuleFilters`, `bindExtendedViewEditHandlers`, delegación vehículo/solicitud/conductor, estándares de formulario Colombia, animaciones, selects admin/logo, catálogo de cargos). Registra `registerBindEventsCallback(bindDynamicEvents)` y expone en `window` las funciones que `router.js` sigue invocando vía `callApp(...)`.
+- **`app.js`**: `type="module"` — importa `events.js` y ejecuta solo el arranque (init + `renderPortal` + bootstrap async).
+- **`index.html`**: `portal-runtime.js` inmediatamente antes del `app.js` en módulo, para que existan las dependencias globales antes de registrar eventos.
+
+## FASE 10 — i18n del sitio público (`modules/domain/public-site.i18n.js`)
+
+- **Carga:** import en el `<script type="module">` de `index.html` junto a config/store/auth y dominios; `Object.assign(window, AntaresPublicI18n)` expone `translatePublicText`, `normalizePublicKey`, `PUBLIC_ES_EN_DICT`, etc., **antes** de `portal-runtime.js`.
+- **Responsabilidad:** solo texto (sin DOM): normalización de claves, diccionario de frases, sustitución por frases/palabras. **`portal-runtime.js`** conserva `capturePublicTextNodes`, `PUBLIC_TEXT_OVERRIDES`, `applyPublicLanguage` y `tPublic` (usan `window.translatePublicText`).
+- **Mantenimiento:** el diccionario y la lógica de sustitución viven solo en `public-site.i18n.js`; no duplicar en `portal-runtime.js`.
+
+## Datos solo en cliente (no `sync-key`)
+
+- `KEYS.moduleAuditLogs` (`antares_module_audit_logs_v1`), `KEYS.systemParameters`, `KEYS.deletedTransportTripLogs` / `KEYS.deletedTransportRequestLogs` (resumen en bootstrap; detalle vía GET dedicados), preferencias de UI, etc. **No** están en `AntaresPersistence.SERVER_BACKED_STORAGE_KEYS` ni en `STORAGE_TO_ENTITY` (`portal-sync.js`). El historial de trazabilidad en «Historial» se arma en cliente a partir de esas fuentes y de catálogos ya sincronizados; no usar `writeAwaitServer` para `moduleAuditLogs` (no hay entidad en `PORTAL_SYNC_KEYS` del API).
 
 ## Referencias en código
 
+- Mapa **vista → permiso base del portal:** `export const VIEW_PERMISSIONS` en `modules/core/auth.js` (única fuente; expuesto en `window` con el bundle de auth). `canAccessView` aplica reglas especiales antes de usar ese mapa (`transport-vehicles`, `authorizations`, `requests`). El fallback `PortalArch` en `portal-runtime.js` usa `window.VIEW_PERMISSIONS` para `isKnownView` si no cargó `PortalArchitecture`.
 - Fachada: `modules/portal/application.js` → `AntaresApp.layers`.
 - Registro legacy: `registerLegacyPortalViews` en `modules/portal/legacy-views-bridge.js`.
 - Rehidratación empleados: `window.PayrollEmployeeListSync.refreshFromApi` en `modules/payroll/portal-employee-list-sync.js`.
-- Vista SST / cumplimiento laboral: `modules/app/legacy-views/11-cumplimiento-laboral-sst-html.js`.
+- Vista SST / cumplimiento laboral: `modules/app/cumplimiento-laboral.js`.

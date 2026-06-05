@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Contacto web B2B — prospectos.
  * Extraído desde app.js — carga con defer después de app.js.
  */
