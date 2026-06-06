@@ -14,6 +14,7 @@ import {
   PIPELINE_TRANSITIONS,
   HIRING_RRHH_EDIT_ACTIONS,
   FLEET_DRIVER_EDIT_ACTIONS,
+  PORTAL_NON_ADMIN_BLOCKED_ACTIONS,
   LABOR_SYSTEM_PARAMETERS_MIN_YEAR,
   LABOR_SYSTEM_PARAMETERS_MAX_YEAR
 } from "../core/config.js";
@@ -1171,54 +1172,6 @@ export function buildContractDocxTestPayload(templateKind) {
     signDate: today
   };
 }
-
-/** Acciones que los usuarios que no son administrador no pueden ejecutar (listeners capture en `viewRoot`, una sola vez). */
-const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
-  "approve",
-  "reject",
-  "edit-admin",
-  "delete-admin",
-  "trip-status",
-  "delete-trip",
-  "edit-vehicle",
-  "toggle-vehicle",
-  "delete-vehicle",
-  "edit-driver",
-  "toggle-driver",
-  "delete-driver",
-  "delete-route-rate",
-  "delete-employee",
-  "delete-vacancy",
-  "toggle-position",
-  "candidate-status",
-  "open-edit-user",
-  "delete-user",
-  "approve-registration",
-  "reject-registration",
-  "approval-approve",
-  "approval-reject",
-  "open-edit-company",
-  "close-edit-company",
-  "toggle-company-active",
-  "delete-company",
-  "delete-payroll-run",
-  "delete-hr-absence",
-  "edit-hr-absence",
-  "edit-vacancy",
-  "edit-position",
-  "delete-position",
-  "edit-candidate",
-  "delete-candidate",
-  "edit-interview",
-  "delete-interview",
-  "delete-contract",
-  "edit-sst-record",
-  "delete-sst-record",
-  "toggle-deleted-requests-log",
-  "deleted-request-snapshot-detail",
-  "toggle-deleted-trips-log",
-  "deleted-trip-snapshot-detail"
-]);
 
 export function portalNonAdminRestrictedCaptureClick(event) {
   const trigger = event.target.closest("[data-action]");

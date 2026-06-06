@@ -2,10 +2,49 @@
  * Antares Portal — delegación global de eventos y hooks post-render del `viewRoot`.
  * Las funciones usan helpers del runtime clásico (`portal-runtime.js`) vía `window`.
  */
-import { state, nodes, persistClientDataScope } from "./store.js";
+import { state, nodes, persistClientDataScope, persistHrWorkspace } from "./store.js";
 import { isPortalClientUser } from "./client-data-scope-ui.js";
-import { currentUser, hasPermission, renderAuthTab, wireSupabasePasswordRecoveryUi } from "./auth.js";
-import { KEYS, PERMISSIONS, CLIENT_DATA_SCOPE, ROLES, UI_PREFS } from "./config.js";
+import {
+  currentUser,
+  hasPermission,
+  renderAuthTab,
+  wireSupabasePasswordRecoveryUi,
+  canEditFleetDriverAsAdmin,
+  canManageHiringModule,
+  canPerformPermissionGatedAction,
+  ACCOUNT_STATUS
+} from "./auth.js";
+import {
+  KEYS,
+  PERMISSIONS,
+  CLIENT_DATA_SCOPE,
+  ROLES,
+  UI_PREFS,
+  CO_CATALOGS,
+  CO_HR_RULES,
+  HR_VALID_PAYROLL_WS,
+  FLEET_DRIVER_EDIT_ACTIONS,
+  HIRING_RRHH_EDIT_ACTIONS,
+  PORTAL_NON_ADMIN_BLOCKED_ACTIONS,
+  ALL_PERMISSIONS,
+  PERMISSION_META,
+  COLOMBIA_LOCATIONS,
+  PIPELINE
+} from "./config.js";
+import { portalCanRefreshFromApi, applyPortalBootstrapFromApi } from "./bootstrap.js";
+import {
+  portalNonAdminRestrictedCaptureClick,
+  portalNonAdminRestrictedCaptureChange
+} from "../domain/contratacion.domain.js";
+import {
+  colombiaDatetimeLocalString,
+  colombiaTodayIsoDate,
+  escapeAttr,
+  escapeHtml,
+  normalizeHrWorkspace,
+  normalizePortalDateYmd,
+  nowIso
+} from "./utils.js";
 import { read, write, writeAwaitServer } from "./data-io.js";
 import {
   registerBindEventsCallback,
@@ -22,6 +61,11 @@ import {
 } from "./router.js";
 import { isCreatePanelExpanded } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
+
+/** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */
+const $portal = typeof globalThis !== "undefined" ? /** @type {Record<string, any>} */ (globalThis) : /** @type {Record<string, any>} */ ({});
+/** Iconos del portal (`portal-icons.js` → `globalThis.IC`). */
+const IC = $portal.IC || /** @type {Record<string, string>} */ ({});
 function applyModuleMicroAnimations() {
   if (state.__skipModuleAnimationsOnce) {
     state.__skipModuleAnimationsOnce = false;
@@ -41,8 +85,8 @@ function applyModuleMicroAnimations() {
 function wireAdminCompanyLocationSelects() {
   const createForm = document.getElementById("form-admin-company-create");
   if (createForm) {
-    const draft = getAdminUsersDraft("createCompany");
-    attachDepartmentCitySelects(createForm, {
+    const draft = $portal.getAdminUsersDraft("createCompany");
+    $portal.attachDepartmentCitySelects(createForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']",
       initialDepartment: String(draft.department || ""),
@@ -55,10 +99,10 @@ function wireAdminCompanyLocationSelects() {
     const cid = String(ui.editCompanyId || "");
     const companies = read(KEYS.companies, []);
     const raw = cid ? companies.find((c) => String(c.id) === cid) : null;
-    const row = raw ? normalizePortalBootstrapCompanyRow(raw) : null;
-    const idept = row ? matchColombiaDepartmentToCatalogKey(row.department || "") : "";
-    const icity = row ? matchColombiaCityInDepartment(idept, row.city || "") : "";
-    attachDepartmentCitySelects(editForm, {
+    const row = raw ? $portal.normalizePortalBootstrapCompanyRow(raw) : null;
+    const idept = row ? $portal.matchColombiaDepartmentToCatalogKey(row.department || "") : "";
+    const icity = row ? $portal.matchColombiaCityInDepartment(idept, row.city || "") : "";
+    $portal.attachDepartmentCitySelects(editForm, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']",
       initialDepartment: idept,
@@ -136,17 +180,17 @@ function installVehicleCardActionsDelegation() {
     if (!vid) return;
     const action = String(btn.dataset.action || "");
     if (action === "view-vehicle") {
-      const vehicle = findPortalVehicleById(vid);
+      const vehicle = $portal.findPortalVehicleById(vid);
       if (!vehicle) {
-        notify(userMessage("genericError"), "error");
+        $portal.notify($portal.userMessage("genericError"), "error");
         return;
       }
-      openVehicleTechnicalSheetModal(vehicle);
+      $portal.openVehicleTechnicalSheetModal(vehicle);
       return;
     }
     if (action === "toggle-vehicle") {
-      if (abortUnlessCanToggleVehicleStatus()) return;
-      togglePortalVehicleManualAvailability(vid);
+      if ($portal.abortUnlessCanToggleVehicleStatus()) return;
+      $portal.togglePortalVehicleManualAvailability(vid);
     }
   });
 }
@@ -159,13 +203,13 @@ function installRequestDetailDelegation() {
     if (btn.hasAttribute("disabled")) return;
     const id = String(btn.dataset.id || "").trim();
     if (!id) return;
-    const req = findTransportRequestById(id);
+    const req = $portal.findTransportRequestById(id);
     if (!req) {
-      notify(userMessage("bulkRequestMissing"), "error");
+      $portal.notify($portal.userMessage("bulkRequestMissing"), "error");
       return;
     }
     event.preventDefault();
-    openRequestDetailModal(req);
+    $portal.openRequestDetailModal(req);
   });
 }
 function installDriverCardActionsDelegation() {
@@ -180,17 +224,17 @@ function installDriverCardActionsDelegation() {
     if (!did) return;
     const action = String(btn.dataset.action || "");
     if (action === "view-driver") {
-      const driver = findPortalDriverById(did);
+      const driver = $portal.findPortalDriverById(did);
       if (!driver) {
-        notify(userMessage("genericError"), "error");
+        $portal.notify($portal.userMessage("genericError"), "error");
         return;
       }
-      openDriverDetailSheetModal(driver);
+      $portal.openDriverDetailSheetModal(driver);
       return;
     }
     if (action === "toggle-driver") {
-      if (abortUnlessAdminForFleetDriverEdit()) return;
-      togglePortalDriverManualAvailability(did);
+      if ($portal.abortUnlessAdminForFleetDriverEdit()) return;
+      $portal.togglePortalDriverManualAvailability(did);
     }
   });
 }
@@ -299,7 +343,7 @@ function mountUniversalModuleFilters() {
     </div>
   `;
   nodes.viewRoot.prepend(host);
-  portalUpgradeDates(host);
+  $portal.portalUpgradeDates(host);
 
   const input = host.querySelector("#module-filter-text");
   const colSelect = host.querySelector("#module-filter-column");
@@ -372,8 +416,8 @@ function mountUniversalModuleFilters() {
     if (valueInput) valueInput.value = "";
     if (colSelect) colSelect.value = "";
     if (statusSelect) statusSelect.value = "";
-    if (fromInput) clearFormDateInput(fromInput);
-    if (toInput) clearFormDateInput(toInput);
+    if (fromInput) $portal.clearFormDateInput(fromInput);
+    if (toInput) $portal.clearFormDateInput(toInput);
     apply();
   });
 
@@ -404,7 +448,7 @@ function enforceColombianFormStandards() {
     const select = document.querySelector(selector);
     if (!select || select.tagName !== "SELECT") return;
     const currentValue = String(select.value || "");
-    select.innerHTML = selectOptionsFromCatalog(values, currentValue, placeholder);
+    select.innerHTML = $portal.selectOptionsFromCatalog(values, currentValue, placeholder);
     if (currentValue && values.includes(currentValue)) {
       select.value = currentValue;
     }
@@ -445,7 +489,7 @@ function enforceColombianFormStandards() {
   ensureSelectOptions("#form-employee select[name='eps']", CO_CATALOGS.eps, "Seleccione EPS...");
   ensureSelectOptions("#form-employee select[name='pensionFund']", CO_CATALOGS.pensionFunds, "Seleccione fondo...");
   ensureSelectOptions("#form-employee select[name='arl']", CO_CATALOGS.arl, "Seleccione ARL...");
-  applyDocumentFieldConstraints(nodes.viewRoot || document, {
+  $portal.applyDocumentFieldConstraints(nodes.viewRoot || document, {
     typeSelector: "#form-employee select[name='documentType']",
     docSelector: "#form-employee input[name='idDoc']"
   });
@@ -456,7 +500,7 @@ function enforceColombianFormStandards() {
   setAttr("#form-vacancy input[name='deadline']", { min: nowIso().slice(0, 10) });
 
   setAttr("#form-candidate input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
-  applyDocumentFieldConstraints(nodes.viewRoot || document, {
+  $portal.applyDocumentFieldConstraints(nodes.viewRoot || document, {
     typeSelector: "#form-candidate select[name='documentType']",
     docSelector: "#form-candidate input[name='idDoc']"
   });
@@ -483,7 +527,7 @@ function enforceColombianFormStandards() {
   }
   const todayYmd = colombiaTodayIsoDate();
   ["pickup-date", "delivery-date"].forEach((id) => {
-    const el = queryPortalDateField(nodes.viewRoot || document, id);
+    const el = $portal.queryPortalDateField(nodes.viewRoot || document, id);
     if (el) el.dataset.antaresDateMin = todayYmd;
   });
 }
@@ -577,7 +621,7 @@ function bindDynamicEvents() {
       }
       renderPortalView();
       if (nextOpen) {
-        scrollToCreatePanelForm(panelId);
+        $portal.scrollToCreatePanelForm(panelId);
       }
     });
   });
@@ -587,7 +631,7 @@ function bindDynamicEvents() {
       const panelId = String(btn.dataset.panel || "");
       const formEl = btn.closest("form");
       if (!panelId || !formEl) return;
-      await resetCreatePanelForm(panelId, formEl);
+      await $portal.resetCreatePanelForm(panelId, formEl);
     });
   });
 
@@ -611,7 +655,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const panel = String(btn.dataset.panel || "");
-      const ui = getAdminUsersUi();
+      const ui = $portal.getAdminUsersUi();
       const samePanel = ui.panel === panel;
       const isCreateUser = panel === "create-user";
       const isCreateCompany = panel === "create-company";
@@ -619,7 +663,7 @@ function bindDynamicEvents() {
         if (ui.createUserMinimized) {
           document.querySelector("[data-action='toggle-admin-create-user-panel']")?.click();
         } else {
-          scrollToAdminUsersFocusedForm();
+          $portal.scrollToAdminUsersFocusedForm();
         }
         return;
       }
@@ -627,7 +671,7 @@ function bindDynamicEvents() {
         if (ui.createCompanyMinimized) {
           document.querySelector("[data-action='toggle-admin-create-company-panel']")?.click();
         } else {
-          scrollToAdminUsersFocusedForm();
+          $portal.scrollToAdminUsersFocusedForm();
         }
         return;
       }
@@ -635,7 +679,7 @@ function bindDynamicEvents() {
         !samePanel ||
         (isCreateUser && ui.createUserMinimized) ||
         (isCreateCompany && ui.createCompanyMinimized);
-      setAdminUsersUi({
+      $portal.setAdminUsersUi({
         panel: samePanel && !willOpen ? "" : panel,
         editUserId: "",
         editCompanyId: "",
@@ -646,27 +690,27 @@ function bindDynamicEvents() {
         permissionsMinimized: panel === "set-permissions" ? false : ui.permissionsMinimized
       });
       renderPortalView();
-      if (willOpen && getAdminUsersUi().panel) {
-        scrollToAdminUsersFocusedForm();
+      if (willOpen && $portal.getAdminUsersUi().panel) {
+        $portal.scrollToAdminUsersFocusedForm();
       }
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-create-user-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const ui = getAdminUsersUi();
-      setAdminUsersUi({ createUserMinimized: !ui.createUserMinimized });
+      const ui = $portal.getAdminUsersUi();
+      $portal.setAdminUsersUi({ createUserMinimized: !ui.createUserMinimized });
       renderPortalView();
-      if (!getAdminUsersUi().createUserMinimized) scrollToAdminUsersFocusedForm();
+      if (!$portal.getAdminUsersUi().createUserMinimized) $portal.scrollToAdminUsersFocusedForm();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-create-company-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const ui = getAdminUsersUi();
-      setAdminUsersUi({ createCompanyMinimized: !ui.createCompanyMinimized });
+      const ui = $portal.getAdminUsersUi();
+      $portal.setAdminUsersUi({ createCompanyMinimized: !ui.createCompanyMinimized });
       renderPortalView();
-      if (!getAdminUsersUi().createCompanyMinimized) scrollToAdminUsersFocusedForm();
+      if (!$portal.getAdminUsersUi().createCompanyMinimized) $portal.scrollToAdminUsersFocusedForm();
     });
   });
 
@@ -675,18 +719,18 @@ function bindDynamicEvents() {
       const panel = String(btn.dataset.panel || "");
       const formEl = btn.closest("form");
       if (!panel || !formEl) return;
-      if (!(await confirmDiscardCreateFormAsync(formEl))) return;
+      if (!(await $portal.confirmDiscardCreateFormAsync(formEl))) return;
       if (panel === "create-user") {
-        clearAdminUsersDraft("createUser");
-        setAdminUsersUi({
+        $portal.clearAdminUsersDraft("createUser");
+        $portal.setAdminUsersUi({
           panel: "create-user",
           createUserMinimized: false,
           editUserId: "",
           editCompanyId: ""
         });
       } else if (panel === "create-company") {
-        clearAdminUsersDraft("createCompany");
-        setAdminUsersUi({
+        $portal.clearAdminUsersDraft("createCompany");
+        $portal.setAdminUsersUi({
           panel: "create-company",
           createCompanyMinimized: false,
           editUserId: "",
@@ -696,18 +740,18 @@ function bindDynamicEvents() {
         return;
       }
       renderPortalView();
-      scrollToAdminUsersFocusedForm();
+      $portal.scrollToAdminUsersFocusedForm();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='admin-users-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const section = normalizeAdminUsersSection(btn.dataset.section, adminUsersHasPendingInCache());
-      setAdminUsersUi({ section });
+      const section = $portal.normalizeAdminUsersSection(btn.dataset.section, $portal.adminUsersHasPendingInCache());
+      $portal.setAdminUsersUi({ section });
       if (section === "sessions" && portalCanRefreshFromApi() && !state.adminUserSessionsHydrated) {
         renderPortalView();
-        void ensureAdminUserSessionsLoaded().finally(() => {
-          if (state.currentView === "admin-users" && getAdminUsersUi().section === "sessions") {
+        void $portal.ensureAdminUserSessionsLoaded().finally(() => {
+          if (state.currentView === "admin-users" && $portal.getAdminUsersUi().section === "sessions") {
             scheduleRenderPortalView();
           }
         });
@@ -719,16 +763,16 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-permissions-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const ui = getAdminUsersUi();
-      setAdminUsersUi({ permissionsMinimized: !ui.permissionsMinimized });
+      const ui = $portal.getAdminUsersUi();
+      $portal.setAdminUsersUi({ permissionsMinimized: !ui.permissionsMinimized });
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-edit-user-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const ui = getAdminUsersUi();
-      setAdminUsersUi({ editMinimized: !ui.editMinimized });
+      const ui = $portal.getAdminUsersUi();
+      $portal.setAdminUsersUi({ editMinimized: !ui.editMinimized });
       renderPortalView();
     });
   });
@@ -754,7 +798,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
       renderPortalView();
-      void ensureAdminUserSessionsLoaded({ force: true }).finally(() => {
+      void $portal.ensureAdminUserSessionsLoaded({ force: true }).finally(() => {
         if (state.currentView === "admin-users") scheduleRenderPortalView();
       });
     });
@@ -763,21 +807,21 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='clear-user-sessions-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!hasPermission(currentUser(), PERMISSIONS.USERS_MANAGE)) return;
-      openConfirmModal({
+      $portal.openConfirmModal({
         title: "Finalizar sesiones",
         message:
           "Se cerrarán las sesiones de usuarios desde el módulo raíz. Los usuarios deberán iniciar sesión nuevamente.",
         confirmText: "Finalizar sesiones",
         onConfirm: async () => {
           try {
-            await postPortalAuthorized("/portal/admin-clear-user-sessions", {});
+            await $portal.postPortalAuthorized("/portal/admin-clear-user-sessions", {});
           } catch (err) {
-            notify(String(err?.message || "No fue posible finalizar sesiones en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible finalizar sesiones en el servidor."), "error");
             return;
           }
-          notify("Sesiones finalizadas correctamente.", "success");
+          $portal.notify("Sesiones finalizadas correctamente.", "success");
           renderPortalView();
-          void ensureAdminUserSessionsLoaded({ force: true }).finally(() => {
+          void $portal.ensureAdminUserSessionsLoaded({ force: true }).finally(() => {
             if (state.currentView === "admin-users") scheduleRenderPortalView();
           });
         }
@@ -789,17 +833,17 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      setAdminUsersUi({ panel: "", editUserId: id, editCompanyId: "", section: "actions", editMinimized: false });
+      $portal.setAdminUsersUi({ panel: "", editUserId: id, editCompanyId: "", section: "actions", editMinimized: false });
       renderPortalView();
-      scrollToAdminUsersFocusedForm();
+      $portal.scrollToAdminUsersFocusedForm();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-user']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const formEl = document.getElementById("form-admin-user-edit");
-      if (formEl && !(await confirmDiscardCreateFormAsync(formEl))) return;
-      setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", section: "actions", editMinimized: false });
+      if (formEl && !(await $portal.confirmDiscardCreateFormAsync(formEl))) return;
+      $portal.setAdminUsersUi({ panel: "", editUserId: "", editCompanyId: "", section: "actions", editMinimized: false });
       renderPortalView();
     });
   });
@@ -808,17 +852,17 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: id, section: "actions" };
+      state.adminUsersUi = { ...$portal.getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: id, section: "actions" };
       renderPortalView();
-      scrollToAdminUsersFocusedForm();
+      $portal.scrollToAdminUsersFocusedForm();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='close-edit-company']").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const formEl = document.getElementById("form-admin-company-edit");
-      if (formEl && !(await confirmDiscardCreateFormAsync(formEl))) return;
-      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
+      if (formEl && !(await $portal.confirmDiscardCreateFormAsync(formEl))) return;
+      state.adminUsersUi = { ...$portal.getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
   });
@@ -830,9 +874,9 @@ function bindDynamicEvents() {
       const companies = read(KEYS.companies, []);
       const target = companies.find((c) => String(c.id) === companyId);
       if (!target) return;
-      const active = isCompanyRecordActive(target);
+      const active = $portal.isCompanyRecordActive(target);
       const verb = active ? "desactivar" : "activar";
-      openConfirmModal({
+      $portal.openConfirmModal({
         title: `${active ? "Desactivar" : "Activar"} empresa`,
         message: `Se va a ${verb} "${String(target.name || "").trim()}". Las empresas inactivas no aparecen al asignar usuarios nuevos.`,
         confirmText: active ? "Desactivar" : "Activar",
@@ -842,7 +886,7 @@ function bindDynamicEvents() {
             String(c.id) === companyId ? { ...c, active: !active, updatedAt: updatedTs } : c
           );
           await writeAwaitServer(KEYS.companies, next);
-          notify(userMessage(active ? "companyDeactivated" : "companyActivated"), "success");
+          $portal.notify($portal.userMessage(active ? "companyDeactivated" : "companyActivated"), "success");
           renderPortalView();
         }
       });
@@ -859,24 +903,24 @@ function bindDynamicEvents() {
       if (!target) return;
       const linkedUsers = read(KEYS.users, []).filter((u) => String(u.companyId || "") === companyId);
       if (linkedUsers.length > 0) {
-        notify(userMessage("companyDeleteBlockedUsers"), "error");
+        $portal.notify($portal.userMessage("companyDeleteBlockedUsers"), "error");
         return;
       }
-      openConfirmModal({
+      $portal.openConfirmModal({
         title: "Eliminar empresa",
         message: `Eliminar permanentemente "${String(target.name || "").trim()}" del sistema.`,
         confirmText: "Eliminar",
         onConfirm: async () => {
           try {
-            await postPortalAuthorized("/portal/admin-company-delete", { companyId });
+            await $portal.postPortalAuthorized("/portal/admin-company-delete", { companyId });
           } catch (err) {
-            notify(String(err?.message || userMessage("genericError")), "error");
+            $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
             return;
           }
           const snapshotCompany = read(KEYS.companies, []).find((c) => String(c.id) === String(companyId));
-          const ok = await removeFromPortalListAwaitServer(KEYS.companies, companyId, { notifyOnFailure: false });
+          const ok = await $portal.removeFromPortalListAwaitServer(KEYS.companies, companyId, { notifyOnFailure: false });
           if (!ok) {
-            notify("La empresa se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
+            $portal.notify("La empresa se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
             if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
             renderPortalView();
             return;
@@ -891,8 +935,8 @@ function bindDynamicEvents() {
               summary: `${String(snapshotCompany.taxId || snapshotCompany.nit || "Sin NIT")} · ${String(snapshotCompany.city || "Sin ciudad")}`
             });
           }
-          state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
-          notify(userMessage("companyDeleted"), "success");
+          state.adminUsersUi = { ...$portal.getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
+          $portal.notify($portal.userMessage("companyDeleted"), "success");
           renderPortalView();
         }
       });
@@ -901,8 +945,8 @@ function bindDynamicEvents() {
 
   const adminUserCreate = document.getElementById("form-admin-user-create");
   if (adminUserCreate) {
-    const draft = getAdminUsersDraft("createUser");
-    attachDepartmentCitySelects(adminUserCreate, {
+    const draft = $portal.getAdminUsersDraft("createUser");
+    $portal.attachDepartmentCitySelects(adminUserCreate, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']",
       initialDepartment: String(draft.department || ""),
@@ -916,50 +960,50 @@ function bindDynamicEvents() {
     if (draft.role) repaintPermGridInForm(adminUserCreate, draft.role || ROLES.ADMIN);
     applyAdminUsersFormDraft(adminUserCreate, draft);
     adminUserCreate.addEventListener("input", () => {
-      setAdminUsersDraft("createUser", readAdminUsersFormDraft(adminUserCreate, { excludeNames: ["password"] }));
+      $portal.setAdminUsersDraft("createUser", $portal.readAdminUsersFormDraft(adminUserCreate, { excludeNames: ["password"] }));
     });
     adminUserCreate.addEventListener("change", () => {
-      setAdminUsersDraft("createUser", readAdminUsersFormDraft(adminUserCreate, { excludeNames: ["password"] }));
+      $portal.setAdminUsersDraft("createUser", $portal.readAdminUsersFormDraft(adminUserCreate, { excludeNames: ["password"] }));
     });
     wireFormSubmitGuard(adminUserCreate, async (event) => {
       const actor = currentUser();
-      const data = readFormEntriesNormalized(adminUserCreate);
+      const data = $portal.readFormEntriesNormalized(adminUserCreate);
       const permissions = [...adminUserCreate.querySelectorAll("input[name='permissions']:checked")].map(
         (input) => input.value
       );
       const users = read(KEYS.users, []);
-      if (users.some((item) => normalizeEmail(item.email) === normalizeEmail(data.email))) {
-        notify(userMessage("userEmailExists"), "error");
+      if (users.some((item) => $portal.normalizeEmail(item.email) === $portal.normalizeEmail(data.email))) {
+        $portal.notify($portal.userMessage("userEmailExists"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
       if (!docValidation.ok) {
-        notify(docValidation.message, "error");
+        $portal.notify(docValidation.message, "error");
         return;
       }
       data.taxId = docValidation.normalized;
       const company = getCompanyById(data.companyId);
       if (!company) {
-        notify(userMessage("userSelectCompany"), "error");
+        $portal.notify($portal.userMessage("userSelectCompany"), "error");
         return;
       }
       const passPolicy = validatePasswordPolicy(data.password);
       if (!passPolicy.ok) {
-        notify(userMessage(passPolicy.key), "error");
+        $portal.notify($portal.userMessage(passPolicy.key), "error");
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
-        await queueApproval({
+        await $portal.queueApproval({
           type: "create_user",
-          title: `Creacion de usuario ${normalizeLatinUpperForDb(data.name)}`,
+          title: `Creacion de usuario ${$portal.normalizeLatinUpperForDb(data.name)}`,
           payload: { ...data, companyName: company.name, permissions },
           requestedByUserId: actor?.id || "",
           requestedByName: actor?.name || "Usuario"
         });
-        notify(userMessage("userApprovalQueued"), "info");
-        clearAdminUsersDraft("createUser");
+        $portal.notify($portal.userMessage("userApprovalQueued"), "info");
+        $portal.clearAdminUsersDraft("createUser");
         state.adminUsersUi = {
-          ...getAdminUsersUi(),
+          ...$portal.getAdminUsersUi(),
           panel: "",
           editUserId: "",
           editCompanyId: "",
@@ -972,21 +1016,21 @@ function bindDynamicEvents() {
       const registrationKindCreate = normalizeRegistrationKindForDb(data.registrationKind);
       users.push({
         id: newUuidV4(),
-        name: normalizeLatinUpperForDb(data.name),
-        email: normalizeEmail(data.email),
+        name: $portal.normalizeLatinUpperForDb(data.name),
+        email: $portal.normalizeEmail(data.email),
         password: await hashPassword(data.password),
         role: data.role,
         documentType: data.documentType,
         accountStatus: ACCOUNT_STATUS.APROBADO,
         personType: normalizePersonTypeForDb(data.personType),
         documentIssuedAt: data.documentIssuedAt || "",
-        company: normalizeLatinUpperForDb(data.company || company.name),
+        company: $portal.normalizeLatinUpperForDb(data.company || company.name),
         companyId: company.id,
         taxId: data.taxId,
         phone: normalizePortalPhoneForStorage(data.phone),
         city: normalizeLatinForDb(data.city),
         department: normalizeLatinForDb(data.department),
-        address: normalizeLatinUpperForDb(data.address),
+        address: $portal.normalizeLatinUpperForDb(data.address),
         registrationKind: registrationKindCreate,
         profileQualityChecklist: {
           registrationKind: registrationKindCreate
@@ -997,10 +1041,10 @@ function bindDynamicEvents() {
         permissions: normalizeSavedUserPermissions(data.role, permissions)
       });
       await writeAwaitServer(KEYS.users, users);
-      notify(userMessage("userCreated"), "success");
-      clearAdminUsersDraft("createUser");
+      $portal.notify($portal.userMessage("userCreated"), "success");
+      $portal.clearAdminUsersDraft("createUser");
       state.adminUsersUi = {
-        ...getAdminUsersUi(),
+        ...$portal.getAdminUsersUi(),
         panel: "",
         editUserId: "",
         editCompanyId: "",
@@ -1013,61 +1057,61 @@ function bindDynamicEvents() {
 
   const adminCompanyCreate = document.getElementById("form-admin-company-create");
   if (adminCompanyCreate) {
-    const draft = getAdminUsersDraft("createCompany");
+    const draft = $portal.getAdminUsersDraft("createCompany");
     applyAdminUsersFormDraft(adminCompanyCreate, draft);
     adminCompanyCreate.addEventListener("input", () => {
-      setAdminUsersDraft("createCompany", readAdminUsersFormDraft(adminCompanyCreate));
+      $portal.setAdminUsersDraft("createCompany", $portal.readAdminUsersFormDraft(adminCompanyCreate));
     });
     adminCompanyCreate.addEventListener("change", () => {
-      setAdminUsersDraft("createCompany", readAdminUsersFormDraft(adminCompanyCreate));
+      $portal.setAdminUsersDraft("createCompany", $portal.readAdminUsersFormDraft(adminCompanyCreate));
     });
     wireFormSubmitGuard(adminCompanyCreate, async (event) => {
-      const data = readFormEntriesNormalized(adminCompanyCreate);
+      const data = $portal.readFormEntriesNormalized(adminCompanyCreate);
       const logoFile = adminCompanyCreate.querySelector("input[name='logoFile']")?.files?.[0] || null;
       if (!logoFile) {
-        notify("Debe cargar el logo de la empresa.", "error");
+        $portal.notify("Debe cargar el logo de la empresa.", "error");
         return;
       }
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
-        notify(userMessage("companyNitInvalid", nitValidation.message), "error");
+        $portal.notify($portal.userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
-      const nameTrim = normalizeLatinUpperForDb(String(data.name || "").trim());
+      const nameTrim = $portal.normalizeLatinUpperForDb(String(data.name || "").trim());
       if (!nameTrim) {
-        notify(userMessage("validationStep"), "error");
+        $portal.notify($portal.userMessage("validationStep"), "error");
         return;
       }
       if (nameTrim.length > 255) {
-        notify(userMessage("companyNameTooLong"), "error");
+        $portal.notify($portal.userMessage("companyNameTooLong"), "error");
         return;
       }
       const phoneStored = normalizePortalPhoneForStorage(String(data.phone || ""));
       const phoneDigits = phoneStored.replace(/\D/g, "");
       if (phoneStored && phoneDigits.length < 7) {
-        notify(userMessage("companyPhoneInvalid"), "error");
+        $portal.notify($portal.userMessage("companyPhoneInvalid"), "error");
         return;
       }
-      const emailStored = normalizeEmail(String(data.email || ""));
+      const emailStored = $portal.normalizeEmail(String(data.email || ""));
       if (emailStored && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStored)) {
-        notify("Ingrese un correo empresarial válido.", "error");
+        $portal.notify("Ingrese un correo empresarial válido.", "error");
         return;
       }
       if (!phoneStored && !emailStored) {
-        notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
+        $portal.notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
         return;
       }
-      const contactName = normalizeLatinUpperForDb(String(data.contactName || ""));
+      const contactName = $portal.normalizeLatinUpperForDb(String(data.contactName || ""));
       const department = normalizeLatinForDb(String(data.department || ""));
       const city = normalizeLatinForDb(String(data.city || ""));
-      const address = normalizeLatinUpperForDb(String(data.address || ""));
+      const address = $portal.normalizeLatinUpperForDb(String(data.address || ""));
       const logoUrl = await resolveEmployeeAvatarUrl(logoFile, "");
       if (!String(logoUrl || "").trim()) {
-        notify("No fue posible procesar el logo de la empresa. Intente de nuevo.", "error");
+        $portal.notify("No fue posible procesar el logo de la empresa. Intente de nuevo.", "error");
         return;
       }
       if (window.AntaresApi?.isConfigured?.() && isDataUrl(logoUrl)) {
-        notify(
+        $portal.notify(
           "No se pudo obtener una URL pública del logo (R2). Revise CF_R2_* y CF_R2_PUBLIC_BASE en el servidor, CORS del bucket si usa subida directa, formato JPEG/PNG/WebP/GIF, o reintente. En modo servidor no se admite logo embebido (data URL).",
           "error"
         );
@@ -1077,16 +1121,16 @@ function bindDynamicEvents() {
       const nitNorm = nitValidation.normalized;
       const nameLc = nameTrim.toLowerCase();
       if (companies.some((c) => String(c.name || "").trim().toLowerCase() === nameLc)) {
-        notify(userMessage("companyNameDuplicate"), "error");
+        $portal.notify($portal.userMessage("companyNameDuplicate"), "error");
         return;
       }
       if (companies.some((c) => String(c.taxId || c.nit || "").trim() === nitNorm)) {
-        notify(userMessage("companyNitDuplicate"), "error");
+        $portal.notify($portal.userMessage("companyNitDuplicate"), "error");
         return;
       }
       const kind = normalizeCompanyKindForDb(data.companyKind);
       if (kind === "propia" && companies.some((c) => normalizeCompanyKindForDb(c.companyKind) === "propia")) {
-        notify(userMessage("companyPropiaDuplicate"), "error");
+        $portal.notify($portal.userMessage("companyPropiaDuplicate"), "error");
         return;
       }
       companies.push(stampCreatedRecord({
@@ -1105,20 +1149,20 @@ function bindDynamicEvents() {
         active: true
       }));
       try {
-        await writeAwaitServer(KEYS.companies, normalizeCompaniesForSync(companies));
+        await writeAwaitServer(KEYS.companies, $portal.normalizeCompaniesForSync(companies));
       } catch (err) {
         const raw = String(err?.message || "");
         const msg =
           /too large|413|payload/i.test(raw)
             ? "El logo es demasiado grande para sincronizar. Cargue una imagen más liviana (ideal: PNG/JPG optimizado)."
             : "La empresa no se pudo guardar en el servidor.";
-        notify(msg, "error");
+        $portal.notify(msg, "error");
         return;
       }
-      notify(userMessage("companyCreated"), "success");
-      clearAdminUsersDraft("createCompany");
+      $portal.notify($portal.userMessage("companyCreated"), "success");
+      $portal.clearAdminUsersDraft("createCompany");
       state.adminUsersUi = {
-        ...getAdminUsersUi(),
+        ...$portal.getAdminUsersUi(),
         panel: "",
         editUserId: "",
         editCompanyId: "",
@@ -1132,18 +1176,18 @@ function bindDynamicEvents() {
   const adminCompanyEdit = document.getElementById("form-admin-company-edit");
   if (adminCompanyEdit) {
     wireFormSubmitGuard(adminCompanyEdit, async (event) => {
-      const data = readFormEntriesNormalized(adminCompanyEdit);
+      const data = $portal.readFormEntriesNormalized(adminCompanyEdit);
       const logoFile = adminCompanyEdit.querySelector("input[name='logoFile']")?.files?.[0] || null;
       let logoUrlResolved = String(data.logoUrlExisting || "").trim();
       if (logoFile) {
         logoUrlResolved = String(await resolveEmployeeAvatarUrl(logoFile, logoUrlResolved || "") || "").trim();
       }
       if (!logoUrlResolved) {
-        notify("La empresa debe tener un logo cargado.", "error");
+        $portal.notify("La empresa debe tener un logo cargado.", "error");
         return;
       }
       if (window.AntaresApi?.isConfigured?.() && isDataUrl(logoUrlResolved)) {
-        notify(
+        $portal.notify(
           "El logo actual está embebido y no se puede sincronizar con el servidor. Vuelva a cargarlo para subirlo correctamente.",
           "error"
         );
@@ -1154,31 +1198,31 @@ function bindDynamicEvents() {
       const companies = read(KEYS.companies, []);
       const existing = companies.find((c) => String(c.id) === companyId);
       if (!existing) {
-        notify(userMessage("genericError"), "error");
+        $portal.notify($portal.userMessage("genericError"), "error");
         return;
       }
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
-        notify(userMessage("companyNitInvalid", nitValidation.message), "error");
+        $portal.notify($portal.userMessage("companyNitInvalid", nitValidation.message), "error");
         return;
       }
-      const nameTrim = normalizeLatinUpperForDb(String(data.name || "").trim());
+      const nameTrim = $portal.normalizeLatinUpperForDb(String(data.name || "").trim());
       if (!nameTrim) {
-        notify(userMessage("validationStep"), "error");
+        $portal.notify($portal.userMessage("validationStep"), "error");
         return;
       }
       if (nameTrim.length > 255) {
-        notify(userMessage("companyNameTooLong"), "error");
+        $portal.notify($portal.userMessage("companyNameTooLong"), "error");
         return;
       }
       const nitNorm = nitValidation.normalized;
       const nameLc = nameTrim.toLowerCase();
       if (companies.some((c) => String(c.id) !== companyId && String(c.name || "").trim().toLowerCase() === nameLc)) {
-        notify(userMessage("companyNameDuplicate"), "error");
+        $portal.notify($portal.userMessage("companyNameDuplicate"), "error");
         return;
       }
       if (companies.some((c) => String(c.id) !== companyId && String(c.taxId || c.nit || "").trim() === nitNorm)) {
-        notify(userMessage("companyNitDuplicate"), "error");
+        $portal.notify($portal.userMessage("companyNitDuplicate"), "error");
         return;
       }
       const kind = normalizeCompanyKindForDb(data.companyKind);
@@ -1186,28 +1230,28 @@ function bindDynamicEvents() {
         kind === "propia" &&
         companies.some((c) => String(c.id) !== companyId && normalizeCompanyKindForDb(c.companyKind) === "propia")
       ) {
-        notify(userMessage("companyPropiaDuplicate"), "error");
+        $portal.notify($portal.userMessage("companyPropiaDuplicate"), "error");
         return;
       }
       const phoneStored = normalizePortalPhoneForStorage(String(data.phone || ""));
       const phoneDigits = phoneStored.replace(/\D/g, "");
       if (phoneStored && phoneDigits.length < 7) {
-        notify(userMessage("companyPhoneInvalid"), "error");
+        $portal.notify($portal.userMessage("companyPhoneInvalid"), "error");
         return;
       }
-      const emailStored = normalizeEmail(String(data.email || ""));
+      const emailStored = $portal.normalizeEmail(String(data.email || ""));
       if (emailStored && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStored)) {
-        notify("Ingrese un correo empresarial válido.", "error");
+        $portal.notify("Ingrese un correo empresarial válido.", "error");
         return;
       }
       if (!phoneStored && !emailStored) {
-        notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
+        $portal.notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
         return;
       }
-      const contactName = normalizeLatinUpperForDb(String(data.contactName || ""));
+      const contactName = $portal.normalizeLatinUpperForDb(String(data.contactName || ""));
       const department = normalizeLatinForDb(String(data.department || ""));
       const city = normalizeLatinForDb(String(data.city || ""));
-      const address = normalizeLatinUpperForDb(String(data.address || ""));
+      const address = $portal.normalizeLatinUpperForDb(String(data.address || ""));
       const nextCompanies = companies.map((c) =>
         String(c.id) === companyId
           ? stampUpdatedRecord({
@@ -1227,13 +1271,13 @@ function bindDynamicEvents() {
           : c
       );
       try {
-        await writeAwaitServer(KEYS.companies, normalizeCompaniesForSync(nextCompanies));
+        await writeAwaitServer(KEYS.companies, $portal.normalizeCompaniesForSync(nextCompanies));
       } catch (err) {
-        notify(String(err?.message || "La empresa no se pudo guardar en el servidor."), "error");
+        $portal.notify(String(err?.message || "La empresa no se pudo guardar en el servidor."), "error");
         return;
       }
-      notify(userMessage("companyUpdated"), "success");
-      state.adminUsersUi = { ...getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
+      $portal.notify($portal.userMessage("companyUpdated"), "success");
+      state.adminUsersUi = { ...$portal.getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
     });
   }
@@ -1267,7 +1311,7 @@ function bindDynamicEvents() {
       const form = new FormData(adminUserPermissions);
       const userId = String(form.get("userId") || "");
       if (!userId) {
-        notify(userMessage("userPick"), "error");
+        $portal.notify($portal.userMessage("userPick"), "error");
         return;
       }
       const permissions = [...adminUserPermissions.querySelectorAll("input[name='permissions']:checked")].map(
@@ -1289,13 +1333,13 @@ function bindDynamicEvents() {
       try {
         await writeAwaitServer(KEYS.users, nextUsers);
       } catch (err) {
-        notify(String(err?.message || userMessage("genericError")), "error");
+        $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
         return;
       }
       if (state.session?.userId === userId) {
         const refreshed = read(KEYS.users, []).find((item) => String(item.id) === userId);
         if (refreshed && !hasPermission(refreshed, PERMISSIONS.USERS_MANAGE)) {
-          notify(userMessage("permissionsChangedLogout"), "error");
+          $portal.notify($portal.userMessage("permissionsChangedLogout"), "error");
           clearSession();
           renderPortal();
           return;
@@ -1303,8 +1347,8 @@ function bindDynamicEvents() {
         syncSessionProfileSnapshotFromCache();
         updatePortalSidebarSessionMeta();
       }
-      notify(userMessage("permissionsUpdated"), "success");
-      setAdminUsersUi({
+      $portal.notify($portal.userMessage("permissionsUpdated"), "success");
+      $portal.setAdminUsersUi({
         panel: "set-permissions",
         editUserId: "",
         editCompanyId: "",
@@ -1317,7 +1361,7 @@ function bindDynamicEvents() {
 
   const adminUserEdit = document.getElementById("form-admin-user-edit");
   if (adminUserEdit) {
-    attachDepartmentCitySelects(adminUserEdit, {
+    $portal.attachDepartmentCitySelects(adminUserEdit, {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']",
       initialDepartment: String(adminUserEdit.querySelector("select[name='department']")?.value || ""),
@@ -1328,66 +1372,66 @@ function bindDynamicEvents() {
     bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
     wireAdminUserFormPermGridOnRoleChange(adminUserEdit);
     wireFormSubmitGuard(adminUserEdit, async (event) => {
-      const data = readFormEntriesNormalized(adminUserEdit);
+      const data = $portal.readFormEntriesNormalized(adminUserEdit);
       const userId = String(data.id || "");
       if (!userId) return;
       const users = read(KEYS.users, []);
       const existing = users.find((u) => String(u.id) === userId);
       if (!existing) {
-        notify(userMessage("userNotFound"), "error");
+        $portal.notify($portal.userMessage("userNotFound"), "error");
         return;
       }
-      const duplicated = users.some((u) => u.id !== userId && normalizeEmail(u.email) === normalizeEmail(data.email));
+      const duplicated = users.some((u) => u.id !== userId && $portal.normalizeEmail(u.email) === $portal.normalizeEmail(data.email));
       if (duplicated) {
-        notify(userMessage("userEmailDuplicate"), "error");
+        $portal.notify($portal.userMessage("userEmailDuplicate"), "error");
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
       if (!docValidation.ok) {
-        notify(docValidation.message, "error");
+        $portal.notify(docValidation.message, "error");
         return;
       }
       data.taxId = docValidation.normalized;
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
-        notify(userMessage("userSelectCompany"), "error");
+        $portal.notify($portal.userMessage("userSelectCompany"), "error");
         return;
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
       let nextPassword = existing.password;
-      const nextEmail = normalizeEmail(data.email);
+      const nextEmail = $portal.normalizeEmail(data.email);
       const passwordPlain = String(data.password || "").trim();
       if (String(data.password || "").trim()) {
         const pp = validatePasswordPolicy(data.password);
         if (!pp.ok) {
-          notify(userMessage(pp.key), "error");
+          $portal.notify($portal.userMessage(pp.key), "error");
           return;
         }
         nextPassword = await hashPassword(passwordPlain);
       }
       if (window.AntaresApi?.isConfigured?.()) {
-        const emailChanged = nextEmail !== normalizeEmail(existing.email);
+        const emailChanged = nextEmail !== $portal.normalizeEmail(existing.email);
         const passwordChanged = Boolean(passwordPlain);
         if (emailChanged || passwordChanged) {
           try {
-            await postPortalAuthorized("/portal/admin-user-credentials", {
+            await $portal.postPortalAuthorized("/portal/admin-user-credentials", {
               userId,
               email: emailChanged ? nextEmail : undefined,
               password: passwordChanged ? passwordPlain : undefined
             });
           } catch (err) {
-            notify(String(err?.message || "No fue posible actualizar las credenciales del usuario en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible actualizar las credenciales del usuario en el servidor."), "error");
             return;
           }
         }
       }
-      const fn = normalizeLatinUpperForDb(String(data.firstName ?? "").trim());
-      const mn = normalizeLatinUpperForDb(String(data.middleName ?? "").trim());
-      const ln = normalizeLatinUpperForDb(String(data.lastName ?? "").trim());
-      const sln = normalizeLatinUpperForDb(String(data.secondLastName ?? "").trim());
+      const fn = $portal.normalizeLatinUpperForDb(String(data.firstName ?? "").trim());
+      const mn = $portal.normalizeLatinUpperForDb(String(data.middleName ?? "").trim());
+      const ln = $portal.normalizeLatinUpperForDb(String(data.lastName ?? "").trim());
+      const sln = $portal.normalizeLatinUpperForDb(String(data.secondLastName ?? "").trim());
       const composedFromParts = [fn, mn, ln, sln].filter(Boolean).join(" ").trim();
-      const nameFromInput = normalizeLatinUpperForDb(String(data.name ?? "").trim());
-      const resolvedFullName = nameFromInput || composedFromParts || normalizeLatinUpperForDb(String(existing.name ?? "").trim());
+      const nameFromInput = $portal.normalizeLatinUpperForDb(String(data.name ?? "").trim());
+      const resolvedFullName = nameFromInput || composedFromParts || $portal.normalizeLatinUpperForDb(String(existing.name ?? "").trim());
       const birthIn = String(data.birthDate ?? "").trim();
       const birthStored =
         !birthIn
@@ -1396,7 +1440,7 @@ function bindDynamicEvents() {
             ? birthIn.slice(0, 10)
             : String(existing.birthDate || "").slice(0, 10) || "";
       const gRaw = String(data.gender ?? "").trim();
-      const genderStored = gRaw ? normalizeLatinUpperForDb(gRaw) : "";
+      const genderStored = gRaw ? $portal.normalizeLatinUpperForDb(gRaw) : "";
       const registrationKindStored = normalizeRegistrationKindForDb(data.registrationKind);
       const avatarFile = adminUserEdit.querySelector("input[name='avatarFile']")?.files?.[0] || null;
       const avatarExisting = String(data.avatarUrlExisting ?? existing.avatarUrl ?? "").trim();
@@ -1406,16 +1450,16 @@ function bindDynamicEvents() {
           resolvedAvatarUrl = await resolveEmployeeAvatarUrl(avatarFile, avatarExisting);
         } catch (presignErr) {
           devWarn?.("admin-user-edit-avatar-resolve", presignErr);
-          notify(String(presignErr?.message || "No fue posible subir la foto. Intente de nuevo."), "error");
+          $portal.notify(String(presignErr?.message || "No fue posible subir la foto. Intente de nuevo."), "error");
           return;
         }
         const trimmedAv = String(resolvedAvatarUrl || "").trim();
         if (!trimmedAv) {
-          notify("No se obtuvo una imagen válida para la foto del usuario.", "error");
+          $portal.notify("No se obtuvo una imagen válida para la foto del usuario.", "error");
           return;
         }
         if (window.AntaresApi?.isConfigured?.() && isDataUrl(trimmedAv)) {
-          notify(
+          $portal.notify(
             "No se pudo obtener una URL pública de la foto (R2). Revise la configuración del servidor o reintente.",
             "error"
           );
@@ -1442,14 +1486,14 @@ function bindDynamicEvents() {
               gender: genderStored,
               avatarUrl: resolvedAvatarUrl,
               companyId: company.id,
-              company: normalizeLatinUpperForDb(String(data.company || company.name).trim()),
+              company: $portal.normalizeLatinUpperForDb(String(data.company || company.name).trim()),
               taxId: String(data.taxId || "").trim(),
               phone: normalizePortalPhoneForStorage(String(data.phone || "").trim()),
               city: normalizeLatinForDb(String(data.city || "").trim()),
               department: normalizeLatinForDb(String(data.department || u.department || "").trim()),
-              address: normalizeLatinUpperForDb(String(data.address || u.address || "").trim()),
-              position: normalizeLatinUpperForDb(String(data.position ?? u.position ?? "").trim()),
-              workArea: normalizeLatinUpperForDb(String(data.workArea ?? u.workArea ?? "").trim()),
+              address: $portal.normalizeLatinUpperForDb(String(data.address || u.address || "").trim()),
+              position: $portal.normalizeLatinUpperForDb(String(data.position ?? u.position ?? "").trim()),
+              workArea: $portal.normalizeLatinUpperForDb(String(data.workArea ?? u.workArea ?? "").trim()),
               registrationKind: registrationKindStored,
               profileQualityChecklist: {
                 ...(u.profileQualityChecklist && typeof u.profileQualityChecklist === "object"
@@ -1466,11 +1510,11 @@ function bindDynamicEvents() {
       try {
         await writeAwaitServer(KEYS.users, nextEdited);
       } catch (err) {
-        notify(String(err?.message || userMessage("genericError")), "error");
+        $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
         return;
       }
-      notify(userMessage("userUpdated"), "success");
-      setAdminUsersUi({
+      $portal.notify($portal.userMessage("userUpdated"), "success");
+      $portal.setAdminUsersUi({
         panel: "",
         editUserId: "",
         editCompanyId: "",
@@ -1501,12 +1545,12 @@ function bindDynamicEvents() {
         : companiesAll;
       if (!companies.length) {
         if (apiOn && companiesAll.length) {
-          notify(
+          $portal.notify(
             "Las empresas en lista no tienen id compatible con el servidor (deben ser UUID). Registre la empresa de nuevo con «Nueva empresa» o cargue datos desde el servidor.",
             "error"
           );
         } else {
-          notify(userMessage("noCompaniesForUser"), "error");
+          $portal.notify($portal.userMessage("noCompaniesForUser"), "error");
         }
         return;
       }
@@ -1554,7 +1598,7 @@ function bindDynamicEvents() {
         </div>`;
       };
 
-      openEditModal({
+      $portal.openEditModal({
         title: "Aprobar usuario y asociar empresa",
         subtitle: modalSubtitleLines.join(" · "),
         submitText: "Aprobar cuenta",
@@ -1642,12 +1686,12 @@ function bindDynamicEvents() {
         onSubmit: async (form, formEl) => {
           const selected = getCompanyById(String(form.companyId || ""));
           if (!selected) {
-            notify(userMessage("userSelectCompany"), "error");
+            $portal.notify($portal.userMessage("userSelectCompany"), "error");
             return false;
           }
           const chosenRole = String(form.role || ROLES.CLIENT).trim();
           if (!Object.values(ROLES).includes(chosenRole)) {
-            notify("Seleccione un rol válido.", "error");
+            $portal.notify("Seleccione un rol válido.", "error");
             return false;
           }
           /**
@@ -1695,7 +1739,7 @@ function bindDynamicEvents() {
               });
               await portalRefreshBootstrapThenPendingRegistrations();
             } catch (err) {
-              notify(String(err?.message || userMessage("registerServerError")), "error");
+              $portal.notify(String(err?.message || $portal.userMessage("registerServerError")), "error");
               return false;
             }
           } else {
@@ -1720,7 +1764,7 @@ function bindDynamicEvents() {
             title: "Cuenta aprobada",
             body: `Su cuenta ha sido aprobada con el rol asignado y asociada a ${selected.name}. Revise su correo para definir la contraseña y entrar al portal.`
           });
-          sendEmail({
+          $portal.sendEmail({
             to: target.email,
             subject: "Cuenta aprobada - Antares Portal",
             body: `Hola ${target.name}, su cuenta fue aprobada y asociada a ${selected.name}. Le hemos enviado un correo con el enlace para definir su contraseña e iniciar sesión.`
@@ -1742,7 +1786,7 @@ function bindDynamicEvents() {
             }
           }
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(target.id);
-          notify(userMessage("accountApproved", target.name), "success");
+          $portal.notify($portal.userMessage("accountApproved", target.name), "success");
           renderPortalView();
           return true;
         }
@@ -1755,7 +1799,7 @@ function bindDynamicEvents() {
       if (abortUnlessCanApprovePortalRegistration()) return;
       const userId = btn.dataset.id;
       if (!userId) return;
-      openEditModal({
+      $portal.openEditModal({
         title: "Rechazar registro",
         subtitle: "Ingresa motivo de rechazo",
         submitText: "Rechazar",
@@ -1786,7 +1830,7 @@ function bindDynamicEvents() {
               });
               await portalRefreshBootstrapThenPendingRegistrations();
             } catch (err) {
-              notify(String(err?.message || "No se pudo rechazar en el servidor."), "error");
+              $portal.notify(String(err?.message || "No se pudo rechazar en el servidor."), "error");
               return false;
             }
           } else {
@@ -1802,13 +1846,13 @@ function bindDynamicEvents() {
             title: "Registro rechazado",
             body: `Su solicitud de registro fue rechazada. Motivo: ${reason}`
           });
-          sendEmail({
+          $portal.sendEmail({
             to: target.email,
             subject: "Registro rechazado - Antares Portal",
             body: `Hola ${target.name}, su solicitud de registro fue rechazada. Motivo: ${reason}. Contacte a soporte para más información.`
           });
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(target.id);
-          notify(userMessage("accountRejected", target.name), "success");
+          $portal.notify($portal.userMessage("accountRejected", target.name), "success");
           renderPortalView();
           return true;
         }
@@ -1822,7 +1866,7 @@ function bindDynamicEvents() {
       const userId = btn.dataset.id;
       if (!userId) return;
       if (state.session?.userId === userId) {
-        notify(userMessage("userSelfDelete"), "error");
+        $portal.notify($portal.userMessage("userSelfDelete"), "error");
         return;
       }
       openConfirmReasonModal({
@@ -1831,15 +1875,15 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/admin-user-delete", { userId, motivo });
+            await $portal.postPortalAuthorized("/portal/admin-user-delete", { userId, motivo });
           } catch (err) {
-            notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
+            $portal.notify(String(err?.message || "No fue posible eliminar el usuario."), "error");
             return;
           }
           const snapshotUser = read(KEYS.users, []).find((user) => String(user.id) === String(userId));
-          const ok = await removeFromPortalListAwaitServer(KEYS.users, userId, { notifyOnFailure: false });
+          const ok = await $portal.removeFromPortalListAwaitServer(KEYS.users, userId, { notifyOnFailure: false });
           if (!ok) {
-            notify("El usuario se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
+            $portal.notify("El usuario se eliminó en el servidor, pero no se pudo actualizar la vista local.", "error");
             if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
             renderPortalView();
             return;
@@ -1854,7 +1898,7 @@ function bindDynamicEvents() {
               summary: `${formatPortalRoleLabel(snapshotUser.role)} · ${String(snapshotUser.email || "Sin correo")}`
             });
           }
-          notify(userMessage("userDeleted"), "success");
+          $portal.notify($portal.userMessage("userDeleted"), "success");
           renderPortalView();
         }
       });
@@ -1880,7 +1924,7 @@ function bindDynamicEvents() {
             if (reason) payload.reason = reason;
             await api.postJson("/portal/admin-user-status", payload);
           } catch (err) {
-            notify(String(err?.message || "No fue posible actualizar el estado de la cuenta."), "error");
+            $portal.notify(String(err?.message || "No fue posible actualizar el estado de la cuenta."), "error");
             return;
           }
         }
@@ -1903,7 +1947,7 @@ function bindDynamicEvents() {
         } catch (_e) {
           return;
         }
-        notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
+        $portal.notify(`Usuario ${nextStatus === ACCOUNT_STATUS.RECHAZADO ? "desactivado" : "activado"} correctamente.`, "success");
         renderPortalView();
       };
       if (nextStatus === ACCOUNT_STATUS.RECHAZADO) {
@@ -1917,7 +1961,7 @@ function bindDynamicEvents() {
         });
         return;
       }
-      openConfirmModal({
+      $portal.openConfirmModal({
         title: "Activar usuario",
         message: `Se va a activar la cuenta de ${target.name}.`,
         confirmText: "Activar",
@@ -1936,12 +1980,12 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-request']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const req = findTransportRequestById(btn.dataset.id);
+      const req = $portal.findTransportRequestById(btn.dataset.id);
       if (!req) return;
       const actor = currentUser();
       if (!canPortalUserEditTransportRequest(req, actor)) {
-        notify(
-          req.trip ? userMessage("requestEditWithTripDenied") : "No tiene permiso para editar esta solicitud en su estado actual.",
+        $portal.notify(
+          req.trip ? $portal.userMessage("requestEditWithTripDenied") : "No tiene permiso para editar esta solicitud en su estado actual.",
           "error"
         );
         return;
@@ -1971,7 +2015,7 @@ function bindDynamicEvents() {
       /** ISO desde API (`pickupAt`/`etaDelivery`), caché legacy (fecha+hora) o ventanas del viaje (`trip`). */
       const [pickupDateInit, pickupTimeInit] = String(toInputDate(requestPickupIsoForEdit(req)) || "").split("T");
       const [deliveryDateInit, deliveryTimeInit] = String(toInputDate(requestDeliveryIsoForEdit(req)) || "").split("T");
-      openEditModal({
+      $portal.openEditModal({
         title: "Editar solicitud de viaje",
         subtitle: `${req.requestNumber || req.id} · ${req.clientName || ""}${editingWithTrip ? ` · Viaje ${req.trip.tripNumber || ""}` : ""}`,
         submitText: "Guardar cambios",
@@ -2052,16 +2096,16 @@ function bindDynamicEvents() {
             ]
           },
           ...buildRequestTruckTypeEditFieldRows(req),
-          { name: "tripValue", label: "Valor del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || req.insuredValue || 0), required: false },
-          { name: "insuredValue", label: "Valor asegurado (COP)", type: "number", min: 0, value: parseNum(req.insuredValue || 0), required: false },
-          { name: "distanceKm", label: "Distancia estimada (km)", type: "number", min: 0, step: 0.01, value: parseNum(req.distanceKm || 0), required: false },
+          { name: "tripValue", label: "Valor del viaje (COP)", type: "number", min: 0, value: $portal.parseNum(req.tripValue || req.insuredValue || 0), required: false },
+          { name: "insuredValue", label: "Valor asegurado (COP)", type: "number", min: 0, value: $portal.parseNum(req.insuredValue || 0), required: false },
+          { name: "distanceKm", label: "Distancia estimada (km)", type: "number", min: 0, step: 0.01, value: $portal.parseNum(req.distanceKm || 0), required: false },
           { type: "section", id: "edit-req-contact", title: "Contacto en sitio", hint: "Persona que recibe / entrega." },
           { name: "siteContactName", label: "Nombre de contacto", value: req.siteContactName || req.contactName || "", required: true },
           {
             name: "siteContactPhone",
             label: "Teléfono de contacto",
             value:
-              formatPortalPhoneForDisplay(req.siteContactPhone || req.contactPhone || "") ||
+              $portal.formatPortalPhoneForDisplay(req.siteContactPhone || req.contactPhone || "") ||
               req.siteContactPhone ||
               req.contactPhone ||
               "",
@@ -2074,13 +2118,13 @@ function bindDynamicEvents() {
            * Departamento ↔ ciudad encadenados: al cambiar departamento, las
            * ciudades se repueblan. Mismo patrón usado en el form de creación.
            */
-          attachDepartmentCitySelects(formEl, {
+          $portal.attachDepartmentCitySelects(formEl, {
             departmentSelector: "select[name='originDepartment']",
             citySelector: "select[name='originCity']",
             initialDepartment: req.originDepartment,
             initialCity: req.originCity
           });
-          attachDepartmentCitySelects(formEl, {
+          $portal.attachDepartmentCitySelects(formEl, {
             departmentSelector: "select[name='destinationDepartment']",
             citySelector: "select[name='destinationCity']",
             initialDepartment: req.destinationDepartment,
@@ -2093,17 +2137,17 @@ function bindDynamicEvents() {
           if (editingWithTrip) {
             editJustification = String(form.editJustification || "").trim();
             if (editJustification.length < REQUEST_EDIT_JUSTIFICATION_MIN_LEN) {
-              notify(userMessage("requestEditJustificationRequired"), "error");
+              $portal.notify($portal.userMessage("requestEditJustificationRequired"), "error");
               return false;
             }
             if (!canEditTransportRequestWithAssignedTrip(req, actor)) {
-              notify(userMessage("requestEditWithTripDenied"), "error");
+              $portal.notify($portal.userMessage("requestEditWithTripDenied"), "error");
               return false;
             }
           }
           const modo = String(form.serviceType || "").trim();
           if (!TRANSPORT_MODOS_SERVICIO.has(modo)) {
-            notify("Seleccione un modo de transporte válido.", "error");
+            $portal.notify("Seleccione un modo de transporte válido.", "error");
             return false;
           }
           const pickupDateValue = String(form.pickupDate || "").trim();
@@ -2111,19 +2155,19 @@ function bindDynamicEvents() {
           const deliveryDateValue = String(form.deliveryDate || "").trim();
           const deliveryTimeValue = String(form.deliveryTime || "").trim();
           if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
-            notify(userMessage("requestDatetimeMissing"), "error");
+            $portal.notify($portal.userMessage("requestDatetimeMissing"), "error");
             return false;
           }
           const pickupAtBuilt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
           const etaDeliveryBuilt = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
           if (!pickupAtBuilt || !etaDeliveryBuilt) {
-            notify(userMessage("requestDatetimeMissing"), "error");
+            $portal.notify($portal.userMessage("requestDatetimeMissing"), "error");
             return false;
           }
           const pickupDateTime = new Date(pickupAtBuilt);
           const deliveryDateTime = new Date(etaDeliveryBuilt);
           if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
-            notify(userMessage("requestDeliveryAfterPickup"), "error");
+            $portal.notify($portal.userMessage("requestDeliveryAfterPickup"), "error");
             return false;
           }
           const pickupAtIso = pickupDateTime.toISOString();
@@ -2131,7 +2175,7 @@ function bindDynamicEvents() {
           const refrigeracionTermoking = form.requiresThermoking === "yes";
           const requiredTruckType = normalizeRequestRequiredTruckType(form.requiredTruckType);
           if (!requiredTruckType) {
-            notify("Seleccione el tipo de camión requerido.", "error");
+            $portal.notify("Seleccione el tipo de camión requerido.", "error");
             return false;
           }
           let fuellesVal = null;
@@ -2139,14 +2183,14 @@ function bindDynamicEvents() {
           if (requestRequiredTruckTypeShowsFuelles(requiredTruckType)) {
             const f = Math.floor(Number(String(form.fuelles ?? "").trim()));
             if (!Number.isFinite(f) || String(form.fuelles ?? "").trim() === "" || f < 0) {
-              notify("Indique la cantidad de fuelles.", "error");
+              $portal.notify("Indique la cantidad de fuelles.", "error");
               return false;
             }
             fuellesVal = f;
           } else if (requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType)) {
-            weightKgVal = Math.max(0, parseNum(form.weightKg));
+            weightKgVal = Math.max(0, $portal.parseNum(form.weightKg));
             if (weightKgVal <= 0) {
-              notify("Indique el peso en kg para tractomula.", "error");
+              $portal.notify("Indique el peso en kg para tractomula.", "error");
               return false;
             }
           }
@@ -2171,9 +2215,9 @@ function bindDynamicEvents() {
             boxes: 0,
             boxesCount: 0,
             weightKg: requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType) ? weightKgVal : 0,
-            tripValue: parseNum(form.tripValue),
-            insuredValue: Math.max(0, parseNum(form.insuredValue)) || null,
-            distanceKm: Math.max(0, parseNum(form.distanceKm)) || null,
+            tripValue: $portal.parseNum(form.tripValue),
+            insuredValue: Math.max(0, $portal.parseNum(form.insuredValue)) || null,
+            distanceKm: Math.max(0, $portal.parseNum(form.distanceKm)) || null,
             siteContactName: String(form.siteContactName || "").trim(),
             siteContactPhone: String(form.siteContactPhone || "").trim(),
             contactName: String(form.siteContactName || "").trim(),
@@ -2209,11 +2253,11 @@ function bindDynamicEvents() {
           try {
             await reqWriteAwait(updated);
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
           }
-          recalculateResourceAvailability();
-          notify(editingWithTrip ? userMessage("requestEditWithTripLogged") : "Solicitud actualizada correctamente.", "success");
+          $portal.recalculateResourceAvailability();
+          $portal.notify(editingWithTrip ? $portal.userMessage("requestEditWithTripLogged") : "Solicitud actualizada correctamente.", "success");
           renderPortalView();
           return true;
         }
@@ -2229,7 +2273,7 @@ function bindDynamicEvents() {
         if (!req) return;
         const actor = currentUser();
         if (!actor || req.trip || !canPortalUserEditTransportRequest(req, actor)) {
-          notify("No puede cancelar esta solicitud en el estado actual o ya tiene viaje asignado.", "error");
+          $portal.notify("No puede cancelar esta solicitud en el estado actual o ya tiene viaje asignado.", "error");
           return;
         }
         const updated = requests.map((r) =>
@@ -2245,10 +2289,10 @@ function bindDynamicEvents() {
         try {
           await reqWriteAwait(updated);
         } catch (err) {
-          notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
+          $portal.notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
           return;
         }
-        notify("Solicitud cancelada.", "success");
+        $portal.notify("Solicitud cancelada.", "success");
         renderPortalView();
       });
     });
@@ -2268,7 +2312,7 @@ function bindDynamicEvents() {
       const vehicleCandidates = getVehicleCandidatesForRequest(request, requestId);
       const driverCandidates = getDriverCandidatesForRequest(request, requestId);
       const tripRateUi = buildTripRateModalFields(request, { required: false });
-      openEditModal({
+      $portal.openEditModal({
         title: "Aprobar solicitud de viaje",
         subtitle: "",
         introHtml: buildTripApprovalHeroHtml(request, needsTermoking, "table"),
@@ -2376,20 +2420,20 @@ function bindDynamicEvents() {
           const selectedMode = String(form.mode || "pending");
           const vehicleId = String(form.vehicleId || "").trim();
           const driverId = String(form.driverId || "").trim();
-          const tripValue = parseNum(form.tripValue);
+          const tripValue = $portal.parseNum(form.tripValue);
           const mode = vehicleId && driverId ? "assign_now" : selectedMode;
           const schedPickup = requestSchedulingPickupIso(request);
           const schedDelivery = requestSchedulingDeliveryIso(request);
           if (mode === "assign_now" && !isRequestPickupSameDayOrFuture(request)) {
-            notify(userMessage("assignPastRequestDate"), "error");
+            $portal.notify($portal.userMessage("assignPastRequestDate"), "error");
             return false;
           }
           if (mode === "assign_now" && (!vehicleId || !driverId)) {
-            notify(userMessage("assignSelectResources"), "error");
+            $portal.notify($portal.userMessage("assignSelectResources"), "error");
             return false;
           }
           if (mode === "assign_now" && tripValue <= 0) {
-            notify(userMessage("assignPriceRequired"), "error");
+            $portal.notify($portal.userMessage("assignPriceRequired"), "error");
             return false;
           }
           if (mode === "assign_now") {
@@ -2410,20 +2454,20 @@ function bindDynamicEvents() {
             }
           }
           if (mode === "assign_now" && (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId))) {
-            notify(userMessage("assignResourcesBusy"), "error");
+            $portal.notify($portal.userMessage("assignResourcesBusy"), "error");
             return false;
           }
           const ok = mode === "assign_now"
-            ? approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
+            ? $portal.approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
                 allowApproveAndAssign: true
               })
-            : approveRequest(requestId, actor?.name || "Administrador", true);
+            : $portal.approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
-          notify(
+          $portal.notify(
             mode === "assign_now"
-              ? userMessage("requestApprovedAssigned")
-              : userMessage("requestApprovedPending"),
+              ? $portal.userMessage("requestApprovedAssigned")
+              : $portal.userMessage("requestApprovedPending"),
             "success"
           );
           renderPortalView();
@@ -2440,7 +2484,7 @@ function bindDynamicEvents() {
       const actor = currentUser();
       const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
       if (!canAccessReport(actor, reportId)) {
-        notify(userMessage("reportNoPermission"), "error");
+        $portal.notify($portal.userMessage("reportNoPermission"), "error");
         return;
       }
       if (reportId === "payroll_summary" && portalCanRefreshFromApi()) {
@@ -2457,14 +2501,14 @@ function bindDynamicEvents() {
       const report = buildReportDataset(reportId, actor, exportFilters);
       try {
         if (format === "preview") {
-          openReportPreviewModal(report);
-          notify(userMessage("reportPreviewReady"), "success");
+          $portal.openReportPreviewModal(report);
+          $portal.notify($portal.userMessage("reportPreviewReady"), "success");
           return;
         }
         await exportCatalogReport(report, format === "excel" ? "excel" : "pdf");
-        notify(userMessage(format === "excel" ? "reportExcelExported" : "reportPdfOk"), "success");
+        $portal.notify($portal.userMessage(format === "excel" ? "reportExcelExported" : "reportPdfOk"), "success");
       } catch (_e) {
-        notify(userMessage("reportExportError"), "error");
+        $portal.notify($portal.userMessage("reportExportError"), "error");
       }
     });
   });
@@ -2472,7 +2516,7 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='reject']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (abortUnlessCanApproveTransport()) return;
-      openEditModal({
+      $portal.openEditModal({
         title: "Rechazar solicitud",
         subtitle: "Indica motivo para trazabilidad",
         submitText: "Rechazar solicitud",
@@ -2481,14 +2525,14 @@ function bindDynamicEvents() {
           const reason = String(form.reason || "").trim();
           if (!reason) return false;
           try {
-            await rejectRequest(btn.dataset.id, reason, currentUser().name);
+            await $portal.rejectRequest(btn.dataset.id, reason, currentUser().name);
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar el rechazo en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible guardar el rechazo en el servidor."), "error");
             return false;
           }
           const rejectedReq = reqRead().find((r) => r.id === btn.dataset.id);
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(rejectedReq?.clientUserId);
-          notify(userMessage("requestRejected"), "success");
+          $portal.notify($portal.userMessage("requestRejected"), "success");
           renderPortalView();
           return true;
         }
@@ -2498,12 +2542,12 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const req = findTransportRequestById(btn.dataset.id);
+      const req = $portal.findTransportRequestById(btn.dataset.id);
       if (!req) return;
       const actor = currentUser();
       if (!canPortalUserEditTransportRequest(req, actor)) {
-        notify(
-          req.trip ? userMessage("requestEditWithTripDenied") : "No tiene permiso para editar esta solicitud.",
+        $portal.notify(
+          req.trip ? $portal.userMessage("requestEditWithTripDenied") : "No tiene permiso para editar esta solicitud.",
           "error"
         );
         return;
@@ -2531,7 +2575,7 @@ function bindDynamicEvents() {
             }
           ]
         : [];
-      openEditModal({
+      $portal.openEditModal({
         title: "Editar solicitud",
         subtitle: `${req.requestNumber || req.id}${editingWithTrip ? ` · Viaje ${req.trip.tripNumber || ""}` : ""}`,
         submitText: "Actualizar solicitud",
@@ -2554,7 +2598,7 @@ function bindDynamicEvents() {
           if (editingWithTrip) {
             editJustification = String(form.editJustification || "").trim();
             if (editJustification.length < REQUEST_EDIT_JUSTIFICATION_MIN_LEN) {
-              notify(userMessage("requestEditJustificationRequired"), "error");
+              $portal.notify($portal.userMessage("requestEditJustificationRequired"), "error");
               return false;
             }
           }
@@ -2565,13 +2609,13 @@ function bindDynamicEvents() {
           const pickupAtBuilt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
           const etaDeliveryBuilt = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
           if (!pickupAtBuilt || !etaDeliveryBuilt) {
-            notify(userMessage("requestDatetimeMissing"), "error");
+            $portal.notify($portal.userMessage("requestDatetimeMissing"), "error");
             return false;
           }
           const pickupMs = new Date(pickupAtBuilt).getTime();
           const deliveryMs = new Date(etaDeliveryBuilt).getTime();
           if (deliveryMs <= pickupMs) {
-            notify(userMessage("requestScheduleInvalid"), "error");
+            $portal.notify($portal.userMessage("requestScheduleInvalid"), "error");
             return false;
           }
           const pickupAtIso = new Date(pickupAtBuilt).toISOString();
@@ -2605,10 +2649,10 @@ function bindDynamicEvents() {
           try {
             await reqWriteAwait(reqRead().map((r) => (r.id === req.id ? mergedRow : r)));
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
           }
-          notify(editingWithTrip ? userMessage("requestEditWithTripLogged") : userMessage("requestUpdated"), "success");
+          $portal.notify(editingWithTrip ? $portal.userMessage("requestEditWithTripLogged") : $portal.userMessage("requestUpdated"), "success");
           renderPortalView();
           return true;
         }
@@ -2623,7 +2667,7 @@ function bindDynamicEvents() {
       if (!requestId) return;
       const reqSnapshot = reqRead().find((r) => String(r.id) === requestId);
       if (reqSnapshot?.trip) {
-        notify(
+        $portal.notify(
           "Esta solicitud tiene un viaje asignado. Elimine primero el viaje en Transporte · Viajes (con motivo registrado) y luego podrá eliminar la solicitud.",
           "error"
         );
@@ -2636,19 +2680,19 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/admin-request-delete", { requestId, motivo });
+            await $portal.postPortalAuthorized("/portal/admin-request-delete", { requestId, motivo });
           } catch (err) {
-            notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
           await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
-          recalculateResourceAvailability();
+          $portal.recalculateResourceAvailability();
           try {
             await applyPortalBootstrapFromApi();
           } catch (_e) {
             /* el listado de eliminados se actualizara en el proximo bootstrap */
           }
-          notify(userMessage("requestDeleted"), "success");
+          $portal.notify($portal.userMessage("requestDeleted"), "success");
           renderPortalView();
         }
       });
@@ -2662,11 +2706,11 @@ function bindDynamicEvents() {
       if (!requestId || !actor) return;
       const req = reqRead().find((r) => String(r.id) === requestId);
       if (!req || !canClientEditOwnPendingTransportRequest(req, actor)) {
-        notify("Solo puede eliminar solicitudes pendientes de aprobación de su empresa.", "error");
+        $portal.notify("Solo puede eliminar solicitudes pendientes de aprobación de su empresa.", "error");
         return;
       }
       if (req.trip) {
-        notify(
+        $portal.notify(
           "No puede eliminar esta solicitud porque tiene un viaje asignado. Solicite a operaciones que quite el viaje primero; luego podrá eliminar la solicitud.",
           "error"
         );
@@ -2679,17 +2723,17 @@ function bindDynamicEvents() {
         confirmText: "Eliminar",
         onConfirm: async (motivo) => {
           try {
-            await postPortalAuthorized("/portal/client-request-delete", { requestId, motivo });
+            await $portal.postPortalAuthorized("/portal/client-request-delete", { requestId, motivo });
           } catch (err) {
-            notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
+            $portal.notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
           await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
-          recalculateResourceAvailability();
+          $portal.recalculateResourceAvailability();
           try {
             await applyPortalBootstrapFromApi();
           } catch (_e) {}
-          notify("Solicitud eliminada.", "success");
+          $portal.notify("Solicitud eliminada.", "success");
           renderPortalView();
         }
       });
@@ -2719,7 +2763,7 @@ function initGlobalEvents() {
           /* noop */
         }
         firstInvalid?.focus?.();
-        if (typeof notify === "function") notify(userMessage("validationStep"), "error");
+        if (typeof $portal.notify === "function") $portal.notify($portal.userMessage("validationStep"), "error");
       }
     });
   }
@@ -2824,10 +2868,10 @@ function initGlobalEvents() {
     wireFormSubmitGuard(
       nodes.b2bForm,
       async (event) => {
-    setB2bFormFeedback("", "");
+    $portal.setB2bFormFeedback("", "");
     syncPhoneHiddenFull(nodes.b2bForm, "b2b");
     nodes.b2bForm.querySelectorAll("input,select,textarea").forEach((field) => clearFieldError(field));
-    const data = readFormEntriesNormalized(nodes.b2bForm);
+    const data = $portal.readFormEntriesNormalized(nodes.b2bForm);
     const V = window.AntaresValidation;
     const jumpToStepForField = (selector) => {
       const field = nodes.b2bForm.querySelector(selector);
@@ -2844,20 +2888,20 @@ function initGlobalEvents() {
       );
       if (!b2bVal.ok) {
         const first = b2bVal.first || b2bVal.errors?.[0];
-        if (first === "email") jumpToStepForField("input[name='email']");
-        if (first === "phone") jumpToStepForField(".js-b2b-phone-national");
-        if (first === "message") jumpToStepForField("textarea[name='message']");
-        if (first === "name") jumpToStepForField("input[name='name']");
-        if (first === "company") jumpToStepForField("input[name='company']");
-        if (first === "taxId") jumpToStepForField("input[name='taxId']");
-        if (first === "position") jumpToStepForField("input[name='position']");
-        notify(userMessage("b2bFieldsInvalid"), "error");
+        if (first === "email") $portal.jumpToStepForField("input[name='email']");
+        if (first === "phone") $portal.jumpToStepForField(".js-b2b-phone-national");
+        if (first === "message") $portal.jumpToStepForField("textarea[name='message']");
+        if (first === "name") $portal.jumpToStepForField("input[name='name']");
+        if (first === "company") $portal.jumpToStepForField("input[name='company']");
+        if (first === "taxId") $portal.jumpToStepForField("input[name='taxId']");
+        if (first === "position") $portal.jumpToStepForField("input[name='position']");
+        $portal.notify($portal.userMessage("b2bFieldsInvalid"), "error");
         return;
       }
       Object.assign(data, b2bVal.sanitized);
       messageValue = String(data.message || "").trim();
     } else {
-    const emailValue = normalizeEmail(data.email);
+    const emailValue = $portal.normalizeEmail(data.email);
     messageValue = String(data.message || "").trim();
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(emailValue);
     const meta = getSelectedPhoneCountry(nodes.b2bForm, "b2b");
@@ -2865,7 +2909,7 @@ function initGlobalEvents() {
 
     const errors = [];
     if (!emailValid) {
-      setFieldError(nodes.b2bForm.querySelector("input[name='email']"), "Ingresa un correo corporativo valido.");
+      $portal.setFieldError(nodes.b2bForm.querySelector("input[name='email']"), "Ingresa un correo corporativo valido.");
       errors.push("email");
     }
     const natPhoneField = nodes.b2bForm.querySelector(".js-b2b-phone-national");
@@ -2887,19 +2931,19 @@ function initGlobalEvents() {
       }
     }
     if (phoneErrMsg) {
-      setFieldError(natPhoneField, phoneErrMsg);
+      $portal.setFieldError(natPhoneField, phoneErrMsg);
       errors.push("phone");
     }
     if (messageValue.length < 30) {
-      setFieldError(nodes.b2bForm.querySelector("textarea[name='message']"), "Cuéntanos un poco mas del requerimiento (minimo 30 caracteres).");
+      $portal.setFieldError(nodes.b2bForm.querySelector("textarea[name='message']"), "Cuéntanos un poco mas del requerimiento (minimo 30 caracteres).");
       errors.push("message");
     }
     if (errors.length) {
       const firstError = errors[0];
-      if (firstError === "email") jumpToStepForField("input[name='email']");
-      if (firstError === "phone") jumpToStepForField(".js-b2b-phone-national");
-      if (firstError === "message") jumpToStepForField("textarea[name='message']");
-      notify(userMessage("b2bFieldsInvalid"), "error");
+      if (firstError === "email") $portal.jumpToStepForField("input[name='email']");
+      if (firstError === "phone") $portal.jumpToStepForField(".js-b2b-phone-national");
+      if (firstError === "message") $portal.jumpToStepForField("textarea[name='message']");
+      $portal.notify($portal.userMessage("b2bFieldsInvalid"), "error");
       return;
     }
 
@@ -2914,42 +2958,42 @@ function initGlobalEvents() {
       const apiMissing =
         state.publicLang === "en"
           ? "API URL is not configured (antares_api_base or __ANTARES_API_BASE__). The request could not be sent to the server."
-          : userMessage("b2bApiMissing");
-      setB2bFormFeedback("error", apiMissing);
-      notify(apiMissing, "error");
+          : $portal.userMessage("b2bApiMissing");
+      $portal.setB2bFormFeedback("error", apiMissing);
+      $portal.notify(apiMissing, "error");
       return;
     }
 
       try {
         await api.postJsonPublic("/public/b2b-prospect", {
-          name: normalizeLatinUpperForDb(data.name),
-          company: normalizeLatinUpperForDb(data.company),
+          name: $portal.normalizeLatinUpperForDb(data.name),
+          company: $portal.normalizeLatinUpperForDb(data.company),
           taxId: data.taxId,
-          position: normalizeLatinUpperForDb(data.position),
+          position: $portal.normalizeLatinUpperForDb(data.position),
           phone: data.phone,
-          email: normalizeEmail(data.email),
-          serviceType: normalizeLatinUpperForDb(data.serviceType),
-          operationType: normalizeLatinUpperForDb(data.operationType),
-          operationFrequency: normalizeLatinUpperForDb(data.operationFrequency),
-          startWindow: normalizeLatinUpperForDb(data.startWindow),
-          message: normalizeLatinUpperForDb(messageValue)
+          email: $portal.normalizeEmail(data.email),
+          serviceType: $portal.normalizeLatinUpperForDb(data.serviceType),
+          operationType: $portal.normalizeLatinUpperForDb(data.operationType),
+          operationFrequency: $portal.normalizeLatinUpperForDb(data.operationFrequency),
+          startWindow: $portal.normalizeLatinUpperForDb(data.startWindow),
+          message: $portal.normalizeLatinUpperForDb(messageValue)
         });
         nodes.b2bForm.reset();
         if (typeof nodes.b2bForm.__setB2BStep === "function") nodes.b2bForm.__setB2BStep(0);
         const sentOk =
           state.publicLang === "en"
             ? "Your request was submitted successfully. Our commercial team has received it and will contact you shortly. Thank you for contacting Transportes Antares."
-            : userMessage("b2bContactSent");
-        setB2bFormFeedback("success", sentOk);
-        notify(sentOk, "success", 5600);
+            : $portal.userMessage("b2bContactSent");
+        $portal.setB2bFormFeedback("success", sentOk);
+        $portal.notify(sentOk, "success", 5600);
       } catch (err) {
         const errBody =
           state.publicLang === "en"
             ? String(err?.message || "").trim() ||
               "Could not save to the server. Please try again or contact us by phone or email."
-            : String(err?.message || userMessage("b2bServerError"));
-        setB2bFormFeedback("error", errBody);
-        notify(errBody, "error");
+            : String(err?.message || $portal.userMessage("b2bServerError"));
+        $portal.setB2bFormFeedback("error", errBody);
+        $portal.notify(errBody, "error");
       }
       },
       {
@@ -3026,19 +3070,19 @@ function initGlobalEvents() {
   });
 
   initRequiredFieldIndicators();
-  installCandidateCvDownloadDelegation();
-  installEmployeeContractDelegation();
-  initB2BFormExperience();
-  portalUpgradeDates(nodes.viewRoot);
-  if (nodes.b2bForm) portalUpgradeDates(nodes.b2bForm);
+  $portal.installCandidateCvDownloadDelegation();
+  $portal.installEmployeeContractDelegation();
+  $portal.initB2BFormExperience();
+  $portal.portalUpgradeDates(nodes.viewRoot);
+  if (nodes.b2bForm) $portal.portalUpgradeDates(nodes.b2bForm);
 }
 function bindExtendedViewEditHandlers() {
   /** Fichas «Ver» compartidas (empresa, usuario). Ausencias, contratación (tablas) y SST → `gestion-humana.js`, `contratacion.js`, `cumplimiento-laboral.js`. */
-  const renderDetailRows = portalDetailRenderRows;
-  const buildDetailGrid = portalDetailBuildGrid;
-  const portalDetailTile = portalDetailTileMarkup;
+  const renderDetailRows = $portal.portalDetailRenderRows;
+  const buildDetailGrid = $portal.portalDetailBuildGrid;
+  const portalDetailTile = $portal.portalDetailTileMarkup;
 
-  const fmtMoney = (val) => `$${parseNum(val).toLocaleString("es-CO")}`;
+  const fmtMoney = (val) => `$${$portal.parseNum(val).toLocaleString("es-CO")}`;
   const fmtBool = (val) => (val ? "Sí" : "No");
   const fmtDateOr = (val, fallback = "—") => {
     const y = normalizePortalDateYmd(val);
@@ -3052,16 +3096,16 @@ function bindExtendedViewEditHandlers() {
   nodes.viewRoot.querySelectorAll("[data-action='view-company']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const cRaw = read(KEYS.companies, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
-      const c = cRaw ? normalizePortalBootstrapCompanyRow(cRaw) : null;
+      const c = cRaw ? $portal.normalizePortalBootstrapCompanyRow(cRaw) : null;
       if (!c) {
-        notify(userMessage("genericError"), "error");
+        $portal.notify($portal.userMessage("genericError"), "error");
         return;
       }
       const usersCount = read(KEYS.users, []).filter((u) => String(u.companyId || "") === String(c.id)).length;
-      const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
-      const logoUrl = companyProfileLogoUrl(c);
-      const kindUi = patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
-      const active = isCompanyRecordActive(c);
+      const phoneDisp = c.phone ? $portal.formatPortalPhoneForDisplay(String(c.phone)) : "";
+      const logoUrl = $portal.companyProfileLogoUrl(c);
+      const kindUi = $portal.patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
+      const active = $portal.isCompanyRecordActive(c);
       const statusChip = active
         ? `<span class="status status-viaje_asignado">Activa</span>`
         : `<span class="status status-rechazada">Inactiva</span>`;
@@ -3086,16 +3130,16 @@ function bindExtendedViewEditHandlers() {
 
       const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
       const phoneBlock = telHref
-        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
-        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+        ? $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
 
       const emailValue = mail ? escapeHtml(mail) : `<span class="muted">Sin correo</span>`;
       const emailBlock = mailHref
-        ? portalDetailTile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
-        : portalDetailTile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
+        ? $portal.portalDetailTile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
+        : $portal.portalDetailTile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
 
       const contactValue = contactName ? escapeHtml(contactName) : `<span class="muted">Sin contacto principal</span>`;
-      const contactBlock = portalDetailTile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
+      const contactBlock = $portal.portalDetailTile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
 
       const locBody = hasLoc
         ? `<p class="portal-detail-loc-line">${addr ? escapeHtml(addr) : `<span class="muted">Sin dirección</span>`}</p>${
@@ -3139,7 +3183,7 @@ function bindExtendedViewEditHandlers() {
     btn.addEventListener("click", () => {
       const u = read(KEYS.users, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
       if (!u) {
-        notify(userMessage("genericError"), "error");
+        $portal.notify($portal.userMessage("genericError"), "error");
         return;
       }
       const company = getCompanyById(u.companyId);
@@ -3194,17 +3238,17 @@ function bindExtendedViewEditHandlers() {
       const rawPhone = String(u.phone || "").trim();
       const telDigits = rawPhone.replace(/\D/g, "");
       const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
-      const phoneDisp = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "";
+      const phoneDisp = u.phone ? $portal.formatPortalPhoneForDisplay(String(u.phone)) : "";
       const emailValue = email ? escapeHtml(email) : `<span class="muted">Sin correo</span>`;
       const emailBlock = mailHref
-        ? portalDetailTile(IC.mail, "Correo", emailValue, { href: mailHref })
-        : portalDetailTile(IC.mail, "Correo", emailValue, { muted: !email });
+        ? $portal.portalDetailTile(IC.mail, "Correo", emailValue, { href: mailHref })
+        : $portal.portalDetailTile(IC.mail, "Correo", emailValue, { muted: !email });
       const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
       const phoneBlock = telHref
-        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
-        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+        ? $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
       const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
-      const companyBlock = portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
+      const companyBlock = $portal.portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
       const storedCompanyLabel = String(u.company || "").trim() || "Sin nombre comercial";
       const city = String(u.city || "").trim();
       const dept = String(u.department || "").trim();
@@ -3341,7 +3385,7 @@ function normalizeVacancyForCareersPublic(v) {
     city: String(v.city || ""),
     deadline: v.deadline || "",
     publishedFrom: v.publishedFrom || v.visibleFrom || "",
-    salaryOffer: parseNum(v.salaryOffer),
+    salaryOffer: $portal.parseNum(v.salaryOffer),
     requirements: String(v.requirements || ""),
     status: String(v.status || ""),
     positionName: String(v.positionName || ""),
@@ -3466,7 +3510,7 @@ function afterMountPublicVacancyAttachmentUi(formEl) {
 }
 
 function openPublicVacancyApplyModal(vacancy) {
-  openEditModal({
+  $portal.openEditModal({
     title: "Postulacion en linea",
     subtitle: `${vacancy.title} — ${vacancy.positionName || "Vacante Antares"}`,
     submitText: "Enviar candidatura",
@@ -3513,13 +3557,13 @@ function openPublicVacancyApplyModal(vacancy) {
       if (!formEl) return false;
       const vac = vacancy;
       if (!vac || vac.status !== "Publicada") {
-        notify(userMessage("vacancyPublicClosed"), "error");
+        $portal.notify($portal.userMessage("vacancyPublicClosed"), "error");
         return false;
       }
       const fd = new FormData(formEl);
       const docValidation = validateColombianDocument(String(fd.get("documentType") || ""), String(fd.get("idDoc") || ""));
       if (!docValidation.ok) {
-        notify(docValidation.message, "error");
+        $portal.notify(docValidation.message, "error");
         return false;
       }
       fd.set("idDoc", docValidation.normalized);
@@ -3528,36 +3572,36 @@ function openPublicVacancyApplyModal(vacancy) {
         .slice(0, 10);
       const pubAgeInfo = portalCandidateAgeFromBirthIso(birth);
       if (pubAgeInfo.age === null) {
-        notify("Indique una fecha de nacimiento válida.", "error");
+        $portal.notify("Indique una fecha de nacimiento válida.", "error");
         return false;
       }
       if (pubAgeInfo.age < 18) {
-        notify("Debe tener al menos 18 años para postularse.", "error");
+        $portal.notify("Debe tener al menos 18 años para postularse.", "error");
         return false;
       }
-      const expY = Math.min(65, Math.max(0, parseNum(String(fd.get("experienceYears") ?? "0"))));
+      const expY = Math.min(65, Math.max(0, $portal.parseNum(String(fd.get("experienceYears") ?? "0"))));
       fd.set("experienceYears", String(expY));
       const attachInput = formEl.querySelector("input[name='attachment']");
       if (!attachInput?.files?.[0]) {
-        notify("Adjunte la hoja de vida (PDF, Word o imagen).", "error");
+        $portal.notify("Adjunte la hoja de vida (PDF, Word o imagen).", "error");
         return false;
       }
-      fd.set("email", normalizeEmail(String(fd.get("email") || "")));
+      fd.set("email", $portal.normalizeEmail(String(fd.get("email") || "")));
       const apiPub = window.AntaresApi;
       if (apiPub?.hasBase?.() && typeof apiPub.postFormDataPublic === "function") {
         try {
           await apiPub.postFormDataPublic("/public/job-application", fd);
-          notify(userMessage("candidacySentOk"), "success");
+          $portal.notify($portal.userMessage("candidacySentOk"), "success");
           return true;
         } catch (err) {
-          notify(String(err?.message || err), "error");
+          $portal.notify(String(err?.message || err), "error");
           return false;
         }
       }
       const vacancyIdFd = String(fd.get("vacancyId") || "");
       const vacLocal = read(KEYS.vacancies, []).find((x) => String(x.id) === vacancyIdFd);
       if (!vacLocal || vacLocal.status !== "Publicada") {
-        notify(userMessage("vacancyPublicClosed"), "error");
+        $portal.notify($portal.userMessage("vacancyPublicClosed"), "error");
         return false;
       }
       const cvPieces = await readCandidateHrAttachmentsFromInput(attachInput);
@@ -3566,15 +3610,15 @@ function openPublicVacancyApplyModal(vacancy) {
       const all = read(KEYS.candidates, []);
       all.unshift({
         id: newUuidV4(),
-        name: normalizeLatinUpperForDb(nm),
-        email: normalizeEmail(String(fd.get("email") || "")),
+        name: $portal.normalizeLatinUpperForDb(nm),
+        email: $portal.normalizeEmail(String(fd.get("email") || "")),
         phone: normalizePortalPhoneForStorage(String(fd.get("phone") || "").trim()),
         documentType: String(fd.get("documentType") || ""),
         idDoc: docValidation.normalized,
         birthDate: birth,
         experienceYears: expY,
         city: normalizeLatinForDb(String(fd.get("city") || "").trim()),
-        address: normalizeLatinUpperForDb(String(fd.get("address") || "").trim()),
+        address: $portal.normalizeLatinUpperForDb(String(fd.get("address") || "").trim()),
         vacancyId: vacLocal.id,
         vacancyTitle: vacLocal.title,
         experienceNotes: "",
@@ -3592,22 +3636,22 @@ function openPublicVacancyApplyModal(vacancy) {
         const msg = /failed to fetch/i.test(raw)
           ? "No fue posible conectar con el servidor para guardar la postulación. Compruebe su conexion y que la API este disponible."
           : raw;
-        notify(msg, "error");
+        $portal.notify(msg, "error");
         return false;
       }
-      sendEmail({
-        to: normalizeEmail(String(fd.get("email") || "")),
+      $portal.sendEmail({
+        to: $portal.normalizeEmail(String(fd.get("email") || "")),
         subject: "Postulacion recibida - Antares",
         body: `Hola ${nm}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
       });
       try {
         await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
       } catch (_e) {}
-      notifyHrUsers(
+      $portal.notifyHrUsers(
         "Nueva postulacion (web)",
         `${nm} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`
       );
-      notify(userMessage("candidacySentOk"), "success");
+      $portal.notify($portal.userMessage("candidacySentOk"), "success");
       return true;
     }
   });

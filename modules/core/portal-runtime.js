@@ -20,6 +20,7 @@ const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = __pr.CO_TRANSPORT_ALLOWANCE_MAX_SMMLV;
 const DEFAULT_OPEN_CREATE_PANELS = __pr.DEFAULT_OPEN_CREATE_PANELS;
 const FLEET_DRIVER_EDIT_ACTIONS = __pr.FLEET_DRIVER_EDIT_ACTIONS;
 const HIRING_RRHH_EDIT_ACTIONS = __pr.HIRING_RRHH_EDIT_ACTIONS;
+const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = __pr.PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
 const HISTORY_FLEET_TECH_LABELS = __pr.HISTORY_FLEET_TECH_LABELS;
 const HR_VALID_HIRING_WS = __pr.HR_VALID_HIRING_WS;
 const HR_VALID_PAYROLL_WS = __pr.HR_VALID_PAYROLL_WS;
@@ -10792,54 +10793,6 @@ function buildContractDocxTestPayload(templateKind) {
   };
 }
 
-
-/** Acciones que los usuarios que no son administrador no pueden ejecutar (listeners capture en `viewRoot`, una sola vez). */
-const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
-  "approve",
-  "reject",
-  "edit-admin",
-  "delete-admin",
-  "trip-status",
-  "delete-trip",
-  "edit-vehicle",
-  "toggle-vehicle",
-  "delete-vehicle",
-  "edit-driver",
-  "toggle-driver",
-  "delete-driver",
-  "delete-route-rate",
-  "delete-employee",
-  "delete-vacancy",
-  "toggle-position",
-  "candidate-status",
-  "open-edit-user",
-  "delete-user",
-  "approve-registration",
-  "reject-registration",
-  "approval-approve",
-  "approval-reject",
-  "open-edit-company",
-  "close-edit-company",
-  "toggle-company-active",
-  "delete-company",
-  "delete-payroll-run",
-  "delete-hr-absence",
-  "edit-hr-absence",
-  "edit-vacancy",
-  "edit-position",
-  "delete-position",
-  "edit-candidate",
-  "delete-candidate",
-  "edit-interview",
-  "delete-interview",
-  "delete-contract",
-  "edit-sst-record",
-  "delete-sst-record",
-  "toggle-deleted-requests-log",
-  "deleted-request-snapshot-detail",
-  "toggle-deleted-trips-log",
-  "deleted-trip-snapshot-detail"
-]);
 
 function portalNonAdminRestrictedCaptureClick(event) {
   const trigger = event.target.closest("[data-action]");

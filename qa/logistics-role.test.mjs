@@ -1,5 +1,6 @@
 /**
  * Verificación estática del rol logistica (portal + API + BD).
+ * `LOGISTICS_OPERATOR_PERMISSIONS` vive en `modules/core/auth.js`; roles en `config.js`.
  * Ejecutar: node qa/logistics-role.test.mjs
  */
 import { readFileSync } from "node:fs";
@@ -20,9 +21,9 @@ function includesAll(content, needles, area) {
   ok(missing.length === 0, `[${area}] Faltan: ${missing.join(", ")}`);
 }
 
-function extractLogisticsPermissionsFromAppJs(appJs) {
-  const m = appJs.match(/const LOGISTICS_OPERATOR_PERMISSIONS = Object\.freeze\(\[([\s\S]*?)\]\);/);
-  ok(m, "No se encontró LOGISTICS_OPERATOR_PERMISSIONS en app.js");
+function extractLogisticsPermissionsFromAuthJs(authJs) {
+  const m = authJs.match(/const LOGISTICS_OPERATOR_PERMISSIONS = Object\.freeze\(\[([\s\S]*?)\]\);/);
+  ok(m, "No se encontró LOGISTICS_OPERATOR_PERMISSIONS en modules/core/auth.js");
   const ids = [...m[1].matchAll(/PERMISSIONS\.([A-Z_]+)/g)].map((x) => x[1]);
   ok(ids.length >= 8, "LOGISTICS_OPERATOR_PERMISSIONS debe tener al menos 8 entradas");
   const map = {
@@ -46,13 +47,16 @@ function extractLogisticsBlockFromApi(apiTs) {
 }
 
 function run() {
-  const appJs = read("app.js");
+  const authJs = read("modules/core/auth.js");
+  const configJs = read("modules/core/config.js");
+  const routerJs = read("modules/core/router.js");
+  const portalLogisticsSource = `${authJs}\n${configJs}\n${routerJs}`;
   const apiTs = read("apps/api/src/portal/portal.service.ts");
   const dtoTs = read("apps/api/src/portal/dto/approve-pending-user.dto.ts");
   const enumsSql = read("BD/postgres/02_enums.sql");
 
   includesAll(
-    appJs,
+    portalLogisticsSource,
     [
       'LOGISTICA: "logistica"',
       "PORTAL_ASSIGNABLE_ROLES",
@@ -60,13 +64,13 @@ function run() {
       'if (r === ROLES.LOGISTICA) return "Logística"',
       "portalRoleSelectOptionsHtml"
     ],
-    "app-logistica-role"
+    "portal-logistica-role"
   );
 
   includesAll(dtoTs, ['"logistica"'], "dto-logistica");
   includesAll(enumsSql, ["'logistica'"], "enum-rol_usuario-incluye-logistica");
 
-  const appPerms = extractLogisticsPermissionsFromAppJs(appJs);
+  const appPerms = extractLogisticsPermissionsFromAuthJs(authJs);
   const apiPerms = extractLogisticsBlockFromApi(apiTs);
   const appSet = new Set(appPerms);
   const apiSet = new Set(apiPerms);

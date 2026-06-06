@@ -553,6 +553,57 @@ export const TRIP_ASSIGNMENT_FLEET_TYPE_KEYS = new Set(["camion", "turbo", "trac
 
 export const FLEET_DRIVER_EDIT_ACTIONS = new Set(["edit-driver", "toggle-driver"]);
 
+/**
+ * Acciones que un usuario que no es administrador no puede ejecutar directamente
+ * (listeners en fase capture sobre `#view-root`; ver `portalNonAdminRestrictedCaptureClick`).
+ */
+export const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
+  "approve",
+  "reject",
+  "edit-admin",
+  "delete-admin",
+  "trip-status",
+  "delete-trip",
+  "edit-vehicle",
+  "toggle-vehicle",
+  "delete-vehicle",
+  "edit-driver",
+  "toggle-driver",
+  "delete-driver",
+  "delete-route-rate",
+  "delete-employee",
+  "delete-vacancy",
+  "toggle-position",
+  "candidate-status",
+  "open-edit-user",
+  "delete-user",
+  "approve-registration",
+  "reject-registration",
+  "approval-approve",
+  "approval-reject",
+  "open-edit-company",
+  "close-edit-company",
+  "toggle-company-active",
+  "delete-company",
+  "delete-payroll-run",
+  "delete-hr-absence",
+  "edit-hr-absence",
+  "edit-vacancy",
+  "edit-position",
+  "delete-position",
+  "edit-candidate",
+  "delete-candidate",
+  "edit-interview",
+  "delete-interview",
+  "delete-contract",
+  "edit-sst-record",
+  "delete-sst-record",
+  "toggle-deleted-requests-log",
+  "deleted-request-snapshot-detail",
+  "toggle-deleted-trips-log",
+  "deleted-trip-snapshot-detail"
+]);
+
 export const HISTORY_FLEET_TECH_LABELS = {
   preventivo: "Preventivo",
   correctivo: "Correctivo",
