@@ -28,7 +28,8 @@ import {
   currentUser,
   hasPermission,
   normalizeUserAccountStatus,
-  pendingUserOrigin
+  pendingUserOrigin,
+  isPortalUserPendingApproval
 } from "../core/auth.js";
 import { portalCanRefreshFromApi, startPortalBootstrapForInteractiveSession } from "../core/bootstrap.js";
 import { scheduleRenderPortalView } from "../core/router.js";
@@ -48,12 +49,6 @@ function ic() {
 
 function isCompanyRecordActive(c) {
   return Boolean(c && c.active !== false);
-}
-
-function isPortalUserPendingApproval(user) {
-  if (pendingUserOrigin(user) === "supabase_auth_only") return true;
-  const s = normalizeUserAccountStatus(user);
-  return s === ACCOUNT_STATUS.PENDIENTE || s === "pending";
 }
 
 /** Misma semántica que `toInputDate` en portal-runtime (zona horaria Colombia). */

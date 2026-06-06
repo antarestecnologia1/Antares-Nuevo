@@ -231,6 +231,13 @@ export function pendingUserOrigin(user) {
   return "portal_db";
 }
 
+/** Usado en login, usuarios, autorizaciones y dominio SST. */
+export function isPortalUserPendingApproval(user) {
+  if (pendingUserOrigin(user) === "supabase_auth_only") return true;
+  const s = normalizeUserAccountStatus(user);
+  return s === ACCOUNT_STATUS.PENDIENTE || s === "pending";
+}
+
 export function currentUser() {
   const users = readArray(KEYS.users);
   const sid = state.session?.userId;
