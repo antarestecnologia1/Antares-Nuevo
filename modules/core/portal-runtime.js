@@ -1,6 +1,278 @@
-﻿/**
+/** Imports ES: el runtime ya no depende del orden defer vs módulos en index.html. */
+import * as __pr from "./portal-runtime-env.mjs";
+
+// Enlaces léxicos (módulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
+const ALL_PERMISSIONS = __pr.ALL_PERMISSIONS;
+const APPROVAL_TYPE_META = __pr.APPROVAL_TYPE_META;
+const APPROVAL_UI_BLOCKS = __pr.APPROVAL_UI_BLOCKS;
+const AUTH_QUEUE_SHORT_TAB_LABELS = __pr.AUTH_QUEUE_SHORT_TAB_LABELS;
+const AUTO_APPROVE_MINUTES = __pr.AUTO_APPROVE_MINUTES;
+const CLIENT_DATA_SCOPE = __pr.CLIENT_DATA_SCOPE;
+const CLIENT_DATA_SCOPE_STORAGE = __pr.CLIENT_DATA_SCOPE_STORAGE;
+const COLOMBIA_LOCATIONS = __pr.COLOMBIA_LOCATIONS;
+const CO_CATALOGS = __pr.CO_CATALOGS;
+const CO_CESANTIAS_INTERES_ANUAL_PCT = __pr.CO_CESANTIAS_INTERES_ANUAL_PCT;
+const CO_HR_RULES = __pr.CO_HR_RULES;
+const CO_INTEGRAL_SALARY_MIN_SMMLV = __pr.CO_INTEGRAL_SALARY_MIN_SMMLV;
+const CO_PAYROLL = __pr.CO_PAYROLL;
+const CO_TIMEZONE = __pr.CO_TIMEZONE;
+const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = __pr.CO_TRANSPORT_ALLOWANCE_MAX_SMMLV;
+const DEFAULT_OPEN_CREATE_PANELS = __pr.DEFAULT_OPEN_CREATE_PANELS;
+const FLEET_DRIVER_EDIT_ACTIONS = __pr.FLEET_DRIVER_EDIT_ACTIONS;
+const HIRING_RRHH_EDIT_ACTIONS = __pr.HIRING_RRHH_EDIT_ACTIONS;
+const HISTORY_FLEET_TECH_LABELS = __pr.HISTORY_FLEET_TECH_LABELS;
+const HR_VALID_HIRING_WS = __pr.HR_VALID_HIRING_WS;
+const HR_VALID_PAYROLL_WS = __pr.HR_VALID_PAYROLL_WS;
+const HR_WORKSPACE_STORAGE = __pr.HR_WORKSPACE_STORAGE;
+const KEYS = __pr.KEYS;
+const LABOR_SYSTEM_PARAMETERS_MAX_YEAR = __pr.LABOR_SYSTEM_PARAMETERS_MAX_YEAR;
+const LABOR_SYSTEM_PARAMETERS_MIN_YEAR = __pr.LABOR_SYSTEM_PARAMETERS_MIN_YEAR;
+const LOGIN_REMEMBER_STORAGE_KEY = __pr.LOGIN_REMEMBER_STORAGE_KEY;
+const MODULE_PANEL_BTN_TITLES = __pr.MODULE_PANEL_BTN_TITLES;
+const MODULE_PANEL_LABELS = __pr.MODULE_PANEL_LABELS;
+const NOTIF_LIGHT_REFRESH_MIN_MS = __pr.NOTIF_LIGHT_REFRESH_MIN_MS;
+const NOTIF_SILENT_BOOTSTRAP_MIN_MS = __pr.NOTIF_SILENT_BOOTSTRAP_MIN_MS;
+const PAYROLL_ABSENCE_LEGAL_LIMITS = __pr.PAYROLL_ABSENCE_LEGAL_LIMITS;
+const PERMISSIONS = __pr.PERMISSIONS;
+const PERMISSION_META = __pr.PERMISSION_META;
+const PERMISSION_UI_GROUPS = __pr.PERMISSION_UI_GROUPS;
+const PIPELINE = __pr.PIPELINE;
+const PIPELINE_TRANSITIONS = __pr.PIPELINE_TRANSITIONS;
+const PORTAL_ASSIGNABLE_ROLES = __pr.PORTAL_ASSIGNABLE_ROLES;
+const REGISTER_PRIVACY_URL = __pr.REGISTER_PRIVACY_URL;
+const REGISTER_TERMS_URL = __pr.REGISTER_TERMS_URL;
+const REPORT_BRAND_LOGO_PATH = __pr.REPORT_BRAND_LOGO_PATH;
+const REPORT_EXPORT_BRAND = __pr.REPORT_EXPORT_BRAND;
+const REPORT_RULES = __pr.REPORT_RULES;
+const REQUEST_EDIT_JUSTIFICATION_MIN_LEN = __pr.REQUEST_EDIT_JUSTIFICATION_MIN_LEN;
+const ROLES = __pr.ROLES;
+const SEARCHABLE_SELECT_MIN_OPTIONS = __pr.SEARCHABLE_SELECT_MIN_OPTIONS;
+const SESSION_API_REFRESH_MS = __pr.SESSION_API_REFRESH_MS;
+const SESSION_CLIENT_TOKEN_ROTATE_MS = __pr.SESSION_CLIENT_TOKEN_ROTATE_MS;
+const SESSION_IDLE_PUBLIC_NOTICE_KEY = __pr.SESSION_IDLE_PUBLIC_NOTICE_KEY;
+const SST_COMPLIANCE_RECORD_TYPES = __pr.SST_COMPLIANCE_RECORD_TYPES;
+const SST_COMPLIANCE_STATUSES = __pr.SST_COMPLIANCE_STATUSES;
+const STATUS = __pr.STATUS;
+const STATUS_TRANSITIONS = __pr.STATUS_TRANSITIONS;
+const TRANSPORT_MODOS_SERVICIO = __pr.TRANSPORT_MODOS_SERVICIO;
+const TRIP_ASSIGNMENT_FLEET_TYPE_KEYS = __pr.TRIP_ASSIGNMENT_FLEET_TYPE_KEYS;
+const TRIP_RATE_SCOPE_SEP = __pr.TRIP_RATE_SCOPE_SEP;
+const UI_PREFS = __pr.UI_PREFS;
+const portalRoleSelectOptionsForModal = __pr.portalRoleSelectOptionsForModal;
+const portalRoleSelectOptionsHtml = __pr.portalRoleSelectOptionsHtml;
+const ACCOUNT_STATUS = __pr.ACCOUNT_STATUS;
+const SESSION_IDLE_MS = __pr.SESSION_IDLE_MS;
+const VEHICLE_GRANULAR_PERMISSIONS = __pr.VEHICLE_GRANULAR_PERMISSIONS;
+const VIEW_PERMISSIONS = __pr.VIEW_PERMISSIONS;
+const announceSessionClosedByIdle = __pr.announceSessionClosedByIdle;
+const approvalDetailLine = __pr.approvalDetailLine;
+const approvalTypeLabel = __pr.approvalTypeLabel;
+const authRefAltaUsuario = __pr.authRefAltaUsuario;
+const authRefColaInterna = __pr.authRefColaInterna;
+const authRefSolicitudViaje = __pr.authRefSolicitudViaje;
+const bindAuthForms = __pr.bindAuthForms;
+const buildAuthStandardActionsHtml = __pr.buildAuthStandardActionsHtml;
+const buildAuthorizationsTransportRequestsSection = __pr.buildAuthorizationsTransportRequestsSection;
+const buildPendingApprovalsTableHtml = __pr.buildPendingApprovalsTableHtml;
+const buildPortalRegistrationInboxCardsHtml = __pr.buildPortalRegistrationInboxCardsHtml;
+const buildPortalRegistrationPendingTableHtml = __pr.buildPortalRegistrationPendingTableHtml;
+const buildSupabasePasswordRecoveryRedirectUrl = __pr.buildSupabasePasswordRecoveryRedirectUrl;
+const buildToken = __pr.buildToken;
+const canAccessAuthorizationSection = __pr.canAccessAuthorizationSection;
+const canAccessAuthorizationsView = __pr.canAccessAuthorizationsView;
+const canAccessRRHH = __pr.canAccessRRHH;
+const canAccessVehiclesView = __pr.canAccessVehiclesView;
+const canAccessView = __pr.canAccessView;
+const canApproveInternalAuthorization = __pr.canApproveInternalAuthorization;
+const canApprovePortalRegistration = __pr.canApprovePortalRegistration;
+const canApproveTransportRequests = __pr.canApproveTransportRequests;
+const canCreateVehicle = __pr.canCreateVehicle;
+const canDeleteVehicle = __pr.canDeleteVehicle;
+const canEditFleetDriverAsAdmin = __pr.canEditFleetDriverAsAdmin;
+const canEditVehicle = __pr.canEditVehicle;
+const canManageHiringModule = __pr.canManageHiringModule;
+const canManageTransportTrips = __pr.canManageTransportTrips;
+const canPerformPermissionGatedAction = __pr.canPerformPermissionGatedAction;
+const canToggleVehicleStatus = __pr.canToggleVehicleStatus;
+const checkSessionIdleAndLogout = __pr.checkSessionIdleAndLogout;
+const clearRememberedLoginCredentials = __pr.clearRememberedLoginCredentials;
+const clearSession = __pr.clearSession;
+const companySelectOptions = __pr.companySelectOptions;
+const currentUser = __pr.currentUser;
+const defaultPermissionsForRole = __pr.defaultPermissionsForRole;
+const dismissSessionIdlePublicNotice = __pr.dismissSessionIdlePublicNotice;
+const dispatchPositionsCatalogUpdated = __pr.dispatchPositionsCatalogUpdated;
+const effectiveUserPermissions = __pr.effectiveUserPermissions;
+const ensureCompaniesAndUserMapping = __pr.ensureCompaniesAndUserMapping;
+const ensureRequestAndTripIdentifiers = __pr.ensureRequestAndTripIdentifiers;
+const ensureRequestsCompanyMapping = __pr.ensureRequestsCompanyMapping;
+const ensureSessionLifecycleHooks = __pr.ensureSessionLifecycleHooks;
+const ensureUsersAccountStatus = __pr.ensureUsersAccountStatus;
+const ensureUsersPermissions = __pr.ensureUsersPermissions;
+const findOrCreateCompanyIdByName = __pr.findOrCreateCompanyIdByName;
+const flushSessionActivityToStorage = __pr.flushSessionActivityToStorage;
+const getActivePositions = __pr.getActivePositions;
+const getCompanyById = __pr.getCompanyById;
+const getEffectiveLastActivityAt = __pr.getEffectiveLastActivityAt;
+const getPortalUserDisplayName = __pr.getPortalUserDisplayName;
+const getPositionById = __pr.getPositionById;
+const getSession = __pr.getSession;
+const hasAuthorizationManageAll = __pr.hasAuthorizationManageAll;
+const hasPermission = __pr.hasPermission;
+const invokeAuthSuccessCallback = __pr.invokeAuthSuccessCallback;
+const isAdminActor = __pr.isAdminActor;
+const isViewAllowedForUser = __pr.isViewAllowedForUser;
+const maskSensitivePhone = __pr.maskSensitivePhone;
+const maskSensitiveTail = __pr.maskSensitiveTail;
+const maybeHandleSupabaseAuthUrlErrorFromHash = __pr.maybeHandleSupabaseAuthUrlErrorFromHash;
+const mountSessionIdlePublicNoticeIfNeeded = __pr.mountSessionIdlePublicNoticeIfNeeded;
+const normalizeSavedUserPermissions = __pr.normalizeSavedUserPermissions;
+const normalizeUserAccountStatus = __pr.normalizeUserAccountStatus;
+const parseSupabaseAuthErrorHashParams = __pr.parseSupabaseAuthErrorHashParams;
+const pendingUserOrigin = __pr.pendingUserOrigin;
+const persistPositionsCatalog = __pr.persistPositionsCatalog;
+const portalRegistrationDetailLine = __pr.portalRegistrationDetailLine;
+const portalRegistrationInboxInitials = __pr.portalRegistrationInboxInitials;
+const portalUserNameLooksLikeEmailPlaceholder = __pr.portalUserNameLooksLikeEmailPlaceholder;
+const positionSelectOptions = __pr.positionSelectOptions;
+const queueApproval = __pr.queueApproval;
+const queueSessionIdlePublicNotice = __pr.queueSessionIdlePublicNotice;
+const readRememberedLoginCredentials = __pr.readRememberedLoginCredentials;
+const refreshClientSessionTokenIfDue = __pr.refreshClientSessionTokenIfDue;
+const refreshPositionSelectsInDocument = __pr.refreshPositionSelectsInDocument;
+const refreshPositionsCatalogFromApi = __pr.refreshPositionsCatalogFromApi;
+const registrationKindChipLabel = __pr.registrationKindChipLabel;
+const registrationKindLabel = __pr.registrationKindLabel;
+const renderAuthTab = __pr.renderAuthTab;
+const repaintPermGridInForm = __pr.repaintPermGridInForm;
+const resetSessionActivityMemory = __pr.resetSessionActivityMemory;
+const sanitizeApprovalPayloadForQueue = __pr.sanitizeApprovalPayloadForQueue;
+const sanitizeLegacyApprovalPayloads = __pr.sanitizeLegacyApprovalPayloads;
+const scheduleStripSupabaseRecoveryHash = __pr.scheduleStripSupabaseRecoveryHash;
+const scheduledSessionTokenMaintenance = __pr.scheduledSessionTokenMaintenance;
+const sendEmail = __pr.sendEmail;
+const setAuthSuccessCallback = __pr.setAuthSuccessCallback;
+const setSession = __pr.setSession;
+const shortAuthRefSegment = __pr.shortAuthRefSegment;
+const sortAuthQueueByDateDesc = __pr.sortAuthQueueByDateDesc;
+const startSessionSecurityWatch = __pr.startSessionSecurityWatch;
+const stopSessionSecurityWatch = __pr.stopSessionSecurityWatch;
+const stripSupabaseAuthHashFromUrl = __pr.stripSupabaseAuthHashFromUrl;
+const throttledBumpSessionActivity = __pr.throttledBumpSessionActivity;
+const tryApiRefreshBridge = __pr.tryApiRefreshBridge;
+const waitForAntaresSupabaseClient = __pr.waitForAntaresSupabaseClient;
+const wireAdminUserFormPermGridOnRoleChange = __pr.wireAdminUserFormPermGridOnRoleChange;
+const wireSupabasePasswordRecoveryUi = __pr.wireSupabasePasswordRecoveryUi;
+const writeRememberedLoginCredentials = __pr.writeRememberedLoginCredentials;
+const getState = __pr.getState;
+const hydrateClientDataScopeFromStorage = __pr.hydrateClientDataScopeFromStorage;
+const hydrateHrWorkspaceFromStorage = __pr.hydrateHrWorkspaceFromStorage;
+const nodes = __pr.nodes;
+const patchState = __pr.patchState;
+const persistClientDataScope = __pr.persistClientDataScope;
+const persistHrWorkspace = __pr.persistHrWorkspace;
+const state = __pr.state;
+const addCalendarYearsIsoDate = __pr.addCalendarYearsIsoDate;
+const colombiaDatetimeLocalString = __pr.colombiaDatetimeLocalString;
+const colombiaNowIso = __pr.colombiaNowIso;
+const colombiaTodayIsoDate = __pr.colombiaTodayIsoDate;
+const companyKindLabel = __pr.companyKindLabel;
+const devError = __pr.devError;
+const devWarn = __pr.devWarn;
+const emptyState = __pr.emptyState;
+const escapeAttr = __pr.escapeAttr;
+const escapeHtml = __pr.escapeHtml;
+const fieldLabel = __pr.fieldLabel;
+const fmtDate = __pr.fmtDate;
+const fmtDateOr = __pr.fmtDateOr;
+const fmtFleetLogDate = __pr.fmtFleetLogDate;
+const fmtTimeOnly = __pr.fmtTimeOnly;
+const formatColombiaLongDate = __pr.formatColombiaLongDate;
+const formatColombianNationalDisplay = __pr.formatColombianNationalDisplay;
+const formatColombianPhone = __pr.formatColombianPhone;
+const formatGenericNationalDisplay = __pr.formatGenericNationalDisplay;
+const formatPayrollPeriodLabel = __pr.formatPayrollPeriodLabel;
+const formatPortalPhoneForDisplay = __pr.formatPortalPhoneForDisplay;
+const getColombiaDateParts = __pr.getColombiaDateParts;
+const isAntaresDebugEnabled = __pr.isAntaresDebugEnabled;
+const isUuidString = __pr.isUuidString;
+const monthRange = __pr.monthRange;
+const newUuidV4 = __pr.newUuidV4;
+const normalizeAdminUsersSection = __pr.normalizeAdminUsersSection;
+const normalizeCompanyKindForDb = __pr.normalizeCompanyKindForDb;
+const normalizeEmail = __pr.normalizeEmail;
+const normalizeHiringDataSection = __pr.normalizeHiringDataSection;
+const normalizeHiringOperateSection = __pr.normalizeHiringOperateSection;
+const normalizeHistoryWorkspace = __pr.normalizeHistoryWorkspace;
+const normalizeHrWorkspace = __pr.normalizeHrWorkspace;
+const normalizeLatinUpperForDb = __pr.normalizeLatinUpperForDb;
+const normalizePayloadTextFields = __pr.normalizePayloadTextFields;
+const normalizePayrollDataSection = __pr.normalizePayrollDataSection;
+const normalizePayrollFrequencyJs = __pr.normalizePayrollFrequencyJs;
+const normalizePayrollOperateSection = __pr.normalizePayrollOperateSection;
+const normalizePersonTypeForDb = __pr.normalizePersonTypeForDb;
+const normalizePortalDateYmd = __pr.normalizePortalDateYmd;
+const normalizeRegistrationKindForDb = __pr.normalizeRegistrationKindForDb;
+const normalizeTransportTripsLayout = __pr.normalizeTransportTripsLayout;
+const normalizeTransportTripsSort = __pr.normalizeTransportTripsSort;
+const normalizeTransportTripsWorkspace = __pr.normalizeTransportTripsWorkspace;
+const normalizeVehicleWorkspaceSection = __pr.normalizeVehicleWorkspaceSection;
+const nowIso = __pr.nowIso;
+const nowLocalIso = __pr.nowLocalIso;
+const payrollPeriodCalendarYm = __pr.payrollPeriodCalendarYm;
+const pickFirstNonEmpty = __pr.pickFirstNonEmpty;
+const snapPick = __pr.snapPick;
+const stampCreatedRecord = __pr.stampCreatedRecord;
+const stampUpdatedRecord = __pr.stampUpdatedRecord;
+const uid = __pr.uid;
+const addDaysToYmd = __pr.addDaysToYmd;
+const addMonthsToYmd = __pr.addMonthsToYmd;
+const bindFixedTermContractEndPreview = __pr.bindFixedTermContractEndPreview;
+const bindHrFormWizard = __pr.bindHrFormWizard;
+const buildOpenEditModalFieldsHtml = __pr.buildOpenEditModalFieldsHtml;
+const computeEmployeeContractRenewalMeta = __pr.computeEmployeeContractRenewalMeta;
+const contractTypeRequiresDurationPlazo = __pr.contractTypeRequiresDurationPlazo;
+const createCollapsibleCard = __pr.createCollapsibleCard;
+const createCollapsibleProCard = __pr.createCollapsibleProCard;
+const editModalAntaresAttrString = __pr.editModalAntaresAttrString;
+const editModalLabelClassAttr = __pr.editModalLabelClassAttr;
+const ensureCrudModalElement = __pr.ensureCrudModalElement;
+const ensureEmployeeContractFields = __pr.ensureEmployeeContractFields;
+const flashHrWizardDotError = __pr.flashHrWizardDotError;
+const hrWizardStepLabel = __pr.hrWizardStepLabel;
+const hrWizardStepValid = __pr.hrWizardStepValid;
+const hrWizardValidityTargets = __pr.hrWizardValidityTargets;
+const isFixedTermContractType = __pr.isFixedTermContractType;
+const lockFormSubmitUi = __pr.lockFormSubmitUi;
+const notify = __pr.notify;
+const openConfirmModal = __pr.openConfirmModal;
+const openConfirmModalAsync = __pr.openConfirmModalAsync;
+const openConfirmReasonModal = __pr.openConfirmReasonModal;
+const openEditModal = __pr.openEditModal;
+const openInfoModal = __pr.openInfoModal;
+const parseContractDurationText = __pr.parseContractDurationText;
+const readInlineOrNativeFieldError = __pr.readInlineOrNativeFieldError;
+const releaseFormSubmitUi = __pr.releaseFormSubmitUi;
+const renderEditModalFieldRow = __pr.renderEditModalFieldRow;
+const resolveEmployeeContractEndDateYmd = __pr.resolveEmployeeContractEndDateYmd;
+const resolveEmployeeContractPlazoStartYmd = __pr.resolveEmployeeContractPlazoStartYmd;
+const runWithBusyButton = __pr.runWithBusyButton;
+const setContractDurationBranchVisible = __pr.setContractDurationBranchVisible;
+const setupContractDurationPlazoVisibility = __pr.setupContractDurationPlazoVisibility;
+const suppressSelfInboxPollToastIfRecipientIsCurrentUser = __pr.suppressSelfInboxPollToastIfRecipientIsCurrentUser;
+const userMessage = __pr.userMessage;
+const wireContractDurationBranch = __pr.wireContractDurationBranch;
+const wireFormSubmitGuard = __pr.wireFormSubmitGuard;
+const wireModalDismiss = __pr.wireModalDismiss;
+const IC = globalThis.IC;
+/** Asignado en index.html (data-io); no forma parte del bundle `portal-runtime-env`. */
+const writeAwaitServer = globalThis.writeAwaitServer;
+/** Expuesto desde `payroll-catalog-sanitize.domain` vía `Object.assign(window, …)` en index. */
+const normalizeLatinForDb = globalThis.normalizeLatinForDb;
+
+/**
  * Estado central (`state`), referencias DOM (`nodes`) y helpers asociados se definen en
- * `modules/core/store.js` y se exponen en `window` desde `index.html` (junto con config y utils).
+ * `modules/core/store.js`; este archivo es módulo ES y enlaza símbolos vía `portal-runtime-env.mjs`.
  */
 try {
   if (typeof window.purgeDuplicateContracts === "function") window.purgeDuplicateContracts();
@@ -1091,9 +1363,6 @@ function wireTerminationSettlementForm(form) {
     syncPayrollEmployeeSalaryReadonly(form, "payroll-settlement-base-salary");
   }
 }
-const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = 2;
-/** Salario integral (CST / práctica): referencia mínima habitual 13 SMMLV. */
-const CO_INTEGRAL_SALARY_MIN_SMMLV = 13;
 const CO_SYSTEM_PARAMS_DEFAULTS = {
   smmlvCop: CO_PAYROLL.smmlv,
   minMonthlySalaryCop: CO_HR_RULES.minMonthlySalary,
@@ -11031,3 +11300,416 @@ function initPublicEffects() {
 
 }
 
+
+/** Expone API del runtime a scripts defer (antes: script clásico enlazaba `function` al `window`). */
+Object.assign(window, {
+  abortIfNotAdmin,
+  abortUnlessAdminForFleetDriverEdit,
+  abortUnlessCanApprovePortalRegistration,
+  abortUnlessCanApproveTransport,
+  abortUnlessCanCreateVehicle,
+  abortUnlessCanDeleteVehicle,
+  abortUnlessCanEditVehicle,
+  abortUnlessCanManageHiring,
+  abortUnlessCanManageTransportTrips,
+  abortUnlessCanToggleVehicleStatus,
+  addOneYearToYmd,
+  addYears,
+  adminUsersCollapsibleCardBody,
+  appendFuelLogAwait,
+  appendModuleAuditLog,
+  appendVehicleTechnicalLogAwait,
+  applyAdminUsersFormDraft,
+  applyCandidateToEmployeeForm,
+  applyDocumentFieldConstraints,
+  applyHistoryFilters,
+  applyHistoryFleetFuelFilters,
+  applyHistoryFleetTechnicalFilters,
+  applyLaborSystemParametersApiResponse,
+  applyManualModuleLayout,
+  applyPositionCatalogToEmployeeForm,
+  approveRequest,
+  attachDepartmentCitySelects,
+  bindEmployeeAvatarFilePreview,
+  bindEmployeeTransportAllowanceRule,
+  bindPasswordStrengthSuite,
+  bindPositionCompensationFields,
+  bindVehicleDocExpiryAutoFill,
+  buildCatalogReportExcelHtml,
+  buildContractDocxTestPayload,
+  buildEmployeeContractDocxPayload,
+  buildEmployeePayrollProfileBodyHtml,
+  buildHistoryAuditEntries,
+  buildPayrollEmployeeEditModalFields,
+  buildPayrollEmployeePayloadFromWizard,
+  buildReportDataset,
+  buildReportExportHtml,
+  buildReportsAnalyticsSnapshot,
+  buildRouteRateCompanyCheckboxesHtml,
+  buildRouteRateEntry,
+  buildRouteRateScopeStepInnerHtml,
+  buildTripApprovalHeroHtml,
+  buildTripRateInlineFieldsHtml,
+  buildTripRateModalFields,
+  buildTripRouteRateKey,
+  calculateDriverTripReport,
+  canAssignTripFromViajesModule,
+  canPerformHiringEditAction,
+  canViewAllTransportRequests,
+  candidateCvDataUrlToBlob,
+  candidateMayHaveCvInStorage,
+  capStoredArrayRows,
+  cityOptionsFromDepartment,
+  clampLaborSystemParameterYear,
+  clearAdminUsersDraft,
+  clearFieldError,
+  clearFormDateInput,
+  closeReportPreviewModal,
+  closeSearchableSelectDropdown,
+  collapseCreatePanel,
+  colombiaIntegralSalaryFloorCop,
+  colombiaTransportAllowanceEligible,
+  colombiaTransportAllowanceSalaryCapCop,
+  companyKindChipHtml,
+  companyKindChipShortLabel,
+  companyProfileLogoUrl,
+  composeContractDurationText,
+  computeHiringConversionPct,
+  confirmDiscardCreateFormAsync,
+  contractTemplateFileName,
+  coverageMainRouteHubRows,
+  createTripEmptyHint,
+  createTripSummaryTile,
+  daysUntil,
+  defaultAdminUsersUi,
+  defaultTripRateStorageKeyForRequest,
+  deleteEmployeesCascade,
+  deletedRequestSnapshotForTableRow,
+  deletedTripSnapshotForTableRow,
+  departmentOptions,
+  deriveRequestOperationalValue,
+  describeContractDurationForDocx,
+  describePortalVehicleOccupancy,
+  diffMinutes,
+  directoryOpsToneFromSlug,
+  dispatchPortalNotification,
+  docExpiryStatus,
+  documentFieldRule,
+  editModalCatalogSelectOptions,
+  editModalSelectOptionSelected,
+  employeeAvatarCssUrl,
+  employeeProfileKvRow,
+  employeeTransportAllowanceGuidance,
+  enhanceTripAssignmentSelects,
+  enrichPortalUserFromPayrollCache,
+  ensureDeletedTransportRequestAuditSnapshotLoaded,
+  ensureDeletedTransportTripAuditSnapshotLoaded,
+  ensurePayrollRunHeavyJsonLoaded,
+  ensureReportPreviewModal,
+  ensureUsersPasswordHashing,
+  ensureVehicleDocs,
+  exportCatalogReport,
+  extractCandidateCvDownload,
+  fetchCandidateCvBlobFromApi,
+  fetchCandidateCvDownloadFromApi,
+  findPayrollEmployeeByIdDoc,
+  findPortalDriverById,
+  findPortalVehicleById,
+  flattenCandidateAttachmentsForCv,
+  fmtProfileAuditTimestamp,
+  fmtProfileCell,
+  formHasDirtyValues,
+  formatDeletedRequestSnapshotRouteLine,
+  formatDeletedRequestSnapshotTableSummary,
+  formatDeletedTripSnapshotTableSummary,
+  formatInterviewModeLabel,
+  formatInterviewWhenDisplay,
+  formatMoneyFieldValue,
+  formatPortalRoleChipLabel,
+  formatPortalRoleLabel,
+  formatRoute,
+  fuelLogRowForServer,
+  generateOfficialWordContract,
+  getAdminUsersDraft,
+  getAdminUsersUi,
+  getCandidateVacancyAndPosition,
+  getConfiguredTripValue,
+  getPasswordStrengthReport,
+  getPersonalRegistrationKey,
+  getSearchableSelectParts,
+  getSelectedPhoneCountry,
+  getTripRouteRatesNormalized,
+  getVisibleRequestsForUser,
+  hashPassword,
+  hideAuth,
+  hiringEmptyState,
+  hiringPipelineSelectOptions,
+  hiringPipelineStatusClass,
+  historyAuditActionLabel,
+  historyAuditActionStatus,
+  historyDriverLabel,
+  historyFleetFilterToolbar,
+  historyFleetFuelFormHtml,
+  historyFleetFuelHaystack,
+  historyFleetFuelKpis,
+  historyFleetKpiStrip,
+  historyFleetMoneyField,
+  historyFleetTechnicalFormHtml,
+  historyFleetTechnicalHaystack,
+  historyFleetTechnicalKpis,
+  historyHaystack,
+  historyMatchesQuickFilter,
+  historyPlateLabel,
+  historyQuickFilterCounts,
+  historyRouteCell,
+  historyStatusFilterOptions,
+  historyTripValueCell,
+  hoursBetween,
+  humanTripRateRouteLabelFromStorageKey,
+  humanizePayrollBulkSkipReason,
+  hydrateOwnProfileFromApi,
+  initB2BFormExperience,
+  initCoverageCorridors,
+  initPortalClientStorage,
+  initPublicCareers,
+  initPublicEffects,
+  initPublicScrollSpy,
+  initialTripValueForAssignment,
+  installCandidateCvDownloadDelegation,
+  installEmployeeContractDelegation,
+  isCompanyRecordActive,
+  isDataUrl,
+  isManuallyUnavailable,
+  isPasswordPayloadKey,
+  isPersonTypeJuridica,
+  isVacancyAcceptingApplications,
+  laborSystemParametersDraftForYear,
+  laborSystemParametersHistoryRows,
+  laborSystemParametersSelectableYears,
+  listTripRateOptionsForRequest,
+  listTripRateOptionsWithFallback,
+  matchColombiaCityInDepartment,
+  matchColombiaDepartmentToCatalogKey,
+  minutesBetween,
+  minutesRemaining,
+  mountSearchableSelect,
+  normalizeCompaniesForSync,
+  normalizeFuelLogPortalRow,
+  normalizeFuelLogsList,
+  normalizePayrollEmployeeRowDates,
+  normalizeVehicleTechnicalLogPortalRow,
+  normalizeVehicleTechnicalLogsList,
+  notifyAdminUsers,
+  notifyHrUsers,
+  openAssignedTripInfoModal,
+  openDeletedTransportRequestAuditModal,
+  openDeletedTransportTripAuditModal,
+  openDriverDetailSheetModal,
+  openEditRouteRateModal,
+  openEditTripModal,
+  openHiringContractFromCandidate,
+  openPayrollBulkResultModal,
+  openPayrollEmployeeFromCandidate,
+  openPortalDetailSheet,
+  openReportPdf,
+  openReportPreviewModal,
+  openRequestDetailModal,
+  openRouteRateInlineEdit,
+  openSearchableSelectDropdown,
+  openTripInvoicePdf,
+  openVehicleTechnicalSheetModal,
+  parseContractDurationFields,
+  parseMoneyFieldValue,
+  parseNum,
+  parsePayrollBulkAutogenMessage,
+  parseTripRateStorageKeyToRouteParts,
+  patchOperatorCompanyKindIfNeeded,
+  payrollBulkEmployeeNameMap,
+  payrollDocumentLogoUrl,
+  payrollDraftLinkSuccessMessage,
+  pendingRequestsForTripAssignment,
+  persistReportsBiLayout,
+  populateRouteRateInlineForm,
+  portalCandidateAgeFromBirthIso,
+  portalDetailBuildGrid,
+  portalDetailComposeModal,
+  portalDetailHighlightHtml,
+  portalDetailRenderRows,
+  portalDetailTileMarkup,
+  portalNonAdminRestrictedCaptureChange,
+  portalNonAdminRestrictedCaptureClick,
+  portalProfileEmergencyFilled,
+  portalProfileEmergencyNeedsEnrichment,
+  portalProfileEnrichmentChanged,
+  portalUpgradeDates,
+  portalUserCompanyDisplay,
+  portalUserDocumentValue,
+  portalUserPayrollMatchKey,
+  portalVehicleAvailabilityStatusHtml,
+  positionSalaryUsesSmmlv,
+  positionSearchableSelectDropdown,
+  postPortalAuthorized,
+  prepareCancelCreatePanel,
+  prepareCreationFormForSubmit,
+  prepareEmployeeForContractDocx,
+  presentPayrollBulkAutogenResult,
+  prettyStatus,
+  printReportPreviewDocument,
+  queryPayrollEmployeeDocumentDuplicateFromApi,
+  queryPortalDateField,
+  read,
+  readAdminUsersFormDraft,
+  readArray,
+  readEmployeeTransportAllowanceCop,
+  readFormDateIso,
+  readFormEntriesNormalized,
+  readFuelLogs,
+  readModuleAuditLogs,
+  readPositionTransportAllowanceCop,
+  readVehicleTechnicalLogs,
+  refreshCreateTripModuleForm,
+  refreshDriverTripPaymentLinked,
+  refreshHistoryFleetKpiStrip,
+  refreshPayrollDraftsLinked,
+  refreshSearchableSelect,
+  registerPhoneCountryOptionsHtml,
+  rejectRequest,
+  removeFromPortalListAwaitServer,
+  renderAssignTripRequestPreview,
+  renderContractMergePreviewHtml,
+  renderContractTemplateSelectOptions,
+  renderHiringCandidateCard,
+  renderHistoryAuditCard,
+  renderHistoryAuditList,
+  renderHistoryCard,
+  renderHistoryFuelLogCard,
+  renderHistoryFuelLogsList,
+  renderHistoryResultsList,
+  renderHistoryTechnicalLogCard,
+  renderHistoryTechnicalLogsList,
+  renderPayrollEmployeeDirectoryCard,
+  renderPayrollLegalHistoryCard,
+  renderPayrollRunCard,
+  renderPublicCoverageCorridorGrid,
+  renderPublicCoverageFromView,
+  renderPublicCoverageHubGrid,
+  renderReportPreviewTableHtml,
+  renderSearchableSelectDropdown,
+  reportPercent,
+  reportPreviewEscHandler,
+  reportsAnalyticsPanelHtml,
+  reportsBiCustomizerHtml,
+  reportsBiDisplayVal,
+  reportsBiKpiCard,
+  reportsBiLayoutFromPanel,
+  reportsBiLayoutPreset,
+  reportsBiLeaderboardHtml,
+  reportsBiPeriodChip,
+  reportsBiTrendHtml,
+  reportsBuildInsights,
+  reportsFilterByPeriod,
+  reportsFilterItemsByPeriod,
+  reportsFilterPreviousPeriod,
+  reportsHumanMonth,
+  reportsMonthKey,
+  reportsPctDelta,
+  reportsPeriodLabel,
+  reportsPeriodStart,
+  reportsWeekKey,
+  requestActualDeliveryDate,
+  requestExpectedDeliveryDate,
+  requestFunnelStageDescription,
+  requestIsOperationallyClosed,
+  requestLifecycleSummary,
+  requiresAdminHrApproval,
+  resetCreatePanelForm,
+  resolveCandidateCvDownload,
+  resolveEmployeeAvatarUrl,
+  resolveEmployeeTransportAllowanceCop,
+  resolvePayrollEmployeeCostCenter,
+  resolvePortalProfileUser,
+  restorePortalSnapshotIfAvailable,
+  routeRateKeyFromRequest,
+  runEmployeeContractGeneration,
+  safeHttpsUrlForCandidateCv,
+  safeMimeForCvBlobStored,
+  saveNotification,
+  scrollIntoViewSmoothBlockStart,
+  scrollOpenCrudModalIntoView,
+  scrollToAdminUsersFocusedForm,
+  scrollToCreatePanelForm,
+  selectOptionsFromCatalog,
+  setAdminUsersDraft,
+  setAdminUsersUi,
+  setB2bFormFeedback,
+  setDriverAvailability,
+  setFieldError,
+  setFormDateById,
+  setFormDateByName,
+  setFormSelectValue,
+  setPortalDataHydrating,
+  setSelectValueInsensitive,
+  setTripAssignmentFieldsDisabled,
+  setVehicleAvailability,
+  showAuth,
+  slaDelayMinutesForRequest,
+  slaStatusForRequest,
+  slugStatus,
+  sortFleetLogsByDate,
+  sortHistoryRequests,
+  statusIconEmoji,
+  stripDigitsForRegisterNational,
+  suggestedEmployeeTransportAllowanceCop,
+  summarizePayrollEmployeeForDirectory,
+  syncContractFormFromSelection,
+  syncCreateTripCompactPickList,
+  syncEmployeeEditCatalogSelects,
+  syncPayrollEmployeeSalaryReadonly,
+  syncPhoneHiddenFull,
+  syncSearchableSelectInputFromValue,
+  toInputDate,
+  togglePortalDriverManualAvailability,
+  togglePortalVehicleManualAvailability,
+  topClients,
+  topVehicles,
+  transportRequestBelongsToUserScope,
+  triggerBlobDownload,
+  triggerCandidateCvDownload,
+  tripRateStorageKey,
+  tripStatusOptionLabel,
+  tripsForDriverMonth,
+  tryApiLoginBridge,
+  updateAutoApprove,
+  updateCreateTripResourceFieldHints,
+  updateCreateTripStepper,
+  updatePhoneFieldForCountry,
+  updatePortalDataHydratingBanner,
+  upsertPortalUserRowIntoCache,
+  validateCandidatePipelineTransition,
+  validateColombiaIntegralSalary,
+  validateColombiaMonthlySalaryCop,
+  validateColombiaPositionCompensation,
+  validateColombianDocument,
+  validateEmployeeContractDocFields,
+  validatePasswordPolicy,
+  validateVacancySalaryOffer,
+  validateWorkerMinimumAge,
+  vehicleTechnicalLogRowForServer,
+  verifyPassword,
+  wireEditModalFieldValues,
+  wireEmployeePayrollDuplicateDocCheck,
+  wireFormDocDuplicateCheck,
+  wireMoneyInputs,
+  wireMonthlyPayrollConcepts,
+  wirePayrollEmployeeDirectoryFilters,
+  wirePayrollEmployeeFormFieldSanitization,
+  wireRouteRateScopeSection,
+  wireTerminationSettlementForm,
+  wireTripApprovalModeFields,
+  wireTripRateChoiceSelect,
+  wireTripValueMoneyInput,
+  write,
+  writeFuelLogsAwait,
+  writePortalListPrunedAwaitServer,
+  writeVehicleTechnicalLogsAwait,
+});

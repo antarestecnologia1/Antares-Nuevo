@@ -9,12 +9,13 @@ import { portalCanRefreshFromApi } from "../core/bootstrap.js";
 import {
   escapeAttr,
   escapeHtml,
+  fieldLabel,
   fmtDate,
   fmtFleetLogDate,
   normalizeLatinUpperForDb,
   nowIso
 } from "../core/utils.js";
-import { fieldLabel, notify, userMessage } from "../ui/modals.js";
+import { notify, userMessage } from "../ui/modals.js";
 import { renderManagedCreateFormActions } from "../ui/components.js";
 import { reqRead, reqWriteAwait } from "./solicitudes.domain.js";
 import { buildTripInvoice, historyVehicleColumn } from "./viajes.domain.js";

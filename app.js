@@ -25,7 +25,7 @@ import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
 import { initGlobalEvents } from "./modules/core/events.js";
 
 /**
- * Definidas en `portal-runtime.js` (script clásico); se exponen en `window` al evaluar ese archivo.
+ * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.
  * Deben cargarse antes que este módulo en `index.html`.
  */
 const {
