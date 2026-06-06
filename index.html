@@ -1289,8 +1289,7 @@
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n);
     </script>
     <script type="module" src="./modules/core/portal-runtime.js?v=20260605-portal-runtime-esm"></script>
-    <script type="module" src="./app.js?v=20260605-portal-open-auth-fix"></script>
-    <!-- Módulos del portal (post-app.js); `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE` -->
+    <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>
     <script defer src="./modules/app/mis-solicitudes.js"></script>
@@ -1308,5 +1307,6 @@
     <script defer src="./modules/app/autorizaciones.js"></script>
     <script defer src="./modules/app/mi-perfil.js"></script>
     <script type="module" src="./modules/app/notificaciones.js"></script>
+    <script type="module" src="./app.js?v=20260605-portal-entry-after-views"></script>
   </body>
 </html>

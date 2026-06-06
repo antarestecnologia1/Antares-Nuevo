@@ -4,7 +4,6 @@
  */
 import { KEYS, ROLES } from "./config.js";
 import {
-  ACCOUNT_STATUS,
   currentUser,
   getSession,
   normalizeUserAccountStatus,
@@ -121,7 +120,7 @@ export function normalizePortalBootstrapUserRow(u) {
   const out = { ...u };
   if (s) out.accountStatus = s;
   if (!out.source) {
-    out.source = out.accountStatus === ACCOUNT_STATUS.PENDIENTE ? "portal_db" : "portal_db";
+    out.source = "portal_db";
   }
   const avatar = String(out.avatarUrl ?? out.url_avatar ?? out.urlAvatar ?? "").trim();
   if (avatar) out.avatarUrl = avatar;

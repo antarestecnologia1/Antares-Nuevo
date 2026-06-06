@@ -26,7 +26,8 @@ import { initGlobalEvents } from "./modules/core/events.js";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.
- * Deben cargarse antes que este módulo en `index.html`.
+ * Deben cargarse antes que este módulo en `index.html`: `portal-runtime.js` y todos los scripts
+ * que registran `AppLegacyViews` / `registerLegacyPortalViews` (bloque `modules/app/*.js`).
  */
 const {
   initPortalClientStorage,

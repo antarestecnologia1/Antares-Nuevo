@@ -73,6 +73,7 @@
       fuelLogs: list(KEYS.fuelLogs),
       vehicleTechnicalLogs: list(KEYS.vehicleTechnicalLogs),
       travelAllowanceRules: objectDoc(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 }),
+      tripRouteRates: objectDoc(KEYS.tripRouteRates, {}),
       vacancies: list(KEYS.vacancies),
       candidates: list(KEYS.candidates),
       positions: list(KEYS.positions),
