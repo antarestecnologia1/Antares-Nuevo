@@ -1,5 +1,6 @@
 /**
- * Smoke tests estáticos del módulo Reportería / BI (`app.js`, `portal-runtime.js`, `router.js`, `reporteria.js`).
+ * Smoke tests estáticos del módulo Reportería / BI
+ * (`app.js`, `portal-runtime.js`, `router.js`, `reporteria.domain.js`, `reporteria.js`).
  * Ejecutar: node qa/reports-bi-smoke.mjs
  */
 import { readFileSync } from "node:fs";
@@ -9,7 +10,8 @@ const ROOT = process.cwd();
 const appJs = readFileSync(path.join(ROOT, "app.js"), "utf8");
 const portalRuntimeJs = readFileSync(path.join(ROOT, "modules", "core", "portal-runtime.js"), "utf8");
 const routerJs = readFileSync(path.join(ROOT, "modules", "core", "router.js"), "utf8");
-const reportsRuntimeBundle = `${appJs}\n${portalRuntimeJs}\n${routerJs}`;
+const reporteriaDomainJs = readFileSync(path.join(ROOT, "modules", "domain", "reporteria.domain.js"), "utf8");
+const reportsRuntimeBundle = `${appJs}\n${portalRuntimeJs}\n${routerJs}\n${reporteriaDomainJs}`;
 const reporteriaJs = readFileSync(path.join(ROOT, "modules", "app", "reporteria.js"), "utf8");
 const feedbackJs = readFileSync(path.join(ROOT, "modules", "core", "feedback-messages.js"), "utf8");
 
@@ -32,9 +34,9 @@ includesAll(
   [
     "function buildReportsAnalyticsSnapshot(",
     "function reportsAnalyticsPanelHtml(",
-    "function wireReportsCharts(",
-    "function exportReportsBiToExcel(",
-    "function normalizeReportsBiLayout(",
+    "export function wireReportsCharts(",
+    "export async function exportReportsBiToExcel(",
+    "export function normalizeReportsBiLayout(",
     "function persistReportsBiLayout(",
     "function reportsBiLayoutFromPanel(",
     'invokePortalViewAfterRenderHook(view)',

@@ -11152,8 +11152,8 @@ function initPublicCareers() {
 
   const api = window.AntaresApi;
   if (api?.hasBase?.()) {
-    publicCareersVacanciesSource = "api";
-    publicCareersVacanciesFromApi = null;
+    window.publicCareersVacanciesSource = "api";
+    window.publicCareersVacanciesFromApi = null;
     grid.innerHTML =
       `<div class="careers-card"><p class="muted" style="margin:0">${state.publicLang === "en" ? "Loading openings…" : "Cargando vacantes…"}</p></div>`;
     void api
@@ -11176,12 +11176,12 @@ function initPublicCareers() {
               workerRole: row.workerRole
             }))
           : [];
-        publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(mapped, read(KEYS.vacancies, []));
+        window.publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(mapped, read(KEYS.vacancies, []));
       })
       .catch((err) => {
         devWarn("Carreras: error al cargar vacantes desde la API.", err?.message || err);
-        publicCareersVacanciesSource = "local";
-        publicCareersVacanciesFromApi = null;
+        window.publicCareersVacanciesSource = "local";
+        window.publicCareersVacanciesFromApi = null;
       })
       .finally(() => {
         render();
@@ -11189,8 +11189,8 @@ function initPublicCareers() {
     return;
   }
 
-  publicCareersVacanciesSource = "local";
-  publicCareersVacanciesFromApi = null;
+  window.publicCareersVacanciesSource = "local";
+  window.publicCareersVacanciesFromApi = null;
   render();
 }
 

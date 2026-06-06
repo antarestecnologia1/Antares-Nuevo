@@ -1,5 +1,6 @@
 /**
- * Smoke tests estáticos del catálogo de reportería (`app.js` + `modules/core/portal-runtime.js`).
+ * Smoke tests estáticos del catálogo de reportería
+ * (`app.js`, `portal-runtime.js`, `public-site.i18n.js`, `reporteria.domain.js`).
  * Ejecutar: node qa/reports-catalog-smoke.mjs
  */
 import { readFileSync } from "node:fs";
@@ -9,7 +10,8 @@ const ROOT = process.cwd();
 const appJs = readFileSync(path.join(ROOT, "app.js"), "utf8");
 const portalRuntimeJs = readFileSync(path.join(ROOT, "modules", "core", "portal-runtime.js"), "utf8");
 const publicSiteI18nJs = readFileSync(path.join(ROOT, "modules", "domain", "public-site.i18n.js"), "utf8");
-const reportsCatalogSource = `${appJs}\n${portalRuntimeJs}\n${publicSiteI18nJs}`;
+const reporteriaDomainJs = readFileSync(path.join(ROOT, "modules", "domain", "reporteria.domain.js"), "utf8");
+const reportsCatalogSource = `${appJs}\n${portalRuntimeJs}\n${publicSiteI18nJs}\n${reporteriaDomainJs}`;
 
 function ok(cond, msg) {
   if (!cond) throw new Error(msg);
