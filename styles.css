@@ -11364,6 +11364,18 @@ body[data-theme="dark"] .p-form textarea {
   }
 }
 
+/**
+ * Misma vista que el ciclo anterior (`#view-root[data-skip-entry-motion="1"]` desde el router):
+ * evita parpadeo al reinyectar HTML por poll/sync — sin re-ejecutar `hr-panel-in` en paneles y pestañas.
+ * Afecta Gestión humana, Contratación, Usuarios, Autorizaciones, Viajes/Camiones (pestañas), etc.
+ */
+#view-root[data-skip-entry-motion="1"] .hr-workspace-panel:not(.hidden),
+#view-root[data-skip-entry-motion="1"] .auth-tab-panel:not(.hidden),
+#view-root[data-skip-entry-motion="1"] .hr-action-card__panel,
+#view-root[data-skip-entry-motion="1"] .module-filters {
+  animation: none !important;
+}
+
 @keyframes moduleFadeUp {
   from { opacity: 0; transform: translateY(14px) scale(0.99); }
   to { opacity: 1; transform: translateY(0) scale(1); }

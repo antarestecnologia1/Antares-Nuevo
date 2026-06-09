@@ -544,8 +544,9 @@ export function renderPortalViewImpl() {
   const user = currentUser();
   const view = state.currentView;
   const prevPortalView = state.__portalPrevViewForSync;
-  /** Misma vista que el ciclo anterior: repintado por datos (poll, sync); no re-animar tarjetas. */
-  state.__suppressModuleAppearThisRender = prevPortalView === view;
+  /** Misma vista que el ciclo anterior: repintado por datos (poll, sync); no re-animar tarjetas ni paneles RRHH/pestañas. */
+  const portalSameViewRefresh = prevPortalView === view;
+  state.__suppressModuleAppearThisRender = portalSameViewRefresh;
   state.__portalPrevViewForSync = view;
 
   if (view === "authorizations") {
@@ -693,6 +694,7 @@ export function renderPortalViewImpl() {
     }
   });
   nodes.viewRoot.innerHTML = renderModuleShell(view, viewTitle, content);
+  nodes.viewRoot.setAttribute("data-skip-entry-motion", portalSameViewRefresh ? "1" : "0");
   invokePortalEvent("updatePortalDataHydratingBanner");
 
   callApp("applyManualModuleLayout");
