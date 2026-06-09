@@ -9307,40 +9307,41 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       docInput.setCustomValidity?.("");
       V?.setFieldError?.(docInput, dupMsg);
     }
-    const fireDupToast = () => {
-      try {
-        docInput.dataset.dupToastTs = String(Date.now());
-        if (typeof notify === "function") notify(dupMsg, blocking ? "error" : "info", 4200);
-      } catch (_e) {
-        /* noop */
-      }
-    };
-    if (suppressToast) {
-      /* El campo ya quedó marcado; otro paso del mismo chequeo ya mostró (o mostrará) el toast. */
-    } else if (!silent) {
-      /* En submit se re-notifica siempre, salvo que el mismo mensaje acabe de mostrarse
-         (p. ej. el blur del campo al hacer clic en «Guardar» disparó el toast hace un instante). */
-      const lastToastTs = Number(docInput.dataset.dupToastTs || 0);
-      const sameRecentToast =
-        docInput.dataset.dupLastToastMsg === dupMsg && Date.now() - lastToastTs < 1200;
-      const shouldFire = fromSubmit ? !sameRecentToast : docInput.dataset.dupLastToastMsg !== dupMsg;
-      if (shouldFire) {
-        docInput.dataset.dupLastToastMsg = dupMsg;
-        fireDupToast();
-      }
-    } else if (lastDupToastSig !== toastKey) {
-      lastDupToastSig = toastKey;
-      if (dupNotifyTimer) clearTimeout(dupNotifyTimer);
-      dupNotifyTimer = setTimeout(() => {
-        dupNotifyTimer = null;
-        const stillBlocked =
-          String(docInput.dataset.dupError || "") === "1" ||
-          String(docInput.dataset.serverDupError || "") === "1";
-        if ((stillBlocked || !blocking) && docInput.value.trim()) {
+    /* Avisos no bloqueantes (p. ej. documento en otra empresa): solo error bajo el campo, sin toast. */
+    if (blocking && !suppressToast) {
+      const fireDupToast = () => {
+        try {
+          docInput.dataset.dupToastTs = String(Date.now());
+          if (typeof notify === "function") notify(dupMsg, "error", 4200);
+        } catch (_e) {
+          /* noop */
+        }
+      };
+      if (!silent) {
+        /* En submit se re-notifica siempre, salvo que el mismo mensaje acabe de mostrarse
+           (p. ej. el blur del campo al hacer clic en «Guardar» disparó el toast hace un instante). */
+        const lastToastTs = Number(docInput.dataset.dupToastTs || 0);
+        const sameRecentToast =
+          docInput.dataset.dupLastToastMsg === dupMsg && Date.now() - lastToastTs < 1200;
+        const shouldFire = fromSubmit ? !sameRecentToast : docInput.dataset.dupLastToastMsg !== dupMsg;
+        if (shouldFire) {
           docInput.dataset.dupLastToastMsg = dupMsg;
           fireDupToast();
         }
-      }, 380);
+      } else if (lastDupToastSig !== toastKey) {
+        lastDupToastSig = toastKey;
+        if (dupNotifyTimer) clearTimeout(dupNotifyTimer);
+        dupNotifyTimer = setTimeout(() => {
+          dupNotifyTimer = null;
+          const stillBlocked =
+            String(docInput.dataset.dupError || "") === "1" ||
+            String(docInput.dataset.serverDupError || "") === "1";
+          if (stillBlocked && docInput.value.trim()) {
+            docInput.dataset.dupLastToastMsg = dupMsg;
+            fireDupToast();
+          }
+        }, 380);
+      }
     }
     if (!silent && blocking) {
       try {
