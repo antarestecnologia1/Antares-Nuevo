@@ -10440,12 +10440,21 @@ body[data-theme="dark"] .b2b-leads-brief {
   align-items: start;
 }
 
+@media (min-width: 880px) {
+  .footer-grid {
+    grid-template-columns: minmax(320px, 1.45fr) minmax(160px, 0.85fr) minmax(160px, 0.85fr);
+    align-items: center;
+  }
+}
+
 .footer-brand {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  margin-bottom: 0.65rem;
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(1rem, 3.2vw, 2.25rem);
+  margin-bottom: 0;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .footer-brand-icon {
@@ -10460,7 +10469,11 @@ body[data-theme="dark"] .b2b-leads-brief {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 0 10px;
+  flex: 0 0 auto;
+  max-width: min(480px, 100%);
+  min-width: 0;
+  line-height: 0;
+  padding: 4px 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -10468,15 +10481,28 @@ body[data-theme="dark"] .b2b-leads-brief {
 
 .footer-brand-logo {
   display: block;
-  height: clamp(58px, 7.5vw, 80px);
+  height: clamp(84px, 10.5vw, 120px);
   width: auto;
-  max-width: min(380px, 100%);
+  max-width: 100%;
   object-fit: contain;
   object-position: left center;
   user-select: none;
   -webkit-user-drag: none;
   mix-blend-mode: screen;
-  filter: contrast(1.2) saturate(1.15) brightness(1.06);
+  filter: contrast(1.22) saturate(1.16) brightness(1.08);
+}
+
+.footer-brand-copy {
+  flex: 1 1 220px;
+  min-width: min(100%, 200px);
+  max-width: 36rem;
+}
+
+.footer-brand-copy p {
+  margin: 0;
+  font-size: clamp(0.95rem, 1.35vw, 1.08rem);
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .footer-brand h3 {
@@ -10515,13 +10541,6 @@ body[data-theme="dark"] .b2b-leads-brief {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: 3px;
-}
-
-.footer-grid > div:first-child > p {
-  font-size: 0.98rem;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.78);
-  max-width: 30rem;
 }
 
 .footer-social {
@@ -10564,10 +10583,25 @@ body[data-theme="dark"] .b2b-leads-brief {
   color: rgba(255, 255, 255, 0.55);
 }
 
-@media (max-width: 520px) {
-  .footer-brand-logo {
-    height: clamp(50px, 14vw, 62px);
+@media (max-width: 600px) {
+  .footer-brand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.9rem;
+  }
+
+  .footer-brand-logo-wrap {
     max-width: 100%;
+  }
+
+  .footer-brand-logo {
+    height: clamp(64px, 22vw, 92px);
+    max-width: 100%;
+  }
+
+  .footer-brand-copy {
+    flex-basis: auto;
+    max-width: none;
   }
 }
 
@@ -20241,8 +20275,8 @@ body[data-theme="dark"] .site-footer p a:hover {
   text-decoration-color: rgba(190, 218, 255, 0.8);
 }
 
-body[data-theme="dark"] .footer-grid > div:first-child > p {
-  color: rgba(210, 228, 248, 0.88);
+body[data-theme="dark"] .footer-brand-copy p {
+  color: rgba(218, 235, 255, 0.9);
 }
 
 body[data-theme="dark"] .footer-brand-logo {
