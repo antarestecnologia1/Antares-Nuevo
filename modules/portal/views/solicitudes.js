@@ -279,7 +279,8 @@
       : `<p class="muted">No hay solicitudes agrupables por empresa todavía.</p>`;
   }
 
-  function requestFormHtml() {
+  /** Alcance cliente + franja de métricas (siempre arriba del módulo). */
+  function requestModuleHeadHtml() {
     const user = currentUser();
     const list = getVisibleRequestsForUser(user);
     const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
@@ -297,6 +298,12 @@
       { label: "En operacion", value: enOp },
       { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
     ]);
+    return scopeBar + clientHero;
+  }
+
+  /** Formulario colapsable de nueva solicitud (debajo del listado en la vista del portal). */
+  function requestCreateFormHtml() {
+    const user = currentUser();
     const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
     const departments = Object.keys(COLOMBIA_LOCATIONS)
       .map((dept) => `<option value="${dept}">${dept}</option>`)
@@ -351,7 +358,12 @@
     <label class="full">Observaciones <textarea name="notes" rows="3" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-    return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud", { createPanels: state.createPanels });
+    return createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud", { createPanels: state.createPanels });
+  }
+
+  /** Compatibilidad: cabecera + formulario en un solo bloque (orden antiguo). */
+  function requestFormHtml() {
+    return requestModuleHeadHtml() + requestCreateFormHtml();
   }
 
   /** Texto para filtrar solicitudes por búsqueda (coincide con `requests-list-search`). */
@@ -431,7 +443,7 @@
       const opsSubtitle = listSearchNorm
         ? `${afterFilter.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
         : `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}${listLayout === "list" ? " · vista lista" : ""}`;
-      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${requestListToolbar}${filtersBar}${opsCards}`);
+      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${requestListToolbar}${opsCards}`);
       return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
     }
     const panelTitle =
@@ -442,7 +454,7 @@
       : statusFiltered;
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);
     const opsCards = requestOpsCardsHtml(filtered, user, listLayout);
-    /** Barra "Ver: toda empresa / solo mías" va solo arriba del módulo (`requestFormHtml`), no dentro de esta tarjeta. */
+    /** Barra "Ver: toda empresa / solo mías" va en `requestModuleHeadHtml`, no dentro de esta tarjeta. */
     const listMeta = listSearchNorm
       ? `${filtered.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
       : `${filtered.length} de ${requests.length} registradas${listLayout === "list" ? " · vista lista" : ""}`;
@@ -450,11 +462,13 @@
       "activity",
       panelTitle,
       listMeta,
-      `${requestListToolbar}${filtersBar}${opsCards}`
+      `${filtersBar}${requestListToolbar}${opsCards}`
     );
     return opsPanel;
   }
 
+  window.AppModules.solicitudes.requestModuleHeadHtml = requestModuleHeadHtml;
+  window.AppModules.solicitudes.requestCreateFormHtml = requestCreateFormHtml;
   window.AppModules.solicitudes.requestFormHtml = requestFormHtml;
   window.AppModules.solicitudes.requestListClientHtml = requestListClientHtml;
 })();

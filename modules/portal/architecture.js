@@ -12,10 +12,11 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [
-        { module: "solicitudes", exportName: "requestFormHtml" },
-        { module: "solicitudes", exportName: "requestListClientHtml", passUser: true }
+        { module: "solicitudes", exportName: "requestModuleHeadHtml" },
+        { module: "solicitudes", exportName: "requestListClientHtml", passUser: true },
+        { module: "solicitudes", exportName: "requestCreateFormHtml" }
       ],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".ops-filters-bar", ".toolbar", ".p-card", ".table-wrap", ".empty-state", "[id^='create-']"] }]
     },
     "transport-trips": {
       title: "Transporte · Viajes",
