@@ -111,9 +111,8 @@ function transportTripsHtml() {
   const tripsLayout = normalizeTransportTripsLayout(transportTripsUi.layout);
 
   /**
-   * Filtros rápidos del módulo: dejamos una sola vista (tarjetas) reemplazando
-   * la antigua tabla densa. El usuario puede saltar entre "Activos", "Hoy",
-   * "Cerrados" y "Todos" sin perder contexto.
+   * Filtros rápidos del módulo: el listado puede verse en tarjetas o en tabla
+   * (mismo estilo que Camiones). Los filtros Activos / Hoy / etc. se mantienen.
    */
   const filter = String(state?.tripsFilter || "active");
   const filteredTrips = (() => {
@@ -169,7 +168,7 @@ function transportTripsHtml() {
           </select>
         </label>`
       : "";
-    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}${tripsLayout === "compact" ? " trip-ops-card--compact" : ""}" data-trip-id="${escapeAttr(String(r.id || ""))}">
+    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
         <div class="trip-ops-card-head-info">
           <p class="trip-ops-card-kicker">Viaje ${escapeHtml(String(r.trip?.tripNumber || "-"))} · Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
@@ -208,6 +207,49 @@ function transportTripsHtml() {
     </article>`;
   };
 
+  const buildTripOpsListRow = (r) => {
+    const standby = parseNum(r.standbyChargeTotal);
+    const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
+    const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
+    const statusSlug = slugStatus(r.status);
+    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
+    const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
+    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || "") || "Sin fecha";
+    const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
+    const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
+    const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
+    const statusSelectHtml =
+      transitions.length > 1
+        ? `<label class="trip-status-control trip-ops-card-status-control trip-ops-list-status">
+          <span class="muted">${IC.activity} Estado</span>
+          <select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${escapeAttr(String(r.id || ""))}" data-current-status="${escapeAttr(String(r.status || ""))}">
+            ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
+          </select>
+        </label>`
+        : `<span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "trip")}</span>`;
+    const routeCell = `<span class="vehicle-fleet-list-sub">${escapeHtml(originCity)}</span> <span aria-hidden="true">→</span> <span class="vehicle-fleet-list-sub">${escapeHtml(destinationCity)}</span>`;
+    const standbyLine =
+      standby > 0 ? `<div class="muted vehicle-fleet-list-sub">${IC.clock || ""} Standby $${standby.toLocaleString("es-CO")}</div>` : "";
+    const tripLine = `${escapeHtml(String(r.trip?.tripNumber || "—"))} · Sol. ${escapeHtml(String(r.requestNumber || r.id || "—"))}`;
+    return `<tr data-trip-id="${escapeAttr(String(r.id || ""))}">
+      <td data-label="Cliente / viaje"><strong class="vehicle-fleet-list-plate">${escapeHtml(clientName)}</strong><div class="muted vehicle-fleet-list-sub">${escapeHtml(tripLine)}</div></td>
+      <td data-label="Ruta">${routeCell}</td>
+      <td data-label="Estado">${statusSelectHtml}</td>
+      <td data-label="Recogida">${escapeHtml(pickupLabel)}</td>
+      <td data-label="Camión">${escapeHtml(plate)}</td>
+      <td data-label="Conductor">${escapeHtml(driverName)}</td>
+      <td data-label="Tarifa"><span class="vehicle-fleet-list-doc">${tripValueFmt}</span>${standbyLine}</td>
+      <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
+        <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje">${IC.truck} Viaje</button>
+        <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle de la solicitud">${IC.eye} Solicitud</button>
+        ${canAdminEditTrip(r) ? `<button class="btn btn-sm btn-action" data-action="edit-trip" data-id="${r.id}" title="Editar asignación">${IC.edit} Editar</button>` : ""}
+        ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Factura PDF">${IC.file} Factura</button>` : ""}
+        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Eliminar viaje">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
+    </tr>`;
+  };
+
   const filterPill = (key, label, count) =>
     `<button type="button" class="ops-filter-pill${filter === key ? " is-active" : ""}" data-action="trips-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
   const opsFiltersBar = `<div class="ops-filters-bar">
@@ -232,17 +274,30 @@ function transportTripsHtml() {
         <option value="status" ${tripsSort === "status" ? "selected" : ""}>Estado (A-Z)</option>
       </select>
     </label>
-    <div class="transport-ops-layout" role="group" aria-label="Vista de tarjetas">
-      <button type="button" class="btn btn-sm ${tripsLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="cards">Detallada</button>
-      <button type="button" class="btn btn-sm ${tripsLayout === "compact" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="compact">Compacta</button>
+    <div class="transport-ops-layout" role="group" aria-label="Tarjetas o lista">
+      <button type="button" class="btn btn-sm ${tripsLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="cards">Tarjetas</button>
+      <button type="button" class="btn btn-sm ${tripsLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="list">Lista</button>
     </div>
   </div>`;
 
   const tripsRenderLimit = Number(state.tripsRenderLimit) || RENDER_WINDOW_SIZE;
   const tripsToRender = renderWindowSlice(sortedFilteredTrips, tripsRenderLimit);
   const tripsMoreBar = renderWindowMoreBar(sortedFilteredTrips.length, tripsToRender.length, "trips-render-more");
+  const tripsListTable =
+    tripsLayout === "list" && sortedFilteredTrips.length
+      ? `<div class="table-wrap vehicle-fleet-list-wrap"><table class="vehicle-fleet-table trip-ops-fleet-table">
+    <thead><tr>
+      <th>Cliente / viaje</th><th>Ruta</th><th>Estado</th><th>Recogida</th><th>Camión</th><th>Conductor</th><th>Tarifa</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>${tripsToRender.map(buildTripOpsListRow).join("")}</tbody>
+  </table></div>`
+      : "";
+  const tripsCardsGrid =
+    tripsLayout === "cards" && sortedFilteredTrips.length
+      ? `<div class="trip-ops-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
+      : "";
   const opsCards = sortedFilteredTrips.length
-    ? `${opsFiltersBar}${opsToolbar}<div class="trip-ops-cards${tripsLayout === "compact" ? " trip-ops-cards--compact" : ""}">${tripsToRender.map(buildTripOpsCard).join("")}</div>${tripsMoreBar}`
+    ? `${opsFiltersBar}${opsToolbar}${tripsLayout === "list" ? tripsListTable : tripsCardsGrid}${tripsMoreBar}`
     : `${opsFiltersBar}${opsToolbar}${emptyState("No hay viajes para el filtro seleccionado o búsqueda aplicada.")}`;
 
   const formatRatePlaceLabel = (part) => {
@@ -541,7 +596,7 @@ function transportTripsHtml() {
       <section class="ops-block transport-workspace-stack">
 
         ${tripsCreateCard}
-        ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes en vista actual`, opsCards)}
+        ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes${tripsLayout === "list" ? " · vista lista" : ""} en vista actual`, opsCards)}
       </section>
     </div>`;
   const routesPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "routes" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="routes"${transportTripsWorkspace === "routes" ? "" : " hidden"}>

@@ -50,7 +50,7 @@ const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "in
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
 const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
 const TRANSPORT_TRIPS_WORKSPACES = new Set(["trips", "routes"]);
-const TRANSPORT_TRIPS_LAYOUTS = new Set(["cards", "compact"]);
+const TRANSPORT_TRIPS_LAYOUTS = new Set(["cards", "list"]);
 const TRANSPORT_TRIPS_SORTS = new Set(["pickup_asc", "pickup_desc", "value_desc", "value_asc", "status"]);
 const ADMIN_USERS_SECTIONS = new Set(["actions", "pending", "users", "companies", "sessions"]);
 const HISTORY_WORKSPACES = new Set(["explore", "fleet", "audit"]);
@@ -86,7 +86,8 @@ export function normalizeTransportTripsWorkspace(value) {
 }
 
 export function normalizeTransportTripsLayout(value) {
-  const v = String(value || "cards");
+  const v = String(value || "cards").trim().toLowerCase();
+  if (v === "compact") return "cards";
   return TRANSPORT_TRIPS_LAYOUTS.has(v) ? v : "cards";
 }
 

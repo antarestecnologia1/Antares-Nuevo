@@ -2,6 +2,11 @@
   if (!window.AppModules) window.AppModules = {};
   if (!window.AppModules.solicitudes) window.AppModules.solicitudes = {};
 
+  /** Misma convención que Camiones / Viajes: `cards` | `list`. */
+  function normalizeRequestsListLayout(raw) {
+    return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
+  }
+
   /** Logo cliente: prioriza caché de empresa (logo actualizado), luego URL del JOIN en API. */
   function resolveRequestCompanyLogoUrl(r, company) {
     const fromCompany =
@@ -13,10 +18,9 @@
   }
 
   /**
-   * Convierte una solicitud en una tarjeta moderna del panel operativo.
-   * Esta tarjeta es ahora la vista única del módulo: incluye todas las
-   * acciones (detalle, editar, cancelar, eliminar) — ya no hay tabla densa
-   * duplicando información.
+   * Convierte una solicitud en una tarjeta del panel operativo (vista tarjetas).
+   * Incluye las acciones (detalle, editar, cancelar, eliminar); la vista lista
+   * usa `buildRequestOpsListRow` con la misma tabla estilada que Camiones.
    */
   function buildRequestOpsCard(r, user) {
     const allowEdit = typeof canPortalUserEditTransportRequest === "function" ? canPortalUserEditTransportRequest(r, user) : false;
@@ -96,12 +100,57 @@
     </article>`;
   }
 
+  function buildRequestOpsListRow(r, user) {
+    const allowEdit = typeof canPortalUserEditTransportRequest === "function" ? canPortalUserEditTransportRequest(r, user) : false;
+    const allowClientHardDeletePending =
+      user?.role === ROLES.CLIENT &&
+      typeof canClientEditOwnPendingTransportRequest === "function" &&
+      canClientEditOwnPendingTransportRequest(r, user);
+    const isAdmin = user?.role === ROLES.ADMIN;
+    const companies = read(KEYS.companies, []);
+    const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
+    const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
+    const statusSlug = typeof slugStatus === "function" ? slugStatus(r.status) : String(r.status || "").replace(/\W+/g, "-").toLowerCase();
+    const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
+    const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
+    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || "") || "Sin fecha";
+    const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
+    const tripAssigned = Boolean(r.trip);
+    const valueCell = tripAssigned
+      ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
+      : "Pendiente";
+    const tripCell = r.trip
+      ? `${escapeHtml(String(r.trip.tripNumber || "—"))} · ${escapeHtml(String(r.trip.vehiclePlate || "—"))}`
+      : `<span class="muted">Sin viaje</span>`;
+    const reqNo = String(r.requestNumber || r.id || "—");
+    const cargoShort = cargoLabel.length > 56 ? `${cargoLabel.slice(0, 53)}…` : cargoLabel;
+    return `<tr data-request-id="${escapeAttr(String(r.id || ""))}">
+      <td data-label="Solicitud"><strong class="vehicle-fleet-list-plate">${escapeHtml(reqNo)}</strong></td>
+      <td data-label="Cliente">${escapeHtml(clientName)}</td>
+      <td data-label="Ruta"><span class="vehicle-fleet-list-sub">${escapeHtml(originCity)}</span> → <span class="vehicle-fleet-list-sub">${escapeHtml(destinationCity)}</span></td>
+      <td data-label="Carga"><span class="vehicle-fleet-list-doc" title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoShort)}</span></td>
+      <td data-label="Estado"><span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span></td>
+      <td data-label="Recogida">${escapeHtml(pickupLabel)}</td>
+      <td data-label="Valor">${tripAssigned ? escapeHtml(valueCell) : `<span class="muted">${escapeHtml(valueCell)}</span>`}</td>
+      <td data-label="Viaje">${tripCell}</td>
+      <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
+        <button class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle">${IC.eye} Detalle</button>
+        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.edit} Editar</button>` : ""}
+        ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.x} Cancelar</button>` : ""}
+        ${allowClientHardDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
+        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
+      </div></td>
+    </tr>`;
+  }
+
   /**
-   * Renderiza el grid completo de solicitudes como tarjetas (vista única).
+   * Lista de solicitudes: tarjetas o tabla tipo flota (Camiones).
    * @param {Array} requests lista ya filtrada
    * @param {Object} user usuario actual
+   * @param {string} [layoutRaw] `cards` | `list` (desde `state.requestsUi.listLayout`)
    */
-  function requestOpsCardsHtml(requests, user) {
+  function requestOpsCardsHtml(requests, user, layoutRaw) {
+    const layout = normalizeRequestsListLayout(layoutRaw);
     if (!requests.length) {
       return emptyState("No hay solicitudes para el filtro seleccionado.");
     }
@@ -131,6 +180,15 @@
       typeof renderWindowMoreBar === "function"
         ? renderWindowMoreBar(sorted.length, shown.length, "requests-render-more")
         : "";
+    if (layout === "list") {
+      const rows = shown.map((r) => buildRequestOpsListRow(r, user)).join("");
+      return `<div class="table-wrap vehicle-fleet-list-wrap"><table class="vehicle-fleet-table request-ops-fleet-table">
+        <thead><tr>
+          <th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Carga</th><th>Estado</th><th>Recogida</th><th>Valor</th><th>Viaje</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>${moreBar}`;
+    }
     return `<div class="trip-ops-cards request-ops-cards">${shown.map((r) => buildRequestOpsCard(r, user)).join("")}</div>${moreBar}`;
   }
 
@@ -335,15 +393,21 @@
     try { activeFilter = String((typeof state !== "undefined" && state?.requestsFilter) || "all"); } catch (_) { /* noop */ }
     let listSearchRaw = "";
     let listSearchNorm = "";
+    let listLayout = "cards";
     try {
       listSearchRaw = String((typeof state !== "undefined" && state?.requestsUi?.listSearch) || "");
       listSearchNorm = listSearchRaw.trim().toLowerCase();
+      listLayout = normalizeRequestsListLayout(typeof state !== "undefined" && state?.requestsUi?.listLayout);
     } catch (_) { /* noop */ }
-    const requestSearchToolbar = `<div class="transport-ops-toolbar request-ops-toolbar-search">
+    const requestListToolbar = `<div class="transport-ops-toolbar vehicle-fleet-toolbar request-fleet-toolbar">
       <label class="transport-ops-search">
         <span class="muted">${IC.search || ""} Buscar</span>
         <input type="search" data-action="requests-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Cliente, ruta, número, conductor, estado…" autocomplete="off" />
       </label>
+      <div class="transport-ops-layout" role="group" aria-label="Tarjetas o lista">
+        <button type="button" class="btn btn-sm ${listLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="cards">Tarjetas</button>
+        <button type="button" class="btn btn-sm ${listLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="list">Lista</button>
+      </div>
     </div>`;
     if (user?.role === ROLES.ADMIN) {
       const selectedCompanyId = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "");
@@ -358,16 +422,16 @@
         : statusFiltered;
       const hub = requestAdminCompanyHubHtml(requests, selectedCompanyId);
       const filtersBar = requestFiltersBarHtml(byCompany, activeFilter);
-      const opsCards = requestOpsCardsHtml(afterFilter, user);
+      const opsCards = requestOpsCardsHtml(afterFilter, user, listLayout);
       const headToolbar = `<div class="toolbar request-admin-toolbar">
         <span class="request-admin-toolbar-status">${selectedCompany ? `${IC.briefcase} Filtrando por: <strong>${escapeHtml(selectedCompany.name || "Cliente")}</strong>` : `${IC.briefcase} Vista general multiempresa`}</span>
         <button class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Ver todas las empresas</button>
       </div>`;
       const opsTitle = selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes";
       const opsSubtitle = listSearchNorm
-        ? `${afterFilter.length} de ${statusFiltered.length} con búsqueda activa`
-        : `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}`;
-      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${requestSearchToolbar}${filtersBar}${opsCards}`);
+        ? `${afterFilter.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
+        : `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}${listLayout === "list" ? " · vista lista" : ""}`;
+      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${requestListToolbar}${filtersBar}${opsCards}`);
       return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
     }
     const panelTitle =
@@ -377,16 +441,16 @@
       ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
       : statusFiltered;
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);
-    const opsCards = requestOpsCardsHtml(filtered, user);
+    const opsCards = requestOpsCardsHtml(filtered, user, listLayout);
     /** Barra "Ver: toda empresa / solo mías" va solo arriba del módulo (`requestFormHtml`), no dentro de esta tarjeta. */
     const listMeta = listSearchNorm
-      ? `${filtered.length} de ${statusFiltered.length} con búsqueda activa`
-      : `${filtered.length} de ${requests.length} registradas`;
+      ? `${filtered.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
+      : `${filtered.length} de ${requests.length} registradas${listLayout === "list" ? " · vista lista" : ""}`;
     const opsPanel = pcardWrap(
       "activity",
       panelTitle,
       listMeta,
-      `${requestSearchToolbar}${filtersBar}${opsCards}`
+      `${requestListToolbar}${filtersBar}${opsCards}`
     );
     return opsPanel;
   }

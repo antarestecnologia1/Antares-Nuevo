@@ -2,6 +2,41 @@
  * Transporte · Conductores (`transport-drivers`): HTML y listeners del módulo.
  * Carga con `defer` después de `app.js`.
  */
+function normalizeDriverFleetLayout(raw) {
+  return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
+}
+
+function normalizeDriverStatusFilter(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (["available", "busy", "scheduled", "offline"].includes(v)) return v;
+  return "all";
+}
+
+function normalizeDriverDocFilter(raw) {
+  const v = String(raw || "").trim().toLowerCase();
+  if (["ok", "warning", "expired", "missing"].includes(v)) return v;
+  return "all";
+}
+
+/** Texto agregado para buscar en conductores (insensible a mayúsculas). */
+function driverFleetSearchHaystack(item) {
+  const d = item.raw;
+  const parts = [
+    d.name,
+    d.idDoc,
+    d.phone,
+    d.license,
+    d.licenseCategory,
+    item.companyName,
+    d.email,
+    d.city,
+    d.address,
+    item.tripHeadline,
+    item.tripDetail
+  ];
+  return parts.map((x) => String(x ?? "").toLowerCase()).join(" ");
+}
+
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
   const canEditDriver = canEditFleetDriverAsAdmin();
@@ -154,31 +189,49 @@ function driversHtml() {
   const offlineDrivers = summaries.filter((item) => item.statusSlug === "offline").length;
   const docRiskCount = summaries.filter((item) => item.docBucket !== "ok").length;
   const expiredDocsCount = summaries.filter((item) => item.docBucket === "expired").length;
-  const cards = summaries
-    .map((item) => {
-      const d = item.raw;
-      const initials = String(d.name || "C")
-        .split(/\s+/)
-        .map((part) => part.charAt(0).toUpperCase())
-        .slice(0, 2)
-        .join("");
-      const photoUrlDriver = String(d.photoUrl || "").trim();
-      const hasDriverPhoto = Boolean(
-        photoUrlDriver && (/^https?:\/\//i.test(photoUrlDriver) || /^data:image\//i.test(photoUrlDriver))
-      );
-      const avatarInner = hasDriverPhoto
-        ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
-        : initials;
-      const avatarClass = hasDriverPhoto
-        ? "directory-card__avatar directory-card__avatar--photo"
-        : "directory-card__avatar";
-      const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin telefono";
-      const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
-      const docTone = directoryToneFromBucket(item.docBucket);
-      const opsTone = directoryOpsToneFromSlug(item.statusSlug);
-      const courseTone = directoryToneFromBucket(item.courseMeta.bucket);
-      const licenseFact = `${String(d.license || "-")} · ${item.licenseMeta.label}`;
-      return `<article class="directory-card directory-card--driver directory-card--${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}">
+
+  const driversUi = state.driversUi || {};
+  const fleetSearchRaw = String(driversUi.fleetSearch ?? "");
+  const fleetSearchNorm = fleetSearchRaw.trim().toLowerCase();
+  const fleetLayout = normalizeDriverFleetLayout(driversUi.fleetLayout);
+  const statusFilter = normalizeDriverStatusFilter(driversUi.statusFilter);
+  const docFilter = normalizeDriverDocFilter(driversUi.docFilter);
+  const companyFilter = String(driversUi.companyId ?? "").trim();
+
+  const filteredSummaries = summaries.filter((item) => {
+    if (statusFilter !== "all" && item.statusSlug !== statusFilter) return false;
+    if (docFilter !== "all" && item.docBucket !== docFilter) return false;
+    if (companyFilter && String(item.raw.companyId ?? "").trim() !== companyFilter) return false;
+    if (fleetSearchNorm && !driverFleetSearchHaystack(item).includes(fleetSearchNorm)) return false;
+    return true;
+  });
+
+  const optSel = (value, current) => (String(value) === String(current) ? "selected" : "");
+
+  const renderDriverCard = (item) => {
+    const d = item.raw;
+    const initials = String(d.name || "C")
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join("");
+    const photoUrlDriver = String(d.photoUrl || "").trim();
+    const hasDriverPhoto = Boolean(
+      photoUrlDriver && (/^https?:\/\//i.test(photoUrlDriver) || /^data:image\//i.test(photoUrlDriver))
+    );
+    const avatarInner = hasDriverPhoto
+      ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
+      : initials;
+    const avatarClass = hasDriverPhoto
+      ? "directory-card__avatar directory-card__avatar--photo"
+      : "directory-card__avatar";
+    const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin telefono";
+    const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
+    const docTone = directoryToneFromBucket(item.docBucket);
+    const opsTone = directoryOpsToneFromSlug(item.statusSlug);
+    const courseTone = directoryToneFromBucket(item.courseMeta.bucket);
+    const licenseFact = `${String(d.license || "-")} · ${item.licenseMeta.label}`;
+    return `<article class="directory-card directory-card--driver directory-card--${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}">
         <header class="directory-card__head">
           <div class="directory-card__identity">
             <div class="${avatarClass}">${avatarInner}</div>
@@ -215,11 +268,108 @@ function driversHtml() {
           }
         </footer>
       </article>`;
+  };
+
+  const cardsHtml = filteredSummaries.map(renderDriverCard).join("");
+
+  const driverListRows = filteredSummaries
+    .map((item) => {
+      const d = item.raw;
+      const docTone = directoryToneFromBucket(item.docBucket);
+      const actions = `<div class="toolbar driver-fleet-list-actions">
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.eye} Ver</button>
+          ${
+            canEditDriver
+              ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.edit} Editar</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.toggle} Estado</button>`
+              : ""
+          }
+        </div>`;
+      return `<tr data-driver-id="${escapeAttr(String(d.id ?? ""))}">
+        <td data-label="Conductor"><strong>${escapeHtml(String(d.name || "—"))}</strong><div class="muted driver-fleet-list-sub">${escapeHtml(String(d.idDoc || "—"))}</div></td>
+        <td data-label="Empresa">${escapeHtml(item.companyName)}</td>
+        <td data-label="Estado">${item.statusTag}</td>
+        <td data-label="Docs">${directoryPillHtml(item.docBadge, docTone)}</td>
+        <td data-label="Disponibilidad"><span class="driver-fleet-list-avail">${escapeHtml(item.tripHeadline)}</span><div class="muted driver-fleet-list-sub">${escapeHtml(item.tripDetail)}</div></td>
+        <td data-label="Acciones" class="driver-fleet-list-actions">${actions}</td>
+      </tr>`;
     })
     .join("");
-  const grid = cards
-    ? `<div class="drivers-grid directory-grid">${cards}</div>`
-    : emptyState("No hay conductores registrados.");
+
+  const fleetListTable =
+    fleetLayout === "list" && filteredSummaries.length > 0
+      ? `<div class="table-wrap driver-fleet-list-wrap"><table class="vehicle-fleet-table driver-fleet-table">
+    <thead><tr>
+      <th>Conductor</th><th>Empresa</th><th>Estado</th><th>Documentación</th><th>Disponibilidad</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>${driverListRows}</tbody>
+  </table></div>`
+      : "";
+
+  const fleetCardsGrid =
+    fleetLayout === "cards" && cardsHtml ? `<div class="drivers-grid directory-grid">${cardsHtml}</div>` : "";
+
+  const companies = read(KEYS.companies, []);
+  const companyOptions = [`<option value="" ${companyFilter ? "" : "selected"}>Todas las empresas</option>`]
+    .concat(
+      companies
+        .filter((c) => isCompanyRecordActive(c))
+        .map(
+          (c) =>
+            `<option value="${escapeAttr(String(c.id))}" ${optSel(String(c.id), companyFilter)}>${escapeHtml(String(c.name || ""))}</option>`
+        )
+    )
+    .join("");
+
+  const fleetToolbar =
+    totalDrivers > 0
+      ? `<div class="transport-ops-toolbar driver-fleet-toolbar">
+      <label class="transport-ops-search">
+        <span class="muted">${IC.search || ""} Buscar</span>
+        <input type="search" data-action="drivers-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Nombre, documento, teléfono, empresa…" autocomplete="off" />
+      </label>
+      <div class="transport-ops-layout" role="group" aria-label="Vista de conductores">
+        <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="cards">Tarjetas</button>
+        <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="list">Lista</button>
+      </div>
+      <label class="driver-fleet-filter">${fieldLabel(IC.activity, "Estado")}
+        <select data-action="drivers-fleet-filter" data-filter="status" aria-label="Filtrar por estado operativo">
+          <option value="all" ${optSel("all", statusFilter)}>Todos</option>
+          <option value="available" ${optSel("available", statusFilter)}>Disponible</option>
+          <option value="busy" ${optSel("busy", statusFilter)}>Ocupado</option>
+          <option value="scheduled" ${optSel("scheduled", statusFilter)}>Reservado</option>
+          <option value="offline" ${optSel("offline", statusFilter)}>No disponible</option>
+        </select></label>
+      <label class="driver-fleet-filter">${fieldLabel(IC.file, "Documentación")}
+        <select data-action="drivers-fleet-filter" data-filter="doc" aria-label="Filtrar por riesgo documental">
+          <option value="all" ${optSel("all", docFilter)}>Todas</option>
+          <option value="ok" ${optSel("ok", docFilter)}>Al día</option>
+          <option value="warning" ${optSel("warning", docFilter)}>Por vencer</option>
+          <option value="missing" ${optSel("missing", docFilter)}>Incompleto</option>
+          <option value="expired" ${optSel("expired", docFilter)}>Crítico</option>
+        </select></label>
+      <label class="driver-fleet-filter">${fieldLabel(IC.briefcase, "Empresa")}
+        <select data-action="drivers-fleet-filter" data-filter="company" aria-label="Filtrar por empresa">${companyOptions}</select></label>
+    </div>`
+      : "";
+
+  let fleetMainBody;
+  if (!totalDrivers) {
+    fleetMainBody = emptyState("No hay conductores registrados.");
+  } else if (!filteredSummaries.length) {
+    fleetMainBody = `${fleetToolbar}${emptyState("Ningún conductor coincide con la búsqueda o los filtros.")}`;
+  } else {
+    fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}`;
+  }
+
+  const moduleHint = canEditDriver
+    ? "Alta, baja y ficha completa en Gestión humana. Aquí el admin puede ajustar datos operativos (se copian a GH)."
+    : "Solo consulta. La ficha completa del empleado se edita en Gestión humana.";
+  const filtersActive =
+    Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || Boolean(companyFilter);
+  const driverCardSubtitle = filtersActive
+    ? `${filteredSummaries.length} de ${totalDrivers} conductores${fleetLayout === "list" ? " · vista lista" : ""} · ${moduleHint}`
+    : `${totalDrivers} registrados${fleetLayout === "list" ? " · vista lista" : ""} · ${moduleHint}`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: totalDrivers },
     { label: "Disponibles", value: availableDrivers },
@@ -229,13 +379,7 @@ function driversHtml() {
     { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
     { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
-  const moduleHint = canEditDriver
-    ? "Alta, baja y ficha completa en Gestión humana. Aquí el admin puede ajustar datos operativos (se copian a GH)."
-    : "Solo consulta. La ficha completa del empleado se edita en Gestión humana.";
-  return (
-    heroStrip +
-    pcardWrap("user", "Conductores", `${drivers.length} registrados · ${moduleHint}`, grid)
-  );
+  return heroStrip + pcardWrap("user", "Conductores", driverCardSubtitle, fleetMainBody);
 }
 
 (function registerLegacyViewChunk() {
@@ -252,6 +396,43 @@ function driversHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='delete-driver']").forEach((btn) => {
       btn.addEventListener("click", () => {
         notify(userMessage("driverDeleteUseHr"), "error");
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-fleet-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        state.driversUi = { ...(state.driversUi || {}), fleetSearch: String(el.value || "") };
+        state.__driversFleetSearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-fleet-layout']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const layout = normalizeDriverFleetLayout(btn.dataset.layout);
+        state.driversUi = { ...(state.driversUi || {}), fleetLayout: layout };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-fleet-filter']").forEach((el) => {
+      el.addEventListener("change", () => {
+        const sel = /** @type {HTMLSelectElement} */ (el);
+        const filter = String(sel.dataset.filter || "");
+        const value = String(sel.value || "");
+        const prev = state.driversUi || {};
+        if (filter === "status") {
+          state.driversUi = { ...prev, statusFilter: normalizeDriverStatusFilter(value) };
+        } else if (filter === "doc") {
+          state.driversUi = { ...prev, docFilter: normalizeDriverDocFilter(value) };
+        } else if (filter === "company") {
+          state.driversUi = { ...prev, companyId: value };
+        }
+        renderPortalView();
       });
     });
 
@@ -556,6 +737,24 @@ function driversHtml() {
         });
       });
     });
+
+    const fleetSearchRestore = state.__driversFleetSearchRestore;
+    if (fleetSearchRestore && typeof fleetSearchRestore.start === "number") {
+      delete state.__driversFleetSearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "transport-drivers") return;
+        const inp = root.querySelector("[data-action='drivers-fleet-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(fleetSearchRestore.start, n));
+          const e = Math.max(0, Math.min(fleetSearchRestore.end ?? fleetSearchRestore.start, n));
+          inp.setSelectionRange(s, e);
+        }
+      });
+    }
   }
 
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};

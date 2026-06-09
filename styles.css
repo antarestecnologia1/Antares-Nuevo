@@ -7231,8 +7231,55 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
 }
 
 /* Flota Camiones: buscar + vista lista */
-.vehicle-fleet-toolbar {
+.vehicle-fleet-toolbar,
+.driver-fleet-toolbar {
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.driver-fleet-toolbar {
+  grid-template-columns: minmax(0, 1.15fr) auto minmax(6.5rem, 0.85fr) minmax(6.5rem, 0.85fr) minmax(8rem, 1fr);
+  align-items: end;
+}
+
+.driver-fleet-filter {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.driver-fleet-filter select {
+  min-height: 2.45rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.driver-fleet-list-wrap {
+  margin-top: 0.35rem;
+}
+
+.driver-fleet-list-avail {
+  font-weight: 600;
+  font-size: 0.84rem;
+}
+
+.driver-fleet-list-actions .toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.28rem;
+}
+
+@media (max-width: 1100px) {
+  .driver-fleet-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .driver-fleet-toolbar .transport-ops-search {
+    grid-column: 1 / -1;
+  }
+
+  .driver-fleet-toolbar .transport-ops-layout {
+    justify-content: flex-start;
+  }
 }
 
 .vehicle-fleet-list-wrap {
@@ -7286,8 +7333,29 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
   gap: 0.28rem;
 }
 
+.request-fleet-toolbar {
+  align-items: end;
+}
+
+.trip-ops-fleet-table .trip-ops-list-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.trip-ops-fleet-table .trip-ops-list-status .trip-status-select {
+  max-width: 100%;
+}
+
+.request-ops-fleet-table .vehicle-fleet-list-doc {
+  white-space: normal;
+  max-width: 16rem;
+}
+
 @media (max-width: 960px) {
-  .vehicle-fleet-toolbar {
+  .vehicle-fleet-toolbar,
+  .driver-fleet-toolbar {
     grid-template-columns: 1fr;
   }
 }

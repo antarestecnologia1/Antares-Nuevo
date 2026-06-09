@@ -89,6 +89,14 @@ export let state = {
     /** `cards` | `list` — vista de la flota en Camiones. */
     fleetLayout: "cards"
   },
+  /** Transporte · Conductores: búsqueda, vista y filtros del listado. */
+  driversUi: {
+    fleetSearch: "",
+    fleetLayout: "cards",
+    statusFilter: "all",
+    docFilter: "all",
+    companyId: ""
+  },
   transportTripsUi: {
     workspace: "trips",
     search: "",
@@ -98,7 +106,9 @@ export let state = {
   requestsUi: {
     companyId: "",
     /** Búsqueda en el listado de solicitudes (re-render + restauración de foco). */
-    listSearch: ""
+    listSearch: "",
+    /** `cards` | `list` — mismo patrón que Camiones / Viajes. */
+    listLayout: "cards"
   },
   /**
    * Filtros rápidos persistentes para los paneles operativos. Permiten

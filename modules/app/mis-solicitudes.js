@@ -116,6 +116,14 @@
         renderPortalView();
       });
     });
+
+    nodes.viewRoot.querySelectorAll("[data-action='requests-list-layout']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const layout = String(btn.dataset.layout || "").trim().toLowerCase() === "list" ? "list" : "cards";
+        state.requestsUi = { ...(state.requestsUi || {}), listLayout: layout };
+        renderPortalView();
+      });
+    });
   }
 
   function wireRequestCreateForm() {
