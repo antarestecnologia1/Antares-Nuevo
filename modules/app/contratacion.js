@@ -1107,12 +1107,7 @@ function bindHiringPortalControls() {
         return;
       }
       if (!(await candidateDuplicateDocCheck({ forceServer: false }))) {
-        const dupDetail = readInlineOrNativeFieldError(candidateForm.querySelector("input[name='idDoc']"));
-        notify(
-          dupDetail ||
-            `Ya existe un candidato con el documento ${docValidation.normalized}. Revise el listado de candidatos.`,
-          "error"
-        );
+        /* wireFormDocDuplicateCheck ya notificó y marcó el campo si hay duplicado. */
         return;
       }
       data.idDoc = docValidation.normalized;

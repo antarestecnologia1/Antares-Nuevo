@@ -1273,10 +1273,6 @@ function bindPayrollPortalControls() {
         return;
       }
       if (!await employeeDuplicateDocCheck({ forceServer: true })) {
-        notify(
-          `Ya existe un colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
-          "error"
-        );
         return;
       }
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
@@ -1640,10 +1636,6 @@ function bindPayrollPortalControls() {
           }
           const dupCheck = wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
           if (!(await dupCheck({ forceServer: true }))) {
-            notify(
-              `Ya existe otro colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
-              "error"
-            );
             return false;
           }
           let nextAvatar = String(payload.avatarUrlExisting || "").trim();

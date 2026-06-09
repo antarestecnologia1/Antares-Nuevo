@@ -654,7 +654,7 @@ export function bindHrFormWizard(form) {
         if (!dupOk) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
-          notify("Ya existe un colaborador con ese documento. Revise el número o la ficha existente.", "error");
+          /* El chequeo de duplicado ya mostró notify + error en el campo (wireFormDocDuplicateCheck). */
           return;
         }
       }

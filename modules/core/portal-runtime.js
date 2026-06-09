@@ -9276,7 +9276,11 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     docInput.setCustomValidity?.("");
   };
 
-  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking }) => {
+  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking, suppressToast = false }) => {
+    if (!silent && dupNotifyTimer) {
+      clearTimeout(dupNotifyTimer);
+      dupNotifyTimer = null;
+    }
     if (blocking) {
       docInput.dataset.dupError = "1";
       docInput.dataset.serverDupError = "1";
@@ -9288,6 +9292,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       docInput.setCustomValidity?.("");
       V?.setFieldError?.(docInput, dupMsg);
     }
+    if (suppressToast) return;
     const fireDupToast = () => {
       try {
         if (typeof notify === "function") notify(dupMsg, blocking ? "error" : "info", 4200);
@@ -9346,7 +9351,8 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       const toastKey = `srv:${docVal.normalized}:${companyId || "none"}:${excludeId || "new"}`;
       if (remote.blocking) {
         const dupMsg = `Ya existe un ${entityLabel} con el documento ${docVal.normalized}${who}${scopeTail}. No puede repetirse.`;
-        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true });
+        const dupAlreadyLocal = String(docInput.dataset.dupError || "") === "1";
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true, suppressToast: dupAlreadyLocal });
       } else if (useCompanyScope && !companyId) {
         const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
         applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false });
