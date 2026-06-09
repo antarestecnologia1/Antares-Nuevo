@@ -9286,6 +9286,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     }
     lastDupToastSig = "";
     docInput.dataset.dupLastToastMsg = "";
+    docInput.dataset.dupToastTs = "";
     docInput.dataset.serverDupError = "";
     if (String(docInput.dataset.dupError || "") === "1") {
       docInput.dataset.dupError = "";
@@ -9294,7 +9295,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     docInput.setCustomValidity?.("");
   };
 
-  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking }) => {
+  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking, fromSubmit = false, suppressToast = false }) => {
     if (blocking) {
       docInput.dataset.dupError = "1";
       docInput.dataset.serverDupError = "1";
@@ -9308,13 +9309,22 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     }
     const fireDupToast = () => {
       try {
+        docInput.dataset.dupToastTs = String(Date.now());
         if (typeof notify === "function") notify(dupMsg, blocking ? "error" : "info", 4200);
       } catch (_e) {
         /* noop */
       }
     };
-    if (!silent) {
-      if (docInput.dataset.dupLastToastMsg !== dupMsg) {
+    if (suppressToast) {
+      /* El campo ya quedó marcado; otro paso del mismo chequeo ya mostró (o mostrará) el toast. */
+    } else if (!silent) {
+      /* En submit se re-notifica siempre, salvo que el mismo mensaje acabe de mostrarse
+         (p. ej. el blur del campo al hacer clic en «Guardar» disparó el toast hace un instante). */
+      const lastToastTs = Number(docInput.dataset.dupToastTs || 0);
+      const sameRecentToast =
+        docInput.dataset.dupLastToastMsg === dupMsg && Date.now() - lastToastTs < 1200;
+      const shouldFire = fromSubmit ? !sameRecentToast : docInput.dataset.dupLastToastMsg !== dupMsg;
+      if (shouldFire) {
         docInput.dataset.dupLastToastMsg = dupMsg;
         fireDupToast();
       }
@@ -9341,7 +9351,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     }
   };
 
-  const runServerDuplicateCheck = async ({ silent, docType, docVal, companyId, force = false }) => {
+  const runServerDuplicateCheck = async ({ silent, docType, docVal, companyId, force = false, fromSubmit = false }) => {
     if (!serverCheck || !portalCanRefreshFromApi()) return null;
     const seq = ++serverCheckSeq;
     if (!force) {
@@ -9363,11 +9373,19 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       const scopeTail = useCompanyScope && companyId ? " en esta empresa" : "";
       const toastKey = `srv:${docVal.normalized}:${companyId || "none"}:${excludeId || "new"}`;
       if (remote.blocking) {
+        const localAlreadyBlocking = String(docInput.dataset.dupError || "") === "1";
         const dupMsg = `Ya existe un ${entityLabel} con el documento ${docVal.normalized}${who}${scopeTail}. No puede repetirse.`;
-        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true });
+        applyDuplicateMessage(dupMsg, {
+          silent,
+          toastKey,
+          blocking: true,
+          fromSubmit,
+          /* Si el chequeo local de este mismo ciclo ya notificó el duplicado, no duplicar el toast. */
+          suppressToast: localAlreadyBlocking
+        });
       } else if (useCompanyScope && !companyId) {
         const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
-        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false });
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false, fromSubmit });
       } else {
         clearBlock();
       }
@@ -9377,7 +9395,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     return remote;
   };
 
-  const check = async ({ silent = false, forceServer = false } = {}) => {
+  const check = async ({ silent = false, forceServer = false, fromSubmit = false } = {}) => {
     const rawDoc = String(docInput.value || "").trim();
     if (!rawDoc) {
       clearBlock();
@@ -9412,19 +9430,19 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
         const scopeTail = useCompanyScope ? " en esta empresa" : "";
         const dupMsg = `Ya existe un ${entityLabel} con el documento ${needle}${who}${scopeTail}. No puede repetirse.`;
         const toastKey = `dup:${needle}:${companyId || "none"}:${excludeId || "new"}`;
-        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true });
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true, fromSubmit });
       } else if (useCompanyScope && !companyId) {
         const ref = String(matches[0]?.name || "").trim();
         const who = ref ? ` (${ref})` : "";
         const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
         const toastKey = `warn:${needle}:${excludeId || "new"}`;
-        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false });
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false, fromSubmit });
       } else {
         clearBlock();
       }
     }
     if (serverCheck) {
-      await runServerDuplicateCheck({ silent, docType, docVal, companyId, force: forceServer });
+      await runServerDuplicateCheck({ silent, docType, docVal, companyId, force: forceServer, fromSubmit });
     }
     const blocked =
       String(docInput.dataset.dupError || "") === "1" ||
@@ -10931,10 +10949,10 @@ const COVERAGE_FALLBACK_CORRIDORS = [
   { cityA: "Santa Marta", cityB: "Barranquilla" },
   { cityA: "Barranquilla", cityB: "Cartagena" },
   { cityA: "Cartagena", cityB: "Buenaventura" },
-  { cityA: "Buenaventura", cityB: "Medellin" },
-  { cityA: "Medellin", cityB: "Bogota" },
-  { cityA: "Oriente Antioqueño", cityB: "Medellin" },
-  { cityA: "Medellin", cityB: "Puerto Antioquia" }
+  { cityA: "Buenaventura", cityB: "Medellín" },
+  { cityA: "Medellín", cityB: "Bogotá" },
+  { cityA: "Oriente Antioqueño", cityB: "Medellín" },
+  { cityA: "Medellín", cityB: "Puerto Antioquia" }
 ];
 
 /** Ventana de meses para GET /public/transport-request-coverage-stats (API acota entre 3 y 36). */

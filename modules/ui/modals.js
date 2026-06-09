@@ -650,7 +650,7 @@ export function bindHrFormWizard(form) {
     "submit",
     async (ev) => {
       if (typeof form.__antaresDupDocCheck === "function") {
-        const dupOk = await form.__antaresDupDocCheck({ silent: false, forceServer: true });
+        const dupOk = await form.__antaresDupDocCheck({ silent: false, forceServer: true, fromSubmit: true });
         if (!dupOk) {
           ev.preventDefault();
           ev.stopImmediatePropagation();

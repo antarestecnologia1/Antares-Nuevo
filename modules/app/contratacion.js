@@ -1106,7 +1106,7 @@ function bindHiringPortalControls() {
         notify(docValidation.message, "error");
         return;
       }
-      if (!(await candidateDuplicateDocCheck({ forceServer: false }))) {
+      if (!(await candidateDuplicateDocCheck({ forceServer: false, fromSubmit: true }))) {
         /* wireFormDocDuplicateCheck ya notificó y marcó el campo si hay duplicado. */
         return;
       }

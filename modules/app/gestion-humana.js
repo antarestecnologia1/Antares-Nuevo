@@ -1271,11 +1271,8 @@ function bindPayrollPortalControls() {
         notify(docValidation.message, "error");
         return;
       }
-      if (!await employeeDuplicateDocCheck({ forceServer: true })) {
-        notify(
-          `Ya existe un colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
-          "error"
-        );
+      if (!(await employeeDuplicateDocCheck({ forceServer: true, fromSubmit: true }))) {
+        /* wireFormDocDuplicateCheck ya notificó y marcó el campo con el duplicado. */
         return;
       }
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
@@ -1638,11 +1635,8 @@ function bindPayrollPortalControls() {
             return false;
           }
           const dupCheck = wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
-          if (!(await dupCheck({ forceServer: true }))) {
-            notify(
-              `Ya existe otro colaborador con el documento ${docValidation.normalized} en esta empresa. Use otro número o revise la ficha existente.`,
-              "error"
-            );
+          if (!(await dupCheck({ forceServer: true, fromSubmit: true }))) {
+            /* wireFormDocDuplicateCheck ya notificó y marcó el campo con el duplicado. */
             return false;
           }
           let nextAvatar = String(payload.avatarUrlExisting || "").trim();
