@@ -10913,9 +10913,9 @@ const COVERAGE_MAIN_ROUTES_ES = [
   "Cartagena",
   "Buenaventura",
   "Puerto Antioquia",
-  "Medellin",
+  "Medellín",
   "Oriente Antioqueño",
-  "Bogota"
+  "Bogotá"
 ];
 
 function coverageMainRouteHubRows() {

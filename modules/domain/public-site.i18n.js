@@ -139,10 +139,10 @@ export const PUBLIC_ES_EN_DICT = {
   "Capacidad:": "Capacity:",
   "Cajas:": "Boxes:",
   "Ideal para rutas urbanas y regionales": "Ideal for urban and regional routes",
-  "18 carros turbo en operación": "18 turbo trucks in operation",
+  "39 carros turbo en operación": "39 turbo trucks in operation",
   "Unidades livianas para despachos frecuentes y cadena de frío confiable":
     "Lightweight units for frequent dispatches with a dependable cold chain",
-  "6 tractomulas en operación": "6 tractor-trailers in operation",
+  "29 tractomulas en operación": "29 tractor-trailers in operation",
   "Articulados para el mayor volumen por viaje y trazabilidad en corredor":
     "Articulated rigs for maximum load per trip and corridor-level traceability",
   Tractomula: "Articulated fleet",
