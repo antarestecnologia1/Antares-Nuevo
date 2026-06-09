@@ -28501,3 +28501,241 @@ body[data-theme="dark"] .hr-module-pro--payroll .payroll-data-nav-tab.is-active 
 body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .payroll-data-nav-count {
   color: #f8fafc;
 }
+
+/* ─── NÓMINA v2 — clases generadas por refactorización UI (payroll-v2) ─── */
+/*
+ * payroll-v2.css — Gestión humana / Nómina
+ * Importar DESPUÉS del stylesheet principal de la aplicación.
+ * Agrega las clases nuevas sin tocar las existentes.
+ *
+ * Variables configurables — sobrescribir en :root si el sistema
+ * de diseño usa nombres distintos:
+ */
+:root {
+  --pr-stripe-pending:   #F59E0B;   /* ámbar — liquidación pendiente */
+  --pr-stripe-paid:      #10B981;   /* teal  — liquidación pagada    */
+  --pr-color-net:        #1D4ED8;   /* azul  — importe neto resaltado */
+  --pr-color-ded:        #DC2626;   /* rojo  — deducciones            */
+  --pr-chip-bg:          #EFF6FF;
+  --pr-chip-color:       #1E40AF;
+  --pr-amt-border:       rgba(0,0,0,.08);
+  --pr-amt-net-bg:       rgba(0,0,0,.03);
+  /* Colores de avatar (índice 0-3) */
+  --pr-av0-bg: #DBEAFE; --pr-av0-fg: #1E40AF;  /* azul   */
+  --pr-av1-bg: #D1FAE5; --pr-av1-fg: #065F46;  /* verde  */
+  --pr-av2-bg: #FEF3C7; --pr-av2-fg: #92400E;  /* ámbar  */
+  --pr-av3-bg: #EDE9FE; --pr-av3-fg: #4C1D95;  /* violeta */
+  /* Chips de ausencias */
+  --pr-abs-warn-bg:    #FEF3C7; --pr-abs-warn-fg:    #92400E;
+  --pr-abs-ok-bg:      #D1FAE5; --pr-abs-ok-fg:      #065F46;
+  --pr-abs-info-bg:    #DBEAFE; --pr-abs-info-fg:    #1E3A8A;
+  --pr-abs-neutral-bg: #F3F4F6; --pr-abs-neutral-fg: #374151;
+  /* Badge SMMLV / Prestación */
+  --pr-badge-smmlv-bg: #EDE9FE; --pr-badge-smmlv-fg: #4C1D95;
+  --pr-badge-driver-bg:#FEF3C7; --pr-badge-driver-fg:#92400E;
+  /* Barra de alerta de contrato */
+  --pr-contract-alert-bg:  #FFFBEB; --pr-contract-alert-fg:  #92400E; --pr-contract-alert-bd: #FDE68A;
+  --pr-contract-expired-bg:#FEF2F2; --pr-contract-expired-fg:#991B1B; --pr-contract-expired-bd:#FECACA;
+}
+
+/* ─── TARJETA DE LIQUIDACIÓN ─────────────────────────────────────────── */
+
+.payroll-run-card {
+  position: relative;   /* necesario para la franja absoluta */
+  overflow: hidden;     /* recorta la franja en las esquinas redondeadas */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Franja lateral de estado (4 px, sin border-radius propio) */
+.payroll-run-stripe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 0;
+  background: transparent;
+}
+.payroll-run-card--pending .payroll-run-stripe { background: var(--pr-stripe-pending); }
+.payroll-run-card--paid    .payroll-run-stripe { background: var(--pr-stripe-paid);    }
+
+/* Encabezado: tipo / periodo / nombre + badge de estado */
+.payroll-run-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 13px 13px 9px 20px; /* 20 px izquierda despeja la franja */
+  gap: 10px;
+}
+.payroll-run-card-identity { flex: 1; min-width: 0; }
+.payroll-run-card-kicker {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--muted, #6B7280);
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+.payroll-run-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  line-height: 1.2;
+}
+.payroll-run-card-employee {
+  font-size: 12px;
+  color: var(--muted, #6B7280);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chips de etiquetas (Prima, Int. cesantías, Ausentismo…) */
+.payroll-run-card-chips {
+  display: flex;
+  gap: 5px;
+  padding: 0 20px 9px;
+  flex-wrap: wrap;
+}
+.payroll-run-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--pr-chip-bg);
+  color: var(--pr-chip-color);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Grid de importes: 3 columnas (col1 | col2 | Neto) */
+.payroll-run-amounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  border-top: 1px solid var(--pr-amt-border);
+  border-bottom: 1px solid var(--pr-amt-border);
+}
+.payroll-run-amount-col {
+  padding: 10px 13px 10px 20px; /* primer col: 20 px izquierda */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.payroll-run-amount-col + .payroll-run-amount-col {
+  padding-left: 12px;
+  border-left: 1px solid var(--pr-amt-border);
+}
+.payroll-run-amount-col--net {
+  background: var(--pr-amt-net-bg);
+}
+.payroll-run-amount-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--muted, #6B7280);
+  font-weight: 600;
+}
+.payroll-run-amount-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.payroll-run-amount-value--ded { color: var(--pr-color-ded); }
+.payroll-run-amount-value--net {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--pr-color-net);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Acciones de la tarjeta */
+.payroll-run-card-actions.toolbar {
+  padding: 9px 13px 9px 20px;
+  flex-wrap: wrap;
+}
+
+/* ─── TARJETA DE EMPLEADO (modo compact) ─────────────────────────────── */
+
+/* Avatar con inicial: 4 colores basados en hash del nombre */
+.payroll-emp-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: -.5px;
+}
+.payroll-emp-avatar--0 { background: var(--pr-av0-bg); color: var(--pr-av0-fg); }
+.payroll-emp-avatar--1 { background: var(--pr-av1-bg); color: var(--pr-av1-fg); }
+.payroll-emp-avatar--2 { background: var(--pr-av2-bg); color: var(--pr-av2-fg); }
+.payroll-emp-avatar--3 { background: var(--pr-av3-bg); color: var(--pr-av3-fg); }
+
+/* Chip de rol (Empleado / Conductor · prestación servicios) */
+.payroll-emp-role-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  background: rgba(0,0,0,.05);
+  color: var(--text, #374151);
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Salario con cifras tabulares */
+.payroll-emp-salary {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Badges de meta (SMMLV, Prestación) */
+.payroll-emp-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+.payroll-emp-badge--smmlv { background: var(--pr-badge-smmlv-bg); color: var(--pr-badge-smmlv-fg); }
+.payroll-emp-badge--driver { background: var(--pr-badge-driver-bg); color: var(--pr-badge-driver-fg); }
+
+/* Barra de alerta de contrato (inferior a la fila compacta) */
+.payroll-emp-contract-alert {
+  padding: 6px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  background: var(--pr-contract-alert-bg);
+  color: var(--pr-contract-alert-fg);
+  border-top: 1px solid var(--pr-contract-alert-bd);
+}
+.payroll-emp-contract-alert--expired {
+  background: var(--pr-contract-expired-bg);
+  color: var(--pr-contract-expired-fg);
+  border-top-color: var(--pr-contract-expired-bd);
+}
+
+/* ─── CHIPS DE TIPO DE AUSENCIA (tabla de ausencias) ─────────────────── */
+
+.payroll-abs-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.payroll-abs-chip--warn    { background: var(--pr-abs-warn-bg);    color: var(--pr-abs-warn-fg);    }
+.payroll-abs-chip--ok      { background: var(--pr-abs-ok-bg);      color: var(--pr-abs-ok-fg);      }
+.payroll-abs-chip--info    { background: var(--pr-abs-info-bg);    color: var(--pr-abs-info-fg);    }
+.payroll-abs-chip--neutral { background: var(--pr-abs-neutral-bg); color: var(--pr-abs-neutral-fg); }

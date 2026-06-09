@@ -296,64 +296,69 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
   const monthLabel = formatPayrollPeriodLabel(run.month);
   const typeLabel = payrollRunTypeLabel(run);
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
+  const isDriverRun = payrollRunIsDriverTripPayment(run);
+  const hasAbsenceDetail =
+    String(run.payrollKind || "mensual") !== "terminacion" &&
+    payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
   const tags = [];
-  const hasAbsenceDetail = String(run.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(run, read(KEYS.hrAbsences, []));
   if (orig === "masiva") tags.push("Masiva");
   else if (orig === "automatica") tags.push("Automática");
-  if (payrollRunIsDriverTripPayment(run)) tags.push("Prestación viajes");
-  if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima");
+  if (isDriverRun) tags.push("Prestación viajes");
+  if (parseNum(run.primaServiciosCop) > 0) tags.push("Prima de servicios");
   if (parseNum(run.interesesCesantiasCop) > 0) tags.push("Int. cesantías");
   if (hasAbsenceDetail) tags.push("Ausentismo");
-  const tagsHtml =
-    !compact && tags.length
-      ? `<p class="payroll-run-card-tags">${tags.map((t) => `<span>${escapeHtml(t)}</span>`).join("")}</p>`
-      : "";
   const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
   const statusHtml = paid
     ? '<span class="status status-viaje_asignado">Pagado</span>'
     : '<span class="status status-pendiente">Pendiente</span>';
   const tripYm = String(run.month || "").slice(0, 7);
+  // Chips de etiquetas — visibles siempre (compact o no)
+  const tagsHtml = tags.length
+    ? `<div class="payroll-run-card-chips">${tags.map((t) => `<span class="payroll-run-chip">${escapeHtml(t)}</span>`).join("")}</div>`
+    : "";
+  // Columnas del grid de importes: conductores muestran viáticos/combustible; nómina muestra devengado/deducciones
+  const col1Label = isDriverRun ? "Viáticos" : "Devengado";
+  const col1Val = isDriverRun ? parseNum(run.travelAllowance || 0) : parseNum(run.gross);
+  const col2Label = isDriverRun ? "Combustible" : "Deducciones";
+  const col2Val = isDriverRun ? parseNum(run.fuelReimbursement || 0) : parseNum(run.deductions);
+  const col2Neg = !isDriverRun;
+  const amountsHtml = `<div class="payroll-run-amounts">
+    <div class="payroll-run-amount-col">
+      <span class="payroll-run-amount-label">${escapeHtml(col1Label)}</span>
+      <span class="payroll-run-amount-value">$${col1Val.toLocaleString("es-CO")}</span>
+    </div>
+    <div class="payroll-run-amount-col">
+      <span class="payroll-run-amount-label">${escapeHtml(col2Label)}</span>
+      <span class="payroll-run-amount-value${col2Neg ? " payroll-run-amount-value--ded" : ""}">
+        ${col2Neg ? "-" : ""}$${col2Val.toLocaleString("es-CO")}
+      </span>
+    </div>
+    <div class="payroll-run-amount-col payroll-run-amount-col--net">
+      <span class="payroll-run-amount-label">Neto</span>
+      <span class="payroll-run-amount-value payroll-run-amount-value--net">$${parseNum(run.net).toLocaleString("es-CO")}</span>
+    </div>
+  </div>`;
   const actions = `<div class="payroll-run-card-actions toolbar">
       <button class="btn btn-sm btn-action" type="button" data-action="payslip" data-id="${escapeAttr(String(run.id))}" title="Desprendible">${IC.printer}${compact ? "" : " Desprendible"}</button>
-      ${
-        !paid && payrollRunIsDriverTripPayment(run)
-          ? `<button class="btn btn-sm btn-outline" type="button" data-action="recalc-driver-trip" data-employee-id="${escapeAttr(String(run.employeeId))}" data-month="${escapeAttr(tripYm)}" title="Recalcular desde viajes y combustible">${IC.activity}${compact ? "" : " Recalcular"}</button>`
-          : ""
-      }
+      ${!paid && isDriverRun
+        ? `<button class="btn btn-sm btn-outline" type="button" data-action="recalc-driver-trip" data-employee-id="${escapeAttr(String(run.employeeId))}" data-month="${escapeAttr(tripYm)}" title="Recalcular desde viajes y combustible">${IC.activity}${compact ? "" : " Recalcular"}</button>`
+        : ""}
       ${!paid ? `<button class="btn btn-sm btn-approve" type="button" data-action="mark-payroll-paid" data-id="${escapeAttr(String(run.id))}" title="Marcar pagado">${IC.check}${compact ? "" : " Marcar pagado"}</button>` : ""}
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(run.id))}" title="Eliminar liquidación">${IC.trash}</button>` : ""}
     </div>`;
-  const metricsHtml = compact
-    ? `<dl class="payroll-run-card-metrics payroll-run-card-metrics--compact">
-      <div><dt>Devengado</dt><dd>$${parseNum(run.gross).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Deducciones</dt><dd>$${parseNum(run.deductions).toLocaleString("es-CO")}</dd></div>
-      <div class="payroll-run-card-net"><dt>Neto</dt><dd>$${parseNum(run.net).toLocaleString("es-CO")}</dd></div>
-    </dl>`
-    : `<dl class="payroll-run-card-metrics">
-      <div><dt>Devengado</dt><dd>$${parseNum(run.gross).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Viáticos</dt><dd>$${parseNum(run.travelAllowance || 0).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Combustible</dt><dd>$${parseNum(run.fuelReimbursement || 0).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Deducciones</dt><dd>$${parseNum(run.deductions).toLocaleString("es-CO")}</dd></div>
-      <div class="payroll-run-card-net"><dt>Neto a pagar</dt><dd>$${parseNum(run.net).toLocaleString("es-CO")}</dd></div>
-    </dl>`;
   const compactClass = compact ? " payroll-run-card--compact" : "";
-  const compactTags =
-    compact && tags.length
-      ? `<span class="payroll-run-card-tags payroll-run-card-tags--compact" role="list">${tags
-          .map((t) => `<span class="payroll-run-tag" role="listitem">${escapeHtml(t)}</span>`)
-          .join("")}</span>`
-      : "";
   return `<article class="payroll-run-card payroll-run-card--${stateTone}${compactClass}" data-payroll-state="${stateTone}">
+    <div class="payroll-run-stripe" aria-hidden="true"></div>
     <header class="payroll-run-card-head">
-      <div>
+      <div class="payroll-run-card-identity">
         <p class="payroll-run-card-kicker">${escapeHtml(typeLabel)}</p>
         <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>
-        <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}${compactTags}</p>
-        ${tagsHtml}
+        <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}</p>
       </div>
       ${statusHtml}
     </header>
-    ${metricsHtml}
+    ${tagsHtml}
+    ${amountsHtml}
     ${actions}
   </article>`;
 }
@@ -2175,8 +2180,7 @@ function defaultAdminUsersUi() {
     createUserMinimized: false,
     createCompanyMinimized: false,
     editMinimized: false,
-    permissionsMinimized: false,
-    directorySearch: ""
+    permissionsMinimized: false
   };
 }
 
@@ -6600,20 +6604,34 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     (contract.statusSlug === "notice_window" || contract.statusSlug === "expired");
   const compactClass = compact ? " directory-card--compact" : "";
   if (compact) {
-    const contractBlock = showContractAlert ? contractOps : "";
-    return `<article class="directory-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}${compactClass}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+    // Índice de color de avatar (0-3) basado en hash del nombre — consistente entre renders
+    let avColorIdx = 0;
+    if (e.name) {
+      let h = 0;
+      for (let ci = 0; ci < e.name.length; ci++) h = ((h << 5) - h + e.name.charCodeAt(ci)) | 0;
+      avColorIdx = Math.abs(h) % 4;
+    }
+    const smmlvRef =
+      typeof CO_PAYROLL !== "undefined" && CO_PAYROLL?.smmlv ? CO_PAYROLL.smmlv : 1300000;
+    const isSmmlv = item.salaryCop > 0 && item.salaryCop <= smmlvRef;
+    const contractAlertBar = showContractAlert
+      ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
+      : "";
+    return `<article class="directory-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
     <div class="directory-card__compact-row">
-      <div class="${avatarClass}">${avatarInner}</div>
+      <div class="payroll-emp-avatar payroll-emp-avatar--${avColorIdx}" aria-hidden="true">${escapeHtml(initials)}</div>
       <div class="directory-card__compact-main">
         <h4 class="directory-card__title">${escapeHtml(String(e.name || "Colaborador"))}</h4>
-        <p class="directory-card__subline muted">${escapeHtml(item.roleLabel)} · ${escapeHtml(docLine)}</p>
+        <p class="directory-card__subline">
+          <span class="payroll-emp-role-chip">${escapeHtml(item.roleLabel)}</span>
+          <span class="muted">${escapeHtml(docLine)}</span>
+        </p>
       </div>
       <div class="directory-card__compact-meta">
+        ${isSmmlv ? '<span class="payroll-emp-badge payroll-emp-badge--smmlv" title="Salario en el rango del SMMLV">SMMLV</span>' : ""}
+        ${item.isDriverSvc ? '<span class="payroll-emp-badge payroll-emp-badge--driver">Prestación</span>' : ""}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
-        <div class="directory-card__salary-stack" title="Salario base mensual">
-          <span class="directory-card__salary-kicker">Salario</span>
-          <span class="directory-card__salary-amount" aria-label="Salario base en pesos colombianos">$${item.salaryCop.toLocaleString("es-CO")}</span>
-        </div>
+        <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
       </div>
       <div class="directory-card__compact-actions toolbar">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
@@ -6623,7 +6641,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         ${selectHtml}
       </div>
     </div>
-    ${contractBlock}
+    ${contractAlertBar}
   </article>`;
   }
   return `<article class="directory-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
@@ -9276,11 +9294,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     docInput.setCustomValidity?.("");
   };
 
-  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking, suppressToast = false }) => {
-    if (!silent && dupNotifyTimer) {
-      clearTimeout(dupNotifyTimer);
-      dupNotifyTimer = null;
-    }
+  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking }) => {
     if (blocking) {
       docInput.dataset.dupError = "1";
       docInput.dataset.serverDupError = "1";
@@ -9292,7 +9306,6 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       docInput.setCustomValidity?.("");
       V?.setFieldError?.(docInput, dupMsg);
     }
-    if (suppressToast) return;
     const fireDupToast = () => {
       try {
         if (typeof notify === "function") notify(dupMsg, blocking ? "error" : "info", 4200);
@@ -9351,8 +9364,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       const toastKey = `srv:${docVal.normalized}:${companyId || "none"}:${excludeId || "new"}`;
       if (remote.blocking) {
         const dupMsg = `Ya existe un ${entityLabel} con el documento ${docVal.normalized}${who}${scopeTail}. No puede repetirse.`;
-        const dupAlreadyLocal = String(docInput.dataset.dupError || "") === "1";
-        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true, suppressToast: dupAlreadyLocal });
+        applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: true });
       } else if (useCompanyScope && !companyId) {
         const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
         applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false });
