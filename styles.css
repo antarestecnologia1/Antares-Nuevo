@@ -7230,6 +7230,81 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
   margin: 0;
 }
 
+/* Flota Camiones: buscar + vista lista */
+.vehicle-fleet-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.vehicle-fleet-list-wrap {
+  margin-top: 0.35rem;
+}
+
+.vehicle-fleet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.vehicle-fleet-table th,
+.vehicle-fleet-table td {
+  padding: 0.52rem 0.62rem;
+  border-bottom: 1px solid rgba(var(--primary-rgb), 0.1);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.vehicle-fleet-table th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5b6f8d;
+  background: linear-gradient(180deg, #edf4fd 0%, #e6f0fb 100%);
+  white-space: nowrap;
+}
+
+.vehicle-fleet-table tbody tr:hover {
+  background: rgba(var(--primary-rgb), 0.04);
+}
+
+.vehicle-fleet-list-plate {
+  letter-spacing: 0.04em;
+}
+
+.vehicle-fleet-list-sub {
+  font-size: 0.74rem;
+  margin-top: 0.1rem;
+}
+
+.vehicle-fleet-list-doc {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.vehicle-fleet-list-actions .toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.28rem;
+}
+
+@media (max-width: 960px) {
+  .vehicle-fleet-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+body[data-theme="dark"] .vehicle-fleet-table th {
+  background: linear-gradient(180deg, rgba(26, 48, 76, 0.95), rgba(19, 37, 58, 0.92));
+  color: #b8d4f0;
+}
+
+body[data-theme="dark"] .vehicle-fleet-table td {
+  border-bottom-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .vehicle-fleet-table tbody tr:hover {
+  background: rgba(148, 196, 255, 0.06);
+}
+
 .trip-ops-card--vehicle .vehicle-plate-title {
   font-family: "Roboto", "Montserrat", sans-serif;
   font-weight: 800;

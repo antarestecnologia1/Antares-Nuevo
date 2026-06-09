@@ -81,7 +81,11 @@ export let state = {
     createCompany: {}
   },
   vehiclesUi: {
-    workspace: "fleet"
+    workspace: "fleet",
+    /** Búsqueda en la pestaña Flota (placa, marca, VIN, etc.). */
+    fleetSearch: "",
+    /** `cards` | `list` — vista de la flota en Camiones. */
+    fleetLayout: "cards"
   },
   transportTripsUi: {
     workspace: "trips",

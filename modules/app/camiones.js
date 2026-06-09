@@ -2,10 +2,48 @@
  * Transporte · Camiones (`transport-vehicles`): HTML y listeners del módulo.
  * Carga con `defer` después de `app.js`.
  */
+function normalizeVehicleFleetLayout(raw) {
+  return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
+}
+
+/** Texto agregado para filtrar en la flota (insensible a mayúsculas). */
+function vehicleFleetSearchHaystack(v) {
+  const parts = [
+    v.plate,
+    v.brand,
+    v.model,
+    v.type,
+    v.year,
+    v.color,
+    v.vin,
+    v.engineNumber,
+    v.ownershipCard,
+    v.gpsProvider,
+    v.bodyType,
+    v.fuelType,
+    v.axleConfig,
+    v.capacityKg,
+    v.rcPolicyContract,
+    v.rcPolicyExtra
+  ];
+  return parts.map((x) => String(x ?? "").toLowerCase()).join(" ");
+}
+
+function vehicleMatchesFleetSearch(v, qNorm) {
+  if (!qNorm) return true;
+  return vehicleFleetSearchHaystack(v).includes(qNorm);
+}
+
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
   const vehiclesUi = state.vehiclesUi || { workspace: "fleet" };
+  const fleetSearchRaw = String(vehiclesUi.fleetSearch ?? "");
+  const fleetSearchNorm = fleetSearchRaw.trim().toLowerCase();
+  const fleetLayout = normalizeVehicleFleetLayout(vehiclesUi.fleetLayout);
+  const filteredVehicles = fleetSearchNorm
+    ? vehicles.filter((v) => vehicleMatchesFleetSearch(v, fleetSearchNorm))
+    : vehicles;
   const canEditVeh = canEditVehicle();
   const canToggleVeh = canToggleVehicleStatus();
   const canDeleteVeh = canDeleteVehicle();
@@ -16,7 +54,12 @@ function vehiclesHtml() {
   if (vehicleWorkspace === "create" && !canCreateVeh) vehicleWorkspace = "fleet";
   if (vehicleWorkspace === "fuel" && !canFuelLogs) vehicleWorkspace = "fleet";
   if (vehicleWorkspace === "technical" && !canTechnicalLogs) vehicleWorkspace = "fleet";
-  state.vehiclesUi = { ...vehiclesUi, workspace: vehicleWorkspace };
+  state.vehiclesUi = {
+    ...vehiclesUi,
+    workspace: vehicleWorkspace,
+    fleetSearch: fleetSearchRaw,
+    fleetLayout
+  };
   const activeTrips = getActiveTrips();
   const activeTripsByVehicleId = new Map();
   activeTrips.forEach((r) => {
@@ -74,7 +117,7 @@ function vehiclesHtml() {
     return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
       ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
   }).length;
-  const vehicleCards = vehicles
+  const vehicleCards = filteredVehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
@@ -218,9 +261,78 @@ function vehiclesHtml() {
 
     ${renderManagedCreateFormActions("create-vehicle", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar vehículo</button>`)}
   </form>`;
-  const tableBody = vehicleCards
-    ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>`
-    : emptyState("No hay vehículos registrados.");
+  const vehicleListRows = filteredVehicles
+    .map((v) => {
+      const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+      const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
+      const isRefrigerated = vehicleHasTermokingEquipment(v);
+      const occupancy = resolveVehicleOccupancy(v.id);
+      const availabilityTag = isManuallyUnavailable(v)
+        ? '<span class="status status-fleet-offline">No disponible</span>'
+        : occupancy.tone === "busy"
+          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
+          : occupancy.tone === "scheduled"
+            ? '<span class="status status-fleet-programado">Reservado</span>'
+            : '<span class="status status-fleet-disponible">Disponible</span>';
+      const plate = String(v.plate || "—").toUpperCase();
+      const typeLabel = String(v.type || "Vehículo").trim() || "Vehículo";
+      const brandModel =
+        `${String(v.brand || "").trim()}${v.brand && v.model ? " · " : ""}${String(v.model || "").trim()}${v.year ? ` · ${v.year}` : ""}`.trim() ||
+        "—";
+      const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "—";
+      const cold = isRefrigerated ? "TK" : "Seco";
+      return `<tr data-vehicle-id="${escapeAttr(String(v.id || ""))}">
+        <td data-label="Placa"><strong class="vehicle-fleet-list-plate">${escapeHtml(plate)}</strong><div class="muted vehicle-fleet-list-sub">${escapeHtml(typeLabel)} · ${escapeHtml(cold)}</div></td>
+        <td data-label="Marca / modelo">${escapeHtml(brandModel)}</td>
+        <td data-label="Estado">${availabilityTag}</td>
+        <td data-label="SOAT"><span class="vehicle-fleet-list-doc">${escapeHtml(soat.label)}</span></td>
+        <td data-label="Tecno"><span class="vehicle-fleet-list-doc">${escapeHtml(tecno.label)}</span></td>
+        <td data-label="Cap.">${escapeHtml(capacityLabel)}</td>
+        <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha">${IC.eye} Ver</button>
+          ${canEditVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}">${IC.edit} Editar</button>` : ""}
+          ${canToggleVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}">${IC.toggle} Estado</button>` : ""}
+          ${canDeleteVeh ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${escapeAttr(String(v.id))}">${IC.trash} Eliminar</button>` : ""}
+        </div></td>
+      </tr>`;
+    })
+    .join("");
+  const fleetToolbar =
+    totalCount > 0
+      ? `<div class="transport-ops-toolbar vehicle-fleet-toolbar">
+      <label class="transport-ops-search">
+        <span class="muted">${IC.search || IC.eye} Buscar en flota</span>
+        <input type="search" data-action="vehicles-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Placa, marca, modelo, VIN, motor, GPS, tarjeta…" autocomplete="off" />
+      </label>
+      <div class="transport-ops-layout" role="group" aria-label="Vista de flota">
+        <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="cards">Tarjetas</button>
+        <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="list">Lista</button>
+      </div>
+    </div>`
+      : "";
+  const fleetListTable =
+    fleetLayout === "list" && filteredVehicles.length > 0
+      ? `<div class="table-wrap vehicle-fleet-list-wrap"><table class="vehicle-fleet-table">
+    <thead><tr>
+      <th>Placa</th><th>Marca / modelo</th><th>Estado</th><th>SOAT</th><th>Tecnomecánica</th><th>Capacidad</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>${vehicleListRows}</tbody>
+  </table></div>`
+      : "";
+  const fleetCardsGrid = fleetLayout === "cards" && vehicleCards ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>` : "";
+  let fleetMainBody;
+  if (!totalCount) {
+    fleetMainBody = emptyState("No hay vehículos registrados.");
+  } else if (!filteredVehicles.length) {
+    fleetMainBody = `${fleetToolbar}${emptyState("Ningún vehículo coincide con la búsqueda. Pruebe otras palabras o borre el filtro.")}`;
+  } else {
+    fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}`;
+  }
+  const fleetCardSubtitle = fleetSearchNorm
+    ? `${filteredVehicles.length} de ${totalCount} vehículos`
+    : fleetLayout === "list"
+      ? `${totalCount} vehículos · vista lista`
+      : `${totalCount} vehículos`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Flota", value: totalCount },
     { label: "Disponibles", value: availableCount },
@@ -241,7 +353,7 @@ function vehiclesHtml() {
     valueAttr: "workspace",
     tabs: vehicleWorkspaceTabs
   });
-  const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", vehicles.length + " vehículos", tableBody)}</div>`;
+  const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", fleetCardSubtitle, fleetMainBody)}</div>`;
   const createPanel = canCreateVeh
     ? `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
@@ -270,6 +382,21 @@ function vehiclesHtml() {
       btn.addEventListener("click", () => {
         const workspace = normalizeVehicleWorkspaceSection(btn.dataset.workspace);
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-fleet-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetSearch: String(input.value || "") };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-fleet-layout']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const layout = normalizeVehicleFleetLayout(btn.dataset.layout);
+        state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetLayout: layout };
         renderPortalView();
       });
     });
