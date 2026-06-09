@@ -20205,6 +20205,34 @@ body[data-theme="dark"] .profile-form-centered {
   --module-accent-end: #4a8ee8;
 }
 
+/* Contratación (workspace): ancho real del panel + tablas que usen más alto de pantalla */
+.module-shell[data-module-view="hiring"] .module-shell-body {
+  width: 100%;
+  max-width: none;
+}
+
+.hiring-shell--workspace .hr-workspace-panels,
+.hiring-shell--workspace .payroll-data-panel,
+.hiring-shell--workspace .payroll-data-panes,
+.hiring-shell--workspace .payroll-data-pane:not(.hidden),
+.hiring-shell--workspace .payroll-table-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.hiring-shell--workspace .table-wrap {
+  max-height: min(78vh, 52rem);
+}
+
+.hiring-shell--workspace .hiring-table {
+  min-width: max(100%, 68rem);
+}
+
+.hiring-shell--workspace .hiring-table--positions .hiring-table-cell-actions .toolbar {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .module-shell[data-module-view="admin-users"] {
   --module-accent-start: #5a73d4;
   --module-accent-end: #4a8cc9;
