@@ -10454,39 +10454,6 @@ body[data-theme="dark"] .b2b-leads-brief {
   overflow: hidden;
 }
 
-/* Banda CTA previa a las columnas del footer */
-.footer-cta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.2rem 2rem;
-  padding: clamp(1.4rem, 3vw, 2rem) clamp(1.2rem, 3vw, 2.2rem);
-  margin-bottom: clamp(2rem, 4vw, 3rem);
-  border-radius: 18px;
-  background: linear-gradient(120deg, rgba(55, 124, 192, 0.22), rgba(55, 124, 192, 0.08));
-  border: 1px solid rgba(125, 175, 230, 0.28);
-  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.65);
-}
-
-.footer-cta-copy h3 {
-  margin: 0 0 0.35rem;
-  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
-  color: #ffffff;
-}
-
-.footer-cta-copy p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.95rem;
-}
-
-.footer-cta-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem;
-}
-
 .footer-bg-truck {
   position: absolute;
   right: -20px;
@@ -10507,23 +10474,38 @@ body[data-theme="dark"] .b2b-leads-brief {
 
 @media (min-width: 880px) {
   .footer-grid {
-    grid-template-columns: minmax(320px, 1.45fr) minmax(160px, 0.85fr) minmax(160px, 0.85fr);
-    align-items: center;
+    grid-template-columns: minmax(260px, 1.35fr) minmax(140px, 0.75fr) minmax(140px, 0.75fr);
+    align-items: start;
+    gap: clamp(2rem, 4vw, 3rem);
   }
 
-  .footer-grid.footer-grid-main {
-    grid-template-columns: minmax(300px, 1.5fr) minmax(140px, 0.7fr) minmax(220px, 1.1fr) minmax(180px, 0.9fr);
-    align-items: start;
+  .footer-brand-logo-wrap {
+    width: min(100%, 260px);
+    max-width: 260px;
   }
+
+  .footer-brand-logo {
+    max-height: 62px;
+  }
+
+  .footer-brand-copy,
+  .footer-brand-contact {
+    max-width: 24rem;
+  }
+}
+
+.footer-col-brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .footer-brand {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: clamp(1rem, 3.2vw, 2.25rem);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
   margin-bottom: 0;
-  flex-wrap: wrap;
   width: 100%;
 }
 
@@ -10536,36 +10518,31 @@ body[data-theme="dark"] .b2b-leads-brief {
 /* Logo PNG: azules sobre negro. Pastilla blanca deja un bloque negro duro; en fondo oscuro
    conviene pantalla (screen) para que el negro se integre y la marca gane legibilidad. */
 .footer-brand-logo-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   flex: 0 0 auto;
-  max-width: min(480px, 100%);
+  width: min(100%, 240px);
+  max-width: 240px;
   min-width: 0;
   line-height: 0;
-  padding: 4px 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 .footer-brand-logo {
   display: block;
-  height: clamp(84px, 10.5vw, 120px);
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  height: auto;
+  max-height: 58px;
   object-fit: contain;
   object-position: left center;
   user-select: none;
   -webkit-user-drag: none;
   mix-blend-mode: screen;
-  filter: contrast(1.22) saturate(1.16) brightness(1.08);
+  filter: contrast(1.14) saturate(1.1) brightness(1.06);
 }
 
 .footer-brand-copy {
-  flex: 1 1 220px;
-  min-width: min(100%, 200px);
-  max-width: 36rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 22rem;
 }
 
 .footer-brand-copy p {
@@ -10575,43 +10552,9 @@ body[data-theme="dark"] .b2b-leads-brief {
   color: rgba(255, 255, 255, 0.82);
 }
 
-/* Variante apilada: logo arriba, descripción debajo (columna de marca) */
-.footer-brand.footer-brand-stacked {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.9rem;
-}
-
-.footer-brand-stacked .footer-brand-logo {
-  height: clamp(72px, 8vw, 96px);
-}
-
-.footer-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1.1rem;
-}
-
-.footer-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.34rem 0.72rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.78rem;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.footer-badge-icon {
-  width: 14px;
-  height: 14px;
-  color: var(--accent, #7db4e8);
-  flex: 0 0 auto;
+.footer-brand-contact {
+  margin-top: 1.25rem;
+  max-width: 22rem;
 }
 
 .footer-brand h3 {
@@ -10741,10 +10684,6 @@ body[data-theme="dark"] .b2b-leads-brief {
   flex: 0 0 auto;
 }
 
-.footer-social-title {
-  margin-top: 1.4rem;
-}
-
 .footer-social {
   display: flex;
   gap: 0.5rem;
@@ -10776,48 +10715,67 @@ body[data-theme="dark"] .b2b-leads-brief {
 }
 
 .footer-bottom {
-  margin-top: 2rem;
-  padding-top: 1.2rem;
+  margin-top: 2.4rem;
+  padding: 1.1rem 0;
   border-top: 1px solid rgba(255,255,255,0.08);
-  text-align: center;
+  background: rgba(0, 0, 0, 0.18);
   font-size: 0.9rem;
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.55);
 }
 
-@media (max-width: 600px) {
-  .footer-brand {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.9rem;
-  }
+.footer-bottom-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1.5rem;
+}
 
+.footer-top-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.84rem;
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.footer-top-btn:hover {
+  background: var(--primary, #377cc0);
+  border-color: var(--primary, #377cc0);
+  color: #ffffff;
+}
+
+.footer-top-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.footer-top-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
   .footer-brand-logo-wrap {
-    max-width: 100%;
+    width: min(100%, 200px);
+    max-width: 200px;
   }
 
   .footer-brand-logo {
-    height: clamp(64px, 22vw, 92px);
-    max-width: 100%;
+    max-height: 50px;
   }
 
-  .footer-brand-copy {
-    flex-basis: auto;
+  .footer-brand-copy,
+  .footer-brand-contact {
     max-width: none;
-  }
-
-  .footer-cta {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .footer-cta-actions {
-    width: 100%;
-  }
-
-  .footer-cta-actions .btn {
-    flex: 1 1 auto;
-    justify-content: center;
   }
 
   .footer-bottom-inner {
@@ -20178,17 +20136,6 @@ body[data-theme="dark"] .footer-bottom {
   border-top-color: rgba(121, 165, 218, 0.2);
   color: rgba(210, 230, 252, 0.78);
   background: rgba(2, 10, 20, 0.45);
-}
-
-body[data-theme="dark"] .footer-cta {
-  background: linear-gradient(120deg, rgba(43, 105, 179, 0.3), rgba(43, 105, 179, 0.1));
-  border-color: rgba(112, 157, 212, 0.35);
-}
-
-body[data-theme="dark"] .footer-badge {
-  background: rgba(17, 41, 67, 0.9);
-  border-color: rgba(112, 157, 212, 0.32);
-  color: rgba(221, 237, 255, 0.85);
 }
 
 body[data-theme="dark"] .footer-links a {
