@@ -118,7 +118,7 @@ export function applyPublicLanguage(lang = "es") {
     es: {
       "#open-auth": "Portal",
       "#open-auth-hero": "Ingresar al portal",
-      "#logout": "Cerrar sesion"
+      "#logout": "Cerrar sesión"
     },
     en: {
       "#open-auth": "Portal",
@@ -139,7 +139,7 @@ export function applyPublicLanguage(lang = "es") {
 
   const placeholderMap = {
     es: {
-      "input[name='name']": "Ej. Laura Castaneda",
+      "input[name='name']": "Ej. Laura Castañeda",
       "input[name='company']": "Ej. Comercializadora S.A.S.",
       "input[name='taxId']": "Ej. 900123456-7",
       "input[name='position']": "Ej. Directora de Operaciones",
