@@ -10454,31 +10454,29 @@ body[data-theme="dark"] .b2b-leads-brief {
   color: var(--accent);
 }
 
+/* Logo PNG: azules sobre negro. Pastilla blanca deja un bloque negro duro; en fondo oscuro
+   conviene pantalla (screen) para que el negro se integre y la marca gane legibilidad. */
 .footer-brand-logo-wrap {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 18px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow:
-    0 6px 18px rgba(0, 20, 40, 0.18),
-    0 0 0 1px rgba(255, 255, 255, 0.55);
+  padding: 6px 0 10px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .footer-brand-logo {
   display: block;
-  height: 54px;
+  height: clamp(58px, 7.5vw, 80px);
   width: auto;
-  max-width: 260px;
+  max-width: min(380px, 100%);
   object-fit: contain;
+  object-position: left center;
   user-select: none;
   -webkit-user-drag: none;
-  filter:
-    saturate(1.22)
-    contrast(1.09)
-    drop-shadow(0 2px 8px rgba(var(--primary-rgb), 0.3))
-    drop-shadow(0 0 18px rgba(var(--primary-mid-rgb), 0.35));
+  mix-blend-mode: screen;
+  filter: contrast(1.2) saturate(1.15) brightness(1.06);
 }
 
 .footer-brand h3 {
@@ -10568,12 +10566,8 @@ body[data-theme="dark"] .b2b-leads-brief {
 
 @media (max-width: 520px) {
   .footer-brand-logo {
-    height: 48px;
-    max-width: 220px;
-  }
-
-  .footer-brand-logo-wrap {
-    padding: 8px 14px;
+    height: clamp(50px, 14vw, 62px);
+    max-width: 100%;
   }
 }
 
@@ -20249,6 +20243,10 @@ body[data-theme="dark"] .site-footer p a:hover {
 
 body[data-theme="dark"] .footer-grid > div:first-child > p {
   color: rgba(210, 228, 248, 0.88);
+}
+
+body[data-theme="dark"] .footer-brand-logo {
+  filter: contrast(1.24) saturate(1.12) brightness(1.08);
 }
 
 body[data-theme="dark"] .footer-social a {
