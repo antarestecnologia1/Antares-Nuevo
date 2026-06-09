@@ -7231,13 +7231,62 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
 }
 
 /* Flota Camiones: buscar + vista lista */
-.vehicle-fleet-toolbar,
-.driver-fleet-toolbar {
+.vehicle-fleet-toolbar {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+/* Conductores: dos filas — arriba búsqueda + vista; abajo filtros alineados */
 .driver-fleet-toolbar {
-  grid-template-columns: minmax(0, 1.15fr) auto minmax(6.5rem, 0.85fr) minmax(6.5rem, 0.85fr) minmax(8rem, 1fr);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.driver-fleet-toolbar-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem 1.35rem;
+  align-items: end;
+}
+
+.driver-fleet-view-field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: min(11rem, 100%);
+  justify-items: stretch;
+}
+
+.driver-fleet-field-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5b6f8d;
+  line-height: 1.2;
+}
+
+.driver-fleet-view-toggle {
+  align-self: stretch;
+  justify-content: stretch;
+  padding: 0.2rem;
+  border-radius: 0.45rem;
+  background: rgba(var(--primary-rgb), 0.05);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
+}
+
+.driver-fleet-view-toggle .btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.driver-fleet-toolbar-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem 1.1rem;
   align-items: end;
 }
 
@@ -7268,17 +7317,24 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
   gap: 0.28rem;
 }
 
-@media (max-width: 1100px) {
-  .driver-fleet-toolbar {
+@media (max-width: 900px) {
+  .driver-fleet-toolbar-top {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-fleet-view-field {
+    min-width: 0;
+    max-width: 22rem;
+  }
+
+  .driver-fleet-toolbar-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
-  .driver-fleet-toolbar .transport-ops-search {
-    grid-column: 1 / -1;
-  }
-
-  .driver-fleet-toolbar .transport-ops-layout {
-    justify-content: flex-start;
+@media (max-width: 520px) {
+  .driver-fleet-toolbar-filters {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -7354,8 +7410,11 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
 }
 
 @media (max-width: 960px) {
-  .vehicle-fleet-toolbar,
-  .driver-fleet-toolbar {
+  .vehicle-fleet-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-fleet-toolbar-top {
     grid-template-columns: 1fr;
   }
 }
@@ -7371,6 +7430,15 @@ body[data-theme="dark"] .vehicle-fleet-table td {
 
 body[data-theme="dark"] .vehicle-fleet-table tbody tr:hover {
   background: rgba(148, 196, 255, 0.06);
+}
+
+body[data-theme="dark"] .driver-fleet-field-eyebrow {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .driver-fleet-view-toggle {
+  background: rgba(148, 196, 255, 0.06);
+  border-color: rgba(148, 196, 255, 0.12);
 }
 
 .trip-ops-card--vehicle .vehicle-plate-title {

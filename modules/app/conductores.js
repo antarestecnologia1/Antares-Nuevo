@@ -324,14 +324,20 @@ function driversHtml() {
   const fleetToolbar =
     totalDrivers > 0
       ? `<div class="transport-ops-toolbar driver-fleet-toolbar">
-      <label class="transport-ops-search">
-        <span class="muted">${IC.search || ""} Buscar</span>
-        <input type="search" data-action="drivers-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Nombre, documento, teléfono, empresa…" autocomplete="off" />
-      </label>
-      <div class="transport-ops-layout" role="group" aria-label="Vista de conductores">
-        <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="cards">Tarjetas</button>
-        <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="list">Lista</button>
+      <div class="driver-fleet-toolbar-top">
+        <label class="transport-ops-search">
+          <span class="muted">${IC.search || ""} Buscar</span>
+          <input type="search" data-action="drivers-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Nombre, documento, teléfono, empresa…" autocomplete="off" />
+        </label>
+        <div class="driver-fleet-view-field">
+          <span class="driver-fleet-field-eyebrow muted">${IC.layers || IC.grid || ""} Vista</span>
+          <div class="transport-ops-layout driver-fleet-view-toggle" role="group" aria-label="Vista de conductores">
+            <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="cards">Tarjetas</button>
+            <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="list">Lista</button>
+          </div>
+        </div>
       </div>
+      <div class="driver-fleet-toolbar-filters">
       <label class="driver-fleet-filter">${fieldLabel(IC.activity, "Estado")}
         <select data-action="drivers-fleet-filter" data-filter="status" aria-label="Filtrar por estado operativo">
           <option value="all" ${optSel("all", statusFilter)}>Todos</option>
@@ -350,6 +356,7 @@ function driversHtml() {
         </select></label>
       <label class="driver-fleet-filter">${fieldLabel(IC.briefcase, "Empresa")}
         <select data-action="drivers-fleet-filter" data-filter="company" aria-label="Filtrar por empresa">${companyOptions}</select></label>
+      </div>
     </div>`
       : "";
 
