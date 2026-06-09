@@ -544,7 +544,8 @@ export function renderPortalViewImpl() {
   const user = currentUser();
   const view = state.currentView;
   const prevPortalView = state.__portalPrevViewForSync;
-  state.__notificationsViewStickyRender = view === "notifications" && prevPortalView === "notifications";
+  /** Misma vista que el ciclo anterior: repintado por datos (poll, sync); no re-animar tarjetas. */
+  state.__suppressModuleAppearThisRender = prevPortalView === view;
   state.__portalPrevViewForSync = view;
 
   if (view === "authorizations") {

@@ -71,8 +71,9 @@ function applyModuleMicroAnimations() {
     state.__skipModuleAnimationsOnce = false;
     return;
   }
-  /** Repintados de la bandeja (poll / marcar leída) no deben re-disparar el fade de la tarjeta. */
-  if (state.currentView === "notifications" && state.__notificationsViewStickyRender) {
+  /** Evita parpadeo al refrescar la misma vista (poll, marcar leída, bootstrap, etc.). */
+  if (state.__suppressModuleAppearThisRender) {
+    state.__suppressModuleAppearThisRender = false;
     return;
   }
   const targets = [...nodes.viewRoot.querySelectorAll(".p-card, .table-wrap, .user-card, .users-hero-item")];
