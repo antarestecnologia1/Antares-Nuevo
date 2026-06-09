@@ -343,35 +343,35 @@ export function renderPayrollModuleHead({
   currentYm,
   contractNoticeCount = 0
 }) {
-  const chips = [
-    `<span class="payroll-head-stat"><strong>${employees}</strong> colaboradores</span>`,
-    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong> nómina neta ${escapeHtml(currentYm)}</span>`
+  const items = [
+    `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Fichas activas en el directorio"><dt>Equipo</dt><dd><strong>${escapeHtml(String(employees))}</strong></dd></div>`,
+    `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="Suma neta del mes ${escapeHtml(currentYm)}"><dt>Nómina neta</dt><dd><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></dd></div>`
   ];
   if (pending > 0) {
-    chips.push(
-      `<span class="payroll-head-stat payroll-head-stat--warn" title="Liquidaciones laborales sin marcar como pagadas"><strong>${pending}</strong> nómina pendiente</span>`
+    items.push(
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--warn" title="Liquidaciones laborales sin marcar como pagadas"><dt>Pendientes</dt><dd><strong>${escapeHtml(String(pending))}</strong></dd></div>`
     );
   }
   if (pendingDriverPayments > 0) {
-    chips.push(
-      `<span class="payroll-head-stat payroll-head-stat--warn" title="Prestación de servicios — viajes por pagar"><strong>${pendingDriverPayments}</strong> conductores · $${parseNum(pendingDriverCop).toLocaleString("es-CO")}</span>`
+    items.push(
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--warn" title="Prestación de servicios — viajes por pagar"><dt>Conductores</dt><dd><strong>${escapeHtml(String(pendingDriverPayments))}</strong> · $${parseNum(pendingDriverCop).toLocaleString("es-CO")}</dd></div>`
     );
   }
   if (pendingAbsenceApprovals > 0) {
-    chips.push(
-      `<span class="payroll-head-stat payroll-head-stat--warn" title="Bandeja de aprobaciones"><strong>${pendingAbsenceApprovals}</strong> ausencias por revisar</span>`
+    items.push(
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Solicitudes en bandeja de aprobaciones"><dt>Ausencias</dt><dd><strong>${escapeHtml(String(pendingAbsenceApprovals))}</strong></dd></div>`
     );
   }
   if (contractNoticeCount > 0) {
-    chips.push(
-      `<span class="payroll-head-stat payroll-head-stat--warn" title="Término fijo en ventana de 30 días o vencido"><strong>${contractNoticeCount}</strong> contratos en aviso</span>`
+    items.push(
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Término fijo en ventana de 30 días o vencido"><dt>Contratos</dt><dd><strong>${escapeHtml(String(contractNoticeCount))}</strong></dd></div>`
     );
   }
   return `<header class="payroll-module-head payroll-module-head--compact">
       <div class="payroll-module-head__title">
         <h2>Gestión humana</h2>
       </div>
-      <div class="payroll-module-head__chips" role="list">${chips.join("")}</div>
+      <dl class="payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${items.join("")}</dl>
     </header>`;
 }
 
@@ -384,34 +384,36 @@ export function renderHiringModuleHead({
   hiredCandidates,
   totalCandidates
 }) {
-  const chips = [
-    `<span class="payroll-head-stat"><strong>${openVacancies}</strong> vacantes abiertas</span>`,
-    `<span class="payroll-head-stat payroll-head-stat--muted"><strong>${activeCandidates}</strong> en proceso</span>`,
-    `<span class="payroll-head-stat payroll-head-stat--muted" title="${hiredCandidates ?? 0} contratados de ${totalCandidates ?? 0} candidatos registrados"><strong>${candidateConversion}%</strong> contratación</span>`
+  const items = [
+    `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Vacantes abiertas u ofertas activas"><dt>Vacantes</dt><dd><strong>${escapeHtml(String(openVacancies))}</strong></dd></div>`,
+    `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="Candidatos que siguen en proceso de selección"><dt>En proceso</dt><dd><strong>${escapeHtml(String(activeCandidates))}</strong></dd></div>`,
+    `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="${escapeHtml(String(hiredCandidates ?? 0))} contratados de ${escapeHtml(String(totalCandidates ?? 0))} candidatos registrados"><dt>Conversión</dt><dd><strong>${escapeHtml(String(candidateConversion))}%</strong></dd></div>`
   ];
   if (urgentItems > 0) {
-    chips.push(
-      `<span class="payroll-head-stat payroll-head-stat--warn" title="Vacantes por cerrar o contratos por vencer"><strong>${urgentItems}</strong> alertas</span>`
+    items.push(
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--warn" title="Vacantes por cerrar o contratos por vencer"><dt>Alertas</dt><dd><strong>${escapeHtml(String(urgentItems))}</strong></dd></div>`
     );
   }
   if (contractsThisMonth > 0) {
-    chips.push(`<span class="payroll-head-stat"><strong>${contractsThisMonth}</strong> contratos este mes</span>`);
+    items.push(
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Contratos con fecha de firma en el mes en curso"><dt>Este mes</dt><dd><strong>${escapeHtml(String(contractsThisMonth))}</strong></dd></div>`
+    );
   }
   return `<header class="payroll-module-head payroll-module-head--compact">
       <div class="payroll-module-head__title">
         <h2>Contratación</h2>
       </div>
-      <div class="payroll-module-head__chips" role="list">${chips.join("")}</div>
+      <dl class="payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de contratación">${items.join("")}</dl>
     </header>`;
 }
 
 export function renderHiringDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
   const tabs = [
-    { id: "candidates", label: "Candidatos", count: counts.candidates ?? 0, icon: "user" },
-    { id: "vacancies", label: "Vacantes", count: counts.vacancies ?? 0, icon: "send" },
-    { id: "interviews", label: "Entrevistas", count: counts.interviews ?? 0, icon: "calendar" },
-    { id: "contracts", label: "Contratos", count: counts.contracts ?? 0, icon: "file" },
-    { id: "positions", label: "Cargos", count: counts.positions ?? 0, icon: "briefcase" }
+    { id: "candidates", label: "Candidatos", title: "Pipeline y fichas de candidatos", count: counts.candidates ?? 0, icon: "user" },
+    { id: "vacancies", label: "Vacantes", title: "Publicaciones y cupos", count: counts.vacancies ?? 0, icon: "send" },
+    { id: "interviews", label: "Agenda", title: "Entrevistas programadas", count: counts.interviews ?? 0, icon: "calendar" },
+    { id: "contracts", label: "Contratos", title: "Contratos generados y referencias", count: counts.contracts ?? 0, icon: "file" },
+    { id: "positions", label: "Cargos", title: "Catálogo de cargos y salarios base", count: counts.positions ?? 0, icon: "briefcase" }
   ];
   const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
   return `<nav class="${navClass}" role="tablist" aria-label="Consultas de contratación">
@@ -419,7 +421,8 @@ export function renderHiringDataSectionNav(activeId, counts = {}, { minimal = fa
       .map((t) => {
         const active = activeId === t.id;
         const iconSvg = ic()[t.icon] ? `<span class="payroll-data-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
-        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-data-section" data-section="${escapeAttr(t.id)}">${iconSvg}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
+        const tip = escapeAttr(String(t.title || t.label || ""));
+        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-data-section" data-section="${escapeAttr(t.id)}" title="${tip}">${iconSvg}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
       })
       .join("")}
   </nav>`;
@@ -427,11 +430,11 @@ export function renderHiringDataSectionNav(activeId, counts = {}, { minimal = fa
 
 export function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
   const tabs = [
-    { id: "employees", label: "Empleados", count: counts.employees ?? 0, icon: "user" },
-    { id: "absences", label: "Ausencias", count: counts.absences ?? 0, icon: "calendar" },
-    { id: "runs", label: "Nómina laboral", count: counts.runs ?? 0, icon: "dollar" },
-    { id: "driverPayments", label: "Pagos conductores", count: counts.driverPayments ?? 0, icon: "truck" },
-    { id: "legal", label: "Parámetros legales", count: counts.legal ?? 0, icon: "hash" }
+    { id: "employees", label: "Empleados", title: "Directorio de empleados", count: counts.employees ?? 0, icon: "user" },
+    { id: "absences", label: "Ausencias", title: "Ausencias e incapacidades", count: counts.absences ?? 0, icon: "calendar" },
+    { id: "runs", label: "Nómina", title: "Nómina laboral y liquidaciones", count: counts.runs ?? 0, icon: "dollar" },
+    { id: "driverPayments", label: "Viajes", title: "Pagos conductores — prestación de servicios", count: counts.driverPayments ?? 0, icon: "truck" },
+    { id: "legal", label: "Legal", title: "Parámetros legales anuales (SMMLV, auxilio…)", count: counts.legal ?? 0, icon: "hash" }
   ];
   const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
   return `<nav class="${navClass}" role="tablist" aria-label="Listas de personal y nómina">
@@ -439,7 +442,8 @@ export function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = f
       .map((t) => {
         const active = activeId === t.id;
         const iconSvg = ic()[t.icon] ? `<span class="payroll-data-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
-        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-data-section" data-section="${escapeAttr(t.id)}">${iconSvg}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
+        const tip = escapeAttr(String(t.title || t.label || ""));
+        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-data-section" data-section="${escapeAttr(t.id)}" title="${tip}">${iconSvg}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
       })
       .join("")}
   </nav>`;

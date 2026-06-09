@@ -81,16 +81,25 @@ function payrollHtml() {
       const pk = String(r.payrollKind || "mensual");
       const typeCell = (() => {
         if (pk === "terminacion") return '<span class="status status-viaje_asignado">Terminación</span>';
-        const bits = [escapeHtml(payrollRunTypeLabel(r).replace(/^Nómina\s+/i, ""))];
+        const parts = [
+          `<span class="payroll-run-type-base">${escapeHtml(payrollRunTypeLabel(r).replace(/^Nómina\s+/i, ""))}</span>`
+        ];
         const orig = String(r.liquidacionOrigin || r.origenLiquidacion || "manual").toLowerCase();
-        if (orig === "masiva") bits.push('<span class="status status-pendiente" title="Generada por liquidación masiva (RRHH)">Masiva</span>');
-        else if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor según periodicidad de pago">Automática</span>');
-        if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
-        if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
-        if (String(r.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(r, read(KEYS.hrAbsences, []))) {
-          bits.push("Ausentismo");
+        if (orig === "masiva") {
+          parts.push('<span class="status status-pendiente" title="Generada por liquidación masiva (RRHH)">Masiva</span>');
+        } else if (orig === "automatica") {
+          parts.push('<span class="status status-pendiente" title="Generada por el servidor según periodicidad de pago">Automática</span>');
         }
-        return `<span class="muted">${bits.join(" · ")}</span>`;
+        if (parseNum(r.primaServiciosCop) > 0) {
+          parts.push('<span class="payroll-run-type-pill payroll-run-type-pill--prima">Prima</span>');
+        }
+        if (parseNum(r.interesesCesantiasCop) > 0) {
+          parts.push('<span class="payroll-run-type-pill payroll-run-type-pill--cesantias">Int. cesantías</span>');
+        }
+        if (String(r.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(r, read(KEYS.hrAbsences, []))) {
+          parts.push('<span class="payroll-run-type-pill payroll-run-type-pill--absence">Ausentismo</span>');
+        }
+        return `<span class="payroll-run-type-cell">${parts.join("")}</span>`;
       })();
       return `<tr data-payroll-state="${state}">
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
@@ -488,11 +497,19 @@ function payrollHtml() {
     ${renderManagedCreateFormActions("create-hr-absence", `<button class="btn btn-primary" type="submit">${IC.save} Registrar ausencia</button>`)}
   </form>`;
   const absenceRows = absences
-    .map(
-      (a) => `<tr>
+    .map((a) => {
+      const vis = payrollAbsenceVisualKind(a.absenceType);
+      const visClass = escapeAttr(vis);
+      const typeMain = escapeHtml(payrollAbsenceTypeLabel(a.absenceType));
+      const subtypeHtml = a.absenceSubtype
+        ? `<br><span class="muted payroll-absence-subtype" style="font-size:0.8rem">${escapeHtml(
+            payrollAbsenceSubtypeLabel(a.absenceType, a.absenceSubtype) || String(a.absenceSubtype)
+          )}</span>`
+        : "";
+      return `<tr class="payroll-absence-row payroll-absence-row--${visClass}">
       <td>${fmtDate(a.createdAt)}</td>
       <td>${a.employeeName}</td>
-      <td>${escapeHtml(payrollAbsenceTypeLabel(a.absenceType))}${a.absenceSubtype ? `<br><span class="muted" style="font-size:0.8rem">${escapeHtml(payrollAbsenceSubtypeLabel(a.absenceType, a.absenceSubtype) || String(a.absenceSubtype))}</span>` : ""}</td>
+      <td><span class="payroll-absence-type-badge payroll-absence-type-badge--${visClass}">${typeMain}</span>${subtypeHtml}</td>
       <td>${a.startDate} → ${a.endDate}</td>
       <td>${escapeHtml(payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days))}</td>
       <td><span class="muted">${a.supportNumber || "-"}</span></td>
@@ -501,11 +518,11 @@ function payrollHtml() {
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.edit} Editar</button>` : ""}
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-hr-absence" data-id="${escapeAttr(String(a.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
-    </tr>`
-    )
+    </tr>`;
+    })
     .join("");
   const absenceTable = absenceRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table class="payroll-absences-table"><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
   const employeeToolbar = `<div class="payroll-employee-toolbar">
       <label class="payroll-employee-search">${fieldLabel(IC.search, "Buscar")}
@@ -759,10 +776,10 @@ function payrollHtml() {
     })
     .join("");
   const driverPaymentsSummary = `<dl class="payroll-driver-kpi" aria-label="Resumen pagos conductores">
-      <div><dt>Pendientes de pago</dt><dd><strong>${pendingDriverPayments}</strong> · $${pendingDriverCop.toLocaleString("es-CO")}</dd></div>
-      <div><dt>Neto conductores (${escapeHtml(currentYm)})</dt><dd><strong>$${totalDriverMonth.toLocaleString("es-CO")}</strong></dd></div>
-      <div><dt>Fichas conductor</dt><dd><strong>${conductorEmployees.length}</strong></dd></div>
-      <div><dt>Tarifa interdepartamental</dt><dd><strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong></dd></div>
+      <div class="payroll-driver-kpi__item${pendingDriverPayments ? " payroll-driver-kpi__item--warn" : ""}"><dt>Pendientes de pago</dt><dd><strong>${pendingDriverPayments}</strong> · $${pendingDriverCop.toLocaleString("es-CO")}</dd></div>
+      <div class="payroll-driver-kpi__item"><dt>Neto conductores (${escapeHtml(currentYm)})</dt><dd><strong>$${totalDriverMonth.toLocaleString("es-CO")}</strong></dd></div>
+      <div class="payroll-driver-kpi__item"><dt>Fichas conductor</dt><dd><strong>${conductorEmployees.length}</strong></dd></div>
+      <div class="payroll-driver-kpi__item payroll-driver-kpi__item--neutral"><dt>Tarifa interdepartamental</dt><dd><strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong></dd></div>
     </dl>`;
   const driverPaymentsCards = sortedDriverRuns.length
     ? `<div class="payroll-run-cards-grid">${sortedDriverRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
@@ -780,17 +797,13 @@ function payrollHtml() {
         "admin-users-data-card"
       )}
     </div>`;
-  const payrollDataNav = renderPayrollDataSectionNav(
-    payrollDataSection,
-    {
-      employees: employees.length,
-      absences: absences.length,
-      runs: nominaRunsAll.length,
-      driverPayments: driverPaymentRunsAll.length,
-      legal: legalHistory.length || 1
-    },
-    { minimal: true }
-  );
+  const payrollDataNav = renderPayrollDataSectionNav(payrollDataSection, {
+    employees: employees.length,
+    absences: absences.length,
+    runs: nominaRunsAll.length,
+    driverPayments: driverPaymentRunsAll.length,
+    legal: legalHistory.length || 1
+  });
   const payrollRunFilters =
     payrollDataSection === "runs" || payrollDataSection === "driverPayments"
       ? `<div class="payroll-data-toolbar__filters">${payrollQuickBar}${filtersHtml}</div>`
@@ -803,7 +816,7 @@ function payrollHtml() {
     </div>`;
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
       <div class="payroll-runs-toolbar">
-        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
+        <p class="payroll-result-meta muted" title="Liquidaciones de nómina laboral que coinciden con los filtros actuales"><strong>${runs.length}</strong> / ${nominaRunsAll.length} liquidaciones</p>
         <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
       </div>
       ${runsPaneBody}

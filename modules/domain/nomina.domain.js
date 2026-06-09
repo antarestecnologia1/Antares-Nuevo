@@ -394,6 +394,20 @@ export function payrollNormalizeAbsenceTypeKey(absenceType) {
   return t;
 }
 
+/** Clave visual para filas / badges de ausencias (CSS: `payroll-absence-row--${kind}`). */
+export function payrollAbsenceVisualKind(absenceType) {
+  const k = payrollNormalizeAbsenceTypeKey(absenceType);
+  if (k === "incapacidad_eps" || k === "permiso_cita_medica") return "eps";
+  if (k === "incapacidad_arl") return "arl";
+  if (k === "vacaciones") return "vacation";
+  if (k === "licencia_maternidad") return "maternity";
+  if (k === "licencia_paternidad") return "paternity";
+  if (k === "licencia_luto" || k === "calamidad_domestica") return "sensitive";
+  if (k === "licencia_no_remunerada") return "unpaid";
+  if (k.startsWith("permiso_")) return "permit";
+  return "other";
+}
+
 export function payrollNormalizeAbsenceSubtype(absenceType, absenceSubtype) {
   const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
   const raw = String(absenceSubtype || "").trim().toLowerCase();

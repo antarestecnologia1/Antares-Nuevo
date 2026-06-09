@@ -325,6 +325,7 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
     </div>`;
   const metricsHtml = compact
     ? `<dl class="payroll-run-card-metrics payroll-run-card-metrics--compact">
+      <div><dt>Devengado</dt><dd>$${parseNum(run.gross).toLocaleString("es-CO")}</dd></div>
       <div><dt>Deducciones</dt><dd>$${parseNum(run.deductions).toLocaleString("es-CO")}</dd></div>
       <div class="payroll-run-card-net"><dt>Neto</dt><dd>$${parseNum(run.net).toLocaleString("es-CO")}</dd></div>
     </dl>`
@@ -337,7 +338,11 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
     </dl>`;
   const compactClass = compact ? " payroll-run-card--compact" : "";
   const compactTags =
-    compact && tags.length ? `<span class="payroll-run-card-tags-inline muted">${escapeHtml(tags.join(" · "))}</span>` : "";
+    compact && tags.length
+      ? `<span class="payroll-run-card-tags payroll-run-card-tags--compact" role="list">${tags
+          .map((t) => `<span class="payroll-run-tag" role="listitem">${escapeHtml(t)}</span>`)
+          .join("")}</span>`
+      : "";
   return `<article class="payroll-run-card payroll-run-card--${stateTone}${compactClass}" data-payroll-state="${stateTone}">
     <header class="payroll-run-card-head">
       <div>
@@ -6605,7 +6610,10 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       </div>
       <div class="directory-card__compact-meta">
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
-        <span class="directory-card__salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
+        <div class="directory-card__salary-stack" title="Salario base mensual">
+          <span class="directory-card__salary-kicker">Salario</span>
+          <span class="directory-card__salary-amount" aria-label="Salario base en pesos colombianos">$${item.salaryCop.toLocaleString("es-CO")}</span>
+        </div>
       </div>
       <div class="directory-card__compact-actions toolbar">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>

@@ -548,39 +548,25 @@ function hiringHtml() {
       <button type="button" class="payroll-quick-pill${vacancyFilter === "open" ? " is-active" : ""}" data-action="hiring-vacancies-open">Solo abiertas</button>
       <button type="button" class="payroll-quick-pill${vacancyFilter === "all" ? " is-active" : ""}" data-action="hiring-vacancies-all">Todas</button>
     </div>`;
-  const hiringDataNav = renderHiringDataSectionNav(
-    hiringDataSection,
-    {
-      candidates: sortedCandidates.length,
-      vacancies: filteredVacancies.length,
-      interviews: interviews.length,
-      contracts: contracts.length,
-      positions: positions.length
-    },
-    { minimal: true }
-  );
+  const hiringDataNav = renderHiringDataSectionNav(hiringDataSection, {
+    candidates: sortedCandidates.length,
+    vacancies: filteredVacancies.length,
+    interviews: interviews.length,
+    contracts: contracts.length,
+    positions: positions.length
+  });
   const hiringDataFilters =
     hiringDataSection === "candidates"
       ? hiringQuickBarCandidates
       : hiringDataSection === "vacancies"
         ? hiringQuickBarVacancies
         : "";
-  const hiringMetaCandidates = `<p class="payroll-result-meta muted">Mostrando <strong>${sortedCandidatesView.length}</strong>${
-    dataListSearch ? ` de ${sortedCandidates.length}` : ""
-  } de ${candidates.length} candidato${candidates.length === 1 ? "" : "s"}</p>`;
-  const hiringMetaVacancies = `<p class="payroll-result-meta muted">Mostrando <strong>${filteredVacanciesView.length}</strong>${
-    dataListSearch ? ` de ${filteredVacancies.length}` : ""
-  } de ${vacancies.length} vacante${vacancies.length === 1 ? "" : "s"}</p>`;
-  const hiringMetaInterviews = `<p class="payroll-result-meta muted"><strong>${interviewsView.length}</strong>${
-    dataListSearch ? ` de ${interviews.length}` : ""
-  } entrevista${interviewsView.length === 1 ? "" : "s"} registrada${interviewsView.length === 1 ? "" : "s"}</p>`;
-  const hiringMetaContracts = `<p class="payroll-result-meta muted"><strong>${contractsView.length}</strong>${
-    dataListSearch ? ` de ${contracts.length}` : ""
-  } contrato${contractsView.length === 1 ? "" : "s"} · ${contractsThisMonth.length} este mes</p>`;
+  const hiringMetaCandidates = `<p class="payroll-result-meta muted" title="Candidatos visibles según filtro de vista y búsqueda"><strong>${sortedCandidatesView.length}</strong>${dataListSearch ? ` <span class="muted">· ${sortedCandidates.length}</span>` : ""} <span class="muted">/ ${candidates.length}</span> candidatos</p>`;
+  const hiringMetaVacancies = `<p class="payroll-result-meta muted" title="Vacantes según filtros y búsqueda"><strong>${filteredVacanciesView.length}</strong>${dataListSearch ? ` <span class="muted">· ${filteredVacancies.length}</span>` : ""} <span class="muted">/ ${vacancies.length}</span> vacantes</p>`;
+  const hiringMetaInterviews = `<p class="payroll-result-meta muted" title="Entrevistas registradas"><strong>${interviewsView.length}</strong>${dataListSearch ? ` <span class="muted">· ${interviews.length}</span>` : ""} entrevistas</p>`;
+  const hiringMetaContracts = `<p class="payroll-result-meta muted" title="Contratos en el listado y firmados este mes"><strong>${contractsView.length}</strong>${dataListSearch ? ` <span class="muted">· ${contracts.length}</span>` : ""} contratos · <strong>${contractsThisMonth.length}</strong> este mes</p>`;
   const activePositionsInView = positionsView.filter((p) => p.active !== false);
-  const hiringMetaPositions = `<p class="payroll-result-meta muted"><strong>${activePositionsInView.length}</strong>${
-    dataListSearch ? ` de ${activePositions.length}` : ""
-  } cargo${activePositionsInView.length === 1 ? "" : "s"} activo${activePositionsInView.length === 1 ? "" : "s"} de ${positions.length}</p>`;
+  const hiringMetaPositions = `<p class="payroll-result-meta muted" title="Cargos activos en el catálogo"><strong>${activePositionsInView.length}</strong>${dataListSearch ? ` <span class="muted">· ${activePositions.length}</span>` : ""} <span class="muted">/ ${positions.length}</span> cargos</p>`;
   const hiringCandidatesPane = `<div class="payroll-data-pane${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-section="candidates">
       ${hiringMetaCandidates}
       <div class="payroll-table-shell">${tCand}</div>
@@ -601,9 +587,9 @@ function hiringHtml() {
       ${hiringMetaPositions}
       <div class="payroll-table-shell">${tPos}</div>
     </div>`;
-  const hiringDataSearchBar = `<div class="transport-ops-toolbar hiring-data-search-toolbar" style="margin-bottom:10px">
+  const hiringDataSearchBar = `<div class="transport-ops-toolbar hiring-data-search-toolbar hiring-data-search-toolbar--panel">
       <label class="transport-ops-search">
-        <span class="muted">${IC.search || ""} Buscar en listado</span>
+        <span class="muted">${IC.search || ""} Buscar</span>
         <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Nombre, correo, cargo, vacante, documento…" autocomplete="off" />
       </label>
     </div>`;
