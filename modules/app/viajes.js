@@ -595,12 +595,17 @@ function transportTripsHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='transport-trips-search']").forEach((input) => {
       input.addEventListener("input", () => {
-        const next = String(input.value || "");
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        const next = String(el.value || "");
         state.transportTripsUi = {
           ...(state.transportTripsUi || {}),
           search: next
         };
         state.tripsRenderLimit = RENDER_WINDOW_SIZE;
+        state.__transportTripsSearchRestore = { start, end };
         renderPortalView();
       });
     });
@@ -1028,6 +1033,24 @@ function transportTripsHtml() {
         });
       });
     });
+
+    const tripsSearchRestore = state.__transportTripsSearchRestore;
+    if (tripsSearchRestore && typeof tripsSearchRestore.start === "number") {
+      delete state.__transportTripsSearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "transport-trips") return;
+        const inp = root.querySelector("[data-action='transport-trips-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(tripsSearchRestore.start, n));
+          const e = Math.max(0, Math.min(tripsSearchRestore.end ?? tripsSearchRestore.start, n));
+          inp.setSelectionRange(s, e);
+        }
+      });
+    }
   }
 
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};

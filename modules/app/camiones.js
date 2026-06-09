@@ -388,7 +388,12 @@ function vehiclesHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='vehicles-fleet-search']").forEach((input) => {
       input.addEventListener("input", () => {
-        state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetSearch: String(input.value || "") };
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetSearch: String(el.value || "") };
+        state.__vehiclesFleetSearchRestore = { start, end };
         renderPortalView();
       });
     });
@@ -795,6 +800,24 @@ function vehiclesHtml() {
         state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: "fleet", fleetTab: "technical" };
         collapseCreatePanel("create-technical-log");
         renderPortalView();
+      });
+    }
+
+    const fleetSearchRestore = state.__vehiclesFleetSearchRestore;
+    if (fleetSearchRestore && typeof fleetSearchRestore.start === "number") {
+      delete state.__vehiclesFleetSearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "transport-vehicles") return;
+        const inp = root.querySelector("[data-action='vehicles-fleet-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(fleetSearchRestore.start, n));
+          const e = Math.max(0, Math.min(fleetSearchRestore.end ?? fleetSearchRestore.start, n));
+          inp.setSelectionRange(s, e);
+        }
       });
     }
   }

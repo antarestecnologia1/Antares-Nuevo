@@ -2170,7 +2170,8 @@ function defaultAdminUsersUi() {
     createUserMinimized: false,
     createCompanyMinimized: false,
     editMinimized: false,
-    permissionsMinimized: false
+    permissionsMinimized: false,
+    directorySearch: ""
   };
 }
 

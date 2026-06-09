@@ -296,6 +296,34 @@
     return scopeBar + clientHero + createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud", { createPanels: state.createPanels });
   }
 
+  /** Texto para filtrar solicitudes por búsqueda (coincide con `requests-list-search`). */
+  function requestListSearchHaystack(r) {
+    const trip = r.trip || null;
+    const route =
+      typeof formatRoute === "function"
+        ? String(formatRoute(r) || "")
+        : `${String(r.originCity || "")} ${String(r.destinationCity || "")}`;
+    return [
+      r.requestNumber,
+      r.id,
+      r.clientName,
+      r.originCity,
+      r.originDepartment,
+      r.destinationCity,
+      r.destinationDepartment,
+      r.cargoDescription,
+      r.status,
+      r.requestedByName,
+      trip?.tripNumber,
+      trip?.vehiclePlate,
+      trip?.driverName,
+      route
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+  }
+
   function requestListClientHtml(user) {
     const requests = getVisibleRequestsForUser(user);
     /**
@@ -305,6 +333,18 @@
      */
     let activeFilter = "all";
     try { activeFilter = String((typeof state !== "undefined" && state?.requestsFilter) || "all"); } catch (_) { /* noop */ }
+    let listSearchRaw = "";
+    let listSearchNorm = "";
+    try {
+      listSearchRaw = String((typeof state !== "undefined" && state?.requestsUi?.listSearch) || "");
+      listSearchNorm = listSearchRaw.trim().toLowerCase();
+    } catch (_) { /* noop */ }
+    const requestSearchToolbar = `<div class="transport-ops-toolbar request-ops-toolbar-search">
+      <label class="transport-ops-search">
+        <span class="muted">${IC.search || ""} Buscar</span>
+        <input type="search" data-action="requests-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Cliente, ruta, número, conductor, estado…" autocomplete="off" />
+      </label>
+    </div>`;
     if (user?.role === ROLES.ADMIN) {
       const selectedCompanyId = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "");
       const companies = read(KEYS.companies, []);
@@ -312,7 +352,10 @@
       const byCompany = selectedCompanyId
         ? requests.filter((r) => String(r.clientCompanyId || "") === selectedCompanyId)
         : requests;
-      const afterFilter = applyRequestFilter(byCompany, activeFilter);
+      const statusFiltered = applyRequestFilter(byCompany, activeFilter);
+      const afterFilter = listSearchNorm
+        ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
+        : statusFiltered;
       const hub = requestAdminCompanyHubHtml(requests, selectedCompanyId);
       const filtersBar = requestFiltersBarHtml(byCompany, activeFilter);
       const opsCards = requestOpsCardsHtml(afterFilter, user);
@@ -321,21 +364,29 @@
         <button class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Ver todas las empresas</button>
       </div>`;
       const opsTitle = selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes";
-      const opsSubtitle = `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}`;
-      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${opsCards}`);
+      const opsSubtitle = listSearchNorm
+        ? `${afterFilter.length} de ${statusFiltered.length} con búsqueda activa`
+        : `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}`;
+      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${requestSearchToolbar}${filtersBar}${opsCards}`);
       return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
     }
     const panelTitle =
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
-    const filtered = applyRequestFilter(requests, activeFilter);
+    const statusFiltered = applyRequestFilter(requests, activeFilter);
+    const filtered = listSearchNorm
+      ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
+      : statusFiltered;
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);
     const opsCards = requestOpsCardsHtml(filtered, user);
     /** Barra "Ver: toda empresa / solo mías" va solo arriba del módulo (`requestFormHtml`), no dentro de esta tarjeta. */
+    const listMeta = listSearchNorm
+      ? `${filtered.length} de ${statusFiltered.length} con búsqueda activa`
+      : `${filtered.length} de ${requests.length} registradas`;
     const opsPanel = pcardWrap(
       "activity",
       panelTitle,
-      `${filtered.length} de ${requests.length} registradas`,
-      `${filtersBar}${opsCards}`
+      listMeta,
+      `${requestSearchToolbar}${filtersBar}${opsCards}`
     );
     return opsPanel;
   }

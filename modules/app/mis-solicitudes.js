@@ -103,6 +103,19 @@
         renderPortalView();
       });
     });
+
+    nodes.viewRoot.querySelectorAll("[data-action='requests-list-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        state.requestsUi = { ...(state.requestsUi || {}), listSearch: String(el.value || "") };
+        state.requestsRenderLimit = requestsRenderWindowSize();
+        state.__requestsListSearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
   }
 
   function wireRequestCreateForm() {
@@ -353,6 +366,24 @@
     if (String(state.currentView || "") !== "requests" || !nodes.viewRoot) return;
     wireMisSolicitudesListActions();
     wireRequestCreateForm();
+
+    const reqSearchRestore = state.__requestsListSearchRestore;
+    if (reqSearchRestore && typeof reqSearchRestore.start === "number") {
+      delete state.__requestsListSearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "requests") return;
+        const inp = root.querySelector("[data-action='requests-list-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(reqSearchRestore.start, n));
+          const e = Math.max(0, Math.min(reqSearchRestore.end ?? reqSearchRestore.start, n));
+          inp.setSelectionRange(s, e);
+        }
+      });
+    }
   }
 
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};

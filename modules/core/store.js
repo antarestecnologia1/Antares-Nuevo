@@ -74,7 +74,9 @@ export let state = {
     /** Tarjeta «Editar usuario» colapsada (solo cabecera). */
     editMinimized: false,
     /** Tarjeta «Asignar permisos» colapsada tras guardar. */
-    permissionsMinimized: false
+    permissionsMinimized: false,
+    /** Texto de búsqueda en directorios (pendientes / usuarios / empresas). */
+    directorySearch: ""
   },
   adminUsersDrafts: {
     createUser: {},
@@ -94,7 +96,9 @@ export let state = {
     layout: "cards"
   },
   requestsUi: {
-    companyId: ""
+    companyId: "",
+    /** Búsqueda en el listado de solicitudes (re-render + restauración de foco). */
+    listSearch: ""
   },
   /**
    * Filtros rápidos persistentes para los paneles operativos. Permiten
@@ -133,7 +137,13 @@ export let state = {
     candidateSort: "recent",
     workspace: "operate",
     operateSection: "position",
-    dataSection: "candidates"
+    dataSection: "candidates",
+    /** Filtro de texto en la pestaña Consultar (listados). */
+    dataListSearch: ""
+  },
+  /** Centro de aprobaciones: filtro de texto en bandejas. */
+  authorizationsUi: {
+    listSearch: ""
   },
   registrationSuccessBanner: null,
   contactLeadsLoading: false,

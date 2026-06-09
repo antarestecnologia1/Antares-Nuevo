@@ -301,11 +301,23 @@ function adminUsersHtml(current) {
   const pendingUsers = users.filter((u) => isPortalUserPendingApproval(u));
   const pendingIdSet = new Set(pendingUsers.map((u) => u.id));
   const activeUsers = users.filter((u) => !pendingIdSet.has(u.id));
+  const adminUsersSection = normalizeAdminUsersSection(ui.section, pendingUsers.length > 0);
+  const directorySearchRaw = String(ui.directorySearch || "");
+  const directorySearch = directorySearchRaw.trim().toLowerCase();
+  const directoryMatch = (blob) => !directorySearch || String(blob || "").toLowerCase().includes(directorySearch);
+  const userDirectoryBlob = (u) =>
+    `${getPortalUserDisplayName(u)} ${u.email || ""} ${u.company || ""} ${u.role || ""} ${u.taxId || ""} ${u.idDoc || ""} ${u.phone || ""}`;
+  const pendingUsersView = directorySearch
+    ? pendingUsers.filter((u) => directoryMatch(userDirectoryBlob(u)))
+    : pendingUsers;
+  const activeUsersView = directorySearch
+    ? activeUsers.filter((u) => directoryMatch(userDirectoryBlob(u)))
+    : activeUsers;
   if (state.adminUsersEntryHydrating) {
     return adminUsersHydratingShellHtml({ pendingUsers, activeUsers, companies, ui });
   }
-  const pendingCardsHtml = pendingUsers.map((u) => renderUserCard(u, "pending")).join("");
-  const userCards = activeUsers.map((u) => renderUserCard(u, "active")).join("");
+  const pendingCardsHtml = pendingUsersView.map((u) => renderUserCard(u, "pending")).join("");
+  const userCards = activeUsersView.map((u) => renderUserCard(u, "active")).join("");
 
   const fUser = `<form id="form-admin-user-create" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
@@ -668,7 +680,14 @@ function adminUsersHtml(current) {
     if (aa !== bb) return aa - bb;
     return String(a.name || "").localeCompare(String(b.name || ""), "es", { sensitivity: "base" });
   });
-  const companyCardsHtml = companiesSorted.map((c) => renderCompanyCard(c)).join("");
+  const companiesForView = directorySearch
+    ? companiesSorted.filter((c) =>
+        directoryMatch(
+          `${c.name} ${c.taxId || c.nit || ""} ${c.email || ""} ${c.contactName || ""} ${c.phone || ""} ${c.city || ""} ${c.department || ""}`
+        )
+      )
+    : companiesSorted;
+  const companyCardsHtml = companiesForView.map((c) => renderCompanyCard(c)).join("");
   const approvedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO);
   const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
   const inactiveCompaniesCount = Math.max(0, companies.length - activeCompaniesCount);
@@ -676,7 +695,6 @@ function adminUsersHtml(current) {
   const activeSessions = sessions.filter((s) => String(s.status || "").toLowerCase() === "activa").length;
   const expiredSessions = sessions.filter((s) => String(s.status || "").toLowerCase() !== "activa").length;
   const focusCardClass = "admin-users-data-card admin-users-focus-card";
-  const adminUsersSection = normalizeAdminUsersSection(ui.section, pendingUsers.length > 0);
 
   const approvedCount = approvedUsers.length;
 
@@ -771,16 +789,26 @@ function adminUsersHtml(current) {
     );
   }
 
-  const pendingSubtitle = `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
+  const pendingSubtitle = directorySearch
+    ? `${pendingUsersView.length} de ${pendingUsers.length} con búsqueda activa`
+    : `${pendingUsers.length} registro${pendingUsers.length === 1 ? "" : "s"} pendiente${pendingUsers.length === 1 ? "" : "s"}`;
   const pendingPaneHtml =
     pendingUsers.length > 0
-      ? pcardWrapPro(
-      "shield",
-      "Pendientes de aprobación",
-      pendingSubtitle,
-      `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div></div>`,
-      "admin-users-data-card"
-        )
+      ? pendingUsersView.length > 0
+        ? pcardWrapPro(
+            "shield",
+            "Pendientes de aprobación",
+            pendingSubtitle,
+            `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div></div>`,
+            "admin-users-data-card"
+          )
+        : pcardWrapPro(
+            "shield",
+            "Pendientes de aprobación",
+            pendingSubtitle,
+            emptyState("Ningún pendiente coincide con la búsqueda."),
+            "admin-users-data-card"
+          )
       : pcardWrapPro(
           "shield",
           "Pendientes de aprobación",
@@ -789,25 +817,43 @@ function adminUsersHtml(current) {
           "admin-users-data-card"
         );
 
+  const usersPaneSubtitle = directorySearch
+    ? `${activeUsersView.length} de ${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"} con búsqueda${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"} en total` : ""}`
+    : `${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"}${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}` : ""}`;
+  const usersPaneBody =
+    activeUsers.length && !activeUsersView.length
+      ? emptyState("Ningún usuario coincide con la búsqueda.")
+      : userCards
+        ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main directory-grid">${userCards}</div></div>`
+        : emptyState("Sin usuarios registrados.");
   const usersPaneHtml = pcardWrapPro(
     "shield",
     "Usuarios del sistema",
-    `${activeUsers.length} activo${activeUsers.length === 1 ? "" : "s"}${pendingUsers.length ? ` · ${pendingUsers.length} pendiente${pendingUsers.length === 1 ? "" : "s"}` : ""}`,
-    `${userCards
-      ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main directory-grid">${userCards}</div></div>`
-      : emptyState("Sin usuarios registrados.")}`,
+    usersPaneSubtitle,
+    usersPaneBody,
     "admin-users-data-card"
   );
 
+  const companiesPaneSubtitle = directorySearch
+    ? `${companiesForView.length} de ${companies.length} con búsqueda activa`
+    : `${companies.length} empresa${companies.length === 1 ? "" : "s"}`;
   const companiesPaneHtml =
     companies.length > 0
-      ? pcardWrapPro(
-      "briefcase",
-      "Empresas registradas",
-      `${companies.length} empresa${companies.length === 1 ? "" : "s"}`,
-      `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies directory-grid">${companyCardsHtml}</div></div>`,
-      "admin-users-data-card"
-        )
+      ? companiesForView.length > 0
+        ? pcardWrapPro(
+            "briefcase",
+            "Empresas registradas",
+            companiesPaneSubtitle,
+            `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies directory-grid">${companyCardsHtml}</div></div>`,
+            "admin-users-data-card"
+          )
+        : pcardWrapPro(
+            "briefcase",
+            "Empresas registradas",
+            companiesPaneSubtitle,
+            emptyState("Ninguna empresa coincide con la búsqueda."),
+            "admin-users-data-card"
+          )
       : pcardWrapPro(
           "briefcase",
           "Empresas registradas",
@@ -872,15 +918,65 @@ function adminUsersHtml(current) {
       { id: "sessions", label: "Sesiones", count: sessions.length }
     ]
   });
+  const directorySearchBar = ["pending", "users", "companies"].includes(adminUsersSection)
+    ? `<div class="transport-ops-toolbar admin-users-directory-search">
+        <label class="transport-ops-search">
+          <span class="muted">${IC.search || ""} Buscar</span>
+          <input type="search" data-action="admin-users-directory-search" value="${escapeAttr(directorySearchRaw)}" placeholder="Nombre, correo, documento, empresa…" autocomplete="off" />
+        </label>
+      </div>`
+    : "";
   const actionsPane = `<div class="auth-tab-panel${adminUsersSection === "actions" ? "" : " hidden"}" data-admin-users-panel="actions"${adminUsersSection === "actions" ? "" : " hidden"}>${actionsPaneHtml}</div>`;
   const pendingPane = `<div class="auth-tab-panel${adminUsersSection === "pending" ? "" : " hidden"}" data-admin-users-panel="pending"${adminUsersSection === "pending" ? "" : " hidden"}>${pendingPaneHtml}</div>`;
   const usersPane = `<div class="auth-tab-panel${adminUsersSection === "users" ? "" : " hidden"}" data-admin-users-panel="users"${adminUsersSection === "users" ? "" : " hidden"}>${usersPaneHtml}</div>`;
   const companiesPane = `<div class="auth-tab-panel${adminUsersSection === "companies" ? "" : " hidden"}" data-admin-users-panel="companies"${adminUsersSection === "companies" ? "" : " hidden"}>${companiesPaneHtml}</div>`;
   const sessionsPane = `<div class="auth-tab-panel${adminUsersSection === "sessions" ? "" : " hidden"}" data-admin-users-panel="sessions"${adminUsersSection === "sessions" ? "" : " hidden"}>${sessionsPaneHtml}</div>`;
-  return `${hero}${workspaceNav}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div>`;
+  return `${hero}${workspaceNav}${directorySearchBar}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div>`;
 }
 
 (function registerLegacyViewChunk() {
   if (typeof window.registerLegacyPortalViews !== "function") return;
   window.registerLegacyPortalViews({adminUsersHtml});
+})();
+
+(function registerAdminUsersPortalAfterRender() {
+  "use strict";
+  function bindAdminUsersPortalControls() {
+    if (String(state.currentView || "") !== "admin-users" || !nodes.viewRoot) return;
+    nodes.viewRoot.querySelectorAll("[data-action='admin-users-directory-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        if (typeof setAdminUsersUi === "function") {
+          setAdminUsersUi({ directorySearch: String(el.value || "") });
+        } else {
+          state.adminUsersUi = { ...getAdminUsersUi(), directorySearch: String(el.value || "") };
+        }
+        state.__adminUsersDirectorySearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
+
+    const restore = state.__adminUsersDirectorySearchRestore;
+    if (restore && typeof restore.start === "number") {
+      delete state.__adminUsersDirectorySearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "admin-users") return;
+        const inp = root.querySelector("[data-action='admin-users-directory-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(restore.start, n));
+          const e = Math.max(0, Math.min(restore.end ?? restore.start, n));
+          inp.setSelectionRange(s, e);
+        }
+      });
+    }
+  }
+  window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
+  window.__portalModuleAfterRender["admin-users"] = bindAdminUsersPortalControls;
 })();

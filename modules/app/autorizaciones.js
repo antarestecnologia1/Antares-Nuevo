@@ -26,14 +26,36 @@ function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
 function authorizationsHtml() {
   const actor = currentUser();
   const approvals = read(KEYS.approvals, []);
-  const pending = approvals.filter((a) => a.status === "pendiente");
+  const authUi = state.authorizationsUi && typeof state.authorizationsUi === "object" ? state.authorizationsUi : {};
+  const authSearchRaw = String(authUi.listSearch || "");
+  const authQ = authSearchRaw.trim().toLowerCase();
+  const authInc = (blob) => !authQ || String(blob || "").toLowerCase().includes(authQ);
+  const pendingAll = approvals.filter((a) => a.status === "pendiente");
+  const approvalSearchBlob = (a) => {
+    const meta = APPROVAL_TYPE_META[a.type] || {};
+    const p = a.payload && typeof a.payload === "object" ? a.payload : {};
+    return `${a.type || ""} ${meta.title || ""} ${a.id || ""} ${JSON.stringify(p)}`.toLowerCase();
+  };
+  const pending = authQ ? pendingAll.filter((a) => authInc(approvalSearchBlob(a))) : pendingAll;
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
   const rejectedCt = approvals.filter((a) => a.status === "rechazado").length;
-  const pendingUsers = read(KEYS.users, []).filter((u) => isPortalUserPendingApproval(u));
-  const pendingTransportRequests = sortAuthQueueByDateDesc(
+  const pendingUsersAll = read(KEYS.users, []).filter((u) => isPortalUserPendingApproval(u));
+  const pendingUsers = authQ
+    ? pendingUsersAll.filter((u) =>
+        authInc(
+          `${u.name || ""} ${u.email || ""} ${u.company || ""} ${u.companyId || ""} ${getCompanyById(u.companyId)?.name || ""} ${u.role || ""}`
+        )
+      )
+    : pendingUsersAll;
+  const pendingTransportRequestsAll = sortAuthQueueByDateDesc(
     reqRead().filter((r) => r.status === STATUS.PENDIENTE),
     (r) => r.createdAt
   );
+  const transportRequestSearchBlob = (r) =>
+    `${r.requestNumber || ""} ${r.id || ""} ${r.clientName || ""} ${r.originCity || ""} ${r.destinationCity || ""} ${r.status || ""}`.toLowerCase();
+  const pendingTransportRequests = authQ
+    ? pendingTransportRequestsAll.filter((r) => authInc(transportRequestSearchBlob(r)))
+    : pendingTransportRequestsAll;
   let totalOpen = 0;
   if (canAccessAuthorizationSection(actor, "portal_registrations")) totalOpen += pendingUsers.length;
   if (canAccessAuthorizationSection(actor, "transport_requests")) totalOpen += pendingTransportRequests.length;
@@ -83,7 +105,7 @@ function authorizationsHtml() {
     hasAuthorizationManageAll(actor) ||
     APPROVAL_UI_BLOCKS.some((b) => b.kind === "queue" && canAccessAuthorizationSection(actor, b.key))
   ) {
-    const internalCt = pending.filter((a) => {
+    const internalCt = pendingAll.filter((a) => {
       const sk = APPROVAL_TYPE_META[a.type]?.sectionKey || "misc";
       return sk !== "transport_requests" && sk !== "portal_registrations" && canAccessAuthorizationSection(actor, sk);
     }).length;
@@ -186,6 +208,12 @@ function authorizationsHtml() {
     )
     .join("")}</div>`;
   const tabsWrap = `<div class="auth-tabs-layout">${tabBar}${tabPanels}</div>`;
+  const authSearchToolbar = `<div class="transport-ops-toolbar authorizations-queue-search">
+      <label class="transport-ops-search">
+        <span class="muted">${IC.search || ""} Buscar en bandejas</span>
+        <input type="search" data-action="auth-queue-search" value="${escapeAttr(authSearchRaw)}" placeholder="Nombre, correo, tipo, solicitud…" autocomplete="off" />
+      </label>
+    </div>`;
 
   const infoSectionsHtml = APPROVAL_UI_BLOCKS.filter((s) => s.kind === "info")
     .map(
@@ -207,7 +235,7 @@ function authorizationsHtml() {
         <span>${escapeHtml(String(state.authorizationsSyncError.message || ""))}</span>
       </div>`
     : "";
-  const bodyInner = `${syncBanner}${tabsWrap}${
+  const bodyInner = `${syncBanner}${authSearchToolbar}${tabsWrap}${
     infoSectionsHtml ? `<div class="auth-info-blocks">${infoSectionsHtml}</div>` : ""
   }`;
   return (
@@ -264,6 +292,18 @@ function mountAuthorizationsTabs() {
 function bindAuthorizationsPortalControls() {
   if (String(state.currentView || "") !== "authorizations" || !nodes.viewRoot) return;
   mountAuthorizationsTabs();
+
+  nodes.viewRoot.querySelectorAll("[data-action='auth-queue-search']").forEach((input) => {
+    input.addEventListener("input", () => {
+      const el = /** @type {HTMLInputElement} */ (input);
+      const len = String(el.value || "").length;
+      const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+      const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+      state.authorizationsUi = { ...(state.authorizationsUi || {}), listSearch: String(el.value || "") };
+      state.__authQueueSearchRestore = { start, end };
+      renderPortalView();
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='approval-approve']").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -695,6 +735,24 @@ function bindAuthorizationsPortalControls() {
       }
     });
   });
+
+  const authSearchRestore = state.__authQueueSearchRestore;
+  if (authSearchRestore && typeof authSearchRestore.start === "number") {
+    delete state.__authQueueSearchRestore;
+    queueMicrotask(() => {
+      const root = nodes.viewRoot;
+      if (!root || String(state.currentView || "") !== "authorizations") return;
+      const inp = root.querySelector("[data-action='auth-queue-search']");
+      if (!inp || typeof inp.focus !== "function") return;
+      inp.focus();
+      if (typeof inp.setSelectionRange === "function") {
+        const n = String(inp.value || "").length;
+        const s = Math.max(0, Math.min(authSearchRestore.start, n));
+        const e = Math.max(0, Math.min(authSearchRestore.end ?? authSearchRestore.start, n));
+        inp.setSelectionRange(s, e);
+      }
+    });
+  }
 }
 
 (function registerAuthorizationsPortalBinds() {

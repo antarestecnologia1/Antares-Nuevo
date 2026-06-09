@@ -32,6 +32,9 @@ function hiringHtml() {
   const hiringWorkspace = normalizeHrWorkspace("hiring", hiringUi.workspace);
   const hiringOperateSection = normalizeHiringOperateSection(hiringUi.operateSection);
   const hiringDataSection = normalizeHiringDataSection(hiringUi.dataSection);
+  const dataListSearchRaw = String(hiringUi.dataListSearch || "");
+  const dataListSearch = dataListSearchRaw.trim().toLowerCase();
+  const hiringDataMatches = (blob) => !dataListSearch || String(blob || "").toLowerCase().includes(dataListSearch);
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
     return Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
@@ -49,7 +52,14 @@ function hiringHtml() {
 
   const positionCanEdit = canManageHiringModule();
   const positionCanDelete = isAdminActor();
-  const positionRows = positions
+  const positionsView = dataListSearch
+    ? positions.filter((p) =>
+        hiringDataMatches(
+          `${p.name} ${p.workerRole} ${p.contractTypeDefault} ${p.legalBasis} ${parseNum(p.baseSalary)}`
+        )
+      )
+    : positions;
+  const positionRows = positionsView
     .map((p) => `<tr class="hiring-table-row hiring-table-row--position">
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(p.name || ""))}</strong><span>Catálogo base de contratación</span></div></td>
       <td>${p.workerRole === "conductor" ? "Conductor" : "Empleado"}</td>
@@ -69,6 +79,13 @@ function hiringHtml() {
     .join("");
 
   const filteredVacancies = vacancies.filter((v) => (vacancyFilter === "open" ? v.status === "Publicada" : true));
+  const filteredVacanciesView = dataListSearch
+    ? filteredVacancies.filter((v) =>
+        hiringDataMatches(
+          `${v.title} ${v.positionName} ${v.city} ${v.modality} ${v.status} ${v.deadline} ${parseNum(v.salaryOffer)}`
+        )
+      )
+    : filteredVacancies;
   const vacancyCanEdit = canManageHiringModule();
   const vacancyCanDelete = isAdminActor();
   const filteredCandidates = candidates.filter((c) => {
@@ -81,7 +98,14 @@ function hiringHtml() {
     if (candidateSort === "experience") return parseNum(b.experienceYears || 0) - parseNum(a.experienceYears || 0);
     return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
-  const vacRows = filteredVacancies
+  const sortedCandidatesView = dataListSearch
+    ? sortedCandidates.filter((c) =>
+        hiringDataMatches(
+          `${c.name} ${c.email} ${c.phone} ${c.vacancyTitle} ${c.status} ${c.idDoc} ${c.city} ${c.address} ${c.source}`
+        )
+      )
+    : sortedCandidates;
+  const vacRows = filteredVacanciesView
     .map((v) => {
       const delCell = vacancyCanDelete
         ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vacancy" data-id="${escapeAttr(String(v.id))}" title="Solo administradores del sistema">${IC.trash} Eliminar</button>`
@@ -109,7 +133,7 @@ function hiringHtml() {
     .join("");
   const hiringCanEdit = canManageHiringModule();
   const hiringCanDelete = isAdminActor();
-  const candRows = sortedCandidates
+  const candRows = sortedCandidatesView
     .map((c) => {
       const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
       const ageStr = ageInfo.age != null ? `${ageInfo.age} años` : "—";
@@ -151,7 +175,7 @@ function hiringHtml() {
     </tr>`;
     })
     .join("");
-  const candCards = sortedCandidates
+  const candCards = sortedCandidatesView
     .map((c) => {
       const cvDlRow = extractCandidateCvDownload(c);
       const canDlCv = Boolean(cvDlRow?.href) || candidateMayHaveCvInStorage(c);
@@ -164,7 +188,14 @@ function hiringHtml() {
       });
     })
     .join("");
-  const interviewRows = interviews
+  const interviewsView = dataListSearch
+    ? interviews.filter((i) =>
+        hiringDataMatches(
+          `${i.candidateName} ${i.when} ${i.mode || ""} ${i.modality || ""} ${i.place} ${i.interviewer}`
+        )
+      )
+    : interviews;
+  const interviewRows = interviewsView
     .map((i) => `<tr class="hiring-table-row hiring-table-row--interview">
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(i.candidateName || "-"))}</strong><span>Entrevista agendada</span></div></td>
       <td>${escapeHtml(formatInterviewWhenDisplay(i.when))}</td>
@@ -177,7 +208,14 @@ function hiringHtml() {
       </div></td>
     </tr>`)
     .join("");
-  const contractRows = contracts
+  const contractsView = dataListSearch
+    ? contracts.filter((c) =>
+        hiringDataMatches(
+          `${c.candidateName} ${c.employeeName} ${c.position} ${c.positionName} ${c.contractType} ${c.source} ${c.sourceTag}`
+        )
+      )
+    : contracts;
+  const contractRows = contractsView
     .map((c) => `<tr class="hiring-table-row hiring-table-row--contract">
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</strong><span>${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</span></div></td>
       <td>${escapeHtml(String(c.position || c.positionName || ""))}</td>
@@ -527,11 +565,22 @@ function hiringHtml() {
       : hiringDataSection === "vacancies"
         ? hiringQuickBarVacancies
         : "";
-  const hiringMetaCandidates = `<p class="payroll-result-meta muted">Mostrando <strong>${sortedCandidates.length}</strong> de ${candidates.length} candidato${candidates.length === 1 ? "" : "s"}</p>`;
-  const hiringMetaVacancies = `<p class="payroll-result-meta muted">Mostrando <strong>${filteredVacancies.length}</strong> de ${vacancies.length} vacante${vacancies.length === 1 ? "" : "s"}</p>`;
-  const hiringMetaInterviews = `<p class="payroll-result-meta muted"><strong>${interviews.length}</strong> entrevista${interviews.length === 1 ? "" : "s"} registrada${interviews.length === 1 ? "" : "s"}</p>`;
-  const hiringMetaContracts = `<p class="payroll-result-meta muted"><strong>${contracts.length}</strong> contrato${contracts.length === 1 ? "" : "s"} · ${contractsThisMonth.length} este mes</p>`;
-  const hiringMetaPositions = `<p class="payroll-result-meta muted"><strong>${activePositions.length}</strong> cargo${activePositions.length === 1 ? "" : "s"} activo${activePositions.length === 1 ? "" : "s"} de ${positions.length}</p>`;
+  const hiringMetaCandidates = `<p class="payroll-result-meta muted">Mostrando <strong>${sortedCandidatesView.length}</strong>${
+    dataListSearch ? ` de ${sortedCandidates.length}` : ""
+  } de ${candidates.length} candidato${candidates.length === 1 ? "" : "s"}</p>`;
+  const hiringMetaVacancies = `<p class="payroll-result-meta muted">Mostrando <strong>${filteredVacanciesView.length}</strong>${
+    dataListSearch ? ` de ${filteredVacancies.length}` : ""
+  } de ${vacancies.length} vacante${vacancies.length === 1 ? "" : "s"}</p>`;
+  const hiringMetaInterviews = `<p class="payroll-result-meta muted"><strong>${interviewsView.length}</strong>${
+    dataListSearch ? ` de ${interviews.length}` : ""
+  } entrevista${interviewsView.length === 1 ? "" : "s"} registrada${interviewsView.length === 1 ? "" : "s"}</p>`;
+  const hiringMetaContracts = `<p class="payroll-result-meta muted"><strong>${contractsView.length}</strong>${
+    dataListSearch ? ` de ${contracts.length}` : ""
+  } contrato${contractsView.length === 1 ? "" : "s"} · ${contractsThisMonth.length} este mes</p>`;
+  const activePositionsInView = positionsView.filter((p) => p.active !== false);
+  const hiringMetaPositions = `<p class="payroll-result-meta muted"><strong>${activePositionsInView.length}</strong>${
+    dataListSearch ? ` de ${activePositions.length}` : ""
+  } cargo${activePositionsInView.length === 1 ? "" : "s"} activo${activePositionsInView.length === 1 ? "" : "s"} de ${positions.length}</p>`;
   const hiringCandidatesPane = `<div class="payroll-data-pane${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-section="candidates">
       ${hiringMetaCandidates}
       <div class="payroll-table-shell">${tCand}</div>
@@ -552,7 +601,14 @@ function hiringHtml() {
       ${hiringMetaPositions}
       <div class="payroll-table-shell">${tPos}</div>
     </div>`;
+  const hiringDataSearchBar = `<div class="transport-ops-toolbar hiring-data-search-toolbar" style="margin-bottom:10px">
+      <label class="transport-ops-search">
+        <span class="muted">${IC.search || ""} Buscar en listado</span>
+        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Nombre, correo, cargo, vacante, documento…" autocomplete="off" />
+      </label>
+    </div>`;
   const hiringDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
+      ${hiringDataSearchBar}
       <div class="payroll-data-toolbar payroll-data-toolbar--compact">
         ${hiringDataNav}
         ${hiringDataFilters ? `<div class="payroll-data-toolbar__filters">${hiringDataFilters}</div>` : ""}
@@ -683,7 +739,7 @@ function bindHiringPortalControls() {
       if (!tab) return;
       const ws = normalizeHrWorkspace("hiring", tab);
       if (!HR_VALID_HIRING_WS.has(ws)) return;
-      state.hiringUi = { ...(state.hiringUi || {}), workspace: ws };
+      state.hiringUi = { ...(state.hiringUi || {}), workspace: ws, ...(ws === "operate" ? { dataListSearch: "" } : {}) };
       persistHrWorkspace("hiring", ws);
       renderPortalView();
     });
@@ -1018,6 +1074,18 @@ function bindHiringPortalControls() {
       if (panelId) {
         requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
       }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-data-list-search']").forEach((input) => {
+    input.addEventListener("input", () => {
+      const el = /** @type {HTMLInputElement} */ (input);
+      const len = String(el.value || "").length;
+      const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+      const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+      state.hiringUi = { ...(state.hiringUi || {}), dataListSearch: String(el.value || ""), workspace: "data" };
+      state.__hiringDataListSearchRestore = { start, end };
+      renderPortalView();
     });
   });
 
@@ -2343,6 +2411,24 @@ function bindHiringPortalControls() {
       });
     });
   });
+
+  const hiringSearchRestore = state.__hiringDataListSearchRestore;
+  if (hiringSearchRestore && typeof hiringSearchRestore.start === "number") {
+    delete state.__hiringDataListSearchRestore;
+    queueMicrotask(() => {
+      const root = nodes.viewRoot;
+      if (!root || String(state.currentView || "") !== "hiring") return;
+      const inp = root.querySelector("[data-action='hiring-data-list-search']");
+      if (!inp || typeof inp.focus !== "function") return;
+      inp.focus();
+      if (typeof inp.setSelectionRange === "function") {
+        const n = String(inp.value || "").length;
+        const s = Math.max(0, Math.min(hiringSearchRestore.start, n));
+        const e = Math.max(0, Math.min(hiringSearchRestore.end ?? hiringSearchRestore.start, n));
+        inp.setSelectionRange(s, e);
+      }
+    });
+  }
 }
 
 (function registerLegacyViewChunk() {
