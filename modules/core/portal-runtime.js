@@ -3303,15 +3303,17 @@ function buildRouteRateScopeStepInnerHtml(companies, opts = {}) {
     <input type="hidden" name="rateScope" value="${escapeAttr(scope)}" data-route-rate-scope-field />
     <div class="route-rate-scope-cards" role="radiogroup" aria-label="Alcance de la tarifa">
       <button type="button" class="route-rate-scope-card${scope === "all" ? " is-selected" : ""}" data-route-rate-scope-pick="all" aria-pressed="${scope === "all" ? "true" : "false"}">
+        <span class="route-rate-scope-card-icon route-rate-scope-card-icon--all" aria-hidden="true">${IC.grid}</span>
         <span class="route-rate-scope-card-body">
-          <strong class="route-rate-scope-card-title">${IC.grid} General</strong>
-          <span class="muted">La misma tarifa para todos los clientes en esta ruta</span>
+          <strong class="route-rate-scope-card-title">General</strong>
+          <span class="route-rate-scope-card-desc">La misma tarifa para todos los clientes en esta ruta</span>
         </span>
       </button>
       <button type="button" class="route-rate-scope-card${scope === "specific" ? " is-selected" : ""}" data-route-rate-scope-pick="specific" aria-pressed="${scope === "specific" ? "true" : "false"}">
+        <span class="route-rate-scope-card-icon route-rate-scope-card-icon--specific" aria-hidden="true">${IC.briefcase}</span>
         <span class="route-rate-scope-card-body">
-          <strong class="route-rate-scope-card-title">${IC.briefcase} Por empresa</strong>
-          <span class="muted">Solo para clientes con precio negociado</span>
+          <strong class="route-rate-scope-card-title">Por empresa</strong>
+          <span class="route-rate-scope-card-desc">Solo para clientes con precio negociado</span>
         </span>
       </button>
     </div>
@@ -3546,9 +3548,9 @@ function populateRouteRateInlineForm(storageKey) {
 
   if (editingKeyInput) editingKeyInput.value = key;
   if (submitBtn) submitBtn.textContent = `${IC.save} Guardar cambios de tarifa`;
-  if (cancelEditBtn) cancelEditBtn.style.display = "";
+  if (cancelEditBtn) cancelEditBtn.hidden = false;
   if (editingHint) {
-    editingHint.style.display = "";
+    editingHint.hidden = false;
     editingHint.textContent = `Editando registro ${String(entry.id || "").trim() || "pendiente"} · creado ${fmtDateOr(
       entry.createdAt,
       "—"

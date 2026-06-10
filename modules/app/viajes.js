@@ -401,55 +401,82 @@ function transportTripsHtml() {
       </div>`
     : emptyState("Aún no has configurado tarifas por trayecto. Crea la primera para que el sistema sugiera el precio cuando asignes un viaje a esa ruta.");
 
-  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored transport-route-form" autocomplete="off">
-    ${renderHrFormHero({
-      eyebrow: "Catálogo de trayectos",
-      title: "Configura trayectos y tarifas sugeridas",
-      description: "Define la ruta, el alcance por cliente y el valor pactado para que el sistema sugiera el precio correcto al asignar nuevos viajes.",
-      badges: [
-        renderHrFormHeroBadge("Ruta", "origen y destino"),
-        renderHrFormHeroBadge("Clientes", "general o específico"),
-        renderHrFormHeroBadge("COP", "autocompletado")
-      ]
-    })}
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored transport-route-form transport-route-form--revamp assign-trip-form assign-trip-form--revamp" autocomplete="off">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
-    <fieldset class="form-section form-section-blue transport-route-form-fieldset transport-route-form-fieldset--origin">
-      <legend>${IC.mapPin} Paso 1 · Ciudad de origen</legend>
-      <p class="muted form-section-hint">Indica desde dónde sale el viaje. Selecciona primero el departamento y luego la ciudad.</p>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.mapPin, "Departamento de origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione departamento...</option>${departmentsOpts}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad de origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Primero elige departamento...</option></select></label>
+    <div class="assign-trip-top route-rate-form-top">
+      <ol class="create-trip-stepper create-trip-stepper--track route-rate-stepper" aria-label="Pasos para configurar trayecto">
+        <li class="create-trip-step create-trip-step--current" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Ruta</span></li>
+        <li class="create-trip-step create-trip-step--locked"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Tarifa</span></li>
+        <li class="create-trip-step create-trip-step--locked"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Alcance</span></li>
+      </ol>
+      <div class="route-rate-preview" data-route-rate-preview aria-live="polite">
+        <div class="route-rate-preview__leg route-rate-preview__leg--origin">
+          <span class="route-rate-preview__eyebrow">Origen</span>
+          <strong class="route-rate-preview__value" data-route-rate-preview-origin>Seleccione origen</strong>
+        </div>
+        <span class="route-rate-preview__arrow" aria-hidden="true">${IC.compass || "→"}</span>
+        <div class="route-rate-preview__leg route-rate-preview__leg--dest">
+          <span class="route-rate-preview__eyebrow">Destino</span>
+          <strong class="route-rate-preview__value" data-route-rate-preview-dest>Seleccione destino</strong>
+        </div>
       </div>
-    </fieldset>
-    <fieldset class="form-section form-section-violet transport-route-form-fieldset transport-route-form-fieldset--destination">
-      <legend>${IC.mapPin} Paso 2 · Ciudad de destino</legend>
-      <p class="muted form-section-hint">Indica hasta dónde llega el viaje.</p>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.mapPin, "Departamento de destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione departamento...</option>${departmentsOpts}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad de destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Primero elige departamento...</option></select></label>
+    </div>
+    <section class="assign-trip-block route-rate-block route-rate-block--route" aria-labelledby="route-rate-route-title">
+      <header class="assign-trip-block-head">
+        <h4 id="route-rate-route-title" class="assign-trip-block-title">${IC.mapPin} Trayecto</h4>
+        <p class="muted route-rate-block-lead">Departamento y ciudad de salida y llegada del servicio.</p>
+      </header>
+      <div class="route-rate-route-grid">
+        <div class="route-rate-route-col route-rate-route-col--origin">
+          <span class="route-rate-route-col-badge">A</span>
+          <div class="route-rate-route-col-fields">
+            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
+          </div>
+        </div>
+        <div class="route-rate-route-bridge" aria-hidden="true"><span class="route-rate-route-bridge-line"></span><span class="route-rate-route-bridge-icon">${IC.truck || "→"}</span></div>
+        <div class="route-rate-route-col route-rate-route-col--dest">
+          <span class="route-rate-route-col-badge route-rate-route-col-badge--dest">B</span>
+          <div class="route-rate-route-col-fields">
+            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
+          </div>
+        </div>
       </div>
-    </fieldset>
-    <fieldset class="form-section form-section-emerald transport-route-form-fieldset transport-route-form-fieldset--price">
-      <legend>${IC.dollar} Paso 3 · Tarifa pactada</legend>
-      <p class="muted form-section-hint">Valor en pesos colombianos (COP) que se autocompletará cada vez que se asigne un viaje en esta ruta.</p>
-      <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)")}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="Ejemplo: 4.200.000" /></label>
+    </section>
+    <section class="assign-trip-block route-rate-block route-rate-block--price" aria-labelledby="route-rate-price-title">
+      <header class="assign-trip-block-head">
+        <h4 id="route-rate-price-title" class="assign-trip-block-title">${IC.dollar} Tarifa pactada</h4>
+        <p class="muted route-rate-block-lead">Valor en COP que se sugerirá al asignar un viaje en esta ruta.</p>
+      </header>
+      <div class="route-rate-price-surface">
+        <label class="route-rate-price-field">
+          <span class="route-rate-price-label">${fieldLabel(IC.dollar, "Valor del viaje", { required: true })}</span>
+          <div class="route-rate-price-input-wrap">
+            <span class="route-rate-price-prefix" aria-hidden="true">$</span>
+            <input type="number" name="tripRateCop" min="1" step="1" required placeholder="4.200.000" inputmode="numeric" />
+            <span class="route-rate-price-suffix" aria-hidden="true">COP</span>
+          </div>
+          <span class="route-rate-price-hint muted">Se autocompleta en la asignación del viaje cuando coincida origen, destino y alcance.</span>
+        </label>
       </div>
-    </fieldset>
-    <fieldset class="form-section form-section-amber full route-rate-scope-fieldset transport-route-form-fieldset transport-route-form-fieldset--scope">
-      <legend>${IC.briefcase} Paso 4 · ¿A qué clientes aplica?</legend>
-      <p class="muted form-section-hint">Elija <strong>General</strong> si la tarifa es la misma para todos, o <strong>Por empresa</strong> y marque los clientes. Use la búsqueda si tiene muchas empresas registradas.</p>
+    </section>
+    <section class="assign-trip-block route-rate-block route-rate-block--scope" aria-labelledby="route-rate-scope-title">
+      <header class="assign-trip-block-head">
+        <h4 id="route-rate-scope-title" class="assign-trip-block-title">${IC.briefcase} Alcance por cliente</h4>
+        <p class="muted route-rate-block-lead">Tarifa general para todos o negociada solo con empresas seleccionadas.</p>
+      </header>
       <div class="route-rate-scope-mount" data-route-rate-scope-mount>
         ${buildRouteRateScopeStepInnerHtml(companiesForRates)}
       </div>
-      <p class="muted full" id="route-rate-editing-hint" style="margin:0.35rem 0 0;display:none">Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
-    </fieldset>
+      <p class="route-rate-editing-hint muted" id="route-rate-editing-hint" hidden>Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
+    </section>
     ${renderManagedCreateFormActions(
       "create-route-rate",
       `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>`,
       {
-        className: "form-flow-actions full transport-route-form-actions",
-        extraActionsHtml: `<button class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel module-panel-btn--cancel-edit" id="route-rate-cancel-edit" type="button" style="display:none" title="Salir del modo edición sin guardar cambios">${renderModulePanelBtnInner(IC.x, "Cancelar edición")}</button>`
+        className: "form-flow-actions full transport-route-form-actions route-rate-form-actions",
+        extraActionsHtml: `<button class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel module-panel-btn--cancel-edit" id="route-rate-cancel-edit" type="button" hidden title="Salir del modo edición sin guardar cambios">${renderModulePanelBtnInner(IC.x, "Cancelar edición")}</button>`
       }
     )}
   </form>`;
@@ -947,9 +974,31 @@ function transportTripsHtml() {
       const fillRouteRateCities = (departmentSelect, citySelect) => {
         const department = String(departmentSelect?.value || "");
         const cities = COLOMBIA_LOCATIONS[department] || [];
-        citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
+        citySelect.innerHTML = `<option value="">Seleccione…</option>${cities
           .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
           .join("")}`;
+      };
+      const formatRouteRatePreviewPlace = (deptSelect, citySelect) => {
+        const city = String(citySelect?.selectedOptions?.[0]?.textContent || citySelect?.value || "").trim();
+        const dept = String(deptSelect?.value || "").trim();
+        if (city && city !== "Seleccione…" && city !== "Elija departamento…") {
+          return dept ? `${city}, ${dept}` : city;
+        }
+        if (dept) return dept;
+        return "";
+      };
+      const updateRouteRatePreview = () => {
+        const preview = routeRateFormEl.querySelector("[data-route-rate-preview]");
+        const originEl = routeRateFormEl.querySelector("[data-route-rate-preview-origin]");
+        const destEl = routeRateFormEl.querySelector("[data-route-rate-preview-dest]");
+        if (!originEl || !destEl) return;
+        const origin = formatRouteRatePreviewPlace(originDept, originCity);
+        const dest = formatRouteRatePreviewPlace(destDept, destCity);
+        originEl.textContent = origin || "Seleccione origen";
+        destEl.textContent = dest || "Seleccione destino";
+        if (preview) {
+          preview.classList.toggle("is-ready", Boolean(origin && dest));
+        }
       };
       const resetRateScopeMount = () => {
         if (!scopeMount) return;
@@ -961,9 +1010,10 @@ function transportTripsHtml() {
       const resetRateEditMode = () => {
         if (editingKeyInput) editingKeyInput.value = "";
         if (submitBtn) submitBtn.textContent = `${IC.plus} Guardar tarifa de trayecto`;
-        if (cancelEditBtn) cancelEditBtn.style.display = "none";
-        if (editingHint) editingHint.style.display = "none";
+        if (cancelEditBtn) cancelEditBtn.hidden = true;
+        if (editingHint) editingHint.hidden = true;
         resetRateScopeMount();
+        updateRouteRatePreview();
       };
       nodes.viewRoot.querySelectorAll("[data-action='edit-route-rate']").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -976,22 +1026,33 @@ function transportTripsHtml() {
       if (cancelEditBtn) {
         cancelEditBtn.addEventListener("click", () => {
           routeRateFormEl.reset();
-          if (originCity) originCity.innerHTML = `<option value="">Seleccione departamento...</option>`;
-          if (destCity) destCity.innerHTML = `<option value="">Seleccione departamento...</option>`;
+          if (originCity) originCity.innerHTML = `<option value="">Elija departamento…</option>`;
+          if (destCity) destCity.innerHTML = `<option value="">Elija departamento…</option>`;
           resetRateEditMode();
         });
       }
+      const onRouteFieldChange = () => updateRouteRatePreview();
       if (originDept && originCity) {
-        originDept.addEventListener("change", () => fillRouteRateCities(originDept, originCity));
+        originDept.addEventListener("change", () => {
+          fillRouteRateCities(originDept, originCity);
+          onRouteFieldChange();
+        });
+        originCity.addEventListener("change", onRouteFieldChange);
       }
       if (destDept && destCity) {
-        destDept.addEventListener("change", () => fillRouteRateCities(destDept, destCity));
+        destDept.addEventListener("change", () => {
+          fillRouteRateCities(destDept, destCity);
+          onRouteFieldChange();
+        });
+        destCity.addEventListener("change", onRouteFieldChange);
       }
+      updateRouteRatePreview();
       wireRouteRateScopeSection(routeRateFormEl);
       const pendingEditKey = state.pendingRouteRateEditKey;
       if (pendingEditKey) {
         state.pendingRouteRateEditKey = null;
         populateRouteRateInlineForm(pendingEditKey);
+        updateRouteRatePreview();
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             const formEl = document.getElementById("form-route-rate");

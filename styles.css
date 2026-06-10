@@ -4828,6 +4828,431 @@ body[data-theme="dark"] .modal-edit-section-title {
   }
 }
 
+/* Trayectos · formulario revamp (Registrar) */
+.transport-route-form--revamp {
+  gap: 1rem !important;
+}
+
+.p-form-colored.transport-route-form--revamp {
+  grid-template-columns: 1fr !important;
+}
+
+.p-form-colored.transport-route-form--revamp > .assign-trip-top,
+.p-form-colored.transport-route-form--revamp > .route-rate-block,
+.p-form-colored.transport-route-form--revamp > .transport-route-form-actions,
+.p-form-colored.transport-route-form--revamp > .route-rate-form-actions {
+  grid-column: 1 / -1;
+}
+
+.route-rate-form-top {
+  align-items: stretch;
+}
+
+.route-rate-form-top .route-rate-stepper {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+.route-rate-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  flex: 1 1 18rem;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 5%, var(--white)), var(--white));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.route-rate-preview.is-ready {
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, var(--white)), color-mix(in srgb, #7c3aed 6%, var(--white)));
+}
+
+.route-rate-preview__leg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+  flex: 1 1 7rem;
+}
+
+.route-rate-preview__eyebrow {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+}
+
+.route-rate-preview__value {
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--text-main, #0f172a);
+  word-break: break-word;
+}
+
+.route-rate-preview__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--white));
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+}
+
+.route-rate-block-lead {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
+.route-rate-block .assign-trip-block-head {
+  align-items: flex-start;
+}
+
+.route-rate-route-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.75rem 0.85rem;
+  align-items: stretch;
+}
+
+.route-rate-route-col {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0.85rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  background: color-mix(in srgb, var(--white) 92%, var(--primary) 8%);
+}
+
+.route-rate-route-col--origin {
+  background: linear-gradient(180deg, color-mix(in srgb, #3b82f6 8%, var(--white)), var(--white));
+}
+
+.route-rate-route-col--dest {
+  background: linear-gradient(180deg, color-mix(in srgb, #7c3aed 8%, var(--white)), var(--white));
+}
+
+.route-rate-route-col-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(145deg, #2563eb, #1d4ed8);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+}
+
+.route-rate-route-col-badge--dest {
+  background: linear-gradient(145deg, #7c3aed, #5b21b6);
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.22);
+}
+
+.route-rate-route-col-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.route-rate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.route-rate-field select {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  font-size: 0.9rem;
+}
+
+.route-rate-route-bridge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0;
+  min-width: 2.5rem;
+}
+
+.route-rate-route-bridge-line {
+  display: block;
+  width: 2px;
+  flex: 1 1 auto;
+  min-height: 1.5rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2563eb, #7c3aed);
+  opacity: 0.35;
+}
+
+.route-rate-route-bridge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 999px;
+  color: var(--primary);
+  background: var(--white);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--line));
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.route-rate-price-surface {
+  padding: 0.15rem 0 0;
+}
+
+.route-rate-price-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.route-rate-price-input-wrap {
+  display: flex;
+  align-items: stretch;
+  min-height: 3.35rem;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, #10b981 28%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, #10b981 8%, var(--white)), var(--white));
+  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.08);
+}
+
+.route-rate-price-prefix,
+.route-rate-price-suffix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: color-mix(in srgb, #047857 70%, var(--text-main));
+  background: color-mix(in srgb, #10b981 10%, var(--white));
+}
+
+.route-rate-price-input-wrap input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}
+
+.route-rate-price-input-wrap input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #10b981 35%, transparent);
+}
+
+.route-rate-price-hint {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.route-rate-editing-hint {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--line));
+  background: color-mix(in srgb, var(--warning) 10%, var(--white));
+}
+
+.transport-route-form--revamp .route-rate-scope-mount {
+  gap: 0.85rem;
+}
+
+.transport-route-form--revamp .route-rate-scope-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.transport-route-form--revamp .route-rate-scope-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 100%;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line));
+  background: var(--white);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  text-align: left;
+}
+
+.transport-route-form--revamp .route-rate-scope-card.is-selected,
+.transport-route-form--revamp .route-rate-scope-card[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 10%, var(--white)), var(--white));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.route-rate-scope-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 12px;
+  flex: 0 0 auto;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--white));
+}
+
+.route-rate-scope-card-icon--specific {
+  color: #6d28d9;
+  background: color-mix(in srgb, #7c3aed 12%, var(--white));
+}
+
+.transport-route-form--revamp .route-rate-scope-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0;
+  min-width: 0;
+}
+
+.transport-route-form--revamp .route-rate-scope-card-title {
+  font-size: 0.94rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.route-rate-scope-card-desc {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted, #64748b);
+}
+
+.transport-route-form--revamp .route-rate-clients-block {
+  margin-top: 0.15rem;
+  padding: 0.85rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+  background: color-mix(in srgb, var(--white) 94%, var(--primary) 6%);
+}
+
+.transport-route-form--revamp .route-rate-clients-list {
+  max-height: 16rem;
+  border-radius: 12px;
+}
+
+.transport-route-form--revamp .route-rate-company-item {
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+}
+
+.transport-route-form--revamp .route-rate-company-item:hover {
+  background: color-mix(in srgb, var(--primary) 7%, var(--white));
+}
+
+.route-rate-form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 0.25rem;
+  padding-top: 0.85rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.96) 32%);
+}
+
+@media (max-width: 960px) {
+  .route-rate-route-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .route-rate-route-bridge {
+    flex-direction: row;
+    padding: 0.15rem 0;
+  }
+
+  .route-rate-route-bridge-line {
+    width: auto;
+    height: 2px;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .transport-route-form--revamp .route-rate-scope-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .route-rate-form-top {
+    flex-direction: column;
+  }
+
+  .route-rate-preview {
+    width: 100%;
+  }
+
+  .route-rate-form-actions {
+    position: static;
+    background: transparent;
+  }
+}
+
+body[data-theme="dark"] .route-rate-preview {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface)), var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--line));
+}
+
+body[data-theme="dark"] .route-rate-preview__value {
+  color: var(--text-main);
+}
+
+body[data-theme="dark"] .route-rate-route-col,
+body[data-theme="dark"] .route-rate-route-col--origin,
+body[data-theme="dark"] .route-rate-route-col--dest {
+  background: color-mix(in srgb, var(--surface) 92%, var(--primary) 8%);
+}
+
+body[data-theme="dark"] .route-rate-field select,
+body[data-theme="dark"] .route-rate-price-input-wrap,
+body[data-theme="dark"] .transport-route-form--revamp .route-rate-scope-card,
+body[data-theme="dark"] .transport-route-form--revamp .route-rate-clients-block {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--line));
+}
+
+body[data-theme="dark"] .route-rate-form-actions {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.96) 32%);
+}
+
+body[data-theme="dark"] .route-rate-editing-hint {
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+
 .create-trip-hero {
   display: flex;
   flex-wrap: wrap;
@@ -21364,9 +21789,12 @@ body[data-theme="dark"] .hiring-shell--workspace .auth-tab-panels {
 }
 
 .route-rate-scope-card {
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
   width: 100%;
   margin: 0;
+  padding: 0.85rem 0.95rem;
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -21384,14 +21812,21 @@ body[data-theme="dark"] .hiring-shell--workspace .auth-tab-panels {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  padding: 0.72rem 0.85rem;
+  padding: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.route-rate-scope-card-desc {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted, #64748b);
 }
 
 .route-rate-scope-card-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  display: block;
   font-size: 0.92rem;
+  font-weight: 800;
   color: var(--primary-deeper, #1e3a5f);
 }
 
@@ -25530,7 +25965,7 @@ body[data-theme="dark"] .directory-card__actions {
 }
 
 .p-form-colored.transport-trip-create-form,
-.p-form-colored.transport-route-form {
+.p-form-colored.transport-route-form:not(.transport-route-form--revamp) {
   grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
   align-items: start;
 }
@@ -25558,7 +25993,7 @@ body[data-theme="dark"] .directory-card__actions {
 
 @media (max-width: 1180px) {
   .p-form-colored.transport-trip-create-form,
-  .p-form-colored.transport-route-form {
+  .p-form-colored.transport-route-form:not(.transport-route-form--revamp) {
     grid-template-columns: 1fr !important;
   }
 
