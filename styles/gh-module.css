@@ -1598,9 +1598,30 @@ body[data-theme="dark"] .requests-shell .requests-company-row__meta {
   overflow: visible;
 }
 
-.gh-studio #form-create-trip .gh-transport-readiness,
-.gh-studio #form-route-rate .gh-transport-readiness {
-  margin-top: 0.85rem;
+.gh-studio #form-create-trip .gh-transport-form__footer,
+.gh-studio #form-route-rate .gh-transport-form__footer {
+  padding: 0.75rem 1.1rem 1rem;
+  border-top: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+}
+
+.gh-studio #form-create-trip .create-trip-readiness--bar,
+.gh-studio #form-route-rate .create-trip-readiness--bar {
+  border-color: var(--gh-edge);
+  background: var(--gh-card);
+}
+
+.gh-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item,
+.gh-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item {
+  border-right-color: var(--gh-edge);
+  background: color-mix(in srgb, var(--gh-surface) 70%, var(--gh-card));
+}
+
+.gh-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item.is-done,
+.gh-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item.is-done {
+  color: #047857;
+  background: color-mix(in srgb, #10b981 10%, var(--gh-card));
+  box-shadow: inset 0 -2px 0 #10b981;
 }
 
 .gh-studio #form-route-rate .route-rate-editing-hint {

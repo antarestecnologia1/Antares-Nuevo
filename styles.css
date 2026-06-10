@@ -6731,6 +6731,35 @@ body[data-theme="dark"] .searchable-select-dropdown {
   flex: 1 1 14rem;
 }
 
+.create-trip-readiness--bar {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 0;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  overflow: hidden;
+}
+
+.create-trip-readiness--bar .create-trip-readiness-item {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  border-radius: 0;
+  border: none;
+  border-right: 1px solid var(--line);
+  padding: 0.5rem 0.4rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.create-trip-readiness--bar .create-trip-readiness-item:last-child {
+  border-right: none;
+}
+
 .create-trip-readiness-item {
   display: inline-flex;
   align-items: center;
@@ -6749,6 +6778,24 @@ body[data-theme="dark"] .searchable-select-dropdown {
   color: #0f766e;
   background: color-mix(in srgb, #10b981 14%, var(--white));
   border-color: color-mix(in srgb, #10b981 32%, var(--line));
+}
+
+.create-trip-readiness--bar .create-trip-readiness-item.is-done {
+  background: color-mix(in srgb, #10b981 12%, var(--white));
+  border-color: transparent;
+  box-shadow: inset 0 -2px 0 #10b981;
+}
+
+@media (max-width: 720px) {
+  .create-trip-readiness--bar .create-trip-readiness-item {
+    font-size: 0.68rem;
+    padding: 0.45rem 0.2rem;
+  }
+
+  .create-trip-readiness--bar .assign-trip-check-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .create-trip-readiness-mark {
@@ -25918,11 +25965,20 @@ body[data-theme="dark"] .directory-card__actions {
   min-width: 0;
 }
 
-.gh-transport-form--single > .module-panel-actions {
-  margin-top: 0.35rem;
-  padding: 0.85rem 1.1rem 1rem;
+.gh-transport-form__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.75rem 1.1rem 1rem;
   border-top: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
   background: color-mix(in srgb, var(--primary) 2%, var(--white));
+}
+
+.gh-transport-form__footer > .module-panel-actions {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
 .p-form-colored.transport-trip-create-form > .transport-trip-create-form__resources,

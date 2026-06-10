@@ -4053,10 +4053,10 @@ function updateCreateTripStepper(formEl) {
   const checklist = formEl.querySelector("[data-create-trip-readiness]");
   if (checklist) {
     const items = [
-      { done: !!requestId, label: "Solicitud", short: "Sol." },
+      { done: !!requestId, label: "Solicitud", short: "Solicitud" },
       { done: assignable, label: "Fecha válida", short: "Fecha" },
-      { done: !!vehicleId, label: "Vehículo", short: "Veh." },
-      { done: !!driverId, label: "Conductor", short: "Cond." },
+      { done: !!vehicleId, label: "Vehículo", short: "Vehículo" },
+      { done: !!driverId, label: "Conductor", short: "Conductor" },
       { done: tripValue > 0, label: "Precio", short: "Precio" }
     ];
     checklist.innerHTML = items

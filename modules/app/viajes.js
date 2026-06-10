@@ -466,12 +466,14 @@ function transportTripsHtml() {
           </div>
           <p class="route-rate-editing-hint muted" id="route-rate-editing-hint" hidden>Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
         </fieldset>
-        <ul class="assign-trip-checklist create-trip-readiness gh-transport-readiness" data-route-rate-readiness aria-label="Requisitos para guardar"></ul>
       </div>
-      ${renderManagedCreateFormActions(
-        "create-route-rate",
-        `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`
-      )}
+      <div class="gh-transport-form__footer">
+        <ul class="create-trip-readiness create-trip-readiness--bar gh-transport-readiness" data-route-rate-readiness aria-label="Requisitos para guardar"></ul>
+        ${renderManagedCreateFormActions(
+          "create-route-rate",
+          `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`
+        )}
+      </div>
     </div>
   </form>`;
 
@@ -597,12 +599,14 @@ function transportTripsHtml() {
             ${createTripEmptyHint("dollar", "Tarifa pendiente")}
           </div>
         </fieldset>
-        <ul class="assign-trip-checklist create-trip-readiness gh-transport-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
       </div>
-      ${renderManagedCreateFormActions(
-        "create-trip",
-        `<button class="btn btn-primary create-trip-submit-btn" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`
-      )}
+      <div class="gh-transport-form__footer">
+        <ul class="create-trip-readiness create-trip-readiness--bar gh-transport-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
+        ${renderManagedCreateFormActions(
+          "create-trip",
+          `<button class="btn btn-primary create-trip-submit-btn" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`
+        )}
+      </div>
     </div>
   </form>`;
 
@@ -1037,7 +1041,7 @@ function transportTripsHtml() {
         const checklist = routeRateFormEl.querySelector("[data-route-rate-readiness]");
         if (checklist) {
           const items = [
-            { done: routeOk, label: "Trayecto", short: "Ruta" },
+            { done: routeOk, label: "Trayecto", short: "Trayecto" },
             { done: priceOk, label: "Tarifa", short: "Tarifa" },
             { done: scopeOk, label: "Alcance", short: "Alcance" }
           ];
