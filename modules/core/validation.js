@@ -1534,9 +1534,17 @@
         if (!t || !t.getAttribute) return;
         const check = t.getAttribute("data-antares-validate-blur");
         if (!check) return;
+        /* Campo aún vacío: no insertar «Campo obligatorio» al pasar de un campo a otro.
+           Insertar/quitar ese mensaje agranda la tarjeta del campo y desplaza el formulario
+           (la pantalla "salta" con cada clic). Los obligatorios se siguen exigiendo al pulsar
+           «Siguiente» del asistente o al guardar (validateDomForm / submit guard). */
+        if (!String(t.value ?? "").trim()) {
+          if (check === "date-dmy") syncPortalDateHiddenFromVisible(t);
+          clearFieldError(t);
+          return;
+        }
         if (check === "required-select") {
-          if (t.required && !String(t.value || "").trim()) setFieldError(t, MSG.required);
-          else clearFieldError(t);
+          clearFieldError(t);
           return;
         }
         runBlurValidation(t, check);
