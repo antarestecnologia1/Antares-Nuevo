@@ -3985,7 +3985,6 @@ function wireCreateTripRequestPicker(formEl) {
         select.value = id;
         syncSelection();
         select.dispatchEvent(new Event("change", { bubbles: true }));
-        tryAutoAdvanceTransportWizard(formEl, "trip-assign");
       });
     });
   };
@@ -4040,38 +4039,16 @@ function renderAssignTripRequestPreview(request) {
     </div>`;
 }
 
-/** Actualiza progreso del formulario asignar viaje (wizard HR + checklist). */
+/** Actualiza checklist y botón guardar del formulario asignar viaje. */
 function updateCreateTripStepper(formEl) {
   if (!formEl) return;
-  const wizard = formEl.querySelector('[data-hr-wizard="trip-assign"]');
-  const dots = wizard ? [...wizard.querySelectorAll("[data-hr-wizard-dot]")] : [];
-  const steps = dots.length ? dots : [...formEl.querySelectorAll(".create-trip-step")];
-  if (!steps.length) return;
   const requestId = String(formEl.querySelector("select[name='requestId']")?.value || "").trim();
   const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
   const assignable = !!(request && isRequestPickupSameDayOrFuture(request));
   const vehicleId = String(formEl.querySelector("select[name='vehicleId']")?.value || "").trim();
   const driverId = String(formEl.querySelector("select[name='driverId']")?.value || "").trim();
   const tripValue = parseMoneyFieldValue(formEl.querySelector("input[name='tripValue']")?.value || 0);
-  const step1Done = !!requestId && assignable;
-  const step2Done = step1Done && !!vehicleId && !!driverId;
-  const step3Done = step2Done && tripValue > 0;
-  let current = 1;
-  if (step1Done) current = 2;
-  if (step2Done) current = 3;
-
-  steps.forEach((el, i) => {
-    const n = i + 1;
-    if (dots.length) {
-      el.classList.toggle("is-done", (n === 1 && step1Done) || (n === 2 && step2Done) || (n === 3 && step3Done));
-      return;
-    }
-    el.classList.remove("create-trip-step--current", "create-trip-step--done", "create-trip-step--locked");
-    if ((n === 1 && step1Done) || (n === 2 && step2Done) || (n === 3 && step3Done)) el.classList.add("create-trip-step--done");
-    if (n === current) el.classList.add("create-trip-step--current");
-    if ((n === 2 && !step1Done) || (n === 3 && !step2Done)) el.classList.add("create-trip-step--locked");
-    el.setAttribute("aria-current", n === current ? "step" : "false");
-  });
+  const ready = !!requestId && assignable && !!vehicleId && !!driverId && tripValue > 0;
 
   const checklist = formEl.querySelector("[data-create-trip-readiness]");
   if (checklist) {
@@ -4091,7 +4068,11 @@ function updateCreateTripStepper(formEl) {
   }
 
   const submitBtn = formEl.querySelector(".create-trip-submit-btn");
-  if (submitBtn) submitBtn.classList.toggle("create-trip-submit-btn--ready", step1Done && step2Done && tripValue > 0);
+  if (submitBtn) {
+    submitBtn.classList.toggle("create-trip-submit-btn--ready", ready);
+    submitBtn.disabled = !ready;
+    submitBtn.setAttribute("aria-disabled", ready ? "false" : "true");
+  }
 }
 
 /** Select con búsqueda por texto (listas largas de flota / conductores). */

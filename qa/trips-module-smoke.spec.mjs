@@ -248,18 +248,6 @@ test("transport trips flow smoke", async ({ page, context }) => {
     if (isHidden) await clickDom(`[data-action='toggle-create-panel'][data-panel='${panelId}']`);
   };
 
-  const goCreateTripWizardStep = async (stepIndex) => {
-    await clickDom(`#form-create-trip [data-hr-wizard-dot="${stepIndex}"]`);
-    await page.waitForFunction(
-      (idx) => {
-        const step = document.querySelector(`#form-create-trip .hr-form-step[data-step-index="${idx}"]`);
-        return step && !step.classList.contains("hidden");
-      },
-      stepIndex,
-      { timeout: 5000 }
-    );
-  };
-
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await page.waitForSelector("#portal-app", { timeout: 10000 });
 
@@ -272,10 +260,8 @@ test("transport trips flow smoke", async ({ page, context }) => {
     return vehicleOptions.some((opt) => opt.value === "veh-1" && !opt.disabled)
       && driverOptions.some((opt) => opt.value === "drv-1" && !opt.disabled);
   }, { timeout: 10000 });
-  await goCreateTripWizardStep(1);
   await page.locator('#form-create-trip select[name="vehicleId"]').selectOption("veh-1");
   await page.locator('#form-create-trip select[name="driverId"]').selectOption("drv-1");
-  await goCreateTripWizardStep(2);
   await page.locator('#form-create-trip input[name="tripValue"]').fill("1450000");
   await page.locator('#form-create-trip button[type="submit"]').click();
   await waitForStore(

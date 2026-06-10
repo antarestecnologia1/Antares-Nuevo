@@ -4704,7 +4704,8 @@ body[data-theme="dark"] .modal-edit-section-title {
 .transport-trip-create-form > .assign-trip-footer,
 .transport-trip-create-form > .hr-form-wizard,
 .transport-trip-create-form > .gh-emp-wizard,
-.transport-trip-create-form > .gh-transport-wizard {
+.transport-trip-create-form > .gh-transport-wizard,
+.transport-trip-create-form > .gh-transport-form--single {
   grid-column: 1 / -1;
   width: 100%;
   min-width: 0;
@@ -25890,10 +25891,38 @@ body[data-theme="dark"] .directory-card__actions {
   align-items: start;
 }
 
-/* Wizard unificado (viajes/trayectos): un solo contenedor directo — ancho completo */
+/* Formulario unificado (viajes/trayectos): un solo contenedor directo — ancho completo */
 .p-form-colored.transport-trip-create-form:has(> .gh-transport-wizard),
-.p-form-colored.transport-route-form:has(> .gh-transport-wizard) {
+.p-form-colored.transport-route-form:has(> .gh-transport-wizard),
+.p-form-colored.transport-trip-create-form:has(> .gh-transport-form--single),
+.p-form-colored.transport-route-form:has(> .gh-transport-form--single) {
   grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.gh-transport-form--single {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line));
+  background: var(--white);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.gh-transport-form__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.1rem 0.35rem;
+  min-width: 0;
+}
+
+.gh-transport-form--single > .module-panel-actions {
+  margin-top: 0.35rem;
+  padding: 0.85rem 1.1rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  background: color-mix(in srgb, var(--primary) 2%, var(--white));
 }
 
 .p-form-colored.transport-trip-create-form > .transport-trip-create-form__resources,

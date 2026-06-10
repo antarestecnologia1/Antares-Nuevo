@@ -1467,7 +1467,9 @@ body[data-theme="dark"] .requests-shell .requests-company-row__meta {
 }
 
 .gh-studio #form-create-trip .hr-form-wizard,
-.gh-studio #form-route-rate .hr-form-wizard {
+.gh-studio #form-route-rate .hr-form-wizard,
+.gh-studio #form-create-trip .gh-transport-form--single,
+.gh-studio #form-route-rate .gh-transport-form--single {
   width: 100%;
   max-width: none;
   min-width: 0;
@@ -1588,7 +1590,9 @@ body[data-theme="dark"] .requests-shell .requests-company-row__meta {
 }
 
 .gh-studio #form-create-trip .gh-emp-wizard__panels,
-.gh-studio #form-route-rate .gh-emp-wizard__panels {
+.gh-studio #form-route-rate .gh-emp-wizard__panels,
+.gh-studio #form-create-trip .gh-transport-form__body,
+.gh-studio #form-route-rate .gh-transport-form__body {
   padding: 1rem 1.1rem 0.35rem;
   min-width: 0;
   overflow: visible;

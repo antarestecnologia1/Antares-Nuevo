@@ -1019,11 +1019,106 @@ export class PortalService implements OnModuleInit {
            ON notificaciones (audiencia, fecha_creacion DESC)
            WHERE audiencia IS NOT NULL`
       );
+      await this.pruneDuplicateNotifications();
       this.logger.log("notificaciones: columna audiencia verificada.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureNotificacionesSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
+  }
+
+  /** Elimina filas repetidas (mismo título/cuerpo/destino) y unifica avisos legacy «uno por admin». */
+  private async pruneDuplicateNotifications(): Promise<void> {
+    await this.pool.query(`
+      DELETE FROM notificaciones
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY titulo, cuerpo,
+                     COALESCE(audiencia, ''),
+                     COALESCE(id_usuario::text, '')
+                   ORDER BY fecha_creacion ASC, id ASC
+                 ) AS rn
+          FROM notificaciones
+        ) ranked
+        WHERE rn > 1
+      )
+    `);
+    await this.pool.query(`
+      WITH legacy_admin_blast AS (
+        SELECT titulo, cuerpo,
+               MIN(id) AS keep_id,
+               COUNT(*) AS cnt
+        FROM notificaciones
+        WHERE audiencia IS NULL
+          AND id_usuario IS NOT NULL
+        GROUP BY titulo, cuerpo
+        HAVING COUNT(*) > 1
+           AND COUNT(DISTINCT id_usuario) > 1
+           AND MAX(fecha_creacion) - MIN(fecha_creacion) < interval '5 minutes'
+      )
+      UPDATE notificaciones n
+      SET audiencia = 'admins', id_usuario = NULL
+      FROM legacy_admin_blast b
+      WHERE n.id = b.keep_id
+    `);
+    await this.pool.query(`
+      WITH legacy_admin_blast AS (
+        SELECT titulo, cuerpo
+        FROM notificaciones
+        WHERE audiencia IS NULL
+          AND id_usuario IS NOT NULL
+        GROUP BY titulo, cuerpo
+        HAVING COUNT(*) > 1
+           AND COUNT(DISTINCT id_usuario) > 1
+           AND MAX(fecha_creacion) - MIN(fecha_creacion) < interval '5 minutes'
+      )
+      DELETE FROM notificaciones n
+      USING legacy_admin_blast b
+      WHERE n.titulo = b.titulo
+        AND n.cuerpo = b.cuerpo
+        AND n.audiencia IS NULL
+        AND n.id_usuario IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM notificaciones k
+          WHERE k.id = n.id AND k.audiencia = 'admins' AND k.id_usuario IS NULL
+        )
+    `);
+  }
+
+  private async insertNotificationIfNotDuplicate(params: {
+    userId: string | null;
+    title: string;
+    body: string;
+    audience: string | null;
+    windowSeconds?: number;
+  }): Promise<boolean> {
+    const title = String(params.title || "").trim();
+    const body = String(params.body || "").trim();
+    if (!title || !body) return false;
+    const audience = params.audience ? String(params.audience).trim() : null;
+    const userId = params.userId ? String(params.userId).trim() : null;
+    const windowSeconds = Math.max(30, Math.min(600, Math.floor(params.windowSeconds ?? 120)));
+    const recent = await this.pool.query<{ ok: number }>(
+      `SELECT 1 AS ok FROM notificaciones
+       WHERE titulo = $1
+         AND cuerpo = $2
+         AND COALESCE(audiencia, '') = COALESCE($3::varchar, '')
+         AND (
+           ($4::uuid IS NULL AND id_usuario IS NULL)
+           OR id_usuario = $4::uuid
+         )
+         AND fecha_creacion > now() - ($5::text || ' seconds')::interval
+       LIMIT 1`,
+      [title, body, audience, userId, String(windowSeconds)]
+    );
+    if ((recent.rowCount ?? 0) > 0) return false;
+    await this.pool.query(
+      `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia) VALUES ($1::uuid, $2, $3, $4)`,
+      [userId, title, body, audience]
+    );
+    return true;
   }
 
   /** Condición médica empleados (19_empleados_condicion_medica.sql). */
@@ -4434,11 +4529,13 @@ export class PortalService implements OnModuleInit {
       if (dto.audience === "hr" && !this.isAdmin(actorRole)) {
         throw new ForbiddenException("Solo administradores pueden notificar a RRHH.");
       }
-      await this.pool.query(
-        `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia) VALUES (NULL, $1, $2, $3)`,
-        [title, body, dto.audience]
-      );
-      return { ok: true, count: 1 };
+      const inserted = await this.insertNotificationIfNotDuplicate({
+        userId: null,
+        title,
+        body,
+        audience: dto.audience
+      });
+      return { ok: true, count: inserted ? 1 : 0 };
     }
 
     let targetIds: string[] = [];
@@ -4470,13 +4567,17 @@ export class PortalService implements OnModuleInit {
     }
     if (!recipients.length) return { ok: true, count: 0 };
 
+    let inserted = 0;
     for (const uid of recipients) {
-      await this.pool.query(
-        `INSERT INTO notificaciones (id_usuario, titulo, cuerpo) VALUES ($1::uuid, $2, $3)`,
-        [uid, title, body]
-      );
+      const ok = await this.insertNotificationIfNotDuplicate({
+        userId: uid,
+        title,
+        body,
+        audience: null
+      });
+      if (ok) inserted += 1;
     }
-    return { ok: true, count: recipients.length };
+    return { ok: true, count: inserted };
   }
 
   /**
@@ -4484,11 +4585,13 @@ export class PortalService implements OnModuleInit {
    * Usado por avisos automáticos de contratos a término fijo.
    */
   private async dispatchHrNotificationFromSystem(title: string, body: string): Promise<number> {
-    await this.pool.query(
-      `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia) VALUES (NULL, $1, $2, 'hr')`,
-      [title, body]
-    );
-    return 1;
+    const ok = await this.insertNotificationIfNotDuplicate({
+      userId: null,
+      title,
+      body,
+      audience: "hr"
+    });
+    return ok ? 1 : 0;
   }
 
   private async contractRenewalNoticeRecentlySent(refToken: string, withinDays = 7): Promise<boolean> {
@@ -7347,31 +7450,25 @@ export class PortalService implements OnModuleInit {
       const audience = String(n.audience ?? n.audiencia ?? "").trim().toLowerCase();
       const isBroadcast = audience === "admins" || audience === "hr";
       const targetUserId = String(n.userId ?? "").trim();
-      if (!admin && !isBroadcast && targetUserId !== userId) throw new ForbiddenException();
-      if (!admin && isBroadcast && !this.notificationAudienceVisibleToRole(audience, role)) {
+      if (isBroadcast) {
+        if (!this.notificationAudienceVisibleToRole(audience, role)) throw new ForbiddenException();
+      } else if (targetUserId !== userId) {
         throw new ForbiddenException();
       }
-      if (!isBroadcast && this.skipUnlessPersistUuid("syncNotifications.targetUserId", targetUserId)) continue;
       const readAtRaw = n.readAt ?? n.read_at;
-      const readAtParam =
-        readAtRaw == null || readAtRaw === ""
-          ? null
-          : String(readAtRaw).trim()
-            ? (readAtRaw as string | Date)
-            : null;
-      const userIdParam = isBroadcast ? null : targetUserId;
-      const audienceParam = isBroadcast ? audience : null;
+      if (readAtRaw == null || readAtRaw === "") continue;
+      const readAtParam = String(readAtRaw).trim() ? (readAtRaw as string | Date) : null;
+      if (!readAtParam) continue;
+      const exists = await c.query(`SELECT 1 AS ok FROM notificaciones WHERE id = $1::uuid LIMIT 1`, [n.id]);
+      if (!(exists.rowCount ?? 0)) continue;
       await c.query(
-        `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura, audiencia)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6)
-         ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo,
-           audiencia = COALESCE(EXCLUDED.audiencia, notificaciones.audiencia),
-           fecha_lectura = CASE
-             WHEN EXCLUDED.fecha_lectura IS NULL THEN notificaciones.fecha_lectura
-             WHEN notificaciones.fecha_lectura IS NULL THEN EXCLUDED.fecha_lectura
-             ELSE GREATEST(notificaciones.fecha_lectura, EXCLUDED.fecha_lectura)
-           END`,
-        [n.id, userIdParam, nuN(n.title), nuN(n.body), readAtParam, audienceParam]
+        `UPDATE notificaciones
+         SET fecha_lectura = CASE
+           WHEN fecha_lectura IS NULL THEN $2::timestamptz
+           ELSE GREATEST(fecha_lectura, $2::timestamptz)
+         END
+         WHERE id = $1::uuid`,
+        [n.id, readAtParam]
       );
     }
 

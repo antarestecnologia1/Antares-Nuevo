@@ -306,10 +306,32 @@ function notificationTargetsUser(n, user) {
   return recipientId === uid;
 }
 
+function notificationDedupeKey(n) {
+  const audience = getNotificationAudience(n) || "_personal";
+  const recipient =
+    audience === "admins" || audience === "hr" ? audience : getNotificationRecipientId(n) || "_none";
+  const createdMinute = String(n?.createdAt ?? "").slice(0, 16);
+  return `${audience}\x1e${recipient}\x1e${String(n?.title ?? "").trim()}\x1e${String(n?.body ?? "").trim()}\x1e${createdMinute}`;
+}
+
+/** Quita copias con mismo destino, título y cuerpo (p. ej. legacy «una por admin» o sync duplicado). */
+export function dedupeNotificationsList(list) {
+  const rows = Array.isArray(list) ? list : [];
+  const seen = new Set();
+  const out = [];
+  for (const n of rows) {
+    const key = notificationDedupeKey(n);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out;
+}
+
 export function filterNotificationsForUser(user, list) {
   const rows = Array.isArray(list) ? list : [];
   if (!user) return [];
-  return rows.filter((n) => notificationTargetsUser(n, user));
+  return dedupeNotificationsList(rows.filter((n) => notificationTargetsUser(n, user)));
 }
 
 let __contractRenewalNoticeCheckWallMs = 0;

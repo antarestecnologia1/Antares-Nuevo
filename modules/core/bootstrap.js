@@ -566,7 +566,7 @@ export function __applyPortalBootstrapPayloadInner(p) {
       const filtered = actor ? hooks.filterNotificationsForUser(actor, raw) : [];
       const prev = read(KEYS.notifications, []);
       const merged = hooks.mergeNotificationsListPreserveReadAt(prev, filtered);
-      write(KEYS.notifications, merged);
+      write(KEYS.notifications, merged, { skipSyncSchedule: true });
       continue;
     }
     if (prop === "payrollEmployees") {
