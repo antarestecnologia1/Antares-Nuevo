@@ -367,11 +367,20 @@ export function renderPayrollModuleHead({
       `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Término fijo en ventana de 30 días o vencido"><dt>Contratos</dt><dd><strong>${escapeHtml(String(contractNoticeCount))}</strong></dd></div>`
     );
   }
-  return `<header class="payroll-module-head payroll-module-head--compact">
-      <div class="payroll-module-head__title">
+  const ghItems = items
+    .map((html) =>
+      html
+        .replace(/payroll-module-kpi__item--/g, "gh-studio-kpi--")
+        .replace(/payroll-module-kpi__item/g, "gh-studio-kpi")
+    )
+    .join("");
+  return `<header class="gh-studio-head payroll-module-head payroll-module-head--compact">
+      <div class="gh-studio-head__brand payroll-module-head__title">
+        <span class="gh-studio-head__badge">RRHH · Colombia</span>
         <h2>Gestión humana</h2>
+        <p class="gh-studio-head__tagline">Nómina, seguridad social y talento humano conforme al CST, Ley 50 y normativa vigente.</p>
       </div>
-      <dl class="payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${items.join("")}</dl>
+      <dl class="gh-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${ghItems}</dl>
     </header>`;
 }
 

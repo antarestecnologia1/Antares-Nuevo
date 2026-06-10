@@ -1,0 +1,854 @@
+/* ===================================================================
+   Gestión Humana — GH Studio (2026)
+   Interfaz profesional RRHH / nómina Colombia.
+   Paleta corporativa Antares + referencias normativas colombianas.
+   Alcance: .gh-studio (no afecta Contratación ni otros módulos).
+   =================================================================== */
+
+.gh-studio {
+  --gh-navy: #0b2138;
+  --gh-navy-mid: #123d6b;
+  --gh-blue: var(--primary, #377cc0);
+  --gh-blue-soft: var(--primary-light, #cce5f8);
+  --gh-surface: #f4f8fc;
+  --gh-card: #ffffff;
+  --gh-edge: rgba(55, 124, 192, 0.14);
+  --gh-edge-strong: rgba(55, 124, 192, 0.22);
+  --gh-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --gh-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --gh-radius: 18px;
+  --gh-radius-sm: 12px;
+  --gh-co-gold: #f59e0b;
+  --gh-co-blue: #003893;
+  --gh-co-red: #ce1126;
+  --gh-success: #0d9488;
+  --gh-warn: #d97706;
+  --gh-danger: #dc2626;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+/* ── Cabecera del módulo ── */
+.gh-studio .gh-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--gh-radius);
+  border: 1px solid var(--gh-edge-strong);
+  background:
+    linear-gradient(135deg, rgba(55, 124, 192, 0.06) 0%, transparent 55%),
+    var(--gh-card);
+  box-shadow: var(--gh-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.gh-studio .gh-studio-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gh-co-blue) 33%, var(--gh-co-gold) 33% 66%, var(--gh-co-red) 66%);
+  opacity: 0.75;
+}
+
+.gh-studio .gh-studio-head__brand {
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+
+.gh-studio .gh-studio-head__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.4rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), 0.1);
+  border: 1px solid rgba(var(--primary-rgb), 0.2);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-dark, #2a6399);
+}
+
+.gh-studio .gh-studio-head__brand h2 {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.45rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--gh-navy);
+}
+
+.gh-studio .gh-studio-head__tagline {
+  margin: 0.35rem 0 0;
+  max-width: 28rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-soft, #3a5a78);
+}
+
+.gh-studio .gh-studio-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gh-studio .gh-studio-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 5.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--gh-radius-sm);
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+  box-shadow: 0 1px 3px rgba(11, 33, 56, 0.04);
+}
+
+.gh-studio .gh-studio-kpi dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  letter-spacing: 0.02em;
+}
+
+.gh-studio .gh-studio-kpi dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gh-navy);
+  line-height: 1.2;
+}
+
+.gh-studio .gh-studio-kpi--ok {
+  border-color: rgba(13, 148, 136, 0.25);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.08), var(--gh-surface));
+}
+.gh-studio .gh-studio-kpi--ok dd { color: #0f766e; }
+
+.gh-studio .gh-studio-kpi--neutral dd { color: var(--primary-dark); }
+
+.gh-studio .gh-studio-kpi--warn {
+  border-color: rgba(217, 119, 6, 0.3);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), var(--gh-surface));
+}
+.gh-studio .gh-studio-kpi--warn dd { color: #b45309; }
+
+.gh-studio .gh-studio-kpi--alert {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.07), var(--gh-surface));
+}
+.gh-studio .gh-studio-kpi--alert dd { color: #b91c1c; }
+
+/* ── Workspace header (Registrar | Consultar) ── */
+.gh-studio > .hr-workspace-header--payroll {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.gh-studio > .hr-workspace-header--payroll .gh-studio-head {
+  width: 100%;
+}
+
+.gh-studio .hr-workspace-header__switch {
+  flex-shrink: 0;
+}
+
+.gh-studio .hr-workspace-tabs--switch {
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid var(--gh-edge-strong);
+  background: var(--gh-surface);
+  gap: 0.2rem;
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.gh-studio .hr-workspace-tab--switch {
+  min-height: 2.45rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.gh-studio .hr-workspace-tab--switch.is-active {
+  background: linear-gradient(135deg, var(--gh-blue), var(--primary-dark, #2a6399));
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.28);
+}
+
+.gh-studio .hr-workspace-tab--switch .hr-workspace-tab-hint {
+  display: none;
+}
+
+.gh-studio .hr-workspace-panels {
+  gap: 1rem;
+}
+
+/* ── Panel Registrar: rail lateral + contenido ── */
+.gh-studio .gh-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.gh-studio .gh-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--gh-radius);
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-card);
+  box-shadow: var(--gh-shadow-sm);
+}
+
+.gh-studio .gh-operate__rail .auth-tabs-layout {
+  margin: 0;
+  padding: 0;
+}
+
+.gh-studio .gh-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.gh-studio .gh-operate .auth-tabs-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.gh-studio .gh-operate .auth-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.62rem 0.75rem;
+  border-radius: var(--gh-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-soft);
+  text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.gh-studio .gh-operate .auth-tab-btn:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+  color: var(--gh-navy);
+}
+
+.gh-studio .gh-operate .auth-tab-btn.is-active {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-mid-rgb), 0.08));
+  border-color: rgba(var(--primary-rgb), 0.22);
+  color: var(--primary-dark);
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.1);
+}
+
+.gh-studio .gh-operate__main {
+  min-width: 0;
+}
+
+.gh-studio .gh-operate .auth-tab-panels {
+  border-radius: var(--gh-radius);
+  background: transparent;
+}
+
+/* ── Tarjetas de formulario colapsables ── */
+.gh-studio .gh-form-card.admin-users-data-card {
+  border-radius: var(--gh-radius);
+  border: 1px solid var(--gh-edge-strong);
+  background: var(--gh-card);
+  box-shadow: var(--gh-shadow);
+  overflow: hidden;
+}
+
+.gh-studio .gh-form-card .p-card-header {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--gh-edge);
+  background: linear-gradient(180deg, var(--gh-surface), var(--gh-card));
+}
+
+.gh-studio .gh-form-card .p-card-header h3 {
+  font-size: 1rem;
+  font-weight: 750;
+  color: var(--gh-navy);
+  letter-spacing: -0.02em;
+}
+
+.gh-studio .gh-form-card .p-card-header p {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  line-height: 1.45;
+  margin-top: 0.2rem;
+}
+
+.gh-studio .gh-form-card .create-card-toggle {
+  border-radius: var(--gh-radius-sm) !important;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.gh-studio .gh-form-card .p-card-body {
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+/* Expediente empleado: el wizard trae su propia tarjeta */
+.gh-studio .gh-form-card.hr-form-card--xl {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.gh-studio .gh-form-card.hr-form-card--xl .p-card-header {
+  margin-bottom: 0.65rem;
+  border-radius: var(--gh-radius-sm);
+  border: 1px solid var(--gh-edge);
+}
+
+.gh-studio .gh-form-card.hr-form-card--xl .p-card-body {
+  padding: 0;
+}
+
+/* ── Panel Consultar ── */
+.gh-studio .gh-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--gh-radius);
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-card);
+  box-shadow: var(--gh-shadow-sm);
+}
+
+.gh-studio .gh-data-panel .payroll-data-toolbar--compact {
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.gh-studio .gh-data-panel .payroll-data-nav {
+  padding: 0.35rem;
+  border-radius: 14px;
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+}
+
+.gh-studio .gh-data-panel .payroll-data-nav-tab {
+  border-radius: 11px;
+  font-weight: 650;
+  font-size: 0.78rem;
+}
+
+.gh-studio .gh-data-panel .payroll-data-nav-tab.is-active {
+  background: var(--gh-card);
+  color: var(--primary-dark);
+  border-color: var(--gh-edge-strong);
+  box-shadow: 0 4px 14px rgba(11, 33, 56, 0.08);
+}
+
+.gh-studio .gh-data-panel .payroll-table-shell,
+.gh-studio .gh-data-panel .payroll-run-card,
+.gh-studio .gh-data-panel .directory-card--compact {
+  border-radius: var(--gh-radius-sm);
+  border-color: var(--gh-edge);
+  box-shadow: var(--gh-shadow-sm);
+}
+
+.gh-studio .gh-data-panel .payroll-employees-grid {
+  gap: 0.75rem;
+}
+
+.gh-studio .gh-data-panel .payroll-quick-pill.is-active {
+  background: linear-gradient(135deg, var(--gh-blue), var(--primary-dark));
+  color: #fff;
+}
+
+/* ── Formularios secundarios (nómina, ausencias, etc.) ── */
+.gh-studio .hr-form-compact .form-section {
+  border-radius: var(--gh-radius-sm);
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+  box-shadow: none;
+}
+
+.gh-studio .hr-form-compact .form-section legend {
+  font-weight: 750;
+  color: var(--primary-dark);
+}
+
+.gh-studio .payroll-bulk-panel {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--gh-radius-sm);
+  border: 1px dashed rgba(var(--primary-rgb), 0.28);
+  background: rgba(var(--primary-rgb), 0.04);
+}
+
+.gh-studio .payroll-legal-panel {
+  border-radius: var(--gh-radius-sm);
+}
+
+/* ===================================================================
+   Expediente empleado — wizard profesional con rail vertical
+   =================================================================== */
+
+.gh-studio #form-employee.gh-emp-form {
+  max-width: none;
+}
+
+.gh-studio #form-employee .gh-emp-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: none;
+  border-radius: var(--gh-radius);
+  border: 1px solid var(--gh-edge-strong);
+  background: var(--gh-card);
+  box-shadow: var(--gh-shadow);
+  overflow: hidden;
+}
+
+/* Cabecera del wizard */
+.gh-studio #form-employee .gh-emp-wizard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  padding: 1.1rem 1.25rem;
+  background: linear-gradient(135deg, var(--gh-navy) 0%, var(--gh-navy-mid) 62%, var(--primary-dark, #2a6399) 100%);
+  color: #e8f2fc;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__eyebrow {
+  display: inline-block;
+  margin: 0 0 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(174, 212, 248, 0.9);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__title {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__desc {
+  margin: 0.35rem 0 0;
+  max-width: 32rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(216, 232, 251, 0.88);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__progress {
+  flex-shrink: 0;
+  min-width: 9rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--gh-radius-sm);
+  background: rgba(8, 24, 44, 0.45);
+  border: 1px solid rgba(150, 200, 250, 0.2);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__progress .hr-wizard-progress-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  margin-bottom: 0.35rem;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__progress .hr-wizard-progress-fill {
+  background: linear-gradient(90deg, var(--brand-blue-mid), #7dd3fc);
+  box-shadow: 0 0 10px rgba(122, 196, 255, 0.5);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__progress .hr-wizard-progress-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #eaf4ff;
+}
+
+/* Layout: rail + paneles */
+.gh-studio #form-employee .gh-emp-wizard__layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.85rem 0.65rem;
+  border-right: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+  border-radius: 0;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: var(--gh-radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  box-shadow: none;
+  transform: none;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot::before {
+  display: none;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-dot-num {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: 2px solid var(--gh-edge-strong);
+  background: var(--gh-card);
+  color: var(--primary-dark);
+  box-shadow: none;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot small {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.25;
+  opacity: 1;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .gh-step-hint {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  opacity: 0.85;
+  margin-top: 0.1rem;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+  color: var(--gh-navy);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot.is-active {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.22);
+  color: var(--primary-dark);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num,
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num {
+  background: var(--gh-blue);
+  border-color: var(--gh-blue);
+  color: #fff;
+}
+
+.gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num {
+  border-color: var(--gh-danger);
+  background: #fef2f2;
+  color: var(--gh-danger);
+}
+
+.gh-studio #form-employee .gh-emp-wizard__panels {
+  padding: 1rem 1.15rem 0.5rem;
+  min-width: 0;
+}
+
+/* Secciones del paso */
+.gh-studio #form-employee .form-section {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border-radius: var(--gh-radius-sm);
+  border: 1px solid var(--gh-edge);
+  border-top: 3px solid var(--gh-blue);
+  background: var(--gh-card);
+  box-shadow: var(--gh-shadow-sm);
+}
+
+.gh-studio #form-employee .form-section-blue,
+.gh-studio #form-employee .form-section-cyan,
+.gh-studio #form-employee .form-section-violet,
+.gh-studio #form-employee .form-section-emerald,
+.gh-studio #form-employee .form-section-amber,
+.gh-studio #form-employee .form-section-rose {
+  border-top-color: var(--gh-blue);
+}
+
+.gh-studio #form-employee .form-section legend {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  background: transparent !important;
+  border: none;
+  box-shadow: none !important;
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--gh-navy) !important;
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+.gh-studio #form-employee .form-section legend svg {
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  border-radius: 6px;
+  background: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary-dark);
+}
+
+.gh-studio #form-employee .form-section-grid {
+  gap: 0.7rem 0.85rem;
+}
+
+.gh-studio #form-employee .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar) {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.gh-studio #form-employee .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):hover,
+.gh-studio #form-employee .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):focus-within {
+  border: none;
+  box-shadow: none;
+}
+
+.gh-studio #form-employee .field-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-soft);
+  margin-bottom: 0.3rem;
+}
+
+.gh-studio #form-employee .form-section-grid input,
+.gh-studio #form-employee .form-section-grid select,
+.gh-studio #form-employee .form-section-grid textarea {
+  min-height: 2.55rem;
+  border-radius: 9px;
+  border: 1px solid var(--gh-edge-strong);
+  background: var(--gh-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.gh-studio #form-employee .form-section-grid input:focus,
+.gh-studio #form-employee .form-section-grid select:focus,
+.gh-studio #form-employee .form-section-grid textarea:focus {
+  border-color: var(--gh-blue);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.14);
+}
+
+/* Avatar */
+.gh-studio #form-employee .hr-employee-avatar-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.25rem;
+}
+
+.gh-studio #form-employee .hr-employee-avatar-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  border-radius: var(--gh-radius-sm);
+  border: 1.5px dashed rgba(var(--primary-rgb), 0.3);
+  background: rgba(var(--primary-rgb), 0.03);
+}
+
+.gh-studio #form-employee .form-section-grid label.profile-avatar.profile-avatar-upload {
+  width: 88px;
+  height: 88px;
+  min-width: 88px;
+  min-height: 88px;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: linear-gradient(135deg, var(--gh-blue), var(--primary-deeper));
+  box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.25), 0 10px 24px rgba(11, 33, 56, 0.15);
+}
+
+.gh-studio #form-employee .hr-employee-avatar-caption {
+  text-align: center;
+  font-size: 0.76rem;
+  max-width: 16rem;
+}
+
+/* Pie del wizard */
+.gh-studio #form-employee .hr-form-wizard-footer {
+  margin: 0;
+  padding: 0.85rem 1.15rem;
+  border-top: 1px solid var(--gh-edge);
+  border-radius: 0;
+  background: var(--gh-surface);
+  box-shadow: none;
+}
+
+.gh-studio #form-employee .hr-form-wizard-footer-nav {
+  background: var(--gh-card);
+  border: 1px solid var(--gh-edge);
+}
+
+/* Ocultar elementos legacy del wizard anterior */
+.gh-studio #form-employee .hr-form-wizard-toolbar,
+.gh-studio #form-employee .hr-form-wizard-kicker,
+.gh-studio #form-employee .hr-form-wizard-lead {
+  display: none !important;
+}
+
+/* ── Tema oscuro ── */
+body[data-theme="dark"] .gh-studio {
+  --gh-surface: rgba(15, 28, 46, 0.65);
+  --gh-card: rgba(15, 28, 46, 0.92);
+  --gh-edge: rgba(148, 196, 255, 0.14);
+  --gh-edge-strong: rgba(148, 196, 255, 0.22);
+  --gh-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --gh-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .gh-studio .gh-studio-head__brand h2,
+body[data-theme="dark"] .gh-studio .gh-studio-kpi dd {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .gh-studio .gh-studio-head__tagline {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .gh-studio #form-employee .form-section {
+  background: rgba(14, 28, 46, 0.85);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .gh-studio #form-employee .form-section legend {
+  color: #e8f2fc !important;
+}
+
+body[data-theme="dark"] .gh-studio #form-employee .form-section-grid input,
+body[data-theme="dark"] .gh-studio #form-employee .form-section-grid select,
+body[data-theme="dark"] .gh-studio #form-employee .form-section-grid textarea {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .gh-studio #form-employee .gh-emp-wizard__steps {
+  background: rgba(10, 22, 38, 0.6);
+}
+
+body[data-theme="dark"] .gh-studio .hr-workspace-tab--switch.is-active {
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .gh-studio .gh-operate {
+    grid-template-columns: 1fr;
+  }
+
+  .gh-studio .gh-operate__rail {
+    position: static;
+  }
+
+  .gh-studio .gh-operate .auth-tabs-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .gh-studio .gh-operate .auth-tab-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .gh-studio #form-employee .gh-emp-wizard__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gh-studio #form-employee .gh-emp-wizard__steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--gh-edge);
+    padding: 0.55rem;
+  }
+
+  .gh-studio #form-employee .gh-emp-wizard__steps .hr-form-wizard-dot {
+    flex: 1 1 45%;
+  }
+
+  .gh-studio #form-employee .gh-emp-wizard__steps .gh-step-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .gh-studio .gh-studio-head {
+    padding: 1rem;
+  }
+
+  .gh-studio .gh-studio-kpis {
+    width: 100%;
+  }
+
+  .gh-studio .gh-studio-kpi {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 0;
+  }
+}

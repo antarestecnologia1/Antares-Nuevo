@@ -842,6 +842,18 @@ function bindHiringPortalControls() {
       auxSelector: "#position-transport-allowance",
       hintSelector: "#position-legal-comp-hint"
     });
+    /* Si el nombre del cargo es de conductor, preseleccionar el rol «Conductor» para que
+       el alta de empleado habilite licencia/exámenes y sincronice con el módulo Conductores. */
+    const positionNameInput = positionForm.querySelector("input[name='name']");
+    const positionRoleSelect = positionForm.querySelector("select[name='workerRole']");
+    if (positionNameInput && positionRoleSelect && positionForm.dataset.roleAutoWired !== "1") {
+      positionForm.dataset.roleAutoWired = "1";
+      positionNameInput.addEventListener("input", () => {
+        if (/conductor/i.test(String(positionNameInput.value || ""))) {
+          positionRoleSelect.value = "conductor";
+        }
+      });
+    }
     wireFormSubmitGuard(positionForm, async (event) => {
       const data = readFormEntriesNormalized(positionForm);
       const minSalary = CO_HR_RULES.minMonthlySalary;
@@ -1238,7 +1250,10 @@ function bindHiringPortalControls() {
   if (interviewForm) {
     wireFormSubmitGuard(interviewForm, async (event) => {
       const data = readFormEntriesNormalized(interviewForm);
-      const interviewTs = new Date(String(data.when || "")).getTime();
+      const whenRaw = String(data.when || "").trim();
+      const interviewTs = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(whenRaw)
+        ? new Date(`${whenRaw}:00-05:00`).getTime()
+        : new Date(whenRaw).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
         notify(userMessage("interviewScheduleFuture"), "error");
         return;
@@ -1258,12 +1273,17 @@ function bindHiringPortalControls() {
         candidateId: candidate.id,
         candidateName: candidate.name,
         when: data.when,
-        interviewer: data.interviewer,
-        modality:
-          data.mode === "virtual" ? "Virtual" : data.mode === "telefonica" ? "Telefónica" : "Presencial",
-        locationOrLink: data.place || "",
-        notes: data.notes || ""
+        interviewer: normalizeLatinUpperForDb(String(data.interviewer || "").trim()),
+        modality: (() => {
+          const modeKey = String(data.mode || "").trim().toLowerCase();
+          if (modeKey === "virtual") return "Virtual";
+          if (modeKey === "telefonica") return "Telefónica";
+          return "Presencial";
+        })(),
+        locationOrLink: normalizeLatinUpperForDb(String(data.place || "").trim()),
+        notes: normalizeLatinUpperForDb(String(data.notes || "").trim())
       });
+      write(KEYS.interviews, all, { skipSyncSchedule: true });
       try {
         await writeAwaitServer(KEYS.interviews, all);
       } catch (err) {
@@ -1271,11 +1291,14 @@ function bindHiringPortalControls() {
         return;
       }
       const candidateList = read(KEYS.candidates, []);
-      const nextCandidates = candidateList.map((item) =>
-        String(item.id) === String(candidate.id) && ["Recibido", "Preseleccionado"].includes(String(item.status || ""))
-          ? { ...item, status: "Entrevistado" }
-          : item
-      );
+      const nextCandidates = candidateList.map((item) => {
+        if (String(item.id) !== String(candidate.id)) return item;
+        const status = String(item.status || "");
+        if (["Contratado", "Descartado"].includes(status)) return item;
+        if (status === "Entrevistado") return item;
+        return stampUpdatedRecord({ ...item, status: "Entrevistado" });
+      });
+      write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
       try {
         await writeAwaitServer(KEYS.candidates, nextCandidates);
       } catch (err) {
@@ -1306,11 +1329,24 @@ function bindHiringPortalControls() {
       if (sel && [...sel.options].some((o) => String(o.value) === cid)) {
         sel.value = cid;
       }
-      const whenEl = interviewForm.querySelector('input[name="when"]');
-      if (whenEl) {
-        whenEl.setAttribute("min", colombiaDatetimeLocalString());
-        whenEl.value = "";
-        whenEl.focus();
+      const minWhen = colombiaDatetimeLocalString();
+      const whenWrap = interviewForm.querySelector(".portal-datetime-dmy-row");
+      const V = window.AntaresValidation;
+      if (whenWrap && typeof V?.portalDatetimeInputSetIso === "function") {
+        V.portalDatetimeInputSetIso(whenWrap, "");
+        const dateVis =
+          whenWrap.querySelector(".portal-date-dmy") || whenWrap.querySelector('input[type="date"]');
+        if (dateVis) dateVis.min = minWhen.slice(0, 10);
+        dateVis?.focus?.();
+      } else {
+        const whenEl =
+          interviewForm.querySelector('input[type="datetime-local"][name="when"]') ||
+          interviewForm.querySelector('input[name="when"]');
+        if (whenEl) {
+          whenEl.setAttribute("min", minWhen);
+          whenEl.value = "";
+          whenEl.focus();
+        }
       }
     };
     requestAnimationFrame(() => {
@@ -1675,27 +1711,29 @@ function bindHiringPortalControls() {
               return false;
             }
           }
-          const nextVacancies = all.map((v) =>
+          const freshVacancies = read(KEYS.vacancies, []);
+          const nextVacancies = freshVacancies.map((v) =>
             String(v.id) !== String(target.id)
               ? v
               : stampUpdatedRecord({
                   ...v,
-                  title: String(form.title || "").trim(),
+                  title: normalizeLatinUpperForDb(String(form.title || "").trim()),
                   positionId: position.id,
                   positionName: position.name,
                   workerRole: position.workerRole || v.workerRole || "empleado",
                   contractTypeDefault: position.contractTypeDefault || v.contractTypeDefault,
-                  city: String(form.city || "").trim(),
-                  department: String(form.department || "").trim(),
-                  modality: String(form.modality || "").trim(),
+                  city: normalizeLatinForDb(String(form.city || "").trim()),
+                  department: normalizeLatinForDb(String(form.department || "").trim()),
+                  modality: normalizeLatinUpperForDb(String(form.modality || "").trim()),
                   openings: Math.max(1, parseNum(form.openings || 1)),
                   salaryOffer: salaryValidation.salaryOffer,
                   deadline,
                   publishedFrom: pFrom,
-                  requirements: String(form.requirements || "").trim(),
+                  requirements: normalizeLatinUpperForDb(String(form.requirements || "").trim()),
                   status: String(form.status || "Publicada")
                 })
           );
+          write(KEYS.vacancies, nextVacancies, { skipSyncSchedule: true });
           try {
             await writeAwaitServer(KEYS.vacancies, nextVacancies);
           } catch (err) {
@@ -1829,20 +1867,23 @@ function bindHiringPortalControls() {
             notify(comp.message, "error");
             return false;
           }
-          const nextPos = all.map((p) =>
+          const freshAll = read(KEYS.positions, []);
+          const nextPos = freshAll.map((p) =>
               String(p.id) !== String(target.id)
                 ? p
                 : stampUpdatedRecord({
                     ...p,
-                    name: String(form.name || "").trim(),
+                    name: normalizeLatinUpperForDb(String(form.name || "").trim()),
                     workerRole: String(form.workerRole || "empleado"),
                     baseSalary: comp.baseSalary,
                     transportAllowance: comp.transportAllowance,
-                    contractTypeDefault: String(form.contractTypeDefault || "").trim(),
-                    workSchedule: String(form.workSchedule || "").trim(),
-                    arlRiskLevel: String(form.arlRiskLevel || "").trim(),
+                    contractTypeDefault: normalizeLatinUpperForDb(
+                      String(form.contractTypeDefault || p.contractTypeDefault || "").trim()
+                    ),
+                    workSchedule: normalizeLatinUpperForDb(String(form.workSchedule || "").trim()),
+                    arlRiskLevel: normalizeLatinUpperForDb(String(form.arlRiskLevel || p.arlRiskLevel || "").trim()),
                     integralSalary: String(form.integralSalary || "false") === "true",
-                    legalBasis: String(form.legalBasis || "").trim()
+                    legalBasis: normalizeLatinUpperForDb(String(form.legalBasis || p.legalBasis || "").trim())
                   })
             );
           const ok = await persistPositionsCatalog(nextPos, { optimistic: true });
@@ -2129,21 +2170,22 @@ function bindHiringPortalControls() {
             notify(statusValidation.message, "error");
             return false;
           }
-          const nextCandidates = all.map((c) =>
+          const freshCandidates = read(KEYS.candidates, []);
+          const nextCandidates = freshCandidates.map((c) =>
               String(c.id) !== String(target.id)
                 ? c
                 : stampUpdatedRecord({
                     ...c,
-                    name: String(form.name || "").trim(),
-                    email: String(form.email || "").trim(),
-                    phone: String(form.phone || "").trim(),
+                    name: normalizeLatinUpperForDb(String(form.name || "").trim()),
+                    email: normalizeEmail(String(form.email || "").trim()),
+                    phone: normalizePortalPhoneForStorage(form.phone),
                     documentType: form.documentType,
                     idDoc: docValidation.normalized,
                     birthDate: birthCand,
-                    city: String(form.city || "").trim(),
-                    department: String(form.department || "").trim(),
-                    address: String(form.address || "").trim(),
-                    educationLevel: String(form.educationLevel || "").trim(),
+                    city: normalizeLatinForDb(String(form.city || "").trim()),
+                    department: normalizeLatinForDb(String(form.department || "").trim()),
+                    address: normalizeLatinUpperForDb(String(form.address || "").trim()),
+                    educationLevel: normalizeLatinUpperForDb(String(form.educationLevel || "").trim()),
                     experienceYears: Math.max(0, parseNum(form.experienceYears || 0)),
                     expectedSalary,
                     availabilityDate: form.availabilityDate || "",
@@ -2153,6 +2195,7 @@ function bindHiringPortalControls() {
                     source: String(form.source || "Portal RRHH")
                   })
             );
+          write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
           try {
             await writeAwaitServer(KEYS.candidates, nextCandidates);
           } catch (err) {
@@ -2280,18 +2323,20 @@ function bindHiringPortalControls() {
             notify("Fecha y hora inválidas.", "error");
             return false;
           }
-          const nextInterviews = all.map((i) =>
+          const freshInterviews = read(KEYS.interviews, []);
+          const nextInterviews = freshInterviews.map((i) =>
               String(i.id) !== String(target.id)
                 ? i
-                : {
+                : stampUpdatedRecord({
                     ...i,
                     when: form.when,
-                    interviewer: String(form.interviewer || "").trim(),
+                    interviewer: normalizeLatinUpperForDb(String(form.interviewer || "").trim()),
                     modality: String(form.modality || ""),
-                    locationOrLink: String(form.locationOrLink || "").trim(),
-                    notes: String(form.notes || "").trim()
-                  }
+                    locationOrLink: normalizeLatinUpperForDb(String(form.locationOrLink || "").trim()),
+                    notes: normalizeLatinUpperForDb(String(form.notes || "").trim())
+                  })
             );
+          write(KEYS.interviews, nextInterviews, { skipSyncSchedule: true });
           try {
             await writeAwaitServer(KEYS.interviews, nextInterviews);
           } catch (err) {

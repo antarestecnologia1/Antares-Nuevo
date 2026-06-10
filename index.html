@@ -36,11 +36,20 @@
     <link rel="stylesheet" href="./styles.landing.css?v=20260609-css-split" />
     <link
       rel="stylesheet"
-      href="./styles.css?v=20260610-emp-360"
+      href="./styles.css?v=20260610-gh-studio"
       media="print"
       onload="this.onload=null;this.media='all'"
     />
-    <noscript><link rel="stylesheet" href="./styles.css?v=20260610-emp-360" /></noscript>
+    <link
+      rel="stylesheet"
+      href="./styles/gh-module.css?v=20260610-gh-studio"
+      media="print"
+      onload="this.onload=null;this.media='all'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="./styles.css?v=20260610-gh-studio" />
+      <link rel="stylesheet" href="./styles/gh-module.css?v=20260610-gh-studio" />
+    </noscript>
     <script>
       // Site key del widget Turnstile (gestionado en el panel de Cloudflare → Turnstile).
       // Es público por diseño; el dominio queda atado a los hostnames del widget.
@@ -1330,7 +1339,7 @@
       import * as AntaresI18n from "./modules/core/i18n.js";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260605-portal-runtime-esm"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260610-conductor-fields"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>

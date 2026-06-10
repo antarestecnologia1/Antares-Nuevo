@@ -6,7 +6,10 @@ CREATE TABLE viajes_transporte (
   id_solicitud                    UUID NOT NULL UNIQUE REFERENCES solicitudes_transporte (id) ON DELETE CASCADE,
   numero_viaje                    VARCHAR(32) NOT NULL,
   id_vehiculo                     UUID NOT NULL REFERENCES vehiculos (id) ON DELETE RESTRICT,
-  id_conductor                    UUID NOT NULL REFERENCES conductores (id) ON DELETE RESTRICT,
+  -- Nullable + SET NULL: el historial de viajes (cancelados/cerrados) no bloquea la baja del
+  -- conductor; el viaje conserva nombre_conductor/telefono como snapshot. Los viajes activos
+  -- se bloquean por código (adminDeletePayrollEmployee).
+  id_conductor                    UUID REFERENCES conductores (id) ON DELETE SET NULL,
   placa_vehiculo                  VARCHAR(8) NOT NULL,
   tipo_vehiculo_asignado          VARCHAR(40),
   nombre_conductor                VARCHAR(255) NOT NULL,

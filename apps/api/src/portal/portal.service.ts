@@ -600,6 +600,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureSystemParametersSchema();
     await this.ensureProspectosContactoB2bSchema();
     await this.ensureSolicitudesTransporteSchema();
+    await this.ensureViajesTransporteSchema();
     await this.ensurePreferenciasNotificacionSchema();
     await this.ensureEmpleadosNominaSchema();
     await this.ensureLiquidacionesNominaSchema();
@@ -853,6 +854,54 @@ export class PortalService implements OnModuleInit {
   }
 
   /** Columna `refrigeracion_termoking` en solicitudes (migr. `26_solicitudes_refrigeracion_termoking.sql`). */
+  /**
+   * `viajes_transporte.id_conductor`: el esquema original era NOT NULL + ON DELETE RESTRICT,
+   * por lo que un viaje cancelado/cerrado bloqueaba para siempre la eliminación del conductor
+   * (y del empleado vinculado). El historial conserva los datos snapshot del viaje
+   * (nombre_conductor, telefono_conductor, placa_vehiculo), así que el vínculo puede soltarse:
+   * columna nullable + FK ON DELETE SET NULL. Los viajes ACTIVOS se bloquean por código en
+   * adminDeletePayrollEmployee, no por la FK.
+   */
+  private async ensureViajesTransporteSchema() {
+    if (!(await this.tableExists("viajes_transporte"))) return;
+    try {
+      await this.pool.query(`ALTER TABLE viajes_transporte ALTER COLUMN id_conductor DROP NOT NULL`);
+      await this.pool.query(`
+        DO $$
+        DECLARE
+          fk_name text;
+          fk_del char;
+        BEGIN
+          SELECT c.conname, c.confdeltype
+            INTO fk_name, fk_del
+          FROM pg_constraint c
+          JOIN pg_attribute a
+            ON a.attrelid = c.conrelid
+           AND a.attnum = ANY (c.conkey)
+          WHERE c.conrelid = 'viajes_transporte'::regclass
+            AND c.contype = 'f'
+            AND c.confrelid = 'conductores'::regclass
+            AND a.attname = 'id_conductor'
+          LIMIT 1;
+          IF fk_name IS NOT NULL AND fk_del IS DISTINCT FROM 'n' THEN
+            EXECUTE format('ALTER TABLE viajes_transporte DROP CONSTRAINT %I', fk_name);
+            fk_name := NULL;
+          END IF;
+          IF fk_name IS NULL THEN
+            ALTER TABLE viajes_transporte
+              ADD CONSTRAINT viajes_transporte_id_conductor_fkey
+              FOREIGN KEY (id_conductor) REFERENCES conductores (id) ON DELETE SET NULL;
+          END IF;
+        END
+        $$;
+      `);
+      this.logger.log("viajes_transporte: id_conductor nullable + ON DELETE SET NULL verificado.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureViajesTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
+    }
+  }
+
   private async ensureSolicitudesTransporteSchema() {
     if (!(await this.tableExists("solicitudes_transporte"))) return;
     try {
@@ -3336,6 +3385,48 @@ export class PortalService implements OnModuleInit {
         .trim()
         .toLowerCase();
 
+      /* Conductores vinculados por documento. Solo bloquea la eliminación un viaje en estado
+         ACTIVO o en progreso; los viajes cancelados, completados, cerrados o rechazados son
+         historial y no impiden la baja (quedan con id_conductor en NULL y sus datos snapshot). */
+      let linkedDriverIds: string[] = [];
+      if (doc && (await this.tableExists("conductores"))) {
+        const driverRows = await client.query<{ id: string }>(
+          `SELECT id::text AS id FROM conductores
+           WHERE regexp_replace(trim(coalesce(numero_documento, '')), '[^0-9]', '', 'g')
+             = regexp_replace(trim($1), '[^0-9]', '', 'g')`,
+          [doc]
+        );
+        linkedDriverIds = driverRows.rows.map((r) => String(r.id));
+      }
+      if (
+        linkedDriverIds.length &&
+        (await this.tableExists("viajes_transporte")) &&
+        (await this.tableExists("solicitudes_transporte"))
+      ) {
+        const active = await client.query<{ total: number; numeros: string[] | null }>(
+          `SELECT count(*)::int AS total,
+                  (array_agg(v.numero_viaje ORDER BY v.fecha_hora_recogida_programada))[1:5] AS numeros
+           FROM viajes_transporte v
+           JOIN solicitudes_transporte s ON s.id = v.id_solicitud
+           WHERE v.id_conductor = ANY($1::uuid[])
+             AND s.estado IN (
+               'Viaje asignado'::estado_solicitud_transporte,
+               'En transito'::estado_solicitud_transporte,
+               'Espera standby'::estado_solicitud_transporte
+             )`,
+          [linkedDriverIds]
+        );
+        const activeTrips = Number(active.rows[0]?.total ?? 0);
+        if (activeTrips > 0) {
+          await client.query("ROLLBACK");
+          const nums = (active.rows[0]?.numeros || []).filter(Boolean).join(", ");
+          throw new BadRequestException(
+            `No se puede eliminar: el conductor vinculado tiene ${activeTrips} viaje(s) activo(s) o en progreso${nums ? ` (${nums})` : ""}. ` +
+              "Complete, cancele o reasigne esos viajes primero. Los viajes cancelados o finalizados no bloquean la eliminación."
+          );
+        }
+      }
+
       if (await this.tableExists("liquidaciones_nomina")) {
         await client.query(`DELETE FROM liquidaciones_nomina WHERE id_empleado = $1::uuid`, [eid]);
       }
@@ -3347,13 +3438,17 @@ export class PortalService implements OnModuleInit {
       }
 
       let driversRemoved = 0;
-      if (doc && (await this.tableExists("conductores"))) {
-        const delDrivers = await client.query(
-          `DELETE FROM conductores
-           WHERE regexp_replace(trim(coalesce(numero_documento, '')), '[^0-9]', '', 'g')
-             = regexp_replace(trim($1), '[^0-9]', '', 'g')`,
-          [doc]
-        );
+      if (linkedDriverIds.length) {
+        if (await this.tableExists("viajes_transporte")) {
+          /* Historial (cancelados/cerrados/completados): conservar el viaje, soltar el vínculo. */
+          await client.query(
+            `UPDATE viajes_transporte SET id_conductor = NULL WHERE id_conductor = ANY($1::uuid[])`,
+            [linkedDriverIds]
+          );
+        }
+        const delDrivers = await client.query(`DELETE FROM conductores WHERE id = ANY($1::uuid[])`, [
+          linkedDriverIds
+        ]);
         driversRemoved = delDrivers.rowCount ?? 0;
       }
 
@@ -3374,6 +3469,12 @@ export class PortalService implements OnModuleInit {
       await client.query("ROLLBACK").catch(() => null);
       if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
+      if (/not-null constraint|violates not-null/i.test(msg)) {
+        /* Esquema sin actualizar (id_conductor aún NOT NULL): la autocura corre al arrancar la API. */
+        throw new BadRequestException(
+          "No se pudo desvincular el historial de viajes del conductor. Reinicie la API para aplicar la actualización de esquema e intente de nuevo."
+        );
+      }
       if (/foreign key|violates foreign key/i.test(msg)) {
         throw new BadRequestException(
           "No se pudo eliminar el conductor vinculado: tiene viajes u otros registros asociados. Retire o reasigne esos datos primero."

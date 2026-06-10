@@ -89,6 +89,7 @@
     "refrigerated",
     "hasgps",
     "modality",
+    "mode",
     "workerrole",
     "contracttype",
     "absencetype",

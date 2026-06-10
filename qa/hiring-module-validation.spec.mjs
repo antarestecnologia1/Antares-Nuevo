@@ -311,11 +311,23 @@ test("validate hiring module fields", async ({ page, context }) => {
     await page.evaluate(({ selector: formSelector, pairs: entries }) => {
       const form = document.querySelector(formSelector);
       if (!form) throw new Error(`No se encontró ${formSelector}`);
+      const V = window.AntaresValidation;
       const resolveField = (key) => {
         if (/[\[\]#.: >]/.test(key)) return form.querySelector(key) || document.querySelector(key);
         return form.querySelector(`[name="${key}"]`);
       };
+      const resolveDatetimeWrap = (key) => {
+        const hidden = form.querySelector(`input[type="hidden"][name="${key}"][data-portal-datetime-iso="1"]`);
+        if (hidden?.closest) return hidden.closest(".portal-datetime-dmy-row");
+        const field = resolveField(key);
+        return field?.closest?.(".portal-datetime-dmy-row") || null;
+      };
       for (const [key, value] of entries) {
+        const datetimeWrap = resolveDatetimeWrap(key);
+        if (datetimeWrap && typeof V?.portalDatetimeInputSetIso === "function") {
+          V.portalDatetimeInputSetIso(datetimeWrap, value == null ? "" : String(value));
+          continue;
+        }
         const field = resolveField(key);
         if (!field) throw new Error(`Campo no encontrado: ${key}`);
         if (field.type === "checkbox") {
@@ -330,9 +342,54 @@ test("validate hiring module fields", async ({ page, context }) => {
     }, { selector, pairs });
   };
 
+  const ensureCreatePanelOpen = async (panelId) => {
+    await page.waitForSelector(`[data-action='toggle-create-panel'][data-panel='${panelId}']`, { state: "attached", timeout: 5000 });
+    const isHidden = await page.evaluate((id) => {
+      const panel = document.querySelector(`[data-create-panel="${id}"]`);
+      return !panel || panel.classList.contains("hidden") || panel.hasAttribute("hidden");
+    }, panelId);
+    if (isHidden) await clickVisible(`[data-action='toggle-create-panel'][data-panel='${panelId}']`);
+    await page.waitForFunction((id) => {
+      const panel = document.querySelector(`[data-create-panel="${id}"]`);
+      return panel && !panel.classList.contains("hidden") && !panel.hasAttribute("hidden");
+    }, panelId);
+  };
+
   const submitForm = async (selector, pairs) => {
     await setFormFields(selector, pairs);
-    await page.locator(`${selector} button[type="submit"]`).click();
+    await page.evaluate((formSelector) => {
+      const form = document.querySelector(formSelector);
+      if (!form) throw new Error(`No se encontró ${formSelector}`);
+      form.requestSubmit();
+    }, selector);
+  };
+
+  const setInterviewWhenFuture = async (formSelector, daysAhead = 12) => {
+    await page.evaluate(({ selector, days }) => {
+      const form = document.querySelector(selector);
+      if (!form) throw new Error(`No se encontró ${selector}`);
+      const wrap = form.querySelector(".portal-datetime-dmy-row");
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      d.setMinutes(d.getMinutes() + 45);
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Bogota",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).formatToParts(d);
+      const pick = (type) => parts.find((p) => p.type === type)?.value || "00";
+      const iso = `${pick("year")}-${pick("month")}-${pick("day")}T${pick("hour")}:${pick("minute")}`;
+      if (wrap && window.AntaresValidation?.portalDatetimeInputSetIso) {
+        window.AntaresValidation.portalDatetimeInputSetIso(wrap, iso);
+        return;
+      }
+      const whenEl = form.querySelector('input[name="when"]');
+      if (whenEl) whenEl.value = iso;
+    }, { selector: formSelector, days: daysAhead });
   };
 
   const ensureHrWorkspace = async (tabId) => {
@@ -358,6 +415,15 @@ test("validate hiring module fields", async ({ page, context }) => {
       return panel && !panel.hidden && !panel.classList.contains("hidden");
     }, sectionId);
     await page.waitForSelector(formBySection[sectionId], { state: "attached", timeout: 5000 });
+    const panelBySection = {
+      position: "create-position",
+      vacancy: "create-vacancy",
+      candidate: "create-candidate",
+      interview: "create-interview",
+      contract: "create-contract"
+    };
+    const panelId = panelBySection[sectionId];
+    if (panelId) await ensureCreatePanelOpen(panelId);
   };
 
   const ensureHiringDataSection = async (sectionId) => {
@@ -455,7 +521,7 @@ test("validate hiring module fields", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "pos-analista" && row.name === "Analista QA Editado" && row.workSchedule === "Nocturna");
+        return rows.some((row) => row.id === "pos-analista" && row.name === "ANALISTA QA EDITADO" && row.workSchedule === "NOCTURNA");
       },
       KEYS.positions,
       "edit position"
@@ -513,7 +579,7 @@ test("validate hiring module fields", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "vac-1" && row.title === "VACANTE ANALISTA EDITADA" && row.modality === "Remoto" && Number(row.openings) === 2);
+        return rows.some((row) => row.id === "vac-1" && row.title === "VACANTE ANALISTA EDITADA" && row.modality === "REMOTO" && Number(row.openings) === 2);
       },
       KEYS.vacancies,
       "edit vacancy"
@@ -561,7 +627,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     expect(Number(created.expectedSalary)).toBe(2500000);
     expect(created.availabilityDate).toBe(ymd(plusDays(30)));
     expect(created.vacancyId).toBe("vac-1");
-    expect(created.vacancyTitle).toBe("Vacante Analista");
+    expect(created.vacancyTitle).toBe("VACANTE ANALISTA EDITADA");
     expect(created.status).toBe("Recibido");
   });
 
@@ -579,7 +645,7 @@ test("validate hiring module fields", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "cand-1" && row.phone === "3007778800" && row.educationLevel === "Posgrado");
+        return rows.some((row) => row.id === "cand-1" && row.phone === "+57 300 777 88 00" && row.educationLevel === "POSGRADO");
       },
       KEYS.candidates,
       "edit candidate"
@@ -589,14 +655,24 @@ test("validate hiring module fields", async ({ page, context }) => {
   await record("Contratación:create interview persists fields and moves pipeline", async () => {
     await ensureHiringOperateSection("interview");
     const before = await arrayLen(KEYS.interviews);
-    await submitForm("#form-interview", [
-      ["candidateId", "cand-1"],
-      ["when", ymdhm(plusDays(12))],
-      ["interviewer", "Lina QA"],
-      ["mode", "telefonica"],
-      ["place", "Llamada +57 3000000000"],
-      ["notes", "Entrevista telefónica QA"]
-    ]);
+    const form = page.locator("#form-interview");
+    await form.locator('select[name="candidateId"]').selectOption("cand-1");
+    await setInterviewWhenFuture("#form-interview", 12);
+    await form.locator('input[name="interviewer"]').fill("Lina QA");
+    await form.locator('select[name="mode"]').selectOption("telefonica");
+    await form.locator('input[name="place"]').fill("Llamada +57 3000000000");
+    await form.locator('textarea[name="notes"]').fill("Entrevista telefónica QA");
+    await page.evaluate(() => {
+      const form = document.querySelector("#form-interview");
+      if (!form) throw new Error("form-interview no encontrado");
+      if (!form.checkValidity()) {
+        const invalid = [...form.querySelectorAll("input,select,textarea")]
+          .filter((el) => !el.checkValidity())
+          .map((el) => `${el.name || el.type}: ${el.validationMessage}`);
+        throw new Error(`form-interview inválido: ${invalid.join("; ") || "desconocido"}`);
+      }
+      form.requestSubmit();
+    });
     await waitForArrayLength(KEYS.interviews, before + 1, "create interview");
     await waitForStore(
       ({ interviewsKey, candidatesKey }) => {
@@ -606,7 +682,7 @@ test("validate hiring module fields", async ({ page, context }) => {
         const candidates = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(candidatesKey, [])
           : JSON.parse(localStorage.getItem(candidatesKey) || "[]");
-        return interviews.some((row) => row.interviewer === "Lina QA" && row.modality === "Telefónica" && row.locationOrLink === "Llamada +57 3000000000" && row.notes === "Entrevista telefónica QA")
+        return interviews.some((row) => row.interviewer === "LINA QA" && row.modality === "Telefónica" && row.locationOrLink === "LLAMADA +57 3000000000" && row.notes === "ENTREVISTA TELEFONICA QA")
           && candidates.some((row) => row.id === "cand-1" && row.status === "Entrevistado");
       },
       { interviewsKey: KEYS.interviews, candidatesKey: KEYS.candidates },
@@ -629,7 +705,7 @@ test("validate hiring module fields", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "int-1" && row.interviewer === "Lina QA Edit" && row.modality === "Presencial" && row.locationOrLink === "Sala 2");
+        return rows.some((row) => row.id === "int-1" && row.interviewer === "LINA QA EDIT" && row.modality === "Presencial" && row.locationOrLink === "SALA 2");
       },
       KEYS.interviews,
       "edit interview"

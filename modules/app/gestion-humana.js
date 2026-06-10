@@ -128,26 +128,29 @@ function payrollHtml() {
   const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
   const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
-  const formEmp = `<form id="form-employee" class="p-form p-form-colored hr-form-flow">
-    <div class="hr-form-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
-      <div class="hr-form-wizard-toolbar">
-        <div class="hr-form-wizard-toolbar__copy">
-          <p class="hr-form-wizard-kicker">Contratación · Nuevo colaborador</p>
-          <p class="hr-form-wizard-lead">Expediente guiado en 6 pasos: persona, contacto, condiciones laborales, seguridad social, banco y extras de conductor.</p>
+  const formEmp = `<form id="form-employee" class="gh-emp-form p-form p-form-colored hr-form-flow">
+    <div class="hr-form-wizard gh-emp-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
+      <header class="gh-emp-wizard__head">
+        <div class="gh-emp-wizard__head-copy">
+          <span class="gh-emp-wizard__eyebrow">Vinculación laboral</span>
+          <h3 class="gh-emp-wizard__title">Expediente del colaborador</h3>
+          <p class="gh-emp-wizard__desc">Identificación, contrato, EPS, ARL, fondos de pensiones y cesantías, datos bancarios y requisitos de conductor según normativa colombiana.</p>
         </div>
-        <div class="hr-form-wizard-meta">
+        <div class="gh-emp-wizard__progress hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
           <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 6</span>
         </div>
-      </div>
-      <div class="hr-form-wizard-dots" role="tablist" aria-label="Secciones del formulario">
-        <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: datos personales"><span class="hr-dot-num">1</span><small>Persona</small></button>
-        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><small>Contacto</small></button>
-        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: laboral"><span class="hr-dot-num">3</span><small>Laboral</small></button>
-        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><small>Seg. social</small></button>
-        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: banco"><span class="hr-dot-num">5</span><small>Banco</small></button>
-        <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor y cierre"><span class="hr-dot-num">6</span><small>Extras</small></button>
-      </div>
+      </header>
+      <div class="gh-emp-wizard__layout">
+        <nav class="gh-emp-wizard__steps hr-form-wizard-dots" role="tablist" aria-label="Secciones del formulario">
+          <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: identidad"><span class="hr-dot-num">1</span><span><small>Identidad</small><span class="gh-step-hint">CC, datos personales</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><span><small>Contacto</small><span class="gh-step-hint">Ubicación y emergencias</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: contrato laboral"><span class="hr-dot-num">3</span><span><small>Contrato</small><span class="gh-step-hint">Cargo, salario, plazo</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><span><small>Seg. social</small><span class="gh-step-hint">EPS, ARL, fondos</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: dispersión nómina"><span class="hr-dot-num">5</span><span><small>Nómina</small><span class="gh-step-hint">Cuenta bancaria</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor"><span class="hr-dot-num">6</span><span><small>Conductor</small><span class="gh-step-hint">Licencia y SIMIT</span></span></button>
+        </nav>
+        <div class="gh-emp-wizard__panels">
 
       <div class="hr-form-step is-active" data-step-index="0">
     <fieldset class="form-section form-section-blue full">
@@ -243,6 +246,8 @@ function payrollHtml() {
         <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
         <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel" id="emp-arl-risk-level">${arlRiskOpts}</select></label>
+        <label>${fieldLabel(IC.heart, "Examen médico ocupacional de ingreso")}<input type="date" name="occupationalExamDate" id="emp-occupational-exam-date" /></label>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">Obligatorio para todo trabajador, sin importar el cargo (evaluación médica de ingreso, Resolución 2346 de 2007). La vigencia se guarda automáticamente a un año desde la fecha indicada.</p>
         <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
           ${renderContractTemplateSelectOptions("", false)}
         </select></label>
@@ -281,20 +286,24 @@ function payrollHtml() {
         <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
         <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
         <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
-        <label>${fieldLabel(IC.calendar, "Examen ocupacional")}<input type="date" name="occupationalExamDate" /></label>
         <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Las vigencias de ambos exámenes se guardan automáticamente a un año desde cada fecha indicada.</p>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">La vigencia del examen instruvial se guarda automáticamente a un año desde la fecha indicada. El examen médico ocupacional de ingreso se registra en el paso «Laboral» (aplica a todos los cargos).</p>
         <label>${fieldLabel(IC.award, "Curso conducción defensiva (Res. 17220)")}<select name="defensiveCourse">
           <option value="">Seleccione...</option>
           <option value="vigente">Vigente</option>
           <option value="vencido">Vencido</option>
           <option value="no_aplica">No aplica</option>
         </select></label>
+        <label>${fieldLabel(IC.calendar, "Vence curso defensivo")}<input type="date" name="defensiveCourseExpiry" /></label>
+        <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
+        <label>${fieldLabel(IC.activity, "Años de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
       </div>
     </fieldset>
 
       </div>
 
+        </div>
+      </div>
       ${renderHrFormWizardFooter(
         "create-employee",
         `<button class="btn btn-primary hr-form-wizard-submit" type="submit" disabled aria-disabled="true">${IC.save} Guardar empleado</button>`,
@@ -604,14 +613,17 @@ function payrollHtml() {
       { id: "absence", label: "Ausencia" }
     ]
   });
-  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee"${payrollOperateSection === "employee" ? "" : " hidden"}>${createCollapsibleProCard("create-employee", "userPlus", "Agregar empleado", "Ficha completa, contrato Word y seguridad social", formEmp, "admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll"${payrollOperateSection === "payroll" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll", "dollar", "Nómina laboral", "Empleados con relación laboral — salario y aportes", `${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay"${payrollOperateSection === "driverPay" ? "" : " hidden"}>${createCollapsibleProCard("create-driver-trip-payment", "truck", "Liquidar viajes del conductor", "Prestación de servicios — viáticos y combustible desde flota", formDriverTripPay, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement"${payrollOperateSection === "settlement" ? "" : " hidden"}>${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación por terminación", "Cesantías, prima proporcional y vacaciones orientativas", formPayrollSettlement, "admin-users-data-card hr-form-card hr-form-card--lg hr-form-card--payroll", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence"${payrollOperateSection === "absence" ? "" : " hidden"}>${createCollapsibleProCard("create-hr-absence", "calendar", "Registrar ausencia o incapacidad", "Vacaciones, incapacidades, licencias y permisos laborales Colombia", formAbsence, "admin-users-data-card hr-form-card hr-form-card--md hr-form-card--payroll", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const payrollExecutionBlock = `<section class="payroll-operate-panel ops-block ops-block--payroll-flow">
-      ${payrollOperateNav}
-      <div class="auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${driverPayOperatePane}${settlementOperatePane}${absenceOperatePane}</div>
+  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee">${createCollapsibleProCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl", "Abrir expediente", { createPanels: state.createPanels })}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll">${createCollapsibleProCard("create-payroll", "dollar", "Liquidación de nómina", "Relación laboral — devengos, deducciones y aportes parafiscales", `${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
+  const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay">${createCollapsibleProCard("create-driver-trip-payment", "truck", "Pago por viajes", "Prestación de servicios — viáticos interdepartamentales y combustible", formDriverTripPay, "admin-users-data-card hr-form-card gh-form-card hr-form-card--md", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
+  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement">${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación final", "Terminación contractual — cesantías, prima y vacaciones (CST)", formPayrollSettlement, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
+  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence">${createCollapsibleProCard("create-hr-absence", "calendar", "Ausencias e incapacidades", "Vacaciones, licencias, incapacidades y permisos remunerados", formAbsence, "admin-users-data-card hr-form-card gh-form-card hr-form-card--md", "Registrar ausencia", { createPanels: state.createPanels })}</div>`;
+  const payrollExecutionBlock = `<section class="gh-operate payroll-operate-panel">
+      <aside class="gh-operate__rail" aria-label="Flujos de registro">
+        <span class="gh-operate__rail-label">Registrar</span>
+        ${payrollOperateNav}
+      </aside>
+      <div class="gh-operate__main auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${driverPayOperatePane}${settlementOperatePane}${absenceOperatePane}</div>
     </section>`;
   const payrollQuickActive =
     filterStatus === "pending"
@@ -820,7 +832,7 @@ function payrollHtml() {
       </div>
       ${runsPaneBody}
     </div>`;
-  const payrollDataBlock = `<section class="payroll-data-panel ops-block ops-block--payroll-data">
+  const payrollDataBlock = `<section class="gh-data-panel payroll-data-panel">
       <div class="payroll-data-toolbar payroll-data-toolbar--compact">
         ${payrollDataNav}
         ${payrollRunFilters}
@@ -844,7 +856,7 @@ function payrollHtml() {
   const payrollDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
       ${payrollDataBlock}
     </div>`;
-  return `<section class="payroll-shell payroll-shell--workspace payroll-module--v2 payroll-module--clean hr-flow-shell hr-module-pro hr-module-pro--payroll" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollWorkspaceHeader}
+  return `<section class="gh-studio payroll-shell payroll-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${payrollOperatePanel}
         ${payrollDataPanel}

@@ -27,7 +27,6 @@ import {
   canApprovePortalRegistration,
   currentUser,
   hasPermission,
-  normalizeUserAccountStatus,
   pendingUserOrigin,
   isPortalUserPendingApproval
 } from "../core/auth.js";

@@ -1598,6 +1598,17 @@ function wireEditModalFieldValues(formEl, fields) {
 }
 
 /**
+ * Cargo de conductor: por rol del catálogo o, como red de seguridad, por el nombre del cargo
+ * (cargos creados como «CONDUCTOR» pero con rol «Empleado» por descuido habilitan igual la
+ * sección de licencia/exámenes y la sincronización con el módulo Conductores).
+ */
+function positionLooksLikeConductor(position) {
+  if (!position) return false;
+  if (String(position.workerRole || "").trim().toLowerCase() === "conductor") return true;
+  return /conductor/i.test(String(position.name || ""));
+}
+
+/**
  * Precarga en el formulario de empleado los datos definidos en el catálogo de cargos (Contratación).
  */
 function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
@@ -1624,7 +1635,9 @@ function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
   const scheduleEl = form.querySelector(options.scheduleSelector || "#emp-work-schedule, input[name='workSchedule']");
 
   const contractType = String(position.contractTypeDefault || "Termino indefinido").trim();
-  const wr = String(position.workerRole || "empleado").toLowerCase();
+  const wr = positionLooksLikeConductor(position)
+    ? "conductor"
+    : String(position.workerRole || "empleado").toLowerCase();
   const schedule = String(position.workSchedule || position.schedule || "").trim();
 
   if (salaryEl) salaryEl.value = String(parseNum(position.baseSalary));
@@ -10248,20 +10261,20 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
           : "Complete la duración del contrato: unidad (meses o años) o texto en “Otro”.";
     return { ok: false, msg };
   }
+  const resolvedWorkerRole = positionLooksLikeConductor(position)
+    ? "conductor"
+    : String(position.workerRole || "empleado").toLowerCase();
   const sanitized = sanitizePayrollEmployeeFieldsForPersist({
     ...raw,
     position: position.name,
-    workerRole: position.workerRole || "empleado",
+    workerRole: resolvedWorkerRole,
     contractType: effectiveContractType,
     arlRiskLevel: raw.arlRiskLevel || position.arlRiskLevel || "",
     workSchedule: raw.workSchedule || position.workSchedule || position.schedule || "",
     contractTemplateKind:
       raw.contractTemplateKind ||
       (window.RecruitmentDomain?.inferTemplateKind
-        ? window.RecruitmentDomain.inferTemplateKind(
-            effectiveContractType,
-            position.workerRole || "empleado"
-          )
+        ? window.RecruitmentDomain.inferTemplateKind(effectiveContractType, resolvedWorkerRole)
         : "oficina")
   });
   return {
@@ -10293,6 +10306,9 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       instruvialExamDate: normalizePortalDateYmd(raw.instruvialExamDate),
       instruvialExamExpiry: addOneYearToYmd(raw.instruvialExamDate),
       defensiveCourse: String(raw.defensiveCourse || "").trim().toLowerCase(),
+      defensiveCourseExpiry: normalizePortalDateYmd(raw.defensiveCourseExpiry),
+      comparendos: Math.max(0, Math.min(9999, parseNum(raw.comparendos ?? 0))),
+      experienceYears: Math.max(0, Math.min(80, parseNum(raw.experienceYears ?? 0))),
       avatarUrl
     }
   };
@@ -10603,6 +10619,8 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(resolvePayrollEmployeeCostCenter(e))}" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
 <label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel" id="employee-modal-arl-risk">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
+<label><span>${escapeHtml("Examen médico ocupacional de ingreso")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Obligatorio para todo trabajador (Resolución 2346 de 2007). Vigencia automática +1 año desde la fecha del examen.</p>
 <label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" id="employee-modal-contract-template" required>${tmplSel}</select></label>
 </div>`
     },
@@ -10633,15 +10651,17 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
 <label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
 <label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" /></label>
-<label><span>${escapeHtml("Examen ocupacional")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
 <label><span>${escapeHtml("Examen instruvial")}</span><input type="date" name="instruvialExamDate" value="${escapeAttr(normalizePortalDateYmd(e.instruvialExamDate))}" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Las fechas de vencimiento de ambos exámenes se calculan automáticamente (+1 año desde cada fecha de examen).</p>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automáticamente (+1 año). El examen ocupacional está en la sección «Laboral» porque aplica a todos los cargos.</p>
 <label><span>${escapeHtml("Conducción defensiva")}</span><select name="defensiveCourse">
 <option value="">${escapeHtml("Seleccione...")}</option>
 <option value="vigente" ${defCourse === "vigente" ? "selected" : ""}>${escapeHtml("Vigente")}</option>
 <option value="vencido" ${defCourse === "vencido" ? "selected" : ""}>${escapeHtml("Vencido")}</option>
 <option value="no_aplica" ${defCourse === "no_aplica" ? "selected" : ""}>${escapeHtml("No aplica")}</option>
 </select></label>
+<label><span>${escapeHtml("Vence curso defensivo")}</span><input type="date" name="defensiveCourseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.defensiveCourseExpiry))}" /></label>
+<label><span>${escapeHtml("Comparendos pendientes (SIMIT)")}</span><input type="number" name="comparendos" min="0" max="9999" value="${escapeAttr(parseNum(e.comparendos ?? 0))}" /></label>
+<label><span>${escapeHtml("Años de experiencia conduciendo")}</span><input type="number" name="experienceYears" min="0" max="80" value="${escapeAttr(parseNum(e.experienceYears ?? 0))}" /></label>
 <p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.82rem">Si el cargo no es conductor, puede dejar esta sección en blanco.</p>
 </div>`
     },
