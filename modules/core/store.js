@@ -11,12 +11,16 @@ import {
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
+  HR_VALID_TRANSPORT_TRIPS_WS,
   HR_WORKSPACE_STORAGE
 } from "./config.js";
 import {
   normalizeHiringDataSection,
   normalizeHiringOperateSection,
-  normalizeHrWorkspace
+  normalizeHrWorkspace,
+  normalizeTransportTripsSection,
+  normalizeTransportTripsWorkspace,
+  resolveTransportTripsSection
 } from "./utils.js";
 
 export let state = {
@@ -99,7 +103,8 @@ export let state = {
     companyId: ""
   },
   transportTripsUi: {
-    workspace: "trips",
+    workspace: "operate",
+    section: "trips",
     search: "",
     sort: "pickup_asc",
     layout: "cards"
@@ -177,6 +182,7 @@ export function hydrateHrWorkspaceFromStorage() {
     const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
     const r = localStorage.getItem(HR_WORKSPACE_STORAGE.requests);
+    const tt = localStorage.getItem(HR_WORKSPACE_STORAGE.transportTrips);
     if (p) {
       const ws = normalizeHrWorkspace("payroll", p);
       state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
@@ -186,6 +192,28 @@ export function hydrateHrWorkspaceFromStorage() {
       const ws = normalizeHrWorkspace("requests", r);
       state.requestsUi = { ...(state.requestsUi || {}), workspace: ws };
       if (r !== ws) persistHrWorkspace("requests", ws);
+    }
+    if (tt) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(tt);
+      } catch (_jsonErr) {
+        parsed = null;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state.transportTripsUi = {
+          ...(state.transportTripsUi || {}),
+          workspace: normalizeTransportTripsWorkspace(parsed.workspace),
+          section: resolveTransportTripsSection({ workspace: parsed.workspace, section: parsed.section })
+        };
+      } else {
+        const legacySection = tt === "routes" ? "routes" : tt === "trips" ? "trips" : "";
+        state.transportTripsUi = {
+          ...(state.transportTripsUi || {}),
+          workspace: normalizeTransportTripsWorkspace(legacySection || tt),
+          section: legacySection ? legacySection : resolveTransportTripsSection(state.transportTripsUi)
+        };
+      }
     }
     if (h) {
       let parsed = null;
@@ -240,6 +268,17 @@ export function persistHrWorkspace(moduleId, workspace) {
     } else if (moduleId === "requests" && HR_VALID_REQUESTS_WS.has(ws)) {
       state.requestsUi = { ...(state.requestsUi || {}), workspace: ws };
       localStorage.setItem(HR_WORKSPACE_STORAGE.requests, ws);
+    } else if (moduleId === "transport-trips") {
+      const ui = { ...(state.transportTripsUi || {}) };
+      if (HR_VALID_TRANSPORT_TRIPS_WS.has(ws)) ui.workspace = ws;
+      state.transportTripsUi = ui;
+      localStorage.setItem(
+        HR_WORKSPACE_STORAGE.transportTrips,
+        JSON.stringify({
+          workspace: normalizeTransportTripsWorkspace(ui.workspace),
+          section: normalizeTransportTripsSection(ui.section)
+        })
+      );
     } else if (moduleId === "hiring") {
       const ui = { ...(state.hiringUi || {}) };
       if (HR_VALID_HIRING_WS.has(ws)) ui.workspace = ws;

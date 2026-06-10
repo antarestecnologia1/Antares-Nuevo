@@ -24,7 +24,12 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "transporte", exportName: "transportTripsHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [
+        {
+          container: ".transport-shell",
+          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+        }
+      ]
     },
     "transport-vehicles": {
       title: "Transporte · Camiones",

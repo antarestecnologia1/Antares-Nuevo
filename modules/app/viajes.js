@@ -106,6 +106,7 @@ function transportTripsHtml() {
   const departmentsOpts = departmentOptions();
   const transportTripsUi = state.transportTripsUi || {};
   const transportTripsWorkspace = normalizeTransportTripsWorkspace(transportTripsUi.workspace);
+  const transportTripsSection = resolveTransportTripsSection(transportTripsUi);
   const tripsSearch = String(transportTripsUi.search || "").trim().toLowerCase();
   const tripsSort = normalizeTransportTripsSort(transportTripsUi.sort);
   const tripsLayout = normalizeTransportTripsLayout(transportTripsUi.layout);
@@ -562,11 +563,29 @@ function transportTripsHtml() {
     </footer>
   </form>`;
 
-  const workspaceNav = renderModuleWindowTabs({
-    ariaLabel: "Secciones del módulo Viajes y trayectos",
+  const transportModuleHead = moduleFleetHeroStrip([
+    { label: "Viajes", value: trips.length },
+    { label: "Activos", value: activeOps, tone: activeOps ? "warn" : undefined },
+    { label: "Hoy", value: todaysTrips },
+    { label: "Por asignar", value: pendingForTrip.length, tone: pendingForTrip.length ? "warn" : undefined },
+    { label: "Trayectos", value: rateEntries.length }
+  ]);
+  const transportTripsTabsNav = renderHrWorkspaceTabs({
+    module: "transport-trips",
+    ariaLabel: "Secciones del módulo Transporte · Viajes",
     activeId: transportTripsWorkspace,
-    action: "transport-trips-workspace",
-    valueAttr: "workspace",
+    variant: "switch",
+    tabs: [
+      { id: "operate", label: "Registrar", icon: "plus", hint: "Asignar viajes y tarifas" },
+      { id: "data", label: "Consultar", icon: "eye", hint: "Operación y catálogo" }
+    ]
+  });
+  const transportWorkspaceHeader = renderHrWorkspaceHeader(transportModuleHead, transportTripsTabsNav, "payroll");
+  const transportSectionNav = renderModuleWindowTabs({
+    ariaLabel: "Subsecciones de viajes y trayectos",
+    activeId: transportTripsSection,
+    action: "transport-trips-section",
+    valueAttr: "section",
     tabs: [
       { id: "trips", label: "Viajes", count: trips.length },
       { id: "routes", label: "Trayectos", count: rateEntries.length }
@@ -592,24 +611,39 @@ function transportTripsHtml() {
     "Abrir formulario",
     { createPanels: state.createPanels }
   );
-  const tripsPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "trips" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="trips"${transportTripsWorkspace === "trips" ? "" : " hidden"}>
-      <section class="ops-block transport-workspace-stack">
-
-        ${tripsCreateCard}
-        ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes${tripsLayout === "list" ? " · vista lista" : ""} en vista actual`, opsCards)}
+  const tripsOperatePane = `<div class="auth-tab-panel${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-operate-pane="trips">${tripsCreateCard}</div>`;
+  const routesOperatePane = `<div class="auth-tab-panel${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-operate-pane="routes">${routesCreateCard}</div>`;
+  const transportOperatePanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="operate">
+      <section class="gh-operate transport-operate-panel">
+        <aside class="gh-operate__rail" aria-label="Flujos de registro">
+          <span class="gh-operate__rail-label">Registrar</span>
+          ${transportSectionNav}
+        </aside>
+        <div class="gh-operate__main auth-tab-panels">${tripsOperatePane}${routesOperatePane}</div>
       </section>
     </div>`;
-  const routesPanel = `<div class="auth-tab-panel${transportTripsWorkspace === "routes" ? "" : " hidden"} transport-workspace-panel" data-transport-trips-panel="routes"${transportTripsWorkspace === "routes" ? "" : " hidden"}>
-      <section class="ops-block transport-workspace-stack">
-        <header class="payroll-panel-intro ops-block-head">
-          <h3>Trayectos</h3>
-          <p class="ops-block-lead muted">Mantén aparte el catálogo de rutas y tarifas por cliente para que el equipo configure precios sugeridos sin interferir con la operación diaria de viajes.</p>
-        </header>
-        ${routesCreateCard}
-        ${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}
+  const tripsDataPane = `<div class="transport-data-pane${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-data-pane="trips">
+      ${pcardWrap("activity", "Panel operativo de viajes", `${sortedFilteredTrips.length} viajes${tripsLayout === "list" ? " · vista lista" : ""} en vista actual`, opsCards)}
+    </div>`;
+  const routesDataPane = `<div class="transport-data-pane${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-data-pane="routes">
+      <header class="payroll-panel-intro ops-block-head">
+        <h3>Trayectos</h3>
+        <p class="ops-block-lead muted">Catálogo de rutas y tarifas por cliente usadas para autocompletar precios al asignar viajes.</p>
+      </header>
+      ${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}
+    </div>`;
+  const transportDataPanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="data">
+      <section class="gh-data-panel transport-data-panel">
+        <div class="transport-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${transportSectionNav}</div>
+        <div class="transport-data-panes">${tripsDataPane}${routesDataPane}</div>
       </section>
     </div>`;
-  return `${workspaceNav}<div class="auth-tab-panels transport-trips-tab-panels">${tripsPanel}${routesPanel}</div>`;
+  return `<section class="gh-studio transport-shell transport-shell--workspace hr-flow-shell hr-module-pro--payroll" data-hr-workspace="${escapeAttr(transportTripsWorkspace)}">${transportWorkspaceHeader}
+      <div class="hr-workspace-panels">
+        ${transportOperatePanel}
+        ${transportDataPanel}
+      </div>
+    </section>`;
 }
 
 
@@ -624,10 +658,23 @@ function transportTripsHtml() {
   function bindTransportTripsPortalControls() {
     if (String(state.currentView || "") !== "transport-trips" || !nodes.viewRoot) return;
 
-    nodes.viewRoot.querySelectorAll("[data-action='transport-trips-workspace']").forEach((btn) => {
+    nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='transport-trips']").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const workspace = normalizeTransportTripsWorkspace(btn.dataset.workspace);
-        state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace };
+        const tab = String(btn.dataset.tab || "");
+        if (!tab) return;
+        const ws = normalizeTransportTripsWorkspace(tab);
+        if (!HR_VALID_TRANSPORT_TRIPS_WS.has(ws)) return;
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace: ws };
+        persistHrWorkspace("transport-trips", ws);
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-trips-section']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const section = normalizeTransportTripsSection(btn.dataset.section);
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), section };
+        persistHrWorkspace("transport-trips", state.transportTripsUi.workspace || "operate");
         renderPortalView();
       });
     });

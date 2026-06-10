@@ -3513,7 +3513,12 @@ function wireRouteRateScopeSection(formEl) {
 function openRouteRateInlineEdit(storageKey) {
   const key = String(storageKey || "").trim();
   if (!key) return;
-  state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace: "routes" };
+  state.transportTripsUi = {
+    ...(state.transportTripsUi || {}),
+    workspace: "operate",
+    section: "routes"
+  };
+  persistHrWorkspace("transport-trips", "operate");
   state.createPanels = { ...(state.createPanels || {}), ["create-route-rate"]: true };
   state.pendingRouteRateEditKey = key;
   renderPortalView();

@@ -87,14 +87,14 @@ const TARGETS = [
   {
     module: "3. Viajes (asignar viaje)",
     view: "transport-trips",
-    patch: { transportTripsUi: { workspace: "trips" } },
+    patch: { transportTripsUi: { workspace: "operate", section: "trips" } },
     panels: { "create-trip": true },
     form: "#form-create-trip"
   },
   {
     module: "3. Viajes (trayecto/tarifa)",
     view: "transport-trips",
-    patch: { transportTripsUi: { workspace: "routes" } },
+    patch: { transportTripsUi: { workspace: "operate", section: "routes" } },
     panels: { "create-route-rate": true },
     form: "#form-route-rate"
   },

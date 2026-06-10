@@ -280,7 +280,8 @@ export const UI_PREFS = {
 export const HR_WORKSPACE_STORAGE = {
   payroll: "antares_hr_payroll_workspace_v1",
   hiring: "antares_hr_hiring_workspace_v1",
-  requests: "antares_requests_workspace_v1"
+  requests: "antares_requests_workspace_v1",
+  transportTrips: "antares_transport_trips_workspace_v1"
 };
 
 export const CLIENT_DATA_SCOPE_STORAGE = "antares_client_data_scope_v1";
@@ -291,6 +292,7 @@ export const CLIENT_DATA_SCOPE = {
 export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
 export const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
 export const HR_VALID_REQUESTS_WS = new Set(["operate", "data"]);
+export const HR_VALID_TRANSPORT_TRIPS_WS = new Set(["operate", "data"]);
 
 /** Zona horaria por defecto para fechas del portal (Colombia). */
 export const CO_TIMEZONE = "America/Bogota";

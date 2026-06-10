@@ -49,7 +49,8 @@ const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "driverPay", "s
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
 const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
-const TRANSPORT_TRIPS_WORKSPACES = new Set(["trips", "routes"]);
+const TRANSPORT_TRIPS_SECTIONS = new Set(["trips", "routes"]);
+const TRANSPORT_TRIPS_WORKSPACES = new Set(["operate", "data"]);
 const TRANSPORT_TRIPS_LAYOUTS = new Set(["cards", "list"]);
 const TRANSPORT_TRIPS_SORTS = new Set(["pickup_asc", "pickup_desc", "value_desc", "value_asc", "status"]);
 const ADMIN_USERS_SECTIONS = new Set(["actions", "pending", "users", "companies", "sessions"]);
@@ -80,9 +81,24 @@ export function normalizeVehicleWorkspaceSection(value) {
   return VEHICLE_MODULE_SECTIONS.has(v) ? v : "fleet";
 }
 
-export function normalizeTransportTripsWorkspace(value) {
+export function normalizeTransportTripsSection(value) {
   const v = String(value || "trips");
-  return TRANSPORT_TRIPS_WORKSPACES.has(v) ? v : "trips";
+  return TRANSPORT_TRIPS_SECTIONS.has(v) ? v : "trips";
+}
+
+/** Pantalla principal del módulo Viajes: Registrar (`operate`) | Consultar (`data`). */
+export function normalizeTransportTripsWorkspace(value) {
+  const v = String(value || "operate");
+  if (v === "trips" || v === "routes") return "operate";
+  return TRANSPORT_TRIPS_WORKSPACES.has(v) ? v : "operate";
+}
+
+/** Resuelve la subsección Viajes | Trayectos, incluyendo estado legacy donde `workspace` era trips|routes. */
+export function resolveTransportTripsSection(ui) {
+  const raw = ui && typeof ui === "object" ? ui : {};
+  const legacy = String(raw.workspace || "");
+  if (legacy === "trips" || legacy === "routes") return legacy;
+  return normalizeTransportTripsSection(raw.section);
 }
 
 export function normalizeTransportTripsLayout(value) {
