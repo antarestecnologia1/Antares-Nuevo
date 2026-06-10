@@ -4647,8 +4647,13 @@ body[data-theme="dark"] .modal-edit-section-title {
 .transport-trip-create-form > .create-trip-stepper,
 .transport-trip-create-form > .transport-trip-create-form__request,
 .transport-trip-create-form > .create-trip-submit-wrap,
-.transport-trip-create-form > .assign-trip-footer {
+.transport-trip-create-form > .assign-trip-footer,
+.transport-trip-create-form > .hr-form-wizard,
+.transport-trip-create-form > .gh-emp-wizard,
+.transport-trip-create-form > .gh-transport-wizard {
   grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
 }
 
 .transport-trip-create-form > .transport-trip-create-form__resources,
@@ -25968,6 +25973,12 @@ body[data-theme="dark"] .directory-card__actions {
 .p-form-colored.transport-route-form:not(.transport-route-form--revamp) {
   grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
   align-items: start;
+}
+
+/* Wizard unificado (viajes/trayectos): un solo contenedor directo — ancho completo */
+.p-form-colored.transport-trip-create-form:has(> .gh-transport-wizard),
+.p-form-colored.transport-route-form:has(> .gh-transport-wizard) {
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 .p-form-colored.transport-trip-create-form > .transport-trip-create-form__resources,

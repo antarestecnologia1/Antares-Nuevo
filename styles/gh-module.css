@@ -360,6 +360,24 @@
   padding: 0;
 }
 
+.gh-studio .gh-form-card.hr-form-card--transport-trip,
+.gh-studio .gh-form-card.hr-form-card--transport-route {
+  width: 100%;
+  max-width: none;
+}
+
+.gh-studio .gh-form-card.hr-form-card--transport-trip .hr-data-card__body,
+.gh-studio .gh-form-card.hr-form-card--transport-route .hr-data-card__body {
+  width: 100%;
+  min-width: 0;
+}
+
+.gh-studio .gh-form-card.hr-form-card--transport-trip [data-create-panel],
+.gh-studio .gh-form-card.hr-form-card--transport-route [data-create-panel] {
+  width: 100%;
+  min-width: 0;
+}
+
 /* ── Panel Consultar ── */
 .gh-studio .gh-data-panel {
   padding: 1rem 1.1rem 1.15rem;
@@ -1440,8 +1458,19 @@ body[data-theme="dark"] .requests-shell .requests-company-row__meta {
 }
 
 /* Viajes / trayectos — wizards con la misma interfaz que Gestión humana */
+.gh-studio #form-create-trip.transport-trip-create-form,
+.gh-studio #form-route-rate.transport-trip-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: none;
+}
+
 .gh-studio #form-create-trip .hr-form-wizard,
 .gh-studio #form-route-rate .hr-form-wizard {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
   border: 1px solid var(--gh-edge);
   border-radius: var(--gh-radius);
   background: var(--gh-card);
