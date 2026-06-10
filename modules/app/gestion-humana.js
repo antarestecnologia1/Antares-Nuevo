@@ -131,9 +131,9 @@ function payrollHtml() {
   const formEmp = `<form id="form-employee" class="p-form p-form-colored hr-form-flow">
     <div class="hr-form-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
       <div class="hr-form-wizard-toolbar">
-        <div>
-          <p class="hr-form-wizard-kicker">Flujo guiado</p>
-          <p class="hr-form-wizard-lead">Un bloque por pantalla; menos campos simultáneos y menos errores al pasar a guardar.</p>
+        <div class="hr-form-wizard-toolbar__copy">
+          <p class="hr-form-wizard-kicker">Contratación · Nuevo colaborador</p>
+          <p class="hr-form-wizard-lead">Expediente guiado en 6 pasos: persona, contacto, condiciones laborales, seguridad social, banco y extras de conductor.</p>
         </div>
         <div class="hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>

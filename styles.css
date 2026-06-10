@@ -25595,6 +25595,18 @@ body[data-theme="dark"] .directory-card__actions {
   min-width: 0;
 }
 
+/* Los bloques «Fecha inicio contrato vigente» y «Fecha fin del contrato» son <div> de fila
+   completa con tarjeta <label> + párrafo de ayuda. El min-height:100% genérico de
+   `.hr-form-card .form-section-grid label` estira el label al alto del wrap y expulsa el
+   párrafo fuera del contenedor: el texto quedaba dibujado DETRÁS de las tarjetas de los
+   campos siguientes. Se anula y el wrap apila label + ayuda con su propio flujo. */
+.hr-form-card .form-section-grid .emp-contract-vigente-start label:not(.route-rate-company-item):not(.route-rate-company-item-text),
+.hr-form-card .form-section-grid .emp-contract-end-preview label:not(.route-rate-company-item):not(.route-rate-company-item-text),
+.emp-contract-vigente-start label,
+.emp-contract-end-preview label {
+  min-height: 0;
+}
+
 .emp-contract-duration-branch.full {
   grid-column: 1 / -1;
 }
