@@ -1801,7 +1801,7 @@ function bindPayrollPortalControls() {
       openConfirmModal({
         title: "Eliminar empleados seleccionados",
         message: `Se eliminaran ${selectedIds.length} empleados en cascada (nomina, ausencias, contratos y conductores asociados).`,
-        confirmText: "Eliminar en cascada",
+        confirmText: "Eliminar seleccionados",
         onConfirm: async () => {
           try {
             for (const employeeId of selectedIds) {
