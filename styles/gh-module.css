@@ -1434,3 +1434,208 @@ body[data-theme="dark"] .requests-shell .requests-company-row__meta {
     min-width: 0;
   }
 }
+
+/* Viajes / trayectos — wizards con la misma interfaz que Gestión humana */
+.gh-studio #form-create-trip .hr-form-wizard,
+.gh-studio #form-route-rate .hr-form-wizard {
+  border: 1px solid var(--gh-edge);
+  border-radius: var(--gh-radius);
+  background: var(--gh-card);
+  box-shadow: var(--gh-shadow);
+  overflow: hidden;
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__head,
+.gh-studio #form-route-rate .gh-emp-wizard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  padding: 1.1rem 1.25rem;
+  background: linear-gradient(135deg, var(--gh-navy) 0%, var(--gh-navy-mid) 62%, var(--primary-dark, #2a6399) 100%);
+  color: #e8f2fc;
+}
+
+.gh-studio #form-route-rate .gh-emp-wizard__head {
+  background: linear-gradient(135deg, #312e81 0%, var(--gh-navy-mid) 58%, var(--primary-dark, #2a6399) 100%);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__eyebrow,
+.gh-studio #form-route-rate .gh-emp-wizard__eyebrow {
+  display: inline-block;
+  margin: 0 0 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(174, 212, 248, 0.9);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__title,
+.gh-studio #form-route-rate .gh-emp-wizard__title {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__desc,
+.gh-studio #form-route-rate .gh-emp-wizard__desc {
+  margin: 0.35rem 0 0;
+  max-width: 32rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(216, 232, 251, 0.88);
+}
+
+.gh-trip-wizard__meta,
+.gh-route-wizard__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+  min-width: min(100%, 18rem);
+}
+
+.gh-studio #form-create-trip .create-trip-hero-badge,
+.gh-studio #form-route-rate .route-rate-preview {
+  align-self: stretch;
+}
+
+.gh-studio #form-route-rate .route-rate-preview {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--gh-radius-sm);
+  background: rgba(8, 24, 44, 0.45);
+  border: 1px solid rgba(150, 200, 250, 0.2);
+}
+
+.gh-studio #form-route-rate .route-rate-preview__eyebrow {
+  color: rgba(174, 212, 248, 0.85);
+}
+
+.gh-studio #form-route-rate .route-rate-preview__value {
+  color: #fff;
+}
+
+.gh-studio #form-route-rate .route-rate-preview__arrow {
+  color: #bfdbfe;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(150, 200, 250, 0.25);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__progress,
+.gh-studio #form-route-rate .gh-emp-wizard__progress {
+  flex-shrink: 0;
+  min-width: 9rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--gh-radius-sm);
+  background: rgba(8, 24, 44, 0.45);
+  border: 1px solid rgba(150, 200, 250, 0.2);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__layout,
+.gh-studio #form-route-rate .gh-emp-wizard__layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__steps,
+.gh-studio #form-route-rate .gh-emp-wizard__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.85rem 0.65rem;
+  border-right: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__panels,
+.gh-studio #form-route-rate .gh-emp-wizard__panels {
+  padding: 1rem 1.1rem 0.35rem;
+  min-width: 0;
+}
+
+.gh-studio #form-create-trip .gh-trip-readiness,
+.gh-studio #form-route-rate .route-rate-editing-hint {
+  margin-top: 0.85rem;
+}
+
+.gh-studio.transport-shell .hr-form-card--transport-trip .hr-card-icon {
+  background: linear-gradient(145deg, #1d4ed8, #1e3a8a);
+}
+
+.gh-studio.transport-shell .hr-form-card--transport-route .hr-card-icon {
+  background: linear-gradient(145deg, #7c3aed, #4c1d95);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot,
+.gh-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: var(--gh-radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  box-shadow: none;
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-active,
+.gh-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-active {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.22);
+  color: var(--primary-dark);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
+.gh-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
+.gh-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num,
+.gh-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num {
+  background: var(--primary);
+  border-color: transparent;
+  color: #fff;
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-track,
+.gh-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  margin-bottom: 0.35rem;
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-fill,
+.gh-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-fill {
+  background: linear-gradient(90deg, var(--brand-blue-mid), #7dd3fc);
+}
+
+.gh-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-label,
+.gh-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #eaf4ff;
+}
+
+@media (max-width: 900px) {
+  .gh-studio #form-create-trip .gh-emp-wizard__layout,
+  .gh-studio #form-route-rate .gh-emp-wizard__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gh-studio #form-create-trip .gh-emp-wizard__steps,
+  .gh-studio #form-route-rate .gh-emp-wizard__steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--gh-edge);
+    padding: 0.55rem;
+  }
+}

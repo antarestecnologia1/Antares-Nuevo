@@ -401,84 +401,100 @@ function transportTripsHtml() {
       </div>`
     : emptyState("Aún no has configurado tarifas por trayecto. Crea la primera para que el sistema sugiera el precio cuando asignes un viaje a esa ruta.");
 
-  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored transport-route-form transport-route-form--revamp assign-trip-form assign-trip-form--revamp" autocomplete="off">
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-route-form" autocomplete="off">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
-    <div class="assign-trip-top route-rate-form-top">
-      <ol class="create-trip-stepper create-trip-stepper--track route-rate-stepper" aria-label="Pasos para configurar trayecto">
-        <li class="create-trip-step create-trip-step--current" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Ruta</span></li>
-        <li class="create-trip-step create-trip-step--locked"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Tarifa</span></li>
-        <li class="create-trip-step create-trip-step--locked"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Alcance</span></li>
-      </ol>
-      <div class="route-rate-preview" data-route-rate-preview aria-live="polite">
-        <div class="route-rate-preview__leg route-rate-preview__leg--origin">
-          <span class="route-rate-preview__eyebrow">Origen</span>
-          <strong class="route-rate-preview__value" data-route-rate-preview-origin>Seleccione origen</strong>
+    <div class="hr-form-wizard gh-route-wizard" data-hr-wizard="route-rate" aria-label="Configurar trayecto y tarifa por pasos">
+      <header class="gh-emp-wizard__head gh-route-wizard__head">
+        <div class="gh-emp-wizard__head-copy">
+          <span class="gh-emp-wizard__eyebrow">Catálogo de transporte</span>
+          <h3 class="gh-emp-wizard__title">Trayecto y tarifa sugerida</h3>
+          <p class="gh-emp-wizard__desc">Defina origen, destino, valor pactado y alcance por cliente para autocompletar precios al asignar viajes.</p>
         </div>
-        <span class="route-rate-preview__arrow" aria-hidden="true">${IC.compass || "→"}</span>
-        <div class="route-rate-preview__leg route-rate-preview__leg--dest">
-          <span class="route-rate-preview__eyebrow">Destino</span>
-          <strong class="route-rate-preview__value" data-route-rate-preview-dest>Seleccione destino</strong>
+        <div class="gh-route-wizard__meta">
+          <div class="route-rate-preview" data-route-rate-preview aria-live="polite">
+            <div class="route-rate-preview__leg route-rate-preview__leg--origin">
+              <span class="route-rate-preview__eyebrow">Origen</span>
+              <strong class="route-rate-preview__value" data-route-rate-preview-origin>Seleccione origen</strong>
+            </div>
+            <span class="route-rate-preview__arrow" aria-hidden="true">${IC.compass || "→"}</span>
+            <div class="route-rate-preview__leg route-rate-preview__leg--dest">
+              <span class="route-rate-preview__eyebrow">Destino</span>
+              <strong class="route-rate-preview__value" data-route-rate-preview-dest>Seleccione destino</strong>
+            </div>
+          </div>
+          <div class="gh-emp-wizard__progress hr-form-wizard-meta">
+            <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:33.333333%"></span></div>
+            <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 3</span>
+          </div>
+        </div>
+      </header>
+      <div class="gh-emp-wizard__layout">
+        <nav class="gh-emp-wizard__steps hr-form-wizard-dots hr-form-wizard-dots--few" role="tablist" aria-label="Secciones del formulario">
+          <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: trayecto"><span class="hr-dot-num">1</span><span><small>Trayecto</small><span class="gh-step-hint">Origen y destino</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: tarifa"><span class="hr-dot-num">2</span><span><small>Tarifa</small><span class="gh-step-hint">Valor en COP</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: alcance"><span class="hr-dot-num">3</span><span><small>Alcance</small><span class="gh-step-hint">General o por empresa</span></span></button>
+        </nav>
+        <div class="gh-emp-wizard__panels">
+          <div class="hr-form-step is-active" data-step-index="0">
+            <fieldset class="form-section form-section-blue full">
+              <legend>${IC.mapPin} Trayecto</legend>
+              <p class="muted form-section-hint">Seleccione departamento y ciudad de origen y destino del servicio.</p>
+              <div class="route-rate-route-grid">
+                <div class="route-rate-route-col route-rate-route-col--origin">
+                  <span class="route-rate-route-col-badge">A</span>
+                  <div class="route-rate-route-col-fields">
+                    <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                    <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
+                  </div>
+                </div>
+                <div class="route-rate-route-bridge" aria-hidden="true"><span class="route-rate-route-bridge-line"></span><span class="route-rate-route-bridge-icon">${IC.truck || "→"}</span></div>
+                <div class="route-rate-route-col route-rate-route-col--dest">
+                  <span class="route-rate-route-col-badge route-rate-route-col-badge--dest">B</span>
+                  <div class="route-rate-route-col-fields">
+                    <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                    <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
+                  </div>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+          <div class="hr-form-step hidden" data-step-index="1">
+            <fieldset class="form-section form-section-emerald full">
+              <legend>${IC.dollar} Tarifa pactada</legend>
+              <p class="muted form-section-hint">Valor en pesos colombianos que se sugerirá al asignar un viaje en esta ruta.</p>
+              <div class="route-rate-price-surface">
+                <label class="route-rate-price-field full">
+                  <span class="route-rate-price-label">${fieldLabel(IC.dollar, "Valor del viaje", { required: true })}</span>
+                  <div class="route-rate-price-input-wrap">
+                    <span class="route-rate-price-prefix" aria-hidden="true">$</span>
+                    <input type="number" name="tripRateCop" min="1" step="1" required placeholder="4.200.000" inputmode="numeric" />
+                    <span class="route-rate-price-suffix" aria-hidden="true">COP</span>
+                  </div>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+          <div class="hr-form-step hidden" data-step-index="2">
+            <fieldset class="form-section form-section-amber full route-rate-scope-fieldset">
+              <legend>${IC.briefcase} Alcance por cliente</legend>
+              <p class="muted form-section-hint">Elija <strong>General</strong> si aplica a todos los clientes, o <strong>Por empresa</strong> y marque los clientes con tarifa negociada.</p>
+              <div class="route-rate-scope-mount" data-route-rate-scope-mount>
+                ${buildRouteRateScopeStepInnerHtml(companiesForRates)}
+              </div>
+              <p class="route-rate-editing-hint muted" id="route-rate-editing-hint" hidden>Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
+            </fieldset>
+          </div>
         </div>
       </div>
+      ${renderHrFormWizardFooter(
+        "create-route-rate",
+        `<button class="btn btn-primary hr-form-wizard-submit" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`,
+        {
+          hint: "Complete trayecto, tarifa y alcance para guardar en el catálogo.",
+          extraActionsHtml: `<button class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel module-panel-btn--cancel-edit" id="route-rate-cancel-edit" type="button" hidden title="Salir del modo edición sin guardar cambios">${renderModulePanelBtnInner(IC.x, "Cancelar edición")}</button>`
+        }
+      )}
     </div>
-    <section class="assign-trip-block route-rate-block route-rate-block--route" aria-labelledby="route-rate-route-title">
-      <header class="assign-trip-block-head">
-        <h4 id="route-rate-route-title" class="assign-trip-block-title">${IC.mapPin} Trayecto</h4>
-        <p class="muted route-rate-block-lead">Departamento y ciudad de salida y llegada del servicio.</p>
-      </header>
-      <div class="route-rate-route-grid">
-        <div class="route-rate-route-col route-rate-route-col--origin">
-          <span class="route-rate-route-col-badge">A</span>
-          <div class="route-rate-route-col-fields">
-            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
-          </div>
-        </div>
-        <div class="route-rate-route-bridge" aria-hidden="true"><span class="route-rate-route-bridge-line"></span><span class="route-rate-route-bridge-icon">${IC.truck || "→"}</span></div>
-        <div class="route-rate-route-col route-rate-route-col--dest">
-          <span class="route-rate-route-col-badge route-rate-route-col-badge--dest">B</span>
-          <div class="route-rate-route-col-fields">
-            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-            <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
-          </div>
-        </div>
-      </div>
-    </section>
-    <section class="assign-trip-block route-rate-block route-rate-block--price" aria-labelledby="route-rate-price-title">
-      <header class="assign-trip-block-head">
-        <h4 id="route-rate-price-title" class="assign-trip-block-title">${IC.dollar} Tarifa pactada</h4>
-        <p class="muted route-rate-block-lead">Valor en COP que se sugerirá al asignar un viaje en esta ruta.</p>
-      </header>
-      <div class="route-rate-price-surface">
-        <label class="route-rate-price-field">
-          <span class="route-rate-price-label">${fieldLabel(IC.dollar, "Valor del viaje", { required: true })}</span>
-          <div class="route-rate-price-input-wrap">
-            <span class="route-rate-price-prefix" aria-hidden="true">$</span>
-            <input type="number" name="tripRateCop" min="1" step="1" required placeholder="4.200.000" inputmode="numeric" />
-            <span class="route-rate-price-suffix" aria-hidden="true">COP</span>
-          </div>
-          <span class="route-rate-price-hint muted">Se autocompleta en la asignación del viaje cuando coincida origen, destino y alcance.</span>
-        </label>
-      </div>
-    </section>
-    <section class="assign-trip-block route-rate-block route-rate-block--scope" aria-labelledby="route-rate-scope-title">
-      <header class="assign-trip-block-head">
-        <h4 id="route-rate-scope-title" class="assign-trip-block-title">${IC.briefcase} Alcance por cliente</h4>
-        <p class="muted route-rate-block-lead">Tarifa general para todos o negociada solo con empresas seleccionadas.</p>
-      </header>
-      <div class="route-rate-scope-mount" data-route-rate-scope-mount>
-        ${buildRouteRateScopeStepInnerHtml(companiesForRates)}
-      </div>
-      <p class="route-rate-editing-hint muted" id="route-rate-editing-hint" hidden>Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
-    </section>
-    ${renderManagedCreateFormActions(
-      "create-route-rate",
-      `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit">${IC.plus} Guardar tarifa de trayecto</button>`,
-      {
-        className: "form-flow-actions full transport-route-form-actions route-rate-form-actions",
-        extraActionsHtml: `<button class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel module-panel-btn--cancel-edit" id="route-rate-cancel-edit" type="button" hidden title="Salir del modo edición sin guardar cambios">${renderModulePanelBtnInner(IC.x, "Cancelar edición")}</button>`
-      }
-    )}
   </form>`;
 
   const canApproveInViajes = canApproveTransportRequests(tripUser);
@@ -511,83 +527,80 @@ function transportTripsHtml() {
     pendingForTrip.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">${canApproveInViajes ? "Sin solicitudes por asignar" : "Sin aprobadas por asignar"}</span>`;
-  const topTripActions = `<div class="module-panel-actions module-panel-actions--footer form-flow-actions full create-trip-top-actions">
-    <div class="module-panel-actions__bar">
-      <div class="module-panel-actions__group module-panel-actions__group--secondary">
-        ${renderModulePanelToggleBtn({ expanded: true, toggleAction: "toggle-create-panel", panelId: "create-trip", expandLabel: "Abrir formulario" })}
-        ${renderModulePanelCancelBtn({ cancelAction: "cancel-create-panel", panelId: "create-trip" })}
-      </div>
-    </div>
-  </div>`;
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored assign-trip-form assign-trip-form--revamp create-trip-form transport-trip-create-form" autocomplete="off">
-    ${topTripActions}
-    <div class="assign-trip-top">
-      <ol class="create-trip-stepper create-trip-stepper--track assign-trip-stepper" aria-label="Pasos para asignar viaje">
-        <li class="create-trip-step create-trip-step--current" data-step="1" aria-current="step"><span class="create-trip-step-n">1</span><span class="create-trip-step-t">Solicitud</span></li>
-        <li class="create-trip-step create-trip-step--locked" data-step="2"><span class="create-trip-step-n">2</span><span class="create-trip-step-t">Recursos</span></li>
-        <li class="create-trip-step create-trip-step--locked" data-step="3"><span class="create-trip-step-n">3</span><span class="create-trip-step-t">Tarifa</span></li>
-      </ol>
-      ${pendingBadge}
-    </div>
-    <section class="assign-trip-block transport-trip-create-form__request" aria-labelledby="assign-trip-request-title">
-      <header class="assign-trip-block-head">
-        <h4 id="assign-trip-request-title" class="assign-trip-block-title">${IC.compass} Solicitud</h4>
-      </header>
-      <div class="assign-trip-block-body">
-        <label class="assign-trip-field assign-trip-field--request">
-          <span class="assign-trip-field-label">${fieldLabel(IC.inbox, "Solicitud", { required: true })}</span>
-          <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
-            <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : canApproveInViajes ? "Sin solicitudes pendientes" : "Apruebe solicitudes en Autorizaciones primero"}</option>
-            ${pendingSelectOpts}
-            ${expiredPendingOpts ? `<optgroup label="Vencidas (no asignables)">${expiredPendingOpts}</optgroup>` : ""}
-          </select>
-        </label>
-        <div id="trip-request-preview" class="assign-trip-preview create-trip-summary-panel">
-          ${createTripEmptyHint("inbox", "Seleccione una solicitud")}
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow transport-trip-create-form" autocomplete="off">
+    <div class="hr-form-wizard gh-trip-wizard" data-hr-wizard="trip-assign" aria-label="Asignar viaje por pasos">
+      <header class="gh-emp-wizard__head gh-trip-wizard__head">
+        <div class="gh-emp-wizard__head-copy">
+          <span class="gh-emp-wizard__eyebrow">Operación de transporte</span>
+          <h3 class="gh-emp-wizard__title">Asignar viaje</h3>
+          <p class="gh-emp-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
         </div>
-      </div>
-    </section>
-    <section class="assign-trip-block assign-trip-block--fleet transport-trip-create-form__resources" aria-labelledby="assign-trip-fleet-title">
-      <header class="assign-trip-block-head">
-        <h4 id="assign-trip-fleet-title" class="assign-trip-block-title">${IC.truck} Vehículo y conductor</h4>
-        <div class="create-trip-flag-legend assign-trip-flags" role="list" aria-label="Banderas en listas">
-          <span class="create-trip-flag create-trip-flag--busy" role="listitem" title="Ocupado en otra ventana"><span class="create-trip-flag-dot"></span>Ocup.</span>
-          <span class="create-trip-flag create-trip-flag--offline" role="listitem" title="No disponible"><span class="create-trip-flag-dot"></span>No disp.</span>
-          <span class="create-trip-flag create-trip-flag--expired" role="listitem" title="Documentación vencida"><span class="create-trip-flag-dot"></span>Doc.</span>
+        <div class="gh-trip-wizard__meta">
+          ${pendingBadge}
+          <div class="gh-emp-wizard__progress hr-form-wizard-meta">
+            <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:33.333333%"></span></div>
+            <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 3</span>
+          </div>
         </div>
       </header>
-      <div class="assign-trip-block-body">
-        <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
-        <div class="assign-trip-fleet-grid create-trip-fleet-grid">
-          <label class="assign-trip-fleet-field create-trip-fleet-field assign-trip-resource">
-            <span class="assign-trip-resource-label">${fieldLabel(IC.truck, "Vehículo", { required: true })}</span>
-            <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
-          </label>
-          <label class="assign-trip-fleet-field create-trip-fleet-field assign-trip-resource">
-            <span class="assign-trip-resource-label">${fieldLabel(IC.user, "Conductor", { required: true })}</span>
-            <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
-          </label>
-        </div>
-      </div>
-    </section>
-    <section class="assign-trip-block assign-trip-block--rate transport-trip-create-form__pricing" aria-labelledby="assign-trip-rate-title">
-      <header class="assign-trip-block-head">
-        <h4 id="assign-trip-rate-title" class="assign-trip-block-title">${IC.dollar} Precio</h4>
-      </header>
-      <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface">
-        ${createTripEmptyHint("dollar", "Tarifa pendiente")}
-      </div>
-    </section>
-    <footer class="assign-trip-footer create-trip-submit-wrap">
-      <ul class="assign-trip-checklist create-trip-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
-      <div class="module-panel-actions module-panel-actions--footer form-flow-actions create-trip-submit-actions assign-trip-submit-actions">
-        <div class="module-panel-actions__bar">
-          <div class="module-panel-actions__group module-panel-actions__group--primary">
-            <button class="btn btn-primary create-trip-submit-btn" type="submit" ${pendingForTrip.length ? "" : "disabled"}>${IC.check} Crear viaje</button>
+      <div class="gh-emp-wizard__layout">
+        <nav class="gh-emp-wizard__steps hr-form-wizard-dots hr-form-wizard-dots--few" role="tablist" aria-label="Secciones del formulario">
+          <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: solicitud"><span class="hr-dot-num">1</span><span><small>Solicitud</small><span class="gh-step-hint">Pendiente o aprobada</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: recursos"><span class="hr-dot-num">2</span><span><small>Recursos</small><span class="gh-step-hint">Camión y conductor</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: tarifa"><span class="hr-dot-num">3</span><span><small>Tarifa</small><span class="gh-step-hint">Precio del viaje</span></span></button>
+        </nav>
+        <div class="gh-emp-wizard__panels">
+          <div class="hr-form-step is-active" data-step-index="0">
+            <fieldset class="form-section form-section-blue full transport-trip-create-form__request">
+              <legend>${IC.inbox} Solicitud de transporte</legend>
+              <div class="form-section-grid">
+                <label class="full">${fieldLabel(IC.inbox, "Solicitud", { required: true })}
+                  <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
+                    <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : canApproveInViajes ? "Sin solicitudes pendientes" : "Apruebe solicitudes en Autorizaciones primero"}</option>
+                    ${pendingSelectOpts}
+                    ${expiredPendingOpts ? `<optgroup label="Vencidas (no asignables)">${expiredPendingOpts}</optgroup>` : ""}
+                  </select>
+                </label>
+                <div class="full assign-trip-preview create-trip-summary-panel" id="trip-request-preview">${createTripEmptyHint("inbox", "Seleccione una solicitud")}</div>
+              </div>
+            </fieldset>
+          </div>
+          <div class="hr-form-step hidden" data-step-index="1">
+            <fieldset class="form-section form-section-violet full transport-trip-create-form__resources">
+              <legend>${IC.truck} Vehículo y conductor</legend>
+              <p class="muted form-section-hint create-trip-flag-legend assign-trip-flags" role="list" aria-label="Banderas en listas">
+                <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
+                <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
+                <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
+              </p>
+              <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
+              <div class="form-section-grid assign-trip-fleet-grid create-trip-fleet-grid">
+                <label>${fieldLabel(IC.truck, "Vehículo", { required: true })}
+                  <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
+                </label>
+                <label>${fieldLabel(IC.user, "Conductor", { required: true })}
+                  <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+          <div class="hr-form-step hidden" data-step-index="2">
+            <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing">
+              <legend>${IC.dollar} Tarifa del viaje</legend>
+              <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface">
+                ${createTripEmptyHint("dollar", "Tarifa pendiente")}
+              </div>
+            </fieldset>
+            <ul class="assign-trip-checklist create-trip-readiness gh-trip-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
           </div>
         </div>
       </div>
-    </footer>
+      ${renderHrFormWizardFooter(
+        "create-trip",
+        `<button class="btn btn-primary hr-form-wizard-submit create-trip-submit-btn" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`,
+        { hint: "Complete solicitud, recursos y tarifa para habilitar la asignación." }
+      )}
+    </div>
   </form>`;
 
   const transportModuleHead = moduleFleetHeroStrip([
@@ -608,8 +621,18 @@ function transportTripsHtml() {
     ]
   });
   const transportWorkspaceHeader = renderHrWorkspaceHeader(transportModuleHead, transportTripsTabsNav, "payroll");
-  const transportSectionNav = renderModuleWindowTabs({
-    ariaLabel: "Subsecciones de viajes y trayectos",
+  const transportOperateNav = renderModuleWindowTabs({
+    ariaLabel: "Flujos de registro de transporte",
+    activeId: transportTripsSection,
+    action: "transport-trips-section",
+    valueAttr: "section",
+    tabs: [
+      { id: "trips", label: "Asignar viaje" },
+      { id: "routes", label: "Trayecto y tarifa" }
+    ]
+  });
+  const transportDataNav = renderModuleWindowTabs({
+    ariaLabel: "Consultas de viajes y trayectos",
     activeId: transportTripsSection,
     action: "transport-trips-section",
     valueAttr: "section",
@@ -624,7 +647,7 @@ function transportTripsHtml() {
     "Asignar viaje",
     `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"} · 3 pasos`,
     createTripForm,
-    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--trip",
+    "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-trip",
     "Abrir formulario",
     { createPanels: state.createPanels }
   );
@@ -634,7 +657,7 @@ function transportTripsHtml() {
     "Configurar trayecto y tarifa",
     `${rateEntries.length} ${rateEntries.length === 1 ? "ruta catalogada" : "rutas catalogadas"} para autocompletado`,
     routeRateForm,
-    "hr-form-card hr-form-card--xl transport-form-card transport-form-card--route",
+    "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-route",
     "Abrir formulario",
     { createPanels: state.createPanels }
   );
@@ -644,7 +667,7 @@ function transportTripsHtml() {
       <section class="gh-operate transport-operate-panel">
         <aside class="gh-operate__rail" aria-label="Flujos de registro">
           <span class="gh-operate__rail-label">Registrar</span>
-          ${transportSectionNav}
+          ${transportOperateNav}
         </aside>
         <div class="gh-operate__main auth-tab-panels">${tripsOperatePane}${routesOperatePane}</div>
       </section>
@@ -661,7 +684,7 @@ function transportTripsHtml() {
     </div>`;
   const transportDataPanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="data">
       <section class="gh-data-panel transport-data-panel">
-        <div class="transport-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${transportSectionNav}</div>
+        <div class="transport-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${transportDataNav}</div>
         <div class="transport-data-panes">${tripsDataPane}${routesDataPane}</div>
       </section>
     </div>`;
@@ -843,6 +866,7 @@ function transportTripsHtml() {
 
     const createTripForm = document.getElementById("form-create-trip");
     if (createTripForm) {
+      bindHrFormWizard(createTripForm);
       const onCreateTripProgress = () => updateCreateTripStepper(createTripForm);
       createTripForm.addEventListener("change", (ev) => {
         const t = ev.target;
@@ -1009,7 +1033,11 @@ function transportTripsHtml() {
       };
       const resetRateEditMode = () => {
         if (editingKeyInput) editingKeyInput.value = "";
-        if (submitBtn) submitBtn.textContent = `${IC.plus} Guardar tarifa de trayecto`;
+        if (submitBtn) {
+          submitBtn.textContent = `${IC.plus} Guardar tarifa de trayecto`;
+          submitBtn.disabled = true;
+          submitBtn.setAttribute("aria-disabled", "true");
+        }
         if (cancelEditBtn) cancelEditBtn.hidden = true;
         if (editingHint) editingHint.hidden = true;
         resetRateScopeMount();
@@ -1048,6 +1076,7 @@ function transportTripsHtml() {
       }
       updateRouteRatePreview();
       wireRouteRateScopeSection(routeRateFormEl);
+      bindHrFormWizard(routeRateFormEl);
       const pendingEditKey = state.pendingRouteRateEditKey;
       if (pendingEditKey) {
         state.pendingRouteRateEditKey = null;

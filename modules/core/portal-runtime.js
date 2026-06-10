@@ -3902,10 +3902,12 @@ function renderAssignTripRequestPreview(request) {
     </div>`;
 }
 
-/** Actualiza stepper y checklist de preparación del formulario asignar viaje. */
+/** Actualiza progreso del formulario asignar viaje (wizard HR + checklist). */
 function updateCreateTripStepper(formEl) {
   if (!formEl) return;
-  const steps = [...formEl.querySelectorAll(".create-trip-step")];
+  const wizard = formEl.querySelector('[data-hr-wizard="trip-assign"]');
+  const dots = wizard ? [...wizard.querySelectorAll("[data-hr-wizard-dot]")] : [];
+  const steps = dots.length ? dots : [...formEl.querySelectorAll(".create-trip-step")];
   if (!steps.length) return;
   const requestId = String(formEl.querySelector("select[name='requestId']")?.value || "").trim();
   const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
@@ -3922,6 +3924,10 @@ function updateCreateTripStepper(formEl) {
 
   steps.forEach((el, i) => {
     const n = i + 1;
+    if (dots.length) {
+      el.classList.toggle("is-done", (n === 1 && step1Done) || (n === 2 && step2Done) || (n === 3 && step3Done));
+      return;
+    }
     el.classList.remove("create-trip-step--current", "create-trip-step--done", "create-trip-step--locked");
     if ((n === 1 && step1Done) || (n === 2 && step2Done) || (n === 3 && step3Done)) el.classList.add("create-trip-step--done");
     if (n === current) el.classList.add("create-trip-step--current");
