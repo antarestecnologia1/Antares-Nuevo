@@ -519,7 +519,9 @@ export function bindHrFormWizard(form) {
   if (!form || form.dataset.hrWizardBound === "1") return;
   const wizard = form.querySelector("[data-hr-wizard]");
   if (!wizard) return;
-  const steps = [...wizard.querySelectorAll(":scope > .hr-form-step")];
+  const steps = [...wizard.querySelectorAll(".hr-form-step")].sort(
+    (a, b) => Number(a.dataset.stepIndex || 0) - Number(b.dataset.stepIndex || 0)
+  );
   if (steps.length < 2) return;
   form.dataset.hrWizardBound = "1";
 
