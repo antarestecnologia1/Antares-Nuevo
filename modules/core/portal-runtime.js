@@ -894,10 +894,7 @@ function openEditRouteRateModal(storageKey) {
     .map((id) => String(id).trim())
     .filter(Boolean);
   const rateScopeValue = selectedCompanyIds.length ? "specific" : "all";
-  const auditSummary = `Registro ${String(entry.id || "").trim() || "pendiente"} · creado ${fmtDateOr(
-    entry.createdAt,
-    "—"
-  )} · actualizado ${fmtDateOr(entry.updatedAt || entry.createdAt, "—")}`;
+  const auditSummary = formatRouteRateAuditSummary(entry);
   const scopeStepHtml = buildRouteRateScopeStepInnerHtml(companies, {
     scopeValue: rateScopeValue,
     selectedCompanyIds
@@ -3292,6 +3289,25 @@ function buildRouteRateCompanyCheckboxesHtml(companies, selectedIds = []) {
     .join("");
 }
 
+/** Resumen de auditoría de tarifa por trayecto (solo fechas; sin IDs internos). */
+function formatRouteRateAuditSummary(entry) {
+  const createdLbl = fmtDateOr(entry?.createdAt, "—");
+  const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "—");
+  return `Creada ${createdLbl} · actualizada ${updatedLbl}`;
+}
+
+function formatRouteRateAuditCellHtml(entry) {
+  const createdLbl = fmtDateOr(entry?.createdAt, "—");
+  const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "—");
+  if (createdLbl === "—" && updatedLbl === "—") {
+    return '<span class="muted">Sin registro de fechas</span>';
+  }
+  return `<div class="route-rate-audit-cell">
+    <span class="muted">Creada ${escapeHtml(createdLbl)}</span><br />
+    <span class="muted">Actualizada ${escapeHtml(updatedLbl)}</span>
+  </div>`;
+}
+
 /** Paso 4 del formulario de tarifa: alcance general vs empresas (checkboxes + búsqueda). */
 function buildRouteRateScopeStepInnerHtml(companies, opts = {}) {
   const o = opts && typeof opts === "object" ? opts : {};
@@ -3549,20 +3565,15 @@ function populateRouteRateInlineForm(storageKey) {
 
   const editingKeyInput = form.querySelector("#route-rate-editing-key");
   const submitBtn = form.querySelector("#route-rate-submit-btn");
-  const cancelEditBtn = form.querySelector("#route-rate-cancel-edit");
   const editingHint = form.querySelector("#route-rate-editing-hint");
   const tripRateInput = form.querySelector("input[name='tripRateCop']");
   const scopeMount = form.querySelector("[data-route-rate-scope-mount]");
 
   if (editingKeyInput) editingKeyInput.value = key;
   if (submitBtn) submitBtn.textContent = `${IC.save} Guardar cambios de tarifa`;
-  if (cancelEditBtn) cancelEditBtn.hidden = false;
   if (editingHint) {
     editingHint.hidden = false;
-    editingHint.textContent = `Editando registro ${String(entry.id || "").trim() || "pendiente"} · creado ${fmtDateOr(
-      entry.createdAt,
-      "—"
-    )} · actualizado ${fmtDateOr(entry.updatedAt || entry.createdAt, "—")}`;
+    editingHint.textContent = `${formatRouteRateAuditSummary(entry)}. Al guardar se sobrescribirá el valor anterior.`;
   }
   if (tripRateInput) tripRateInput.value = String(parseNum(entry.value));
 
@@ -4983,16 +4994,6 @@ function saveNotification({ userId, title, body }) {
     createdAt: nowIso(),
     readAt: null
   };
-  if (actor && canViewAllNotifications(actor)) {
-    const all = read(KEYS.notifications, []);
-    all.unshift(row);
-    write(KEYS.notifications, all);
-    const actorId = String(actor.id ?? "").trim();
-    if (actorId && actorId !== targetId) {
-      void dispatchPortalNotification({ userIds: [targetId], title: row.title, body: row.body });
-    }
-    return;
-  }
   if (actor && String(actor.id ?? "") === targetId) {
     const all = read(KEYS.notifications, []);
     all.unshift(row);
@@ -6839,34 +6840,36 @@ function renderHistoryCard(request) {
   const fleet = historyVehicleColumn(request);
   const trip = String(request.trip?.tripNumber || "").trim();
   const tripValue = parseNum(request.trip?.tripValue ?? request.tripValue ?? 0);
-  const valueLabel =
-    tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "—";
+  const valueLabel = tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "—";
   const created = fmtDate(request.createdAt);
   const pickup = fmtDate(request.pickupAt);
-  return `<article class="history-card history-card--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
-    <header class="history-card-head">
-      <div class="history-card-head-main">
-        <p class="history-card-kicker"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</p>
-        <h3 class="history-card-title">${escapeHtml(number)}</h3>
-        <p class="history-card-client">${escapeHtml(client)}</p>
+  return `<article class="hist-card hist-card--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
+    <div class="hist-card__accent" aria-hidden="true"></div>
+    <header class="hist-card__head">
+      <div class="hist-card__identity">
+        <span class="hist-card__number">${escapeHtml(number)}</span>
+        <span class="hist-card__client">${escapeHtml(client)}</span>
       </div>
-      <div class="history-card-status">${prettyStatus(request.status)}</div>
+      <div class="hist-card__status">${prettyStatus(request.status)}</div>
     </header>
-    <div class="history-card-route" title="${escapeAttr(formatRoute(request))}">
-      <span class="history-card-route-node"><span class="history-card-route-label">Origen</span><strong>${escapeHtml(origin)}</strong></span>
-      <span class="history-card-route-arrow" aria-hidden="true">→</span>
-      <span class="history-card-route-node"><span class="history-card-route-label">Destino</span><strong>${escapeHtml(dest)}</strong></span>
+    <div class="hist-card__route" title="${escapeAttr(formatRoute(request))}">
+      <div class="hist-card__city"><span class="hist-card__city-label">Origen</span><strong>${escapeHtml(origin)}</strong></div>
+      <span class="hist-card__route-line" aria-hidden="true"></span>
+      <div class="hist-card__city"><span class="hist-card__city-label">Destino</span><strong>${escapeHtml(dest)}</strong></div>
     </div>
-    <dl class="history-card-meta">
-      <div><dt>${IC.user}<span>Conductor</span></dt><dd>${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</dd></div>
-      <div><dt>${IC.truck}<span>Placa</span></dt><dd>${plate ? `<span class="history-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</dd></div>
-      <div><dt>${IC.compass}<span>Viaje</span></dt><dd>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</dd></div>
-      <div class="history-card-meta--value"><dt>${IC.dollar}<span>Tarifa</span></dt><dd>${escapeHtml(valueLabel)}</dd></div>
-      <div class="history-card-meta--full"><dt>${IC.truck}<span>Flota / Termoking</span></dt><dd>${escapeHtml(fleet)}</dd></div>
+    <dl class="hist-card__facts">
+      <div><dt>${IC.user} Conductor</dt><dd>${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</dd></div>
+      <div><dt>${IC.truck} Placa</dt><dd>${plate ? `<span class="hist-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</dd></div>
+      <div><dt>${IC.compass} Viaje</dt><dd>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</dd></div>
+      <div class="hist-card__fact--money"><dt>${IC.dollar} Tarifa</dt><dd>${escapeHtml(valueLabel)}</dd></div>
+      <div class="hist-card__fact--wide"><dt>${IC.truck} Flota</dt><dd>${escapeHtml(fleet)}</dd></div>
     </dl>
-    <footer class="history-card-actions">
-      <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.eye} Ver ficha</button>
-      ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
+    <footer class="hist-card__foot">
+      <p class="hist-card__dates muted"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</p>
+      <div class="toolbar hist-card__actions">
+        <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.eye} Ver</button>
+        ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
+      </div>
     </footer>
   </article>`;
 }
@@ -6888,16 +6891,16 @@ function renderHistoryRequestRow(request) {
       <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.eye} Ver</button>
       ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
     </div>`;
-  return `<tr class="history-list-row history-list-row--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
-    <td data-label="Solicitud"><strong>${escapeHtml(number)}</strong><div class="muted history-list-sub"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</div></td>
+  return `<tr class="hist-table-row hist-table-row--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
+    <td data-label="Solicitud"><strong>${escapeHtml(number)}</strong><div class="muted hist-table-sub"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</div></td>
     <td data-label="Cliente">${escapeHtml(client)}</td>
-    <td data-label="Ruta" title="${escapeAttr(formatRoute(request))}"><span class="history-list-route">${escapeHtml(origin)}</span><span class="history-list-route-arrow" aria-hidden="true">→</span><span class="history-list-route">${escapeHtml(dest)}</span></td>
+    <td data-label="Ruta" title="${escapeAttr(formatRoute(request))}"><span class="hist-table-route">${escapeHtml(origin)}</span><span class="hist-table-route-arrow" aria-hidden="true">→</span><span class="hist-table-route">${escapeHtml(dest)}</span></td>
     <td data-label="Estado">${prettyStatus(request.status)}</td>
     <td data-label="Conductor">${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</td>
-    <td data-label="Placa">${plate ? `<span class="history-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</td>
+    <td data-label="Placa">${plate ? `<span class="hist-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</td>
     <td data-label="Viaje">${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
     <td data-label="Tarifa">${escapeHtml(valueLabel)}</td>
-    <td data-label="Acciones" class="history-list-actions">${actions}</td>
+    <td data-label="Acciones" class="hist-table-actions">${actions}</td>
   </tr>`;
 }
 
@@ -6909,17 +6912,17 @@ function renderHistoryResultsList(items, layout = "cards") {
         ? "list"
         : "cards";
   if (!items.length) {
-    return `<div class="history-empty-state"><p class="muted">No hay registros con los filtros actuales. Prueba otro periodo, cliente o quita el filtro rápido.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.search || IC.clock}</span><p>No hay registros con los filtros actuales.</p><p class="muted">Prueba otro periodo, cliente o quita el filtro rápido.</p></div>`;
   }
   if (viewLayout === "list") {
-    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-results-grid">
+    return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-results-grid">
     <thead><tr>
       <th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Estado</th><th>Conductor</th><th>Placa</th><th>Viaje</th><th>Tarifa</th><th>Acciones</th>
     </tr></thead>
     <tbody>${items.map(renderHistoryRequestRow).join("")}</tbody>
   </table></div>`;
   }
-  return `<div class="history-cards-grid" id="history-results-grid">${items.map(renderHistoryCard).join("")}</div>`;
+  return `<div class="hist-cards-grid" id="history-results-grid">${items.map(renderHistoryCard).join("")}</div>`;
 }
 
 function sortFleetLogsByDate(logs) {
@@ -6999,18 +7002,18 @@ function renderHistoryFuelLogCard(log) {
   const paid = String(log.paidBy || "empresa") === "conductor" ? "conductor" : "empresa";
   const paidLabel = paid === "conductor" ? "Reembolso nómina" : "Empresa";
   const trip = String(log.tripNumber || "").trim();
-  return `<article class="history-fleet-log-card history-fleet-log-card--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
-    <header class="history-fleet-log-head">
+  return `<article class="hist-fleet-card hist-fleet-card--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
+    <header class="hist-fleet-card__head">
       <div>
-        <time class="history-fleet-log-date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
-        <h3 class="history-fleet-log-plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
-        <p class="history-fleet-log-sub">${escapeHtml(String(log.driverName || "—"))}${trip ? ` · ${escapeHtml(trip)}` : ""}</p>
+        <time class="hist-fleet-card__date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
+        <h3 class="hist-fleet-card__plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
+        <p class="hist-fleet-card__sub">${escapeHtml(String(log.driverName || "—"))}${trip ? ` · ${escapeHtml(trip)}` : ""}</p>
       </div>
-      <span class="history-fleet-badge history-fleet-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span>
+      <span class="hist-badge hist-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span>
     </header>
-    <dl class="history-fleet-log-meta">
+    <dl class="hist-fleet-card__meta">
       <div><dt>${IC.activity} Litros</dt><dd>${liters.toLocaleString("es-CO", { maximumFractionDigits: 2 })} L</dd></div>
-      <div><dt>${IC.dollar} Total</dt><dd class="history-fleet-log-money">$${total.toLocaleString("es-CO")}</dd></div>
+      <div><dt>${IC.dollar} Total</dt><dd class="hist-money">$${total.toLocaleString("es-CO")}</dd></div>
       <div><dt>${IC.dollar} $/L</dt><dd>$${perLiter.toLocaleString("es-CO")}</dd></div>
       <div><dt>${IC.mapPin} Estación</dt><dd>${log.station ? escapeHtml(log.station) : '<span class="muted">—</span>'}</dd></div>
       ${parseNum(log.odometerKm) > 0 ? `<div><dt>${IC.clock} Odómetro</dt><dd>${parseNum(log.odometerKm).toLocaleString("es-CO")} km</dd></div>` : ""}
@@ -7025,20 +7028,20 @@ function renderHistoryTechnicalLogCard(log) {
   const statusSlug = slugStatus(status);
   const cost = parseNum(log.cost);
   const hours = parseNum(log.downtimeHours);
-  return `<article class="history-fleet-log-card history-fleet-log-card--technical history-fleet-log-card--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
-    <header class="history-fleet-log-head">
+  return `<article class="hist-fleet-card hist-fleet-card--technical hist-fleet-card--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
+    <header class="hist-fleet-card__head">
       <div>
-        <time class="history-fleet-log-date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
-        <h3 class="history-fleet-log-plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
-        <p class="history-fleet-log-desc">${escapeHtml(String(log.description || "—"))}</p>
+        <time class="hist-fleet-card__date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
+        <h3 class="hist-fleet-card__plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
+        <p class="hist-fleet-card__desc">${escapeHtml(String(log.description || "—"))}</p>
       </div>
-      <div class="history-fleet-log-badges">
-        <span class="history-fleet-badge history-fleet-badge--type">${escapeHtml(typeLabel)}</span>
-        <span class="history-fleet-badge history-fleet-badge--status">${escapeHtml(status)}</span>
+      <div class="hist-fleet-card__badges">
+        <span class="hist-badge hist-badge--type">${escapeHtml(typeLabel)}</span>
+        <span class="hist-badge hist-badge--status">${escapeHtml(status)}</span>
       </div>
     </header>
-    <dl class="history-fleet-log-meta">
-      <div><dt>${IC.dollar} Costo</dt><dd class="history-fleet-log-money">$${cost.toLocaleString("es-CO")}</dd></div>
+    <dl class="hist-fleet-card__meta">
+      <div><dt>${IC.dollar} Costo</dt><dd class="hist-money">$${cost.toLocaleString("es-CO")}</dd></div>
       <div><dt>${IC.clock} Fuera de servicio</dt><dd>${hours > 0 ? `${hours.toLocaleString("es-CO")} h` : '<span class="muted">0 h</span>'}</dd></div>
     </dl>
   </article>`;
@@ -7051,15 +7054,15 @@ function renderHistoryFuelLogRow(log) {
   const paid = String(log.paidBy || "empresa") === "conductor" ? "conductor" : "empresa";
   const paidLabel = paid === "conductor" ? "Reembolso nómina" : "Empresa";
   const trip = String(log.tripNumber || "").trim();
-  return `<tr class="history-list-row history-list-row--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
+  return `<tr class="hist-table-row hist-table-row--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
     <td data-label="Fecha"><time datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time></td>
     <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "—"))}</strong></td>
-    <td data-label="Conductor">${escapeHtml(String(log.driverName || "—"))}${trip ? `<div class="muted history-list-sub">${escapeHtml(trip)}</div>` : ""}</td>
+    <td data-label="Conductor">${escapeHtml(String(log.driverName || "—"))}${trip ? `<div class="muted hist-table-sub">${escapeHtml(trip)}</div>` : ""}</td>
     <td data-label="Litros">${liters.toLocaleString("es-CO", { maximumFractionDigits: 2 })} L</td>
-    <td data-label="Total" class="history-fleet-log-money">$${total.toLocaleString("es-CO")}</td>
+    <td data-label="Total" class="hist-money">$${total.toLocaleString("es-CO")}</td>
     <td data-label="$/L">$${perLiter.toLocaleString("es-CO")}</td>
     <td data-label="Estación">${log.station ? escapeHtml(log.station) : '<span class="muted">—</span>'}</td>
-    <td data-label="Pagado"><span class="history-fleet-badge history-fleet-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span></td>
+    <td data-label="Pagado"><span class="hist-badge hist-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span></td>
   </tr>`;
 }
 
@@ -7070,13 +7073,13 @@ function renderHistoryTechnicalLogRow(log) {
   const statusSlug = slugStatus(status);
   const cost = parseNum(log.cost);
   const hours = parseNum(log.downtimeHours);
-  return `<tr class="history-list-row history-list-row--technical history-list-row--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
+  return `<tr class="hist-table-row hist-table-row--technical hist-table-row--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
     <td data-label="Fecha"><time datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time></td>
     <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "—"))}</strong></td>
     <td data-label="Descripción">${escapeHtml(String(log.description || "—"))}</td>
-    <td data-label="Tipo"><span class="history-fleet-badge history-fleet-badge--type">${escapeHtml(typeLabel)}</span></td>
-    <td data-label="Estado"><span class="history-fleet-badge history-fleet-badge--status">${escapeHtml(status)}</span></td>
-    <td data-label="Costo" class="history-fleet-log-money">$${cost.toLocaleString("es-CO")}</td>
+    <td data-label="Tipo"><span class="hist-badge hist-badge--type">${escapeHtml(typeLabel)}</span></td>
+    <td data-label="Estado"><span class="hist-badge hist-badge--status">${escapeHtml(status)}</span></td>
+    <td data-label="Costo" class="hist-money">$${cost.toLocaleString("es-CO")}</td>
     <td data-label="Fuera de servicio">${hours > 0 ? `${hours.toLocaleString("es-CO")} h` : '<span class="muted">0 h</span>'}</td>
   </tr>`;
 }
@@ -7089,17 +7092,17 @@ function renderHistoryFuelLogsList(logs, layout = "cards") {
         ? "list"
         : "cards";
   if (!logs.length) {
-    return `<div class="history-empty-state history-fleet-empty"><p class="muted">Aún no hay cargas de combustible registradas. Registre la primera desde el módulo <strong>Camiones</strong>.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.fuel || IC.activity}</span><p>Sin cargas de combustible.</p><p class="muted">Registre la primera desde el módulo <strong>Camiones</strong>.</p></div>`;
   }
   if (viewLayout === "list") {
-    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-fuel-results-grid">
+    return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-fuel-results-grid">
     <thead><tr>
       <th>Fecha</th><th>Placa</th><th>Conductor</th><th>Litros</th><th>Total</th><th>$/L</th><th>Estación</th><th>Pagado</th>
     </tr></thead>
     <tbody>${logs.map(renderHistoryFuelLogRow).join("")}</tbody>
   </table></div>`;
   }
-  return `<div class="history-fleet-log-grid" id="history-fuel-results-grid">${logs.map(renderHistoryFuelLogCard).join("")}</div>`;
+  return `<div class="hist-fleet-grid" id="history-fuel-results-grid">${logs.map(renderHistoryFuelLogCard).join("")}</div>`;
 }
 
 function renderHistoryTechnicalLogsList(logs, layout = "cards") {
@@ -7110,24 +7113,24 @@ function renderHistoryTechnicalLogsList(logs, layout = "cards") {
         ? "list"
         : "cards";
   if (!logs.length) {
-    return `<div class="history-empty-state history-fleet-empty"><p class="muted">No hay novedades de taller en este periodo. Registre preventivos, correctivos o fallas desde el módulo <strong>Camiones</strong>.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.activity || IC.truck}</span><p>Sin novedades de taller.</p><p class="muted">Registre preventivos, correctivos o fallas desde <strong>Camiones</strong>.</p></div>`;
   }
   if (viewLayout === "list") {
-    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-technical-results-grid">
+    return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-technical-results-grid">
     <thead><tr>
       <th>Fecha</th><th>Placa</th><th>Descripción</th><th>Tipo</th><th>Estado</th><th>Costo</th><th>Fuera de servicio</th>
     </tr></thead>
     <tbody>${logs.map(renderHistoryTechnicalLogRow).join("")}</tbody>
   </table></div>`;
   }
-  return `<div class="history-fleet-log-grid" id="history-technical-results-grid">${logs.map(renderHistoryTechnicalLogCard).join("")}</div>`;
+  return `<div class="hist-fleet-grid" id="history-technical-results-grid">${logs.map(renderHistoryTechnicalLogCard).join("")}</div>`;
 }
 
 function historyFleetKpiStrip(metrics) {
-  return `<div class="history-fleet-kpis" role="group" aria-label="Resumen del periodo">${metrics
+  return `<div class="hist-kpi-strip" role="group" aria-label="Resumen del periodo">${metrics
     .map(
       ({ label, value, tone }) =>
-        `<div class="history-fleet-kpi${tone ? ` history-fleet-kpi--${tone}` : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`
+        `<div class="hist-kpi${tone ? ` hist-kpi--${tone}` : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`
     )
     .join("")}</div>`;
 }
@@ -7140,17 +7143,16 @@ function refreshHistoryFleetKpiStrip(selector, metrics) {
 function historyFleetFilterToolbar(formId, fieldsHtml, layout = "cards") {
   const viewToggle =
     typeof globalThis.historyViewToggleHtml === "function" ? globalThis.historyViewToggleHtml(layout) : "";
-  return `<form id="${escapeAttr(formId)}" class="history-fleet-filter-form" novalidate>
-    <div class="history-toolbar history-fleet-toolbar history-toolbar--with-view">
-      <label class="history-toolbar-search">
-        <span class="visually-hidden">Buscar</span>
-        ${IC.search || IC.filter}
+  return `<form id="${escapeAttr(formId)}" class="hist-filter-form" novalidate>
+    <div class="transport-ops-toolbar hist-toolbar">
+      <label class="transport-ops-search hist-search">
+        <span class="muted">${IC.search || IC.filter} Buscar</span>
         <input type="search" name="q" placeholder="Placa, conductor, estación, viaje…" autocomplete="off" />
       </label>
       ${viewToggle}
-      <details class="history-advanced-filters history-fleet-advanced">
+      <details class="hist-advanced-filters">
         <summary class="btn btn-sm btn-action">${IC.filter} Filtros</summary>
-        <div class="history-advanced-filters-body history-fleet-filters-body">${fieldsHtml}
+        <div class="hist-advanced-filters-body">${fieldsHtml}
           <button class="btn btn-sm btn-action" type="reset">${IC.x} Limpiar</button>
         </div>
       </details>
@@ -7500,26 +7502,26 @@ function buildHistoryAuditEntries() {
 function renderHistoryAuditCard(entry) {
   const actionLabel = historyAuditActionLabel(entry.action);
   const actionTone = historyAuditActionStatus(entry.action);
+  const actionSlug = String(entry.action || "update");
   const detailButton =
     entry.detailAction && entry.detailId
       ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
       : "";
-  return `<article class="history-card">
-    <header class="history-card-head">
-      <div class="history-card-head-main">
-        <p class="history-card-kicker"><time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time> · ${escapeHtml(entry.moduleLabel)}</p>
-        <h3 class="history-card-title">${escapeHtml(entry.entityLabel)}</h3>
-        <p class="history-card-client">${escapeHtml(actionLabel)}</p>
-      </div>
-      <div class="history-card-status"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></div>
-    </header>
-    <dl class="history-card-meta">
-      <div><dt>${IC.layers}<span>Módulo</span></dt><dd>${escapeHtml(entry.moduleLabel)}</dd></div>
-      <div><dt>${IC.clock}<span>Fecha</span></dt><dd>${escapeHtml(fmtDate(entry.ts))}</dd></div>
-      <div class="history-card-meta--full"><dt>${IC.file}<span>Resumen</span></dt><dd>${escapeHtml(entry.summary || "Sin resumen")}</dd></div>
-      ${entry.actor ? `<div class="history-card-meta--full"><dt>${IC.user}<span>Usuario</span></dt><dd>${escapeHtml(entry.actor)}</dd></div>` : ""}
-    </dl>
-    ${detailButton ? `<footer class="history-card-actions">${detailButton}</footer>` : ""}
+  return `<article class="hist-timeline-item hist-timeline-item--${escapeAttr(actionSlug)}" data-audit-row>
+    <div class="hist-timeline-marker" aria-hidden="true"></div>
+    <div class="hist-timeline-body">
+      <header class="hist-timeline-head">
+        <div>
+          <time class="hist-timeline-date" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
+          <h3 class="hist-timeline-title">${escapeHtml(entry.entityLabel)}</h3>
+          <p class="hist-timeline-module muted">${escapeHtml(entry.moduleLabel)}</p>
+        </div>
+        <span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>
+      </header>
+      <p class="hist-timeline-summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
+      ${entry.actor ? `<p class="hist-timeline-actor muted">${IC.user} ${escapeHtml(entry.actor)}</p>` : ""}
+      ${detailButton ? `<footer class="hist-timeline-foot">${detailButton}</footer>` : ""}
+    </div>
   </article>`;
 }
 
@@ -7533,14 +7535,14 @@ function renderHistoryAuditRow(entry) {
   const actions = detailButton
     ? `<div class="toolbar history-list-actions">${detailButton}</div>`
     : '<span class="muted">—</span>';
-  return `<tr class="history-list-row history-list-row--audit" data-audit-row>
+  return `<tr class="hist-table-row hist-table-row--audit" data-audit-row>
     <td data-label="Fecha"><time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time></td>
     <td data-label="Módulo">${escapeHtml(entry.moduleLabel)}</td>
     <td data-label="Entidad"><strong>${escapeHtml(entry.entityLabel)}</strong></td>
     <td data-label="Acción"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></td>
     <td data-label="Resumen">${escapeHtml(entry.summary || "Sin resumen")}</td>
     <td data-label="Usuario">${entry.actor ? escapeHtml(entry.actor) : '<span class="muted">—</span>'}</td>
-    <td data-label="Acciones" class="history-list-actions">${actions}</td>
+    <td data-label="Acciones" class="hist-table-actions">${actions}</td>
   </tr>`;
 }
 
@@ -7552,17 +7554,17 @@ function renderHistoryAuditList(entries, layout = "cards") {
         ? "list"
         : "cards";
   if (!entries.length) {
-    return `<div class="history-empty-state"><p class="muted">No hay movimientos auditables para mostrar todavía.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin movimientos auditables.</p><p class="muted">Los cambios del sistema aparecerán aquí conforme se registren.</p></div>`;
   }
   if (viewLayout === "list") {
-    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-audit-results-grid">
+    return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-audit-results-grid">
     <thead><tr>
       <th>Fecha</th><th>Módulo</th><th>Entidad</th><th>Acción</th><th>Resumen</th><th>Usuario</th><th>Acciones</th>
     </tr></thead>
     <tbody>${entries.map(renderHistoryAuditRow).join("")}</tbody>
   </table></div>`;
   }
-  return `<div class="history-cards-grid">${entries.map(renderHistoryAuditCard).join("")}</div>`;
+  return `<div class="hist-timeline">${entries.map(renderHistoryAuditCard).join("")}</div>`;
 }
 
 
@@ -11543,6 +11545,8 @@ Object.assign(window, {
   buildRouteRateCompanyCheckboxesHtml,
   buildRouteRateEntry,
   buildRouteRateScopeStepInnerHtml,
+  formatRouteRateAuditCellHtml,
+  formatRouteRateAuditSummary,
   buildTripApprovalHeroHtml,
   buildTripRateInlineFieldsHtml,
   buildTripRateModalFields,

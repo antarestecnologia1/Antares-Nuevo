@@ -563,8 +563,7 @@ export function __applyPortalBootstrapPayloadInner(p) {
     if (prop === "notifications") {
       const raw = Array.isArray(p.notifications) ? p.notifications : [];
       const actor = currentUser();
-      const filtered =
-        actor && !hooks.canViewAllNotifications(actor) ? hooks.filterNotificationsForUser(actor, raw) : raw;
+      const filtered = actor ? hooks.filterNotificationsForUser(actor, raw) : [];
       const prev = read(KEYS.notifications, []);
       const merged = hooks.mergeNotificationsListPreserveReadAt(prev, filtered);
       write(KEYS.notifications, merged);

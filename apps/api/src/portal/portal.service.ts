@@ -602,6 +602,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureSolicitudesTransporteSchema();
     await this.ensureViajesTransporteSchema();
     await this.ensurePreferenciasNotificacionSchema();
+    await this.ensureNotificacionesSchema();
     await this.ensureEmpleadosNominaSchema();
     await this.ensureLiquidacionesNominaSchema();
     await this.ensureAusenciasLaboralesSchema();
@@ -1004,6 +1005,24 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensurePreferenciasNotificacionSchema fallo no fatal: ${sanitizeLogText(msg)}`);
+    }
+  }
+
+  /** Columna `audiencia` en notificaciones (31_notificaciones_audiencia.sql). */
+  private async ensureNotificacionesSchema() {
+    if (!(await this.tableExists("notificaciones"))) return;
+    try {
+      await this.pool.query(`ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS audiencia VARCHAR(32)`);
+      await this.pool.query(`ALTER TABLE notificaciones ALTER COLUMN id_usuario DROP NOT NULL`);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_notificaciones_audiencia_fecha
+           ON notificaciones (audiencia, fecha_creacion DESC)
+           WHERE audiencia IS NOT NULL`
+      );
+      this.logger.log("notificaciones: columna audiencia verificada.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureNotificacionesSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -2468,7 +2487,7 @@ export class PortalService implements OnModuleInit {
       canTransportTrips ? this.loadTripRouteRates() : Promise.resolve({}),
       canTransportData ? this.loadVehicles() : Promise.resolve([]),
       canTransportData ? this.loadDrivers() : Promise.resolve([]),
-      this.loadNotifications(userId, admin),
+      this.loadNotifications(userId, role),
       this.loadEmails(admin),
       this.loadContacts(canViewContactB2b),
       canLoadPositionsCatalog ? this.loadPositions() : Promise.resolve([]),
@@ -4411,23 +4430,19 @@ export class PortalService implements OnModuleInit {
     const body = String(dto.body || "").trim();
     if (!title || !body) throw new BadRequestException("title y body son obligatorios");
 
-    let targetIds: string[] = [];
     if (dto.audience === "admins" || dto.audience === "hr") {
-      if (!this.isAdmin(actorRole)) {
-        throw new ForbiddenException("Solo administradores pueden notificar a audiencias masivas.");
+      if (dto.audience === "hr" && !this.isAdmin(actorRole)) {
+        throw new ForbiddenException("Solo administradores pueden notificar a RRHH.");
       }
+      await this.pool.query(
+        `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia) VALUES (NULL, $1, $2, $3)`,
+        [title, body, dto.audience]
+      );
+      return { ok: true, count: 1 };
     }
-    if (dto.audience === "admins") {
-      targetIds = await this.loadUserIdsByRoles(["admin"]);
-    } else if (dto.audience === "hr") {
-      targetIds = await this.loadUserIdsByRoles([
-        "admin",
-        "rrhh",
-        "administracion",
-        "auxiliar_administrativo",
-        "lider_administrativo"
-      ]);
-    } else if (Array.isArray(dto.userIds) && dto.userIds.length) {
+
+    let targetIds: string[] = [];
+    if (Array.isArray(dto.userIds) && dto.userIds.length) {
       targetIds = dto.userIds.map((id) => String(id).trim()).filter((id) => PG_UUID_V4_RE.test(id));
       if (!this.isAdmin(actorRole)) {
         const actor = String(actorUserId || "").trim();
@@ -4469,37 +4484,11 @@ export class PortalService implements OnModuleInit {
    * Usado por avisos automáticos de contratos a término fijo.
    */
   private async dispatchHrNotificationFromSystem(title: string, body: string): Promise<number> {
-    const targetIds = await this.loadUserIdsByRoles([
-      "admin",
-      "rrhh",
-      "administracion",
-      "auxiliar_administrativo",
-      "lider_administrativo"
-    ]);
-    const unique = [...new Set(targetIds)];
-    if (!unique.length) return 0;
-
-    let recipients = unique;
-    try {
-      const blocked = await this.pool.query<{ id: string }>(
-        `SELECT id_usuario::text AS id FROM preferencias_notificacion_usuario
-         WHERE id_usuario = ANY($1::uuid[]) AND notificaciones_habilitadas = false`,
-        [unique]
-      );
-      const skip = new Set(blocked.rows.map((x) => x.id));
-      recipients = unique.filter((id) => !skip.has(id));
-    } catch {
-      recipients = unique;
-    }
-    if (!recipients.length) return 0;
-
-    for (const uid of recipients) {
-      await this.pool.query(
-        `INSERT INTO notificaciones (id_usuario, titulo, cuerpo) VALUES ($1::uuid, $2, $3)`,
-        [uid, title, body]
-      );
-    }
-    return recipients.length;
+    await this.pool.query(
+      `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia) VALUES (NULL, $1, $2, 'hr')`,
+      [title, body]
+    );
+    return 1;
   }
 
   private async contractRenewalNoticeRecentlySent(refToken: string, withinDays = 7): Promise<boolean> {
@@ -4597,6 +4586,13 @@ export class PortalService implements OnModuleInit {
     );
   }
 
+  private notificationAudienceVisibleToRole(audience: string, role: JwtRole): boolean {
+    const a = String(audience || "").trim().toLowerCase();
+    if (a === "admins") return this.isAdmin(role);
+    if (a === "hr") return this.roleMayRunContractRenewalNotices(role);
+    return false;
+  }
+
   async runFixedTermContractRenewalNotificationsForActor(
     _actorUserId: string,
     role: JwtRole
@@ -4625,7 +4621,7 @@ export class PortalService implements OnModuleInit {
    * dataset cada pocos segundos.
    */
   async getNotificationsForUser(userId: string, role: JwtRole) {
-    const notifications = await this.loadNotifications(userId, this.isAdmin(role));
+    const notifications = await this.loadNotifications(userId, role);
     return { notifications };
   }
 
@@ -4639,44 +4635,45 @@ export class PortalService implements OnModuleInit {
     if (!validIds.length) {
       return { ok: true, updated: 0, readAt: null as string | null };
     }
-    const admin = this.isAdmin(role);
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
     const now = new Date();
-    const r = admin
-      ? await this.pool.query(
-          `UPDATE notificaciones
-           SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz)
-           WHERE id = ANY($1::uuid[])
-             AND fecha_lectura IS NULL`,
-          [validIds, now]
-        )
-      : await this.pool.query(
-          `UPDATE notificaciones
-           SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz)
-           WHERE id_usuario = $3::uuid
-             AND id = ANY($1::uuid[])
-             AND fecha_lectura IS NULL`,
-          [validIds, now, userId]
-        );
+    const r = await this.pool.query(
+      `UPDATE notificaciones
+       SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz)
+       WHERE id = ANY($1::uuid[])
+         AND fecha_lectura IS NULL
+         AND (
+           id_usuario = $3::uuid
+           OR (audiencia = 'admins' AND $4::boolean)
+           OR (audiencia = 'hr' AND $5::boolean)
+         )`,
+      [validIds, now, userId, adminAudience, hrAudience]
+    );
     const updated = Number(r.rowCount) || 0;
     return { ok: true, updated, readAt: now.toISOString() };
   }
 
-  private async loadNotifications(userId: string, admin: boolean) {
-    const r = admin
-      ? await this.pool.query(
-          `SELECT id::text, id_usuario::text AS "userId", titulo AS title, cuerpo AS body,
-                  fecha_lectura AS readAt, fecha_creacion AS "createdAt"
-           FROM notificaciones ORDER BY fecha_creacion DESC LIMIT 500`
-        )
-      : await this.pool.query(
-          `SELECT id::text, id_usuario::text AS "userId", titulo AS title, cuerpo AS body,
-                  fecha_lectura AS readAt, fecha_creacion AS "createdAt"
-           FROM notificaciones WHERE id_usuario = $1::uuid ORDER BY fecha_creacion DESC LIMIT 200`,
-          [userId]
-        );
+  private async loadNotifications(userId: string, role: JwtRole) {
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
+    const limit = adminAudience ? 500 : 200;
+    const r = await this.pool.query(
+      `SELECT id::text, id_usuario::text AS "userId", audiencia AS audience,
+              titulo AS title, cuerpo AS body,
+              fecha_lectura AS readAt, fecha_creacion AS "createdAt"
+       FROM notificaciones
+       WHERE id_usuario = $1::uuid
+          OR (audiencia = 'admins' AND $2::boolean)
+          OR (audiencia = 'hr' AND $3::boolean)
+       ORDER BY fecha_creacion DESC
+       LIMIT ${limit}`,
+      [userId, adminAudience, hrAudience]
+    );
     return r.rows.map((n) => ({
       id: n.id,
       userId: n.userId,
+      audience: n.audience ?? null,
       title: n.title,
       body: n.body,
       readAt: n.readAt ? new Date(n.readAt).toISOString() : null,
@@ -7314,36 +7311,47 @@ export class PortalService implements OnModuleInit {
     deletedIds?: string[]
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    const admin = this.isAdmin(role);
     type NotifRow = {
       id?: unknown;
       userId?: unknown;
+      audience?: unknown;
+      audiencia?: unknown;
       title?: unknown;
       body?: unknown;
       readAt?: unknown;
       read_at?: unknown;
     };
     const rows = data as NotifRow[];
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
 
     const explicitDeleteIds = (Array.isArray(deletedIds) ? deletedIds : [])
       .map((raw) => String(raw ?? "").trim())
       .filter((id) => PG_UUID_V4_RE.test(id));
     if (explicitDeleteIds.length > 0) {
-      if (admin) {
-        await c.query(`DELETE FROM notificaciones WHERE id = ANY($1::uuid[])`, [explicitDeleteIds]);
-      } else {
-        await c.query(`DELETE FROM notificaciones WHERE id_usuario = $1::uuid AND id = ANY($2::uuid[])`, [
-          userId,
-          explicitDeleteIds
-        ]);
-      }
+      await c.query(
+        `DELETE FROM notificaciones
+         WHERE id = ANY($1::uuid[])
+           AND (
+             id_usuario = $2::uuid
+             OR (audiencia = 'admins' AND $3::boolean)
+             OR (audiencia = 'hr' AND $4::boolean)
+           )`,
+        [explicitDeleteIds, userId, adminAudience, hrAudience]
+      );
     }
 
     for (const n of rows) {
       if (!n?.id) continue;
       if (this.skipUnlessPersistUuid("syncNotifications", String(n.id))) continue;
-      if (!admin && String(n.userId) !== userId) throw new ForbiddenException();
-      if (this.skipUnlessPersistUuid("syncNotifications.targetUserId", String(n.userId))) continue;
+      const audience = String(n.audience ?? n.audiencia ?? "").trim().toLowerCase();
+      const isBroadcast = audience === "admins" || audience === "hr";
+      const targetUserId = String(n.userId ?? "").trim();
+      if (!admin && !isBroadcast && targetUserId !== userId) throw new ForbiddenException();
+      if (!admin && isBroadcast && !this.notificationAudienceVisibleToRole(audience, role)) {
+        throw new ForbiddenException();
+      }
+      if (!isBroadcast && this.skipUnlessPersistUuid("syncNotifications.targetUserId", targetUserId)) continue;
       const readAtRaw = n.readAt ?? n.read_at;
       const readAtParam =
         readAtRaw == null || readAtRaw === ""
@@ -7351,16 +7359,19 @@ export class PortalService implements OnModuleInit {
           : String(readAtRaw).trim()
             ? (readAtRaw as string | Date)
             : null;
+      const userIdParam = isBroadcast ? null : targetUserId;
+      const audienceParam = isBroadcast ? audience : null;
       await c.query(
-        `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura)
-         VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz)
+        `INSERT INTO notificaciones (id, id_usuario, titulo, cuerpo, fecha_lectura, audiencia)
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5::timestamptz, $6)
          ON CONFLICT (id) DO UPDATE SET titulo = EXCLUDED.titulo, cuerpo = EXCLUDED.cuerpo,
+           audiencia = COALESCE(EXCLUDED.audiencia, notificaciones.audiencia),
            fecha_lectura = CASE
              WHEN EXCLUDED.fecha_lectura IS NULL THEN notificaciones.fecha_lectura
              WHEN notificaciones.fecha_lectura IS NULL THEN EXCLUDED.fecha_lectura
              ELSE GREATEST(notificaciones.fecha_lectura, EXCLUDED.fecha_lectura)
            END`,
-        [n.id, n.userId, nuN(n.title), nuN(n.body), readAtParam]
+        [n.id, userIdParam, nuN(n.title), nuN(n.body), readAtParam, audienceParam]
       );
     }
 

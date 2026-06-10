@@ -30,3 +30,4 @@
 28_preferencias_notificacion_usuario.sql
 29_auditoria_viajes_eliminados.sql
 30_auditoria_solicitudes_eliminadas.sql
+31_notificaciones_audiencia.sql

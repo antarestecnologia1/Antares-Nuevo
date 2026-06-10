@@ -350,17 +350,7 @@ function transportTripsHtml() {
       clients: `<div class="route-rate-client-chips">${chips}</div>`
     };
   };
-  const formatRateAuditCell = (entry) => {
-    const fullId = String(entry?.id || "").trim();
-    const shortId = fullId ? `${fullId.slice(0, 8)}...` : "Pendiente";
-    const createdLbl = fmtDateOr(entry?.createdAt, "—");
-    const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "—");
-    return `<div title="${escapeAttr(fullId || "Sin ID persistido")}">
-      <strong>${escapeHtml(shortId)}</strong><br />
-      <span class="muted">Creada ${escapeHtml(createdLbl)}</span><br />
-      <span class="muted">Actualizada ${escapeHtml(updatedLbl)}</span>
-    </div>`;
-  };
+  const formatRateAuditCell = (entry) => formatRouteRateAuditCellHtml(entry);
   const ratesRows = rateEntries.length
     ? rateEntries
         .map((entry) => {
@@ -467,10 +457,7 @@ function transportTripsHtml() {
       ${renderHrFormWizardFooter(
         "create-route-rate",
         `<button class="btn btn-primary hr-form-wizard-submit" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`,
-        {
-          hint: "Complete trayecto, tarifa y alcance para guardar en el catálogo.",
-          extraActionsHtml: `<button class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel module-panel-btn--cancel-edit" id="route-rate-cancel-edit" type="button" hidden title="Salir del modo edición sin guardar cambios">${renderModulePanelBtnInner(IC.x, "Cancelar edición")}</button>`
-        }
+        { hint: "Complete trayecto, tarifa y alcance para guardar en el catálogo." }
       )}
     </div>
   </form>`;
@@ -485,16 +472,21 @@ function transportTripsHtml() {
     `<option value="${escapeAttr(r.id)}" data-createdby="${escapeAttr(r.requestedByName || "-")}" data-route="${escapeAttr(`${r.originDepartment ? `${r.originDepartment}, ` : ""}${r.originCity} → ${r.destinationDepartment ? `${r.destinationDepartment}, ` : ""}${r.destinationCity}`)}" data-company="${escapeAttr(r.clientName || "-")}">${tripAssignOptionLabel(r)}</option>`;
   const pendingApproveTrip = pendingForTrip.filter((r) => r.status === STATUS.PENDIENTE);
   const pendingAssignTrip = pendingForTrip.filter((r) => r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION);
-  const pendingSelectOpts = [
-    canApproveInViajes && pendingApproveTrip.length
-      ? `<optgroup label="Pendientes (puede aprobar y asignar)">${pendingApproveTrip.map(tripAssignOptionHtml).join("")}</optgroup>`
-      : "",
-    pendingAssignTrip.length
-      ? `<optgroup label="Aprobadas · por asignar">${pendingAssignTrip.map(tripAssignOptionHtml).join("")}</optgroup>`
-      : pendingForTrip.map(tripAssignOptionHtml).join("")
-  ]
-    .filter(Boolean)
-    .join("");
+  const pendingSelectParts = [];
+  if (canApproveInViajes && pendingApproveTrip.length) {
+    pendingSelectParts.push(
+      `<optgroup label="Pendientes (puede aprobar y asignar)">${pendingApproveTrip.map(tripAssignOptionHtml).join("")}</optgroup>`
+    );
+  }
+  if (pendingAssignTrip.length) {
+    pendingSelectParts.push(
+      `<optgroup label="Aprobadas · por asignar">${pendingAssignTrip.map(tripAssignOptionHtml).join("")}</optgroup>`
+    );
+  }
+  if (!pendingSelectParts.length && pendingForTrip.length) {
+    pendingSelectParts.push(pendingForTrip.map(tripAssignOptionHtml).join(""));
+  }
+  const pendingSelectOpts = pendingSelectParts.join("");
   const expiredPendingOpts = pendingExpired
     .map((r) => {
       const pickup = requestPickupIsoDate(r) || "sin fecha";
@@ -969,7 +961,6 @@ function transportTripsHtml() {
       const destCity = routeRateFormEl.querySelector("#route-rate-dest-city");
       const editingKeyInput = routeRateFormEl.querySelector("#route-rate-editing-key");
       const submitBtn = routeRateFormEl.querySelector("#route-rate-submit-btn");
-      const cancelEditBtn = routeRateFormEl.querySelector("#route-rate-cancel-edit");
       const editingHint = routeRateFormEl.querySelector("#route-rate-editing-hint");
       const scopeMount = routeRateFormEl.querySelector("[data-route-rate-scope-mount]");
       const companies = read(KEYS.companies, []);
@@ -1047,7 +1038,6 @@ function transportTripsHtml() {
           submitBtn.disabled = true;
           submitBtn.setAttribute("aria-disabled", "true");
         }
-        if (cancelEditBtn) cancelEditBtn.hidden = true;
         if (editingHint) editingHint.hidden = true;
         resetRateScopeMount();
         updateRouteRatePreview();
@@ -1060,14 +1050,6 @@ function transportTripsHtml() {
           openRouteRateInlineEdit(key);
         });
       });
-      if (cancelEditBtn) {
-        cancelEditBtn.addEventListener("click", () => {
-          routeRateFormEl.reset();
-          if (originCity) originCity.innerHTML = `<option value="">Elija departamento…</option>`;
-          if (destCity) destCity.innerHTML = `<option value="">Elija departamento…</option>`;
-          resetRateEditMode();
-        });
-      }
       const onRouteFieldChange = () => updateRouteRatePreview();
       if (originDept && originCity) {
         originDept.addEventListener("change", () => {

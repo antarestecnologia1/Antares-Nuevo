@@ -593,10 +593,10 @@ export function renderHistoryTechnicalLogsList(logs) {
 }
 
 export function historyFleetKpiStrip(metrics) {
-  return `<div class="history-fleet-kpis" role="group" aria-label="Resumen del periodo">${metrics
+  return `<div class="hist-kpi-strip" role="group" aria-label="Resumen del periodo">${metrics
     .map(
       ({ label, value, tone }) =>
-        `<div class="history-fleet-kpi${tone ? ` history-fleet-kpi--${tone}` : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`
+        `<div class="hist-kpi${tone ? ` hist-kpi--${tone}` : ""}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`
     )
     .join("")}</div>`;
 }

@@ -9,7 +9,8 @@ import {
   KEYS,
   NOTIF_LIGHT_REFRESH_MIN_MS,
   NOTIF_SILENT_BOOTSTRAP_MIN_MS,
-  PERMISSIONS
+  PERMISSIONS,
+  ROLES
 } from "../core/config.js";
 import { read, write, writeAwaitServer } from "../core/data-io.js";
 import { state } from "../core/store.js";
@@ -268,23 +269,46 @@ export function getNotificationRecipientId(n) {
   return String(n.userId ?? n.user_id ?? n.id_usuario ?? "").trim();
 }
 
-/** Solo el rol administrador ve la bandeja global; el resto solo las propias. */
+export function getNotificationAudience(n) {
+  if (!n || typeof n !== "object") return "";
+  return String(n.audience ?? n.audiencia ?? "").trim().toLowerCase();
+}
+
+const HR_NOTIFICATION_AUDIENCE_ROLES = new Set([
+  ROLES.ADMIN,
+  ROLES.RRHH,
+  ROLES.ADMINISTRACION,
+  ROLES.AUXILIAR_ADMINISTRATIVO,
+  ROLES.LIDER_ADMINISTRATIVO
+]);
+
+function userReceivesHrAudienceNotifications(user) {
+  return HR_NOTIFICATION_AUDIENCE_ROLES.has(String(user?.role || ""));
+}
+
+/**
+ * Capacidad operativa (sync-key). La bandeja muestra notificaciones personales y las
+ * compartidas por audiencia (admins / RRHH) visibles para el rol de la sesión.
+ */
 export function canViewAllNotifications(user) {
   return isAdminActor(user);
 }
 
 function notificationTargetsUser(n, user) {
   if (!user) return false;
-  if (canViewAllNotifications(user)) return true;
+  const audience = getNotificationAudience(n);
+  if (audience === "admins" && isAdminActor(user)) return true;
+  if (audience === "hr" && userReceivesHrAudienceNotifications(user)) return true;
   const uid = String(user.id ?? "").trim();
   if (!uid) return false;
-  return getNotificationRecipientId(n) === uid;
+  const recipientId = getNotificationRecipientId(n);
+  if (!recipientId) return false;
+  return recipientId === uid;
 }
 
 export function filterNotificationsForUser(user, list) {
   const rows = Array.isArray(list) ? list : [];
   if (!user) return [];
-  if (canViewAllNotifications(user)) return rows;
   return rows.filter((n) => notificationTargetsUser(n, user));
 }
 
@@ -298,8 +322,7 @@ async function refreshNotificationsBellFromApi() {
     const res = await api.getJson("/portal/notifications");
     const raw = Array.isArray(res?.notifications) ? res.notifications : [];
     const actor = currentUser();
-    const filtered =
-      actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
+    const filtered = actor ? filterNotificationsForUser(actor, raw) : [];
     const prev = read(KEYS.notifications, []);
     const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
     write(KEYS.notifications, merged, { skipSyncSchedule: true });
@@ -346,8 +369,7 @@ export function scheduleContractRenewalNotificationCheck() {
 export async function writeNotificationsAwaitServer(deletedIds) {
   const user = currentUser();
   const all = read(KEYS.notifications, []);
-  const payload =
-    user && !canViewAllNotifications(user) ? filterNotificationsForUser(user, all) : all;
+  const payload = user ? filterNotificationsForUser(user, all) : [];
   const normalizedDeleted = [
     ...new Set(
       (Array.isArray(deletedIds) ? deletedIds : [deletedIds])
@@ -365,9 +387,9 @@ export async function writeNotificationsAwaitServer(deletedIds) {
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
 export function reconcileNotificationsCacheForSession() {
   const user = currentUser();
-  if (!user || canViewAllNotifications(user)) return;
+  if (!user) return;
   const filtered = filterNotificationsForUser(user, read(KEYS.notifications, []));
-  write(KEYS.notifications, filtered);
+  write(KEYS.notifications, filtered, { skipSyncSchedule: true });
 }
 
 function __notificationReadAtEpochMs(v) {
@@ -601,8 +623,7 @@ async function __refreshNotificationsBellIfStale() {
     const res = await api.getJson("/portal/notifications");
     const raw = Array.isArray(res?.notifications) ? res.notifications : [];
     const actor = currentUser();
-    const filtered =
-      actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
+    const filtered = actor ? filterNotificationsForUser(actor, raw) : [];
     const prev = read(KEYS.notifications, []);
     const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
     write(KEYS.notifications, merged, { skipSyncSchedule: true });
@@ -644,16 +665,10 @@ function __tickNotificationsPoll() {
   __silentFullBootstrapIfStale();
   const current = getCurrentNotifications();
   const seen = __lastSeenNotificationIds || new Set();
-  /**
-   * Solo avisar en toast las notificaciones dirigidas al usuario de la sesión. Los admins ven en
-   * la bandeja las de otros (p. ej. "Cuenta aprobada" para un cliente), pero no deben duplicar el
-   * mensaje explícito que ya muestra la acción (Aprobar usuario, etc.).
-   */
+  /** Solo avisar en toast/timbre las notificaciones nuevas dirigidas al usuario de la sesión. */
   const suppressUntil = Number(state.portalSuppressSelfPollToastUntil || 0);
   const now = Date.now();
-  const selfNew = current.filter(
-    (n) => !seen.has(n.id) && getNotificationRecipientId(n) === String(user.id || "")
-  );
+  const selfNew = current.filter((n) => !seen.has(n.id) && notificationTargetsUser(n, user));
   const toToast = [];
   /** Timbre ante cualquier fila nueva para el usuario en este tick (desacoplado de la ventana de toast). */
   let toSound = false;
