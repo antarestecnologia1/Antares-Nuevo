@@ -12,17 +12,17 @@
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(self), payment=(), usb=()" />
     <title>Transportes Antares S.A.S - Logística refrigerada B2B</title>
     <meta name="description" content="Operador logístico B2B especializado en transporte refrigerado para floricultura y exportación, con trazabilidad, cumplimiento y monitoreo 24/7 en Colombia." />
-    <link rel="icon" type="image/png" href="./imagenes%20empresa/Logo.png" />
-    <link rel="shortcut icon" type="image/png" href="./imagenes%20empresa/Logo.png" />
-    <link rel="apple-touch-icon" href="./imagenes%20empresa/Logo.png" />
+    <link rel="icon" type="image/png" href="./imagenes%20empresa/favicon-64.png" />
+    <link rel="shortcut icon" type="image/png" href="./imagenes%20empresa/favicon-64.png" />
+    <link rel="apple-touch-icon" href="./imagenes%20empresa/apple-touch-icon-180.png" />
     <meta property="og:title" content="Transportes Antares S.A.S - Logística refrigerada B2B" />
     <meta property="og:description" content="Operador logístico B2B especializado en transporte refrigerado para floricultura y exportación en Colombia." />
-    <meta property="og:image" content="./imagenes%20empresa/Logo.png" />
+    <meta property="og:image" content="./imagenes%20empresa/logo-recortado.png" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Transportes Antares S.A.S" />
     <meta name="twitter:description" content="Logística refrigerada B2B para floricultura y exportación en Colombia." />
-    <meta name="twitter:image" content="./imagenes%20empresa/Logo.png" />
+    <meta name="twitter:image" content="./imagenes%20empresa/logo-recortado.png" />
     <meta name="theme-color" content="#377cc0" />
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -31,7 +31,15 @@
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&amp;family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260609-footer-logo" />
+    <!-- CSS crítico de la landing (bloqueante, ~30% del total); el completo llega asíncrono -->
+    <link rel="stylesheet" href="./styles.landing.css?v=20260609-css-split" />
+    <link
+      rel="preload"
+      href="./styles.css?v=20260609-css-split"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript><link rel="stylesheet" href="./styles.css?v=20260609-css-split" /></noscript>
     <script>
       // Site key del widget Turnstile (gestionado en el panel de Cloudflare → Turnstile).
       // Es público por diseño; el dominio queda atado a los hostnames del widget.
@@ -219,6 +227,13 @@
           </div>
         </div>
       </section>
+      <script>
+        // El hero no debe esperar a que carguen los ~60 scripts del portal:
+        // revela su contenido apenas se parsea (app.js re-observa sin conflicto).
+        document.querySelectorAll("#hero [data-reveal]").forEach(function (el) {
+          el.classList.add("is-visible");
+        });
+      </script>
 
       <!-- WAVE: hero -> about -->
       <svg class="wave-divider" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
@@ -1087,11 +1102,12 @@
           <div class="auth-modal-title-wrap">
             <img
               class="auth-modal-brand-logo"
-              src="./imagenes%20empresa/Logo.png"
+              src="./imagenes%20empresa/logo-recortado.png"
               alt="Transportes Antares S.A.S"
-              width="180"
-              height="48"
+              width="800"
+              height="241"
               decoding="async"
+              loading="lazy"
             />
             <h2 class="auth-modal-heading">
               <svg class="auth-modal-heading-icon" style="width:24px;height:24px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -1210,9 +1226,7 @@
     <script defer src="./modules/core/persistence.js"></script>
     <script defer src="./modules/core/portal-bootstrap-cache.js"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- JSZip y jsPDF/autotable se cargan bajo demanda (contracts-docx.js y reporteria.domain.js) -->
     <script defer src="./modules/core/api-client.js?v=20260515-fetch-errors"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js"></script>

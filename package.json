@@ -23,6 +23,7 @@
     "build:api": "npm run build -w api",
     "lint:web": "npm run lint -w web",
     "lint:portal": "eslint modules/domain",
+    "build:landing-css": "node scripts/split-landing-css.mjs",
     "test:portal-qa": "node qa/portal-regression-tests.mjs",
     "test:reports-qa": "node qa/reports-catalog-smoke.mjs && node qa/reports-bi-smoke.mjs",
     "test:qa-static": "npm run test:portal-qa && npm run test:reports-qa",

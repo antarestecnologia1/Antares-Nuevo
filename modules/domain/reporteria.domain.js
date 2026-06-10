@@ -264,9 +264,45 @@ export async function getReportBrandLogoDataUrl() {
   return reportBrandLogoDataUrlPromise;
 }
 
+const JSPDF_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+const JSPDF_AUTOTABLE_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
+let jsPdfLoadPromise = null;
+
+function loadVendorScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.async = true;
+    s.crossOrigin = "anonymous";
+    s.referrerPolicy = "no-referrer";
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`No se pudo cargar ${src} (compruebe conexion o CDN)`));
+    document.head.appendChild(s);
+  });
+}
+
+/**
+ * jsPDF + autotable se cargan bajo demanda al exportar: son ~450 KB que el
+ * visitante de la landing nunca necesita (antes iban como <script> en index.html).
+ */
+async function ensureJsPdf() {
+  if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
+  if (!jsPdfLoadPromise) {
+    jsPdfLoadPromise = (async () => {
+      await loadVendorScriptOnce(JSPDF_CDN);
+      await loadVendorScriptOnce(JSPDF_AUTOTABLE_CDN);
+    })().catch((err) => {
+      jsPdfLoadPromise = null;
+      throw err;
+    });
+  }
+  await jsPdfLoadPromise;
+  if (!window.jspdf?.jsPDF) throw new Error("PDF export unavailable");
+  return window.jspdf.jsPDF;
+}
+
 export async function exportCatalogReportPdf(report, meta = {}) {
-  const jsPdfCtor = window.jspdf?.jsPDF;
-  if (!jsPdfCtor) throw new Error("PDF export unavailable");
+  const jsPdfCtor = await ensureJsPdf();
   const title = report?.title || "Reporte";
   const columns = Array.isArray(report?.columns) && report.columns.length ? report.columns : [{ key: "message", label: "Detalle" }];
   const rows = Array.isArray(report?.rows) ? report.rows : [];
