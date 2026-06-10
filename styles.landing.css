@@ -697,6 +697,10 @@ body[data-theme="light"] .lang-option.active {
 
 .hero-brand-panel {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(170px, 36vw, 225px);
   padding: 1.35rem 1.5rem 1.5rem;
   border-radius: 22px;
   background:
@@ -805,7 +809,7 @@ body[data-theme="light"] .lang-option.active {
 
 @media (min-width: 992px) {
 .hero-content-layout {
-    grid-template-columns: minmax(260px, 0.42fr) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 0.5fr) minmax(0, 1fr);
     gap: 2.5rem 3.25rem;
     align-items: center;
   }
@@ -814,6 +818,7 @@ body[data-theme="light"] .lang-option.active {
     max-width: none;
   }
 .hero-brand-panel {
+    min-height: 250px;
     padding: 1.6rem 1.75rem 1.85rem;
   }
 .hero-brand-logo {
@@ -827,6 +832,9 @@ body[data-theme="light"] .lang-option.active {
 }
 
 @media (min-width: 1200px) {
+.hero-brand-panel {
+    min-height: 275px;
+  }
 .hero-brand-logo {
     max-height: 208px;
   }
