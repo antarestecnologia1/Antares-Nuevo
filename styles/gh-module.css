@@ -161,7 +161,10 @@
 .gh-studio > .hr-workspace-header--payroll {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  gap: 0.65rem;
   padding: 0;
   border: none;
   background: transparent;
@@ -169,12 +172,20 @@
   backdrop-filter: none;
 }
 
-.gh-studio > .hr-workspace-header--payroll .gh-studio-head {
+.gh-studio > .hr-workspace-header--payroll .gh-studio-head,
+.gh-studio > .hr-workspace-header--payroll .payroll-module-head--compact {
+  flex: 0 0 auto;
   width: 100%;
 }
 
 .gh-studio .hr-workspace-header__switch {
+  flex: 0 0 auto;
+  flex-grow: 0;
   flex-shrink: 0;
+  align-self: flex-end;
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
 }
 
 .gh-studio .hr-workspace-tabs--switch {
@@ -654,13 +665,20 @@
 
 .gh-studio #form-employee .form-section-grid {
   gap: 0.7rem 0.85rem;
+  align-items: start;
 }
 
 .gh-studio #form-employee .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar) {
+  min-height: 0;
+  align-self: start;
   padding: 0;
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+.gh-studio #form-employee .form-section-grid .field-error {
+  line-height: 1.35;
 }
 
 .gh-studio #form-employee .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):hover,

@@ -18190,10 +18190,12 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 .hr-form-card .form-section-grid {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0.82rem 0.95rem;
+  align-items: start;
 }
 
 .hr-form-card .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
-  min-height: 100%;
+  min-height: 0;
+  align-self: start;
   padding: 0.68rem 0.8rem;
   border-radius: 14px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
@@ -25508,6 +25510,7 @@ body[data-theme="dark"] .directory-card__actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.7rem;
+  align-items: start;
 }
 .form-section-grid > label.full,
 .form-section-grid > .full {

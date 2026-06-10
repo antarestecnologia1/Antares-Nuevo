@@ -89,14 +89,8 @@ window.PortalArchitecture = (() => {
         {
           container: ".payroll-shell",
           order: [
-            ".hr-workspace-tabs",
-            ".gh-studio-head",
-            ".payroll-module-head",
-            ".hr-attention-strip",
-            ".payroll-operate-panel",
-            ".payroll-data-panel",
-            ".payroll-run-cards-grid",
-            ".payroll-table-shell"
+            ".hr-workspace-header--payroll",
+            ".hr-workspace-panels"
           ]
         }
       ]
