@@ -2308,7 +2308,9 @@ body.portal-mode .whatsapp-fab {
 .portal-layout {
   display: grid;
   grid-template-columns: 270px 1fr;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -2657,8 +2659,10 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
 .portal-main {
   padding: 1.8rem 2rem;
   background: #F0F4FA;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--portal-main-scroll-thumb) transparent;
 }
@@ -11549,7 +11553,11 @@ body[data-theme="dark"] .b2b-leads-brief {
     font-size: 0.85rem;
   }
 
-  .portal-layout { grid-template-columns: 1fr; }
+  .portal-layout {
+    grid-template-columns: 1fr;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 
   .portal-menu-btn {
     display: inline-flex;

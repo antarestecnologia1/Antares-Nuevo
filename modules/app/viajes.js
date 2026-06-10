@@ -592,10 +592,6 @@ function transportTripsHtml() {
                 <h4 class="assign-trip-block-title">${IC.inbox} Elija la solicitud</h4>
                 <span class="muted trip-request-picker-count">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>
               </div>
-              <div class="assign-trip-block-body">
-                ${tripRequestPickerBody}
-                <div class="full assign-trip-preview create-trip-summary-panel" id="trip-request-preview">${createTripEmptyHint("inbox", "Seleccione una solicitud", "Al elegir una tarjeta verá el resumen de ruta, cliente y recogida.")}</div>
-              </div>
             </div>
           </div>
           <div class="hr-form-step hidden" data-step-index="1">
