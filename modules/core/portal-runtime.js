@@ -7502,9 +7502,44 @@ function renderHistoryAuditCard(entry) {
   </article>`;
 }
 
-function renderHistoryAuditList(entries) {
+function renderHistoryAuditRow(entry) {
+  const actionLabel = historyAuditActionLabel(entry.action);
+  const actionTone = historyAuditActionStatus(entry.action);
+  const detailButton =
+    entry.detailAction && entry.detailId
+      ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
+      : "";
+  const actions = detailButton
+    ? `<div class="toolbar history-list-actions">${detailButton}</div>`
+    : '<span class="muted">—</span>';
+  return `<tr class="history-list-row history-list-row--audit" data-audit-row>
+    <td data-label="Fecha"><time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time></td>
+    <td data-label="Módulo">${escapeHtml(entry.moduleLabel)}</td>
+    <td data-label="Entidad"><strong>${escapeHtml(entry.entityLabel)}</strong></td>
+    <td data-label="Acción"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></td>
+    <td data-label="Resumen">${escapeHtml(entry.summary || "Sin resumen")}</td>
+    <td data-label="Usuario">${entry.actor ? escapeHtml(entry.actor) : '<span class="muted">—</span>'}</td>
+    <td data-label="Acciones" class="history-list-actions">${actions}</td>
+  </tr>`;
+}
+
+function renderHistoryAuditList(entries, layout = "cards") {
+  const viewLayout =
+    typeof globalThis.normalizeHistoryLayout === "function"
+      ? globalThis.normalizeHistoryLayout(layout)
+      : String(layout || "").trim().toLowerCase() === "list"
+        ? "list"
+        : "cards";
   if (!entries.length) {
     return `<div class="history-empty-state"><p class="muted">No hay movimientos auditables para mostrar todavía.</p></div>`;
+  }
+  if (viewLayout === "list") {
+    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-audit-results-grid">
+    <thead><tr>
+      <th>Fecha</th><th>Módulo</th><th>Entidad</th><th>Acción</th><th>Resumen</th><th>Usuario</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>${entries.map(renderHistoryAuditRow).join("")}</tbody>
+  </table></div>`;
   }
   return `<div class="history-cards-grid">${entries.map(renderHistoryAuditCard).join("")}</div>`;
 }

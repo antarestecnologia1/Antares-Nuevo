@@ -43,7 +43,7 @@ export let state = {
   /** Transporte · Admin: historial de viajes desasignados/eliminados (inicia colapsado). */
   deletedTransportTripsLogMinimized: true,
   /** Historial: pestaña activa (explore | fleet | audit), subpestaña flota (fuel | technical) y filtro rápido. */
-  historyUi: { workspace: "explore", quickFilter: "all", fleetTab: "fuel" },
+  historyUi: { workspace: "explore", quickFilter: "all", fleetTab: "fuel", layout: "cards" },
   /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
   reportsUi: { tab: "export", period: "90d", layout: null },
   reportsChartInstances: [],

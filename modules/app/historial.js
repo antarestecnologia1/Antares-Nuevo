@@ -2,6 +2,24 @@
  * Transporte · Historial (`history`): HTML y listeners del módulo.
  * Carga con `defer` después de `app.js`.
  */
+function normalizeHistoryLayout(raw) {
+  return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
+}
+
+function historyViewToggleHtml(layout) {
+  const viewLayout = normalizeHistoryLayout(layout);
+  return `<div class="driver-fleet-view-field history-view-field">
+    <span class="driver-fleet-field-eyebrow muted">${IC.layers || IC.grid || ""} Vista</span>
+    <div class="transport-ops-layout driver-fleet-view-toggle history-view-toggle" role="group" aria-label="Vista del historial">
+      <button type="button" class="btn btn-sm ${viewLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="cards">Tarjetas</button>
+      <button type="button" class="btn btn-sm ${viewLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="list">Lista</button>
+    </div>
+  </div>`;
+}
+
+globalThis.normalizeHistoryLayout = normalizeHistoryLayout;
+globalThis.historyViewToggleHtml = historyViewToggleHtml;
+
 function historyHtml() {
   const allRequests = reqRead();
   const histUi = state.historyUi || { workspace: "explore", quickFilter: "all" };
@@ -9,6 +27,8 @@ function historyHtml() {
   state.historyUi = histUi;
   const workspace = String(histUi.workspace || "explore");
   const quickFilter = String(histUi.quickFilter || "all");
+  const viewLayout = normalizeHistoryLayout(histUi.layout);
+  const viewLayoutHint = viewLayout === "list" ? " · vista lista" : "";
   const counts = historyQuickFilterCounts(allRequests);
   const filteredExplore = applyHistoryFilters(allRequests, { quickFilter });
   const closedCount = counts.closed;
@@ -62,12 +82,13 @@ function historyHtml() {
     `<button type="button" class="ops-filter-pill${quickFilter === key ? " is-active" : ""}" data-action="history-quick-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${counts[key] ?? 0}</strong></button>`;
 
   const filterBody = `<form id="history-filter" class="history-filter-form" novalidate>
-    <div class="history-toolbar">
+    <div class="history-toolbar history-toolbar--with-view">
       <label class="history-toolbar-search">
         <span class="visually-hidden">Buscar</span>
         ${IC.search || IC.filter}
         <input type="search" name="q" placeholder="Solicitud, cliente, ruta, placa, viaje..." autocomplete="off" />
       </label>
+      ${historyViewToggleHtml(viewLayout)}
       <details class="history-advanced-filters">
         <summary class="btn btn-sm btn-action">${IC.filter} Filtros</summary>
         <div class="history-advanced-filters-body">
@@ -107,8 +128,8 @@ function historyHtml() {
       </div>
     </aside>
     ${filterBody}
-    <p class="history-result-meta"><span id="history-result-count">${filteredExplore.length}</span> resultado${filteredExplore.length === 1 ? "" : "s"} · orden: más recientes primero</p>
-    <div id="history-results">${renderHistoryResultsList(filteredExplore)}</div>
+    <p class="history-result-meta"><span id="history-result-count">${filteredExplore.length}</span> resultado${filteredExplore.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)} · orden: más recientes primero</p>
+    <div id="history-results">${renderHistoryResultsList(filteredExplore, viewLayout)}</div>
   </div>`;
 
   const fleetTabBtn = (id, label, iconKey, count) => {
@@ -182,15 +203,15 @@ function historyHtml() {
     </nav>
     <div class="history-fleet-panel${fleetTab === "fuel" ? "" : " hidden"}" data-fleet-panel="fuel" role="tabpanel">
       ${fuelKpiStrip}
-      ${historyFleetFilterToolbar("history-fuel-filter", fuelFilterFields)}
-      <p class="history-result-meta history-fleet-result-meta"><span id="history-fuel-result-count">${fuelLogsAll.length}</span> carga${fuelLogsAll.length === 1 ? "" : "s"} · más recientes primero</p>
-      <div id="history-fuel-results">${renderHistoryFuelLogsList(fuelLogsAll)}</div>
+      ${historyFleetFilterToolbar("history-fuel-filter", fuelFilterFields, viewLayout)}
+      <p class="history-result-meta history-fleet-result-meta"><span id="history-fuel-result-count">${fuelLogsAll.length}</span> carga${fuelLogsAll.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)} · más recientes primero</p>
+      <div id="history-fuel-results">${renderHistoryFuelLogsList(fuelLogsAll, viewLayout)}</div>
     </div>
     <div class="history-fleet-panel${fleetTab === "technical" ? "" : " hidden"}" data-fleet-panel="technical" role="tabpanel">
       ${techKpiStrip}
-      ${historyFleetFilterToolbar("history-technical-filter", techFilterFields)}
-      <p class="history-result-meta history-fleet-result-meta"><span id="history-technical-result-count">${technicalLogsAll.length}</span> novedad${technicalLogsAll.length === 1 ? "" : "es"} · más recientes primero</p>
-      <div id="history-technical-results">${renderHistoryTechnicalLogsList(technicalLogsAll)}</div>
+      ${historyFleetFilterToolbar("history-technical-filter", techFilterFields, viewLayout)}
+      <p class="history-result-meta history-fleet-result-meta"><span id="history-technical-result-count">${technicalLogsAll.length}</span> novedad${technicalLogsAll.length === 1 ? "" : "es"}${escapeHtml(viewLayoutHint)} · más recientes primero</p>
+      <div id="history-technical-results">${renderHistoryTechnicalLogsList(technicalLogsAll, viewLayout)}</div>
     </div>
   </div>`;
 
@@ -204,8 +225,9 @@ function historyHtml() {
       { label: "Actualizaciones", value: auditUpdateCount, tone: auditUpdateCount ? "warn" : undefined },
       { label: "Eliminaciones", value: auditDeleteCount, tone: auditDeleteCount ? "warn" : undefined }
     ])}
-    <p class="history-result-meta"><span id="history-audit-result-count">${auditEntries.length}</span> evento${auditEntries.length === 1 ? "" : "s"} más reciente${auditEntries.length === 1 ? "" : "s"} primero</p>
-    <div id="history-audit-results">${renderHistoryAuditList(auditEntries)}</div>
+    <div class="history-toolbar history-toolbar--with-view history-audit-toolbar">${historyViewToggleHtml(viewLayout)}</div>
+    <p class="history-result-meta"><span id="history-audit-result-count">${auditEntries.length}</span> evento${auditEntries.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)} · más recientes primero</p>
+    <div id="history-audit-results">${renderHistoryAuditList(auditEntries, viewLayout)}</div>
   </div>`;
 
   const moduleHead = `<header class="ops-module-head ops-module-head--rich history-module-head">
@@ -236,7 +258,15 @@ function historyHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const next = normalizeHistoryWorkspace(btn.dataset.workspace);
-        state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel" }), workspace: next };
+        state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel", layout: "cards" }), workspace: next };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-layout']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const layout = normalizeHistoryLayout(btn.dataset.layout);
+        state.historyUi = { ...(state.historyUi || { workspace: "explore", quickFilter: "all", fleetTab: "fuel" }), layout };
         renderPortalView();
       });
     });
@@ -267,10 +297,11 @@ function historyHtml() {
 
     bindHistoryFleetFilters("history-fuel-filter", (data) => {
       const items = applyHistoryFleetFuelFilters(readFuelLogs(), data);
+      const layout = normalizeHistoryLayout((state.historyUi || {}).layout);
       const mount = document.getElementById("history-fuel-results");
       const countEl = document.getElementById("history-fuel-result-count");
       if (countEl) countEl.textContent = String(items.length);
-      if (mount) mount.innerHTML = renderHistoryFuelLogsList(items);
+      if (mount) mount.innerHTML = renderHistoryFuelLogsList(items, layout);
       const kpis = historyFleetFuelKpis(items);
       refreshHistoryFleetKpiStrip('[data-fleet-panel="fuel"] .history-fleet-kpis', [
         { label: "Cargas registradas", value: kpis.count },
@@ -290,10 +321,11 @@ function historyHtml() {
 
     bindHistoryFleetFilters("history-technical-filter", (data) => {
       const items = applyHistoryFleetTechnicalFilters(readVehicleTechnicalLogs(), data);
+      const layout = normalizeHistoryLayout((state.historyUi || {}).layout);
       const mount = document.getElementById("history-technical-results");
       const countEl = document.getElementById("history-technical-result-count");
       if (countEl) countEl.textContent = String(items.length);
-      if (mount) mount.innerHTML = renderHistoryTechnicalLogsList(items);
+      if (mount) mount.innerHTML = renderHistoryTechnicalLogsList(items, layout);
       const kpis = historyFleetTechnicalKpis(items);
       refreshHistoryFleetKpiStrip('[data-fleet-panel="technical"] .history-fleet-kpis', [
         { label: "Novedades", value: kpis.count },
@@ -320,7 +352,8 @@ function historyHtml() {
     if (historyFilter) {
       portalUpgradeDates(historyFilter);
       const refreshHistoryResults = () => {
-        const histUi = state.historyUi || { quickFilter: "all" };
+        const histUi = state.historyUi || { quickFilter: "all", layout: "cards" };
+        const layout = normalizeHistoryLayout(histUi.layout);
         const data = readFormEntriesNormalized(historyFilter);
         const items = applyHistoryFilters(reqRead(), {
           quickFilter: histUi.quickFilter,
@@ -329,7 +362,7 @@ function historyHtml() {
         const mount = document.getElementById("history-results");
         const countEl = document.getElementById("history-result-count");
         if (countEl) countEl.textContent = String(items.length);
-        if (mount) mount.innerHTML = renderHistoryResultsList(items);
+        if (mount) mount.innerHTML = renderHistoryResultsList(items, layout);
       };
       window.__historyApplyFilters = refreshHistoryResults;
       historyFilter.addEventListener("submit", (event) => {
