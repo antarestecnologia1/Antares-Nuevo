@@ -31,13 +31,14 @@
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&amp;family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500&amp;display=swap"
       rel="stylesheet"
     />
-    <!-- CSS crítico de la landing (bloqueante, ~30% del total); el completo llega asíncrono -->
+    <!-- CSS crítico de la landing (bloqueante, ~30% del total). El completo baja en
+         prioridad mínima (media="print" no bloquea ni compite) y se activa al llegar. -->
     <link rel="stylesheet" href="./styles.landing.css?v=20260609-css-split" />
     <link
-      rel="preload"
+      rel="stylesheet"
       href="./styles.css?v=20260609-css-split"
-      as="style"
-      onload="this.onload=null;this.rel='stylesheet'"
+      media="print"
+      onload="this.onload=null;this.media='all'"
     />
     <noscript><link rel="stylesheet" href="./styles.css?v=20260609-css-split" /></noscript>
     <script>

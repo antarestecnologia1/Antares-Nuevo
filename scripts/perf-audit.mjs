@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const root = path.resolve(import.meta.dirname, '..');
+const root = process.argv[2] ? path.resolve(process.argv[2]) : path.resolve(import.meta.dirname, '..');
 const MIME = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   '.mjs': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg',
