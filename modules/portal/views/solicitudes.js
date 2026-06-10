@@ -269,7 +269,7 @@
             </div>
             <span class="requests-data-sidebar__count">${companyCount}</span>
           </div>
-          <p class="requests-data-sidebar__hint muted">Seleccione una empresa para filtrar la bandeja.</p>
+          <p class="requests-data-sidebar__hint muted">${companyCount > 12 ? "Use la búsqueda para ubicar un cliente entre muchas empresas." : "Seleccione una empresa para filtrar la bandeja."}</p>
           <div class="requests-data-sidebar__hub">${adminHubHtml}</div>
         </aside>
         <div class="requests-data-main">
@@ -299,7 +299,16 @@
     }
   }
 
-  function requestAdminCompanyHubHtml(requests, selectedCompanyId) {
+  const REQUESTS_COMPANY_RENDER_WINDOW = 25;
+
+  function requestsCompanyRenderWindowSize() {
+    if (typeof RENDER_WINDOW_SIZE !== "undefined" && RENDER_WINDOW_SIZE > 0) {
+      return Math.min(REQUESTS_COMPANY_RENDER_WINDOW, RENDER_WINDOW_SIZE);
+    }
+    return REQUESTS_COMPANY_RENDER_WINDOW;
+  }
+
+  function buildAdminCompanyDirectoryEntries(requests) {
     const companies = read(KEYS.companies, []);
     const grouped = requests.reduce((acc, req) => {
       const cid = String(req.clientCompanyId || "");
@@ -308,42 +317,149 @@
       acc[cid].push(req);
       return acc;
     }, {});
-    const cards = Object.entries(grouped)
+    return Object.entries(grouped)
       .map(([companyId, list]) => {
         const company = companies.find((c) => String(c.id) === companyId) || null;
-        const name = company?.name || list[0]?.clientName || "Empresa sin nombre";
+        const name = String(company?.name || list[0]?.clientName || "Empresa sin nombre").trim() || "Empresa sin nombre";
         const logoFromReq = list.map((x) => resolveRequestCompanyLogoUrl(x, company)).find((u) => u) || "";
         const logoUrl = logoFromReq || String(company?.logoUrl || "").trim();
-        const logoHtml = logoUrl
-          ? `<span class="request-company-hub-logo" role="img" aria-label="Logo de ${escapeAttr(name)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(name)}" loading="lazy" /></span>`
-          : `<span class="request-company-hub-logo request-company-hub-logo--fallback" aria-hidden="true">${escapeHtml(String(name || "E").charAt(0).toUpperCase())}</span>`;
         const pending = list.filter((r) =>
-          [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
+          [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
         ).length;
         const active = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
         const closed = list.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
-        const isSelected = String(selectedCompanyId || "") === String(companyId);
-        /**
-         * Toda el área del card (logo + nombre + métricas) actúa como botón
-         * — `data-action="request-company-filter"`. Esto cumple con el pedido
-         * del usuario: hacer click en el logo del cliente filtra al instante.
-         */
-        return `<article class="request-company-hub-card${isSelected ? " is-active" : ""}" data-action="request-company-filter" data-company-id="${escapeAttr(companyId)}" role="button" tabindex="0" aria-pressed="${isSelected ? "true" : "false"}" title="Ver solo solicitudes de ${escapeAttr(name)}">
-          <header>
-            <div class="request-company-hub-head">${logoHtml}<div class="request-company-hub-titlestack"><h4>${escapeHtml(name)}</h4><span class="status ${pending ? "status-pendiente" : "status-viaje_asignado"}">${pending ? `${pending} pendientes` : "Al día"}</span></div></div>
-          </header>
-          <div class="request-company-hub-metrics">
-            <span><strong>${list.length}</strong><small>Solicitudes</small></span>
-            <span><strong>${active}</strong><small>En operación</small></span>
-            <span><strong>${closed}</strong><small>Cerradas</small></span>
-          </div>
-          <p class="request-company-hub-cta">${isSelected ? `${IC.check} Filtro activo` : `${IC.eye} Click para filtrar`}</p>
-        </article>`;
+        return {
+          companyId: String(companyId),
+          name,
+          nameNorm: name.toLowerCase(),
+          logoUrl,
+          total: list.length,
+          pending,
+          active,
+          closed
+        };
       })
-      .join("");
-    return cards
-      ? `<div class="request-company-hub-grid">${cards}</div>`
-      : `<p class="muted">No hay solicitudes agrupables por empresa todavía.</p>`;
+      .sort((a, b) => a.nameNorm.localeCompare(b.nameNorm, "es"));
+  }
+
+  function sortAdminCompanyDirectoryEntries(entries, sortKey) {
+    const sort = String(sortKey || "pending");
+    const copy = entries.slice();
+    if (sort === "name") {
+      return copy.sort((a, b) => a.nameNorm.localeCompare(b.nameNorm, "es"));
+    }
+    if (sort === "volume") {
+      return copy.sort((a, b) => b.total - a.total || a.nameNorm.localeCompare(b.nameNorm, "es"));
+    }
+    return copy.sort(
+      (a, b) =>
+        b.pending - a.pending ||
+        b.total - a.total ||
+        a.nameNorm.localeCompare(b.nameNorm, "es")
+    );
+  }
+
+  function sliceAdminCompanyDirectoryWindow(entries, selectedCompanyId, limit) {
+    const cap = Math.max(1, Number(limit) || requestsCompanyRenderWindowSize());
+    const selected = selectedCompanyId
+      ? entries.find((entry) => String(entry.companyId) === String(selectedCompanyId))
+      : null;
+    const rest = selected
+      ? entries.filter((entry) => String(entry.companyId) !== String(selectedCompanyId))
+      : entries;
+    if (!selected) return { shown: entries.slice(0, cap), total: entries.length };
+    return { shown: [selected, ...rest.slice(0, Math.max(0, cap - 1))], total: entries.length };
+  }
+
+  function buildAdminCompanyDirectoryRow(entry, selectedCompanyId) {
+    const isSelected = String(selectedCompanyId || "") === String(entry.companyId);
+    const initial = escapeHtml(String(entry.name || "E").charAt(0).toUpperCase());
+    const logoHtml = entry.logoUrl
+      ? `<span class="requests-company-row__logo" role="img" aria-label="Logo de ${escapeAttr(entry.name)}"><img src="${escapeAttr(entry.logoUrl)}" alt="" loading="lazy" /></span>`
+      : `<span class="requests-company-row__logo requests-company-row__logo--fallback" aria-hidden="true">${initial}</span>`;
+    const pendingBadge =
+      entry.pending > 0
+        ? `<span class="requests-company-row__pending" title="${entry.pending} pendiente${entry.pending === 1 ? "" : "s"}">${entry.pending}</span>`
+        : "";
+    return `<button type="button" class="requests-company-row${isSelected ? " is-active" : ""}" data-action="request-company-filter" data-company-id="${escapeAttr(entry.companyId)}" role="option" aria-selected="${isSelected ? "true" : "false"}" title="Ver solicitudes de ${escapeAttr(entry.name)}">
+      ${logoHtml}
+      <span class="requests-company-row__body">
+        <span class="requests-company-row__name">${escapeHtml(entry.name)}</span>
+        <span class="requests-company-row__meta">${entry.total} sol. · ${entry.active} en op.${entry.closed ? ` · ${entry.closed} cerr.` : ""}</span>
+      </span>
+      ${pendingBadge}
+    </button>`;
+  }
+
+  /** Directorio admin escalable: búsqueda, orden y ventana de render para muchas empresas. */
+  function requestAdminCompanySidebarHtml(requests, selectedCompanyId) {
+    const entries = buildAdminCompanyDirectoryEntries(requests);
+    if (!entries.length) {
+      return `<p class="requests-company-directory__empty muted">No hay solicitudes agrupables por empresa todavía.</p>`;
+    }
+
+    let companySearchRaw = "";
+    let companySearchNorm = "";
+    let companySort = "pending";
+    let companyPendingOnly = false;
+    let companyRenderLimit = requestsCompanyRenderWindowSize();
+    try {
+      companySearchRaw = String((typeof state !== "undefined" && state?.requestsUi?.companySearch) || "");
+      companySearchNorm = companySearchRaw.trim().toLowerCase();
+      companySort = String((typeof state !== "undefined" && state?.requestsUi?.companySort) || "pending");
+      companyPendingOnly = Boolean(typeof state !== "undefined" && state?.requestsUi?.companyPendingOnly);
+      companyRenderLimit =
+        Number(typeof state !== "undefined" && state?.requestsCompanyRenderLimit) || requestsCompanyRenderWindowSize();
+    } catch (_) {
+      /* noop */
+    }
+
+    const filtered = entries.filter((entry) => {
+      if (companyPendingOnly && entry.pending <= 0) return false;
+      if (!companySearchNorm) return true;
+      return entry.nameNorm.includes(companySearchNorm);
+    });
+    const sorted = sortAdminCompanyDirectoryEntries(filtered, companySort);
+    const { shown, total } = sliceAdminCompanyDirectoryWindow(sorted, selectedCompanyId, companyRenderLimit);
+    const pendingCompanies = entries.filter((entry) => entry.pending > 0).length;
+    const rows = shown.map((entry) => buildAdminCompanyDirectoryRow(entry, selectedCompanyId)).join("");
+    const moreBar =
+      typeof renderWindowMoreBar === "function"
+        ? renderWindowMoreBar(total, shown.length, "requests-company-render-more")
+        : "";
+    const sortBtn = (id, label) =>
+      `<button type="button" class="requests-company-directory__sort-btn${companySort === id ? " is-active" : ""}" data-action="requests-company-sort" data-sort="${escapeAttr(id)}">${escapeHtml(label)}</button>`;
+    const allActive = !String(selectedCompanyId || "").trim();
+
+    return `<div class="requests-company-directory">
+      <div class="requests-company-directory__tools">
+        <label class="requests-company-directory__search">
+          <span class="visually-hidden">Buscar empresa</span>
+          <input type="search" data-action="requests-company-search" value="${escapeAttr(companySearchRaw)}" placeholder="Buscar entre ${entries.length} empresas…" autocomplete="off" />
+        </label>
+        <div class="requests-company-directory__sort" role="group" aria-label="Ordenar empresas">
+          ${sortBtn("pending", "Pendientes")}
+          ${sortBtn("name", "A-Z")}
+          ${sortBtn("volume", "Volumen")}
+        </div>
+        <label class="requests-company-directory__pending-only">
+          <input type="checkbox" data-action="requests-company-pending-only"${companyPendingOnly ? " checked" : ""} />
+          <span>Solo con pendientes <strong>(${pendingCompanies})</strong></span>
+        </label>
+      </div>
+      <p class="requests-company-directory__meta muted">Mostrando <strong>${shown.length}</strong> de <strong>${total}</strong> empresa${total === 1 ? "" : "s"}${companySearchNorm ? " · búsqueda activa" : ""}</p>
+      <div class="requests-company-directory__list" role="listbox" aria-label="Empresas clientes">
+        <button type="button" class="requests-company-row requests-company-row--all${allActive ? " is-active" : ""}" data-action="request-company-clear"${allActive ? ' aria-current="true"' : ""}>
+          <span class="requests-company-row__logo requests-company-row__logo--all" aria-hidden="true">${IC.briefcase || ""}</span>
+          <span class="requests-company-row__body">
+            <span class="requests-company-row__name">Todas las empresas</span>
+            <span class="requests-company-row__meta">${entries.length} cliente${entries.length === 1 ? "" : "s"} · vista consolidada</span>
+          </span>
+        </button>
+        ${rows || `<p class="requests-company-directory__empty muted">Ninguna empresa coincide con el filtro.</p>`}
+      </div>
+      ${moreBar}
+    </div>`;
   }
 
   /** Alcance cliente + franja de métricas (siempre arriba del módulo). */
@@ -520,7 +636,7 @@
       const companyCount = Object.keys(
         requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})
       ).filter(Boolean).length;
-      const hub = requestAdminCompanyHubHtml(requests, selectedCompanyId);
+      const hub = requestAdminCompanySidebarHtml(requests, selectedCompanyId);
       const filtersBar = requestFiltersBarHtml(byCompany, activeFilter);
       const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
       const resultsHtml = requestOpsCardsHtml(afterFilter, user, listLayout);

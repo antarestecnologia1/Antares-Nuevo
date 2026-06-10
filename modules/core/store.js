@@ -115,8 +115,15 @@ export let state = {
     /** Búsqueda en el listado de solicitudes (re-render + restauración de foco). */
     listSearch: "",
     /** `cards` | `list` — mismo patrón que Camiones / Viajes. */
-    listLayout: "cards"
+    listLayout: "cards",
+    /** Admin: filtro del directorio de empresas en Consultar. */
+    companySearch: "",
+    /** Admin: `pending` | `name` | `volume`. */
+    companySort: "pending",
+    companyPendingOnly: false
   },
+  /** Admin · directorio de empresas: ventana de render (escala a cientos de clientes). */
+  requestsCompanyRenderLimit: 25,
   /**
    * Filtros rápidos persistentes para los paneles operativos. Permiten
    * mantener la selección del usuario al re-render (cambio de estado,

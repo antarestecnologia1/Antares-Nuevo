@@ -124,6 +124,45 @@
         renderPortalView();
       });
     });
+
+    nodes.viewRoot.querySelectorAll("[data-action='requests-company-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        state.requestsUi = { ...(state.requestsUi || {}), companySearch: String(el.value || "") };
+        state.requestsCompanyRenderLimit = 25;
+        state.__requestsCompanySearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='requests-company-sort']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const sort = String(btn.dataset.sort || "pending");
+        state.requestsUi = { ...(state.requestsUi || {}), companySort: sort };
+        state.requestsCompanyRenderLimit = 25;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='requests-company-pending-only']").forEach((input) => {
+      input.addEventListener("change", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        state.requestsUi = { ...(state.requestsUi || {}), companyPendingOnly: Boolean(el.checked) };
+        state.requestsCompanyRenderLimit = 25;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='requests-company-render-more']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.requestsCompanyRenderLimit =
+          (Number(state.requestsCompanyRenderLimit) || requestsRenderWindowSize()) + requestsRenderWindowSize();
+        renderPortalView();
+      });
+    });
   }
 
   function wireRequestCreateForm() {
@@ -409,6 +448,24 @@
           const n = String(inp.value || "").length;
           const s = Math.max(0, Math.min(reqSearchRestore.start, n));
           const e = Math.max(0, Math.min(reqSearchRestore.end ?? reqSearchRestore.start, n));
+          inp.setSelectionRange(s, e);
+        }
+      });
+    }
+
+    const companySearchRestore = state.__requestsCompanySearchRestore;
+    if (companySearchRestore && typeof companySearchRestore.start === "number") {
+      delete state.__requestsCompanySearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "requests") return;
+        const inp = root.querySelector("[data-action='requests-company-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(companySearchRestore.start, n));
+          const e = Math.max(0, Math.min(companySearchRestore.end ?? companySearchRestore.start, n));
           inp.setSelectionRange(s, e);
         }
       });
