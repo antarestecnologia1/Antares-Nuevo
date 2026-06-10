@@ -101,21 +101,21 @@ const TARGETS = [
   {
     module: "4. Camiones (registrar vehículo)",
     view: "transport-vehicles",
-    patch: { vehiclesUi: { workspace: "create" } },
+    patch: { vehiclesUi: { workspace: "operate", section: "create" } },
     panels: { "create-vehicle": true },
     form: "#form-vehicle"
   },
   {
     module: "4. Camiones (combustible)",
     view: "transport-vehicles",
-    patch: { vehiclesUi: { workspace: "fuel" } },
+    patch: { vehiclesUi: { workspace: "operate", section: "fuel" } },
     panels: { "create-fuel-log": true },
     form: "[data-create-panel='create-fuel-log'] form"
   },
   {
     module: "4. Camiones (taller)",
     view: "transport-vehicles",
-    patch: { vehiclesUi: { workspace: "technical" } },
+    patch: { vehiclesUi: { workspace: "operate", section: "technical" } },
     panels: { "create-technical-log": true },
     form: "[data-create-panel='create-technical-log'] form"
   },

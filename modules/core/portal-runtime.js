@@ -217,7 +217,10 @@ const normalizeRegistrationKindForDb = __pr.normalizeRegistrationKindForDb;
 const normalizeTransportTripsLayout = __pr.normalizeTransportTripsLayout;
 const normalizeTransportTripsSort = __pr.normalizeTransportTripsSort;
 const normalizeTransportTripsWorkspace = __pr.normalizeTransportTripsWorkspace;
+const normalizeVehicleSection = __pr.normalizeVehicleSection;
+const normalizeVehicleWorkspace = __pr.normalizeVehicleWorkspace;
 const normalizeVehicleWorkspaceSection = __pr.normalizeVehicleWorkspaceSection;
+const resolveVehicleSection = __pr.resolveVehicleSection;
 const nowIso = __pr.nowIso;
 const nowLocalIso = __pr.nowLocalIso;
 const payrollPeriodCalendarYm = __pr.payrollPeriodCalendarYm;
@@ -3521,9 +3524,14 @@ function openRouteRateInlineEdit(storageKey) {
     section: "routes"
   };
   persistHrWorkspace("transport-trips", "operate");
-  state.createPanels = { ...(state.createPanels || {}), ["create-route-rate"]: true };
+  state.createPanels = {
+    ...(state.createPanels || {}),
+    "create-trip": false,
+    "create-route-rate": true
+  };
   state.pendingRouteRateEditKey = key;
   renderPortalView();
+  requestAnimationFrame(() => scrollToCreatePanelForm("create-route-rate"));
 }
 
 function populateRouteRateInlineForm(storageKey) {

@@ -401,27 +401,21 @@ function transportTripsHtml() {
       </div>`
     : emptyState("Aún no has configurado tarifas por trayecto. Crea la primera para que el sistema sugiera el precio cuando asignes un viaje a esa ruta.");
 
-  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-route-form" autocomplete="off">
+  const routesCatalogBadge =
+    rateEntries.length > 0
+      ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${rateEntries.length} en catálogo</span>`
+      : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Catálogo vacío</span>`;
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-trip-create-form" autocomplete="off">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
-    <div class="hr-form-wizard gh-route-wizard" data-hr-wizard="route-rate" aria-label="Configurar trayecto y tarifa por pasos">
-      <header class="gh-emp-wizard__head gh-route-wizard__head">
+    <div class="hr-form-wizard gh-emp-wizard gh-transport-wizard" data-hr-wizard="route-rate" aria-label="Configurar trayecto y tarifa por pasos">
+      <header class="gh-emp-wizard__head gh-transport-wizard__head">
         <div class="gh-emp-wizard__head-copy">
           <span class="gh-emp-wizard__eyebrow">Catálogo de transporte</span>
-          <h3 class="gh-emp-wizard__title">Trayecto y tarifa sugerida</h3>
+          <h3 class="gh-emp-wizard__title">Trayecto y tarifa</h3>
           <p class="gh-emp-wizard__desc">Defina origen, destino, valor pactado y alcance por cliente para autocompletar precios al asignar viajes.</p>
         </div>
-        <div class="gh-route-wizard__meta">
-          <div class="route-rate-preview" data-route-rate-preview aria-live="polite">
-            <div class="route-rate-preview__leg route-rate-preview__leg--origin">
-              <span class="route-rate-preview__eyebrow">Origen</span>
-              <strong class="route-rate-preview__value" data-route-rate-preview-origin>Seleccione origen</strong>
-            </div>
-            <span class="route-rate-preview__arrow" aria-hidden="true">${IC.compass || "→"}</span>
-            <div class="route-rate-preview__leg route-rate-preview__leg--dest">
-              <span class="route-rate-preview__eyebrow">Destino</span>
-              <strong class="route-rate-preview__value" data-route-rate-preview-dest>Seleccione destino</strong>
-            </div>
-          </div>
+        <div class="gh-transport-wizard__meta">
+          ${routesCatalogBadge}
           <div class="gh-emp-wizard__progress hr-form-wizard-meta">
             <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:33.333333%"></span></div>
             <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 3</span>
@@ -436,53 +430,37 @@ function transportTripsHtml() {
         </nav>
         <div class="gh-emp-wizard__panels">
           <div class="hr-form-step is-active" data-step-index="0">
-            <fieldset class="form-section form-section-blue full">
+            <fieldset class="form-section form-section-blue full transport-route-create-form__route">
               <legend>${IC.mapPin} Trayecto</legend>
-              <p class="muted form-section-hint">Seleccione departamento y ciudad de origen y destino del servicio.</p>
-              <div class="route-rate-route-grid">
-                <div class="route-rate-route-col route-rate-route-col--origin">
-                  <span class="route-rate-route-col-badge">A</span>
-                  <div class="route-rate-route-col-fields">
-                    <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-                    <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
-                  </div>
-                </div>
-                <div class="route-rate-route-bridge" aria-hidden="true"><span class="route-rate-route-bridge-line"></span><span class="route-rate-route-bridge-icon">${IC.truck || "→"}</span></div>
-                <div class="route-rate-route-col route-rate-route-col--dest">
-                  <span class="route-rate-route-col-badge route-rate-route-col-badge--dest">B</span>
-                  <div class="route-rate-route-col-fields">
-                    <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-                    <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
-                  </div>
+              <div class="form-section-grid">
+                <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
+                <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
+                <div class="full assign-trip-preview create-trip-summary-panel route-rate-preview" data-route-rate-preview aria-live="polite">
+                  <p class="route-rate-preview-line"><span class="muted">Origen</span> <strong data-route-rate-preview-origin>Seleccione origen</strong> <span class="route-rate-preview-arrow" aria-hidden="true">→</span> <span class="muted">Destino</span> <strong data-route-rate-preview-dest>Seleccione destino</strong></p>
                 </div>
               </div>
             </fieldset>
           </div>
           <div class="hr-form-step hidden" data-step-index="1">
-            <fieldset class="form-section form-section-emerald full">
+            <fieldset class="form-section form-section-violet full transport-route-create-form__price">
               <legend>${IC.dollar} Tarifa pactada</legend>
-              <p class="muted form-section-hint">Valor en pesos colombianos que se sugerirá al asignar un viaje en esta ruta.</p>
-              <div class="route-rate-price-surface">
-                <label class="route-rate-price-field full">
-                  <span class="route-rate-price-label">${fieldLabel(IC.dollar, "Valor del viaje", { required: true })}</span>
-                  <div class="route-rate-price-input-wrap">
-                    <span class="route-rate-price-prefix" aria-hidden="true">$</span>
-                    <input type="number" name="tripRateCop" min="1" step="1" required placeholder="4.200.000" inputmode="numeric" />
-                    <span class="route-rate-price-suffix" aria-hidden="true">COP</span>
-                  </div>
-                </label>
+              <div class="form-section-grid">
+                <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)", { required: true })}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="4.200.000" inputmode="numeric" /></label>
               </div>
             </fieldset>
           </div>
           <div class="hr-form-step hidden" data-step-index="2">
-            <fieldset class="form-section form-section-amber full route-rate-scope-fieldset">
+            <fieldset class="form-section form-section-emerald full route-rate-scope-fieldset transport-route-create-form__scope">
               <legend>${IC.briefcase} Alcance por cliente</legend>
-              <p class="muted form-section-hint">Elija <strong>General</strong> si aplica a todos los clientes, o <strong>Por empresa</strong> y marque los clientes con tarifa negociada.</p>
+              <p class="muted form-section-hint create-trip-flag-legend">Elija <strong>General</strong> si aplica a todos los clientes, o <strong>Por empresa</strong> y marque los clientes con tarifa negociada.</p>
               <div class="route-rate-scope-mount" data-route-rate-scope-mount>
                 ${buildRouteRateScopeStepInnerHtml(companiesForRates)}
               </div>
               <p class="route-rate-editing-hint muted" id="route-rate-editing-hint" hidden>Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
             </fieldset>
+            <ul class="assign-trip-checklist create-trip-readiness gh-transport-readiness" data-route-rate-readiness aria-label="Requisitos para guardar"></ul>
           </div>
         </div>
       </div>
@@ -528,14 +506,14 @@ function transportTripsHtml() {
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">${canApproveInViajes ? "Sin solicitudes por asignar" : "Sin aprobadas por asignar"}</span>`;
   const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow transport-trip-create-form" autocomplete="off">
-    <div class="hr-form-wizard gh-trip-wizard" data-hr-wizard="trip-assign" aria-label="Asignar viaje por pasos">
-      <header class="gh-emp-wizard__head gh-trip-wizard__head">
+    <div class="hr-form-wizard gh-emp-wizard gh-transport-wizard" data-hr-wizard="trip-assign" aria-label="Asignar viaje por pasos">
+      <header class="gh-emp-wizard__head gh-transport-wizard__head">
         <div class="gh-emp-wizard__head-copy">
           <span class="gh-emp-wizard__eyebrow">Operación de transporte</span>
           <h3 class="gh-emp-wizard__title">Asignar viaje</h3>
           <p class="gh-emp-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
         </div>
-        <div class="gh-trip-wizard__meta">
+        <div class="gh-transport-wizard__meta">
           ${pendingBadge}
           <div class="gh-emp-wizard__progress hr-form-wizard-meta">
             <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:33.333333%"></span></div>
@@ -591,7 +569,7 @@ function transportTripsHtml() {
                 ${createTripEmptyHint("dollar", "Tarifa pendiente")}
               </div>
             </fieldset>
-            <ul class="assign-trip-checklist create-trip-readiness gh-trip-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
+            <ul class="assign-trip-checklist create-trip-readiness gh-transport-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
           </div>
         </div>
       </div>
@@ -655,7 +633,7 @@ function transportTripsHtml() {
     "create-route-rate",
     "mapPin",
     "Configurar trayecto y tarifa",
-    `${rateEntries.length} ${rateEntries.length === 1 ? "ruta catalogada" : "rutas catalogadas"} para autocompletado`,
+    `${rateEntries.length} catalogada${rateEntries.length === 1 ? "" : "s"} · 3 pasos`,
     routeRateForm,
     "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-route",
     "Abrir formulario",
@@ -1015,13 +993,44 @@ function transportTripsHtml() {
         const preview = routeRateFormEl.querySelector("[data-route-rate-preview]");
         const originEl = routeRateFormEl.querySelector("[data-route-rate-preview-origin]");
         const destEl = routeRateFormEl.querySelector("[data-route-rate-preview-dest]");
-        if (!originEl || !destEl) return;
-        const origin = formatRouteRatePreviewPlace(originDept, originCity);
-        const dest = formatRouteRatePreviewPlace(destDept, destCity);
-        originEl.textContent = origin || "Seleccione origen";
-        destEl.textContent = dest || "Seleccione destino";
-        if (preview) {
-          preview.classList.toggle("is-ready", Boolean(origin && dest));
+        if (originEl && destEl) {
+          const origin = formatRouteRatePreviewPlace(originDept, originCity);
+          const dest = formatRouteRatePreviewPlace(destDept, destCity);
+          originEl.textContent = origin || "Seleccione origen";
+          destEl.textContent = dest || "Seleccione destino";
+          if (preview) preview.classList.toggle("is-ready", Boolean(origin && dest));
+        }
+        const routeOk =
+          Boolean(String(originDept?.value || "").trim()) &&
+          Boolean(String(originCity?.value || "").trim()) &&
+          Boolean(String(destDept?.value || "").trim()) &&
+          Boolean(String(destCity?.value || "").trim());
+        const priceOk = parseNum(routeRateFormEl.querySelector("input[name='tripRateCop']")?.value || 0) > 0;
+        const scope = String(routeRateFormEl.querySelector("[data-route-rate-scope-field]")?.value || "all");
+        const scopeOk =
+          scope === "all" ||
+          routeRateFormEl.querySelectorAll('input[name="rateClientCompanies"]:checked').length > 0;
+        const wizard = routeRateFormEl.querySelector('[data-hr-wizard="route-rate"]');
+        wizard?.querySelectorAll("[data-hr-wizard-dot]").forEach((dot, i) => {
+          const n = i + 1;
+          dot.classList.toggle(
+            "is-done",
+            (n === 1 && routeOk) || (n === 2 && routeOk && priceOk) || (n === 3 && routeOk && priceOk && scopeOk)
+          );
+        });
+        const checklist = routeRateFormEl.querySelector("[data-route-rate-readiness]");
+        if (checklist) {
+          const items = [
+            { done: routeOk, label: "Trayecto", short: "Ruta" },
+            { done: priceOk, label: "Tarifa", short: "Tarifa" },
+            { done: scopeOk, label: "Alcance", short: "Alcance" }
+          ];
+          checklist.innerHTML = items
+            .map(
+              (it) =>
+                `<li class="create-trip-readiness-item assign-trip-check${it.done ? " is-done" : ""}" title="${escapeAttr(it.label)}"><span class="create-trip-readiness-mark" aria-hidden="true">${it.done ? IC.check : ""}</span><span class="assign-trip-check-label">${escapeHtml(it.short)}</span></li>`
+            )
+            .join("");
         }
       };
       const resetRateScopeMount = () => {
@@ -1076,6 +1085,28 @@ function transportTripsHtml() {
       }
       updateRouteRatePreview();
       wireRouteRateScopeSection(routeRateFormEl);
+      routeRateFormEl.addEventListener("change", (ev) => {
+        const t = ev.target;
+        if (
+          t?.matches?.(
+            "input[name='tripRateCop'], input[name='rateClientCompanies'], [data-route-rate-scope-pick], [data-route-rate-scope-field]"
+          )
+        ) {
+          updateRouteRatePreview();
+        }
+      });
+      routeRateFormEl.addEventListener("input", (ev) => {
+        if (ev.target?.matches?.("input[name='tripRateCop']")) updateRouteRatePreview();
+      });
+      routeRateFormEl.addEventListener("click", (ev) => {
+        if (
+          ev.target?.closest?.(
+            "[data-route-rate-scope-pick], [data-route-rate-select-visible], [data-route-rate-select-all], [data-route-rate-clear-all]"
+          )
+        ) {
+          queueMicrotask(() => updateRouteRatePreview());
+        }
+      });
       bindHrFormWizard(routeRateFormEl);
       const pendingEditKey = state.pendingRouteRateEditKey;
       if (pendingEditKey) {

@@ -595,9 +595,11 @@ function bindDynamicEvents() {
   ];
       const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
       const TRANSPORT_TRIPS_CREATE_IDS = ["create-trip", "create-route-rate"];
+      const VEHICLES_CREATE_IDS = ["create-vehicle", "create-fuel-log", "create-technical-log"];
       const payrollSet = new Set(PAYROLL_CREATE_IDS);
       const hiringSet = new Set(HIRING_CREATE_IDS);
       const transportTripsSet = new Set(TRANSPORT_TRIPS_CREATE_IDS);
+      const vehiclesSet = new Set(VEHICLES_CREATE_IDS);
       const wasOpen = isCreatePanelExpanded(panelId, false, state.createPanels || {});
       const nextOpen = !wasOpen;
       state.createPanels = { ...(state.createPanels || {}) };
@@ -612,6 +614,10 @@ function bindDynamicEvents() {
         });
       } else if (transportTripsSet.has(panelId)) {
         TRANSPORT_TRIPS_CREATE_IDS.forEach((id) => {
+          state.createPanels[id] = nextOpen && id === panelId;
+        });
+      } else if (vehiclesSet.has(panelId)) {
+        VEHICLES_CREATE_IDS.forEach((id) => {
           state.createPanels[id] = nextOpen && id === panelId;
         });
       } else {
@@ -633,6 +639,15 @@ function bindDynamicEvents() {
           section: panelId === "create-route-rate" ? "routes" : "trips"
         };
         persistHrWorkspace("transport-trips", "operate");
+      }
+      if (vehiclesSet.has(panelId) && nextOpen) {
+        state.vehiclesUi = {
+          ...(state.vehiclesUi || {}),
+          workspace: "operate",
+          section:
+            panelId === "create-fuel-log" ? "fuel" : panelId === "create-technical-log" ? "technical" : "create"
+        };
+        persistHrWorkspace("transport-vehicles", "operate");
       }
       renderPortalView();
       if (nextOpen) {

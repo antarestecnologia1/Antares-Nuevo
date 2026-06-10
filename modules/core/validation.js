@@ -717,7 +717,7 @@
   }
 
   const FORM_GUARD_SELECTOR =
-    'form.p-form, form[id^="form-"], form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, form.hr-form-flow, #b2b-form, form.calendar-filters-bar, form.history-filter-form, form.history-fleet-filter-form, form.history-fleet-create-form, form.payroll-data-toolbar-filters, form.transport-route-form, form.assign-trip-form, form.create-trip-form, form.profile-form, form.payroll-legal-form';
+    'form.p-form, form[id^="form-"], form.auth-form, form.auth-register-form, form.contact-form-premium, form.modal-edit-form, form.hr-form-flow, #b2b-form, form.calendar-filters-bar, form.history-filter-form, form.history-fleet-filter-form, form.history-fleet-create-form, form.payroll-data-toolbar-filters, form.transport-trip-create-form, form.transport-route-form, form.assign-trip-form, form.create-trip-form, form.profile-form, form.payroll-legal-form';
 
   /** Nombres de campo → reglas Antares (solo si el input aún no tiene `data-antares-field`). */
   const FIELD_NAME_RULES = [

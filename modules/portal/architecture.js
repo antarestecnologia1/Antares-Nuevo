@@ -36,7 +36,12 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "transporte", exportName: "vehiclesHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [
+        {
+          container: ".vehicles-shell",
+          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+        }
+      ]
     },
     "transport-drivers": {
       title: "Transporte · Conductores",

@@ -48,7 +48,8 @@ const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "driverP
 const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "driverPay", "settlement", "absence"]);
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
-const VEHICLE_MODULE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
+const VEHICLE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
+const VEHICLE_WORKSPACES = new Set(["operate", "data"]);
 const TRANSPORT_TRIPS_SECTIONS = new Set(["trips", "routes"]);
 const TRANSPORT_TRIPS_WORKSPACES = new Set(["operate", "data"]);
 const TRANSPORT_TRIPS_LAYOUTS = new Set(["cards", "list"]);
@@ -76,9 +77,32 @@ export function normalizeHiringDataSection(value) {
   return HIRING_DATA_SECTIONS.has(v) ? v : "candidates";
 }
 
-export function normalizeVehicleWorkspaceSection(value) {
+export function normalizeVehicleSection(value) {
   const v = String(value || "fleet");
-  return VEHICLE_MODULE_SECTIONS.has(v) ? v : "fleet";
+  return VEHICLE_SECTIONS.has(v) ? v : "fleet";
+}
+
+/** Pantalla principal del módulo Camiones: Registrar (`operate`) | Consultar (`data`). */
+export function normalizeVehicleWorkspace(value) {
+  const v = String(value || "data");
+  if (v === "fleet") return "data";
+  if (v === "create" || v === "fuel" || v === "technical") return "operate";
+  return VEHICLE_WORKSPACES.has(v) ? v : "data";
+}
+
+/** Resuelve la subsección Flota | Alta | Combustible | Taller, incluyendo estado legacy. */
+export function resolveVehicleSection(ui) {
+  const raw = ui && typeof ui === "object" ? ui : {};
+  const legacy = String(raw.workspace || "");
+  if (legacy === "fleet" || legacy === "create" || legacy === "fuel" || legacy === "technical") {
+    return legacy === "fleet" ? "fleet" : legacy;
+  }
+  return normalizeVehicleSection(raw.section);
+}
+
+/** @deprecated Use `normalizeVehicleSection` — conservado para llamadas legacy. */
+export function normalizeVehicleWorkspaceSection(value) {
+  return normalizeVehicleSection(value);
 }
 
 export function normalizeTransportTripsSection(value) {

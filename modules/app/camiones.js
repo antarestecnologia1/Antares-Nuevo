@@ -37,7 +37,7 @@ function vehicleMatchesFleetSearch(v, qNorm) {
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
-  const vehiclesUi = state.vehiclesUi || { workspace: "fleet" };
+  const vehiclesUi = state.vehiclesUi || { workspace: "data", section: "fleet" };
   const fleetSearchRaw = String(vehiclesUi.fleetSearch ?? "");
   const fleetSearchNorm = fleetSearchRaw.trim().toLowerCase();
   const fleetLayout = normalizeVehicleFleetLayout(vehiclesUi.fleetLayout);
@@ -50,13 +50,27 @@ function vehiclesHtml() {
   const canCreateVeh = canCreateVehicle();
   const canFuelLogs = hasPermission(currentUser(), PERMISSIONS.TRANSPORT_HISTORY);
   const canTechnicalLogs = canFuelLogs;
-  let vehicleWorkspace = normalizeVehicleWorkspaceSection(vehiclesUi.workspace);
-  if (vehicleWorkspace === "create" && !canCreateVeh) vehicleWorkspace = "fleet";
-  if (vehicleWorkspace === "fuel" && !canFuelLogs) vehicleWorkspace = "fleet";
-  if (vehicleWorkspace === "technical" && !canTechnicalLogs) vehicleWorkspace = "fleet";
+  const vehicleOperateTabs = [];
+  if (canCreateVeh) vehicleOperateTabs.push({ id: "create", label: "Registrar vehículo" });
+  if (canFuelLogs) vehicleOperateTabs.push({ id: "fuel", label: "Combustible", count: readFuelLogs().length });
+  if (canTechnicalLogs) vehicleOperateTabs.push({ id: "technical", label: "Taller", count: readVehicleTechnicalLogs().length });
+  let vehicleWorkspace = normalizeVehicleWorkspace(vehiclesUi.workspace);
+  let vehicleSection = resolveVehicleSection(vehiclesUi);
+  if (vehicleWorkspace === "operate" && !vehicleOperateTabs.length) {
+    vehicleWorkspace = "data";
+    vehicleSection = "fleet";
+  } else if (vehicleWorkspace === "operate" && !vehicleOperateTabs.some((tab) => tab.id === vehicleSection)) {
+    vehicleSection = String(vehicleOperateTabs[0]?.id || "fleet");
+    if (!vehicleOperateTabs.length) {
+      vehicleWorkspace = "data";
+      vehicleSection = "fleet";
+    }
+  }
+  if (vehicleWorkspace === "data") vehicleSection = "fleet";
   state.vehiclesUi = {
     ...vehiclesUi,
     workspace: vehicleWorkspace,
+    section: vehicleSection,
     fleetSearch: fleetSearchRaw,
     fleetLayout
   };
@@ -342,28 +356,70 @@ function vehiclesHtml() {
     { label: "Termoking", value: thermokingCount },
     { label: "Docs riesgo", value: documentRiskCount, tone: documentRiskCount ? "alert" : undefined }
   ]);
-  const vehicleWorkspaceTabs = [{ id: "fleet", label: "Flota", count: vehicles.length }];
-  if (canCreateVeh) vehicleWorkspaceTabs.push({ id: "create", label: "Registrar" });
-  if (canFuelLogs) vehicleWorkspaceTabs.push({ id: "fuel", label: "Combustible", count: fuelLogsCount });
-  if (canTechnicalLogs) vehicleWorkspaceTabs.push({ id: "technical", label: "Taller", count: technicalLogsCount });
-  const workspaceNav = renderModuleWindowTabs({
-    ariaLabel: "Opciones del módulo Camiones",
+  const vehiclesHrTabs = [
+    ...(vehicleOperateTabs.length
+      ? [{ id: "operate", label: "Registrar", icon: "plus", hint: "Alta de flota, combustible y taller" }]
+      : []),
+    { id: "data", label: "Consultar", icon: "eye", hint: "Flota y disponibilidad" }
+  ];
+  const vehiclesTabsNav = renderHrWorkspaceTabs({
+    module: "transport-vehicles",
+    ariaLabel: "Secciones del módulo Transporte · Camiones",
     activeId: vehicleWorkspace,
-    action: "vehicles-workspace",
-    valueAttr: "workspace",
-    tabs: vehicleWorkspaceTabs
+    variant: "switch",
+    tabs: vehiclesHrTabs
   });
-  const fleetPanel = `<div class="auth-tab-panel${vehicleWorkspace === "fleet" ? "" : " hidden"}" data-vehicle-panel="fleet"${vehicleWorkspace === "fleet" ? "" : " hidden"}>${pcardWrap("truck", "Flota de camiones", fleetCardSubtitle, fleetMainBody)}</div>`;
+  const vehiclesWorkspaceHeader = renderHrWorkspaceHeader(heroStrip, vehiclesTabsNav, "payroll");
+  const vehicleOperateNav = renderModuleWindowTabs({
+    ariaLabel: "Flujos de registro de camiones",
+    activeId: vehicleSection,
+    action: "vehicles-section",
+    valueAttr: "section",
+    tabs: vehicleOperateTabs
+  });
+  const vehicleDataNav = renderModuleWindowTabs({
+    ariaLabel: "Consultas de flota",
+    activeId: vehicleSection,
+    action: "vehicles-section",
+    valueAttr: "section",
+    tabs: [{ id: "fleet", label: "Flota", count: vehicles.length }]
+  });
   const createPanel = canCreateVeh
-    ? `<div class="auth-tab-panel${vehicleWorkspace === "create" ? "" : " hidden"}" data-vehicle-panel="create"${vehicleWorkspace === "create" ? "" : " hidden"}>${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card hr-form-card gh-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
   const fuelPanel = canFuelLogs
-    ? `<div class="auth-tab-panel${vehicleWorkspace === "fuel" ? "" : " hidden"}" data-vehicle-panel="fuel"${vehicleWorkspace === "fuel" ? "" : " hidden"}>${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card hr-form-card gh-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
   const technicalPanel = canTechnicalLogs
-    ? `<div class="auth-tab-panel${vehicleWorkspace === "technical" ? "" : " hidden"}" data-vehicle-panel="technical"${vehicleWorkspace === "technical" ? "" : " hidden"}>${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card hr-form-card gh-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
-  return `${heroStrip}${workspaceNav}<div class="auth-tab-panels">${fleetPanel}${createPanel}${fuelPanel}${technicalPanel}</div>`;
+  const vehicleOperatePanel =
+    vehicleOperateTabs.length > 0
+      ? `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="operate">
+      <section class="gh-operate vehicles-operate-panel">
+        <aside class="gh-operate__rail" aria-label="Flujos de registro">
+          <span class="gh-operate__rail-label">Registrar</span>
+          ${vehicleOperateNav}
+        </aside>
+        <div class="gh-operate__main auth-tab-panels">${createPanel}${fuelPanel}${technicalPanel}</div>
+      </section>
+    </div>`
+      : "";
+  const fleetDataPane = `<div class="vehicles-data-pane${vehicleSection === "fleet" ? "" : " hidden"}" data-vehicle-data-pane="fleet">
+      ${pcardWrap("truck", "Flota de camiones", fleetCardSubtitle, fleetMainBody)}
+    </div>`;
+  const vehicleDataPanel = `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="data">
+      <section class="gh-data-panel vehicles-data-panel">
+        <div class="vehicles-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${vehicleDataNav}</div>
+        <div class="vehicles-data-panes">${fleetDataPane}</div>
+      </section>
+    </div>`;
+  return `<section class="gh-studio vehicles-shell vehicles-shell--workspace hr-flow-shell hr-module-pro--payroll" data-hr-workspace="${escapeAttr(vehicleWorkspace)}">${vehiclesWorkspaceHeader}
+      <div class="hr-workspace-panels">
+        ${vehicleOperatePanel}
+        ${vehicleDataPanel}
+      </div>
+    </section>`;
 }
 
 
@@ -378,10 +434,25 @@ function vehiclesHtml() {
   function bindTransportVehiclesPortalControls() {
     if (String(state.currentView || "") !== "transport-vehicles" || !nodes.viewRoot) return;
 
-    nodes.viewRoot.querySelectorAll("[data-action='vehicles-workspace']").forEach((btn) => {
+    nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='transport-vehicles']").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const workspace = normalizeVehicleWorkspaceSection(btn.dataset.workspace);
-        state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace };
+        const tab = String(btn.dataset.tab || "");
+        if (!tab) return;
+        const ws = normalizeVehicleWorkspace(tab);
+        if (!HR_VALID_TRANSPORT_VEHICLES_WS.has(ws)) return;
+        state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws };
+        if (ws === "data") state.vehiclesUi.section = "fleet";
+        persistHrWorkspace("transport-vehicles", ws);
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-section']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const section = normalizeVehicleSection(btn.dataset.section);
+        const ws = section === "fleet" ? "data" : "operate";
+        state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws, section };
+        persistHrWorkspace("transport-vehicles", ws);
         renderPortalView();
       });
     });

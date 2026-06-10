@@ -10,7 +10,7 @@ const MODULES = [
   { id: "dashboard", label: "1. Dashboard", selector: "#view-root .ops-dash, #view-root .dash-grid, #view-root .module-shell-body" },
   { id: "requests", label: "2. Mis solicitudes", selector: "#view-root .requests-shell, #view-root #form-request" },
   { id: "transport-trips", label: "3. Viajes", selector: "#view-root .module-shell-body, #view-root .transport-shell" },
-  { id: "transport-vehicles", label: "4. Camiones", selector: "#view-root .module-shell-body, #view-root [id^='create-vehicle']" },
+  { id: "transport-vehicles", label: "4. Camiones", selector: "#view-root .vehicles-shell, #view-root [id^='create-vehicle']" },
   { id: "transport-drivers", label: "5. Conductores", selector: "#view-root .module-shell-body, #view-root .directory-card" },
   { id: "transport-calendar", label: "6. Calendario", selector: "#view-root .calendar-shell, #view-root .module-shell-body" },
   { id: "history", label: "7. Historial", selector: "#view-root .history-module, #view-root .module-shell-body" },

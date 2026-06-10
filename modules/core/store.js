@@ -12,6 +12,7 @@ import {
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
   HR_VALID_TRANSPORT_TRIPS_WS,
+  HR_VALID_TRANSPORT_VEHICLES_WS,
   HR_WORKSPACE_STORAGE
 } from "./config.js";
 import {
@@ -20,7 +21,10 @@ import {
   normalizeHrWorkspace,
   normalizeTransportTripsSection,
   normalizeTransportTripsWorkspace,
-  resolveTransportTripsSection
+  normalizeVehicleSection,
+  normalizeVehicleWorkspace,
+  resolveTransportTripsSection,
+  resolveVehicleSection
 } from "./utils.js";
 
 export let state = {
@@ -88,7 +92,8 @@ export let state = {
     createCompany: {}
   },
   vehiclesUi: {
-    workspace: "fleet",
+    workspace: "data",
+    section: "fleet",
     /** Búsqueda en la pestaña Flota (placa, marca, VIN, etc.). */
     fleetSearch: "",
     /** `cards` | `list` — vista de la flota en Camiones. */
@@ -190,6 +195,7 @@ export function hydrateHrWorkspaceFromStorage() {
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
     const r = localStorage.getItem(HR_WORKSPACE_STORAGE.requests);
     const tt = localStorage.getItem(HR_WORKSPACE_STORAGE.transportTrips);
+    const tv = localStorage.getItem(HR_WORKSPACE_STORAGE.transportVehicles);
     if (p) {
       const ws = normalizeHrWorkspace("payroll", p);
       state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
@@ -219,6 +225,29 @@ export function hydrateHrWorkspaceFromStorage() {
           ...(state.transportTripsUi || {}),
           workspace: normalizeTransportTripsWorkspace(legacySection || tt),
           section: legacySection ? legacySection : resolveTransportTripsSection(state.transportTripsUi)
+        };
+      }
+    }
+    if (tv) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(tv);
+      } catch (_jsonErr) {
+        parsed = null;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state.vehiclesUi = {
+          ...(state.vehiclesUi || {}),
+          workspace: normalizeVehicleWorkspace(parsed.workspace),
+          section: resolveVehicleSection({ workspace: parsed.workspace, section: parsed.section })
+        };
+      } else {
+        const legacySection =
+          tv === "fleet" ? "fleet" : tv === "create" ? "create" : tv === "fuel" ? "fuel" : tv === "technical" ? "technical" : "";
+        state.vehiclesUi = {
+          ...(state.vehiclesUi || {}),
+          workspace: normalizeVehicleWorkspace(legacySection || tv),
+          section: legacySection ? legacySection : resolveVehicleSection(state.vehiclesUi)
         };
       }
     }
@@ -284,6 +313,23 @@ export function persistHrWorkspace(moduleId, workspace) {
         JSON.stringify({
           workspace: normalizeTransportTripsWorkspace(ui.workspace),
           section: normalizeTransportTripsSection(ui.section)
+        })
+      );
+    } else if (moduleId === "transport-vehicles") {
+      const ui = { ...(state.vehiclesUi || {}) };
+      if (HR_VALID_TRANSPORT_VEHICLES_WS.has(ws)) ui.workspace = ws;
+      const workspace = normalizeVehicleWorkspace(ui.workspace);
+      let section = resolveVehicleSection(ui);
+      if (workspace === "data") section = "fleet";
+      else if (section === "fleet") section = "create";
+      ui.workspace = workspace;
+      ui.section = section;
+      state.vehiclesUi = ui;
+      localStorage.setItem(
+        HR_WORKSPACE_STORAGE.transportVehicles,
+        JSON.stringify({
+          workspace,
+          section: normalizeVehicleSection(section)
         })
       );
     } else if (moduleId === "hiring") {
