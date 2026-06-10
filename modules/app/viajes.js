@@ -395,7 +395,7 @@ function transportTripsHtml() {
     rateEntries.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${rateEntries.length} en catálogo</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Catálogo vacío</span>`;
-  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-trip-create-form" autocomplete="off">
+  const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-trip-create-form transport-route-form transport-route-form--revamp" autocomplete="off">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
     <div class="hr-form-wizard gh-emp-wizard gh-transport-wizard" data-hr-wizard="route-rate" aria-label="Configurar trayecto y tarifa por pasos">
       <header class="gh-emp-wizard__head gh-transport-wizard__head">
@@ -420,24 +420,55 @@ function transportTripsHtml() {
         </nav>
         <div class="gh-emp-wizard__panels">
           <div class="hr-form-step is-active" data-step-index="0">
-            <fieldset class="form-section form-section-blue full transport-route-create-form__route">
+            <fieldset class="form-section form-section-blue full transport-route-create-form__route transport-route-form-fieldset--origin">
               <legend>${IC.mapPin} Trayecto</legend>
-              <div class="form-section-grid">
-                <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-                <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
-                <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-                <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
-                <div class="full assign-trip-preview create-trip-summary-panel route-rate-preview" data-route-rate-preview aria-live="polite">
-                  <p class="route-rate-preview-line"><span class="muted">Origen</span> <strong data-route-rate-preview-origin>Seleccione origen</strong> <span class="route-rate-preview-arrow" aria-hidden="true">→</span> <span class="muted">Destino</span> <strong data-route-rate-preview-dest>Seleccione destino</strong></p>
+              <p class="muted form-section-hint route-rate-block-lead">Defina origen y destino. La vista previa se actualiza al elegir ciudad.</p>
+              <div class="route-rate-route-grid">
+                <div class="route-rate-route-col route-rate-route-col--origin">
+                  <span class="route-rate-route-col-badge" aria-hidden="true">O</span>
+                  <div class="route-rate-route-col-fields">
+                    <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                    <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
+                  </div>
+                </div>
+                <div class="route-rate-route-bridge" aria-hidden="true">
+                  <span class="route-rate-route-bridge-line"></span>
+                  <span class="route-rate-route-bridge-icon">${IC.mapPin}</span>
+                  <span class="route-rate-route-bridge-line"></span>
+                </div>
+                <div class="route-rate-route-col route-rate-route-col--dest">
+                  <span class="route-rate-route-col-badge route-rate-route-col-badge--dest" aria-hidden="true">D</span>
+                  <div class="route-rate-route-col-fields">
+                    <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                    <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
+                  </div>
+                </div>
+              </div>
+              <div class="full assign-trip-preview create-trip-summary-panel route-rate-preview" data-route-rate-preview aria-live="polite">
+                <div class="route-rate-preview__leg">
+                  <span class="route-rate-preview__eyebrow">Origen</span>
+                  <span class="route-rate-preview__value" data-route-rate-preview-origin>Seleccione origen</span>
+                </div>
+                <span class="route-rate-preview__arrow" aria-hidden="true">${IC.mapPin}</span>
+                <div class="route-rate-preview__leg">
+                  <span class="route-rate-preview__eyebrow">Destino</span>
+                  <span class="route-rate-preview__value" data-route-rate-preview-dest>Seleccione destino</span>
                 </div>
               </div>
             </fieldset>
           </div>
           <div class="hr-form-step hidden" data-step-index="1">
-            <fieldset class="form-section form-section-violet full transport-route-create-form__price">
+            <fieldset class="form-section form-section-violet full transport-route-create-form__price transport-route-form-fieldset--price">
               <legend>${IC.dollar} Tarifa pactada</legend>
-              <div class="form-section-grid">
-                <label class="full">${fieldLabel(IC.dollar, "Valor del viaje (COP)", { required: true })}<input type="number" name="tripRateCop" min="1" step="1" required placeholder="4.200.000" inputmode="numeric" /></label>
+              <div class="route-rate-price-surface">
+                <label class="route-rate-price-field full">${fieldLabel(IC.dollar, "Valor del viaje", { required: true })}
+                  <div class="route-rate-price-input-wrap">
+                    <span class="route-rate-price-prefix" aria-hidden="true">$</span>
+                    <input type="text" name="tripRateCop" required placeholder="4.200.000" inputmode="numeric" autocomplete="off" data-money-input="1" />
+                    <span class="route-rate-price-suffix" aria-hidden="true">COP</span>
+                  </div>
+                  <span class="route-rate-price-hint muted">Este valor se sugerirá al asignar viajes en la misma ruta.</span>
+                </label>
               </div>
             </fieldset>
           </div>
@@ -497,7 +528,42 @@ function transportTripsHtml() {
     pendingForTrip.length > 0
       ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>`
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">${canApproveInViajes ? "Sin solicitudes por asignar" : "Sin aprobadas por asignar"}</span>`;
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow transport-trip-create-form" autocomplete="off">
+  const tripRequestPickerGroup = (label, list) =>
+    list.length
+      ? `<div class="trip-request-picker__group"><p class="trip-request-picker__group-label">${escapeHtml(label)}</p><div class="trip-request-picker__group-cards">${list.map((r) => buildTripRequestPickerCardHtml(r)).join("")}</div></div>`
+      : "";
+  const tripRequestPickerCards = [
+    canApproveInViajes ? tripRequestPickerGroup("Pendientes · puede aprobar y asignar", pendingApproveTrip) : "",
+    tripRequestPickerGroup("Aprobadas · por asignar", pendingAssignTrip),
+    !pendingApproveTrip.length && !pendingAssignTrip.length
+      ? tripRequestPickerGroup("Disponibles", pendingForTrip)
+      : ""
+  ].join("");
+  const tripRequestPickerEmptyDetail = pendingExpired.length
+    ? "Hay solicitudes con fecha vencida que no se pueden asignar."
+    : canApproveInViajes
+      ? "Cuando haya solicitudes pendientes o aprobadas aparecerán aquí."
+      : "Las solicitudes deben estar aprobadas en Autorizaciones antes de asignar.";
+  const tripRequestPickerEmptyTitle = pendingExpired.length
+    ? "Sin solicitudes asignables hoy"
+    : canApproveInViajes
+      ? "Sin solicitudes pendientes"
+      : "Apruebe solicitudes primero";
+  const tripRequestPickerBody = pendingForTrip.length
+    ? `<div class="trip-request-picker" data-trip-request-picker>
+        <label class="trip-request-picker__search-wrap full">${fieldLabel(IC.search || IC.eye, "Buscar solicitud")}
+          <input type="search" class="trip-request-picker__search" data-trip-request-search placeholder="Cliente, ruta, número de solicitud…" autocomplete="off" />
+        </label>
+        <p class="trip-request-picker__empty muted hidden" data-trip-request-empty role="status"></p>
+        <div class="trip-request-picker__list" data-trip-request-list role="listbox" aria-label="Solicitudes para asignar">${tripRequestPickerCards}</div>
+        <select name="requestId" id="create-trip-request-select" class="visually-hidden" required tabindex="-1" aria-hidden="true">
+          <option value="">Seleccione…</option>
+          ${pendingSelectOpts}
+        </select>
+      </div>`
+    : `<div class="trip-request-picker-empty">${createTripEmptyHint("inbox", tripRequestPickerEmptyTitle, tripRequestPickerEmptyDetail)}</div>
+      <select name="requestId" id="create-trip-request-select" disabled hidden aria-hidden="true"><option value=""></option></select>`;
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow transport-trip-create-form assign-trip-form assign-trip-form--revamp" autocomplete="off">
     <div class="hr-form-wizard gh-emp-wizard gh-transport-wizard" data-hr-wizard="trip-assign" aria-label="Asignar viaje por pasos">
       <header class="gh-emp-wizard__head gh-transport-wizard__head">
         <div class="gh-emp-wizard__head-copy">
@@ -521,38 +587,39 @@ function transportTripsHtml() {
         </nav>
         <div class="gh-emp-wizard__panels">
           <div class="hr-form-step is-active" data-step-index="0">
-            <fieldset class="form-section form-section-blue full transport-trip-create-form__request">
-              <legend>${IC.inbox} Solicitud de transporte</legend>
-              <div class="form-section-grid">
-                <label class="full">${fieldLabel(IC.inbox, "Solicitud", { required: true })}
-                  <select name="requestId" id="create-trip-request-select" ${pendingForTrip.length ? "required" : "disabled"}>
-                    <option value="">${pendingForTrip.length ? "Seleccione…" : pendingExpired.length ? "Sin asignables hoy" : canApproveInViajes ? "Sin solicitudes pendientes" : "Apruebe solicitudes en Autorizaciones primero"}</option>
-                    ${pendingSelectOpts}
-                    ${expiredPendingOpts ? `<optgroup label="Vencidas (no asignables)">${expiredPendingOpts}</optgroup>` : ""}
-                  </select>
-                </label>
-                <div class="full assign-trip-preview create-trip-summary-panel" id="trip-request-preview">${createTripEmptyHint("inbox", "Seleccione una solicitud")}</div>
+            <div class="assign-trip-block transport-trip-create-form__request">
+              <div class="assign-trip-block-head">
+                <h4 class="assign-trip-block-title">${IC.inbox} Elija la solicitud</h4>
+                <span class="muted trip-request-picker-count">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>
               </div>
-            </fieldset>
+              <div class="assign-trip-block-body">
+                ${tripRequestPickerBody}
+                <div class="full assign-trip-preview create-trip-summary-panel" id="trip-request-preview">${createTripEmptyHint("inbox", "Seleccione una solicitud", "Al elegir una tarjeta verá el resumen de ruta, cliente y recogida.")}</div>
+              </div>
+            </div>
           </div>
           <div class="hr-form-step hidden" data-step-index="1">
-            <fieldset class="form-section form-section-violet full transport-trip-create-form__resources">
-              <legend>${IC.truck} Vehículo y conductor</legend>
-              <p class="muted form-section-hint create-trip-flag-legend assign-trip-flags" role="list" aria-label="Banderas en listas">
-                <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
-                <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
-                <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
-              </p>
-              <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
-              <div class="form-section-grid assign-trip-fleet-grid create-trip-fleet-grid">
-                <label>${fieldLabel(IC.truck, "Vehículo", { required: true })}
-                  <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
-                </label>
-                <label>${fieldLabel(IC.user, "Conductor", { required: true })}
-                  <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
-                </label>
+            <div class="assign-trip-block transport-trip-create-form__resources">
+              <div class="assign-trip-block-head">
+                <h4 class="assign-trip-block-title">${IC.truck} Vehículo y conductor</h4>
+                <p class="muted form-section-hint create-trip-flag-legend assign-trip-flags" role="list" aria-label="Banderas en listas">
+                  <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
+                  <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
+                  <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
+                </p>
               </div>
-            </fieldset>
+              <div class="assign-trip-block-body">
+                <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
+                <div class="assign-trip-fleet-grid create-trip-fleet-grid">
+                  <label class="assign-trip-resource create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
+                    <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
+                  </label>
+                  <label class="assign-trip-resource create-trip-fleet-field">${fieldLabel(IC.user, "Conductor", { required: true })}
+                    <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="hr-form-step hidden" data-step-index="2">
             <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing">
@@ -611,26 +678,24 @@ function transportTripsHtml() {
       { id: "routes", label: "Trayectos", count: rateEntries.length }
     ]
   });
-  const tripsCreateCard = createCollapsibleProCard(
-    "create-trip",
-    "truck",
-    "Asignar viaje",
-    `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"} · 3 pasos`,
-    createTripForm,
-    "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-trip",
-    "Abrir formulario",
-    { createPanels: state.createPanels }
-  );
-  const routesCreateCard = createCollapsibleProCard(
-    "create-route-rate",
-    "mapPin",
-    "Configurar trayecto y tarifa",
-    `${rateEntries.length} catalogada${rateEntries.length === 1 ? "" : "s"} · 3 pasos`,
-    routeRateForm,
-    "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-route",
-    "Abrir formulario",
-    { createPanels: state.createPanels }
-  );
+  const tripsCreateCard = `<section id="create-trip" class="transport-operate-panel gh-operate-panel" data-create-panel="create-trip">
+    ${pcardWrapPro(
+      "truck",
+      "Asignar viaje",
+      `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"} · guía en 3 pasos`,
+      createTripForm,
+      "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-trip"
+    )}
+  </section>`;
+  const routesCreateCard = `<section id="create-route-rate" class="transport-operate-panel gh-operate-panel" data-create-panel="create-route-rate">
+    ${pcardWrapPro(
+      "mapPin",
+      "Configurar trayecto y tarifa",
+      `${rateEntries.length} catalogada${rateEntries.length === 1 ? "" : "s"} · guía en 3 pasos`,
+      routeRateForm,
+      "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-route"
+    )}
+  </section>`;
   const tripsOperatePane = `<div class="auth-tab-panel${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-operate-pane="trips">${tripsCreateCard}</div>`;
   const routesOperatePane = `<div class="auth-tab-panel${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-operate-pane="routes">${routesCreateCard}</div>`;
   const transportOperatePanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="operate">
@@ -837,10 +902,16 @@ function transportTripsHtml() {
     const createTripForm = document.getElementById("form-create-trip");
     if (createTripForm) {
       bindHrFormWizard(createTripForm);
+      wireCreateTripRequestPicker(createTripForm);
       const onCreateTripProgress = () => updateCreateTripStepper(createTripForm);
       createTripForm.addEventListener("change", (ev) => {
         const t = ev.target;
-        if (t?.matches?.("select[name='vehicleId'], select[name='driverId']")) onCreateTripProgress();
+        if (t?.matches?.("select[name='vehicleId'], select[name='driverId']")) {
+          onCreateTripProgress();
+          const veh = String(createTripForm.querySelector("select[name='vehicleId']")?.value || "").trim();
+          const drv = String(createTripForm.querySelector("select[name='driverId']")?.value || "").trim();
+          if (veh && drv) tryAutoAdvanceTransportWizard(createTripForm, "trip-assign");
+        }
       });
       createTripForm.addEventListener("input", (ev) => {
         if (ev.target?.matches?.("input[name='tripValue']")) onCreateTripProgress();
@@ -996,7 +1067,7 @@ function transportTripsHtml() {
           Boolean(String(originCity?.value || "").trim()) &&
           Boolean(String(destDept?.value || "").trim()) &&
           Boolean(String(destCity?.value || "").trim());
-        const priceOk = parseNum(routeRateFormEl.querySelector("input[name='tripRateCop']")?.value || 0) > 0;
+        const priceOk = parseMoneyFieldValue(routeRateFormEl.querySelector("input[name='tripRateCop']")?.value || 0) > 0;
         const scope = String(routeRateFormEl.querySelector("[data-route-rate-scope-field]")?.value || "all");
         const scopeOk =
           scope === "all" ||
@@ -1022,6 +1093,13 @@ function transportTripsHtml() {
                 `<li class="create-trip-readiness-item assign-trip-check${it.done ? " is-done" : ""}" title="${escapeAttr(it.label)}"><span class="create-trip-readiness-mark" aria-hidden="true">${it.done ? IC.check : ""}</span><span class="assign-trip-check-label">${escapeHtml(it.short)}</span></li>`
             )
             .join("");
+        }
+        const wizardActiveStep = routeRateFormEl.querySelector('[data-hr-wizard="route-rate"] .hr-form-step.is-active');
+        const onLastStep = String(wizardActiveStep?.dataset?.stepIndex || "") === "2";
+        if (submitBtn && onLastStep) {
+          const ready = routeOk && priceOk && scopeOk;
+          submitBtn.disabled = !ready;
+          submitBtn.setAttribute("aria-disabled", ready ? "false" : "true");
         }
       };
       const resetRateScopeMount = () => {
@@ -1050,7 +1128,10 @@ function transportTripsHtml() {
           openRouteRateInlineEdit(key);
         });
       });
-      const onRouteFieldChange = () => updateRouteRatePreview();
+      const onRouteFieldChange = () => {
+        updateRouteRatePreview();
+        tryAutoAdvanceTransportWizard(routeRateFormEl, "route-rate");
+      };
       if (originDept && originCity) {
         originDept.addEventListener("change", () => {
           fillRouteRateCities(originDept, originCity);
@@ -1066,6 +1147,7 @@ function transportTripsHtml() {
         destCity.addEventListener("change", onRouteFieldChange);
       }
       updateRouteRatePreview();
+      wireMoneyInputs(routeRateFormEl);
       wireRouteRateScopeSection(routeRateFormEl);
       routeRateFormEl.addEventListener("change", (ev) => {
         const t = ev.target;
@@ -1090,6 +1172,13 @@ function transportTripsHtml() {
         }
       });
       bindHrFormWizard(routeRateFormEl);
+      routeRateFormEl
+        .querySelectorAll(
+          '[data-hr-wizard="route-rate"] [data-hr-wizard-dot], [data-hr-wizard="route-rate"] [data-hr-wizard-next], [data-hr-wizard="route-rate"] [data-hr-wizard-prev]'
+        )
+        .forEach((btn) => {
+          btn.addEventListener("click", () => queueMicrotask(() => updateRouteRatePreview()));
+        });
       const pendingEditKey = state.pendingRouteRateEditKey;
       if (pendingEditKey) {
         state.pendingRouteRateEditKey = null;
@@ -1115,7 +1204,7 @@ function transportTripsHtml() {
         const oc = normalizeLatinForDb(String(data.originCity || "").trim());
         const dd = normalizeLatinForDb(String(data.destinationDepartment || "").trim());
         const dc = normalizeLatinForDb(String(data.destinationCity || "").trim());
-        const tripRateCop = parseNum(data.tripRateCop);
+        const tripRateCop = parseMoneyFieldValue(data.tripRateCop);
         if (!od || !oc || !dd || !dc) {
           notify(userMessage("routeRateSelectRoute"), "error");
           return;

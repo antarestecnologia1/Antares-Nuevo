@@ -1783,4 +1783,172 @@ body[data-theme="dark"] .requests-shell .requests-company-row__meta {
     border-bottom: 1px solid var(--gh-edge);
     padding: 0.55rem;
   }
+
+  .gh-studio .route-rate-route-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gh-studio .route-rate-route-bridge {
+    flex-direction: row;
+    padding: 0.15rem 0;
+  }
+
+  .gh-studio .route-rate-route-bridge-line {
+    width: auto;
+    height: 2px;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
+/* Asignar viaje — selector visual de solicitudes */
+.gh-studio .trip-request-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.gh-studio .trip-request-picker__search {
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--gh-edge));
+  background: color-mix(in srgb, var(--primary) 3%, var(--gh-card));
+  font-size: 0.88rem;
+}
+
+.gh-studio .trip-request-picker__search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--gh-edge));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.gh-studio .trip-request-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: min(22rem, 52vh);
+  overflow-y: auto;
+  padding-right: 0.1rem;
+}
+
+.gh-studio .trip-request-picker__group-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.gh-studio .trip-request-picker__group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.55rem;
+}
+
+.gh-studio .trip-request-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.28rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 13px;
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-card);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.gh-studio .trip-request-card:hover {
+  border-color: color-mix(in srgb, var(--gh-blue) 35%, var(--gh-edge));
+  background: color-mix(in srgb, var(--gh-blue) 5%, var(--gh-card));
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.gh-studio .trip-request-card.is-selected {
+  border-color: color-mix(in srgb, var(--gh-blue) 55%, var(--gh-edge));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gh-blue) 10%, var(--gh-card)), var(--gh-card));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--gh-blue) 14%, transparent);
+}
+
+.gh-studio .trip-request-card.hidden {
+  display: none;
+}
+
+.gh-studio .trip-request-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.gh-studio .trip-request-card__ref {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--gh-navy);
+}
+
+.gh-studio .trip-request-card__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--gh-edge);
+}
+
+.gh-studio .trip-request-card__status--pending {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 14%, var(--gh-card));
+  border-color: color-mix(in srgb, #f59e0b 30%, var(--gh-edge));
+}
+
+.gh-studio .trip-request-card__status--approved {
+  color: #047857;
+  background: color-mix(in srgb, #10b981 14%, var(--gh-card));
+  border-color: color-mix(in srgb, #10b981 30%, var(--gh-edge));
+}
+
+.gh-studio .trip-request-card__client {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--gh-navy);
+  line-height: 1.35;
+}
+
+.gh-studio .trip-request-card__route {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.gh-studio .trip-request-card__meta {
+  font-size: 0.74rem;
+  color: var(--text-soft);
+}
+
+.gh-studio #form-create-trip .assign-trip-block,
+.gh-studio #form-route-rate .assign-trip-block {
+  margin: 0;
+}
+
+.gh-studio #form-route-rate .route-rate-route-grid {
+  margin-bottom: 0.85rem;
+}
+
+.gh-studio #form-route-rate .route-rate-preview {
+  margin-top: 0.15rem;
+}
+
+.gh-studio #trip-request-preview .create-trip-empty-detail {
+  display: block;
 }

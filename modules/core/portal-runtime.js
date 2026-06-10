@@ -3575,7 +3575,13 @@ function populateRouteRateInlineForm(storageKey) {
     editingHint.hidden = false;
     editingHint.textContent = `${formatRouteRateAuditSummary(entry)}. Al guardar se sobrescribirá el valor anterior.`;
   }
-  if (tripRateInput) tripRateInput.value = String(parseNum(entry.value));
+  if (tripRateInput) {
+    const val = parseNum(entry.value);
+    tripRateInput.value =
+      tripRateInput.dataset.moneyInput === "1" || tripRateInput.getAttribute("data-money-input") === "1"
+        ? formatMoneyFieldValue(val)
+        : String(val);
+  }
 
   if (scopeMount) {
     scopeMount.innerHTML = buildRouteRateScopeStepInnerHtml(companies, {
@@ -3892,6 +3898,119 @@ function createTripEmptyHint(iconKey, title, detail = "") {
     <span class="create-trip-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></span>
     <div class="create-trip-empty-copy"><p class="create-trip-empty-title">${escapeHtml(title)}</p>${detailHtml}</div>
   </div>`;
+}
+
+/** Tarjeta visual para elegir solicitud al asignar viaje. */
+function buildTripRequestPickerCardHtml(request, opts = {}) {
+  if (!request) return "";
+  const selected = !!opts.selected;
+  const pending = request.status === STATUS.PENDIENTE;
+  const statusLabel = pending ? "Pendiente" : "Aprobada";
+  const statusClass = pending ? "trip-request-card__status--pending" : "trip-request-card__status--approved";
+  const route = formatRoute(request);
+  const pickup = fmtDate(request.pickupAt) || "Sin fecha";
+  const truck = String(request.vehicleType || request.requiredTruckType || "—").trim() || "—";
+  const searchHay = [
+    request.requestNumber,
+    request.id,
+    request.clientName,
+    request.originCity,
+    request.originDepartment,
+    request.destinationCity,
+    request.destinationDepartment,
+    route,
+    statusLabel,
+    truck
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return `<button type="button" class="trip-request-card${selected ? " is-selected" : ""}" data-trip-request-pick="${escapeAttr(String(request.id || ""))}" data-trip-request-search="${escapeAttr(searchHay)}" role="option"${selected ? ' aria-selected="true"' : ""}>
+    <span class="trip-request-card__head">
+      <strong class="trip-request-card__ref">${escapeHtml(String(request.requestNumber || request.id || "—"))}</strong>
+      <span class="trip-request-card__status ${statusClass}">${escapeHtml(statusLabel)}</span>
+    </span>
+    <span class="trip-request-card__client">${escapeHtml(String(request.clientName || "Cliente"))}</span>
+    <span class="trip-request-card__route">${escapeHtml(route)}</span>
+    <span class="trip-request-card__meta">${escapeHtml(pickup)} · ${escapeHtml(truck)}</span>
+  </button>`;
+}
+
+/** Sincroniza buscador y tarjetas del selector visual de solicitudes. */
+function wireCreateTripRequestPicker(formEl) {
+  const picker = formEl?.querySelector("[data-trip-request-picker]");
+  const select = formEl?.querySelector("select[name='requestId']");
+  if (!picker || !select) return;
+
+  const search = picker.querySelector("[data-trip-request-search]");
+  const list = picker.querySelector("[data-trip-request-list]");
+  const emptyEl = picker.querySelector("[data-trip-request-empty]");
+
+  const syncSelection = () => {
+    const current = String(select.value || "").trim();
+    list?.querySelectorAll("[data-trip-request-pick]").forEach((btn) => {
+      const on = String(btn.getAttribute("data-trip-request-pick") || "") === current;
+      btn.classList.toggle("is-selected", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  };
+
+  const syncFilter = () => {
+    const needle = String(search?.value || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    let visible = 0;
+    list?.querySelectorAll("[data-trip-request-pick]").forEach((btn) => {
+      const hay = String(btn.getAttribute("data-trip-request-search") || "");
+      const show = !needle || hay.includes(needle);
+      btn.classList.toggle("hidden", !show);
+      if (show) visible += 1;
+    });
+    if (emptyEl) {
+      const noHits = needle && visible === 0;
+      emptyEl.classList.toggle("hidden", !noHits);
+      if (noHits) emptyEl.textContent = "Ninguna solicitud coincide con la búsqueda.";
+    }
+  };
+
+  const wireCards = () => {
+    list?.querySelectorAll("[data-trip-request-pick]").forEach((btn) => {
+      if (btn.dataset.tripRequestPickWired === "1") return;
+      btn.dataset.tripRequestPickWired = "1";
+      btn.addEventListener("click", () => {
+        const id = String(btn.getAttribute("data-trip-request-pick") || "").trim();
+        if (!id) return;
+        select.value = id;
+        syncSelection();
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        tryAutoAdvanceTransportWizard(formEl, "trip-assign");
+      });
+    });
+  };
+
+  if (picker.dataset.tripRequestPickerWired !== "1") {
+    picker.dataset.tripRequestPickerWired = "1";
+    search?.addEventListener("input", syncFilter);
+    select.addEventListener("change", syncSelection);
+    wireCards();
+  } else {
+    wireCards();
+  }
+  syncSelection();
+  syncFilter();
+}
+
+/** Avanza el wizard de transporte cuando el paso actual ya está completo. */
+function tryAutoAdvanceTransportWizard(formEl, wizardKind) {
+  const wizard = formEl?.querySelector(`[data-hr-wizard="${wizardKind}"]`);
+  if (!wizard) return;
+  const activeStep = wizard.querySelector(".hr-form-step.is-active");
+  const nextBtn = wizard.querySelector("[data-hr-wizard-next]");
+  if (!activeStep || !nextBtn || nextBtn.disabled || nextBtn.classList.contains("hidden")) return;
+  const stepRes = hrWizardStepValid(activeStep);
+  if (stepRes?.ok) nextBtn.click();
 }
 
 /** Resumen compacto de la solicitud (formulario asignar viaje). */
@@ -4452,7 +4571,11 @@ function refreshCreateTripModuleForm(formEl) {
 
   if (!request) {
     if (preview) {
-      preview.innerHTML = createTripEmptyHint("inbox", "Seleccione una solicitud");
+      preview.innerHTML = createTripEmptyHint(
+        "inbox",
+        "Seleccione una solicitud",
+        "Al elegir una tarjeta verá el resumen de ruta, cliente y recogida."
+      );
       preview.classList.remove("create-trip-summary-panel--active", "assign-trip-preview--filled");
     }
     if (fleetStats) fleetStats.innerHTML = "";
@@ -11577,6 +11700,7 @@ Object.assign(window, {
   confirmDiscardCreateFormAsync,
   contractTemplateFileName,
   coverageMainRouteHubRows,
+  buildTripRequestPickerCardHtml,
   createTripEmptyHint,
   createTripSummaryTile,
   daysUntil,
@@ -11880,7 +12004,9 @@ Object.assign(window, {
   tryApiLoginBridge,
   updateAutoApprove,
   updateCreateTripResourceFieldHints,
+  tryAutoAdvanceTransportWizard,
   updateCreateTripStepper,
+  wireCreateTripRequestPicker,
   updatePhoneFieldForCountry,
   updatePortalDataHydratingBanner,
   upsertPortalUserRowIntoCache,
