@@ -10,6 +10,7 @@ import {
   CLIENT_DATA_SCOPE_STORAGE,
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
+  HR_VALID_REQUESTS_WS,
   HR_WORKSPACE_STORAGE
 } from "./config.js";
 import {
@@ -105,6 +106,7 @@ export let state = {
   },
   requestsUi: {
     companyId: "",
+    workspace: "operate",
     /** Búsqueda en el listado de solicitudes (re-render + restauración de foco). */
     listSearch: "",
     /** `cards` | `list` — mismo patrón que Camiones / Viajes. */
@@ -174,10 +176,16 @@ export function hydrateHrWorkspaceFromStorage() {
   try {
     const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
+    const r = localStorage.getItem(HR_WORKSPACE_STORAGE.requests);
     if (p) {
       const ws = normalizeHrWorkspace("payroll", p);
       state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
       if (p !== ws) persistHrWorkspace("payroll", ws);
+    }
+    if (r) {
+      const ws = normalizeHrWorkspace("requests", r);
+      state.requestsUi = { ...(state.requestsUi || {}), workspace: ws };
+      if (r !== ws) persistHrWorkspace("requests", ws);
     }
     if (h) {
       let parsed = null;
@@ -229,6 +237,9 @@ export function persistHrWorkspace(moduleId, workspace) {
   try {
     if (moduleId === "payroll" && HR_VALID_PAYROLL_WS.has(ws)) {
       localStorage.setItem(HR_WORKSPACE_STORAGE.payroll, ws);
+    } else if (moduleId === "requests" && HR_VALID_REQUESTS_WS.has(ws)) {
+      state.requestsUi = { ...(state.requestsUi || {}), workspace: ws };
+      localStorage.setItem(HR_WORKSPACE_STORAGE.requests, ws);
     } else if (moduleId === "hiring") {
       const ui = { ...(state.hiringUi || {}) };
       if (HR_VALID_HIRING_WS.has(ws)) ui.workspace = ws;

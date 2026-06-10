@@ -11,12 +11,13 @@ window.PortalArchitecture = (() => {
       title: "Solicitudes",
       access: "permission-gated",
       shell: true,
-      renderer: [
-        { module: "solicitudes", exportName: "requestModuleHeadHtml" },
-        { module: "solicitudes", exportName: "requestListClientHtml", passUser: true },
-        { module: "solicitudes", exportName: "requestCreateFormHtml" }
-      ],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".ops-filters-bar", ".toolbar", ".p-card", ".table-wrap", ".empty-state", "[id^='create-']"] }]
+      renderer: [{ module: "solicitudes", exportName: "requestsHtml", passUser: true }],
+      layoutPlan: [
+        {
+          container: ".requests-shell",
+          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+        }
+      ]
     },
     "transport-trips": {
       title: "Transporte · Viajes",

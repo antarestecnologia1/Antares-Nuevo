@@ -8,7 +8,7 @@ const BASE_URL = process.env.PORTAL_BASE_URL || "http://127.0.0.1:4173/";
 
 const MODULES = [
   { id: "dashboard", label: "1. Dashboard", selector: "#view-root .ops-dash, #view-root .dash-grid, #view-root .module-shell-body" },
-  { id: "requests", label: "2. Mis solicitudes", selector: "#view-root .module-shell-body, #view-root [id^='create-request']" },
+  { id: "requests", label: "2. Mis solicitudes", selector: "#view-root .requests-shell, #view-root #form-request" },
   { id: "transport-trips", label: "3. Viajes", selector: "#view-root .module-shell-body, #view-root .transport-shell" },
   { id: "transport-vehicles", label: "4. Camiones", selector: "#view-root .module-shell-body, #view-root [id^='create-vehicle']" },
   { id: "transport-drivers", label: "5. Conductores", selector: "#view-root .module-shell-body, #view-root .directory-card" },

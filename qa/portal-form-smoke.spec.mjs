@@ -647,7 +647,12 @@ test("portal form smoke", async ({ page, context }) => {
     await clickDom(`[data-action='hr-workspace-tab'][data-module='${moduleId}'][data-tab='${tabId}']`);
     await page.waitForFunction(
       ({ module, tab }) => {
-        const attr = module === "payroll" ? "data-payroll-panel" : "data-hiring-panel";
+        const attr =
+          module === "payroll"
+            ? "data-payroll-panel"
+            : module === "requests"
+              ? "data-requests-panel"
+              : "data-hiring-panel";
         const panel = document.querySelector(`[${attr}="${tab}"]`);
         return panel && !panel.classList.contains("hidden") && !panel.hasAttribute("hidden");
       },
@@ -687,7 +692,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Mis solicitudes:create", async () => {
     await gotoView("requests");
-    await ensureCreatePanelOpen("create-request");
+    await ensureHrWorkspace("requests", "operate");
     const before = await arrayLen(KEYS.requests);
     await submitForm("#form-request", [
       ["companyId", "co-flores"],
@@ -715,6 +720,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Mis solicitudes:edit", async () => {
     await gotoView("requests");
+    await ensureHrWorkspace("requests", "data");
     const beforeRows = await readStore(KEYS.requests);
     const beforeReq = (beforeRows || []).find((row) => row.id === "req-edit");
     await clickDom("[data-action='edit-request'][data-id='req-edit']");

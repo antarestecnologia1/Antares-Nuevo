@@ -83,7 +83,7 @@ const seedStore = {
  * paneles de creación a expandir y selector del formulario a recorrer.
  */
 const TARGETS = [
-  { module: "2. Mis solicitudes", view: "requests", patch: {}, panels: { "create-request": true }, form: "#form-request" },
+  { module: "2. Mis solicitudes", view: "requests", patch: { requestsUi: { workspace: "operate" } }, panels: {}, form: "#form-request" },
   {
     module: "3. Viajes (asignar viaje)",
     view: "transport-trips",

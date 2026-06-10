@@ -301,8 +301,8 @@
     return scopeBar + clientHero;
   }
 
-  /** Formulario colapsable de nueva solicitud (debajo del listado en la vista del portal). */
-  function requestCreateFormHtml() {
+  /** Cuerpo del formulario de nueva solicitud (sin envoltorio de pantalla). */
+  function requestCreateFormBodyHtml() {
     const user = currentUser();
     const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
     const departments = Object.keys(COLOMBIA_LOCATIONS)
@@ -315,7 +315,7 @@
           <input value="${escapeHtml(companyName)}" disabled />
           <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
         </label>`;
-    const body = `<form id="form-request" class="p-form p-form-colored">
+    return `<form id="form-request" class="p-form p-form-colored">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Empresa y ruta</legend>
       <div class="form-section-grid">
@@ -358,7 +358,24 @@
     <label class="full">Observaciones <textarea name="notes" rows="3" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
     <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
   </form>`;
-    return createCollapsibleCard("create-request", "plus", "Nueva solicitud de viaje", "Selecciona origen, destino, fecha y hora de forma guiada", body, "Crear solicitud", { createPanels: state.createPanels });
+  }
+
+  /** Pantalla Registrar: formulario de alta (siempre visible). */
+  function requestCreateFormPanelHtml() {
+    return `<section id="create-request" class="requests-operate-panel gh-operate-panel" data-create-panel="create-request">
+      ${pcardWrapPro(
+        "plus",
+        "Nueva solicitud de viaje",
+        "Selecciona origen, destino, fecha y hora de forma guiada",
+        requestCreateFormBodyHtml(),
+        "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl"
+      )}
+    </section>`;
+  }
+
+  /** Compatibilidad: solo el panel de creación. */
+  function requestCreateFormHtml() {
+    return requestCreateFormPanelHtml();
   }
 
   /** Compatibilidad: cabecera + formulario en un solo bloque (orden antiguo). */
@@ -422,7 +439,16 @@
       </div>
     </div>`;
     if (user?.role === ROLES.ADMIN) {
-      const selectedCompanyId = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "");
+      let selectedCompanyId = "";
+      try {
+        selectedCompanyId = String(
+          (typeof state !== "undefined" && state?.requestsUi?.companyId) ||
+            window.AppModules?.solicitudes?.adminCompanyFilterId ||
+            ""
+        );
+      } catch (_) {
+        selectedCompanyId = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "");
+      }
       const companies = read(KEYS.companies, []);
       const selectedCompany = companies.find((c) => String(c.id) === selectedCompanyId) || null;
       const byCompany = selectedCompanyId
@@ -444,7 +470,7 @@
         ? `${afterFilter.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
         : `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}${listLayout === "list" ? " · vista lista" : ""}`;
       const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${requestListToolbar}${opsCards}`);
-      return `${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}`;
+      return `<section class="requests-data-panel gh-data-panel">${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}</section>`;
     }
     const panelTitle =
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
@@ -464,11 +490,47 @@
       listMeta,
       `${filtersBar}${requestListToolbar}${opsCards}`
     );
-    return opsPanel;
+    return `<section class="requests-data-panel gh-data-panel">${opsPanel}</section>`;
+  }
+
+  /** Vista principal: Registrar | Consultar (mismo patrón que Gestión humana). */
+  function requestsHtml(user) {
+    const requestsUi = state.requestsUi || { workspace: "operate" };
+    const requestsWorkspace =
+      typeof normalizeHrWorkspace === "function"
+        ? normalizeHrWorkspace("requests", requestsUi.workspace)
+        : String(requestsUi.workspace || "operate") === "data"
+          ? "data"
+          : "operate";
+    const moduleHead = requestModuleHeadHtml();
+    const requestsTabsNav = renderHrWorkspaceTabs({
+      module: "requests",
+      ariaLabel: "Secciones del módulo Solicitudes",
+      activeId: requestsWorkspace,
+      variant: "switch",
+      tabs: [
+        { id: "operate", label: "Registrar", icon: "plus", hint: "Nueva solicitud de viaje" },
+        { id: "data", label: "Consultar", icon: "eye", hint: "Listado y filtros" }
+      ]
+    });
+    const workspaceHeader = renderHrWorkspaceHeader(moduleHead, requestsTabsNav, "payroll");
+    const operatePanel = `<div class="hr-workspace-panel requests-workspace-panel${requestsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-requests-panel="operate">
+      ${requestCreateFormPanelHtml()}
+    </div>`;
+    const dataPanel = `<div class="hr-workspace-panel requests-workspace-panel${requestsWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-requests-panel="data">
+      ${requestListClientHtml(user)}
+    </div>`;
+    return `<section class="gh-studio requests-shell requests-shell--workspace hr-flow-shell hr-module-pro--payroll" data-hr-workspace="${escapeAttr(requestsWorkspace)}">${workspaceHeader}
+      <div class="hr-workspace-panels">
+        ${operatePanel}
+        ${dataPanel}
+      </div>
+    </section>`;
   }
 
   window.AppModules.solicitudes.requestModuleHeadHtml = requestModuleHeadHtml;
   window.AppModules.solicitudes.requestCreateFormHtml = requestCreateFormHtml;
   window.AppModules.solicitudes.requestFormHtml = requestFormHtml;
   window.AppModules.solicitudes.requestListClientHtml = requestListClientHtml;
+  window.AppModules.solicitudes.requestsHtml = requestsHtml;
 })();

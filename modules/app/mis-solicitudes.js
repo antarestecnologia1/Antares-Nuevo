@@ -363,7 +363,9 @@
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(actingUser.id);
         }
         notify(userMessage("requestCreated"), "success");
-        collapseCreatePanel("create-request");
+        requestForm.reset();
+        state.requestsUi = { ...(state.requestsUi || {}), workspace: "data" };
+        if (typeof persistHrWorkspace === "function") persistHrWorkspace("requests", "data");
         renderPortalView();
       },
       { busyText: "Creando solicitud…" }
@@ -372,6 +374,25 @@
 
   function bindMisSolicitudesPortalControls() {
     if (String(state.currentView || "") !== "requests" || !nodes.viewRoot) return;
+
+    nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='requests']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = String(btn.dataset.tab || "");
+        if (!tab) return;
+        const ws =
+          typeof normalizeHrWorkspace === "function" ? normalizeHrWorkspace("requests", tab) : tab === "data" ? "data" : "operate";
+        if (ws !== "operate" && ws !== "data") return;
+        state.requestsUi = { ...(state.requestsUi || {}), workspace: ws };
+        if (typeof persistHrWorkspace === "function") persistHrWorkspace("requests", ws);
+        if (ws === "data" && typeof portalCanRefreshFromApi === "function" && portalCanRefreshFromApi()) {
+          void applyPortalBootstrapFromApi().then((ok) => {
+            if (ok && typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();
+          });
+        }
+        renderPortalView();
+      });
+    });
+
     wireMisSolicitudesListActions();
     wireRequestCreateForm();
 

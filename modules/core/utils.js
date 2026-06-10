@@ -2,7 +2,7 @@
  * Utilidades puras (sin `state`, `nodes`, persistencia ni DOM).
  * Se exponen en `window` desde `index.html` junto con `config.js` para scripts clásicos.
  */
-import { CO_TIMEZONE, HR_VALID_HIRING_WS, HR_VALID_PAYROLL_WS } from "./config.js";
+import { CO_TIMEZONE, HR_VALID_HIRING_WS, HR_VALID_PAYROLL_WS, HR_VALID_REQUESTS_WS } from "./config.js";
 import { normalizeLatinForDb, normalizePortalPhoneForStorage } from "../domain/payroll-catalog-sanitize.domain.js";
 
 /** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
@@ -173,6 +173,7 @@ export function normalizeHrWorkspace(moduleId, workspace) {
     if (ws === "track") return "data";
     return HR_VALID_HIRING_WS.has(ws) ? ws : "operate";
   }
+  if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
   return ws;
 }
 
