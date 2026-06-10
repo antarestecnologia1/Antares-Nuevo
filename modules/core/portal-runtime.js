@@ -9300,11 +9300,9 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     lastDupToastSig = "";
     docInput.dataset.dupLastToastMsg = "";
     docInput.dataset.dupToastTs = "";
+    docInput.dataset.dupError = "";
     docInput.dataset.serverDupError = "";
-    if (String(docInput.dataset.dupError || "") === "1") {
-      docInput.dataset.dupError = "";
-      V?.clearFieldError?.(docInput);
-    }
+    V?.clearFieldError?.(docInput);
     docInput.setCustomValidity?.("");
   };
 
@@ -9418,7 +9416,13 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     }
     const docType = String(docTypeSel?.value || "CC").toUpperCase();
     const docVal = validateColombianDocument(docType, rawDoc);
-    if (!docVal.ok) return true;
+    if (!docVal.ok) {
+      serverCheckSeq += 1;
+      if (String(docInput.dataset.dupError || "") !== "1" && String(docInput.dataset.serverDupError || "") !== "1") {
+        clearBlock();
+      }
+      return true;
+    }
     const needle = payrollEmployeeDocumentDedupKey(docType, docVal.normalized);
     const companyId = String(companySel?.value || "").trim();
     const records = read(storageKey, []);
@@ -9429,9 +9433,13 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       return payrollEmployeeDocumentDedupKey(rdt, r.idDoc) === needle;
     });
     if (!matches.length) {
-      if (String(docInput.dataset.dupError || "") !== "1") {
+      /* Sin coincidencia local: quitar aviso visual; el servidor puede volver a marcar duplicado. */
+      if (String(docInput.dataset.serverDupError || "") !== "1") {
+        clearBlock();
+      } else {
         docInput.dataset.dupError = "";
-        if (String(docInput.dataset.serverDupError || "") !== "1") clearBlock();
+        V?.clearFieldError?.(docInput);
+        docInput.setCustomValidity?.("");
       }
     } else {
       const blocking = useCompanyScope
