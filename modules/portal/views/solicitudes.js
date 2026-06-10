@@ -206,13 +206,80 @@
     };
     const pill = (key, label, count) =>
       `<button type="button" class="ops-filter-pill${activeFilter === key ? " is-active" : ""}" data-action="requests-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
-    return `<div class="ops-filters-bar">
+    return `<div class="requests-data-filters ops-filters-bar" role="group" aria-label="Filtrar por estado">
       ${pill("all", "Todas", counts.all)}
       ${pill("pending", "Pendientes", counts.pending)}
       ${pill("active", "En operación", counts.active)}
       ${pill("closed", "Cerradas", counts.closed)}
       ${pill("cancelled", "Canceladas", counts.cancelled)}
     </div>`;
+  }
+
+  function requestDataHeadHtml({ eyebrow, title, meta, actionsHtml }) {
+    return `<header class="requests-data-head">
+      <div class="requests-data-head__copy">
+        ${eyebrow ? `<span class="requests-data-head__eyebrow">${eyebrow}</span>` : ""}
+        <h3 class="requests-data-head__title">${escapeHtml(title)}</h3>
+        ${meta ? `<p class="requests-data-head__meta muted">${escapeHtml(meta)}</p>` : ""}
+      </div>
+      ${actionsHtml || ""}
+    </header>`;
+  }
+
+  function requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout) {
+    return `<div class="requests-data-toolbar">
+      <div class="requests-data-toolbar__filters">${filtersBar}</div>
+      <div class="requests-data-toolbar__tools">
+        <label class="requests-data-search transport-ops-search">
+          <span class="requests-data-search__icon" aria-hidden="true">${IC.search || ""}</span>
+          <input type="search" data-action="requests-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Buscar cliente, ruta, número, conductor…" autocomplete="off" />
+        </label>
+        <div class="requests-data-layout transport-ops-layout" role="group" aria-label="Tarjetas o lista">
+          <button type="button" class="btn btn-sm ${listLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="cards">${IC.grid || ""} Tarjetas</button>
+          <button type="button" class="btn btn-sm ${listLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="list">${IC.layers || ""} Lista</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function requestDataResultMetaHtml(shown, total, { listSearchNorm, listLayout, scopeLabel }) {
+    const scope = scopeLabel ? ` · ${escapeHtml(scopeLabel)}` : "";
+    const search = listSearchNorm ? " · búsqueda activa" : "";
+    const layout = listLayout === "list" ? " · vista lista" : "";
+    return `<p class="requests-data-result-meta" aria-live="polite">Mostrando <strong>${shown}</strong> de <strong>${total}</strong> solicitud${total === 1 ? "" : "es"}${scope}${search}${layout}</p>`;
+  }
+
+  function requestDataConsultShell({ user, headHtml, toolbarHtml, resultMetaHtml, resultsHtml, adminHubHtml, companyCount }) {
+    const isAdmin = user?.role === ROLES.ADMIN && adminHubHtml;
+    if (!isAdmin) {
+      return `<section class="requests-data-panel gh-data-panel">
+        ${headHtml}
+        ${toolbarHtml}
+        ${resultMetaHtml}
+        <div class="requests-data-results">${resultsHtml}</div>
+      </section>`;
+    }
+    return `<section class="requests-data-panel gh-data-panel">
+      <div class="requests-data-layout requests-data-layout--admin">
+        <aside class="requests-data-sidebar" aria-label="Empresas clientes">
+          <div class="requests-data-sidebar__head">
+            <div>
+              <span class="requests-data-sidebar__eyebrow">Clientes</span>
+              <h4 class="requests-data-sidebar__title">Empresas</h4>
+            </div>
+            <span class="requests-data-sidebar__count">${companyCount}</span>
+          </div>
+          <p class="requests-data-sidebar__hint muted">Seleccione una empresa para filtrar la bandeja.</p>
+          <div class="requests-data-sidebar__hub">${adminHubHtml}</div>
+        </aside>
+        <div class="requests-data-main">
+          ${headHtml}
+          ${toolbarHtml}
+          ${resultMetaHtml}
+          <div class="requests-data-results">${resultsHtml}</div>
+        </div>
+      </div>
+    </section>`;
   }
 
   function applyRequestFilter(requests, filterKey) {
@@ -413,13 +480,12 @@
 
   function requestListClientHtml(user) {
     const requests = getVisibleRequestsForUser(user);
-    /**
-     * Lectura defensiva de state.requestsFilter: ambos scripts comparten el
-     * mismo script-scope (classic <script>), pero protegemos con try/catch
-     * por si en algún flujo se llama antes de inicializar el state.
-     */
     let activeFilter = "all";
-    try { activeFilter = String((typeof state !== "undefined" && state?.requestsFilter) || "all"); } catch (_) { /* noop */ }
+    try {
+      activeFilter = String((typeof state !== "undefined" && state?.requestsFilter) || "all");
+    } catch (_) {
+      /* noop */
+    }
     let listSearchRaw = "";
     let listSearchNorm = "";
     let listLayout = "cards";
@@ -427,17 +493,10 @@
       listSearchRaw = String((typeof state !== "undefined" && state?.requestsUi?.listSearch) || "");
       listSearchNorm = listSearchRaw.trim().toLowerCase();
       listLayout = normalizeRequestsListLayout(typeof state !== "undefined" && state?.requestsUi?.listLayout);
-    } catch (_) { /* noop */ }
-    const requestListToolbar = `<div class="transport-ops-toolbar vehicle-fleet-toolbar request-fleet-toolbar">
-      <label class="transport-ops-search">
-        <span class="muted">${IC.search || ""} Buscar</span>
-        <input type="search" data-action="requests-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Cliente, ruta, número, conductor, estado…" autocomplete="off" />
-      </label>
-      <div class="transport-ops-layout" role="group" aria-label="Tarjetas o lista">
-        <button type="button" class="btn btn-sm ${listLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="cards">Tarjetas</button>
-        <button type="button" class="btn btn-sm ${listLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="list">Lista</button>
-      </div>
-    </div>`;
+    } catch (_) {
+      /* noop */
+    }
+
     if (user?.role === ROLES.ADMIN) {
       let selectedCompanyId = "";
       try {
@@ -458,20 +517,44 @@
       const afterFilter = listSearchNorm
         ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
         : statusFiltered;
+      const companyCount = Object.keys(
+        requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})
+      ).filter(Boolean).length;
       const hub = requestAdminCompanyHubHtml(requests, selectedCompanyId);
       const filtersBar = requestFiltersBarHtml(byCompany, activeFilter);
-      const opsCards = requestOpsCardsHtml(afterFilter, user, listLayout);
-      const headToolbar = `<div class="toolbar request-admin-toolbar">
-        <span class="request-admin-toolbar-status">${selectedCompany ? `${IC.briefcase} Filtrando por: <strong>${escapeHtml(selectedCompany.name || "Cliente")}</strong>` : `${IC.briefcase} Vista general multiempresa`}</span>
-        <button class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Ver todas las empresas</button>
+      const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
+      const resultsHtml = requestOpsCardsHtml(afterFilter, user, listLayout);
+      const scopeBadge = selectedCompany
+        ? `<span class="requests-data-scope-badge requests-data-scope-badge--active">${IC.briefcase} ${escapeHtml(selectedCompany.name || "Cliente")}</span>`
+        : `<span class="requests-data-scope-badge">${IC.briefcase} Vista multiempresa</span>`;
+      const headActions = `<div class="requests-data-head__actions">
+        ${scopeBadge}
+        <button type="button" class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Limpiar filtro</button>
       </div>`;
-      const opsTitle = selectedCompany ? `Solicitudes · ${selectedCompany.name || "Cliente"}` : "Todas las solicitudes";
-      const opsSubtitle = listSearchNorm
-        ? `${afterFilter.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
-        : `${afterFilter.length} de ${byCompany.length} ${selectedCompany ? "del cliente" : "totales"}${listLayout === "list" ? " · vista lista" : ""}`;
-      const opsPanel = pcardWrap("activity", opsTitle, opsSubtitle, `${headToolbar}${filtersBar}${requestListToolbar}${opsCards}`);
-      return `<section class="requests-data-panel gh-data-panel">${pcardWrap("briefcase", "Panel de empresas clientes", `${Object.keys(requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})).filter(Boolean).length} empresas activas`, hub)}${opsPanel}</section>`;
+      const headHtml = requestDataHeadHtml({
+        eyebrow: "Bandeja operativa",
+        title: selectedCompany ? selectedCompany.name || "Cliente" : "Todas las solicitudes",
+        meta: selectedCompany
+          ? "Solicitudes de transporte del cliente seleccionado."
+          : "Resumen consolidado de solicitudes por empresa.",
+        actionsHtml: headActions
+      });
+      const resultMetaHtml = requestDataResultMetaHtml(afterFilter.length, byCompany.length, {
+        listSearchNorm,
+        listLayout,
+        scopeLabel: selectedCompany ? "cliente filtrado" : "todas las empresas"
+      });
+      return requestDataConsultShell({
+        user,
+        headHtml,
+        toolbarHtml,
+        resultMetaHtml,
+        resultsHtml,
+        adminHubHtml: hub,
+        companyCount
+      });
     }
+
     const panelTitle =
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
     const statusFiltered = applyRequestFilter(requests, activeFilter);
@@ -479,18 +562,25 @@
       ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
       : statusFiltered;
     const filtersBar = requestFiltersBarHtml(requests, activeFilter);
-    const opsCards = requestOpsCardsHtml(filtered, user, listLayout);
-    /** Barra "Ver: toda empresa / solo mías" va en `requestModuleHeadHtml`, no dentro de esta tarjeta. */
-    const listMeta = listSearchNorm
-      ? `${filtered.length} de ${statusFiltered.length} con búsqueda activa${listLayout === "list" ? " · vista lista" : ""}`
-      : `${filtered.length} de ${requests.length} registradas${listLayout === "list" ? " · vista lista" : ""}`;
-    const opsPanel = pcardWrap(
-      "activity",
-      panelTitle,
-      listMeta,
-      `${filtersBar}${requestListToolbar}${opsCards}`
-    );
-    return `<section class="requests-data-panel gh-data-panel">${opsPanel}</section>`;
+    const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
+    const resultsHtml = requestOpsCardsHtml(filtered, user, listLayout);
+    const headHtml = requestDataHeadHtml({
+      eyebrow: "Bandeja operativa",
+      title: panelTitle,
+      meta: "Seguimiento de solicitudes, estados y viajes asociados."
+    });
+    const resultMetaHtml = requestDataResultMetaHtml(filtered.length, requests.length, {
+      listSearchNorm,
+      listLayout,
+      scopeLabel: activeFilter === "all" ? "todos los estados" : "filtro activo"
+    });
+    return requestDataConsultShell({
+      user,
+      headHtml,
+      toolbarHtml,
+      resultMetaHtml,
+      resultsHtml
+    });
   }
 
   /** Vista principal: Registrar | Consultar (mismo patrón que Gestión humana). */
