@@ -7322,7 +7322,7 @@ export class PortalService implements OnModuleInit {
       read_at?: unknown;
     };
     const rows = data as NotifRow[];
-    const adminAudience = this.isAdmin(role);
+    const admin = this.isAdmin(role);
     const hrAudience = this.roleMayRunContractRenewalNotices(role);
 
     const explicitDeleteIds = (Array.isArray(deletedIds) ? deletedIds : [])
@@ -7337,7 +7337,7 @@ export class PortalService implements OnModuleInit {
              OR (audiencia = 'admins' AND $3::boolean)
              OR (audiencia = 'hr' AND $4::boolean)
            )`,
-        [explicitDeleteIds, userId, adminAudience, hrAudience]
+        [explicitDeleteIds, userId, admin, hrAudience]
       );
     }
 
