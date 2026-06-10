@@ -223,6 +223,11 @@
     employeeCreatedWithContract: "Empleado creado y contrato Word generado.",
     employeeCreatedWordFail: (msg) => `Empleado creado. No se pudo generar Word: ${msg}`,
     employeeCreatedOk: "Empleado registrado correctamente.",
+    employeeSaveServerFail: (detail) => {
+      const msg = String(detail || "").trim();
+      if (msg && !/^internal server error$/i.test(msg)) return msg;
+      return "No se pudo confirmar el guardado en el servidor. El colaborador no quedó persistido; revise conexión, sesión y datos del formulario e intente de nuevo.";
+    },
     employeeCreatedDriverSyncFail:
       "El empleado quedó guardado, pero no se pudo sincronizar la ficha de conductor. Revise licencia y conexión, luego edite el empleado.",
     employeeContractWordOk: "Contrato Word generado. Revise la carpeta de descargas.",

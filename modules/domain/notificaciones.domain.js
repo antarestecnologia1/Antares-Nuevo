@@ -290,6 +290,27 @@ export function filterNotificationsForUser(user, list) {
 
 let __contractRenewalNoticeCheckWallMs = 0;
 
+/** Refresco liviano de la bandeja (sin bootstrap completo). */
+async function refreshNotificationsBellFromApi() {
+  const api = window.AntaresApi;
+  if (!api?.getJson || !portalCanRefreshFromApi()) return false;
+  try {
+    const res = await api.getJson("/portal/notifications");
+    const raw = Array.isArray(res?.notifications) ? res.notifications : [];
+    const actor = currentUser();
+    const filtered =
+      actor && !canViewAllNotifications(actor) ? filterNotificationsForUser(actor, raw) : raw;
+    const prev = read(KEYS.notifications, []);
+    const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
+    write(KEYS.notifications, merged, { skipSyncSchedule: true });
+    reconcileNotificationsCacheForSession();
+    updateNotificationBadge();
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 /** Pide al servidor crear notificaciones de aviso de no renovación (término fijo) y refresca la bandeja. */
 export async function refreshContractRenewalNotificationsFromServer() {
   const api = window.AntaresApi;
@@ -301,20 +322,18 @@ export async function refreshContractRenewalNotificationsFromServer() {
   __contractRenewalNoticeCheckWallMs = now;
   try {
     await api.postJson("/portal/hr/contract-renewal-notices/run", {});
-    await applyPortalBootstrapFromApi();
-    try {
-      reconcileNotificationsCacheForSession();
-      updateNotificationBadge();
-    } catch (_e) {
-      /* noop */
-    }
+    await refreshNotificationsBellFromApi();
     return true;
   } catch (err) {
-    if (typeof notify === "function") {
-      window.notify(
-        String(err?.message || "No fue posible actualizar los avisos de renovación contractual."),
-        "error"
-      );
+    try {
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn(
+          "Avisos de renovación contractual (segundo plano):",
+          err?.message || err
+        );
+      }
+    } catch (_e) {
+      /* noop */
     }
     return false;
   }

@@ -343,7 +343,7 @@ function vehiclesHtml() {
     { label: "Docs riesgo", value: documentRiskCount, tone: documentRiskCount ? "alert" : undefined }
   ]);
   const vehicleWorkspaceTabs = [{ id: "fleet", label: "Flota", count: vehicles.length }];
-  if (canCreateVeh) vehicleWorkspaceTabs.push({ id: "create", label: "Registrar", count: totalCount });
+  if (canCreateVeh) vehicleWorkspaceTabs.push({ id: "create", label: "Registrar" });
   if (canFuelLogs) vehicleWorkspaceTabs.push({ id: "fuel", label: "Combustible", count: fuelLogsCount });
   if (canTechnicalLogs) vehicleWorkspaceTabs.push({ id: "technical", label: "Taller", count: technicalLogsCount });
   const workspaceNav = renderModuleWindowTabs({

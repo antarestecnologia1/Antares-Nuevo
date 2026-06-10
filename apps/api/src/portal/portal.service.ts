@@ -7454,7 +7454,25 @@ export class PortalService implements OnModuleInit {
         "No se pudo guardar el colaborador: hay una referencia inválida en el servidor."
       );
     }
-    throw err instanceof Error ? err : new Error(msg);
+    if (code === "23514" || /check constraint|chk_empleados/i.test(msg)) {
+      throw new BadRequestException(
+        "Datos médicos o de contrato no cumplen las reglas de la base de datos. Revise enfermedad/condición y fechas."
+      );
+    }
+    if (code === "22001" || /value too long|too long for type/i.test(msg)) {
+      throw new BadRequestException(
+        "Algún texto del colaborador supera el tamaño permitido (nombre, dirección, cuenta bancaria, etc.)."
+      );
+    }
+    if (code === "42703" || /column .* does not exist/i.test(msg)) {
+      throw new BadRequestException(
+        "El servidor no tiene el esquema de empleados actualizado. Ejecute npm run db:init o alinee la tabla empleados_nomina."
+      );
+    }
+    this.logger.error(`syncPayrollEmployees documento ${idDoc}: ${sanitizeLogText(msg)}`);
+    throw new BadRequestException(
+      `No se pudo guardar el colaborador (documento ${idDoc}). Revise fechas, empresa y datos obligatorios.`
+    );
   }
 
   private async syncPayrollEmployees(
@@ -7889,7 +7907,10 @@ export class PortalService implements OnModuleInit {
         p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
         portalDateOrNull(p(e, "contractEndDate")),
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.workSchedule, p(e, "workSchedule")),
-        (p(e, "avatarUrl") as string) || null,
+        (() => {
+          const rawAvatar = String((p(e, "avatarUrl") as string) || "").trim();
+          return rawAvatar && !rawAvatar.startsWith("data:") ? rawAvatar : null;
+        })(),
         em(p(e, "corporateEmail"))
       ];
 

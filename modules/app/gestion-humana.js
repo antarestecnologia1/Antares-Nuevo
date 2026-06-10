@@ -1333,16 +1333,20 @@ function bindPayrollPortalControls() {
             return;
           }
         }
+        const newEmployeeId = newUuidV4();
+        const createdEmployee = stampCreatedRecord({ id: newEmployeeId, ...payload });
         const all = read(KEYS.payrollEmployees, []);
-        all.push(stampCreatedRecord({ id: newUuidV4(), ...payload }));
+        all.push(createdEmployee);
         try {
-          await writeAwaitServer(KEYS.payrollEmployees, all);
+          await writeAwaitServer(KEYS.payrollEmployees, all, { notifyOnFailure: false });
         } catch (err) {
-          notify(String(err?.message || "No fue posible guardar el empleado en el servidor."), "error");
+          const rolledBack = read(KEYS.payrollEmployees, []).filter(
+            (row) => String(row.id) !== newEmployeeId
+          );
+          write(KEYS.payrollEmployees, rolledBack, { skipSyncSchedule: true });
+          notify(userMessage("employeeSaveServerFail", err?.message), "error");
           return;
         }
-        scheduleContractRenewalNotificationCheck();
-        const createdEmployee = all[all.length - 1];
         const propagate = await propagateEmployeeChanges(createdEmployee, {
           license: payload.license,
           licenseCategory: payload.licenseCategory,
@@ -1362,7 +1366,10 @@ function bindPayrollPortalControls() {
         }
         if (portalCanRefreshFromApi()) {
           try {
-            await applyPortalBootstrapFromApi();
+            const refreshed = await window.PayrollEmployeeListSync?.refreshFromApi?.();
+            if (!refreshed) {
+              await applyPortalBootstrapFromApi({ skipSecondaryHydration: true });
+            }
           } catch (_e) {}
         }
         state.payrollUi = {
@@ -1379,6 +1386,7 @@ function bindPayrollPortalControls() {
           "success"
         );
         renderPortalView();
+        scheduleContractRenewalNotificationCheck();
       };
       await saveEmployee(resolvedAvatar);
     }, {

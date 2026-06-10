@@ -6850,9 +6850,53 @@ function renderHistoryCard(request) {
   </article>`;
 }
 
-function renderHistoryResultsList(items) {
+function renderHistoryRequestRow(request) {
+  const statusSlug = slugStatus(request.status);
+  const number = String(request.requestNumber || request.id || "").trim();
+  const client = String(request.clientName || "").trim() || "—";
+  const origin = String(request.originCity || "").trim() || "—";
+  const dest = String(request.destinationCity || "").trim() || "—";
+  const driver = historyDriverLabel(request);
+  const plate = historyPlateLabel(request);
+  const trip = String(request.trip?.tripNumber || "").trim();
+  const tripValue = parseNum(request.trip?.tripValue ?? request.tripValue ?? 0);
+  const valueLabel = tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "—";
+  const created = fmtDate(request.createdAt);
+  const pickup = fmtDate(request.pickupAt);
+  const actions = `<div class="toolbar history-list-actions">
+      <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.eye} Ver</button>
+      ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
+    </div>`;
+  return `<tr class="history-list-row history-list-row--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
+    <td data-label="Solicitud"><strong>${escapeHtml(number)}</strong><div class="muted history-list-sub"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</div></td>
+    <td data-label="Cliente">${escapeHtml(client)}</td>
+    <td data-label="Ruta" title="${escapeAttr(formatRoute(request))}"><span class="history-list-route">${escapeHtml(origin)}</span><span class="history-list-route-arrow" aria-hidden="true">→</span><span class="history-list-route">${escapeHtml(dest)}</span></td>
+    <td data-label="Estado">${prettyStatus(request.status)}</td>
+    <td data-label="Conductor">${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</td>
+    <td data-label="Placa">${plate ? `<span class="history-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</td>
+    <td data-label="Viaje">${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
+    <td data-label="Tarifa">${escapeHtml(valueLabel)}</td>
+    <td data-label="Acciones" class="history-list-actions">${actions}</td>
+  </tr>`;
+}
+
+function renderHistoryResultsList(items, layout = "cards") {
+  const viewLayout =
+    typeof globalThis.normalizeHistoryLayout === "function"
+      ? globalThis.normalizeHistoryLayout(layout)
+      : String(layout || "").trim().toLowerCase() === "list"
+        ? "list"
+        : "cards";
   if (!items.length) {
     return `<div class="history-empty-state"><p class="muted">No hay registros con los filtros actuales. Prueba otro periodo, cliente o quita el filtro rápido.</p></div>`;
+  }
+  if (viewLayout === "list") {
+    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-results-grid">
+    <thead><tr>
+      <th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Estado</th><th>Conductor</th><th>Placa</th><th>Viaje</th><th>Tarifa</th><th>Acciones</th>
+    </tr></thead>
+    <tbody>${items.map(renderHistoryRequestRow).join("")}</tbody>
+  </table></div>`;
   }
   return `<div class="history-cards-grid" id="history-results-grid">${items.map(renderHistoryCard).join("")}</div>`;
 }
@@ -6979,16 +7023,81 @@ function renderHistoryTechnicalLogCard(log) {
   </article>`;
 }
 
-function renderHistoryFuelLogsList(logs) {
+function renderHistoryFuelLogRow(log) {
+  const liters = parseNum(log.liters);
+  const total = parseNum(log.totalCost);
+  const perLiter = parseNum(log.costPerLiter) || (liters > 0 ? Math.round(total / liters) : 0);
+  const paid = String(log.paidBy || "empresa") === "conductor" ? "conductor" : "empresa";
+  const paidLabel = paid === "conductor" ? "Reembolso nómina" : "Empresa";
+  const trip = String(log.tripNumber || "").trim();
+  return `<tr class="history-list-row history-list-row--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
+    <td data-label="Fecha"><time datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time></td>
+    <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "—"))}</strong></td>
+    <td data-label="Conductor">${escapeHtml(String(log.driverName || "—"))}${trip ? `<div class="muted history-list-sub">${escapeHtml(trip)}</div>` : ""}</td>
+    <td data-label="Litros">${liters.toLocaleString("es-CO", { maximumFractionDigits: 2 })} L</td>
+    <td data-label="Total" class="history-fleet-log-money">$${total.toLocaleString("es-CO")}</td>
+    <td data-label="$/L">$${perLiter.toLocaleString("es-CO")}</td>
+    <td data-label="Estación">${log.station ? escapeHtml(log.station) : '<span class="muted">—</span>'}</td>
+    <td data-label="Pagado"><span class="history-fleet-badge history-fleet-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span></td>
+  </tr>`;
+}
+
+function renderHistoryTechnicalLogRow(log) {
+  const typeKey = String(log.type || "preventivo");
+  const typeLabel = HISTORY_FLEET_TECH_LABELS[typeKey] || typeKey;
+  const status = String(log.status || "Pendiente");
+  const statusSlug = slugStatus(status);
+  const cost = parseNum(log.cost);
+  const hours = parseNum(log.downtimeHours);
+  return `<tr class="history-list-row history-list-row--technical history-list-row--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
+    <td data-label="Fecha"><time datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time></td>
+    <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "—"))}</strong></td>
+    <td data-label="Descripción">${escapeHtml(String(log.description || "—"))}</td>
+    <td data-label="Tipo"><span class="history-fleet-badge history-fleet-badge--type">${escapeHtml(typeLabel)}</span></td>
+    <td data-label="Estado"><span class="history-fleet-badge history-fleet-badge--status">${escapeHtml(status)}</span></td>
+    <td data-label="Costo" class="history-fleet-log-money">$${cost.toLocaleString("es-CO")}</td>
+    <td data-label="Fuera de servicio">${hours > 0 ? `${hours.toLocaleString("es-CO")} h` : '<span class="muted">0 h</span>'}</td>
+  </tr>`;
+}
+
+function renderHistoryFuelLogsList(logs, layout = "cards") {
+  const viewLayout =
+    typeof globalThis.normalizeHistoryLayout === "function"
+      ? globalThis.normalizeHistoryLayout(layout)
+      : String(layout || "").trim().toLowerCase() === "list"
+        ? "list"
+        : "cards";
   if (!logs.length) {
     return `<div class="history-empty-state history-fleet-empty"><p class="muted">Aún no hay cargas de combustible registradas. Registre la primera desde el módulo <strong>Camiones</strong>.</p></div>`;
+  }
+  if (viewLayout === "list") {
+    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-fuel-results-grid">
+    <thead><tr>
+      <th>Fecha</th><th>Placa</th><th>Conductor</th><th>Litros</th><th>Total</th><th>$/L</th><th>Estación</th><th>Pagado</th>
+    </tr></thead>
+    <tbody>${logs.map(renderHistoryFuelLogRow).join("")}</tbody>
+  </table></div>`;
   }
   return `<div class="history-fleet-log-grid" id="history-fuel-results-grid">${logs.map(renderHistoryFuelLogCard).join("")}</div>`;
 }
 
-function renderHistoryTechnicalLogsList(logs) {
+function renderHistoryTechnicalLogsList(logs, layout = "cards") {
+  const viewLayout =
+    typeof globalThis.normalizeHistoryLayout === "function"
+      ? globalThis.normalizeHistoryLayout(layout)
+      : String(layout || "").trim().toLowerCase() === "list"
+        ? "list"
+        : "cards";
   if (!logs.length) {
     return `<div class="history-empty-state history-fleet-empty"><p class="muted">No hay novedades de taller en este periodo. Registre preventivos, correctivos o fallas desde el módulo <strong>Camiones</strong>.</p></div>`;
+  }
+  if (viewLayout === "list") {
+    return `<div class="table-wrap history-list-wrap"><table class="vehicle-fleet-table history-list-table" id="history-technical-results-grid">
+    <thead><tr>
+      <th>Fecha</th><th>Placa</th><th>Descripción</th><th>Tipo</th><th>Estado</th><th>Costo</th><th>Fuera de servicio</th>
+    </tr></thead>
+    <tbody>${logs.map(renderHistoryTechnicalLogRow).join("")}</tbody>
+  </table></div>`;
   }
   return `<div class="history-fleet-log-grid" id="history-technical-results-grid">${logs.map(renderHistoryTechnicalLogCard).join("")}</div>`;
 }
@@ -7007,14 +7116,17 @@ function refreshHistoryFleetKpiStrip(selector, metrics) {
   if (root) root.outerHTML = historyFleetKpiStrip(metrics);
 }
 
-function historyFleetFilterToolbar(formId, fieldsHtml) {
+function historyFleetFilterToolbar(formId, fieldsHtml, layout = "cards") {
+  const viewToggle =
+    typeof globalThis.historyViewToggleHtml === "function" ? globalThis.historyViewToggleHtml(layout) : "";
   return `<form id="${escapeAttr(formId)}" class="history-fleet-filter-form" novalidate>
-    <div class="history-toolbar history-fleet-toolbar">
+    <div class="history-toolbar history-fleet-toolbar history-toolbar--with-view">
       <label class="history-toolbar-search">
         <span class="visually-hidden">Buscar</span>
         ${IC.search || IC.filter}
         <input type="search" name="q" placeholder="Placa, conductor, estación, viaje…" autocomplete="off" />
       </label>
+      ${viewToggle}
       <details class="history-advanced-filters history-fleet-advanced">
         <summary class="btn btn-sm btn-action">${IC.filter} Filtros</summary>
         <div class="history-advanced-filters-body history-fleet-filters-body">${fieldsHtml}
@@ -10221,7 +10333,7 @@ function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
 function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = {}) {
   const stripLargeAvatar = Boolean(avatarOpts.stripLargeAvatar);
   let merged = String(avatarOpts.avatarUrl ?? raw.avatarUrl ?? "").trim();
-  if (stripLargeAvatar && merged.startsWith("data:")) merged = "";
+  if (merged.startsWith("data:")) merged = "";
   const avatarUrl = merged;
   const position = getPositionById(String(raw.positionId || ""));
   if (!position || position.active === false) {
