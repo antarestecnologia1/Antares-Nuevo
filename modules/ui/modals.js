@@ -378,11 +378,14 @@ export function bindFixedTermContractEndPreview(root, cfg) {
       return;
     }
     if (amtEl && !String(amtEl.value || "").trim()) amtEl.value = "1";
-    if (unitSel && String(unitSel.value || "").trim().toLowerCase() !== "anios") {
+    if (unitSel && !String(unitSel.value || "").trim()) {
       unitSel.value = "anios";
       unitSel.dispatchEvent(new Event("change", { bubbles: true }));
     }
     const start = readPlazoStartYmd();
+    const unit = String(unitSel?.value || "").trim().toLowerCase();
+    const parsedAmt = parseInt(String(amtEl?.value ?? "").trim(), 10);
+    const amount = Number.isFinite(parsedAmt) ? Math.max(1, Math.floor(parsedAmt)) : 1;
     const endYmd = resolveEmployeeContractEndDateYmd(contractType, start, {
       contractDurationUnit: unitSel?.value,
       contractDurationAmount: amtEl?.value,
@@ -391,8 +394,11 @@ export function bindFixedTermContractEndPreview(root, cfg) {
     writeEndYmd(endYmd);
     if (hintEl) {
       const notice = endYmd ? addDaysToYmd(endYmd, -30) : "";
+      let plazoLabel = "1 año";
+      if (unit === "meses") plazoLabel = `${amount} ${amount === 1 ? "mes" : "meses"}`;
+      else if (unit === "anios") plazoLabel = `${amount} ${amount === 1 ? "año" : "años"}`;
       hintEl.textContent = endYmd
-        ? `Plazo legal sugerido: 1 año (hasta ${fmtDateOr(endYmd)}). Si no renovará, avise al trabajador antes del ${fmtDateOr(notice)}.`
+        ? `Plazo legal sugerido: ${plazoLabel} (hasta ${fmtDateOr(endYmd)}). Si no renovará, avise al trabajador antes del ${fmtDateOr(notice)}.`
         : "Indique la fecha de inicio del contrato vigente (o de ingreso) para calcular la fecha fin.";
     }
   };
