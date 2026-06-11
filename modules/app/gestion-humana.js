@@ -24,6 +24,7 @@ function payrollHtml() {
   const driverPaymentRunsAll = filterDriverTripPaymentRuns(allRuns);
   const conductorEmployees = listConductorServiceEmployees(employees);
   const nominaEmployees = listPayrollNominaEmployees(employees);
+  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
   const payrollLiquidationMode = String(payrollUi.liquidationMode || "single").toLowerCase() === "bulk" ? "bulk" : "single";
   const payrollNominaEmployeeOptions = nominaEmployees
     .map(
@@ -33,7 +34,6 @@ function payrollHtml() {
     .join("");
   const absences = readArray(KEYS.hrAbsences);
   const filters = state.payrollFilters || defaultPayrollFilters();
-  const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
   const runSort = String(payrollUi.runSort || "recent");
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
