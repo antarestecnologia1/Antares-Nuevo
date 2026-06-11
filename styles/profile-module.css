@@ -1,0 +1,90 @@
+/* ===================================================================
+   Mi perfil — Studio independiente
+   Alcance exclusivo: .profile-studio
+   =================================================================== */
+
+.profile-studio {
+  --prf-navy: #0b2138;
+  --prf-blue: var(--primary, #377cc0);
+  --prf-blue-soft: var(--primary-light, #cce5f8);
+  --prf-surface: #f4f8fc;
+  --prf-card: #ffffff;
+  --prf-edge: rgba(55, 124, 192, 0.14);
+  --prf-edge-strong: rgba(55, 124, 192, 0.22);
+  --prf-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --prf-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --prf-radius: 18px;
+  --prf-radius-sm: 12px;
+  --prf-accent: #0284c7;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.profile-studio .prf-studio-head,
+.profile-studio .profile-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--prf-radius);
+  border: 1px solid var(--prf-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--prf-accent) 8%, transparent), transparent 55%), var(--prf-card);
+  box-shadow: var(--prf-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-studio .prf-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.profile-studio .prf-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--prf-radius);
+  border: 1px solid var(--prf-edge);
+  background: var(--prf-card);
+  box-shadow: var(--prf-shadow-sm);
+}
+
+.profile-studio .prf-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.profile-studio .prf-operate__main { min-width: 0; }
+
+.profile-studio .prf-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--prf-radius);
+  border: 1px solid var(--prf-edge);
+  background: var(--prf-card);
+  box-shadow: var(--prf-shadow-sm);
+}
+
+.profile-studio .prf-form-card.admin-users-data-card {
+  border-radius: var(--prf-radius);
+  border: 1px solid var(--prf-edge-strong);
+  background: var(--prf-card);
+  box-shadow: var(--prf-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .profile-studio .prf-operate { grid-template-columns: 1fr; }
+  .profile-studio .prf-operate__rail { position: static; }
+}
+

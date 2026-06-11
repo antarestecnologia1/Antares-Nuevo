@@ -931,7 +931,7 @@ function adminUsersHtml(current) {
   const usersPane = `<div class="auth-tab-panel${adminUsersSection === "users" ? "" : " hidden"}" data-admin-users-panel="users"${adminUsersSection === "users" ? "" : " hidden"}>${usersPaneHtml}</div>`;
   const companiesPane = `<div class="auth-tab-panel${adminUsersSection === "companies" ? "" : " hidden"}" data-admin-users-panel="companies"${adminUsersSection === "companies" ? "" : " hidden"}>${companiesPaneHtml}</div>`;
   const sessionsPane = `<div class="auth-tab-panel${adminUsersSection === "sessions" ? "" : " hidden"}" data-admin-users-panel="sessions"${adminUsersSection === "sessions" ? "" : " hidden"}>${sessionsPaneHtml}</div>`;
-  return `${hero}${workspaceNav}${directorySearchBar}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div>`;
+  return `<section class="admin-users-studio">${hero}${workspaceNav}${directorySearchBar}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div></section>`;
 }
 
 (function registerLegacyViewChunk() {

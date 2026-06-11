@@ -648,33 +648,33 @@ function transportTripsHtml() {
       { id: "routes", label: "Trayectos", count: rateEntries.length }
     ]
   });
-  const tripsCreateCard = `<section id="create-trip" class="transport-operate-panel gh-operate-panel" data-create-panel="create-trip">
+  const tripsCreateCard = `<section id="create-trip" class="transport-operate-panel transport-operate-panel" data-create-panel="create-trip">
     ${pcardWrapPro(
       "truck",
       "Asignar viaje",
       `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}`,
       createTripForm,
-      "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-trip"
+      "admin-users-data-card hr-form-card transport-form-card hr-form-card--xl hr-form-card--transport-trip"
     )}
   </section>`;
-  const routesCreateCard = `<section id="create-route-rate" class="transport-operate-panel gh-operate-panel" data-create-panel="create-route-rate">
+  const routesCreateCard = `<section id="create-route-rate" class="transport-operate-panel transport-operate-panel" data-create-panel="create-route-rate">
     ${pcardWrapPro(
       "mapPin",
       "Configurar trayecto y tarifa",
       `${rateEntries.length} catalogada${rateEntries.length === 1 ? "" : "s"}`,
       routeRateForm,
-      "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl hr-form-card--transport-route"
+      "admin-users-data-card hr-form-card transport-form-card hr-form-card--xl hr-form-card--transport-route"
     )}
   </section>`;
   const tripsOperatePane = `<div class="auth-tab-panel${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-operate-pane="trips">${tripsCreateCard}</div>`;
   const routesOperatePane = `<div class="auth-tab-panel${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-operate-pane="routes">${routesCreateCard}</div>`;
   const transportOperatePanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="operate">
-      <section class="gh-operate transport-operate-panel">
-        <aside class="gh-operate__rail" aria-label="Flujos de registro">
-          <span class="gh-operate__rail-label">Registrar</span>
+      <section class="transport-operate transport-operate-panel">
+        <aside class="transport-operate__rail" aria-label="Flujos de registro">
+          <span class="transport-operate__rail-label">Registrar</span>
           ${transportOperateNav}
         </aside>
-        <div class="gh-operate__main auth-tab-panels">${tripsOperatePane}${routesOperatePane}</div>
+        <div class="transport-operate__main auth-tab-panels">${tripsOperatePane}${routesOperatePane}</div>
       </section>
     </div>`;
   const tripsDataPane = `<div class="transport-data-pane${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-data-pane="trips">
@@ -688,12 +688,12 @@ function transportTripsHtml() {
       ${pcardWrap("mapPin", "Rutas y tarifas configuradas", `${rateEntries.length} ${rateEntries.length === 1 ? "ruta configurada" : "rutas configuradas"} · usadas para autocompletar tarifas al asignar viajes`, ratesTable)}
     </div>`;
   const transportDataPanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="data">
-      <section class="gh-data-panel transport-data-panel">
+      <section class="transport-data-panel">
         <div class="transport-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${transportDataNav}</div>
         <div class="transport-data-panes">${tripsDataPane}${routesDataPane}</div>
       </section>
     </div>`;
-  return `<section class="gh-studio transport-shell transport-shell--workspace hr-flow-shell hr-module-pro--payroll" data-hr-workspace="${escapeAttr(transportTripsWorkspace)}">${transportWorkspaceHeader}
+  return `<section class="transport-studio transport-shell transport-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(transportTripsWorkspace)}">${transportWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${transportOperatePanel}
         ${transportDataPanel}

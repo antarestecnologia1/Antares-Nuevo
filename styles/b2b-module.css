@@ -1,0 +1,90 @@
+/* ===================================================================
+   Contacto web B2B — Studio independiente
+   Alcance exclusivo: .b2b-studio
+   =================================================================== */
+
+.b2b-studio {
+  --b2b-navy: #0b2138;
+  --b2b-blue: var(--primary, #377cc0);
+  --b2b-blue-soft: var(--primary-light, #cce5f8);
+  --b2b-surface: #f4f8fc;
+  --b2b-card: #ffffff;
+  --b2b-edge: rgba(55, 124, 192, 0.14);
+  --b2b-edge-strong: rgba(55, 124, 192, 0.22);
+  --b2b-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --b2b-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --b2b-radius: 18px;
+  --b2b-radius-sm: 12px;
+  --b2b-accent: #c026d3;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.b2b-studio .b2b-studio-head,
+.b2b-studio .b2b-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--b2b-radius);
+  border: 1px solid var(--b2b-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--b2b-accent) 8%, transparent), transparent 55%), var(--b2b-card);
+  box-shadow: var(--b2b-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.b2b-studio .b2b-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.b2b-studio .b2b-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--b2b-radius);
+  border: 1px solid var(--b2b-edge);
+  background: var(--b2b-card);
+  box-shadow: var(--b2b-shadow-sm);
+}
+
+.b2b-studio .b2b-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.b2b-studio .b2b-operate__main { min-width: 0; }
+
+.b2b-studio .b2b-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--b2b-radius);
+  border: 1px solid var(--b2b-edge);
+  background: var(--b2b-card);
+  box-shadow: var(--b2b-shadow-sm);
+}
+
+.b2b-studio .b2b-form-card.admin-users-data-card {
+  border-radius: var(--b2b-radius);
+  border: 1px solid var(--b2b-edge-strong);
+  background: var(--b2b-card);
+  box-shadow: var(--b2b-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .b2b-studio .b2b-operate { grid-template-columns: 1fr; }
+  .b2b-studio .b2b-operate__rail { position: static; }
+}
+

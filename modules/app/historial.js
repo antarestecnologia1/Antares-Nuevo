@@ -39,17 +39,17 @@ function renderHistoryModuleHead(counts) {
   ];
   const items = kpis
     .map(({ label, value, tone }) => {
-      const toneClass = tone && tone !== "neutral" ? ` gh-studio-kpi--${tone}` : "";
-      return `<div class="gh-studio-kpi${toneClass}"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>`;
+      const toneClass = tone && tone !== "neutral" ? ` history-studio-kpi--${tone}` : "";
+      return `<div class="history-studio-kpi${toneClass}"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>`;
     })
     .join("");
-  return `<header class="gh-studio-head history-studio-head">
-    <div class="gh-studio-head__brand">
-      <span class="gh-studio-head__badge">Transporte · Consulta</span>
+  return `<header class="history-studio-head">
+    <div class="history-studio-head__brand">
+      <span class="history-studio-head__badge">Transporte · Consulta</span>
       <h2>Historial operativo</h2>
-      <p class="gh-studio-head__tagline">Consulte solicitudes, viajes, registros de flota y la bitácora de cambios del sistema.</p>
+      <p class="history-studio-head__tagline">Consulte solicitudes, viajes, registros de flota y la bitácora de cambios del sistema.</p>
     </div>
-    <dl class="gh-studio-kpis" aria-label="Indicadores del historial">${items}</dl>
+    <dl class="history-studio-kpis" aria-label="Indicadores del historial">${items}</dl>
   </header>`;
 }
 
@@ -225,7 +225,7 @@ function historyHtml() {
   const topVehiclesList = topVehicles(allRequests);
 
   const explorePanel = `<div class="hist-panel${workspace === "explore" ? "" : " hidden"}" data-history-panel="explore" role="tabpanel">
-    <section class="gh-data-panel hist-data-panel">
+    <section class="history-data-panel hist-data-panel">
       ${renderHistoryQuickFilters(quickFilter, counts)}
       ${renderHistoryInsightCards(topClientsList, topVehiclesList, rules, rulesUpdatedLabel)}
       ${renderHistoryExploreToolbar(viewLayout, clientOptions)}
@@ -254,7 +254,7 @@ function historyHtml() {
   ]);
 
   const fleetPanel = `<div class="hist-panel${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
-    <section class="gh-data-panel hist-data-panel hist-data-panel--fleet">
+    <section class="history-data-panel hist-data-panel hist-data-panel--fleet">
       <header class="payroll-panel-intro ops-block-head hist-panel-intro">
         <h3>Flota técnica</h3>
         <p class="ops-block-lead muted">Consulte cargas de combustible y novedades de taller. Los registros nuevos se crean desde <strong>Camiones</strong>.</p>
@@ -284,7 +284,7 @@ function historyHtml() {
   </div>`;
 
   const auditPanel = `<div class="hist-panel${workspace === "audit" ? "" : " hidden"}" data-history-panel="audit" role="tabpanel">
-    <section class="gh-data-panel hist-data-panel hist-data-panel--audit">
+    <section class="history-data-panel hist-data-panel hist-data-panel--audit">
       <header class="payroll-panel-intro ops-block-head hist-panel-intro">
         <h3>Trazabilidad</h3>
         <p class="ops-block-lead muted">Bitácora de creaciones, actualizaciones y eliminaciones en usuarios, flota, solicitudes y viajes.</p>
@@ -308,7 +308,7 @@ function historyHtml() {
   const moduleHead = renderHistoryModuleHead(counts);
   const sectionNav = renderHistorySectionNav(workspace, sectionCounts);
 
-  return `<section class="gh-studio history-shell hr-flow-shell hr-module-pro--payroll" data-history-workspace="${escapeAttr(workspace)}">
+  return `<section class="history-studio history-shell hr-flow-shell" data-history-workspace="${escapeAttr(workspace)}">
     ${moduleHead}
     <div class="hist-shell-body">
       <div class="payroll-data-toolbar payroll-data-toolbar--compact hist-section-toolbar">${sectionNav}</div>

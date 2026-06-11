@@ -386,7 +386,7 @@ function driversHtml() {
     { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
     { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
-  return heroStrip + pcardWrap("user", "Conductores", driverCardSubtitle, fleetMainBody);
+  return `<section class="drivers-studio">${heroStrip}${pcardWrap("user", "Conductores", driverCardSubtitle, fleetMainBody)}</section>`;
 }
 
 (function registerLegacyViewChunk() {

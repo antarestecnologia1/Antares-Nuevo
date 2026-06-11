@@ -13357,7 +13357,7 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   background: rgba(251, 191, 36, 0.12);
 }
 
-/* —— Historial v3: shell gh-studio, timeline y tarjetas —— */
+/* —— Historial v3: shell history-studio, timeline y tarjetas —— */
 .history-shell {
   display: flex;
   flex-direction: column;
@@ -13368,7 +13368,7 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   margin-bottom: 0;
 }
 
-.history-shell .gh-studio-kpis {
+.history-shell .history-studio-kpis {
   flex-wrap: wrap;
 }
 

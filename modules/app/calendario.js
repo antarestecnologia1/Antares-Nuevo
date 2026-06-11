@@ -270,7 +270,7 @@ function transportCalendarHtml() {
     { label: "Proximos", value: upcoming.length }
   ]);
 
-  return calHero + calendarShell;
+  return `<section class="calendar-studio">${calHero}${calendarShell}</section>`;
 }
 
 (function registerLegacyViewChunk() {

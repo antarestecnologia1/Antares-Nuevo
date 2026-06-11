@@ -96,7 +96,7 @@ const G = globalThis;
       { label: "Leidas", value: readCount },
       { label: "% leidas", value: `${readPct}%` }
     ]);
-    return heroStrip + pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body);
+    return `<section class="notifications-studio">${heroStrip}${pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body)}</section>`;
   }
 
   if (typeof window.registerLegacyPortalViews === "function") {

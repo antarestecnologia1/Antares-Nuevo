@@ -527,17 +527,17 @@ function hiringHtml() {
       { id: "contract", label: "Contrato" }
     ]
   });
-  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${createCollapsibleProCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card hr-form-card gh-form-card hr-form-card--md", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${createCollapsibleProCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${createCollapsibleProCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${createCollapsibleProCard("create-interview", "calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card hr-form-card gh-form-card hr-form-card--md", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${createCollapsibleProCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
-  const hiringExecutionBlock = `<section class="gh-operate hiring-operate-panel">
-      <aside class="gh-operate__rail" aria-label="Flujos de registro">
-        <span class="gh-operate__rail-label">Registrar</span>
+  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${createCollapsibleProCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "admin-users-data-card hr-form-card hiring-form-card hr-form-card--md", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
+  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${createCollapsibleProCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "admin-users-data-card hr-form-card hiring-form-card hr-form-card--lg", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
+  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${createCollapsibleProCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "admin-users-data-card hr-form-card hiring-form-card hr-form-card--xl", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
+  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${createCollapsibleProCard("create-interview", "calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "admin-users-data-card hr-form-card hiring-form-card hr-form-card--md", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
+  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${createCollapsibleProCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "admin-users-data-card hr-form-card hiring-form-card hr-form-card--lg", "Abrir formulario", { createPanels: state.createPanels })}</div>`;
+  const hiringExecutionBlock = `<section class="hiring-operate hiring-operate-panel">
+      <aside class="hiring-operate__rail" aria-label="Flujos de registro">
+        <span class="hiring-operate__rail-label">Registrar</span>
         ${hiringOperateNav}
       </aside>
-      <div class="gh-operate__main auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>
+      <div class="hiring-operate__main auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>
     </section>`;
   const hiringQuickBarCandidates = `<div class="payroll-quick-bar" role="group" aria-label="Filtros de candidatos">
       <button type="button" class="payroll-quick-pill${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active">Activos</button>
@@ -600,7 +600,7 @@ function hiringHtml() {
         <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Nombre, correo, cargo, vacante, documento…" autocomplete="off" />
       </label>
     </div>`;
-  const hiringDataBlock = `<section class="gh-data-panel hiring-data-panel">
+  const hiringDataBlock = `<section class="hiring-data-panel">
       ${hiringDataSearchBar}
       <div class="payroll-data-toolbar payroll-data-toolbar--compact">
         ${hiringDataNav}
@@ -625,7 +625,7 @@ function hiringHtml() {
   const hiringDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="data">
       ${hiringDataBlock}
     </div>`;
-  return `<section class="gh-studio hiring-shell hiring-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringWorkspaceHeader}
+  return `<section class="hiring-studio hiring-shell hiring-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${hiringOperatePanel}
         ${hiringDataPanel}

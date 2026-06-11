@@ -252,14 +252,14 @@
   function requestDataConsultShell({ user, headHtml, toolbarHtml, resultMetaHtml, resultsHtml, adminHubHtml, companyCount }) {
     const isAdmin = user?.role === ROLES.ADMIN && adminHubHtml;
     if (!isAdmin) {
-      return `<section class="requests-data-panel gh-data-panel">
+      return `<section class="requests-data-panel requests-data-panel">
         ${headHtml}
         ${toolbarHtml}
         ${resultMetaHtml}
         <div class="requests-data-results">${resultsHtml}</div>
       </section>`;
     }
-    return `<section class="requests-data-panel gh-data-panel">
+    return `<section class="requests-data-panel requests-data-panel">
       <div class="requests-data-layout requests-data-layout--admin">
         <aside class="requests-data-sidebar" aria-label="Empresas clientes">
           <div class="requests-data-sidebar__head">
@@ -545,13 +545,13 @@
 
   /** Pantalla Registrar: formulario de alta (siempre visible). */
   function requestCreateFormPanelHtml() {
-    return `<section id="create-request" class="requests-operate-panel gh-operate-panel" data-create-panel="create-request">
+    return `<section id="create-request" class="requests-operate-panel requests-operate-panel" data-create-panel="create-request">
       ${pcardWrapPro(
         "plus",
         "Nueva solicitud de viaje",
         "Selecciona origen, destino, fecha y hora de forma guiada",
         requestCreateFormBodyHtml(),
-        "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl"
+        "admin-users-data-card hr-form-card requests-form-card hr-form-card--xl"
       )}
     </section>`;
   }
@@ -726,7 +726,7 @@
     const dataPanel = `<div class="hr-workspace-panel requests-workspace-panel${requestsWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-requests-panel="data">
       ${requestListClientHtml(user)}
     </div>`;
-    return `<section class="gh-studio requests-shell requests-shell--workspace hr-flow-shell hr-module-pro--payroll" data-hr-workspace="${escapeAttr(requestsWorkspace)}">${workspaceHeader}
+    return `<section class="requests-studio requests-shell requests-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(requestsWorkspace)}">${workspaceHeader}
       <div class="hr-workspace-panels">
         ${operatePanel}
         ${dataPanel}

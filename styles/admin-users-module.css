@@ -1,0 +1,90 @@
+/* ===================================================================
+   Usuarios y permisos — Studio independiente
+   Alcance exclusivo: .admin-users-studio
+   =================================================================== */
+
+.admin-users-studio {
+  --adm-navy: #0b2138;
+  --adm-blue: var(--primary, #377cc0);
+  --adm-blue-soft: var(--primary-light, #cce5f8);
+  --adm-surface: #f4f8fc;
+  --adm-card: #ffffff;
+  --adm-edge: rgba(55, 124, 192, 0.14);
+  --adm-edge-strong: rgba(55, 124, 192, 0.22);
+  --adm-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --adm-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --adm-radius: 18px;
+  --adm-radius-sm: 12px;
+  --adm-accent: #4f46e5;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.admin-users-studio .adm-studio-head,
+.admin-users-studio .admin-users-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--adm-radius);
+  border: 1px solid var(--adm-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--adm-accent) 8%, transparent), transparent 55%), var(--adm-card);
+  box-shadow: var(--adm-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-users-studio .adm-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.admin-users-studio .adm-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--adm-radius);
+  border: 1px solid var(--adm-edge);
+  background: var(--adm-card);
+  box-shadow: var(--adm-shadow-sm);
+}
+
+.admin-users-studio .adm-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.admin-users-studio .adm-operate__main { min-width: 0; }
+
+.admin-users-studio .adm-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--adm-radius);
+  border: 1px solid var(--adm-edge);
+  background: var(--adm-card);
+  box-shadow: var(--adm-shadow-sm);
+}
+
+.admin-users-studio .adm-form-card.admin-users-data-card {
+  border-radius: var(--adm-radius);
+  border: 1px solid var(--adm-edge-strong);
+  background: var(--adm-card);
+  box-shadow: var(--adm-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .admin-users-studio .adm-operate { grid-template-columns: 1fr; }
+  .admin-users-studio .adm-operate__rail { position: static; }
+}
+

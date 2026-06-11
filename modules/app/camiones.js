@@ -385,23 +385,23 @@ function vehiclesHtml() {
     tabs: [{ id: "fleet", label: "Flota", count: vehicles.length }]
   });
   const createPanel = canCreateVeh
-    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card hr-form-card gh-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card hr-form-card vehicles-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
   const fuelPanel = canFuelLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card hr-form-card gh-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card hr-form-card vehicles-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
   const technicalPanel = canTechnicalLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card hr-form-card gh-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card hr-form-card vehicles-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
     : "";
   const vehicleOperatePanel =
     vehicleOperateTabs.length > 0
       ? `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="operate">
-      <section class="gh-operate vehicles-operate-panel">
-        <aside class="gh-operate__rail" aria-label="Flujos de registro">
-          <span class="gh-operate__rail-label">Registrar</span>
+      <section class="vehicles-operate vehicles-operate-panel">
+        <aside class="vehicles-operate__rail" aria-label="Flujos de registro">
+          <span class="vehicles-operate__rail-label">Registrar</span>
           ${vehicleOperateNav}
         </aside>
-        <div class="gh-operate__main auth-tab-panels">${createPanel}${fuelPanel}${technicalPanel}</div>
+        <div class="vehicles-operate__main auth-tab-panels">${createPanel}${fuelPanel}${technicalPanel}</div>
       </section>
     </div>`
       : "";
@@ -409,12 +409,12 @@ function vehiclesHtml() {
       ${pcardWrap("truck", "Flota de camiones", fleetCardSubtitle, fleetMainBody)}
     </div>`;
   const vehicleDataPanel = `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="data">
-      <section class="gh-data-panel vehicles-data-panel">
+      <section class="vehicles-data-panel">
         <div class="vehicles-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${vehicleDataNav}</div>
         <div class="vehicles-data-panes">${fleetDataPane}</div>
       </section>
     </div>`;
-  return `<section class="gh-studio vehicles-shell vehicles-shell--workspace hr-flow-shell hr-module-pro--payroll" data-hr-workspace="${escapeAttr(vehicleWorkspace)}">${vehiclesWorkspaceHeader}
+  return `<section class="vehicles-studio vehicles-shell vehicles-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(vehicleWorkspace)}">${vehiclesWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${vehicleOperatePanel}
         ${vehicleDataPanel}

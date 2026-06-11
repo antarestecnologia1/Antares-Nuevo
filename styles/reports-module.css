@@ -1,0 +1,90 @@
+/* ===================================================================
+   Reportería — Studio independiente
+   Alcance exclusivo: .reports-studio
+   =================================================================== */
+
+.reports-studio {
+  --rpt-navy: #0b2138;
+  --rpt-blue: var(--primary, #377cc0);
+  --rpt-blue-soft: var(--primary-light, #cce5f8);
+  --rpt-surface: #f4f8fc;
+  --rpt-card: #ffffff;
+  --rpt-edge: rgba(55, 124, 192, 0.14);
+  --rpt-edge-strong: rgba(55, 124, 192, 0.22);
+  --rpt-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --rpt-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --rpt-radius: 18px;
+  --rpt-radius-sm: 12px;
+  --rpt-accent: #0369a1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.reports-studio .rpt-studio-head,
+.reports-studio .reports-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--rpt-radius);
+  border: 1px solid var(--rpt-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--rpt-accent) 8%, transparent), transparent 55%), var(--rpt-card);
+  box-shadow: var(--rpt-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.reports-studio .rpt-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.reports-studio .rpt-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--rpt-radius);
+  border: 1px solid var(--rpt-edge);
+  background: var(--rpt-card);
+  box-shadow: var(--rpt-shadow-sm);
+}
+
+.reports-studio .rpt-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.reports-studio .rpt-operate__main { min-width: 0; }
+
+.reports-studio .rpt-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--rpt-radius);
+  border: 1px solid var(--rpt-edge);
+  background: var(--rpt-card);
+  box-shadow: var(--rpt-shadow-sm);
+}
+
+.reports-studio .rpt-form-card.admin-users-data-card {
+  border-radius: var(--rpt-radius);
+  border: 1px solid var(--rpt-edge-strong);
+  background: var(--rpt-card);
+  box-shadow: var(--rpt-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .reports-studio .rpt-operate { grid-template-columns: 1fr; }
+  .reports-studio .rpt-operate__rail { position: static; }
+}
+

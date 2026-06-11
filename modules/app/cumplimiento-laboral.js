@@ -164,12 +164,7 @@ const G = globalThis;
         tone: expiringLicenses.length ? "warn" : undefined
       }
     ]);
-    return (
-      laborHero +
-      pcardWrap("activity", "Alertas", null, alertsBody) +
-      createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar", { createPanels: state.createPanels }) +
-      pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable)
-    );
+    return `<section class="sst-studio">${laborHero}${pcardWrap("activity", "Alertas", null, alertsBody)}${createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar", { createPanels: state.createPanels })}${pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable)}</section>`;
   }
 
   if (typeof window.registerLegacyPortalViews === "function") {

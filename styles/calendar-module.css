@@ -1,0 +1,90 @@
+/* ===================================================================
+   Calendario — Studio independiente
+   Alcance exclusivo: .calendar-studio
+   =================================================================== */
+
+.calendar-studio {
+  --cal-navy: #0b2138;
+  --cal-blue: var(--primary, #377cc0);
+  --cal-blue-soft: var(--primary-light, #cce5f8);
+  --cal-surface: #f4f8fc;
+  --cal-card: #ffffff;
+  --cal-edge: rgba(55, 124, 192, 0.14);
+  --cal-edge-strong: rgba(55, 124, 192, 0.22);
+  --cal-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --cal-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --cal-radius: 18px;
+  --cal-radius-sm: 12px;
+  --cal-accent: #7c3aed;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.calendar-studio .cal-studio-head,
+.calendar-studio .calendar-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--cal-radius);
+  border: 1px solid var(--cal-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cal-accent) 8%, transparent), transparent 55%), var(--cal-card);
+  box-shadow: var(--cal-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-studio .cal-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.calendar-studio .cal-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--cal-radius);
+  border: 1px solid var(--cal-edge);
+  background: var(--cal-card);
+  box-shadow: var(--cal-shadow-sm);
+}
+
+.calendar-studio .cal-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.calendar-studio .cal-operate__main { min-width: 0; }
+
+.calendar-studio .cal-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--cal-radius);
+  border: 1px solid var(--cal-edge);
+  background: var(--cal-card);
+  box-shadow: var(--cal-shadow-sm);
+}
+
+.calendar-studio .cal-form-card.admin-users-data-card {
+  border-radius: var(--cal-radius);
+  border: 1px solid var(--cal-edge-strong);
+  background: var(--cal-card);
+  box-shadow: var(--cal-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .calendar-studio .cal-operate { grid-template-columns: 1fr; }
+  .calendar-studio .cal-operate__rail { position: static; }
+}
+

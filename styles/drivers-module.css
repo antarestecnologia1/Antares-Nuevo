@@ -1,0 +1,90 @@
+/* ===================================================================
+   Conductores — Studio independiente
+   Alcance exclusivo: .drivers-studio
+   =================================================================== */
+
+.drivers-studio {
+  --drv-navy: #0b2138;
+  --drv-blue: var(--primary, #377cc0);
+  --drv-blue-soft: var(--primary-light, #cce5f8);
+  --drv-surface: #f4f8fc;
+  --drv-card: #ffffff;
+  --drv-edge: rgba(55, 124, 192, 0.14);
+  --drv-edge-strong: rgba(55, 124, 192, 0.22);
+  --drv-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --drv-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --drv-radius: 18px;
+  --drv-radius-sm: 12px;
+  --drv-accent: #0891b2;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.drivers-studio .drv-studio-head,
+.drivers-studio .drivers-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--drv-radius);
+  border: 1px solid var(--drv-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--drv-accent) 8%, transparent), transparent 55%), var(--drv-card);
+  box-shadow: var(--drv-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.drivers-studio .drv-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.drivers-studio .drv-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--drv-radius);
+  border: 1px solid var(--drv-edge);
+  background: var(--drv-card);
+  box-shadow: var(--drv-shadow-sm);
+}
+
+.drivers-studio .drv-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.drivers-studio .drv-operate__main { min-width: 0; }
+
+.drivers-studio .drv-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--drv-radius);
+  border: 1px solid var(--drv-edge);
+  background: var(--drv-card);
+  box-shadow: var(--drv-shadow-sm);
+}
+
+.drivers-studio .drv-form-card.admin-users-data-card {
+  border-radius: var(--drv-radius);
+  border: 1px solid var(--drv-edge-strong);
+  background: var(--drv-card);
+  box-shadow: var(--drv-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .drivers-studio .drv-operate { grid-template-columns: 1fr; }
+  .drivers-studio .drv-operate__rail { position: static; }
+}
+

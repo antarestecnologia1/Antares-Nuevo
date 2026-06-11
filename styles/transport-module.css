@@ -1,0 +1,740 @@
+/* ===================================================================
+   Viajes — Studio independiente
+   Alcance exclusivo: .transport-studio
+   =================================================================== */
+
+.transport-studio {
+  --trn-navy: #0b2138;
+  --trn-blue: var(--primary, #377cc0);
+  --trn-blue-soft: var(--primary-light, #cce5f8);
+  --trn-surface: #f4f8fc;
+  --trn-card: #ffffff;
+  --trn-edge: rgba(55, 124, 192, 0.14);
+  --trn-edge-strong: rgba(55, 124, 192, 0.22);
+  --trn-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --trn-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --trn-radius: 18px;
+  --trn-radius-sm: 12px;
+  --trn-accent: #1d4ed8;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.transport-studio .trn-studio-head,
+.transport-studio .transport-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--trn-radius);
+  border: 1px solid var(--trn-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--trn-accent) 8%, transparent), transparent 55%), var(--trn-card);
+  box-shadow: var(--trn-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Workspace header (Registrar | Consultar) ── */
+.transport-studio > .hr-workspace-header--payroll {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  gap: 0.65rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.transport-studio > .hr-workspace-header--payroll .transport-studio-head,
+.transport-studio > .hr-workspace-header--payroll .payroll-module-head--compact {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.transport-studio .hr-workspace-header__switch {
+  flex: 0 0 auto;
+  flex-grow: 0;
+  flex-shrink: 0;
+  align-self: flex-end;
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.transport-studio .hr-workspace-tabs--switch {
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid var(--trn-edge-strong);
+  background: var(--trn-surface);
+  gap: 0.2rem;
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.transport-studio .hr-workspace-tab--switch {
+  min-height: 2.45rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.transport-studio .hr-workspace-tab--switch.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.28);
+}
+
+.transport-studio .hr-workspace-tab--switch .hr-workspace-tab-hint {
+  display: none;
+}
+
+.transport-studio .hr-workspace-panels {
+  gap: 1rem;
+}
+
+/* ── Panel Registrar: rail lateral + contenido ── */
+.transport-studio .transport-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.transport-studio .transport-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--trn-radius);
+  border: 1px solid var(--trn-edge);
+  background: var(--trn-card);
+  box-shadow: var(--trn-shadow-sm);
+}
+
+.transport-studio .transport-operate__rail .auth-tabs-layout {
+  margin: 0;
+  padding: 0;
+}
+
+.transport-studio .transport-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.transport-studio .transport-operate .auth-tabs-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.transport-studio .transport-operate .auth-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.62rem 0.75rem;
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-soft);
+  text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.transport-studio .transport-operate .auth-tab-btn:hover {
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--trn-navy);
+}
+
+.transport-studio .transport-operate .auth-tab-btn.is-active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(67, 56, 202, 0.08));
+  border-color: rgba(99, 102, 241, 0.22);
+  color: #4338ca;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+}
+
+.transport-studio .transport-operate__main {
+  min-width: 0;
+}
+
+.transport-studio .transport-operate .auth-tab-panels {
+  border-radius: var(--trn-radius);
+  background: transparent;
+}
+
+.transport-studio .transport-data-panel,
+.transport-studio .trn-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--trn-radius);
+  border: 1px solid var(--trn-edge);
+  background: var(--trn-card);
+  box-shadow: var(--trn-shadow-sm);
+}
+
+.transport-studio .transport-form-card.admin-users-data-card,
+.transport-studio .trn-form-card.admin-users-data-card {
+  border-radius: var(--trn-radius);
+  border: 1px solid var(--trn-edge-strong);
+  background: var(--trn-card);
+  box-shadow: var(--trn-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .transport-studio .transport-operate { grid-template-columns: 1fr; }
+  .transport-studio .transport-operate__rail { position: static; }
+  .transport-studio .transport-operate .auth-tabs-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .transport-studio .transport-operate .auth-tab-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+}
+
+/* Viajes / trayectos — wizards con la misma interfaz que Gestión humana */
+.transport-studio #form-create-trip.transport-trip-create-form,
+.transport-studio #form-route-rate.transport-trip-create-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: none;
+}
+
+.transport-studio #form-create-trip .hr-form-wizard,
+.transport-studio #form-route-rate .hr-form-wizard,
+.transport-studio #form-create-trip .gh-transport-form--single,
+.transport-studio #form-route-rate .gh-transport-form--single {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  border: 1px solid var(--trn-edge);
+  border-radius: var(--trn-radius);
+  background: var(--trn-card);
+  box-shadow: var(--trn-shadow);
+  overflow: visible;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__head,
+.transport-studio #form-route-rate .gh-emp-wizard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  padding: 1.1rem 1.25rem;
+  background: linear-gradient(135deg, var(--trn-navy) 0%, var(--trn-navy-mid) 62%, var(--primary-dark, #2a6399) 100%);
+  color: #e8f2fc;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__eyebrow,
+.transport-studio #form-route-rate .gh-emp-wizard__eyebrow {
+  display: inline-block;
+  margin: 0 0 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(174, 212, 248, 0.9);
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__title,
+.transport-studio #form-route-rate .gh-emp-wizard__title {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__desc,
+.transport-studio #form-route-rate .gh-emp-wizard__desc {
+  margin: 0.35rem 0 0;
+  max-width: 32rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(216, 232, 251, 0.88);
+}
+
+.gh-transport-wizard__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+  min-width: min(100%, 18rem);
+}
+
+.transport-studio #form-create-trip .create-trip-hero-badge,
+.transport-studio #form-route-rate .create-trip-hero-badge {
+  align-self: stretch;
+}
+
+.transport-studio .route-rate-preview.assign-trip-preview {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--primary) 22%, var(--line));
+  background: color-mix(in srgb, var(--primary) 4%, var(--white));
+}
+
+.transport-studio .route-rate-preview.assign-trip-preview.is-ready {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  background: color-mix(in srgb, var(--primary) 8%, var(--white));
+}
+
+.transport-studio .route-rate-preview-line {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.transport-studio .route-rate-preview-arrow {
+  margin: 0 0.35rem;
+  color: var(--muted, #64748b);
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__progress,
+.transport-studio #form-route-rate .gh-emp-wizard__progress {
+  flex-shrink: 0;
+  min-width: 9rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--trn-radius-sm);
+  background: rgba(8, 24, 44, 0.45);
+  border: 1px solid rgba(150, 200, 250, 0.2);
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__layout,
+.transport-studio #form-route-rate .gh-emp-wizard__layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps,
+.transport-studio #form-route-rate .gh-emp-wizard__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.85rem 0.65rem;
+  border-right: 1px solid var(--trn-edge);
+  background: var(--trn-surface);
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__panels,
+.transport-studio #form-route-rate .gh-emp-wizard__panels,
+.transport-studio #form-create-trip .gh-transport-form__body,
+.transport-studio #form-route-rate .gh-transport-form__body {
+  padding: 1rem 1.1rem 0.35rem;
+  min-width: 0;
+  overflow: visible;
+}
+
+.transport-studio #form-create-trip .gh-transport-form__footer,
+.transport-studio #form-route-rate .gh-transport-form__footer {
+  padding: 0.75rem 1.1rem 1rem;
+  border-top: 1px solid var(--trn-edge);
+  background: var(--trn-surface);
+}
+
+.transport-studio #form-create-trip .create-trip-readiness--bar,
+.transport-studio #form-route-rate .create-trip-readiness--bar {
+  border-color: var(--trn-edge);
+  background: var(--trn-card);
+}
+
+.transport-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item,
+.transport-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item {
+  border-right-color: var(--trn-edge);
+  background: color-mix(in srgb, var(--trn-surface) 70%, var(--trn-card));
+}
+
+.transport-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item.is-done,
+.transport-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item.is-done {
+  color: #047857;
+  background: color-mix(in srgb, #10b981 10%, var(--trn-card));
+  box-shadow: inset 0 -2px 0 #10b981;
+}
+
+.transport-studio #form-route-rate .route-rate-editing-hint {
+  margin-top: 0.75rem;
+}
+
+.transport-studio.transport-shell .hr-form-card--transport-trip .hr-card-icon {
+  background: linear-gradient(145deg, #1d4ed8, #1e3a8a);
+}
+
+.transport-studio.transport-shell .hr-form-card--transport-route .hr-card-icon {
+  background: linear-gradient(145deg, #7c3aed, #4c1d95);
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: var(--trn-radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  text-align: left;
+  box-shadow: none;
+  transform: none;
+  cursor: pointer;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot::before,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot::before {
+  display: none;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-dot-num,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-dot-num {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border: 2px solid var(--trn-edge-strong);
+  background: var(--trn-card);
+  color: var(--primary-dark);
+  box-shadow: none;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot small,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot small {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 1;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .gh-step-hint,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .gh-step-hint {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  opacity: 0.85;
+  margin-top: 0.1rem;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot:hover,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+  color: var(--trn-navy);
+  transform: none;
+  box-shadow: none;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-active,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-active {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.22);
+  color: var(--primary-dark);
+  box-shadow: none;
+  transform: none;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num {
+  background: var(--trn-blue);
+  border-color: var(--trn-blue);
+  color: #fff;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num,
+.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num {
+  border-color: var(--trn-danger);
+  background: #fef2f2;
+  color: var(--trn-danger);
+}
+
+.transport-studio #form-create-trip .form-section,
+.transport-studio #form-route-rate .form-section {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid var(--trn-edge);
+  border-top: 3px solid var(--trn-blue);
+  background: var(--trn-card);
+  box-shadow: var(--trn-shadow-sm);
+}
+
+.transport-studio #form-create-trip .form-section-violet,
+.transport-studio #form-route-rate .form-section-violet {
+  border-top-color: #7c3aed;
+}
+
+.transport-studio #form-create-trip .form-section-emerald,
+.transport-studio #form-route-rate .form-section-emerald {
+  border-top-color: #059669;
+}
+
+.transport-studio #form-create-trip .form-section legend,
+.transport-studio #form-route-rate .form-section legend {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  background: transparent !important;
+  border: none;
+  box-shadow: none !important;
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--trn-navy) !important;
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+.transport-studio #form-create-trip .form-section-grid,
+.transport-studio #form-route-rate .form-section-grid {
+  gap: 0.7rem 0.85rem;
+  align-items: start;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-track,
+.transport-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  margin-bottom: 0.35rem;
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-fill,
+.transport-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-fill {
+  background: linear-gradient(90deg, var(--brand-blue-mid), #7dd3fc);
+}
+
+.transport-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-label,
+.transport-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #eaf4ff;
+}
+
+@media (max-width: 900px) {
+  .transport-studio #form-create-trip .gh-emp-wizard__layout,
+  .transport-studio #form-route-rate .gh-emp-wizard__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .transport-studio #form-create-trip .gh-emp-wizard__steps,
+  .transport-studio #form-route-rate .gh-emp-wizard__steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--trn-edge);
+    padding: 0.55rem;
+  }
+
+  .transport-studio .route-rate-route-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .transport-studio .route-rate-route-bridge {
+    flex-direction: row;
+    padding: 0.15rem 0;
+  }
+
+  .transport-studio .route-rate-route-bridge-line {
+    width: auto;
+    height: 2px;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+}
+
+/* Asignar viaje — selector visual de solicitudes */
+.transport-studio .trip-request-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.transport-studio .trip-request-picker__search {
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--trn-edge));
+  background: color-mix(in srgb, var(--primary) 3%, var(--trn-card));
+  font-size: 0.88rem;
+}
+
+.transport-studio .trip-request-picker__search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--trn-edge));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.transport-studio .trip-request-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: min(22rem, 52vh);
+  overflow-y: auto;
+  padding-right: 0.1rem;
+}
+
+.transport-studio .trip-request-picker__group-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.transport-studio .trip-request-picker__group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.55rem;
+}
+
+.transport-studio .trip-request-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.28rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  border-radius: 13px;
+  border: 1px solid var(--trn-edge);
+  background: var(--trn-card);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.transport-studio .trip-request-card:hover {
+  border-color: color-mix(in srgb, var(--trn-blue) 35%, var(--trn-edge));
+  background: color-mix(in srgb, var(--trn-blue) 5%, var(--trn-card));
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.transport-studio .trip-request-card.is-selected {
+  border-color: color-mix(in srgb, var(--trn-blue) 55%, var(--trn-edge));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--trn-blue) 10%, var(--trn-card)), var(--trn-card));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--trn-blue) 14%, transparent);
+}
+
+.transport-studio .trip-request-card.hidden {
+  display: none;
+}
+
+.transport-studio .trip-request-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.transport-studio .trip-request-card__ref {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--trn-navy);
+}
+
+.transport-studio .trip-request-card__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--trn-edge);
+}
+
+.transport-studio .trip-request-card__status--pending {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 14%, var(--trn-card));
+  border-color: color-mix(in srgb, #f59e0b 30%, var(--trn-edge));
+}
+
+.transport-studio .trip-request-card__status--approved {
+  color: #047857;
+  background: color-mix(in srgb, #10b981 14%, var(--trn-card));
+  border-color: color-mix(in srgb, #10b981 30%, var(--trn-edge));
+}
+
+.transport-studio .trip-request-card__client {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--trn-navy);
+  line-height: 1.35;
+}
+
+.transport-studio .trip-request-card__route {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.transport-studio .trip-request-card__meta {
+  font-size: 0.74rem;
+  color: var(--text-soft);
+}
+
+.transport-studio #form-create-trip .assign-trip-block,
+.transport-studio #form-route-rate .assign-trip-block {
+  margin: 0;
+}
+
+.transport-studio #form-route-rate .route-rate-route-grid {
+  margin-bottom: 0.85rem;
+}
+
+.transport-studio #form-route-rate .route-rate-preview {
+  margin-top: 0.15rem;
+}
+
+.transport-studio #trip-request-preview .create-trip-empty-detail {
+  display: block;
+}
+

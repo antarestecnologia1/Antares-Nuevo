@@ -343,7 +343,7 @@
     </div>
   </section>`;
 
-    return `${scopeBar}${opsDash}`;
+    return `${scopeBar}<section class="dashboard-studio">${opsDash}</section>`;
   }
 
   if (typeof window.registerLegacyPortalViews === "function") {

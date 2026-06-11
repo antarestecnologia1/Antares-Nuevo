@@ -54,7 +54,7 @@ function reportsHtml() {
       ${reportsAnalyticsPanelHtml(snapshot, biLayout)}
     </div>
   </div>`;
-  return reportsHero + workspace;
+  return `<section class="reports-studio">${reportsHero}${workspace}</section>`;
 }
 
 (function registerLegacyViewChunk() {

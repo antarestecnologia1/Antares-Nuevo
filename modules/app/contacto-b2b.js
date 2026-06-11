@@ -102,7 +102,7 @@ function contactLeadsHtml() {
   </div>`;
   const mosaic = `${leadsToolbar}<div class="b2b-leads-mosaic">${cards}</div>`;
   const subtitle = `${list.length} prospecto${list.length === 1 ? "" : "s"} · vista enriquecida`;
-  return hero + pcardWrap("mail", "Solicitudes de contacto web (B2B)", subtitle, mosaic);
+  return `<section class="b2b-studio">${hero}${pcardWrap("mail", "Solicitudes de contacto web (B2B)", subtitle, mosaic)}</section>`;
 }
 
 (function registerLegacyViewChunk() {

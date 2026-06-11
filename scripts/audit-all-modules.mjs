@@ -7,22 +7,22 @@ import { chromium } from "playwright";
 const BASE_URL = process.env.PORTAL_BASE_URL || "http://127.0.0.1:4173/";
 
 const MODULES = [
-  { id: "dashboard", label: "1. Dashboard", selector: "#view-root .ops-dash, #view-root .dash-grid, #view-root .module-shell-body" },
-  { id: "requests", label: "2. Mis solicitudes", selector: "#view-root .requests-shell, #view-root #form-request" },
-  { id: "transport-trips", label: "3. Viajes", selector: "#view-root .module-shell-body, #view-root .transport-shell" },
-  { id: "transport-vehicles", label: "4. Camiones", selector: "#view-root .vehicles-shell, #view-root [id^='create-vehicle']" },
-  { id: "transport-drivers", label: "5. Conductores", selector: "#view-root .module-shell-body, #view-root .directory-card" },
-  { id: "transport-calendar", label: "6. Calendario", selector: "#view-root .calendar-shell, #view-root .module-shell-body" },
-  { id: "history", label: "7. Historial", selector: "#view-root .history-module, #view-root .module-shell-body" },
-  { id: "reports", label: "8. Reportería", selector: "#view-root .reports-workspace, #view-root .module-shell-body" },
-  { id: "payroll", label: "9. Gestión humana", selector: "#view-root .gh-studio, #view-root .payroll-shell" },
-  { id: "hiring", label: "10. Contratación", selector: "#view-root .gh-studio.hiring-shell, #view-root .hiring-shell" },
-  { id: "labor-compliance", label: "11. Cumplimiento laboral y SST", selector: "#view-root .module-shell-body, #view-root #form-sst-compliance" },
-  { id: "contact-leads", label: "12. Contacto web (B2B)", selector: "#view-root .b2b-leads-mosaic, #view-root .b2b-leads-loading, #view-root .empty-state" },
-  { id: "admin-users", label: "13. Usuarios y permisos", selector: "#view-root .module-shell-body, #view-root .users-hero-strip" },
-  { id: "authorizations", label: "14. Autorizaciones", selector: "#view-root .module-shell-body, #view-root .auth-tabs-bar" },
-  { id: "profile", label: "15. Mi perfil", selector: "#view-root #form-profile, #view-root .module-shell-body" },
-  { id: "notifications", label: "18. Notificaciones", selector: "#view-root .module-shell-body, #view-root .notifications-panel" }
+  { id: "dashboard", label: "1. Dashboard", selector: "#view-root .dashboard-studio, #view-root .ops-dash" },
+  { id: "requests", label: "2. Mis solicitudes", selector: "#view-root .requests-studio, #view-root .requests-shell" },
+  { id: "transport-trips", label: "3. Viajes", selector: "#view-root .transport-studio, #view-root .transport-shell" },
+  { id: "transport-vehicles", label: "4. Camiones", selector: "#view-root .vehicles-studio, #view-root .vehicles-shell" },
+  { id: "transport-drivers", label: "5. Conductores", selector: "#view-root .drivers-studio, #view-root .directory-card" },
+  { id: "transport-calendar", label: "6. Calendario", selector: "#view-root .calendar-studio, #view-root .calendar-shell" },
+  { id: "history", label: "7. Historial", selector: "#view-root .history-studio, #view-root .history-shell" },
+  { id: "reports", label: "8. Reportería", selector: "#view-root .reports-studio, #view-root .reports-workspace" },
+  { id: "payroll", label: "9. Gestión humana", selector: "#view-root .payroll-studio, #view-root .payroll-shell" },
+  { id: "hiring", label: "10. Contratación", selector: "#view-root .hiring-studio, #view-root .hiring-shell" },
+  { id: "labor-compliance", label: "11. Cumplimiento laboral y SST", selector: "#view-root .sst-studio, #view-root #form-sst-compliance" },
+  { id: "contact-leads", label: "12. Contacto web (B2B)", selector: "#view-root .b2b-studio, #view-root .b2b-leads-mosaic" },
+  { id: "admin-users", label: "13. Usuarios y permisos", selector: "#view-root .admin-users-studio, #view-root .users-hero-strip" },
+  { id: "authorizations", label: "14. Autorizaciones", selector: "#view-root .authorizations-studio, #view-root .auth-tabs-bar" },
+  { id: "profile", label: "15. Mi perfil", selector: "#view-root .profile-studio, #view-root #form-profile" },
+  { id: "notifications", label: "18. Notificaciones", selector: "#view-root .notifications-studio, #view-root .notif-list" }
 ];
 
 const seedStore = {

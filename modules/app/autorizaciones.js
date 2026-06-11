@@ -238,15 +238,12 @@ function authorizationsHtml() {
   const bodyInner = `${syncBanner}${authSearchToolbar}${tabsWrap}${
     infoSectionsHtml ? `<div class="auth-info-blocks">${infoSectionsHtml}</div>` : ""
   }`;
-  return (
-    authHero +
-    pcardWrap(
+  return `<section class="authorizations-studio">${authHero}${pcardWrap(
       "shield",
       "Centro de aprobaciones",
       `${totalOpen} ítem(s) abierto(s) · Histórico cola local: ${approvedCt} aprob. / ${rejectedCt} rech.`,
       bodyInner
-    )
-  );
+    )}</section>`;
 }
 
 function mountAuthorizationsTabs() {

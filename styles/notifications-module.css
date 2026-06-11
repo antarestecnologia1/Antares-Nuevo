@@ -1,0 +1,90 @@
+/* ===================================================================
+   Notificaciones, timbre y avisos — Studio independiente
+   Alcance exclusivo: .notifications-studio
+   =================================================================== */
+
+.notifications-studio {
+  --ntf-navy: #0b2138;
+  --ntf-blue: var(--primary, #377cc0);
+  --ntf-blue-soft: var(--primary-light, #cce5f8);
+  --ntf-surface: #f4f8fc;
+  --ntf-card: #ffffff;
+  --ntf-edge: rgba(55, 124, 192, 0.14);
+  --ntf-edge-strong: rgba(55, 124, 192, 0.22);
+  --ntf-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --ntf-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --ntf-radius: 18px;
+  --ntf-radius-sm: 12px;
+  --ntf-accent: #6366f1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.notifications-studio .ntf-studio-head,
+.notifications-studio .notifications-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--ntf-radius);
+  border: 1px solid var(--ntf-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ntf-accent) 8%, transparent), transparent 55%), var(--ntf-card);
+  box-shadow: var(--ntf-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.notifications-studio .ntf-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.notifications-studio .ntf-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--ntf-radius);
+  border: 1px solid var(--ntf-edge);
+  background: var(--ntf-card);
+  box-shadow: var(--ntf-shadow-sm);
+}
+
+.notifications-studio .ntf-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.notifications-studio .ntf-operate__main { min-width: 0; }
+
+.notifications-studio .ntf-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--ntf-radius);
+  border: 1px solid var(--ntf-edge);
+  background: var(--ntf-card);
+  box-shadow: var(--ntf-shadow-sm);
+}
+
+.notifications-studio .ntf-form-card.admin-users-data-card {
+  border-radius: var(--ntf-radius);
+  border: 1px solid var(--ntf-edge-strong);
+  background: var(--ntf-card);
+  box-shadow: var(--ntf-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .notifications-studio .ntf-operate { grid-template-columns: 1fr; }
+  .notifications-studio .ntf-operate__rail { position: static; }
+}
+

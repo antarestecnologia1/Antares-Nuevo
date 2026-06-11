@@ -5,7 +5,7 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "dashboard", exportName: "viewDashboard" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".client-data-scope-bar", ".ops-dash", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".dashboard-studio", order: [".client-data-scope-bar", ".ops-dash", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     requests: {
       title: "Solicitudes",
@@ -14,7 +14,7 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "solicitudes", exportName: "requestsHtml", passUser: true }],
       layoutPlan: [
         {
-          container: ".requests-shell",
+          container: ".requests-studio",
           order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
         }
       ]
@@ -26,7 +26,7 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "transporte", exportName: "transportTripsHtml" }],
       layoutPlan: [
         {
-          container: ".transport-shell",
+          container: ".transport-studio",
           order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
         }
       ]
@@ -38,7 +38,7 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "transporte", exportName: "vehiclesHtml" }],
       layoutPlan: [
         {
-          container: ".vehicles-shell",
+          container: ".vehicles-studio",
           order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
         }
       ]
@@ -48,14 +48,14 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "transporte", exportName: "driversHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".drivers-studio", order: [".fleet-hero-strip", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "transport-calendar": {
       title: "Transporte · Calendario",
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "transporte", exportName: "transportCalendarHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".calendar-shell", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".calendar-studio", order: [".fleet-hero-strip", ".calendar-shell", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     history: {
       title: "Transporte · Historial y reportes",
@@ -64,9 +64,10 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "transporte", exportName: "historyHtml" }],
       layoutPlan: [
         {
-          container: ".module-shell-body",
+          container: ".history-studio",
           order: [
-            ".fleet-hero-strip",
+            ".history-studio-head",
+            ".hist-shell-body",
             ".history-module",
             ".history-workspace-nav",
             ".history-panel",
@@ -86,7 +87,7 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "transporte", exportName: "reportsHtml" }],
       layoutPlan: [
         {
-          container: ".module-shell-body",
+          container: ".reports-studio",
           order: [".fleet-hero-strip", ".reports-workspace", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"]
         }
       ]
@@ -98,7 +99,7 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "rrhh", exportName: "payrollHtml" }],
       layoutPlan: [
         {
-          container: ".payroll-shell",
+          container: ".payroll-studio",
           order: [
             ".hr-workspace-header--payroll",
             ".hr-workspace-panels"
@@ -113,7 +114,7 @@ window.PortalArchitecture = (() => {
       renderer: [{ module: "rrhh", exportName: "hiringHtml" }],
       layoutPlan: [
         {
-          container: ".hiring-shell",
+          container: ".hiring-studio",
           order: [
             ".hr-workspace-header--hiring",
             ".hr-workspace-panels"
@@ -126,42 +127,42 @@ window.PortalArchitecture = (() => {
       access: "admin-or-rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "laborComplianceHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", "[id^='create-']", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".sst-studio", order: [".fleet-hero-strip", "[id^='create-']", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "admin-users": {
       title: "Administración · Usuarios y permisos",
       access: "admin",
       shell: true,
       renderer: [{ module: "usuarios", exportName: "adminUsersHtml", passUser: true }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".users-hero-strip", "[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".admin-users-studio", order: [".fleet-hero-strip", ".users-hero-strip", "[id^='create-']", ".toolbar", ".dash-grid", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     authorizations: {
       title: "Centro de aprobaciones",
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "autorizaciones", exportName: "authorizationsHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".authorizations-studio", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     "contact-leads": {
       title: "Solicitudes de contacto (web)",
       access: "admin-or-contact-b2b",
       shell: true,
       renderer: [{ module: "contacto-b2b", exportName: "contactLeadsHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".b2b-studio", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     profile: {
       title: "Mi perfil",
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "perfil", exportName: "profileHtml", passUser: true }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".profile-studio", order: [".fleet-hero-strip", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     notifications: {
       title: "Notificaciones",
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "notificaciones", exportName: "notificationsHtml" }],
-      layoutPlan: [{ container: ".module-shell-body", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".notifications-studio", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     }
   };
 

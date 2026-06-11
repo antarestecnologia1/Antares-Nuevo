@@ -1,0 +1,558 @@
+/* ===================================================================
+   Contratación — Hiring Studio (2026)
+   Interfaz profesional selección / contratación Colombia.
+   Copia desacoplada de GH Studio: cambios aquí NO afectan Gestión humana.
+   Alcance exclusivo: .history-studio
+   =================================================================== */
+
+.history-studio {
+  --hist-navy: #0b2138;
+  --hist-navy-mid: #123d6b;
+  --hist-blue: var(--primary, #377cc0);
+  --hist-blue-soft: var(--primary-light, #cce5f8);
+  --hist-surface: #f4f8fc;
+  --hist-card: #ffffff;
+  --hist-edge: rgba(55, 124, 192, 0.14);
+  --hist-edge-strong: rgba(55, 124, 192, 0.22);
+  --hist-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --hist-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --hist-radius: 18px;
+  --hist-radius-sm: 12px;
+  --hist-co-gold: #f59e0b;
+  --hist-co-blue: #003893;
+  --hist-co-red: #ce1126;
+  --hist-success: #0d9488;
+  --hist-warn: #d97706;
+  --hist-danger: #dc2626;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+/* ── Cabecera del módulo ── */
+.history-studio .history-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--hist-radius);
+  border: 1px solid var(--hist-edge-strong);
+  background:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, transparent 55%),
+    var(--hist-card);
+  box-shadow: var(--hist-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.history-studio .history-studio-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--hist-co-blue) 33%, var(--hist-co-gold) 33% 66%, var(--hist-co-red) 66%);
+  opacity: 0.75;
+}
+
+.history-studio .history-studio-head__brand {
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+
+.history-studio .history-studio-head__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.4rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4338ca;
+}
+
+.history-studio .history-studio-head__brand h2 {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.45rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--hist-navy);
+}
+
+.history-studio .history-studio-head__tagline {
+  margin: 0.35rem 0 0;
+  max-width: 28rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-soft, #3a5a78);
+}
+
+.history-studio .history-studio-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-studio .history-studio-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 5.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid var(--hist-edge);
+  background: var(--hist-surface);
+  box-shadow: 0 1px 3px rgba(11, 33, 56, 0.04);
+}
+
+.history-studio .history-studio-kpi dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  letter-spacing: 0.02em;
+}
+
+.history-studio .history-studio-kpi dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--hist-navy);
+  line-height: 1.2;
+}
+
+.history-studio .history-studio-kpi--ok {
+  border-color: rgba(13, 148, 136, 0.25);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.08), var(--hist-surface));
+}
+.history-studio .history-studio-kpi--ok dd { color: #0f766e; }
+
+.history-studio .history-studio-kpi--neutral dd { color: var(--primary-dark); }
+
+.history-studio .history-studio-kpi--warn {
+  border-color: rgba(217, 119, 6, 0.3);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), var(--hist-surface));
+}
+.history-studio .history-studio-kpi--warn dd { color: #b45309; }
+
+.history-studio .history-studio-kpi--alert {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.07), var(--hist-surface));
+}
+.history-studio .history-studio-kpi--alert dd { color: #b91c1c; }
+
+/* ── Workspace header (Registrar | Consultar) ── */
+.history-studio > .hr-workspace-header--hiring {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  gap: 0.65rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.history-studio > .hr-workspace-header--hiring .history-studio-head,
+.history-studio > .hr-workspace-header--hiring .hiring-module-head--compact {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.history-studio .hr-workspace-header__switch {
+  flex: 0 0 auto;
+  flex-grow: 0;
+  flex-shrink: 0;
+  align-self: flex-end;
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.history-studio .hr-workspace-tabs--switch {
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid var(--hist-edge-strong);
+  background: var(--hist-surface);
+  gap: 0.2rem;
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.history-studio .hr-workspace-tab--switch {
+  min-height: 2.45rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.history-studio .hr-workspace-tab--switch.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.28);
+}
+
+.history-studio .hr-workspace-tab--switch .hr-workspace-tab-hint {
+  display: none;
+}
+
+.history-studio .hr-workspace-panels {
+  gap: 1rem;
+}
+
+/* ── Panel Registrar: rail lateral + contenido ── */
+.history-studio .history-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.history-studio .history-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--hist-radius);
+  border: 1px solid var(--hist-edge);
+  background: var(--hist-card);
+  box-shadow: var(--hist-shadow-sm);
+}
+
+.history-studio .history-operate__rail .auth-tabs-layout {
+  margin: 0;
+  padding: 0;
+}
+
+.history-studio .history-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.history-studio .history-operate .auth-tabs-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.history-studio .history-operate .auth-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.62rem 0.75rem;
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-soft);
+  text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.history-studio .history-operate .auth-tab-btn:hover {
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--hist-navy);
+}
+
+.history-studio .history-operate .auth-tab-btn.is-active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(67, 56, 202, 0.08));
+  border-color: rgba(99, 102, 241, 0.22);
+  color: #4338ca;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+}
+
+.history-studio .history-operate__main {
+  min-width: 0;
+}
+
+.history-studio .history-operate .auth-tab-panels {
+  border-radius: var(--hist-radius);
+  background: transparent;
+}
+
+/* ── Tarjetas de formulario colapsables ── */
+.history-studio .history-form-card.admin-users-data-card {
+  border-radius: var(--hist-radius);
+  border: 1px solid var(--hist-edge-strong);
+  background: var(--hist-card);
+  box-shadow: var(--hist-shadow);
+  overflow: hidden;
+}
+
+.history-studio .history-form-card.admin-users-data-card.p-card--expanded {
+  overflow: visible;
+}
+
+.history-studio .history-form-card .p-card-header {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--hist-edge);
+  background: linear-gradient(180deg, var(--hist-surface), var(--hist-card));
+}
+
+.history-studio .history-form-card .p-card-header h3 {
+  font-size: 1rem;
+  font-weight: 750;
+  color: var(--hist-navy);
+  letter-spacing: -0.02em;
+}
+
+.history-studio .history-form-card .p-card-header p {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  line-height: 1.45;
+  margin-top: 0.2rem;
+}
+
+.history-studio .history-form-card .create-card-toggle {
+  border-radius: var(--hist-radius-sm) !important;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.history-studio .history-form-card .p-card-body {
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.history-studio .history-form-card.hr-form-card--xl {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.history-studio .history-form-card.hr-form-card--xl .p-card-header {
+  margin-bottom: 0.65rem;
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid var(--hist-edge);
+}
+
+.history-studio .history-form-card.hr-form-card--xl .p-card-body {
+  padding: 0;
+}
+
+/* ── Panel Consultar ── */
+.history-studio .history-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--hist-radius);
+  border: 1px solid var(--hist-edge);
+  background: var(--hist-card);
+  box-shadow: var(--hist-shadow-sm);
+}
+
+.history-studio .history-data-panel .payroll-data-toolbar--compact {
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.history-studio .history-data-panel .payroll-data-nav {
+  padding: 0.35rem;
+  border-radius: 14px;
+  border: 1px solid var(--hist-edge);
+  background: var(--hist-surface);
+}
+
+.history-studio .history-data-panel .payroll-data-nav-tab {
+  border-radius: 11px;
+  font-weight: 650;
+  font-size: 0.78rem;
+}
+
+.history-studio .history-data-panel .payroll-data-nav-tab.is-active {
+  background: var(--hist-card);
+  color: #4338ca;
+  border-color: var(--hist-edge-strong);
+  box-shadow: 0 4px 14px rgba(11, 33, 56, 0.08);
+}
+
+.history-studio .history-data-panel .payroll-table-shell {
+  border-radius: var(--hist-radius-sm);
+  border-color: var(--hist-edge);
+  box-shadow: var(--hist-shadow-sm);
+}
+
+.history-studio .history-data-panel .payroll-quick-pill.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+}
+
+.history-studio .history-data-panel .payroll-data-pane .payroll-result-meta {
+  margin: 0 0 0.55rem;
+}
+
+.history-studio .hr-form-compact .form-section {
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid var(--hist-edge);
+  background: var(--hist-surface);
+  box-shadow: none;
+}
+
+.history-studio .hr-form-compact .form-section legend {
+  font-weight: 750;
+  color: #4338ca;
+}
+
+/* ── Búsqueda y tablas ── */
+.history-studio .hiring-data-search-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.history-studio .hiring-data-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 28rem;
+}
+
+.history-studio .hiring-data-search input[type="search"] {
+  width: 100%;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid var(--hist-edge-strong);
+  background: var(--hist-card);
+  font-size: 0.88rem;
+  color: var(--hist-navy);
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.history-studio .hiring-data-search input[type="search"]:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.history-studio .hiring-table-wrap {
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid var(--hist-edge);
+  background: var(--hist-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.history-studio .hiring-table thead th {
+  color: var(--text-soft);
+}
+
+.history-studio .hiring-table tbody td {
+  background: var(--hist-card);
+  border-color: var(--hist-edge);
+}
+
+.history-studio .hiring-table tbody tr:hover td {
+  background: color-mix(in srgb, rgba(99, 102, 241, 0.12) 35%, var(--hist-card));
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.history-studio .hiring-candidate-card {
+  border-radius: var(--hist-radius-sm);
+  border: 1px solid var(--hist-edge-strong);
+  background: var(--hist-card);
+  box-shadow: var(--hist-shadow-sm);
+}
+
+.history-studio #create-position .hr-card-icon {
+  background: linear-gradient(145deg, #1d4ed8, #1e3a8a);
+}
+
+.history-studio #create-vacancy .hr-card-icon {
+  background: linear-gradient(145deg, #7c3aed, #4c1d95);
+}
+
+.history-studio #create-candidate .hr-card-icon {
+  background: linear-gradient(145deg, #0d9488, #0f766e);
+}
+
+.history-studio #create-interview .hr-card-icon {
+  background: linear-gradient(145deg, #d97706, #b45309);
+}
+
+.history-studio #create-contract .hr-card-icon {
+  background: linear-gradient(145deg, #6366f1, #4338ca);
+}
+
+@media (max-width: 900px) {
+  .history-studio .history-operate {
+    grid-template-columns: 1fr;
+  }
+
+  .history-studio .history-operate__rail {
+    position: static;
+  }
+
+  .history-studio .history-operate .auth-tabs-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Tema oscuro ── */
+body[data-theme="dark"] .history-studio {
+  --hist-surface: rgba(15, 28, 46, 0.65);
+  --hist-card: rgba(15, 28, 46, 0.92);
+  --hist-edge: rgba(148, 196, 255, 0.14);
+  --hist-edge-strong: rgba(148, 196, 255, 0.22);
+  --hist-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --hist-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .history-studio .history-studio-head__brand h2,
+body[data-theme="dark"] .history-studio .history-studio-kpi dd {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .history-studio .history-studio-head__tagline {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .history-studio .hr-workspace-tab--switch.is-active {
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+}
+
+body[data-theme="dark"] .history-studio .hiring-data-search input[type="search"] {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .history-studio .hiring-table-wrap {
+  background: rgba(10, 22, 38, 0.55);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .history-studio .hiring-table tbody td {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .history-studio .hiring-candidate-card {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.16);
+}

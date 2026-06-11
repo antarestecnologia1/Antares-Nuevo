@@ -148,7 +148,7 @@ function profileHtml(user) {
       <button class="btn btn-primary full" type="submit">${IC.save} Guardar perfil</button>
     </form>
   </section>`;
-  return profileHero + pcardWrap("user", "Mi perfil", null, body, "p-card-profile");
+  return `<section class="profile-studio">${profileHero}${pcardWrap("user", "Mi perfil", null, body, "p-card-profile")}</section>`;
 }
 
 function bindProfilePortalControls() {

@@ -1,0 +1,558 @@
+/* ===================================================================
+   Contratación — Hiring Studio (2026)
+   Interfaz profesional selección / contratación Colombia.
+   Copia desacoplada de GH Studio: cambios aquí NO afectan Gestión humana.
+   Alcance exclusivo: .vehicles-studio
+   =================================================================== */
+
+.vehicles-studio {
+  --veh-navy: #0b2138;
+  --veh-navy-mid: #123d6b;
+  --veh-blue: var(--primary, #377cc0);
+  --veh-blue-soft: var(--primary-light, #cce5f8);
+  --veh-surface: #f4f8fc;
+  --veh-card: #ffffff;
+  --veh-edge: rgba(55, 124, 192, 0.14);
+  --veh-edge-strong: rgba(55, 124, 192, 0.22);
+  --veh-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --veh-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --veh-radius: 18px;
+  --veh-radius-sm: 12px;
+  --veh-co-gold: #f59e0b;
+  --veh-co-blue: #003893;
+  --veh-co-red: #ce1126;
+  --veh-success: #0d9488;
+  --veh-warn: #d97706;
+  --veh-danger: #dc2626;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+/* ── Cabecera del módulo ── */
+.vehicles-studio .vehicles-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--veh-radius);
+  border: 1px solid var(--veh-edge-strong);
+  background:
+    linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, transparent 55%),
+    var(--veh-card);
+  box-shadow: var(--veh-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.vehicles-studio .vehicles-studio-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--veh-co-blue) 33%, var(--veh-co-gold) 33% 66%, var(--veh-co-red) 66%);
+  opacity: 0.75;
+}
+
+.vehicles-studio .vehicles-studio-head__brand {
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding-top: 0.15rem;
+}
+
+.vehicles-studio .vehicles-studio-head__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.4rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4338ca;
+}
+
+.vehicles-studio .vehicles-studio-head__brand h2 {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.45rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--veh-navy);
+}
+
+.vehicles-studio .vehicles-studio-head__tagline {
+  margin: 0.35rem 0 0;
+  max-width: 28rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-soft, #3a5a78);
+}
+
+.vehicles-studio .vehicles-studio-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vehicles-studio .vehicles-studio-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 5.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-surface);
+  box-shadow: 0 1px 3px rgba(11, 33, 56, 0.04);
+}
+
+.vehicles-studio .vehicles-studio-kpi dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  letter-spacing: 0.02em;
+}
+
+.vehicles-studio .vehicles-studio-kpi dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--veh-navy);
+  line-height: 1.2;
+}
+
+.vehicles-studio .vehicles-studio-kpi--ok {
+  border-color: rgba(13, 148, 136, 0.25);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.08), var(--veh-surface));
+}
+.vehicles-studio .vehicles-studio-kpi--ok dd { color: #0f766e; }
+
+.vehicles-studio .vehicles-studio-kpi--neutral dd { color: var(--primary-dark); }
+
+.vehicles-studio .vehicles-studio-kpi--warn {
+  border-color: rgba(217, 119, 6, 0.3);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.1), var(--veh-surface));
+}
+.vehicles-studio .vehicles-studio-kpi--warn dd { color: #b45309; }
+
+.vehicles-studio .vehicles-studio-kpi--alert {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: linear-gradient(180deg, rgba(220, 38, 38, 0.07), var(--veh-surface));
+}
+.vehicles-studio .vehicles-studio-kpi--alert dd { color: #b91c1c; }
+
+/* ── Workspace header (Registrar | Consultar) ── */
+.vehicles-studio > .hr-workspace-header--payroll {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  gap: 0.65rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.vehicles-studio > .hr-workspace-header--payroll .vehicles-studio-head,
+.vehicles-studio > .hr-workspace-header--payroll .payroll-module-head--compact {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.vehicles-studio .hr-workspace-header__switch {
+  flex: 0 0 auto;
+  flex-grow: 0;
+  flex-shrink: 0;
+  align-self: flex-end;
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.vehicles-studio .hr-workspace-tabs--switch {
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid var(--veh-edge-strong);
+  background: var(--veh-surface);
+  gap: 0.2rem;
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.vehicles-studio .hr-workspace-tab--switch {
+  min-height: 2.45rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-soft);
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.vehicles-studio .hr-workspace-tab--switch.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.28);
+}
+
+.vehicles-studio .hr-workspace-tab--switch .hr-workspace-tab-hint {
+  display: none;
+}
+
+.vehicles-studio .hr-workspace-panels {
+  gap: 1rem;
+}
+
+/* ── Panel Registrar: rail lateral + contenido ── */
+.vehicles-studio .vehicles-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.vehicles-studio .vehicles-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--veh-radius);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+  box-shadow: var(--veh-shadow-sm);
+}
+
+.vehicles-studio .vehicles-operate__rail .auth-tabs-layout {
+  margin: 0;
+  padding: 0;
+}
+
+.vehicles-studio .vehicles-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.vehicles-studio .vehicles-operate .auth-tabs-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.vehicles-studio .vehicles-operate .auth-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.62rem 0.75rem;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--text-soft);
+  text-align: left;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.vehicles-studio .vehicles-operate .auth-tab-btn:hover {
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--veh-navy);
+}
+
+.vehicles-studio .vehicles-operate .auth-tab-btn.is-active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(67, 56, 202, 0.08));
+  border-color: rgba(99, 102, 241, 0.22);
+  color: #4338ca;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+}
+
+.vehicles-studio .vehicles-operate__main {
+  min-width: 0;
+}
+
+.vehicles-studio .vehicles-operate .auth-tab-panels {
+  border-radius: var(--veh-radius);
+  background: transparent;
+}
+
+/* ── Tarjetas de formulario colapsables ── */
+.vehicles-studio .vehicles-form-card.admin-users-data-card {
+  border-radius: var(--veh-radius);
+  border: 1px solid var(--veh-edge-strong);
+  background: var(--veh-card);
+  box-shadow: var(--veh-shadow);
+  overflow: hidden;
+}
+
+.vehicles-studio .vehicles-form-card.admin-users-data-card.p-card--expanded {
+  overflow: visible;
+}
+
+.vehicles-studio .vehicles-form-card .p-card-header {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--veh-edge);
+  background: linear-gradient(180deg, var(--veh-surface), var(--veh-card));
+}
+
+.vehicles-studio .vehicles-form-card .p-card-header h3 {
+  font-size: 1rem;
+  font-weight: 750;
+  color: var(--veh-navy);
+  letter-spacing: -0.02em;
+}
+
+.vehicles-studio .vehicles-form-card .p-card-header p {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  line-height: 1.45;
+  margin-top: 0.2rem;
+}
+
+.vehicles-studio .vehicles-form-card .create-card-toggle {
+  border-radius: var(--veh-radius-sm) !important;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.vehicles-studio .vehicles-form-card .p-card-body {
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.vehicles-studio .vehicles-form-card.hr-form-card--xl {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.vehicles-studio .vehicles-form-card.hr-form-card--xl .p-card-header {
+  margin-bottom: 0.65rem;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+}
+
+.vehicles-studio .vehicles-form-card.hr-form-card--xl .p-card-body {
+  padding: 0;
+}
+
+/* ── Panel Consultar ── */
+.vehicles-studio .vehicles-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--veh-radius);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+  box-shadow: var(--veh-shadow-sm);
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-data-toolbar--compact {
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-data-nav {
+  padding: 0.35rem;
+  border-radius: 14px;
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-surface);
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-data-nav-tab {
+  border-radius: 11px;
+  font-weight: 650;
+  font-size: 0.78rem;
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-data-nav-tab.is-active {
+  background: var(--veh-card);
+  color: #4338ca;
+  border-color: var(--veh-edge-strong);
+  box-shadow: 0 4px 14px rgba(11, 33, 56, 0.08);
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-table-shell {
+  border-radius: var(--veh-radius-sm);
+  border-color: var(--veh-edge);
+  box-shadow: var(--veh-shadow-sm);
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-quick-pill.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+}
+
+.vehicles-studio .vehicles-data-panel .payroll-data-pane .payroll-result-meta {
+  margin: 0 0 0.55rem;
+}
+
+.vehicles-studio .hr-form-compact .form-section {
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-surface);
+  box-shadow: none;
+}
+
+.vehicles-studio .hr-form-compact .form-section legend {
+  font-weight: 750;
+  color: #4338ca;
+}
+
+/* ── Búsqueda y tablas ── */
+.vehicles-studio .hiring-data-search-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.vehicles-studio .hiring-data-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 28rem;
+}
+
+.vehicles-studio .hiring-data-search input[type="search"] {
+  width: 100%;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge-strong);
+  background: var(--veh-card);
+  font-size: 0.88rem;
+  color: var(--veh-navy);
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.vehicles-studio .hiring-data-search input[type="search"]:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.vehicles-studio .hiring-table-wrap {
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.vehicles-studio .hiring-table thead th {
+  color: var(--text-soft);
+}
+
+.vehicles-studio .hiring-table tbody td {
+  background: var(--veh-card);
+  border-color: var(--veh-edge);
+}
+
+.vehicles-studio .hiring-table tbody tr:hover td {
+  background: color-mix(in srgb, rgba(99, 102, 241, 0.12) 35%, var(--veh-card));
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.vehicles-studio .hiring-candidate-card {
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge-strong);
+  background: var(--veh-card);
+  box-shadow: var(--veh-shadow-sm);
+}
+
+.vehicles-studio #create-position .hr-card-icon {
+  background: linear-gradient(145deg, #1d4ed8, #1e3a8a);
+}
+
+.vehicles-studio #create-vacancy .hr-card-icon {
+  background: linear-gradient(145deg, #7c3aed, #4c1d95);
+}
+
+.vehicles-studio #create-candidate .hr-card-icon {
+  background: linear-gradient(145deg, #0d9488, #0f766e);
+}
+
+.vehicles-studio #create-interview .hr-card-icon {
+  background: linear-gradient(145deg, #d97706, #b45309);
+}
+
+.vehicles-studio #create-contract .hr-card-icon {
+  background: linear-gradient(145deg, #6366f1, #4338ca);
+}
+
+@media (max-width: 900px) {
+  .vehicles-studio .vehicles-operate {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicles-studio .vehicles-operate__rail {
+    position: static;
+  }
+
+  .vehicles-studio .vehicles-operate .auth-tabs-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Tema oscuro ── */
+body[data-theme="dark"] .vehicles-studio {
+  --veh-surface: rgba(15, 28, 46, 0.65);
+  --veh-card: rgba(15, 28, 46, 0.92);
+  --veh-edge: rgba(148, 196, 255, 0.14);
+  --veh-edge-strong: rgba(148, 196, 255, 0.22);
+  --veh-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --veh-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .vehicles-studio .vehicles-studio-head__brand h2,
+body[data-theme="dark"] .vehicles-studio .vehicles-studio-kpi dd {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .vehicles-studio .vehicles-studio-head__tagline {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .vehicles-studio .hr-workspace-tab--switch.is-active {
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+}
+
+body[data-theme="dark"] .vehicles-studio .hiring-data-search input[type="search"] {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .vehicles-studio .hiring-table-wrap {
+  background: rgba(10, 22, 38, 0.55);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .vehicles-studio .hiring-table tbody td {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .vehicles-studio .hiring-candidate-card {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.16);
+}

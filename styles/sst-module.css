@@ -1,0 +1,90 @@
+/* ===================================================================
+   Cumplimiento laboral y SST — Studio independiente
+   Alcance exclusivo: .sst-studio
+   =================================================================== */
+
+.sst-studio {
+  --sst-navy: #0b2138;
+  --sst-blue: var(--primary, #377cc0);
+  --sst-blue-soft: var(--primary-light, #cce5f8);
+  --sst-surface: #f4f8fc;
+  --sst-card: #ffffff;
+  --sst-edge: rgba(55, 124, 192, 0.14);
+  --sst-edge-strong: rgba(55, 124, 192, 0.22);
+  --sst-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --sst-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --sst-radius: 18px;
+  --sst-radius-sm: 12px;
+  --sst-accent: #b45309;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.sst-studio .sst-studio-head,
+.sst-studio .sst-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--sst-radius);
+  border: 1px solid var(--sst-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sst-accent) 8%, transparent), transparent 55%), var(--sst-card);
+  box-shadow: var(--sst-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.sst-studio .sst-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.sst-studio .sst-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--sst-radius);
+  border: 1px solid var(--sst-edge);
+  background: var(--sst-card);
+  box-shadow: var(--sst-shadow-sm);
+}
+
+.sst-studio .sst-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.sst-studio .sst-operate__main { min-width: 0; }
+
+.sst-studio .sst-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--sst-radius);
+  border: 1px solid var(--sst-edge);
+  background: var(--sst-card);
+  box-shadow: var(--sst-shadow-sm);
+}
+
+.sst-studio .sst-form-card.admin-users-data-card {
+  border-radius: var(--sst-radius);
+  border: 1px solid var(--sst-edge-strong);
+  background: var(--sst-card);
+  box-shadow: var(--sst-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .sst-studio .sst-operate { grid-template-columns: 1fr; }
+  .sst-studio .sst-operate__rail { position: static; }
+}
+

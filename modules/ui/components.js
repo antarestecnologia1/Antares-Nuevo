@@ -367,20 +367,20 @@ export function renderPayrollModuleHead({
       `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Término fijo en ventana de 30 días o vencido"><dt>Contratos</dt><dd><strong>${escapeHtml(String(contractNoticeCount))}</strong></dd></div>`
     );
   }
-  const ghItems = items
+  const payItems = items
     .map((html) =>
       html
-        .replace(/payroll-module-kpi__item--/g, "gh-studio-kpi--")
-        .replace(/payroll-module-kpi__item/g, "gh-studio-kpi")
+        .replace(/payroll-module-kpi__item--/g, "payroll-studio-kpi--")
+        .replace(/payroll-module-kpi__item/g, "payroll-studio-kpi")
     )
     .join("");
-  return `<header class="gh-studio-head payroll-module-head payroll-module-head--compact">
-      <div class="gh-studio-head__brand payroll-module-head__title">
-        <span class="gh-studio-head__badge">RRHH · Colombia</span>
+  return `<header class="payroll-studio-head payroll-module-head payroll-module-head--compact">
+      <div class="payroll-studio-head__brand payroll-module-head__title">
+        <span class="payroll-studio-head__badge">RRHH · Colombia</span>
         <h2>Gestión humana</h2>
-        <p class="gh-studio-head__tagline">Nómina, seguridad social y talento humano conforme al CST, Ley 50 y normativa vigente.</p>
+        <p class="payroll-studio-head__tagline">Nómina, seguridad social y talento humano conforme al CST, Ley 50 y normativa vigente.</p>
       </div>
-      <dl class="gh-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${ghItems}</dl>
+      <dl class="payroll-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${payItems}</dl>
     </header>`;
 }
 
@@ -394,34 +394,27 @@ export function renderHiringModuleHead({
   totalCandidates
 }) {
   const items = [
-    `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Vacantes abiertas u ofertas activas"><dt>Vacantes</dt><dd><strong>${escapeHtml(String(openVacancies))}</strong></dd></div>`,
-    `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="Candidatos que siguen en proceso de selección"><dt>En proceso</dt><dd><strong>${escapeHtml(String(activeCandidates))}</strong></dd></div>`,
-    `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="${escapeHtml(String(hiredCandidates ?? 0))} contratados de ${escapeHtml(String(totalCandidates ?? 0))} candidatos registrados"><dt>Conversión</dt><dd><strong>${escapeHtml(String(candidateConversion))}%</strong></dd></div>`
+    `<div class="hiring-studio-kpi hiring-studio-kpi--ok" title="Vacantes abiertas u ofertas activas"><dt>Vacantes</dt><dd><strong>${escapeHtml(String(openVacancies))}</strong></dd></div>`,
+    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="Candidatos que siguen en proceso de selección"><dt>En proceso</dt><dd><strong>${escapeHtml(String(activeCandidates))}</strong></dd></div>`,
+    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="${escapeHtml(String(hiredCandidates ?? 0))} contratados de ${escapeHtml(String(totalCandidates ?? 0))} candidatos registrados"><dt>Conversión</dt><dd><strong>${escapeHtml(String(candidateConversion))}%</strong></dd></div>`
   ];
   if (urgentItems > 0) {
     items.push(
-      `<div class="payroll-module-kpi__item payroll-module-kpi__item--warn" title="Vacantes por cerrar o contratos por vencer"><dt>Alertas</dt><dd><strong>${escapeHtml(String(urgentItems))}</strong></dd></div>`
+      `<div class="hiring-studio-kpi hiring-studio-kpi--warn" title="Vacantes por cerrar o contratos por vencer"><dt>Alertas</dt><dd><strong>${escapeHtml(String(urgentItems))}</strong></dd></div>`
     );
   }
   if (contractsThisMonth > 0) {
     items.push(
-      `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Contratos con fecha de firma en el mes en curso"><dt>Este mes</dt><dd><strong>${escapeHtml(String(contractsThisMonth))}</strong></dd></div>`
+      `<div class="hiring-studio-kpi hiring-studio-kpi--ok" title="Contratos con fecha de firma en el mes en curso"><dt>Este mes</dt><dd><strong>${escapeHtml(String(contractsThisMonth))}</strong></dd></div>`
     );
   }
-  const ghItems = items
-    .map((html) =>
-      html
-        .replace(/payroll-module-kpi__item--/g, "gh-studio-kpi--")
-        .replace(/payroll-module-kpi__item/g, "gh-studio-kpi")
-    )
-    .join("");
-  return `<header class="gh-studio-head payroll-module-head payroll-module-head--compact">
-      <div class="gh-studio-head__brand payroll-module-head__title">
-        <span class="gh-studio-head__badge">Selección · Colombia</span>
+  return `<header class="hiring-studio-head hiring-module-head hiring-module-head--compact">
+      <div class="hiring-studio-head__brand hiring-module-head__title">
+        <span class="hiring-studio-head__badge">Selección · Colombia</span>
         <h2>Contratación</h2>
-        <p class="gh-studio-head__tagline">Vacantes, pipeline de candidatos y generación de contratos conforme al CST y normativa laboral vigente.</p>
+        <p class="hiring-studio-head__tagline">Vacantes, pipeline de candidatos y generación de contratos conforme al CST y normativa laboral vigente.</p>
       </div>
-      <dl class="gh-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de contratación">${ghItems}</dl>
+      <dl class="hiring-studio-kpis hiring-module-head__kpi" aria-label="Indicadores de contratación">${items.join("")}</dl>
     </header>`;
 }
 

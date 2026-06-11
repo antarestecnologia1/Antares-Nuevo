@@ -1,0 +1,90 @@
+/* ===================================================================
+   Autorizaciones — Studio independiente
+   Alcance exclusivo: .authorizations-studio
+   =================================================================== */
+
+.authorizations-studio {
+  --aut-navy: #0b2138;
+  --aut-blue: var(--primary, #377cc0);
+  --aut-blue-soft: var(--primary-light, #cce5f8);
+  --aut-surface: #f4f8fc;
+  --aut-card: #ffffff;
+  --aut-edge: rgba(55, 124, 192, 0.14);
+  --aut-edge-strong: rgba(55, 124, 192, 0.22);
+  --aut-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
+  --aut-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --aut-radius: 18px;
+  --aut-radius-sm: 12px;
+  --aut-accent: #dc2626;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding-bottom: 0.5rem;
+}
+
+.authorizations-studio .aut-studio-head,
+.authorizations-studio .authorizations-studio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--aut-radius);
+  border: 1px solid var(--aut-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--aut-accent) 8%, transparent), transparent 55%), var(--aut-card);
+  box-shadow: var(--aut-shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.authorizations-studio .aut-operate {
+  display: grid;
+  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.authorizations-studio .aut-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  padding: 0.65rem;
+  border-radius: var(--aut-radius);
+  border: 1px solid var(--aut-edge);
+  background: var(--aut-card);
+  box-shadow: var(--aut-shadow-sm);
+}
+
+.authorizations-studio .aut-operate__rail-label {
+  display: block;
+  margin: 0 0 0.5rem 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.authorizations-studio .aut-operate__main { min-width: 0; }
+
+.authorizations-studio .aut-data-panel {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--aut-radius);
+  border: 1px solid var(--aut-edge);
+  background: var(--aut-card);
+  box-shadow: var(--aut-shadow-sm);
+}
+
+.authorizations-studio .aut-form-card.admin-users-data-card {
+  border-radius: var(--aut-radius);
+  border: 1px solid var(--aut-edge-strong);
+  background: var(--aut-card);
+  box-shadow: var(--aut-shadow);
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .authorizations-studio .aut-operate { grid-template-columns: 1fr; }
+  .authorizations-studio .aut-operate__rail { position: static; }
+}
+
