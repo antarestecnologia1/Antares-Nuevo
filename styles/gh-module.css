@@ -442,6 +442,83 @@
   color: var(--primary-dark);
 }
 
+.gh-studio .payroll-liquidation-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 0.85rem;
+}
+
+.gh-studio .payroll-liquidation-mode__btn {
+  flex: 1 1 9rem;
+  min-height: 2.15rem;
+  padding: 0.42rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--gh-edge);
+  background: var(--gh-surface);
+  color: var(--text-main, #0f172a);
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.gh-studio .payroll-liquidation-mode__btn.is-active {
+  border-color: rgba(var(--primary-rgb), 0.45);
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary-dark);
+}
+
+.gh-studio .hr-form-card--payroll-liquidation .p-card-body,
+.gh-studio .hr-form-card--payroll-liquidation [data-create-panel="create-payroll"] {
+  overflow: visible;
+}
+
+.gh-studio .payroll-single-form__grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.65rem 0.75rem;
+}
+
+.gh-studio #form-payroll.payroll-single-form .form-section-grid label:not(.route-rate-company-item) {
+  padding: 0.5rem 0.62rem;
+  border-radius: 10px;
+}
+
+.gh-studio #form-payroll.payroll-single-form .form-section-grid input,
+.gh-studio #form-payroll.payroll-single-form .form-section-grid select,
+.gh-studio #form-payroll.payroll-single-form .searchable-select-input {
+  min-height: 2.15rem;
+  font-size: 0.86rem;
+}
+
+.gh-studio #form-payroll.payroll-single-form .form-section {
+  padding: 0.8rem 0.9rem 0.75rem;
+}
+
+.gh-studio #form-payroll.payroll-single-form .form-section legend {
+  font-size: 0.84rem;
+  margin-bottom: 0.45rem;
+}
+
+.gh-studio #form-payroll.payroll-single-form .payroll-employee-picker {
+  grid-column: 1 / -1;
+  max-width: 28rem;
+}
+
+.gh-studio #form-payroll.payroll-single-form #payroll-monthly-base-salary {
+  max-width: 14rem;
+}
+
+.gh-studio #form-payroll.payroll-single-form input[type="month"],
+.gh-studio #form-payroll.payroll-single-form input[type="number"] {
+  max-width: 12.5rem;
+}
+
+.gh-studio .payroll-single-empty {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+}
+
 .gh-studio .payroll-bulk-panel {
   margin-bottom: 1rem;
   padding: 0.9rem 1rem;

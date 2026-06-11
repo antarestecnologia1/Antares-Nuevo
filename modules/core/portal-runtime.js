@@ -1201,9 +1201,19 @@ function wireMonthlyPayrollConcepts(form) {
     copP.disabled = !(show && cbP.checked);
   };
 
+  const suggestPrimaDaysFromEmployee = () => {
+    if (!daysP || !cbP?.checked || !payrollMonthIsPrimaSemester(monthEl.value)) return;
+    if (String(daysP.value || "").trim() !== "") return;
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
+    if (!emp) return;
+    const d = calcColombiaPrimaSemesterEmployedDays(emp.startDate, monthEl.value);
+    if (d > 0) daysP.value = String(d);
+  };
+
   const recalcPrimaCop = () => {
     if (!cbP || !daysP || !copP) return;
     if (!payrollMonthIsPrimaSemester(monthEl.value) || !cbP.checked) return;
+    suggestPrimaDaysFromEmployee();
     if (copP.dataset.userEdited === "1") return;
     const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || ""));
     const bs = emp ? parseNum(emp.baseSalary) : 0;
@@ -1261,13 +1271,18 @@ function wireMonthlyPayrollConcepts(form) {
       quincenaWrap.toggleAttribute("hidden", !isQuinc);
       quincenaWrap.setAttribute("aria-hidden", isQuinc ? "false" : "true");
     }
-    if (fsP) {
-      fsP.classList.toggle("hidden", !emp || isDriver);
-      fsP.setAttribute("aria-hidden", !emp || isDriver ? "true" : "false");
-    }
-    if (fsC) {
-      fsC.classList.toggle("hidden", !emp || isDriver);
-      fsC.setAttribute("aria-hidden", !emp || isDriver ? "true" : "false");
+    if (!emp || isDriver) {
+      if (fsP) {
+        fsP.classList.add("hidden");
+        fsP.setAttribute("aria-hidden", "true");
+      }
+      if (fsC) {
+        fsC.classList.add("hidden");
+        fsC.setAttribute("aria-hidden", "true");
+      }
+    } else {
+      applyPrima();
+      applyCesantias();
     }
     if (salaryLabel) {
       salaryLabel.classList.toggle("hidden", isDriver);
@@ -1319,6 +1334,7 @@ function wireMonthlyPayrollConcepts(form) {
     syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
     syncAuxTransportFromEmployee();
     syncPayFrequencyUi();
+    suggestPrimaDaysFromEmployee();
     recalcPrimaCop();
     recalcInteresesCop();
   });
@@ -1328,7 +1344,11 @@ function wireMonthlyPayrollConcepts(form) {
   syncPayFrequencyUi();
 
   if (cbP && daysP && copP) {
-    cbP.addEventListener("change", applyPrima);
+    cbP.addEventListener("change", () => {
+      applyPrima();
+      suggestPrimaDaysFromEmployee();
+      recalcPrimaCop();
+    });
     daysP.addEventListener("input", recalcPrimaCop);
     copP.addEventListener("input", () => {
       copP.dataset.userEdited = parseNum(copP.value) > 0 ? "1" : "";
@@ -4211,10 +4231,10 @@ function mountSearchableSelect(selectEl, opts = {}) {
     selectEl.dispatchEvent(new Event("change", { bubbles: true }));
   };
   input.addEventListener("focus", () => {
-    renderSearchableSelectDropdown(selectEl, input.value);
+    openSearchableSelectDropdown(selectEl, input.value);
   });
   input.addEventListener("input", () => {
-    renderSearchableSelectDropdown(selectEl, input.value);
+    openSearchableSelectDropdown(selectEl, input.value);
   });
   input.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape") {
@@ -4352,6 +4372,15 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
+    mountSearchableSelect(sel, { force: true });
+  });
+}
+
+/** Selector buscable de colaborador en liquidación individual y terminación contractual. */
+function enhancePayrollLiquidationSelects(rootEl) {
+  const root = rootEl && rootEl.querySelector ? rootEl : document;
+  root.querySelectorAll("select[name='employeeId']").forEach((sel) => {
+    if (!sel.closest("#form-payroll, #form-payroll-settlement")) return;
     mountSearchableSelect(sel, { force: true });
   });
 }
@@ -11705,6 +11734,7 @@ Object.assign(window, {
   employeeProfileKvRow,
   employeeTransportAllowanceGuidance,
   enhanceTripAssignmentSelects,
+  enhancePayrollLiquidationSelects,
   enrichPortalUserFromPayrollCache,
   ensureDeletedTransportRequestAuditSnapshotLoaded,
   ensureDeletedTransportTripAuditSnapshotLoaded,

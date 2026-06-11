@@ -23,13 +23,15 @@ function parseNum(v) {
 }
 
 
-/** Prestación de servicios (conductores): pago por viaje, no nómina laboral ordinaria. */
+/** Prestación de servicios (conductores): pago por viaje, no nómina laboral ordinaria. Alineado con API (`payroll-employee-kind.ts`). */
 export function employeeIsConductorServiceProvider(employee) {
   if (!employee) return false;
-  const role = String(employee.workerRole || "").trim().toLowerCase();
-  if (role === "conductor") return true;
-  const ct = String(employee.contractType || "").trim().toLowerCase();
-  if (/prestaci[oó]n\s*de\s*servicios|prestacion.*servicio/i.test(ct)) return true;
+  const role = String(employee.workerRole || employee.rolTrabajador || "").trim().toLowerCase();
+  const ct = String(employee.contractType || employee.tipoContrato || "").trim().toLowerCase();
+  const isConductor = role === "conductor";
+  const isServiceContract = /prestaci[oó]n\s*de\s*servicios|prestacion.*servicio/i.test(ct);
+  if (isConductor && isServiceContract) return true;
+  if (!isConductor && isServiceContract) return true;
   const tpl = String(employee.contractTemplateKind || employee.contractTemplate || "").trim().toLowerCase();
   if (tpl === "prestacion" || tpl.includes("prestacion")) return true;
   return false;
@@ -37,6 +39,10 @@ export function employeeIsConductorServiceProvider(employee) {
 
 export function employeeReceivesPayrollNomina(employee) {
   return !employeeIsConductorServiceProvider(employee);
+}
+
+export function listPayrollNominaEmployees(employees = []) {
+  return (Array.isArray(employees) ? employees : []).filter((e) => employeeReceivesPayrollNomina(e));
 }
 
 export function payrollRunIsDriverTripPayment(run) {
@@ -210,6 +216,32 @@ export function calcColombiaPrimaServiciosCop(salaryMonthly, daysInSemester) {
   const s = Math.max(0, parseNum(salaryMonthly));
   const d = Math.max(0, parseNum(daysInSemester));
   return Math.round((s * d) / 360);
+}
+
+/** Días laborados en el semestre (orientativo CST) para junio o diciembre. */
+export function calcColombiaPrimaSemesterEmployedDays(hireDateYmd, monthYm) {
+  const ym = String(monthYm || "").trim();
+  const m = ym.slice(5, 7);
+  if (m !== "06" && m !== "12") return 0;
+  const y = Number(ym.slice(0, 4));
+  if (!Number.isFinite(y)) return 0;
+  const hire = String(hireDateYmd || "").trim().slice(0, 10);
+  let semStart;
+  let semEnd;
+  if (m === "06") {
+    semStart = Date.UTC(y, 0, 1);
+    semEnd = Date.UTC(y, 5, 30);
+  } else {
+    semStart = Date.UTC(y, 6, 1);
+    semEnd = Date.UTC(y, 11, 31);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(hire)) return 180;
+  const hireTs = Date.parse(`${hire}T12:00:00.000Z`);
+  if (!Number.isFinite(hireTs)) return 180;
+  const startEff = Math.max(semStart, hireTs);
+  if (startEff > semEnd) return 0;
+  const days = Math.floor((semEnd - startEff) / 86400000) + 1;
+  return Math.min(180, Math.max(0, days));
 }
 
 /**

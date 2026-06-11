@@ -23,6 +23,14 @@ function payrollHtml() {
   const nominaRunsAll = filterPayrollNominaRuns(allRuns);
   const driverPaymentRunsAll = filterDriverTripPaymentRuns(allRuns);
   const conductorEmployees = listConductorServiceEmployees(employees);
+  const nominaEmployees = listPayrollNominaEmployees(employees);
+  const payrollLiquidationMode = String(payrollUi.liquidationMode || "single").toLowerCase() === "bulk" ? "bulk" : "single";
+  const payrollNominaEmployeeOptions = nominaEmployees
+    .map(
+      (e) =>
+        `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} · ${escapeHtml(String(e.idDoc || "—"))} · ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`
+    )
+    .join("");
   const absences = readArray(KEYS.hrAbsences);
   const filters = state.payrollFilters || defaultPayrollFilters();
   const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
@@ -314,10 +322,14 @@ function payrollHtml() {
     </div>
   </form>`;
   const todayYmdBulk = new Date().toISOString().slice(0, 10);
-  const formPayBulk = `<section class="payroll-bulk-panel" aria-labelledby="payroll-bulk-title">
+  const payrollLiquidationModeNav = `<div class="payroll-liquidation-mode" role="tablist" aria-label="Modo de liquidación">
+      <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "single" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "single" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="single">${IC.user} Un colaborador</button>
+      <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "bulk" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "bulk" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="bulk">${IC.users} Todos (cascada)</button>
+    </div>`;
+  const formPayBulk = `<section class="payroll-bulk-panel payroll-liquidation-pane${payrollLiquidationMode === "bulk" ? "" : " hidden"}" data-payroll-liquidation-pane="bulk" aria-labelledby="payroll-bulk-title"${payrollLiquidationMode === "bulk" ? "" : " hidden"}>
       <div class="payroll-bulk-panel__intro">
         <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva</h4>
-        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). Quedan pendientes de pago para que pueda programar el desembolso con al menos dos días de anticipación.</p>
+        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). En <strong>junio</strong> y <strong>diciembre</strong> incluye prima de servicios al cerrar el último corte del mes; en <strong>enero</strong> o <strong>febrero</strong> puede incluir intereses de cesantías si configuró la base en el servidor. Quedan pendientes de pago.</p>
       </div>
       <div class="payroll-bulk-fields">
         <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
@@ -333,17 +345,16 @@ function payrollHtml() {
         <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
       </div>
     </section>`;
-  const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact">
+  const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact payroll-single-form${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single"${payrollLiquidationMode === "single" ? "" : " hidden"}>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees
-          .filter((e) => employeeReceivesPayrollNomina(e))
-          .map(
-            (e) =>
-              `<option value="${e.id}">${e.name} · Empleado · ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`
-          )
-          .join("")}</select></label>
+      ${
+        nominaEmployees.length
+          ? ""
+          : `<p class="full payroll-single-empty muted">No hay colaboradores de nómina laboral en el directorio. Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>`
+      }
+      <div class="form-section-grid payroll-single-form__grid">
+        <label class="payroll-employee-picker">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" id="payroll-employee-select" class="searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o periodicidad…" required${nominaEmployees.length ? "" : " disabled"}><option value="">Seleccione colaborador</option>${payrollNominaEmployeeOptions}</select></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
         <p class="full muted hidden" id="payroll-freq-hint" style="font-size:0.82rem;margin:0"></p>
         <label>${fieldLabel(IC.calendar, "Mes calendario")}<input type="month" name="month" required /></label>
@@ -422,9 +433,8 @@ function payrollHtml() {
     </fieldset>
     ${renderManagedCreateFormActions("create-driver-trip-payment", `<button class="btn btn-primary" type="submit">${IC.truck} Liquidar viajes del mes</button>`)}
   </form>`;
-  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${employees
-    .filter((e) => employeeReceivesPayrollNomina(e))
-    .map((e) => `<option value="${e.id}">${e.name}</option>`)
+  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${nominaEmployees
+    .map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))}</option>`)
     .join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-emerald full">
@@ -614,7 +624,7 @@ function payrollHtml() {
     ]
   });
   const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee">${createCollapsibleProCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "admin-users-data-card hr-form-card gh-form-card hr-form-card--xl", "Abrir expediente", { createPanels: state.createPanels })}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll">${createCollapsibleProCard("create-payroll", "dollar", "Liquidación de nómina", "Relación laboral — devengos, deducciones y aportes parafiscales", `${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll">${createCollapsibleProCard("create-payroll", "dollar", "Liquidación de nómina", "Relación laboral — devengos, deducciones y aportes parafiscales", `${payrollLiquidationModeNav}${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg hr-form-card--payroll-liquidation", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
   const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay">${createCollapsibleProCard("create-driver-trip-payment", "truck", "Pago por viajes", "Prestación de servicios — viáticos interdepartamentales y combustible", formDriverTripPay, "admin-users-data-card hr-form-card gh-form-card hr-form-card--md", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
   const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement">${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación final", "Terminación contractual — cesantías, prima y vacaciones (CST)", formPayrollSettlement, "admin-users-data-card hr-form-card gh-form-card hr-form-card--lg", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
   const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence">${createCollapsibleProCard("create-hr-absence", "calendar", "Ausencias e incapacidades", "Vacaciones, licencias, incapacidades y permisos remunerados", formAbsence, "admin-users-data-card hr-form-card gh-form-card hr-form-card--md", "Registrar ausencia", { createPanels: state.createPanels })}</div>`;
@@ -972,6 +982,15 @@ function bindPayrollPortalControls() {
     btn.addEventListener("click", () => {
       const section = normalizePayrollOperateSection(btn.dataset.section);
       state.payrollUi = { ...(state.payrollUi || {}), operateSection: section, workspace: "operate" };
+      persistHrWorkspace("payroll", "operate");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-liquidation-mode']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = String(btn.dataset.mode || "single").toLowerCase() === "bulk" ? "bulk" : "single";
+      state.payrollUi = { ...(state.payrollUi || {}), liquidationMode: mode, workspace: "operate", operateSection: "payroll" };
       persistHrWorkspace("payroll", "operate");
       renderPortalView();
     });
@@ -1871,6 +1890,7 @@ function bindPayrollPortalControls() {
 
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
+    enhancePayrollLiquidationSelects(payrollForm);
     wireMonthlyPayrollConcepts(payrollForm);
     wireFormSubmitGuard(payrollForm, async (event) => {
       const data = readFormEntriesNormalized(payrollForm);
@@ -2159,6 +2179,7 @@ function bindPayrollPortalControls() {
 
   const settlementForm = document.getElementById("form-payroll-settlement");
   if (settlementForm) {
+    enhancePayrollLiquidationSelects(settlementForm);
     wireTerminationSettlementForm(settlementForm);
     wireFormSubmitGuard(settlementForm, async (event) => {
       const data = readFormEntriesNormalized(settlementForm);
