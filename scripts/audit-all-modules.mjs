@@ -16,7 +16,7 @@ const MODULES = [
   { id: "history", label: "7. Historial", selector: "#view-root .history-module, #view-root .module-shell-body" },
   { id: "reports", label: "8. Reportería", selector: "#view-root .reports-workspace, #view-root .module-shell-body" },
   { id: "payroll", label: "9. Gestión humana", selector: "#view-root .gh-studio, #view-root .payroll-shell" },
-  { id: "hiring", label: "10. Contratación", selector: "#view-root .hiring-shell, #view-root .hr-module-pro--hiring" },
+  { id: "hiring", label: "10. Contratación", selector: "#view-root .gh-studio.hiring-shell, #view-root .hiring-shell" },
   { id: "labor-compliance", label: "11. Cumplimiento laboral y SST", selector: "#view-root .module-shell-body, #view-root #form-sst-compliance" },
   { id: "contact-leads", label: "12. Contacto web (B2B)", selector: "#view-root .b2b-leads-mosaic, #view-root .b2b-leads-loading, #view-root .empty-state" },
   { id: "admin-users", label: "13. Usuarios y permisos", selector: "#view-root .module-shell-body, #view-root .users-hero-strip" },

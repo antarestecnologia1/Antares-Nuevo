@@ -115,11 +115,8 @@ window.PortalArchitecture = (() => {
         {
           container: ".hiring-shell",
           order: [
-            ".hr-workspace-tabs",
-            ".payroll-module-head",
-            ".payroll-operate-panel",
-            ".payroll-data-panel",
-            ".payroll-table-shell"
+            ".hr-workspace-header--hiring",
+            ".hr-workspace-panels"
           ]
         }
       ]

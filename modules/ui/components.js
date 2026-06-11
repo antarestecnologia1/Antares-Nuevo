@@ -408,11 +408,20 @@ export function renderHiringModuleHead({
       `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Contratos con fecha de firma en el mes en curso"><dt>Este mes</dt><dd><strong>${escapeHtml(String(contractsThisMonth))}</strong></dd></div>`
     );
   }
-  return `<header class="payroll-module-head payroll-module-head--compact">
-      <div class="payroll-module-head__title">
+  const ghItems = items
+    .map((html) =>
+      html
+        .replace(/payroll-module-kpi__item--/g, "gh-studio-kpi--")
+        .replace(/payroll-module-kpi__item/g, "gh-studio-kpi")
+    )
+    .join("");
+  return `<header class="gh-studio-head payroll-module-head payroll-module-head--compact">
+      <div class="gh-studio-head__brand payroll-module-head__title">
+        <span class="gh-studio-head__badge">Selección · Colombia</span>
         <h2>Contratación</h2>
+        <p class="gh-studio-head__tagline">Vacantes, pipeline de candidatos y generación de contratos conforme al CST y normativa laboral vigente.</p>
       </div>
-      <dl class="payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de contratación">${items.join("")}</dl>
+      <dl class="gh-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de contratación">${ghItems}</dl>
     </header>`;
 }
 
