@@ -80,6 +80,7 @@ function profileHtml(user) {
       <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${profileAvatarCss ? "has-image" : ""}" style="${profileAvatarCss ? `background-image:url('${profileAvatarCss}');` : ""}" title="Cambiar foto de perfil">
         <span class="profile-avatar-initial">${profileAvatarCss ? "" : (displayName || "U").charAt(0).toUpperCase()}</span>
         <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
+        <input type="file" id="profile-avatar-input" name="avatarFile" form="form-profile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto de perfil" />
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
         <h3>${escapeHtml(displayName)}</h3>
@@ -103,7 +104,6 @@ function profileHtml(user) {
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
     <form id="form-profile" class="p-form p-form-colored profile-form profile-form-centered">
-      <input type="file" id="profile-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto de perfil" />
       <fieldset class="form-section form-section-blue full">
         <legend>${IC.user} Información personal</legend>
         <div class="form-section-grid">
@@ -172,8 +172,7 @@ function bindProfilePortalControls() {
         }
         Object.assign(data, pv.sanitized);
       }
-      const fileInput = profileForm.querySelector("input[name='avatarFile']");
-      const file = fileInput?.files?.[0];
+      const file = profileAvatarInput?.files?.[0];
       const persistProfile = async (avatarUrlValue = "") => {
         const users = read(KEYS.users, []);
         const company = getCompanyById(String(data.companyId || ""));

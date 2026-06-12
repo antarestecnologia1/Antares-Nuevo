@@ -20056,14 +20056,16 @@ body[data-theme="dark"] .profile-avatar.has-image {
 
 .profile-avatar-file-input {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   padding: 0;
-  margin: -1px;
+  margin: 0;
+  opacity: 0;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+  cursor: pointer;
   border: 0;
+  z-index: 2;
 }
 
 .profile-hero-card-centered .profile-avatar-upload:focus-within {
