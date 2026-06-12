@@ -85,6 +85,24 @@ export function hrWizardValidityTargets(stepEl) {
   });
 }
 
+/**
+ * Marca un campo como inválido, muestra el mensaje bajo el control y desplaza el foco.
+ * @returns {false} para cortar flujos `if (!failPortalField(...)) return;`
+ */
+export function failPortalField(form, fieldRef, message) {
+  const V = window.AntaresValidation;
+  if (!V) return false;
+  const field =
+    typeof V.resolveFormField === "function"
+      ? V.resolveFormField(form, fieldRef)
+      : form?.querySelector?.(typeof fieldRef === "string" ? `[name="${fieldRef}"]` : null);
+  if (!field) return false;
+  const msg = String(message || V.MSG?.required || "Este campo es obligatorio.").trim();
+  V.setFieldError?.(field, msg);
+  V.focusInvalidField?.(field, { pulse: true });
+  return false;
+}
+
 /** Texto de error visible (`.field-error`) o mensaje nativo del campo (p. ej. `setCustomValidity`). */
 export function readInlineOrNativeFieldError(fieldEl) {
   if (!fieldEl) return "";
@@ -126,15 +144,19 @@ export function hrWizardStepValid(stepEl) {
   }
   if (!firstInvalid) return { ok: true };
   const detail = readInlineOrNativeFieldError(firstInvalid);
-  try {
-    firstInvalid.scrollIntoView?.({ behavior: "smooth", block: "center" });
-  } catch (_e) {
-    /* noop */
-  }
-  try {
-    firstInvalid.focus?.({ preventScroll: true });
-  } catch (_e) {
-    firstInvalid.focus?.();
+  if (V && typeof V.focusInvalidField === "function") {
+    V.focusInvalidField(firstInvalid, { pulse: true });
+  } else {
+    try {
+      firstInvalid.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    } catch (_e) {
+      /* noop */
+    }
+    try {
+      firstInvalid.focus?.({ preventScroll: true });
+    } catch (_e) {
+      firstInvalid.focus?.();
+    }
   }
   if (!hasInlineError && typeof firstInvalid.reportValidity === "function") {
     firstInvalid.reportValidity();
@@ -1073,8 +1095,7 @@ export function openEditModal({
       if (V && typeof V.validateDomForm === "function") {
         const domVal = V.validateDomForm(currentForm);
         if (!domVal.ok) {
-          domVal.firstInvalid?.focus?.();
-          notify(userMessage("validationStep"), "error");
+          V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
           return false;
         }
         V.applyDomFormPatch?.(currentForm, domVal.patch);

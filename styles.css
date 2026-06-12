@@ -2047,6 +2047,24 @@ textarea[data-antares-field="db-upper-multiline"] {
   color: #be2f2f;
   font-size: 0.76rem;
   font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.field-invalid-attention {
+  animation: field-invalid-pulse 0.55s ease;
+}
+
+@keyframes field-invalid-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(214, 69, 69, 0.35);
+  }
+  45% {
+    box-shadow: 0 0 0 6px rgba(214, 69, 69, 0.12);
+  }
+  100% {
+    box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.14);
+  }
 }
 
 input, select, textarea {

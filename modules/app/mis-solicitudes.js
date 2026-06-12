@@ -227,7 +227,7 @@
         const data = readFormEntriesNormalized(requestForm);
         const requestCompanyId = String(data.companyId || "").trim();
         if (!requestCompanyId) {
-          notify("Debe seleccionar la empresa asociada.", "error");
+          failPortalField(requestForm, "companyId", "Debe seleccionar la empresa asociada.");
           return;
         }
         const reqCompanyRaw =
@@ -248,8 +248,20 @@
         const pickupTimeValue = String(data.pickupTime || "");
         const deliveryDateValue = String(data.deliveryDate || "");
         const deliveryTimeValue = String(data.deliveryTime || "");
-        if (!pickupDateValue || !pickupTimeValue || !deliveryDateValue || !deliveryTimeValue) {
-          notify(userMessage("requestDatetimeMissing"), "error");
+        if (!pickupDateValue) {
+          failPortalField(requestForm, "pickupDate", userMessage("requestDatetimeMissing"));
+          return;
+        }
+        if (!pickupTimeValue) {
+          failPortalField(requestForm, "pickupTime", userMessage("requestDatetimeMissing"));
+          return;
+        }
+        if (!deliveryDateValue) {
+          failPortalField(requestForm, "deliveryDate", userMessage("requestDatetimeMissing"));
+          return;
+        }
+        if (!deliveryTimeValue) {
+          failPortalField(requestForm, "deliveryTime", userMessage("requestDatetimeMissing"));
           return;
         }
         const pickupAt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
@@ -257,11 +269,11 @@
         const pickupDateTime = new Date(pickupAt);
         const deliveryDateTime = new Date(etaDelivery);
         if (pickupDateTime.getTime() < Date.now()) {
-          notify(userMessage("requestPastDatetime"), "error");
+          failPortalField(requestForm, "pickupDate", userMessage("requestPastDatetime"));
           return;
         }
         if (deliveryDateTime.getTime() <= pickupDateTime.getTime()) {
-          notify(userMessage("requestDeliveryAfterPickup"), "error");
+          failPortalField(requestForm, "deliveryDate", userMessage("requestDeliveryAfterPickup"));
           return;
         }
         const {
@@ -281,18 +293,18 @@
         } = data;
         const serviceType = String(modoTransporte || "").trim();
         if (!TRANSPORT_MODOS_SERVICIO.has(serviceType)) {
-          notify("Seleccione un modo de transporte válido (nacional o entre sedes del cliente).", "error");
+          failPortalField(requestForm, "serviceType", "Seleccione un modo de transporte válido (nacional o entre sedes del cliente).");
           return;
         }
         const tk = String(requiresThermoking || "").trim();
         if (tk !== "yes" && tk !== "no") {
-          notify("Indique si el envío requiere Termoking o es carga seca.", "error");
+          failPortalField(requestForm, "requiresThermoking", "Indique si el envío requiere Termoking o es carga seca.");
           return;
         }
         const refrigeracionTermoking = tk === "yes";
         const requiredTruckType = normalizeRequestRequiredTruckType(requiredTruckTypeRaw);
         if (!requiredTruckType) {
-          notify("Seleccione el tipo de camión requerido.", "error");
+          failPortalField(requestForm, "requiredTruckType", "Seleccione el tipo de camión requerido.");
           return;
         }
         let fuellesVal = null;
@@ -300,14 +312,14 @@
         if (requestRequiredTruckTypeShowsFuelles(requiredTruckType)) {
           const f = Math.floor(Number(String(fuellesFormRaw ?? "").trim()));
           if (!Number.isFinite(f) || String(fuellesFormRaw ?? "").trim() === "" || f < 0) {
-            notify("Indique la cantidad de fuelles.", "error");
+            failPortalField(requestForm, "fuelles", "Indique la cantidad de fuelles.");
             return;
           }
           fuellesVal = f;
         } else if (requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType)) {
           weightKgVal = Math.max(0, Number(weightKgFromForm) || 0);
           if (weightKgVal <= 0) {
-            notify("Indique el peso en kg para tractomula.", "error");
+            failPortalField(requestForm, "weightKg", "Indique el peso en kg para tractomula.");
             return;
           }
         }

@@ -1777,6 +1777,7 @@ export class PortalService implements OnModuleInit {
     create_user: "authorizations_portal_users",
     create_driver: "authorizations_fleet",
     create_employee: "authorizations_workforce",
+    update_employee: "authorizations_workforce",
     register_hr_absence: "authorizations_hr_absences",
     mark_payroll_paid: "authorizations_payroll_pay",
     approve_trip_request: "authorizations_transport"
@@ -3473,7 +3474,7 @@ export class PortalService implements OnModuleInit {
   async adminDeletePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string) {
     const permissionSet = this.isAdmin(actorRole)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
-      : await this.loadPortalPermissionSet(actorUserId);
+      : await this.resolveEffectivePermissionSet(actorUserId, actorRole);
     if (!this.isAdmin(actorRole) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
       throw new ForbiddenException();
     }
@@ -3615,7 +3616,9 @@ export class PortalService implements OnModuleInit {
   ) {
     data = sanitizeSyncKeyPayload(data);
     const admin = this.isAdmin(role);
-    const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
+    const permissionSet = admin
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.resolveEffectivePermissionSet(userId, role);
     const can = (permission: string) => admin || this.hasPortalPermission(permissionSet, permission);
     switch (key) {
       case "users":
@@ -5889,7 +5892,9 @@ export class PortalService implements OnModuleInit {
           idDoc: payload.idDoc ?? ""
         };
       case "create_employee":
+      case "update_employee":
         return {
+          employeeId: payload.employeeId ?? "",
           name: payload.name ?? "",
           idDoc: payload.idDoc ?? "",
           position: payload.position ?? ""
@@ -10071,17 +10076,38 @@ export class PortalService implements OnModuleInit {
   private async syncApprovals(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
-    const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
+    const permissionSet = admin
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.resolveEffectivePermissionSet(userId, role);
     for (const a of data) {
       if (!a?.id) continue;
       if (this.skipUnlessPersistUuid("syncApprovals", a.id)) continue;
-      if (!admin && String(a.requestedByUserId) !== userId) {
-        if (!this.canReviewApprovalType(permissionSet, String(a.type || ""))) {
+      const reqBy = a.requestedByUserId || userId;
+      if (this.skipUnlessPersistUuid("syncApprovals.requestedByUserId", reqBy)) continue;
+      if (!admin && String(reqBy) !== userId) {
+        const existingRes = await c.query<{
+          estado: string;
+          revisado_por: string | null;
+          motivo_rechazo: string | null;
+        }>(
+          `SELECT estado::text AS estado, revisado_por, motivo_rechazo
+           FROM solicitudes_autorizacion WHERE id = $1::uuid`,
+          [a.id]
+        );
+        const existing = existingRes.rows[0];
+        if (!existing) {
+          throw new ForbiddenException();
+        }
+        const nextStatus = String(a.status || "pendiente").trim();
+        const prevStatus = String(existing.estado || "").trim();
+        const reviewedChanged =
+          String(a.reviewedBy || "").trim() !== String(existing.revisado_por || "").trim() ||
+          String(a.rejectionReason || "").trim() !== String(existing.motivo_rechazo || "").trim();
+        if ((nextStatus !== prevStatus || reviewedChanged) &&
+          !this.canReviewApprovalType(permissionSet, String(a.type || ""))) {
           throw new ForbiddenException();
         }
       }
-      const reqBy = a.requestedByUserId || userId;
-      if (this.skipUnlessPersistUuid("syncApprovals.requestedByUserId", reqBy)) continue;
       const payload = await this.normalizeApprovalPayloadForStorage(a.type, a.payload);
       await c.query(
         `INSERT INTO solicitudes_autorizacion (

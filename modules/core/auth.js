@@ -14,6 +14,7 @@ import {
   SESSION_IDLE_PUBLIC_NOTICE_KEY
 } from "./config.js";
 import { state } from "./store.js";
+import { failPortalField } from "../ui/modals.js";
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
@@ -1124,7 +1125,7 @@ export async function sanitizeApprovalPayloadForQueue(type, payload) {
   if (type === "create_driver") {
     return window.normalizeDriverFormPayloadForStorage(base);
   }
-  if (type === "create_employee") {
+  if (type === "create_employee" || type === "update_employee") {
     return window.sanitizePayrollEmployeeFieldsForPersist(normalizePayloadTextFields(base));
   }
   return normalizePayloadTextFields(base);
@@ -1148,7 +1149,11 @@ export async function queueApproval({ type, title, payload, requestedByUserId, r
   });
   try {
     await window.writeAwaitServer(KEYS.approvals, approvals);
-  } catch (_e) {}
+  } catch (err) {
+    const msg = String(err?.message || window.userMessage?.("genericError") || "No se pudo enviar la solicitud de autorización.").trim();
+    window.notify(msg, "error");
+    throw err;
+  }
   window.notifyAdminUsers("Nueva autorización pendiente", `${title} solicitada por ${requestedByName}.`);
 }
 
@@ -1226,6 +1231,7 @@ export function approvalDetailLine(approval) {
     case "create_driver":
       return [String(p.name || "").trim(), p.idDoc ? `Doc. ${maskSensitiveTail(p.idDoc, 3)}` : ""].filter(Boolean).join(" · ") || "—";
     case "create_employee":
+    case "update_employee":
       return [String(p.name || "").trim(), p.idDoc ? `ID ${maskSensitiveTail(p.idDoc, 3)}` : "", String(p.position || "").trim()]
         .filter(Boolean)
         .join(" · ") || "—";
@@ -2460,8 +2466,7 @@ export function bindAuthForms() {
       if (Vreg && typeof Vreg.validateDomForm === "function") {
         const domVal = Vreg.validateDomForm(register);
         if (!domVal.ok) {
-          domVal.firstInvalid?.focus?.();
-          window.notify(window.userMessage("validationStep"), "error");
+          Vreg.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
           return;
         }
       }
@@ -2475,7 +2480,7 @@ export function bindAuthForms() {
         .filter(Boolean)
         .join(" ");
       if (!fullName) {
-        window.notify(window.userMessage("registerNamesInvalid"), "error");
+        failPortalField(register, "firstName", window.userMessage("registerNamesInvalid"));
         return;
       }
       data.personType = normalizePersonTypeForDb(data.personType);
@@ -2487,11 +2492,11 @@ export function bindAuthForms() {
         const nitVal = window.validateColombianDocument("NIT", data.companyNit || "");
         const personalVal = window.validateColombianDocument(personalDocType, data.personalTaxId || "");
         if (!nitVal.ok) {
-          window.notify(nitVal.message, "error");
+          failPortalField(register, "companyNit", nitVal.message);
           return;
         }
         if (!personalVal.ok) {
-          window.notify(personalVal.message, "error");
+          failPortalField(register, "personalTaxId", personalVal.message);
           return;
         }
         data.companyNit = nitVal.normalized;
@@ -2504,7 +2509,7 @@ export function bindAuthForms() {
       } else {
         const docValidation = window.validateColombianDocument(data.documentType, data.taxId);
         if (!docValidation.ok) {
-          window.notify(docValidation.message, "error");
+          failPortalField(register, "taxId", docValidation.message);
           return;
         }
         data.taxId = docValidation.normalized;
@@ -2519,16 +2524,16 @@ export function bindAuthForms() {
         }
       }
       if (String(data.password || "") !== String(data.passwordConfirm || "")) {
-        window.notify(window.userMessage("registerPasswordMismatch"), "error");
+        failPortalField(register, "passwordConfirm", window.userMessage("registerPasswordMismatch"));
         return;
       }
       const policy = __validatePasswordPolicy(data.password);
       if (!policy.ok) {
-        window.notify(window.userMessage(policy.key), "error");
+        failPortalField(register, "password", window.userMessage(policy.key));
         return;
       }
       if (!data.acceptTerms) {
-        window.notify(window.userMessage("registerTerms"), "error");
+        failPortalField(register, "acceptTerms", window.userMessage("registerTerms"));
         return;
       }
       const birthDateValue = new Date(String(data.birthDate || ""));
@@ -2718,8 +2723,7 @@ export function bindAuthForms() {
       if (V && typeof V.validateDomForm === "function") {
         const domVal = V.validateDomForm(recover);
         if (!domVal.ok) {
-          domVal.firstInvalid?.focus?.();
-          window.notify(window.userMessage("validationStep"), "error");
+          Vreg.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
           return;
         }
       }

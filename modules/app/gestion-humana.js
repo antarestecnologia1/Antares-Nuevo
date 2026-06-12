@@ -1299,7 +1299,7 @@ function bindPayrollPortalControls() {
       const raw = readFormEntriesNormalized(employeeForm);
       const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
       if (!docValidation.ok) {
-        notify(docValidation.message, "error");
+        failPortalField(employeeForm, "idDoc", docValidation.message);
         return;
       }
       if (!(await employeeDuplicateDocCheck({ forceServer: true, fromSubmit: true }))) {
@@ -1343,12 +1343,20 @@ function bindPayrollPortalControls() {
           return;
         }
         if (payload.workerRole === "conductor") {
-          if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
-            notify(userMessage("employeeDriverFieldsRequired"), "error");
+          if (!payload.license) {
+            failPortalField(employeeForm, "license", userMessage("employeeDriverFieldsRequired"));
+            return;
+          }
+          if (!payload.licenseCategory) {
+            failPortalField(employeeForm, "licenseCategory", userMessage("employeeDriverFieldsRequired"));
+            return;
+          }
+          if (!payload.licenseExpiry) {
+            failPortalField(employeeForm, "licenseExpiry", userMessage("employeeDriverFieldsRequired"));
             return;
           }
           if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-            notify(userMessage("payrollLicenseExpired"), "error");
+            failPortalField(employeeForm, "licenseExpiry", userMessage("payrollLicenseExpired"));
             return;
           }
         }
@@ -1430,13 +1438,13 @@ function bindPayrollPortalControls() {
       const data = readFormEntriesNormalized(absenceForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
-        notify(userMessage("absencePickEmployee"), "error");
+        failPortalField(absenceForm, "employeeId", userMessage("absencePickEmployee"));
         return;
       }
       const start = new Date(`${data.startDate}T12:00:00`);
       const end = new Date(`${data.endDate}T12:00:00`);
       if (end.getTime() < start.getTime()) {
-        notify(userMessage("absenceDateOrder"), "error");
+        failPortalField(absenceForm, "endDate", userMessage("absenceDateOrder"));
         return;
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
@@ -1668,6 +1676,7 @@ function bindPayrollPortalControls() {
           wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
         },
         onSubmit: async (payload, formEl) => {
+          const actor = currentUser();
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
           if (!docValidation.ok) {
             notify(docValidation.message, "error");
@@ -1707,6 +1716,26 @@ function bindPayrollPortalControls() {
               notify(userMessage("payrollLicenseExpired"), "error");
               return false;
             }
+          }
+          if (actor?.role !== ROLES.ADMIN) {
+            const stripAvatar = String(nextAvatar || "").startsWith("data:");
+            try {
+              await queueApproval({
+                type: "update_employee",
+                title: `Modificacion de colaborador ${nextPayload.name}`,
+                payload: {
+                  employeeId: target.id,
+                  ...nextPayload,
+                  avatarUrl: stripAvatar ? "" : nextAvatar || nextPayload.avatarUrl || ""
+                },
+                requestedByUserId: actor?.id || "",
+                requestedByName: actor?.name || "Usuario"
+              });
+            } catch (_err) {
+              return false;
+            }
+            notify(userMessage("employeeUpdateRequestQueued"), "info");
+            return true;
           }
           const nextEmployees = all.map((empRow) =>
               String(empRow.id) !== String(target.id)

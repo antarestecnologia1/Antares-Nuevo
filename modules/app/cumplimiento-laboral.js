@@ -181,12 +181,12 @@ function bindLaborCompliancePortalControls() {
       const data = G.readFormEntriesNormalized(sstComplianceForm);
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
-        G.notify(G.userMessage("sstPickEmployee"), "error");
+        G.failPortalField(sstComplianceForm, "employeeId", G.userMessage("sstPickEmployee"));
         return;
       }
       const dueDate = String(data.dueDate || "");
       if (!dueDate) {
-        G.notify(G.userMessage("sstDueDateRequired"), "error");
+        G.failPortalField(sstComplianceForm, "dueDate", G.userMessage("sstDueDateRequired"));
         return;
       }
       const list = read(KEYS.sstCompliance, []);
@@ -297,7 +297,7 @@ function bindLaborCompliancePortalControls() {
         ],
         onSubmit: async (form) => {
           if (!form.dueDate) {
-            G.notify(G.userMessage("sstDueDateRequired"), "error");
+            G.failPortalField(document.getElementById("crud-form"), "dueDate", G.userMessage("sstDueDateRequired"));
             return false;
           }
           const nextList = all.map((r) =>

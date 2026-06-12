@@ -167,7 +167,11 @@ function bindProfilePortalControls() {
       if (Vprof && typeof Vprof.validateProfileForm === "function") {
         const pv = Vprof.validateProfileForm(data);
         if (!pv.ok) {
-          notify(pv.message, "error");
+          if (pv.fieldSelector) {
+            failPortalField(profileForm, pv.fieldSelector, pv.message);
+          } else {
+            failPortalField(profileForm, "name", pv.message);
+          }
           return;
         }
         Object.assign(data, pv.sanitized);

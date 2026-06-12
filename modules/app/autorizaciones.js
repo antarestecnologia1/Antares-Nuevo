@@ -374,6 +374,53 @@ function bindAuthorizationsPortalControls() {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
+      } else if (approval.type === "update_employee") {
+        const employees = read(KEYS.payrollEmployees, []);
+        const payload = { ...approval.payload };
+        const employeeId = String(payload.employeeId || "").trim();
+        if (!employeeId) {
+          notify(userMessage("employeeDeleteNotFound"), "error");
+          return;
+        }
+        const idx = employees.findIndex((row) => String(row.id) === employeeId);
+        if (idx < 0) {
+          notify(userMessage("employeeDeleteNotFound"), "error");
+          return;
+        }
+        delete payload.employeeId;
+        const pos = payload.positionId ? getPositionById(String(payload.positionId)) : null;
+        if (pos) {
+          payload.position = pos.name;
+          payload.workerRole = pos.workerRole || payload.workerRole || employees[idx].workerRole || "empleado";
+          payload.contractType = payload.contractType || pos.contractTypeDefault || employees[idx].contractType || "Termino indefinido";
+        }
+        const merged = stampUpdatedRecord({
+          ...employees[idx],
+          ...payload,
+          id: employeeId,
+          avatarUrl:
+            String(payload.avatarUrl || "").trim() || employees[idx].avatarUrl || ""
+        });
+        employees[idx] = merged;
+        try {
+          await writeAwaitServer(KEYS.payrollEmployees, employees);
+        } catch (err) {
+          notify(String(err?.message || userMessage("genericError")), "error");
+          return;
+        }
+        const propagate = await propagateEmployeeChanges(merged, {
+          license: merged.license,
+          licenseCategory: merged.licenseCategory,
+          licenseExpiry: merged.licenseExpiry
+        });
+        if (!propagate.ok) {
+          notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
+          return;
+        }
+        await refreshPayrollDraftsLinked(employeeId, null, null, { notifyOnError: false });
+        try {
+          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+        } catch (_e) {}
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
         const driverRow = normalizeDriverFormPayloadForStorage({ ...approval.payload });
@@ -545,12 +592,13 @@ function bindAuthorizationsPortalControls() {
             const schedPickup = requestSchedulingPickupIso(request);
             const schedDelivery = requestSchedulingDeliveryIso(request);
 
+            const authForm = document.getElementById("crud-form");
             if ((vehicleId && !driverId) || (!vehicleId && driverId)) {
-              notify(userMessage("assignAutoPickResources"), "error");
+              failPortalField(authForm, vehicleId ? "driverId" : "vehicleId", userMessage("assignAutoPickResources"));
               return false;
             }
             if (vehicleId && driverId && tripValue <= 0) {
-              notify(userMessage("assignPriceRequired"), "error");
+              failPortalField(authForm, "tripValue", userMessage("assignPriceRequired"));
               return false;
             }
             if (vehicleId && driverId) {

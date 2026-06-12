@@ -218,6 +218,8 @@
     recruitSalaryMinRef: (formatted) =>
       `El salario no puede ser inferior al mínimo legal referenciado (${formatted}).`,
     employeeRequestQueued: "Solicitud de empleado enviada a autorizaciones.",
+    employeeUpdateRequestQueued:
+      "Los cambios quedaron en bandeja de autorizaciones para validación del administrador.",
     employeeDriverFieldsRequired:
       "Para cargo conductor debe indicar licencia, categoría y fecha de vencimiento.",
     employeeCreatedWithContract: "Empleado creado y contrato Word generado.",

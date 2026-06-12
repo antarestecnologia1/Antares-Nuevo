@@ -153,13 +153,23 @@ export function patchApprovalRowForEmployee(approval, employee, empId, empName) 
         payload
       };
     }
-  } else if (approval.type === "create_employee" && (String(payload.employeeId || "") === empId || docMatch)) {
+  } else if (
+    (approval.type === "create_employee" || approval.type === "update_employee") &&
+    (String(payload.employeeId || "") === empId || docMatch)
+  ) {
     payload.name = empName;
     payload.phone = employee.phone;
     payload.position = employee.position;
     payload.idDoc = employee.idDoc;
     changed = true;
-    next = { ...next, title: `Creacion de empleado ${empName}`, payload };
+    next = {
+      ...next,
+      title:
+        approval.type === "update_employee"
+          ? `Modificacion de colaborador ${empName}`
+          : `Creacion de empleado ${empName}`,
+      payload
+    };
   }
 
   return changed ? next : approval;

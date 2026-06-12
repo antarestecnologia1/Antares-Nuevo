@@ -61,6 +61,7 @@ import {
 } from "./router.js";
 import { isCreatePanelExpanded } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
+import { failPortalField } from "../ui/modals.js";
 
 /** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */
 const $portal = typeof globalThis !== "undefined" ? /** @type {Record<string, any>} */ (globalThis) : /** @type {Record<string, any>} */ ({});
@@ -1003,23 +1004,23 @@ function bindDynamicEvents() {
       );
       const users = read(KEYS.users, []);
       if (users.some((item) => $portal.normalizeEmail(item.email) === $portal.normalizeEmail(data.email))) {
-        $portal.notify($portal.userMessage("userEmailExists"), "error");
+        failPortalField(adminUserCreate, "email", $portal.userMessage("userEmailExists"));
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
       if (!docValidation.ok) {
-        $portal.notify(docValidation.message, "error");
+        failPortalField(adminUserCreate, "taxId", docValidation.message);
         return;
       }
       data.taxId = docValidation.normalized;
       const company = getCompanyById(data.companyId);
       if (!company) {
-        $portal.notify($portal.userMessage("userSelectCompany"), "error");
+        failPortalField(adminUserCreate, "companyId", $portal.userMessage("userSelectCompany"));
         return;
       }
       const passPolicy = validatePasswordPolicy(data.password);
       if (!passPolicy.ok) {
-        $portal.notify($portal.userMessage(passPolicy.key), "error");
+        failPortalField(adminUserCreate, "password", $portal.userMessage(passPolicy.key));
         return;
       }
       if (actor?.role !== ROLES.ADMIN) {
@@ -1099,36 +1100,36 @@ function bindDynamicEvents() {
       const data = $portal.readFormEntriesNormalized(adminCompanyCreate);
       const logoFile = adminCompanyCreate.querySelector("input[name='logoFile']")?.files?.[0] || null;
       if (!logoFile) {
-        $portal.notify("Debe cargar el logo de la empresa.", "error");
+        failPortalField(adminCompanyCreate, "logoFile", "Debe cargar el logo de la empresa.");
         return;
       }
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
-        $portal.notify($portal.userMessage("companyNitInvalid", nitValidation.message), "error");
+        failPortalField(adminCompanyCreate, "taxId", $portal.userMessage("companyNitInvalid", nitValidation.message));
         return;
       }
       const nameTrim = $portal.normalizeLatinUpperForDb(String(data.name || "").trim());
       if (!nameTrim) {
-        $portal.notify($portal.userMessage("validationStep"), "error");
+        failPortalField(adminCompanyCreate, "name", $portal.userMessage("validationStep"));
         return;
       }
       if (nameTrim.length > 255) {
-        $portal.notify($portal.userMessage("companyNameTooLong"), "error");
+        failPortalField(adminCompanyCreate, "name", $portal.userMessage("companyNameTooLong"));
         return;
       }
       const phoneStored = normalizePortalPhoneForStorage(String(data.phone || ""));
       const phoneDigits = phoneStored.replace(/\D/g, "");
       if (phoneStored && phoneDigits.length < 7) {
-        $portal.notify($portal.userMessage("companyPhoneInvalid"), "error");
+        failPortalField(adminCompanyCreate, "phone", $portal.userMessage("companyPhoneInvalid"));
         return;
       }
       const emailStored = $portal.normalizeEmail(String(data.email || ""));
       if (emailStored && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStored)) {
-        $portal.notify("Ingrese un correo empresarial válido.", "error");
+        failPortalField(adminCompanyCreate, "email", "Ingrese un correo empresarial válido.");
         return;
       }
       if (!phoneStored && !emailStored) {
-        $portal.notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
+        failPortalField(adminCompanyCreate, "phone", "Incluya al menos un canal de contacto: teléfono o correo.");
         return;
       }
       const contactName = $portal.normalizeLatinUpperForDb(String(data.contactName || ""));
@@ -1213,7 +1214,7 @@ function bindDynamicEvents() {
         logoUrlResolved = String(await resolveEmployeeAvatarUrl(logoFile, logoUrlResolved || "") || "").trim();
       }
       if (!logoUrlResolved) {
-        $portal.notify("La empresa debe tener un logo cargado.", "error");
+        failPortalField(adminCompanyEdit, "logoFile", "La empresa debe tener un logo cargado.");
         return;
       }
       if (window.AntaresApi?.isConfigured?.() && isDataUrl(logoUrlResolved)) {
@@ -1233,16 +1234,16 @@ function bindDynamicEvents() {
       }
       const nitValidation = validateColombianDocument("NIT", data.taxId);
       if (!nitValidation.ok) {
-        $portal.notify($portal.userMessage("companyNitInvalid", nitValidation.message), "error");
+        failPortalField(adminCompanyEdit, "taxId", $portal.userMessage("companyNitInvalid", nitValidation.message));
         return;
       }
       const nameTrim = $portal.normalizeLatinUpperForDb(String(data.name || "").trim());
       if (!nameTrim) {
-        $portal.notify($portal.userMessage("validationStep"), "error");
+        failPortalField(adminCompanyEdit, "name", $portal.userMessage("validationStep"));
         return;
       }
       if (nameTrim.length > 255) {
-        $portal.notify($portal.userMessage("companyNameTooLong"), "error");
+        failPortalField(adminCompanyEdit, "name", $portal.userMessage("companyNameTooLong"));
         return;
       }
       const nitNorm = nitValidation.normalized;
@@ -1266,16 +1267,16 @@ function bindDynamicEvents() {
       const phoneStored = normalizePortalPhoneForStorage(String(data.phone || ""));
       const phoneDigits = phoneStored.replace(/\D/g, "");
       if (phoneStored && phoneDigits.length < 7) {
-        $portal.notify($portal.userMessage("companyPhoneInvalid"), "error");
+        failPortalField(adminCompanyEdit, "phone", $portal.userMessage("companyPhoneInvalid"));
         return;
       }
       const emailStored = $portal.normalizeEmail(String(data.email || ""));
       if (emailStored && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStored)) {
-        $portal.notify("Ingrese un correo empresarial válido.", "error");
+        failPortalField(adminCompanyEdit, "email", "Ingrese un correo empresarial válido.");
         return;
       }
       if (!phoneStored && !emailStored) {
-        $portal.notify("Incluya al menos un canal de contacto: teléfono o correo.", "error");
+        failPortalField(adminCompanyEdit, "phone", "Incluya al menos un canal de contacto: teléfono o correo.");
         return;
       }
       const contactName = $portal.normalizeLatinUpperForDb(String(data.contactName || ""));
@@ -1413,18 +1414,18 @@ function bindDynamicEvents() {
       }
       const duplicated = users.some((u) => u.id !== userId && $portal.normalizeEmail(u.email) === $portal.normalizeEmail(data.email));
       if (duplicated) {
-        $portal.notify($portal.userMessage("userEmailDuplicate"), "error");
+        failPortalField(adminUserEdit, "email", $portal.userMessage("userEmailDuplicate"));
         return;
       }
       const docValidation = validateColombianDocument(data.documentType, data.taxId);
       if (!docValidation.ok) {
-        $portal.notify(docValidation.message, "error");
+        failPortalField(adminUserEdit, "taxId", docValidation.message);
         return;
       }
       data.taxId = docValidation.normalized;
       const company = getCompanyById(String(data.companyId || ""));
       if (!company) {
-        $portal.notify($portal.userMessage("userSelectCompany"), "error");
+        failPortalField(adminUserEdit, "companyId", $portal.userMessage("userSelectCompany"));
         return;
       }
       const permissions = [...adminUserEdit.querySelectorAll("input[name='permissions']:checked")].map((input) => input.value);
@@ -1434,7 +1435,7 @@ function bindDynamicEvents() {
       if (String(data.password || "").trim()) {
         const pp = validatePasswordPolicy(data.password);
         if (!pp.ok) {
-          $portal.notify($portal.userMessage(pp.key), "error");
+          failPortalField(adminUserEdit, "password", $portal.userMessage(pp.key));
           return;
         }
         nextPassword = await hashPassword(passwordPlain);
@@ -2787,13 +2788,7 @@ function initGlobalEvents() {
   if (V?.installFormSubmitGuard) {
     V.installFormSubmitGuard(document, {
       onInvalid(_form, firstInvalid) {
-        try {
-          firstInvalid?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-        } catch (_e) {
-          /* noop */
-        }
-        firstInvalid?.focus?.();
-        if (typeof $portal.notify === "function") $portal.notify($portal.userMessage("validationStep"), "error");
+        V.focusInvalidField?.(firstInvalid, { pulse: true, block: "nearest" });
       }
     });
   }

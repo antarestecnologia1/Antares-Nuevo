@@ -779,29 +779,29 @@ function bindHiringPortalControls() {
         return cand >= t0;
       })();
       if (!deadlineOk) {
-        notify(userMessage("vacancyDeadlineFuture"), "error");
+        failPortalField(vacancyForm, "deadline", userMessage("vacancyDeadlineFuture"));
         return;
       }
       const pFrom = String(data.publishedFrom || "").trim();
       if (pFrom) {
         if (!publicVacancyYmdValid(pFrom)) {
-          notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
+          failPortalField(vacancyForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
           return;
         }
         const dlim = String(data.deadline || "").trim();
         if (publicVacancyYmdValid(dlim) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(dlim)) {
-          notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
+          failPortalField(vacancyForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
           return;
         }
       }
       const position = getPositionById(String(data.positionId || ""));
       if (!position || position.active === false) {
-        notify(userMessage("vacancySelectPosition"), "error");
+        failPortalField(vacancyForm, "positionId", userMessage("vacancySelectPosition"));
         return;
       }
       const salaryValidation = validateVacancySalaryOffer(data.salaryOffer, position);
       if (!salaryValidation.ok) {
-        notify(salaryValidation.message, "error");
+        failPortalField(vacancyForm, "salaryOffer", salaryValidation.message);
         return;
       }
       const all = read(KEYS.vacancies, []);
@@ -872,7 +872,7 @@ function bindHiringPortalControls() {
         transportAllowance: data.transportAllowance
       });
       if (!comp.ok) {
-        notify(comp.message, "error");
+        failPortalField(positionForm, "baseSalary", comp.message);
         return;
       }
       const all = read(KEYS.positions, []);
@@ -1122,7 +1122,7 @@ function bindHiringPortalControls() {
       const data = readFormEntriesNormalized(candidateForm);
       const docValidation = validateColombianDocument(data.documentType, data.idDoc);
       if (!docValidation.ok) {
-        notify(docValidation.message, "error");
+        failPortalField(candidateForm, "idDoc", docValidation.message);
         return;
       }
       if (!(await candidateDuplicateDocCheck({ forceServer: false, fromSubmit: true }))) {
@@ -1133,16 +1133,16 @@ function bindHiringPortalControls() {
       const birthRaw = String(data.birthDate || "").trim().slice(0, 10);
       const candAgeInfo = portalCandidateAgeFromBirthIso(birthRaw);
       if (candAgeInfo.age === null) {
-        notify("Indique una fecha de nacimiento válida.", "error");
+        failPortalField(candidateForm, "birthDate", "Indique una fecha de nacimiento válida.");
         return;
       }
       if (candAgeInfo.age < 18) {
-        notify("El candidato debe ser mayor de 18 años.", "error");
+        failPortalField(candidateForm, "birthDate", "El candidato debe ser mayor de 18 años.");
         return;
       }
       const vac = read(KEYS.vacancies, []).find((v) => v.id === data.vacancyId);
       if (!vac) {
-        notify(userMessage("hireSelectVacancy"), "error");
+        failPortalField(candidateForm, "vacancyId", userMessage("hireSelectVacancy"));
         return;
       }
       if (!isVacancyAcceptingApplications(vac)) {
@@ -1157,7 +1157,7 @@ function bindHiringPortalControls() {
           : [...(candidateForm.querySelector("input[name='attachments']")?.files ?? [])].map((f) => f.name);
       const aspirationCheck = validateColombiaMonthlySalaryCop(data.expectedSalary, "Aspiración salarial");
       if (!aspirationCheck.ok) {
-        notify(aspirationCheck.message, "error");
+        failPortalField(candidateForm, "expectedSalary", aspirationCheck.message);
         return;
       }
       const expectedSalary = aspirationCheck.amount;
@@ -1171,7 +1171,7 @@ function bindHiringPortalControls() {
       }
       const availabilityTs = new Date(`${String(data.availabilityDate || "")}T12:00:00`).getTime();
       if (!Number.isFinite(availabilityTs) || availabilityTs < new Date(new Date().toDateString()).getTime()) {
-        notify(userMessage("candidateAvailabilityFuture"), "error");
+        failPortalField(candidateForm, "availabilityDate", userMessage("candidateAvailabilityFuture"));
         return;
       }
       const all = read(KEYS.candidates, []);
@@ -1262,12 +1262,12 @@ function bindHiringPortalControls() {
         ? new Date(`${whenRaw}:00-05:00`).getTime()
         : new Date(whenRaw).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
-        notify(userMessage("interviewScheduleFuture"), "error");
+        failPortalField(interviewForm, "when", userMessage("interviewScheduleFuture"));
         return;
       }
       const candidate = read(KEYS.candidates, []).find((c) => String(c.id) === String(data.candidateId || ""));
       if (!candidate) {
-        notify(userMessage("interviewCandidateMissing"), "error");
+        failPortalField(interviewForm, "candidateId", userMessage("interviewCandidateMissing"));
         return;
       }
       if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {

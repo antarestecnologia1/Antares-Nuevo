@@ -913,7 +913,7 @@ function transportTripsHtml() {
         const data = readFormEntriesNormalized(createTripForm);
         const requestId = String(data.requestId || "");
         if (!requestId) {
-          notify(userMessage("bulkSelectPending"), "error");
+          failPortalField(createTripForm, "requestId", userMessage("bulkSelectPending"));
           return;
         }
         const actor = currentUser();
@@ -948,8 +948,12 @@ function transportTripsHtml() {
         const driverId = String(data.driverId || "").trim();
         const schedPickup = requestSchedulingPickupIso(request);
         const schedDelivery = requestSchedulingDeliveryIso(request);
-        if (!vehicleId || !driverId) {
-          notify(userMessage("assignSelectResources"), "error");
+        if (!vehicleId) {
+          failPortalField(createTripForm, "vehicleId", userMessage("assignSelectResources"));
+          return;
+        }
+        if (!driverId) {
+          failPortalField(createTripForm, "driverId", userMessage("assignSelectResources"));
           return;
         }
         if (
@@ -976,7 +980,7 @@ function transportTripsHtml() {
         }
         const tripValue = parseMoneyFieldValue(data.tripValue);
         if (tripValue <= 0) {
-          notify(userMessage("assignPriceRequired"), "error");
+          failPortalField(createTripForm, "tripValue", userMessage("assignPriceRequired"));
           return;
         }
         const ok = approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
@@ -1152,16 +1156,29 @@ function transportTripsHtml() {
         const dd = normalizeLatinForDb(String(data.destinationDepartment || "").trim());
         const dc = normalizeLatinForDb(String(data.destinationCity || "").trim());
         const tripRateCop = parseMoneyFieldValue(data.tripRateCop);
-        if (!od || !oc || !dd || !dc) {
-          notify(userMessage("routeRateSelectRoute"), "error");
+        if (!od) {
+          failPortalField(routeRateFormEl, "originDepartment", userMessage("routeRateSelectRoute"));
+          return;
+        }
+        if (!oc) {
+          failPortalField(routeRateFormEl, "originCity", userMessage("routeRateSelectRoute"));
+          return;
+        }
+        if (!dd) {
+          failPortalField(routeRateFormEl, "destinationDepartment", userMessage("routeRateSelectRoute"));
+          return;
+        }
+        if (!dc) {
+          failPortalField(routeRateFormEl, "destinationCity", userMessage("routeRateSelectRoute"));
           return;
         }
         if (tripRateCop <= 0) {
-          notify(userMessage("routeRateInvalidCop"), "error");
+          failPortalField(routeRateFormEl, "tripRateCop", userMessage("routeRateInvalidCop"));
           return;
         }
         if (scope === "specific" && !companyIds.length) {
-          notify("Selecciona al menos una empresa para una tarifa específica.", "error");
+          const scopeEl = routeRateFormEl.querySelector("[data-route-rate-companies-field]") || routeRateFormEl.querySelector("[name='rateClientCompanies']");
+          failPortalField(routeRateFormEl, scopeEl || "rateClientCompanies", "Selecciona al menos una empresa para una tarifa específica.");
           return;
         }
         const routeKey = buildTripRouteRateKey(od, oc, dd, dc);

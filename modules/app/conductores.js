@@ -453,17 +453,17 @@ function driversHtml() {
         const actor = currentUser();
         const data = readFormEntriesNormalized(driverForm);
         if (!/^\d{10,15}$/.test(String(data.phone || "").trim())) {
-          notify(userMessage("driverPhoneInvalid"), "error");
+          failPortalField(driverForm, "phone", userMessage("driverPhoneInvalid"));
           return;
         }
         const docValidation = validateColombianDocument(data.documentType, data.idDoc);
         if (!docValidation.ok) {
-          notify(docValidation.message, "error");
+          failPortalField(driverForm, "idDoc", docValidation.message);
           return;
         }
         data.idDoc = docValidation.normalized;
         if (new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
-          notify(userMessage("driverLicenseRegister"), "error");
+          failPortalField(driverForm, "licenseExpiry", userMessage("driverLicenseRegister"));
           return;
         }
         if (actor?.role !== ROLES.ADMIN) {

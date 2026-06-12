@@ -482,6 +482,7 @@ export const APPROVAL_TYPE_META = {
   create_user: { sectionKey: "portal_access", label: "Alta de usuario del portal" },
   create_driver: { sectionKey: "transport_fleet", label: "Alta de conductor" },
   create_employee: { sectionKey: "workforce", label: "Alta de colaborador (gestión humana)" },
+  update_employee: { sectionKey: "workforce", label: "Modificación de colaborador (gestión humana)" },
   register_hr_absence: { sectionKey: "hr_absences", label: "Registro de ausencia o incapacidad" },
   mark_payroll_paid: { sectionKey: "payroll_pay", label: "Confirmar pago de liquidación" },
   approve_trip_request: { sectionKey: "misc", label: "Solicitud de transporte pendiente (historico en cola)" }
@@ -509,8 +510,8 @@ export const APPROVAL_UI_BLOCKS = [
     kind: "queue",
     title: "Talento, contratación y gestión humana",
     description:
-      "Ingreso de colaborador al expediente de personal cuando quien registra no es administrador. Incluye datos contractuales, seguridad social y desempeño del flujo de aprobación previo a la ficha activa.",
-    origin: "Gestión humana → nuevo empleado (no administrador)"
+      "Altas y cambios en el expediente de personal cuando quien registra o edita no es administrador. Incluye datos contractuales y de seguridad social; el administrador valida antes de aplicar la ficha activa.",
+    origin: "Gestión humana → nuevo colaborador o edición de ficha (no administrador)"
   },
   {
     key: "hr_absences",

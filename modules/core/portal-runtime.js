@@ -2648,7 +2648,7 @@ function initB2BFormExperience() {
     if (V && typeof V.validateDomForm === "function") {
       const domVal = V.validateDomForm(pane);
       if (!domVal.ok) {
-        domVal.firstInvalid?.focus?.();
+        V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
         return false;
       }
     }
@@ -2662,7 +2662,7 @@ function initB2BFormExperience() {
       }
     });
     if (firstInvalid) {
-      firstInvalid.focus();
+      V.focusInvalidField?.(firstInvalid, { pulse: true });
       return false;
     }
     return true;
@@ -2863,12 +2863,7 @@ function prepareCreationFormForSubmit(formEl) {
   V.decorateFormFields?.(formEl);
   const domVal = V.validateDomForm(formEl);
   if (!domVal.ok) {
-    domVal.firstInvalid?.focus?.();
-    const detail =
-      typeof window.readInlineOrNativeFieldError === "function"
-        ? window.readInlineOrNativeFieldError(domVal.firstInvalid)
-        : "";
-    window.notify?.(detail || window.userMessage?.("validationStep"), "error");
+    V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
     return false;
   }
   V.applyDomFormPatch?.(formEl, domVal.patch);

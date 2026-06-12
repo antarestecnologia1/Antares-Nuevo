@@ -961,8 +961,86 @@
     field.setAttribute("aria-invalid", "true");
     const hint = document.createElement("small");
     hint.className = "field-error";
+    hint.setAttribute("role", "alert");
     hint.textContent = message;
     mount.appendChild(hint);
+  }
+
+  function resolveFormField(form, fieldRef) {
+    if (!fieldRef) return null;
+    if (fieldRef instanceof Element) return fieldRef;
+    const ref = String(fieldRef).trim();
+    if (!ref) return null;
+    const scope = form && form.querySelector ? form : document;
+    if (form?.elements?.namedItem) {
+      const named = form.elements.namedItem(ref);
+      if (named instanceof Element) return named;
+      if (named instanceof RadioNodeList && named[0] instanceof Element) return named[0];
+    }
+    if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+      const byName = scope.querySelector(`[name="${CSS.escape(ref)}"]`);
+      if (byName) return byName;
+    } else {
+      const byName = scope.querySelector(`[name="${ref.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`);
+      if (byName) return byName;
+    }
+    if (ref.includes("[") || ref.includes("=") || ref.startsWith("#") || ref.startsWith(".")) {
+      try {
+        const bySelector = scope.querySelector(ref);
+        if (bySelector) return bySelector;
+      } catch (_e) {
+        /* selector inválido */
+      }
+    }
+    return scope.querySelector(`#${ref}`) || null;
+  }
+
+  /** Desplaza y enfoca el primer campo inválido (uso en guardar / siguiente paso). */
+  function focusInvalidField(field, opts = {}) {
+    if (!field) return;
+    const block = opts.block || "center";
+    try {
+      field.scrollIntoView?.({ behavior: opts.behavior || "smooth", block });
+    } catch (_e) {
+      /* noop */
+    }
+    try {
+      field.focus?.({ preventScroll: true });
+    } catch (_e) {
+      field.focus?.();
+    }
+    if (opts.pulse !== false) {
+      field.classList.remove("field-invalid-attention");
+      void field.offsetWidth;
+      field.classList.add("field-invalid-attention");
+      const clearPulse = () => field.classList.remove("field-invalid-attention");
+      field.addEventListener("animationend", clearPulse, { once: true });
+      window.setTimeout(clearPulse, 1400);
+    }
+  }
+
+  /** Marca error en un campo y lo enfoca; devuelve `false` para cortar el envío. */
+  function failField(form, fieldRef, message) {
+    const field = resolveFormField(form, fieldRef);
+    if (!field) return { ok: false, firstInvalid: null, message: message || MSG.required };
+    const msg = String(message || MSG.required).trim() || MSG.required;
+    setFieldError(field, msg);
+    focusInvalidField(field, { pulse: true });
+    return { ok: false, firstInvalid: field, message: msg };
+  }
+
+  function validatePortalForm(container, opts = {}) {
+    if (!container) return { ok: true, firstInvalid: null, patch: {} };
+    const form =
+      container instanceof HTMLFormElement
+        ? container
+        : container.closest?.("form") || (container.querySelector?.("form") ?? container);
+    decorateFormFields(form);
+    const result = validateDomForm(form);
+    if (!result.ok && result.firstInvalid && opts.focus !== false) {
+      focusInvalidField(result.firstInvalid, opts);
+    }
+    return result;
   }
 
   function applyRestrictToValue(el, mode) {
@@ -1471,29 +1549,55 @@
 
   function validateProfileForm(data) {
     const name = normalizeLatinUpperForDb(sanitizeOneLineText(data.name, 200));
-    if (name.length < 2) return { ok: false, message: "El nombre completo es obligatorio (mínimo 2 caracteres)." };
-    if (!RE_PERSON_NAME.test(name)) return { ok: false, message: MSG.personName };
+    if (name.length < 2) {
+      return {
+        ok: false,
+        message: "El nombre completo es obligatorio (mínimo 2 caracteres).",
+        fieldSelector: "input[name='name']"
+      };
+    }
+    if (!RE_PERSON_NAME.test(name)) {
+      return { ok: false, message: MSG.personName, fieldSelector: "input[name='name']" };
+    }
 
     const docType = String(data.documentType || "CC").toUpperCase();
     const taxRaw = String(data.taxId || "").trim();
     if (taxRaw) {
       const dv = validateColombianDocument(docType, taxRaw);
-      if (!dv.ok) return { ok: false, message: dv.message };
+      if (!dv.ok) return { ok: false, message: dv.message, fieldSelector: "input[name='taxId']" };
     }
 
     const birth = parseDmyToIsoDate(data.birthDate) || String(data.birthDate || "").trim();
-    if (birth && !isValidIsoDate(birth)) return { ok: false, message: MSG.date };
+    if (birth && !isValidIsoDate(birth)) {
+      return { ok: false, message: MSG.date, fieldSelector: "input[name='birthDate']" };
+    }
 
     const phone = String(data.phone || "").replace(/\D/g, "");
-    if (phone && (phone.length < 7 || phone.length > 15))
-      return { ok: false, message: "Ingrese un teléfono celular válido (solo dígitos, 7 a 15)." };
+    if (phone && (phone.length < 7 || phone.length > 15)) {
+      return {
+        ok: false,
+        message: "Ingrese un teléfono celular válido (solo dígitos, 7 a 15).",
+        fieldSelector: "input[name='phone']"
+      };
+    }
 
     const emName = sanitizeOneLineText(data.emergencyContact, 120);
-    if (emName && !RE_PERSON_NAME.test(emName)) return { ok: false, message: "Nombre de contacto de emergencia no válido." };
+    if (emName && !RE_PERSON_NAME.test(emName)) {
+      return {
+        ok: false,
+        message: "Nombre de contacto de emergencia no válido.",
+        fieldSelector: "input[name='emergencyContact']"
+      };
+    }
 
     const emPhone = String(data.emergencyPhone || "").replace(/\D/g, "");
-    if (emPhone && (emPhone.length < 7 || emPhone.length > 15))
-      return { ok: false, message: "Teléfono de emergencia no válido." };
+    if (emPhone && (emPhone.length < 7 || emPhone.length > 15)) {
+      return {
+        ok: false,
+        message: "Teléfono de emergencia no válido.",
+        fieldSelector: "input[name='emergencyPhone']"
+      };
+    }
 
     return {
       ok: true,
@@ -1521,10 +1625,19 @@
       (ev) => {
         const t = ev.target;
         if (!t || !t.getAttribute) return;
+        if (t.classList?.contains("field-invalid")) clearFieldError(t);
         const mode = t.getAttribute("data-antares-restrict");
         if (!mode || (t.disabled && t.getAttribute("data-antares-restrict-always") !== "1")) return;
         if (t.type === "file" || t.type === "hidden") return;
         applyRestrictToValue(t, mode);
+      },
+      true
+    );
+    rootEl.addEventListener(
+      "change",
+      (ev) => {
+        const t = ev.target;
+        if (t?.classList?.contains("field-invalid")) clearFieldError(t);
       },
       true
     );
@@ -1591,6 +1704,10 @@
     sanitizeMultiline,
     clearFieldError,
     setFieldError,
+    resolveFormField,
+    focusInvalidField,
+    failField,
+    validatePortalForm,
     validateAuthLogin,
     validateB2bProspectClient,
     validateProfileForm,

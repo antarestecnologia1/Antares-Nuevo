@@ -542,13 +542,13 @@ function vehiclesHtml() {
         const data = readFormEntriesNormalized(vehicleForm);
         const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
         if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
-          notify(userMessage("vehiclePlateInvalid"), "error");
+          failPortalField(vehicleForm, "plate", userMessage("vehiclePlateInvalid"));
           return;
         }
         const modelYear = parseNum(data.year);
         const currentYear = new Date().getFullYear();
         if (modelYear < 1990 || modelYear > currentYear + 1) {
-          notify(userMessage("vehicleYearInvalid"), "error");
+          failPortalField(vehicleForm, "year", userMessage("vehicleYearInvalid"));
           return;
         }
         let soatExpeditionDate = data.soatExpeditionDate;
@@ -793,14 +793,22 @@ function vehiclesHtml() {
         const data = readFormEntriesNormalized(fuelLogForm);
         const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
         const driver = read(KEYS.drivers, []).find((d) => String(d.id) === String(data.driverId || ""));
-        if (!vehicle || !driver) {
-          notify(userMessage("fuelSelectBoth"), "error");
+        if (!vehicle) {
+          failPortalField(fuelLogForm, "vehicleId", userMessage("fuelSelectBoth"));
+          return;
+        }
+        if (!driver) {
+          failPortalField(fuelLogForm, "driverId", userMessage("fuelSelectBoth"));
           return;
         }
         const liters = parseNum(data.liters);
         const totalCost = parseMoneyFieldValue(data.totalCost);
-        if (liters <= 0 || totalCost < 0) {
-          notify(userMessage("fuelInvalidAmounts"), "error");
+        if (liters <= 0) {
+          failPortalField(fuelLogForm, "liters", userMessage("fuelInvalidAmounts"));
+          return;
+        }
+        if (totalCost < 0) {
+          failPortalField(fuelLogForm, "totalCost", userMessage("fuelInvalidAmounts"));
           return;
         }
         try {
@@ -839,12 +847,12 @@ function vehiclesHtml() {
         const data = readFormEntriesNormalized(technicalLogForm);
         const vehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(data.vehicleId || ""));
         if (!vehicle) {
-          notify(userMessage("fuelSelectVehicle"), "error");
+          failPortalField(technicalLogForm, "vehicleId", userMessage("fuelSelectVehicle"));
           return;
         }
         const cost = parseMoneyFieldValue(data.cost);
         if (!String(data.description || "").trim()) {
-          notify("Indique una descripción de la novedad de taller.", "error");
+          failPortalField(technicalLogForm, "description", "Indique una descripción de la novedad de taller.");
           return;
         }
         try {
