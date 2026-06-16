@@ -1233,12 +1233,12 @@ function bindPayrollPortalControls() {
         payFreqNorm === "quincenal"
           ? Math.round((baseSalaryMonthly / 30) * diasCorte)
           : baseSalaryMonthly;
+      const extras = parseNum(data.extras);
       const auxRaw = parseNum(data.aux);
       const aux =
         payFreqNorm === "quincenal" && auxRaw > 0
           ? Math.round((auxRaw / 30) * diasCorte)
           : auxRaw;
-      const extrasManual = parseNum(data.extras);
       const bonus = parseNum(data.bonus);
       const empleadoAuxilioRef = readEmployeeTransportAllowanceCop(employee);
       const payrollAbsencesAll = read(KEYS.hrAbsences, []);
@@ -1248,43 +1248,21 @@ function bindPayrollPortalControls() {
         absencesAll: payrollAbsencesAll
       });
       const incapacityAdjustCop = parseNum(incapacityCalc.adjustCop);
-      const position =
-        typeof getPositionById === "function" ? getPositionById(String(employee.positionId || "")) : null;
-      const liquidation = buildColombiaPayrollLiquidation({
-        employee,
-        position,
-        baseSalaryCop: baseSalary,
-        diasCorte,
-        extrasManualCop: extrasManual,
-        bonusCop: bonus,
-        overtimeInput: {
-          hed: parseNum(data.hedHours),
-          hen: parseNum(data.henHours),
-          hrdf: parseNum(data.hrdfHours),
-          hrnf: parseNum(data.hrnfHours),
-          recargoNocturnoHoras: parseNum(data.recargoNocturnoHoras)
-        },
-        auxCop: aux,
-        travelAllowanceCop: travelAllowance,
-        fuelReimbursementCop: fuelReimbursement,
-        incapacityAdjustCop,
-        primaServiciosCop: payPrima ? primaServiciosCop : 0,
-        interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
-        withholdingDependents: parseNum(data.withholdingDependents)
-      });
-      const extras = liquidation.extrasTotalCop;
-      const ibc = liquidation.ibc;
-      const health = liquidation.employeeDeductions.health;
-      const pension = liquidation.employeeDeductions.pension;
-      const solidarity = liquidation.employeeDeductions.solidarity;
-      const subsistence = liquidation.employeeDeductions.subsistence;
-      const withholding = liquidation.withholding.withholdingCop;
-      const deductions = liquidation.totalDeductions;
-      const gross = liquidation.gross;
-      const net = liquidation.net;
+      const grossMonthlyBase =
+        baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement + incapacityAdjustCop;
+      const gross =
+        grossMonthlyBase +
+        (payPrima ? primaServiciosCop : 0) +
+        (payInteresesCesantias ? interesesCesantiasCop : 0);
+      const ibc = baseSalary + extras + bonus;
+      const health = ibc * CO_PAYROLL.healthEmployeeRate;
+      const pension = ibc * CO_PAYROLL.pensionEmployeeRate;
+      const solidarity = ibc > CO_PAYROLL.smmlv * CO_PAYROLL.solidarityThresholdSmmlv ? ibc * CO_PAYROLL.solidarityRate : 0;
+      const deductions = health + pension + solidarity;
+      const net = gross - deductions;
       const devengosLines = buildPayrollMensualDevengosLines({
         baseSalary,
-        extras: extrasManual,
+        extras,
         aux,
         bonus,
         travelAllowance,
@@ -1292,8 +1270,7 @@ function bindPayrollPortalControls() {
         primaServiciosCop: payPrima ? primaServiciosCop : 0,
         interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
         empleadoAuxilioTransporteMensualCop: empleadoAuxilioRef,
-        incapacityEpisodes: incapacityCalc.episodes,
-        overtimeLines: liquidation.overtime?.lines
+        incapacityEpisodes: incapacityCalc.episodes
       });
       const incapacityNovelty = {
         episodes: incapacityCalc.episodes,
@@ -1328,33 +1305,14 @@ function bindPayrollPortalControls() {
         bonus,
         devengosLines,
         liquidacionOrigin: "manual",
-        noveltiesDetail: {
-          devengosLines,
-          incapacity: incapacityNovelty,
-          absenceSlipDetail,
-          employerContributions: liquidation.employerContributions,
-          provisions: liquidation.provisions,
-          withholding: liquidation.withholding,
-          integralSalaryApplied: liquidation.integralSalaryApplied
-        },
+        noveltiesDetail: { devengosLines, incapacity: incapacityNovelty, absenceSlipDetail },
         tripCount: monthlyDriver?.tripCount || 0,
         interDepartmentTrips: monthlyDriver?.interDepartmentTrips || 0,
         health,
         pension,
         solidarity,
-        subsistence,
-        withholding,
         deductions,
         net,
-        integralSalaryApplied: liquidation.integralSalaryApplied,
-        employerContributions: liquidation.employerContributions,
-        provisions: liquidation.provisions,
-        overtimeDetail: liquidation.overtime,
-        legalPayrollDetail: {
-          solidarityTramo: liquidation.employeeDeductions.solidarityTramo,
-          withholdingNote: liquidation.withholding.note,
-          disclaimer: liquidation.legalDisclaimer
-        },
         paid: false,
         createdAt: nowIso(),
         payrollKind,
@@ -1746,30 +1704,11 @@ function bindPayrollPortalControls() {
         const dedRowsMes = isTripPrestacion
           ? `<tr><td style="${cL}" colspan="2">PrestaciÃ³n de servicios: sin aportes de salud, pensiÃ³n ni FSP en este comprobante (pago por viajes).</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-          : `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)${run.integralSalaryApplied ? " · 70% salario integral" : ""}</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
-            `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (tramos Ley 100)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
-            (parseNum(run.subsistence) > 0
-              ? `<tr><td style="${cL}">Subsistencia pensional (0,5% sobre IBC)</td><td style="${cR}">${fmtPay(run.subsistence)}</td></tr>`
-              : "") +
-            (parseNum(run.withholding) > 0
-              ? `<tr><td style="${cL}">Retención en la fuente (orientativa)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
-              : "") +
+          : `<tr><td style="${cL}">Salario integral de cotizaciÃ³n â€” IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte obligatorio salud â€” empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte pensiÃ³n obligatoria â€” empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+            `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
-        const employer = run.employerContributions || run.noveltiesDetail?.employerContributions;
-        const employerRows =
-          employer && typeof employer === "object" && parseNum(employer.total) > 0
-            ? `<h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">IV. Aportes patronales (informativo)</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">No se descuentan al trabajador; referencia para costo empresa y PILA.</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>
-            <tr><td style="${cL}">Salud empleador (8,5%)</td><td style="${cR}">${fmtPay(employer.health)}</td></tr>
-            <tr><td style="${cL}">Pensión empleador (12%)</td><td style="${cR}">${fmtPay(employer.pension)}</td></tr>
-            <tr><td style="${cL}">ARL (${employer.arlRatePct != null ? `${employer.arlRatePct}%` : "nivel cargo"})</td><td style="${cR}">${fmtPay(employer.arl)}</td></tr>
-            <tr><td style="${cL}">SENA + ICBF + Caja</td><td style="${cR}">${fmtPay(parseNum(employer.sena) + parseNum(employer.icbf) + parseNum(employer.caja))}</td></tr>
-            <tr><td style="${cL}"><strong>Total patronal orientativo</strong></td><td style="${cR}"><strong>${fmtPay(employer.total)}</strong></td></tr>
-          </tbody></table>`
-            : "";
         const workedDaysRows =
           workedDays > 0 || workedDaysPaymentCop > 0
             ? `<tr><td style="${cL}">Pago por dÃ­as laborados (${workedDays.toLocaleString("es-CO")} dÃ­as)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
@@ -1788,7 +1727,6 @@ function bindPayrollPortalControls() {
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de dÃ­as laborados</h2>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
-          ${employerRows}
           <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
             <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
           </tbody></table>`;

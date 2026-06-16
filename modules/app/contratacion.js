@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Contratación — adjuntos de candidato y listeners.
  */
 function parseCandidateAttachmentsForView(raw, opts = {}) {

@@ -1353,18 +1353,6 @@ function wireMonthlyPayrollConcepts(form) {
     recalcPrimaCop();
     recalcInteresesCop();
     syncSemestralConceptEligibility();
-    const cesAlertEl = form.querySelector("#payroll-cesantias-consign-alert");
-    if (cesAlertEl && typeof payrollCesantiasConsignmentAlert === "function") {
-      const alert = payrollCesantiasConsignmentAlert(monthEl.value);
-      if (alert?.message) {
-        cesAlertEl.textContent = alert.message;
-        cesAlertEl.classList.remove("hidden");
-        cesAlertEl.style.color = alert.level === "warning" ? "#b45309" : "#495057";
-      } else {
-        cesAlertEl.textContent = "";
-        cesAlertEl.classList.add("hidden");
-      }
-    }
   };
 
   const quincenaWrap = form.querySelector("#payroll-quincena-wrap");
